@@ -18,11 +18,11 @@ fn premise_dependent_call_retains_its_compatibility_evidence() {
     let certificate = premised_certificate(&checked);
     assert_eq!(
         certificate.left.subject,
-        checked_trees::BorrowCallCompatibilitySubject::Argument(0)
+        crate::checked_trees::BorrowCallCompatibilitySubject::Argument(0)
     );
     assert!(matches!(
         certificate.right.subject,
-        checked_trees::BorrowCallCompatibilitySubject::ActiveLoan(_)
+        crate::checked_trees::BorrowCallCompatibilitySubject::ActiveLoan(_)
     ));
     assert!(certificate.conclusion.disjoint && certificate.conclusion.non_interfering);
     assert_eq!(certificate.premises.len(), 1);
@@ -56,22 +56,22 @@ fn premise_dependent_call_retains_its_compatibility_evidence() {
 }
 
 fn premised_certificate(
-    checked: &checked_trees::CheckedTrees,
-) -> checked_trees::CheckedBorrowCallCompatibilityCertificate {
+    checked: &crate::checked_trees::CheckedTrees,
+) -> crate::checked_trees::CheckedBorrowCallCompatibilityCertificate {
     checked
         .facts
         .borrow
         .call_compatibility_certificates
         .iter()
         .find(|(_, certificate)| {
-            certificate.derivation == checked_trees::BorrowCompatibilityDerivation::Premised
+            certificate.derivation == crate::checked_trees::BorrowCompatibilityDerivation::Premised
         })
         .expect("the accepted call depends on a retained ordering premise")
         .1
         .clone()
 }
 
-fn assert_replay_rejects(checked: &mut checked_trees::CheckedTrees, message: &str) {
+fn assert_replay_rejects(checked: &mut crate::checked_trees::CheckedTrees, message: &str) {
     let before = checked.facts.borrow.call_compatibility_certificates.clone();
     let diagnostics =
         crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
@@ -131,16 +131,17 @@ fn call_certificate_rejects_missing_duplicate_and_changed_evidence() {
             }
             "subject" => {
                 certificate.left.subject =
-                    checked_trees::BorrowCallCompatibilitySubject::Argument(1)
+                    crate::checked_trees::BorrowCallCompatibilitySubject::Argument(1)
             }
             "callee" => certificate.target_symbol = Default::default(),
             "formation" => certificate.call_ordinal += 1,
             "premise" => certificate.premises.clear(),
             "selector" => certificate.selector_snapshot.reverse(),
-            "access" => certificate.left.access = checked_trees::BorrowAccessKind::Read,
+            "access" => certificate.left.access = crate::checked_trees::BorrowAccessKind::Read,
             "conclusion" => certificate.conclusion.disjoint = false,
             "derivation" => {
-                certificate.derivation = checked_trees::BorrowCompatibilityDerivation::Structural
+                certificate.derivation =
+                    crate::checked_trees::BorrowCompatibilityDerivation::Structural
             }
             _ => unreachable!(),
         }
@@ -204,7 +205,7 @@ fn rhs_call_observes_old_reference_before_reassignment() {
             .iter()
             .any(|(_, certificate)| matches!(
                 certificate.right.subject,
-                checked_trees::BorrowCallCompatibilitySubject::ActiveLoan(_)
+                crate::checked_trees::BorrowCallCompatibilitySubject::ActiveLoan(_)
             ))
     );
     crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts).unwrap();
@@ -255,7 +256,7 @@ fn jointly_forged_argument_access_and_certificate_reject_against_source() {
         .accesses
         .start();
     checked.facts.borrow.argument_accesses.get_mut(access).kind =
-        checked_trees::BorrowAccessKind::Read;
+        crate::checked_trees::BorrowAccessKind::Read;
     let rows: Vec<_> = checked
         .facts
         .borrow
@@ -270,7 +271,7 @@ fn jointly_forged_argument_access_and_certificate_reject_against_source() {
             .call_compatibility_certificates
             .get_mut(handle)
             .left
-            .access = checked_trees::BorrowAccessKind::Read;
+            .access = crate::checked_trees::BorrowAccessKind::Read;
     }
     assert_replay_rejects(&mut checked, "call roster drifted");
 }
@@ -285,12 +286,12 @@ fn changed_typed_selector_rejects_call_evidence() {
         .segments
         .iter()
         .find_map(|segment| match segment {
-            facts::PlaceSegment::Index { expression } => Some(*expression),
+            crate::fact_plan::PlaceSegment::Index { expression } => Some(*expression),
             _ => None,
         })
         .expect("dynamic call selector");
     *checked.typed.expression_table.expression_mut(selector) =
-        typed_trees::expression::ExpressionNode::Integer(
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Integer(
             numerics::literals::IntegerLiteral::from_value(3),
         );
     assert_replay_rejects(&mut checked, "call compatibility ledger drifted");
@@ -321,7 +322,7 @@ fn deleting_call_entry_loan_and_its_certificate_cannot_hide_live_authority() {
     for handle in handles {
         if matches!(
             checked.facts.flow.contexts.constraint_refs.get(handle).kind,
-            checked_trees::FlowConstraintKind::BorrowLoan { .. }
+            crate::checked_trees::FlowConstraintKind::BorrowLoan { .. }
         ) {
             checked
                 .facts
@@ -329,7 +330,7 @@ fn deleting_call_entry_loan_and_its_certificate_cannot_hide_live_authority() {
                 .contexts
                 .constraint_refs
                 .get_mut(handle)
-                .kind = checked_trees::FlowConstraintKind::Unknown;
+                .kind = crate::checked_trees::FlowConstraintKind::Unknown;
         }
     }
     checked
@@ -357,11 +358,11 @@ fn exclusive_argument_pair_retains_disequality_without_fabricating_loans() {
     let certificate = premised_certificate(&checked);
     assert_eq!(
         certificate.left.subject,
-        checked_trees::BorrowCallCompatibilitySubject::Argument(0)
+        crate::checked_trees::BorrowCallCompatibilitySubject::Argument(0)
     );
     assert_eq!(
         certificate.right.subject,
-        checked_trees::BorrowCallCompatibilitySubject::Argument(1)
+        crate::checked_trees::BorrowCallCompatibilitySubject::Argument(1)
     );
     crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts).unwrap();
 }
@@ -402,7 +403,7 @@ fn repeated_call_coordinates_in_different_states_keep_distinct_borrow_identities
                 .span_or_empty(constraints)
                 .iter()
                 .find_map(|entry| match entry.kind {
-                    checked_trees::FlowConstraintKind::BorrowCall { call } => Some(call),
+                    crate::checked_trees::FlowConstraintKind::BorrowCall { call } => Some(call),
                     _ => None,
                 })
                 .unwrap();
@@ -453,16 +454,17 @@ fn projected_receiver_certifies_argument_and_live_loan_comparisons() {
         .iter()
         .map(|(_, certificate)| certificate)
         .filter(|certificate| {
-            certificate.left.subject == checked_trees::BorrowCallCompatibilitySubject::Receiver
+            certificate.left.subject
+                == crate::checked_trees::BorrowCallCompatibilitySubject::Receiver
         })
         .collect();
     assert!(receivers.iter().any(|certificate| matches!(
         certificate.right.subject,
-        checked_trees::BorrowCallCompatibilitySubject::Argument(_)
+        crate::checked_trees::BorrowCallCompatibilitySubject::Argument(_)
     )));
     assert!(receivers.iter().any(|certificate| matches!(
         certificate.right.subject,
-        checked_trees::BorrowCallCompatibilitySubject::ActiveLoan(_)
+        crate::checked_trees::BorrowCallCompatibilitySubject::ActiveLoan(_)
     )));
     crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts).unwrap();
 }
@@ -489,10 +491,10 @@ fn disjoint_owned_transfer_retains_its_comparison_with_a_live_loan() {
             .iter()
             .any(|(_, certificate)| matches!(
                 certificate.left.subject,
-                checked_trees::BorrowCallCompatibilitySubject::TransferredPlace(_)
+                crate::checked_trees::BorrowCallCompatibilitySubject::TransferredPlace(_)
             ) && matches!(
                 certificate.right.subject,
-                checked_trees::BorrowCallCompatibilitySubject::ActiveLoan(_)
+                crate::checked_trees::BorrowCallCompatibilitySubject::ActiveLoan(_)
             ))
     );
     crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts).unwrap();
@@ -519,7 +521,9 @@ fn derived_loan_lifecycle_cannot_be_moved_to_erase_a_call_comparison() {
             .borrow
             .loans
             .iter()
-            .find(|(_, loan)| loan.lineage == checked_trees::BorrowLoanLineage::UnretainedDerived)
+            .find(|(_, loan)| {
+                loan.lineage == crate::checked_trees::BorrowLoanLineage::UnretainedDerived
+            })
             .expect("reference-returning call produces a derived loan");
         let statement_index = loan.statement_index + 1;
         if change_activation {
@@ -538,7 +542,8 @@ fn derived_loan_lifecycle_cannot_be_moved_to_erase_a_call_comparison() {
                 .borrow_lifetimes
                 .activations
                 .get_mut(activation)
-                .source = checked_trees::FlowInvalidationSource::Statement { statement_index };
+                .source =
+                crate::checked_trees::FlowInvalidationSource::Statement { statement_index };
         } else {
             let weakening = checked
                 .facts
@@ -555,8 +560,9 @@ fn derived_loan_lifecycle_cannot_be_moved_to_erase_a_call_comparison() {
                 .borrow_lifetimes
                 .weakenings
                 .get_mut(weakening);
-            weakening.source = checked_trees::FlowInvalidationSource::Statement { statement_index };
-            weakening.reason = checked_trees::FlowBorrowWeakeningReason::LastUseExpired;
+            weakening.source =
+                crate::checked_trees::FlowInvalidationSource::Statement { statement_index };
+            weakening.reason = crate::checked_trees::FlowBorrowWeakeningReason::LastUseExpired;
         }
         let invocation = checked
             .facts
@@ -574,7 +580,7 @@ fn derived_loan_lifecycle_cannot_be_moved_to_erase_a_call_comparison() {
                 invocation.entry_constraints.start().generation(),
             );
             if matches!(checked.facts.flow.contexts.constraint_refs.get(constraint).kind,
-            checked_trees::FlowConstraintKind::BorrowLoan { loan } if loan == handle)
+            crate::checked_trees::FlowConstraintKind::BorrowLoan { loan } if loan == handle)
             {
                 checked
                     .facts
@@ -582,7 +588,7 @@ fn derived_loan_lifecycle_cannot_be_moved_to_erase_a_call_comparison() {
                     .contexts
                     .constraint_refs
                     .get_mut(constraint)
-                    .kind = checked_trees::FlowConstraintKind::Unknown;
+                    .kind = crate::checked_trees::FlowConstraintKind::Unknown;
             }
         }
         let certificates: Vec<_> = checked

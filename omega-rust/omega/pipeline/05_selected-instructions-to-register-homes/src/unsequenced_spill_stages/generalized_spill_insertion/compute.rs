@@ -10,8 +10,8 @@ use crate::unsequenced_spill_stages::{
     GeneralizedSpillSlot, SpillRecoveryLogicalAction, ValidatedAbstractSpillInsertion,
     ValidatedSpillRecoveryActions,
 };
-use register_homes::LogicalSpillStorageClass;
-use selected_instructions::LiveRangePoint;
+use selected_instructions_to_selected_instructions::register_homes::LogicalSpillStorageClass;
+use target_operations_to_selected_instructions::LiveRangePoint;
 
 const SLOT_BYTES: u64 = 8;
 
@@ -20,23 +20,24 @@ pub(super) struct PendingAction {
     pub id: GeneralizedSpillActionId,
     pub source: GeneralizedSpillActionSource,
     pub class: LogicalSpillStorageClass,
-    pub block: selected_instructions::SelectedBlockId,
+    pub block: target_operations_to_selected_instructions::SelectedBlockId,
     pub live_from: LiveRangePoint,
     pub live_through: LiveRangePoint,
-    pub store_instruction: selected_instructions::SelectedInstructionId,
+    pub store_instruction: target_operations_to_selected_instructions::SelectedInstructionId,
     pub before_reload: Option<GeneralizedSpillActionId>,
-    pub store_source: selected_instructions::VirtualRegisterId,
-    pub source_view: register_model::RegisterViewId,
-    pub reload_instruction: selected_instructions::SelectedInstructionId,
-    pub destination_class: register_model::RegisterClassId,
+    pub store_source: target_operations_to_selected_instructions::VirtualRegisterId,
+    pub source_view: target_operations_to_selected_instructions::register_model::RegisterViewId,
+    pub reload_instruction: target_operations_to_selected_instructions::SelectedInstructionId,
+    pub destination_class:
+        target_operations_to_selected_instructions::register_model::RegisterClassId,
     pub rewrites: Vec<PendingRewrite>,
 }
 
 #[derive(Clone, Copy)]
 pub(super) struct PendingRewrite {
-    pub block: selected_instructions::SelectedBlockId,
+    pub block: target_operations_to_selected_instructions::SelectedBlockId,
     pub point: LiveRangePoint,
-    pub instruction: selected_instructions::SelectedInstructionId,
+    pub instruction: target_operations_to_selected_instructions::SelectedInstructionId,
     pub operand: u16,
 }
 

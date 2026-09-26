@@ -1,13 +1,17 @@
+use crate::checked_trees::{CheckFacts, ContractProofFactOwner};
 use crate::semantic::calls::MeasureReceiver;
-use checked_trees::{CheckFacts, ContractProofFact, ContractProofFactOwner};
 use language_semantics::declaration_selection::CollectionMeasure;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode, TableMemberExpression,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMemberExpression};
-use typed_trees::signature::StateParameter;
-use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum OwnerMemberTarget {
@@ -40,13 +44,11 @@ struct TypeEnvironment {
 /// One queried expression's exact-owner rows. `environments` carries the
 /// collectors' environments in the same order `exact_owner_environments`
 /// produced them; `executable_sites` locates the statements containing the
-/// expression for `checked_machine_call_target_from_executable_owner`;
-/// `contract_facts` names every checked contract fact whose roots reach it.
+/// expression for `checked_machine_call_target_from_executable_owner`.
 #[derive(Default)]
 struct ExactOwnerEntry {
     environments: Vec<usize>,
     executable_sites: Vec<ExecutableSite>,
-    contract_facts: Vec<arena::Handle<ContractProofFact>>,
 }
 
 /// Every indexed environment once, and each expression's rows naming them by
@@ -140,21 +142,6 @@ impl OwnerEnvironmentIndex {
             .unwrap_or_default()
     }
 
-    /// Every checked contract fact whose roots reach `expression`, in arena
-    /// order.
-    pub(super) fn containing_contract_facts(
-        &self,
-        program: &TypedTrees,
-        facts: &CheckFacts,
-        expression: ExpressionHandle,
-    ) -> Vec<arena::Handle<ContractProofFact>> {
-        self.index(program, facts)
-            .entries
-            .get(&expression)
-            .map(|entry| entry.contract_facts.clone())
-            .unwrap_or_default()
-    }
-
     fn index<'a>(
         &'a self,
         program: &TypedTrees,
@@ -243,7 +230,7 @@ pub(super) fn checked_collection_view_intrinsic_from_exact_owner(
     program: &TypedTrees,
     facts: &CheckFacts,
     expression: ExpressionHandle,
-    call: &typed_trees::expression::TableCallExpression,
+    call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
     owner_index: Option<&OwnerEnvironmentIndex>,
 ) -> Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic> {
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
@@ -269,7 +256,7 @@ pub(super) fn checked_machine_call_target_from_exact_owner(
     program: &TypedTrees,
     facts: &CheckFacts,
     expression: ExpressionHandle,
-    call: &typed_trees::expression::TableCallExpression,
+    call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
     owner_index: Option<&OwnerEnvironmentIndex>,
 ) -> Option<SymbolHandle> {
     checked_machine_call_target_from_type_owners(program, facts, expression, call, owner_index)
@@ -288,7 +275,7 @@ fn checked_machine_call_target_from_type_owners(
     program: &TypedTrees,
     facts: &CheckFacts,
     expression: ExpressionHandle,
-    call: &typed_trees::expression::TableCallExpression,
+    call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
     owner_index: Option<&OwnerEnvironmentIndex>,
 ) -> Option<SymbolHandle> {
     let mut target = None;
@@ -303,7 +290,7 @@ fn checked_machine_call_target_from_executable_owner(
     program: &TypedTrees,
     facts: &CheckFacts,
     expression: ExpressionHandle,
-    call: &typed_trees::expression::TableCallExpression,
+    call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
     owner_index: Option<&OwnerEnvironmentIndex>,
 ) -> Option<SymbolHandle> {
     let mut target = None;
@@ -384,11 +371,11 @@ fn checked_machine_call_target_from_executable_owner(
 /// inferred in the environment the statement's prefix bindings establish.
 fn executable_site_call_candidate(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statements: &[typed_trees::statement::StatementNode],
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    statements: &[symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode],
     statement_index: usize,
-    call: &typed_trees::expression::TableCallExpression,
+    call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
 ) -> SymbolHandle {
     let (receiver_symbol, receiver_path) =
         crate::lookup::call_receiver_parts(program, call.receiver);
@@ -409,7 +396,7 @@ fn executable_site_call_candidate(
                 parameter.name == call.target
                     && matches!(
                         parameter.kind,
-                        typed_trees::data::TypeParameterKind::Machine { .. }
+                        symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Machine { .. }
                     )
             })
             .map(|parameter| parameter.symbol)
@@ -435,9 +422,9 @@ fn executable_site_call_candidate(
 /// environment extended by the `LocalData` bindings preceding the statement.
 fn executable_site_environment(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statements: &[typed_trees::statement::StatementNode],
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    statements: &[symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode],
     statement_index: usize,
 ) -> TypeEnvironment {
     let mut environment = machine_environment(program, machine, Some(state));
@@ -446,7 +433,7 @@ fn executable_site_environment(
             .iter()
             .take(statement_index)
             .filter_map(|statement| match statement {
-                typed_trees::statement::StatementNode::LocalData(local)
+                symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local)
                     if local.type_reference.is_valid() =>
                 {
                     Some(Binding {
@@ -463,7 +450,7 @@ fn executable_site_environment(
 
 fn call_target_in_environment(
     program: &TypedTrees,
-    call: &typed_trees::expression::TableCallExpression,
+    call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
     environment: &TypeEnvironment,
 ) -> Option<SymbolHandle> {
     if !call.receiver.is_valid() {
@@ -586,7 +573,11 @@ fn contract_owner_environment(
             state_symbol,
         } => signature_environment(program, owner_symbol, state_symbol),
         ContractProofFactOwner::OperatorDeclaration { operator_symbol } => {
-            let operator = typed_trees::operator::declaration_by_symbol(program, operator_symbol)?;
+            let operator =
+                symbol_resolved_trees_to_typed_trees::typed_trees::operator::declaration_by_symbol(
+                    program,
+                    operator_symbol,
+                )?;
             Some(environment_from_parameters(
                 program.operator_parameters(operator),
                 operator.return_type,
@@ -596,7 +587,11 @@ fn contract_owner_environment(
         ContractProofFactOwner::OperatorUse {
             operator_symbol, ..
         } => {
-            let operator = typed_trees::operator::declaration_by_symbol(program, operator_symbol)?;
+            let operator =
+                symbol_resolved_trees_to_typed_trees::typed_trees::operator::declaration_by_symbol(
+                    program,
+                    operator_symbol,
+                )?;
             Some(environment_from_parameters(
                 program.operator_parameters(operator),
                 operator.return_type,
@@ -609,8 +604,8 @@ fn contract_owner_environment(
 
 fn machine_environment(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: Option<&typed_trees::state::State>,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: Option<&symbol_resolved_trees_to_typed_trees::typed_trees::state::State>,
 ) -> TypeEnvironment {
     let parameters = state.map_or(&[][..], |state| program.state_parameters(state));
     let result_type =
@@ -676,7 +671,7 @@ fn environment_from_parameters(
 
 fn proof_fact_contains_expression(
     program: &TypedTrees,
-    fact: arena::Handle<typed_trees::domain::ProofFact>,
+    fact: arena::Handle<symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact>,
     expression: ExpressionHandle,
 ) -> bool {
     proof_fact_value_contains_expression(program, program.proof_facts.get(fact), expression)
@@ -684,23 +679,25 @@ fn proof_fact_contains_expression(
 
 fn proof_fact_value_contains_expression(
     program: &TypedTrees,
-    fact: &typed_trees::domain::ProofFact,
+    fact: &symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact,
     expression: ExpressionHandle,
 ) -> bool {
     match fact {
-        typed_trees::domain::ProofFact::Expression(root) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(root) => {
             crate::authored_selections::member_targets::expression_contains(
                 program, *root, expression,
             )
         }
-        typed_trees::domain::ProofFact::Membership(membership) => {
-            crate::authored_selections::member_targets::expression_contains(
-                program,
-                membership.value,
-                expression,
-            )
-        }
-        typed_trees::domain::ProofFact::Proposition(application) => program
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(
+            membership,
+        ) => crate::authored_selections::member_targets::expression_contains(
+            program,
+            membership.value,
+            expression,
+        ),
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(
+            application,
+        ) => program
             .expression_table
             .expression_handles(application.arguments)
             .iter()
@@ -784,7 +781,9 @@ fn collect_proposition_environments(
     expression: ExpressionHandle,
     environments: &mut Vec<TypeEnvironment>,
 ) {
-    use typed_trees::proposition::{PropositionBody, PropositionFormula};
+    use symbol_resolved_trees_to_typed_trees::typed_trees::proposition::{
+        PropositionBody, PropositionFormula,
+    };
 
     for proposition in program.propositions() {
         let PropositionBody::Transparent { proposition: body } = &proposition.body else {
@@ -1182,7 +1181,7 @@ fn infer_expression_type(
         }
         ExpressionNode::Call(call) => {
             if let Some(operator) =
-                typed_trees::operator::resolve_named_expression_call(program, call)
+                symbol_resolved_trees_to_typed_trees::typed_trees::operator::resolve_named_expression_call(program, call)
             {
                 return operator
                     .return_type
@@ -1246,14 +1245,16 @@ fn resolve_member_symbol(
     let mut candidates = Vec::new();
     for data_member in program.data_members(data) {
         match data_member {
-            typed_trees::data::DataMember::Field(field)
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field)
                 if field.name.as_str() == member.member.as_str() =>
             {
                 if !candidates.contains(&field.symbol) {
                     candidates.push(field.symbol);
                 }
             }
-            typed_trees::data::DataMember::Variant(variant) => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
+                variant,
+            ) => {
                 if member
                     .case_variant
                     .as_ref()
@@ -1368,20 +1369,14 @@ fn collection_element_type(
 /// measures, parameter constraints, rankings, then executable sites.
 fn build_owner_environment_index(program: &TypedTrees, facts: &CheckFacts) -> OwnerIndex {
     let mut index = OwnerIndex::default();
-    for (handle, contract) in facts.proof.contract_facts.iter() {
-        let reached = proof_fact_handle_reachable_expressions(program, contract.fact);
-        for expression in &reached {
-            index
-                .entries
-                .entry(*expression)
-                .or_default()
-                .contract_facts
-                .push(handle);
-        }
+    for (_, contract) in facts.proof.contract_facts.iter() {
         let Some(environment) = contract_owner_environment(program, contract.owner) else {
             continue;
         };
-        index.add_all(reached, || environment);
+        index.add_all(
+            proof_fact_handle_reachable_expressions(program, contract.fact),
+            || environment,
+        );
     }
     for domain in program.domain_definitions() {
         let mut reached = HashSet::new();
@@ -1406,16 +1401,18 @@ fn build_owner_environment_index(program: &TypedTrees, facts: &CheckFacts) -> Ow
 /// this set.
 fn proof_fact_reachable_expressions(
     program: &TypedTrees,
-    fact: &typed_trees::domain::ProofFact,
+    fact: &symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact,
 ) -> HashSet<ExpressionHandle> {
     let mut reached = HashSet::new();
     match fact {
-        typed_trees::domain::ProofFact::Expression(root) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(root) => {
             reached.extend(
                 crate::authored_selections::member_targets::reachable_expressions(program, *root),
             );
         }
-        typed_trees::domain::ProofFact::Membership(membership) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(
+            membership,
+        ) => {
             reached.extend(
                 crate::authored_selections::member_targets::reachable_expressions(
                     program,
@@ -1423,7 +1420,9 @@ fn proof_fact_reachable_expressions(
                 ),
             );
         }
-        typed_trees::domain::ProofFact::Proposition(application) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(
+            application,
+        ) => {
             for root in program
                 .expression_table
                 .expression_handles(application.arguments)
@@ -1441,7 +1440,7 @@ fn proof_fact_reachable_expressions(
 
 fn proof_fact_handle_reachable_expressions(
     program: &TypedTrees,
-    fact: arena::Handle<typed_trees::domain::ProofFact>,
+    fact: arena::Handle<symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact>,
 ) -> HashSet<ExpressionHandle> {
     proof_fact_reachable_expressions(program, program.proof_facts.get(fact))
 }
@@ -1528,7 +1527,9 @@ fn collect_type_reference_expressions(
 }
 
 fn index_proposition_environments(program: &TypedTrees, index: &mut OwnerIndex) {
-    use typed_trees::proposition::{PropositionBody, PropositionFormula};
+    use symbol_resolved_trees_to_typed_trees::typed_trees::proposition::{
+        PropositionBody, PropositionFormula,
+    };
 
     for proposition in program.propositions() {
         let PropositionBody::Transparent { proposition: body } = &proposition.body else {

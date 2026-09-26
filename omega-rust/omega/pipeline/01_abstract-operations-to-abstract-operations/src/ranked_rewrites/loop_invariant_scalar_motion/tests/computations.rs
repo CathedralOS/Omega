@@ -9,13 +9,13 @@ use crate::{
     LoopInvariantScalarMotionError, apply_loop_invariant_scalar_motion,
     propose_loop_invariant_scalar_motion, validate_loop_invariant_scalar_motion,
 };
-use abstract_operations::AbstractOperation;
-use optimization_unit::{
+use semantic_vocabulary::ValueId;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     NodeLocation, ProvenanceDisposition, PsiProvenance, PsiRealizationSite,
     recompute_psi_optimization_unit_identity,
 };
-use optimization_unit_semantics::OptimizationUnitValidationError;
-use semantic_vocabulary::ValueId;
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::OptimizationUnitValidationError;
 
 use super::{
     BYPASSED_MEMBER_SOURCE, TRANSITIVE_MEMBER_SOURCE, find_operation_mut, lowered_session,
@@ -394,11 +394,11 @@ fn forged_member_parameter_rewrite_is_rejected_by_the_freeze_fence() {
 /// parameter it reads twice — the bypassed-member counterpart of
 /// [`member_addition`].
 fn member_multiplication<'function>(
-    function: &'function optimization_unit::PsiOptimizationFunction,
-    component: &optimization_unit::OptimizerCycleComponent,
+    function: &'function terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
+    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
 ) -> (
-    &'function optimization_unit::OptimizationBlock,
-    &'function optimization_unit::OptimizationNode,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationBlock,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
     ValueId,
 ) {
     for member in &component.members {
@@ -654,10 +654,12 @@ fn ranked_natural_component_is_the_validated_terminal_scc() {
         natural
             .edges
             .iter()
-            .map(|edge| optimization_unit::CycleComponentEdge {
-                edge: edge.edge,
-                source: edge.source,
-                target: edge.target,
+            .map(|edge| {
+                terminal_psi_to_abstract_operations::optimization_unit::CycleComponentEdge {
+                    edge: edge.edge,
+                    source: edge.source,
+                    target: edge.target,
+                }
             })
             .collect::<std::collections::BTreeSet<_>>(),
         "component identity carries the validated internal-edge set"
@@ -746,11 +748,11 @@ const OBLIGATED_MEMBER_SOURCE: &str = r#"
 /// block whose parameters do not include its `left` operand, so the block
 /// check selects the invariant computation.
 fn member_subtraction<'function>(
-    function: &'function optimization_unit::PsiOptimizationFunction,
-    component: &optimization_unit::OptimizerCycleComponent,
+    function: &'function terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
+    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
 ) -> (
-    &'function optimization_unit::OptimizationBlock,
-    &'function optimization_unit::OptimizationNode,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationBlock,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
     ValueId,
 ) {
     for member in &component.members {

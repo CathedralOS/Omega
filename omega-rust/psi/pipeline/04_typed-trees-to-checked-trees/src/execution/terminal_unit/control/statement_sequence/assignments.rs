@@ -23,8 +23,9 @@ pub(super) struct Planner<'a, 'program, 'shapes> {
     pub(super) facts: &'program CheckFacts,
     pub(super) scalar_callees: ScalarCalleePlans<'a>,
     pub(super) shapes: &'a mut ShapeCollector<'shapes>,
-    pub(super) machine: &'program typed_trees::machine::Machine,
-    pub(super) state: &'program typed_trees::state::State,
+    pub(super) machine:
+        &'program symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    pub(super) state: &'program symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     pub(super) structural_parameters: &'a mut [CheckedUnitStructuralParameterPlan],
     pub(super) scalar_parameters: &'a [CheckedStructuralScalarParameterPlan],
     pub(super) entry_claims: &'a [CheckedUnitEntryClaimPlan],
@@ -38,8 +39,10 @@ pub(super) struct Planner<'a, 'program, 'shapes> {
     pub(super) scalar_count: &'a mut usize,
     pub(super) structural_count: &'a mut usize,
     pub(super) windows: &'a mut OpenWindows,
-    pub(super) structural_results:
-        &'a mut Vec<(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)>,
+    pub(super) structural_results: &'a mut Vec<(
+        CheckedUnitStructuralResultBindingPlan,
+        crate::fact_plan::PlaceRoot,
+    )>,
 }
 
 /// What an assignment left for its own call.
@@ -62,7 +65,7 @@ pub(super) enum AssignmentPlan {
 pub(super) fn plan(
     planner: Planner<'_, '_, '_>,
     statement_index: u32,
-    assignment: &typed_trees::statement::TableAssignment,
+    assignment: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableAssignment,
 ) -> Option<AssignmentPlan> {
     let Planner {
         program,
@@ -196,7 +199,7 @@ pub(super) fn plan(
             // The displaced value dies on this statement's
             // continuation, as it does after a replacing call.
             operations.push(CheckedUnitEffectOperationPlan::CallContinuationCleanup {
-                coordinate: checked_trees::CheckedUnitCallCoordinate {
+                coordinate: crate::checked_trees::CheckedUnitCallCoordinate {
                     statement_index,
                     call_ordinal: 0,
                 },

@@ -107,7 +107,7 @@ fn bounded_byte_field_call_stages_live_length_descriptor() {
         target::NativeTarget::macos_arm64(),
     ] {
         let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
+            crate::register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -137,7 +137,7 @@ fn bounded_byte_field_call_stages_live_length_descriptor() {
         };
         validate(&source, &selected).unwrap();
         let place = semantic_vocabulary::PlaceId::new(1).unwrap();
-        let slot = selected_instructions::LocalStorageSlotId::StructuralCallArgument {
+        let slot = crate::selected_instructions::LocalStorageSlotId::StructuralCallArgument {
             operation: source.blocks[0].instructions[0].operation,
             argument_index: 0,
         };
@@ -168,7 +168,7 @@ fn bounded_byte_field_call_stages_live_length_descriptor() {
                 matches!(
                     instruction.kind,
                     SelectedInstructionKind::Store64 {
-                        slot: selected_instructions::FrameStorageSlotId::Local(candidate),
+                        slot: crate::selected_instructions::FrameStorageSlotId::Local(candidate),
                         byte_offset: offset,
                     } if candidate == slot && offset == byte_offset
                 )
@@ -178,7 +178,7 @@ fn bounded_byte_field_call_stages_live_length_descriptor() {
             matches!(
                 instruction.kind,
                 SelectedInstructionKind::FrameAddress {
-                    slot: selected_instructions::FrameStorageSlotId::Local(candidate),
+                    slot: crate::selected_instructions::FrameStorageSlotId::Local(candidate),
                     byte_offset: 0,
                 } if candidate == slot
             )
@@ -198,7 +198,7 @@ fn bounded_byte_field_call_stages_live_length_descriptor() {
                 .memory_accesses
                 .iter()
                 .filter(|access| access.role
-                    == selected_instructions::SelectedMemoryAccessRole::ReadPlace)
+                    == crate::selected_instructions::SelectedMemoryAccessRole::ReadPlace)
                 .count(),
             1
         );
@@ -206,21 +206,23 @@ fn bounded_byte_field_call_stages_live_length_descriptor() {
             access.place == place
                 && access.byte_offset == 8
                 && access.byte_count == 8
-                && access.role == selected_instructions::SelectedMemoryAccessRole::ReadPlace
+                && access.role == crate::selected_instructions::SelectedMemoryAccessRole::ReadPlace
         }));
         for byte_offset in [0, 8] {
             assert!(selected.memory_accesses.iter().any(|access| {
                 access.byte_offset == byte_offset
                     && access.byte_count == 8
                     && access.role
-                        == selected_instructions::SelectedMemoryAccessRole::WriteLocal { slot }
+                        == crate::selected_instructions::SelectedMemoryAccessRole::WriteLocal {
+                            slot,
+                        }
             }));
         }
         assert!(selected.memory_accesses.iter().any(|access| {
             access.byte_offset == 0
                 && access.byte_count == 16
                 && access.role
-                    == selected_instructions::SelectedMemoryAccessRole::AddressLocal { slot }
+                    == crate::selected_instructions::SelectedMemoryAccessRole::AddressLocal { slot }
         }));
         for mutation in 0..6 {
             let mut changed = selected.clone();
@@ -249,7 +251,7 @@ fn bounded_byte_field_call_stages_live_length_descriptor() {
                         .kind = SelectedInstructionKind::CopyI64
                 }
                 2 => changed.memory_accesses.retain(|access| {
-                    access.role != selected_instructions::SelectedMemoryAccessRole::ReadPlace
+                    access.role != crate::selected_instructions::SelectedMemoryAccessRole::ReadPlace
                 }),
                 3 => {
                     let LegalizedScalarArgument::Structural { target, .. } =

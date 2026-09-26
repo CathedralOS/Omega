@@ -34,6 +34,9 @@
 // The entrance and the route it drives.
 mod resolution;
 
+// The produced IR.
+pub mod symbol_resolved_trees;
+
 // The phases, in the order `drive` calls them.
 mod lowering;
 mod preparation;

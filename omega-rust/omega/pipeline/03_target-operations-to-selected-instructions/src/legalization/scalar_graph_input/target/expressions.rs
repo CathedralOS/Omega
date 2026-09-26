@@ -43,7 +43,10 @@ impl Checker<'_> {
         ) && self.boolean(expression, value, aliases)
     }
 
-    fn available_block_value(&self, parameter: &target_operations::TargetScalarBlockValue) -> bool {
+    fn available_block_value(
+        &self,
+        parameter: &abstract_operations_to_target_operations::target_operations::TargetScalarBlockValue,
+    ) -> bool {
         let Some(sources) = self.available else {
             return false;
         };
@@ -51,12 +54,14 @@ impl Checker<'_> {
             .iter()
             .filter(|(value, _)| *value == parameter.value);
         matches!(definitions.next(),
-            Some((_, target_operations::TargetUnitScalarArgumentSource::BlockParameter(expected)))
+            Some((_, abstract_operations_to_target_operations::target_operations::TargetUnitScalarArgumentSource::BlockParameter(expected)))
                 if expected == parameter)
             && definitions.next().is_none()
     }
 
-    pub(super) fn scalar_parameters(&self) -> &[target_operations::ScalarAbiValue] {
+    pub(super) fn scalar_parameters(
+        &self,
+    ) -> &[abstract_operations_to_target_operations::target_operations::ScalarAbiValue] {
         if let Some(abi) = &self.function.scalar_abi {
             &abi.parameters
         } else if let Some(abi) = &self.function.mixed_structural_scalar_abi {
@@ -66,14 +71,17 @@ impl Checker<'_> {
         }
     }
 
-    fn available_home(&self, home: &target_operations::TargetUnitScalarHomeRequirement) -> bool {
+    fn available_home(
+        &self,
+        home: &abstract_operations_to_target_operations::target_operations::TargetUnitScalarHomeRequirement,
+    ) -> bool {
         let Some(sources) = self.available else {
             return false;
         };
         let mut definitions = sources
             .iter()
             .filter(|(value, _)| *value == home.source_value);
-        let Some((_, target_operations::TargetUnitScalarArgumentSource::Home(expected))) =
+        let Some((_, abstract_operations_to_target_operations::target_operations::TargetUnitScalarArgumentSource::Home(expected))) =
             definitions.next()
         else {
             return false;
@@ -393,7 +401,7 @@ impl Checker<'_> {
                         if *result == resolve(value, aliases) && actual == literal))
                 && self.available.is_none_or(|sources| sources.iter().any(|(source, definition)|
                     *source == value && matches!(definition,
-                        target_operations::TargetUnitScalarArgumentSource::BooleanImmediate { value: actual, .. } if actual == literal)));
+                        abstract_operations_to_target_operations::target_operations::TargetUnitScalarArgumentSource::BooleanImmediate { value: actual, .. } if actual == literal)));
         }
         if let Boolean::Parameter {
             source_value,

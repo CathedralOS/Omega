@@ -280,8 +280,8 @@ fn computed_integer_narrowing_retains_its_exact_value_proof() {
             .nodes
             .iter()
             .find_map(|(handle, node)| {
-                let checked_trees::CheckedScalarComputationKind::Value(
-                    checked_trees::CheckedScalarExpression::IntegerLiteral { literal },
+                let typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationKind::Value(
+                    typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::IntegerLiteral { literal },
                 ) = &node.kind
                 else {
                     return None;
@@ -289,8 +289,10 @@ fn computed_integer_narrowing_retains_its_exact_value_proof() {
                 (literal.value_u64() == Some(256)).then_some(handle)
             })
             .expect("remainder divisor");
-        let checked_trees::CheckedScalarComputationKind::Value(
-            checked_trees::CheckedScalarExpression::IntegerLiteral { literal: node },
+        let typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationKind::Value(
+            typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::IntegerLiteral {
+                literal: node,
+            },
         ) = &mut corrupted
             .facts
             .values
@@ -373,8 +375,10 @@ fn unproved_computed_narrowing_does_not_gain_a_runtime_conversion() {
 
 #[test]
 fn integer_application_operand_namespaces_reject_malformed_templates() {
-    use checked_trees::{CheckedScalarComputationKind, CheckedScalarExpression};
-    use typed_trees::types::PrimitiveType;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
+    use typed_trees_to_checked_trees::checked_trees::{
+        CheckedScalarComputationKind, CheckedScalarExpression,
+    };
     let source = r#"
         machine identity(input: u8 in Wrapping) -> u8 in Wrapping
         requires 0u8 == 0u8

@@ -5,12 +5,12 @@ use std::collections::BTreeMap;
 mod mechanics;
 
 use optimization_core::OptimizationWorkBudget;
-use register_model::{
+use target_operations_to_selected_instructions::register_model::{
     RegisterClassId, RegisterViewId, TargetRegisterEnvironmentConstraintKeys,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile, target_register_environment_identity,
 };
-use selected_instructions::{SelectedBlockId, VirtualRegisterId};
+use target_operations_to_selected_instructions::{SelectedBlockId, VirtualRegisterId};
 
 use crate::ValidatedLogicalSpillOperations;
 use crate::unsequenced_spill_stages::{
@@ -19,12 +19,14 @@ use crate::unsequenced_spill_stages::{
     ValidatedAbstractSpillInsertion,
 };
 use mechanics::{contains_interference, reconstruct_usage, views_overlap};
-use register_homes::{FunctionAllocationLegality, VirtualRegisterAllocationLegality};
-use selected_instructions::{
-    FunctionLiveRanges, LiveRangeFragment, LiveRangePoint, VirtualInterference,
+use selected_instructions_to_selected_instructions::register_homes::{
+    FunctionAllocationLegality, VirtualRegisterAllocationLegality,
 };
 use selected_instructions_to_selected_instructions::{
     ValidatedAllocationLegality, ValidatedLiveRanges,
+};
+use target_operations_to_selected_instructions::{
+    FunctionLiveRanges, LiveRangeFragment, LiveRangePoint, VirtualInterference,
 };
 
 #[derive(Clone, Copy)]

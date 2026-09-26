@@ -1,18 +1,22 @@
 //! Analysis fixtures only; explicit expected sets do not confer verification or execution authority.
-use abstract_operations::ValueBinding;
-use calling_conventions::{CallPlan, CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
-use legalized_operations::{
+use crate::legalized_operations::{
     LegalizedScalarArgument, LegalizedScalarBlock, LegalizedScalarCall, LegalizedScalarComparison,
     LegalizedScalarFunction, LegalizedScalarInstruction,
     LegalizedScalarInstructionKind as Instruction, LegalizedScalarParameter, LegalizedScalarReturn,
     LegalizedScalarReturnValue, LegalizedScalarSuccessor, LegalizedScalarTerminator as Terminator,
     LegalizedValueDefinition, NativeCallOrigin,
 };
-use optimization_unit::{EffectLink, ValueDefinition, ValueDefinitionSite};
+use abstract_operations_to_target_operations::calling_conventions::{
+    CallPlan, CallSignature, CallingPolicy, ValueShape, evaluate_call_plan,
+};
 use semantic_vocabulary::{
     BlockId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId, ScalarType, ValueId,
 };
 use std::collections::BTreeSet;
+use terminal_psi_to_abstract_operations::abstract_operations::ValueBinding;
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    EffectLink, ValueDefinition, ValueDefinitionSite,
+};
 
 fn value(ordinal: u64) -> ValueId {
     ValueId::new(ordinal).unwrap()

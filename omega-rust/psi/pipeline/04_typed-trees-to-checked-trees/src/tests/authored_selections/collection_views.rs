@@ -8,7 +8,9 @@
 use super::{AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionTarget};
 use crate::tests::front_end::{checked_program, typed_program};
 use language_semantics::declaration_selection::CollectionViewOperation;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
 
 const BOTH_SPELLINGS: &str = r#"
     data Tally { total: u8; }
@@ -25,7 +27,9 @@ const BOTH_SPELLINGS: &str = r#"
 "#;
 
 /// Both `as_slice` calls, as (expression, resolved-target) pairs.
-fn as_slice_calls(program: &typed_trees::TypedTrees) -> Vec<(ExpressionHandle, bool)> {
+fn as_slice_calls(
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+) -> Vec<(ExpressionHandle, bool)> {
     program
         .expression_table
         .iter_expressions()

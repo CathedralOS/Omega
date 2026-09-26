@@ -1,6 +1,6 @@
 //! Ordered branch locations, byte measure, and distinct producer/replay charging.
 
-use machine_code::ResolvedSelectedFunctionLayout;
+use post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedSelectedFunctionLayout;
 
 use super::super::error::{OptimizedX86BranchRelaxationError, X86BranchRelaxationWorkAxis};
 
@@ -14,7 +14,7 @@ pub(super) fn ordered_branch_locations(
                 if row
                     .branch
                     .as_deref()
-                    .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
+                    .and_then(post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedBranchEvidence::as_conditional)
                     .is_some()
                 {
                     locations.push((function_index, block_index, instruction_index));

@@ -1,8 +1,8 @@
+use crate::typed_trees as typed;
 use diagnostics::Diagnostic;
 use language_semantics::{
     ProgressPremise, ProgressSubject, TerminationGuarantee, TerminationInterface,
 };
-use typed_trees as typed;
 
 /// Complete the public termination records after every typed domain,
 /// requirement, contract, and conformance edge exists. Earlier stages retain

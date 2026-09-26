@@ -7,12 +7,12 @@ use super::{
 };
 pub(crate) fn authored(
     checked: &CheckedTrees,
-    state: &checked_trees::state::State,
+    state: &typed_trees_to_checked_trees::checked_trees::state::State,
     expression: ExpressionHandle,
 ) -> Result<
     Option<(
         symbols::SymbolHandle,
-        Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
+        Vec<typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment>,
         String,
     )>,
     LoweringError,
@@ -22,13 +22,13 @@ pub(crate) fn authored(
     };
     if !matches!(
         binary.operator,
-        checked_trees::expression::BinaryOperator::Equal
-            | checked_trees::expression::BinaryOperator::CaseMembership
+        typed_trees_to_checked_trees::checked_trees::expression::BinaryOperator::Equal
+            | typed_trees_to_checked_trees::checked_trees::expression::BinaryOperator::CaseMembership
     ) {
         return Ok(None);
     }
     let (machine, _) = authored_state(checked, state.symbol)?;
-    if !validation::has_exact_case_membership_meaning(
+    if !typed_trees_to_checked_trees::validation::has_exact_case_membership_meaning(
         &checked.typed,
         machine,
         Some(state),
@@ -53,7 +53,7 @@ pub(crate) fn authored(
                 if member.case_variant.is_some() || !member.member_symbol.is_valid() {
                     return Ok(None);
                 }
-                let field = validation::exact_self_field(&checked.typed, machine, subject)
+                let field = typed_trees_to_checked_trees::validation::exact_self_field(&checked.typed, machine, subject)
                     .or_else(|| {
                         if matches!(checked.expression_table.expression(member.receiver),
                             ExpressionNode::Name(name) if name.symbol == machine.symbol
@@ -62,14 +62,14 @@ pub(crate) fn authored(
                         {
                             return None;
                         }
-                        let mut reference = validation::declared_place_type_raw(
+                        let mut reference = typed_trees_to_checked_trees::validation::declared_place_type_raw(
                             &checked.typed,
                             machine,
                             Some(state),
                             member.receiver,
                         )?;
                         let owner = loop {
-                            use checked_trees::types::TypeReferenceNode;
+                            use typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode;
                             match checked.type_reference_table.type_reference(reference) {
                                 TypeReferenceNode::Reference { referee, .. }
                                 | TypeReferenceNode::Constrained {
@@ -89,7 +89,7 @@ pub(crate) fn authored(
                             .find(|data| owner.is_valid() && data.symbol == owner)?;
                         // Ordinary members can name generated accessors. Their
                         // field identity comes from this exact receiver type.
-                        validation::exact_data_member_field(
+                        typed_trees_to_checked_trees::validation::exact_data_member_field(
                             &checked.typed,
                             declaration,
                             if checked.symbols.get(member.member_symbol).kind
@@ -109,13 +109,13 @@ pub(crate) fn authored(
                 if field.relevance.is_erased() {
                     return Ok(None);
                 }
-                path.push(checked_trees::CheckedStructuralPredicatePathSegment::Field(
+                path.push(typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Field(
                     field.path_identity(),
                 ));
                 subject = member.receiver;
             }
             ExpressionNode::Indexed(indexed) => {
-                if !validation::place_has_builtin_coordinates(
+                if !typed_trees_to_checked_trees::validation::place_has_builtin_coordinates(
                     &checked.typed, machine, Some(state), subject,
                 )
                     || checked.facts.operators.uses.iter().any(|(_, selected)| {
@@ -124,8 +124,8 @@ pub(crate) fn authored(
                                 || selected.selected_operator_symbol.is_valid()
                                 || selected.candidate_count != 0
                                 || !matches!(selected.status,
-                                    checked_trees::CheckedOperatorResolutionStatus::Missing
-                                    | checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback))
+                                    typed_trees_to_checked_trees::checked_trees::CheckedOperatorResolutionStatus::Missing
+                                    | typed_trees_to_checked_trees::checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback))
                     })
                 {
                     return Ok(None);
@@ -138,7 +138,7 @@ pub(crate) fn authored(
                     return Ok(None);
                 };
                 path.push(
-                    checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(element_index),
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(element_index),
                 );
                 subject = indexed.collection;
             }
@@ -196,7 +196,7 @@ pub(crate) fn authored(
         let mut reference = receiver.type_reference;
         let mut exact_receiver = false;
         for _ in 0..64 {
-            use checked_trees::types::TypeReferenceNode;
+            use typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode;
             match checked.type_reference_table.type_reference(reference) {
                 TypeReferenceNode::Reference { referee, .. } => reference = *referee,
                 TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
@@ -226,7 +226,9 @@ pub(crate) fn authored(
         .iter()
         .flat_map(|data| checked.data_members(data))
         .find_map(|member| match member {
-            checked_trees::data::DataMember::Variant(case) if case.symbol == selected.symbol => {
+            typed_trees_to_checked_trees::checked_trees::data::DataMember::Variant(case)
+                if case.symbol == selected.symbol =>
+            {
                 Some(case)
             }
             _ => None,

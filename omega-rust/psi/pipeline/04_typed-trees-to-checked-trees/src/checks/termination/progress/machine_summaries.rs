@@ -1,5 +1,8 @@
 //! Machine and selected call progress summaries.
 
+use crate::checked_trees::{
+    BuildBoundProgressDemand, FlowCallFact, FlowFacts, FlowStateFact, ProgressDemandCallSite,
+};
 use crate::checks::termination::progress::CheckedProgressSummary;
 use crate::checks::termination::progress::fact_subjects::{
     fact_domain, fact_subject, profile_label, subject_from_place,
@@ -8,19 +11,16 @@ use crate::checks::termination::progress::{lineage, origins};
 use crate::semantic::calls::call_site_argument_expressions;
 use crate::semantic::calls::call_target_parameters;
 use crate::semantic::calls::find_call_site;
-use checked_trees::{
-    BuildBoundProgressDemand, FlowCallFact, FlowFacts, FlowStateFact, ProgressDemandCallSite,
-};
 use language_semantics::{ProgressPremise, ProgressSubject, TerminationGuarantee};
 use symbols::SymbolHandle;
 
 pub(crate) fn derive_machine_summary(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     flow: &FlowFacts,
-    semantic: &facts::FactPlan,
-    machine: &typed_trees::machine::Machine,
+    semantic: &crate::fact_plan::FactPlan,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     summaries: &[CheckedProgressSummary],
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<CheckedProgressSummary> {
     if !crate::checks::termination::infer_machine_checked_summary_with_call_frames(
         program,
@@ -194,7 +194,7 @@ pub(crate) struct SelectedCallProgress<'a> {
 }
 
 pub(crate) fn selected_call_summary<'a>(
-    program: &'a typed_trees::TypedTrees,
+    program: &'a symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     target_symbol: SymbolHandle,
     summaries: &'a [CheckedProgressSummary],
 ) -> Option<SelectedCallProgress<'a>> {
@@ -246,7 +246,7 @@ pub(crate) fn selected_call_summary<'a>(
 }
 
 fn provider_receiver_requirement(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     receiver_symbol: SymbolHandle,
     target_symbol: SymbolHandle,
     premise: &ProgressPremise,
@@ -292,12 +292,12 @@ fn provider_receiver_requirement(
 }
 
 fn instantiate_call_premise(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     state_flow: &FlowStateFact,
     call: &FlowCallFact,
     premise: &ProgressPremise,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<ProgressPremise> {
     let mut subject = call_argument_subject(
         program,
@@ -317,12 +317,12 @@ fn instantiate_call_premise(
 }
 
 fn call_argument_subject(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     state_flow: &FlowStateFact,
     call: &FlowCallFact,
     parameter_symbol: SymbolHandle,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<ProgressSubject> {
     let parameters = call_target_parameters(program, call.target_symbol)?;
     call_argument_subject_with_parameters(
@@ -340,13 +340,13 @@ fn call_argument_subject(
 /// when a dynamic selector leaves several — `call_argument_subjects_with_parameters`
 /// is what reads that set.
 pub(crate) fn call_argument_subject_with_parameters(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     state_flow: &FlowStateFact,
     call: &FlowCallFact,
-    parameters: &[typed_trees::signature::StateParameter],
+    parameters: &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter],
     parameter_symbol: SymbolHandle,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<ProgressSubject> {
     let mut subjects = call_argument_subjects_with_parameters(
         program,
@@ -362,13 +362,13 @@ pub(crate) fn call_argument_subject_with_parameters(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn call_argument_subjects_with_parameters(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     state_flow: &FlowStateFact,
     call: &FlowCallFact,
-    parameters: &[typed_trees::signature::StateParameter],
+    parameters: &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter],
     parameter_symbol: SymbolHandle,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<ProgressSubject>> {
     let call_site = find_call_site(
         program,
@@ -401,7 +401,7 @@ pub(crate) fn call_argument_subjects_with_parameters(
         // callee returned, carrying the receiver's own peeled projection.
         // What it cannot prove keeps no subject.
         match place.root {
-            facts::PlaceRoot::Expression(expression) => origins::call_argument_place(
+            crate::fact_plan::PlaceRoot::Expression(expression) => origins::call_argument_place(
                 program,
                 state_flow,
                 call.statement_index,
@@ -463,25 +463,25 @@ pub(crate) fn call_argument_subjects_with_parameters(
 /// one, and the caller conjoins a premise apiece; one it cannot name leaves
 /// the whole demand unproven.
 fn dynamic_selector_subjects(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_flow: &FlowStateFact,
     call: &FlowCallFact,
     place: &crate::flow::CanonicalPlace,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<ProgressSubject>> {
     let selector = place
         .segments
         .iter()
-        .position(|segment| matches!(segment, facts::PlaceSegment::Index { .. }))?;
+        .position(|segment| matches!(segment, crate::fact_plan::PlaceSegment::Index { .. }))?;
     // Only one selector: a second would multiply two element sets together,
     // which is a different obligation than this conjunction.
     if place.segments[selector + 1..]
         .iter()
-        .any(|segment| matches!(segment, facts::PlaceSegment::Index { .. }))
+        .any(|segment| matches!(segment, crate::fact_plan::PlaceSegment::Index { .. }))
     {
         return None;
     }
-    let facts::PlaceRoot::Symbol(root) = place.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(root) = place.root else {
         return None;
     };
     let typed_state = crate::semantic::calls::find_state(program, state_flow.state_symbol)?;
@@ -493,13 +493,14 @@ fn dynamic_selector_subjects(
             .get(..call.statement_index)?
             .iter()
             .find_map(|statement| match statement {
-                typed_trees::statement::StatementNode::LocalData(local) if local.symbol == root => {
+                symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) if local.symbol == root => {
                     Some(local)
                 }
                 _ => None,
             })?;
-    let typed_trees::expression::ExpressionNode::ArrayLiteral(elements) =
-        program.expression_table.expression(local.initial_value)
+    let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::ArrayLiteral(
+        elements,
+    ) = program.expression_table.expression(local.initial_value)
     else {
         return None;
     };
@@ -528,8 +529,8 @@ fn dynamic_selector_subjects(
 }
 
 fn is_local_state_transition(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     state: &FlowStateFact,
     call: &FlowCallFact,
 ) -> bool {
@@ -537,11 +538,11 @@ fn is_local_state_transition(
 }
 
 pub(crate) fn local_state_transition_target<'program>(
-    program: &'program typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     state: &FlowStateFact,
     call: &FlowCallFact,
-) -> Option<&'program typed_trees::state::State> {
+) -> Option<&'program symbol_resolved_trees_to_typed_trees::typed_trees::state::State> {
     let call_site = find_call_site(
         program,
         machine.symbol,
@@ -564,9 +565,9 @@ pub(crate) fn local_state_transition_target<'program>(
 }
 
 fn admitted_receipt_covers(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     flow: &FlowFacts,
-    semantic: &facts::FactPlan,
+    semantic: &crate::fact_plan::FactPlan,
     state: &FlowStateFact,
     call: &FlowCallFact,
     premise: &ProgressPremise,
@@ -575,7 +576,12 @@ fn admitted_receipt_covers(
         .domain_definitions()
         .iter()
         .find(|domain| domain.semantic_id == premise.profile)
-        .filter(|domain| typed_trees::domain::index_parameters(program, domain).is_empty())
+        .filter(|domain| {
+            symbol_resolved_trees_to_typed_trees::typed_trees::domain::index_parameters(
+                program, domain,
+            )
+            .is_empty()
+        })
         .map(|domain| domain.symbol)
     else {
         return false;

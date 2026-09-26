@@ -13,11 +13,11 @@ use super::{
     PrimitiveType, unsupported,
 };
 use crate::expression_preparation::qualifications::declared_atoms;
-use checked_trees::types::{
-    DomainConstraintSubject, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-};
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
+};
+use typed_trees_to_checked_trees::checked_trees::types::{
+    DomainConstraintSubject, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 
 pub(super) fn operand(
@@ -68,10 +68,12 @@ pub(super) fn operand(
             .find(|candidate| candidate.symbol == state)
             .ok_or(LoweringError::Unsupported("scalar erasure lost its state"))?;
         let source_type =
-            validation::expression_result_type_reference(checked, machine, state, cast.value)
-                .ok_or(LoweringError::Unsupported(
-                    "scalar erasure lost its operand type",
-                ))?;
+            typed_trees_to_checked_trees::validation::expression_result_type_reference(
+                checked, machine, state, cast.value,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "scalar erasure lost its operand type",
+            ))?;
         let (source_primitive, source_atoms) =
             crate::expression_preparation::qualifications::type_atoms(checked, source_type)?;
         let (result_primitive, result_atoms) =

@@ -9,8 +9,8 @@
 //! every helper.
 #![allow(dead_code)]
 
+use checked_trees_to_lowered_psi::lowered_psi::LoweredPsi;
 use language_core::CarryPolicy;
-use lowered_psi::LoweredPsi;
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
     OperationId, ScalarType, SuspensionCrossingId, ValueId,

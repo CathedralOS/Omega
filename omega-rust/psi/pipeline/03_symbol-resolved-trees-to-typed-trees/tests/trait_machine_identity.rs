@@ -1,5 +1,7 @@
-use typed_trees::data::{MachineParameterContract, TypeParameterKind};
-use typed_trees::types::TypeReferenceNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::data::{
+    MachineParameterContract, TypeParameterKind,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
 
 #[test]
 fn retains_trait_machine_identity_category_and_exact_requirement_symbol() {

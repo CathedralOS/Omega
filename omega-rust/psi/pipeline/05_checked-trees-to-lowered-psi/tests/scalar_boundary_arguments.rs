@@ -137,7 +137,7 @@ fn unsigned16(value: u128) -> terminal_interpreter::TerminalScalarValue {
 }
 
 fn exercise_boundary_outcomes(
-    lowered: &lowered_psi::LoweredPsi,
+    lowered: &checked_trees_to_lowered_psi::lowered_psi::LoweredPsi,
     arguments: &[terminal_interpreter::TerminalScalarValue],
     abort_permitted: bool,
 ) {
@@ -282,7 +282,7 @@ fn named_crash_qualified_operator_call_rejects_at_terminal_lowering() {
     );
 }
 
-fn verify_roundtrip(lowered: &lowered_psi::LoweredPsi) {
+fn verify_roundtrip(lowered: &checked_trees_to_lowered_psi::lowered_psi::LoweredPsi) {
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).expect("encode module");
     let evidence =
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)

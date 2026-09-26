@@ -9,7 +9,9 @@ use crate::emission::operation_emission::integer::LoweredIntegerComparisonKind;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator,
 };
-use checked_trees::{CheckedScalarDispatchArm, CheckedScalarDispatchPattern};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedScalarDispatchArm, CheckedScalarDispatchPattern,
+};
 
 impl Expansion<'_> {
     #[allow(clippy::too_many_arguments)]

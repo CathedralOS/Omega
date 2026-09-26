@@ -2,10 +2,12 @@ use super::{FlowCallFact, FlowFacts, FlowStateFact, ProgressSubject, TypedTrees}
 use crate::checks::termination::progress::origins::at_call;
 use crate::tests::front_end::typed_program;
 use arena::HandleSpan;
+use symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    TypeReferenceHandle, TypeReferenceNode,
+};
 use symbols::SymbolHandle;
-use typed_trees::data::DataMember;
-use typed_trees::statement::StatementNode;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 mod references;
 
@@ -115,8 +117,9 @@ impl Fixture {
             let statement = statements.get(index).expect("helper call statement");
             let expression =
                 helper_call_expression(&program, statement).expect("helper call expression");
-            let typed_trees::expression::ExpressionNode::Call(call) =
-                program.expression_table.expression(expression)
+            let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(
+                call,
+            ) = program.expression_table.expression(expression)
             else {
                 unreachable!("helper call node")
             };
@@ -363,7 +366,7 @@ fn field_assignment_checks_the_stored_field_not_the_reference_root() {
 fn helper_call_expression(
     program: &TypedTrees,
     statement: &StatementNode,
-) -> Option<typed_trees::expression::ExpressionHandle> {
+) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle> {
     let mut expression = match statement {
         StatementNode::Assignment(assignment) => assignment.value,
         StatementNode::LocalData(local) => local.initial_value,
@@ -371,14 +374,14 @@ fn helper_call_expression(
     };
     loop {
         match program.expression_table.expression(expression) {
-            typed_trees::expression::ExpressionNode::Call(_) => return Some(expression),
-            typed_trees::expression::ExpressionNode::Member(member) => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(_) => return Some(expression),
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Member(member) => {
                 expression = member.receiver;
             }
-            typed_trees::expression::ExpressionNode::Indexed(indexed) => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Indexed(indexed) => {
                 expression = indexed.collection;
             }
-            typed_trees::expression::ExpressionNode::Borrow(borrow) => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Borrow(borrow) => {
                 expression = borrow.target;
             }
             _ => return None,
@@ -1015,7 +1018,7 @@ fn call_result_receiver_derives_the_exact_entry_subject() {
         .statements(state.statement_nodes)[0];
     let expression =
         helper_call_expression(&fixture.program, statement).expect("observe call expression");
-    let typed_trees::expression::ExpressionNode::Call(call) =
+    let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(call) =
         fixture.program.expression_table.expression(expression)
     else {
         unreachable!("observe call node")
@@ -1074,7 +1077,7 @@ fn call_result_argument_derives_the_exact_entry_subject() {
         .statements(state.statement_nodes)[0];
     let expression =
         helper_call_expression(&fixture.program, statement).expect("keep call expression");
-    let typed_trees::expression::ExpressionNode::Call(call) =
+    let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(call) =
         fixture.program.expression_table.expression(expression)
     else {
         unreachable!("keep call node")

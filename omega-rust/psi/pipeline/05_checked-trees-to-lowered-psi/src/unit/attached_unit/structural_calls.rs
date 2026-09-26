@@ -13,8 +13,8 @@ use super::{
     unsupported, validate_transfer_shape,
 };
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
-use checked_trees::expression::ExpressionNode;
-use checked_trees::statement::StatementNode;
+use typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode;
+use typed_trees_to_checked_trees::checked_trees::statement::StatementNode;
 
 mod continuation;
 mod result_uses;
@@ -31,14 +31,15 @@ pub(crate) fn validate_custody(
     let CheckedUnitEffectOperationPlan::StructuralCall { custody, .. } = operation else {
         return Ok(());
     };
-    let reconstructed = validation::reconstruct_structural_call_custody(
-        &checked.typed,
-        &checked.facts,
-        machine,
-        state,
-        operation,
-    )
-    .map_err(LoweringError::Unsupported)?;
+    let reconstructed =
+        typed_trees_to_checked_trees::validation::reconstruct_structural_call_custody(
+            &checked.typed,
+            &checked.facts,
+            machine,
+            state,
+            operation,
+        )
+        .map_err(LoweringError::Unsupported)?;
     if *custody != reconstructed {
         return unsupported("structural call custody disagrees with checked source and outcomes");
     }
@@ -50,11 +51,12 @@ pub(crate) fn validate_custody(
 pub(super) fn validate_body_result(
     checked: &CheckedTrees,
     operation: &CheckedUnitEffectOperationPlan,
-    expected: checked_trees::CheckedControlResultPlan,
+    expected: typed_trees_to_checked_trees::checked_trees::CheckedControlResultPlan,
 ) -> Result<(), LoweringError> {
     match operation {
         CheckedUnitEffectOperationPlan::CallUnit { .. }
-            if expected == checked_trees::CheckedControlResultPlan::Unit =>
+            if expected
+                == typed_trees_to_checked_trees::checked_trees::CheckedControlResultPlan::Unit =>
         {
             Ok(())
         }
@@ -66,7 +68,10 @@ pub(super) fn validate_body_result(
             custody,
             ..
         } => {
-            let checked_trees::CheckedControlResultPlan::Structural(signature) = expected else {
+            let typed_trees_to_checked_trees::checked_trees::CheckedControlResultPlan::Structural(
+                signature,
+            ) = expected
+            else {
                 return unsupported("structural call has no matching body result");
             };
             let contract = checked
@@ -95,7 +100,10 @@ fn target(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
-) -> Result<&checked_trees::CheckedClaimFreeAffineStructuralReturnMachinePlan, LoweringError> {
+) -> Result<
+    &typed_trees_to_checked_trees::checked_trees::CheckedClaimFreeAffineStructuralReturnMachinePlan,
+    LoweringError,
+> {
     let mut targets = checked
         .facts
         .flow
@@ -184,7 +192,8 @@ pub(super) fn validate(
         || target.scalar_parameters.len() != scalar_arguments.len()
         || target.structural_parameter.type_identity != result.type_identity
         || target.structural_parameter.multiplicity != Multiplicity::Affine
-        || target.structural_parameter.access != checked_trees::CheckedStructuralAccess::Owned
+        || target.structural_parameter.access
+            != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
         || target.structural_parameter.is_self
         || !target.structural_parameter.qualifications.is_empty()
         || target.structural_parameter.fused_service_erasure.is_some()
@@ -197,7 +206,8 @@ pub(super) fn validate(
         return unsupported("ordinary structural call requires one whole owned argument");
     };
     if !argument.path.is_empty()
-        || argument.access != checked_trees::CheckedStructuralAccess::Owned
+        || argument.access
+            != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
         || argument.type_identity != result.type_identity
     {
         return unsupported("ordinary structural call source is not a whole owned affine value");
@@ -242,7 +252,8 @@ pub(super) fn validate(
                 "ordinary structural source lost its authored position",
             ))?;
         if source.type_identity != argument.type_identity
-            || source.access != checked_trees::CheckedStructuralAccess::Owned
+            || source.access
+                != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
             || source.multiplicity != Multiplicity::Affine
             || source.is_self
             || !source.qualifications.is_empty()

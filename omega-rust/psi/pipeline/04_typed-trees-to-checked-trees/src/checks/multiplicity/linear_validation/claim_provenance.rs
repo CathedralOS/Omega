@@ -6,11 +6,11 @@ use crate::checks::multiplicity::type_multiplicity::{
     data_field_name, expression_establishes_obligation, literal_variant,
 };
 use language_semantics::{Multiplicity, PermissionClaimIdentity, PermissionProvenance};
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 use symbols::SymbolHandle;
-use typed_trees::statement::StatementNode;
 
 pub(crate) fn written_linear_targets(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     statement: &StatementNode,
@@ -23,7 +23,7 @@ pub(crate) fn written_linear_targets(
             }
             (
                 crate::flow::CanonicalPlace {
-                    root: facts::PlaceRoot::Symbol(local.symbol),
+                    root: crate::fact_plan::PlaceRoot::Symbol(local.symbol),
                     segments: Vec::new(),
                 },
                 local.initial_value,
@@ -42,7 +42,7 @@ pub(crate) fn written_linear_targets(
         }
         _ => return Vec::new(),
     };
-    let facts::PlaceRoot::Symbol(symbol) = target.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(symbol) = target.root else {
         return Vec::new();
     };
 
@@ -89,16 +89,16 @@ pub(crate) fn written_linear_targets(
 }
 
 fn expression_permission_claim_identity_for_claim(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    expression: typed_trees::expression::ExpressionHandle,
-    relative_path: &[facts::PlaceSegment],
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    relative_path: &[crate::fact_plan::PlaceSegment],
     places: &[LinearPlace],
 ) -> Option<PermissionClaimIdentity> {
     if relative_path.is_empty() {
         match program.expression_table.expression(expression) {
-            typed_trees::expression::ExpressionNode::Call(call) => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(call) => {
                 // A checked result is a distinct occurrence until its exact
                 // return map proves forwarding. One owned argument does not
                 // prove that a conditional callee returns that argument.
@@ -124,7 +124,7 @@ fn expression_permission_claim_identity_for_claim(
                     },
                 ));
             }
-            typed_trees::expression::ExpressionNode::StructLiteral(literal) => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::StructLiteral(literal) => {
                 return common_permission_claim_identity(
                     program
                         .expression_table
@@ -142,7 +142,7 @@ fn expression_permission_claim_identity_for_claim(
                         }),
                 );
             }
-            typed_trees::expression::ExpressionNode::ArrayLiteral(values) => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::ArrayLiteral(values) => {
                 return common_permission_claim_identity(
                     program
                         .expression_table
@@ -164,9 +164,9 @@ fn expression_permission_claim_identity_for_claim(
         }
     }
 
-    if let typed_trees::expression::ExpressionNode::StructLiteral(literal) =
+    if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::StructLiteral(literal) =
         program.expression_table.expression(expression)
-        && let Some(facts::PlaceSegment::Case { variant }) = relative_path.first()
+        && let Some(crate::fact_plan::PlaceSegment::Case { variant }) = relative_path.first()
     {
         if literal_variant(program, literal).map(|candidate| candidate.symbol) != Some(*variant) {
             return None;
@@ -181,9 +181,9 @@ fn expression_permission_claim_identity_for_claim(
         );
     }
 
-    if let typed_trees::expression::ExpressionNode::ArrayLiteral(values) =
+    if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::ArrayLiteral(values) =
         program.expression_table.expression(expression)
-        && let Some(facts::PlaceSegment::FixedIndex { index }) = relative_path.first()
+        && let Some(crate::fact_plan::PlaceSegment::FixedIndex { index }) = relative_path.first()
     {
         let value = *program
             .expression_table
@@ -199,9 +199,9 @@ fn expression_permission_claim_identity_for_claim(
         );
     }
 
-    if let typed_trees::expression::ExpressionNode::StructLiteral(literal) =
+    if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::StructLiteral(literal) =
         program.expression_table.expression(expression)
-        && let Some(facts::PlaceSegment::Field { symbol }) = relative_path.first()
+        && let Some(crate::fact_plan::PlaceSegment::Field { symbol }) = relative_path.first()
     {
         let field_name = data_field_name(program, *symbol)?;
         let field = program
@@ -222,7 +222,7 @@ fn expression_permission_claim_identity_for_claim(
     if !relative_path.is_empty()
         && matches!(
             program.expression_table.expression(expression),
-            typed_trees::expression::ExpressionNode::Call(_)
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(_)
         )
     {
         return None;
@@ -234,7 +234,7 @@ fn expression_permission_claim_identity_for_claim(
         statement_index,
         expression,
     )?;
-    let facts::PlaceRoot::Symbol(symbol) = source.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(symbol) = source.root else {
         return None;
     };
     let mut source_path = source.segments;
@@ -252,14 +252,14 @@ fn expression_permission_claim_identity_for_claim(
 }
 
 fn expression_permission_provenance_for_claim(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    expression: typed_trees::expression::ExpressionHandle,
-    relative_path: &[facts::PlaceSegment],
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    relative_path: &[crate::fact_plan::PlaceSegment],
     places: &[LinearPlace],
 ) -> Option<PermissionProvenance> {
-    if let typed_trees::expression::ExpressionNode::Call(call) =
+    if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(call) =
         program.expression_table.expression(expression)
         && crate::semantic::calls::find_state(program, call.target_symbol).is_some()
     {
@@ -268,12 +268,12 @@ fn expression_permission_provenance_for_claim(
     if relative_path.is_empty()
         && matches!(
             program.expression_table.expression(expression),
-            typed_trees::expression::ExpressionNode::Call(_)
-                | typed_trees::expression::ExpressionNode::StructLiteral(_)
-                | typed_trees::expression::ExpressionNode::ArrayLiteral(_)
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(_)
+                | symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::StructLiteral(_)
+                | symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::ArrayLiteral(_)
         )
     {
-        return validation::expression_permission_provenance(
+        return crate::validation::expression_permission_provenance(
             program,
             expression,
             &mut |candidate| {
@@ -291,9 +291,9 @@ fn expression_permission_provenance_for_claim(
         .flatten();
     }
 
-    if let typed_trees::expression::ExpressionNode::StructLiteral(literal) =
+    if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::StructLiteral(literal) =
         program.expression_table.expression(expression)
-        && let Some(facts::PlaceSegment::Case { variant }) = relative_path.first()
+        && let Some(crate::fact_plan::PlaceSegment::Case { variant }) = relative_path.first()
     {
         if literal_variant(program, literal).map(|candidate| candidate.symbol) != Some(*variant) {
             return None;
@@ -308,9 +308,9 @@ fn expression_permission_provenance_for_claim(
         );
     }
 
-    if let typed_trees::expression::ExpressionNode::ArrayLiteral(values) =
+    if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::ArrayLiteral(values) =
         program.expression_table.expression(expression)
-        && let Some(facts::PlaceSegment::FixedIndex { index }) = relative_path.first()
+        && let Some(crate::fact_plan::PlaceSegment::FixedIndex { index }) = relative_path.first()
     {
         let value = *program
             .expression_table
@@ -326,9 +326,9 @@ fn expression_permission_provenance_for_claim(
         );
     }
 
-    if let typed_trees::expression::ExpressionNode::StructLiteral(literal) =
+    if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::StructLiteral(literal) =
         program.expression_table.expression(expression)
-        && let Some(facts::PlaceSegment::Field { symbol }) = relative_path.first()
+        && let Some(crate::fact_plan::PlaceSegment::Field { symbol }) = relative_path.first()
     {
         let field_name = data_field_name(program, *symbol)?;
         let field = program
@@ -349,7 +349,7 @@ fn expression_permission_provenance_for_claim(
     if !relative_path.is_empty()
         && matches!(
             program.expression_table.expression(expression),
-            typed_trees::expression::ExpressionNode::Call(_)
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(_)
         )
     {
         // Multi-output call mappings need the explicit P1c outcome map. Do
@@ -363,7 +363,7 @@ fn expression_permission_provenance_for_claim(
         statement_index,
         expression,
     )?;
-    let facts::PlaceRoot::Symbol(symbol) = source.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(symbol) = source.root else {
         return None;
     };
     let mut source_path = source.segments;

@@ -1,10 +1,10 @@
+use crate::checked_trees::{
+    BorrowAccessKind, CapturedPlace, CapturedPlaceCompatibility, CapturedPlaceContainment,
+};
 use crate::checks::borrows::overlap::captured_place_compatibility;
 use crate::checks::borrows::overlap::captured_place_compatibility_from_selector_snapshot;
 use crate::checks::borrows::overlap::captured_place_compatibility_with_selector_snapshot;
-use checked_trees::{
-    BorrowAccessKind, CapturedPlace, CapturedPlaceCompatibility, CapturedPlaceContainment,
-};
-use facts::PlaceSegment;
+use crate::fact_plan::PlaceSegment;
 
 fn symbol(index: u32) -> symbols::SymbolHandle {
     symbols::SymbolHandle::from_arena_index(index)
@@ -38,10 +38,13 @@ fn unresolved_pairs() -> [(PlaceSegment, PlaceSegment); 4] {
     ]
 }
 
-fn literal_index(program: &mut typed_trees::TypedTrees, value: i64) -> PlaceSegment {
+fn literal_index(
+    program: &mut symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    value: i64,
+) -> PlaceSegment {
     PlaceSegment::Index {
         expression: program.expression_table.insert(
-            checked_trees::expression::ExpressionNode::Integer(
+            crate::checked_trees::expression::ExpressionNode::Integer(
                 numerics::literals::IntegerLiteral::from_value(value),
             ),
         ),
@@ -51,7 +54,7 @@ fn literal_index(program: &mut typed_trees::TypedTrees, value: i64) -> PlaceSegm
 // Check each side and access polarity independently. Shared reads may be
 // noninterfering even when neither spatial relation can be established.
 fn assert_matrix(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     left: &CapturedPlace,
     right: &CapturedPlace,
     disjoint: bool,
@@ -160,7 +163,7 @@ fn canonical_segment_equality_requires_known_nominal_identity() {
 
 #[test]
 fn unknown_identity_precedes_segment_kind_comparison() {
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let zero = literal_index(&mut program, 0);
     for (left, right) in [
         (field(0), case(2)),
@@ -184,7 +187,7 @@ fn unknown_identity_precedes_segment_kind_comparison() {
 
 #[test]
 fn unknown_fields_and_cases_supply_neither_spatial_relation() {
-    let program = typed_trees::TypedTrees::default();
+    let program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     for (left, right) in unresolved_pairs() {
         assert_matrix(&program, &place(1, &[left]), &place(1, &[right]), false);
         assert_matrix(
@@ -198,7 +201,7 @@ fn unknown_fields_and_cases_supply_neither_spatial_relation() {
 
 #[test]
 fn known_children_cannot_disambiguate_an_unknown_prefix() {
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let zero = literal_index(&mut program, 0);
     let one = literal_index(&mut program, 1);
     let children = [
@@ -230,7 +233,7 @@ fn known_children_cannot_disambiguate_an_unknown_prefix() {
 
 #[test]
 fn unknown_identity_blocks_same_and_prefix_containment() {
-    let program = typed_trees::TypedTrees::default();
+    let program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     for (left, right) in unresolved_pairs() {
         assert_matrix(
             &program,
@@ -255,7 +258,7 @@ fn unknown_identity_blocks_same_and_prefix_containment() {
 
 #[test]
 fn unknown_unpaired_descendants_do_not_gain_containment() {
-    let program = typed_trees::TypedTrees::default();
+    let program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     for unknown in [field(0), case(0)] {
         assert_matrix(&program, &place(1, &[]), &place(1, &[unknown]), false);
         assert_matrix(
@@ -269,7 +272,7 @@ fn unknown_unpaired_descendants_do_not_gain_containment() {
 
 #[test]
 fn exact_sibling_prefixes_remain_disjoint_with_unknown_descendants() {
-    let program = typed_trees::TypedTrees::default();
+    let program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     for (left, right) in unresolved_pairs() {
         assert_matrix(
             &program,
@@ -288,7 +291,7 @@ fn exact_sibling_prefixes_remain_disjoint_with_unknown_descendants() {
 
 #[test]
 fn different_known_roots_remain_disjoint_with_unknown_descendants() {
-    let program = typed_trees::TypedTrees::default();
+    let program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     for (left, right) in unresolved_pairs() {
         assert_matrix(&program, &place(1, &[left]), &place(6, &[right]), true);
     }
@@ -296,7 +299,7 @@ fn different_known_roots_remain_disjoint_with_unknown_descendants() {
 
 #[test]
 fn replay_rejects_extra_selector_rows_before_an_unknown_identity() {
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let zero = literal_index(&mut program, 0);
     for (left, right) in unresolved_pairs() {
         let left = place(1, &[zero, left]);
@@ -336,7 +339,7 @@ fn replay_rejects_extra_selector_rows_before_an_unknown_identity() {
 
 #[test]
 fn replay_rejects_unconsumed_rows_after_a_known_disjoint_prefix() {
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let zero = literal_index(&mut program, 0);
     let fixed = PlaceSegment::FixedIndex { index: 0 };
     for unknown in [field(0), case(0)] {

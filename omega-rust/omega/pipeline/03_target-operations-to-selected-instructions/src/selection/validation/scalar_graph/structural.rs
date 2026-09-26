@@ -5,15 +5,17 @@ use super::{
     VirtualRegisterId, VirtualRegisterOrigin,
 };
 use crate::SelectedInstructionError;
+use crate::legalized_operations::{LegalizedScalarArgument, LegalizedScalarInstruction};
+use crate::register_model::RegisterOperandAccess;
+use crate::selected_instructions::{
+    OutgoingArgumentSlotId, SelectedBoundarySettlement, SelectedCallContract, SelectedMemoryAccess,
+    SelectedMemoryAccessRole, SelectedOutgoingArgumentSlot,
+};
 use crate::selection::byte_view_homes::ByteViewHomes;
 use crate::selection::element_view_homes::ElementViewHomes;
 use crate::selection::validation::scalar_graph::Replay;
-use calling_conventions::{IndirectPointerLocation, ValueLocation};
-use legalized_operations::{LegalizedScalarArgument, LegalizedScalarInstruction};
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
-    OutgoingArgumentSlotId, SelectedBoundarySettlement, SelectedCallContract, SelectedMemoryAccess,
-    SelectedMemoryAccessRole, SelectedOutgoingArgumentSlot,
+use abstract_operations_to_target_operations::calling_conventions::{
+    IndirectPointerLocation, ValueLocation,
 };
 use semantic_vocabulary::{IntegerType, PlaceId};
 use terminal_psi::StructuralAccess;
@@ -56,9 +58,9 @@ pub(super) struct Transport {
     element_views: Vec<ElementViewHomes>,
     pub fragments: Vec<(PlaceId, u32, VirtualRegisterId)>,
     pub slots: Vec<SelectedOutgoingArgumentSlot>,
-    pub local_slots: Vec<selected_instructions::SelectedLocalStorageSlot>,
+    pub local_slots: Vec<crate::selected_instructions::SelectedLocalStorageSlot>,
     pub calls: Vec<SelectedCallContract>,
-    pub normalized_foreign_calls: Vec<selected_instructions::SelectedNormalizedForeignCall>,
+    pub normalized_foreign_calls: Vec<crate::selected_instructions::SelectedNormalizedForeignCall>,
     pub memory: Vec<SelectedMemoryAccess>,
     pub settlements: Vec<SelectedBoundarySettlement>,
 }
@@ -176,12 +178,12 @@ pub(super) fn call_pointer(
         || !call.claim_transfers.is_empty()
         // Origin consistency alone also admits scalar calls with no ownership
         // event; this borrowed-pointer edge still requires authored transfer.
-        || matches!(call.source, target_operations::NativeCallOrigin::Authored)
+        || matches!(call.source, abstract_operations_to_target_operations::target_operations::NativeCallOrigin::Authored)
             && !matches!(row.ownership.as_slice(),
-                [optimization_unit::OwnershipEvent::ClaimTransfer(claims)] if claims.is_empty())
+                [terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::ClaimTransfer(claims)] if claims.is_empty())
         || row.result.is_some_and(|result| {
             !crate::selection::scalar_call_abi::scalar_shape(result.scalar_type)
-                .is_some_and(|shape| shape.class == calling_conventions::ValueClass::Integer)
+                .is_some_and(|shape| shape.class == abstract_operations_to_target_operations::calling_conventions::ValueClass::Integer)
         })
     {
         return Err(replay.invalid());
@@ -192,7 +194,7 @@ pub(super) fn call_pointer(
 pub(super) fn operation(
     source: &LegalizedScalarFunction,
     node: &LegalizedScalarInstruction,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &crate::register_environment::ValidatedTargetRegisterEnvironment,
     replay: &mut Replay<'_>,
 ) -> Result<bool, SelectedInstructionError> {
     if matches!(
@@ -328,7 +330,7 @@ pub(super) fn operation(
                     })
             });
             if !valid
-                || *shape != calling_conventions::ValueShape::integer(0, 1)
+                || *shape != abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(0, 1)
                 || argument.access == StructuralAccess::Owned
             {
                 return Err(replay.invalid());
@@ -374,7 +376,7 @@ pub(super) fn operation(
                     .try_into()
                     .map_err(|_| replay.invalid())?,
                 settlement:
-                    selected_instructions::SelectedBoundarySettlementPayload::ClaimCompletion(
+                    crate::selected_instructions::SelectedBoundarySettlementPayload::ClaimCompletion(
                         settlement.clone(),
                     ),
             });
@@ -447,7 +449,7 @@ pub(super) fn operation(
             || !semantic.path.is_empty()
             || target.place != semantic.place
             || target.source
-                != target_operations::TargetStructuralArgumentSource::Placement(
+                != abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::Placement(
                     parameter.target.placement.clone(),
                 )
             || target.destination != call.call_plan.parameters[argument_index]
@@ -467,7 +469,7 @@ pub(super) fn operation(
             return Err(replay.invalid());
         };
         let slot = OutgoingArgumentSlotId {
-            role: selected_instructions::OutgoingArgumentSlotRole::Argument,
+            role: crate::selected_instructions::OutgoingArgumentSlotRole::Argument,
             operation: node.operation,
             argument_index: argument_index.try_into().map_err(|_| replay.invalid())?,
         };
@@ -514,7 +516,7 @@ pub(super) fn operation(
             )?;
             replay.check_instruction(
                 SelectedInstructionKind::Store64 {
-                    slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
+                    slot: crate::selected_instructions::FrameStorageSlotId::Outgoing(slot),
                     byte_offset,
                 },
                 replay
@@ -544,7 +546,7 @@ pub(super) fn operation(
             )?;
             replay.check_instruction(
                 SelectedInstructionKind::FrameAddress {
-                    slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
+                    slot: crate::selected_instructions::FrameStorageSlotId::Outgoing(slot),
                     byte_offset: 0,
                 },
                 replay
@@ -637,7 +639,7 @@ fn memory(
                 .try_into()
                 .map_err(|_| replay.invalid())?,
         ),
-        origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(node.operation),
+        origin: crate::selected_instructions::SelectedMemoryAccessOrigin::Operation(node.operation),
         place,
         byte_offset,
         byte_count,

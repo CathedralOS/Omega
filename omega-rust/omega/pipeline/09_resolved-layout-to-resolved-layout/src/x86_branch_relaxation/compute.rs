@@ -14,9 +14,9 @@ mod tests;
 mod work;
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use register_model::ValidatedPhysicalRegisterModel;
+use target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel;
 
-use machine_code::ResolvedSelectedFunctionLayout;
+use post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedSelectedFunctionLayout;
 use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
 
 use super::{

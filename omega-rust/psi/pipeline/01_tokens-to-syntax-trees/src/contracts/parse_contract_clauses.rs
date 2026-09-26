@@ -5,23 +5,23 @@ use crate::expressions::parse_expression::{
     parse_expression_handle_without_struct_literals_or_membership,
 };
 use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
-use arena::{Handle, HandleSpan};
-use syntax_trees::SyntaxTrees;
-use syntax_trees::identifier::Identifier;
-use syntax_trees::item::{
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::identifier::Identifier;
+use crate::syntax_trees::item::{
     CapabilityContract, CapabilityContractKind, CrashCause, GenericConformanceBound,
 };
-use tokens::{KeywordKind, PunctuationKind};
+use arena::{Handle, HandleSpan};
+use source_files_to_tokens::tokens::{KeywordKind, PunctuationKind};
 
 type MachineClauses = (
     // TPR2: authored BARE `terminates;` (the public guarantee); the by-form
     // supplies only the witness and leaves this false.
     bool,
-    HandleSpan<syntax_trees::expression::ExpressionHandle>,
+    HandleSpan<crate::syntax_trees::expression::ExpressionHandle>,
     HandleSpan<Identifier>,
     // TPR3: argumented-view arguments (`-> Nat::IncreasingTo(limit)`).
-    HandleSpan<syntax_trees::expression::ExpressionHandle>,
-    syntax_trees::expression::ExpressionHandle,
+    HandleSpan<crate::syntax_trees::expression::ExpressionHandle>,
+    crate::syntax_trees::expression::ExpressionHandle,
     Vec<source::SourceSpan>,
     bool,
     HandleSpan<Identifier>,
@@ -31,17 +31,17 @@ type MachineClauses = (
     bool,
     bool,
     HandleSpan<CapabilityContract>,
-    syntax_trees::types::TypeReferenceHandle,
+    crate::syntax_trees::types::TypeReferenceHandle,
     Vec<GenericConformanceBound>,
-    HandleSpan<syntax_trees::item::ProofFact>,
+    HandleSpan<crate::syntax_trees::item::ProofFact>,
 );
 
 type RankedSubjects = (
-    HandleSpan<syntax_trees::expression::ExpressionHandle>,
+    HandleSpan<crate::syntax_trees::expression::ExpressionHandle>,
     HandleSpan<Identifier>,
     // TPR3: an argumented view's arguments (`-> Nat::IncreasingTo(limit)`).
-    HandleSpan<syntax_trees::expression::ExpressionHandle>,
-    syntax_trees::expression::ExpressionHandle,
+    HandleSpan<crate::syntax_trees::expression::ExpressionHandle>,
+    crate::syntax_trees::expression::ExpressionHandle,
 );
 
 pub(crate) fn parse_machine_clauses<'tokens, 'source>(
@@ -52,7 +52,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
     let mut ranking_subjects = HandleSpan::empty();
     let mut ranking_view = HandleSpan::empty();
     let mut ranking_view_arguments = HandleSpan::empty();
-    let mut ranking_range = syntax_trees::expression::ExpressionHandle::invalid();
+    let mut ranking_range = crate::syntax_trees::expression::ExpressionHandle::invalid();
     let mut service_reach_keyword_source_spans = Vec::new();
     let mut service_reach_is_installation_bound = false;
     let mut service_start = Handle::invalid();
@@ -67,7 +67,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
     let mut contract_count = 0u32;
     let mut outcome_case_groups = Vec::<String>::new();
     let mut public_selectors = Vec::<String>::new();
-    let mut return_type = syntax_trees::types::TypeReferenceHandle::invalid();
+    let mut return_type = crate::syntax_trees::types::TypeReferenceHandle::invalid();
     let mut conformance_bounds = Vec::new();
     let mut where_facts = Vec::new();
 
@@ -455,7 +455,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                             syntax_trees,
                             input,
                         )?;
-                    where_facts.push(syntax_trees::item::ProofFact::Expression(expression));
+                    where_facts.push(crate::syntax_trees::item::ProofFact::Expression(expression));
                     input = rest;
                 }
                 if !input.at_punctuation(PunctuationKind::Comma) {
@@ -836,7 +836,7 @@ fn parse_ranked_subjects<'tokens, 'source>(
         }
     }
 
-    let mut ranking_range = syntax_trees::expression::ExpressionHandle::invalid();
+    let mut ranking_range = crate::syntax_trees::expression::ExpressionHandle::invalid();
     if rest.at_contextual("in") {
         let range_input = rest.take_contextual("in")?;
         // `<start> ..(=) <end>`: ranges only parse structurally in index
@@ -861,16 +861,15 @@ fn parse_ranked_subjects<'tokens, 'source>(
             syntax_trees,
             after_separator,
         )?;
-        ranking_range =
-            syntax_trees
-                .expressions
-                .insert(syntax_trees::expression::ExpressionNode::Range(
-                    syntax_trees::expression::TableRangeExpression {
-                        start,
-                        end,
-                        end_inclusive,
-                    },
-                ));
+        ranking_range = syntax_trees.expressions.insert(
+            crate::syntax_trees::expression::ExpressionNode::Range(
+                crate::syntax_trees::expression::TableRangeExpression {
+                    start,
+                    end,
+                    end_inclusive,
+                },
+            ),
+        );
         rest = next;
     }
 

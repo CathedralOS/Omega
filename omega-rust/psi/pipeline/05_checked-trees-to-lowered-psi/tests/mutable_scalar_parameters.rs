@@ -428,7 +428,7 @@ fn checked_entry_storage_custody_rejects_missing_stale_and_rebound_parameter_row
             6 => plans.parameter_storage.get_mut(span.start()).symbol = other_parameter,
             7 => {
                 plans.parameter_storage.get_mut(span.start()).primitive_type =
-                    typed_trees::types::PrimitiveType::Bool
+                    symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::Bool
             }
             8 => {
                 candidate

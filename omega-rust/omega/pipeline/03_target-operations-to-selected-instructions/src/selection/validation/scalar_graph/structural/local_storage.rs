@@ -4,10 +4,10 @@ use super::{
     VirtualRegisterId, memory,
 };
 use crate::SelectedInstructionError;
+use crate::selected_instructions::{FrameStorageSlotId, LocalStorageSlotId};
 use crate::selection::validation::scalar_graph::Replay;
 use crate::selection::validation::scalar_graph::structural::provenance;
 use crate::selection::validation::scalar_graph::structural::result;
-use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId};
 
 /// Replay descriptor provenance through its exact call operand, independently
 /// of the transient descriptor slot's non-place identity.
@@ -25,10 +25,10 @@ fn storage_origin_place(
     if operation != row.operation {
         return None;
     }
-    let legalized_operations::LegalizedScalarInstructionKind::Call(call) = &row.kind else {
+    let crate::legalized_operations::LegalizedScalarInstructionKind::Call(call) = &row.kind else {
         return None;
     };
-    let legalized_operations::LegalizedScalarArgument::Structural { semantic, .. } =
+    let crate::legalized_operations::LegalizedScalarArgument::Structural { semantic, .. } =
         call.arguments.get(usize::try_from(argument_index).ok()?)?
     else {
         return None;
@@ -52,7 +52,7 @@ pub(in crate::selection::validation::scalar_graph) fn fixed_array_argument(
     replay
         .transport
         .local_slots
-        .push(selected_instructions::SelectedLocalStorageSlot {
+        .push(crate::selected_instructions::SelectedLocalStorageSlot {
             id: slot,
             byte_size: 16,
             alignment: 8,
@@ -90,7 +90,7 @@ pub(in crate::selection::validation::scalar_graph) fn byte_field_argument(
     replay
         .transport
         .local_slots
-        .push(selected_instructions::SelectedLocalStorageSlot {
+        .push(crate::selected_instructions::SelectedLocalStorageSlot {
             id: slot,
             byte_size: 16,
             alignment: 8,

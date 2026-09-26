@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use optimization_core::{AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass};
-use optimization_unit::{
+use terminal_psi_to_abstract_operations::optimization_unit::{
     LocalScalarCommonSubexpressionRewrite, NodeLocation, OptimizationFact, PsiOptimizationUnit,
     PsiRewriteCandidate,
 };

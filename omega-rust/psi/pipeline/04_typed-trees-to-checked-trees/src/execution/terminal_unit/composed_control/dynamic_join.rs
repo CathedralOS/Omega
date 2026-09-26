@@ -31,7 +31,7 @@ pub(in crate::execution::terminal_unit) fn admit_dynamic_join_control_topology(
     program: &TypedTrees,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
 ) -> Option<DynamicJoinControlTopology> {
     let [entry, first_branch_state, second_branch_state] = program.machine_states(machine) else {
         return None;
@@ -199,7 +199,7 @@ pub(in crate::execution::terminal_unit) fn admit_dynamic_join_control_topology(
 /// not target a named state.
 fn branch_target_symbol(
     program: &TypedTrees,
-    transition: &typed_trees::statement::TableTransition,
+    transition: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableTransition,
 ) -> Option<SymbolHandle> {
     let TransitionTargetNode::Named { path, .. } =
         program.statement_table.transition_target(transition.target)

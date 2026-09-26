@@ -25,13 +25,15 @@
 use super::LiveDefinitions;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractFunction, AbstractOperation};
+use crate::target_operations::{TargetUnitOperation, TerminalPsiProvenance};
 use semantic_vocabulary::StructuralFieldId;
 use std::collections::{BTreeMap, BTreeSet};
-use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
 use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralPathSegment, StructuralTypeShape,
+};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractFunction, AbstractOperation,
 };
 
 pub(super) fn move_field(

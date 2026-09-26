@@ -1,9 +1,9 @@
 use crate::expressions::expression::lower_expression_handle_from_table_with_self_substitution;
+use crate::typed_trees as typed;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
-use symbol_resolved_trees as resolved;
-use symbol_resolved_trees::SymbolResolvedTrees;
-use typed_trees as typed;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees as resolved;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::SymbolResolvedTrees;
 
 // Bound expressions may themselves select structural type arguments. Both
 // constraint representations must retain the resolved program for that nested
@@ -254,9 +254,9 @@ pub(crate) fn classify_domain_constraint_subject(
 #[cfg(test)]
 mod tests {
     use super::classify_domain_constraint_subject;
+    use crate::typed_trees::types::{DomainConstraintSubject, OmegaLayoutGrammar};
     use language_semantics::CarryPermission;
     use language_semantics::value_domain::ValueDomain;
-    use typed_trees::types::{DomainConstraintSubject, OmegaLayoutGrammar};
 
     #[test]
     fn classifies_only_closed_compiler_domain_shapes() {

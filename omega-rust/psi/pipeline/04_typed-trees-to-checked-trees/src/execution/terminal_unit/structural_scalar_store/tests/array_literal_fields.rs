@@ -2,8 +2,8 @@ use super::{
     CheckedUnitEffectOperationPlan, ShapeCollector, build_structural_scalar_field_store_sequence,
     checked_program, machine_binders,
 };
+use crate::checked_trees::CheckedUnitStructuralPathSegment as Segment;
 use crate::execution::terminal_unit::calls::structural_scalar_signature;
-use checked_trees::CheckedUnitStructuralPathSegment as Segment;
 
 fn stores(source: &str, machine_name: &str) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
     let checked = checked_program(source);
@@ -43,7 +43,7 @@ fn element_paths(stores: &[CheckedUnitEffectOperationPlan]) -> Vec<Vec<Segment>>
             CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                 statement_index: 0,
                 path,
-                value: checked_trees::CheckedCallScalarArgument::Pure(_),
+                value: crate::checked_trees::CheckedCallScalarArgument::Pure(_),
                 ..
             } => path.clone(),
             other => panic!("an element store of the one assignment, not {other:?}"),

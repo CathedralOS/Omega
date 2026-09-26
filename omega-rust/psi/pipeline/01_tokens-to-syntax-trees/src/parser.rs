@@ -3,9 +3,9 @@ pub use crate::diagnostics::parse_error;
 use crate::ParseError;
 use crate::declarations::parse_declaration::{ParsedDeclaration, parse_item};
 use crate::input::token_cursor::Input;
+use crate::syntax_trees::{SyntaxTrees, item::ItemHandle};
 use source::SourceId;
-use syntax_trees::{SyntaxTrees, item::ItemHandle};
-use tokens::Token;
+use source_files_to_tokens::tokens::Token;
 
 /// Parses one source into the caller's arena and returns that source's root
 /// item handles. Top-level `let`/`boundary let` declarations land on

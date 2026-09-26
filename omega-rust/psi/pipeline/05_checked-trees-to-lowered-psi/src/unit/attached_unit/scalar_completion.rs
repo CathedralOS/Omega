@@ -4,8 +4,8 @@ use super::{
     CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, LoweringError,
     unsupported,
 };
-use checked_trees::expression::ExpressionNode;
-use checked_trees::statement::StatementNode;
+use typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode;
+use typed_trees_to_checked_trees::checked_trees::statement::StatementNode;
 
 pub(super) mod control;
 
@@ -46,7 +46,7 @@ pub(super) fn validate(
         checked
             .type_reference_table
             .type_reference(state.return_type),
-        checked_trees::types::TypeReferenceNode::Constrained { .. }
+        typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Constrained { .. }
     ) {
         // A constrained numeric result is not dropped and not narrowed: the
         // shared refinement path republishes it as an ordinary ensures
@@ -58,7 +58,7 @@ pub(super) fn validate(
             checked,
             machine.state,
             0,
-            &checked_trees::ClosedScalarValueContractPlan::default(),
+            &typed_trees_to_checked_trees::checked_trees::ClosedScalarValueContractPlan::default(),
         )?;
     }
     // Entry predicates and guarantees have distinct read scopes. A normal
@@ -71,9 +71,9 @@ pub(super) fn validate(
         .any(|contract| {
             !matches!(
                 contract.kind,
-                checked_trees::signature::SignatureContractKind::Crashes { .. }
-                    | checked_trees::signature::SignatureContractKind::Requires
-                    | checked_trees::signature::SignatureContractKind::Ensures
+                typed_trees_to_checked_trees::checked_trees::signature::SignatureContractKind::Crashes { .. }
+                    | typed_trees_to_checked_trees::checked_trees::signature::SignatureContractKind::Requires
+                    | typed_trees_to_checked_trees::checked_trees::signature::SignatureContractKind::Ensures
             ) || contract.binding.is_some()
         })
     {
@@ -167,9 +167,11 @@ pub(super) fn validate(
         coordinate,
     )?;
     if authored.source_site
-        != Some(checked_trees::NominalMachineUseSite::Expression(
-            source_expression,
-        ))
+        != Some(
+            typed_trees_to_checked_trees::checked_trees::NominalMachineUseSite::Expression(
+                source_expression,
+            ),
+        )
     {
         return unsupported("scalar completion call differs from its final source expression");
     }

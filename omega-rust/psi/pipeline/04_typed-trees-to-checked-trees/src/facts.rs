@@ -50,12 +50,13 @@ pub(crate) fn crash_entry_operand(
     machine: SymbolHandle,
     state: SymbolHandle,
     before_statement: usize,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Option<checked_trees::CrashPredicateExpression> {
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+) -> Option<crate::checked_trees::CrashPredicateExpression> {
     crash_entry_values::entry_operand(program, machine, state, before_statement, expression)
 }
 
 use crate::borrow::build_borrow_facts;
+use crate::checked_trees::CheckFacts;
 use crate::facts::capabilities::build_capability_facts;
 use crate::facts::contract_plan_facts::{build_contract_plans, build_mutation_facts};
 use crate::facts::dynamic_conformance::build_dynamic_conformance_facts;
@@ -69,18 +70,17 @@ use crate::facts::placed_views_and_uses::{
 use crate::facts::qualification_facts::{build_qualification_facts, build_service_reach_facts};
 use crate::facts::requirement_call_specializations::build_requirement_call_specialization_facts;
 use crate::flow::{build_domain_facts, build_flow_facts_with_service_reaches};
+use crate::flow_effects::OperationalPlan;
 use crate::operators::{
     bind_boundary_operator_application_demands, build_operator_facts,
     select_pending_domain_operator_meanings,
 };
 use crate::proof::build_proof_facts_with_operators;
+use crate::proof_engine::obligations::ProofPlan;
 use crate::semantic::facts::build_semantic_facts;
 use crate::values::build_value_facts;
-use checked_trees::CheckFacts;
-use flow_effects::OperationalPlan;
-use proof::obligations::ProofPlan;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 
 #[derive(Clone, Copy)]
 struct MachineSuspensionRow {
@@ -120,9 +120,9 @@ pub(crate) fn build_check_facts(
     program: &TypedTrees,
     proof_plan: &ProofPlan<'_>,
     operational: OperationalPlan,
-    service_reach_inference: flow_effects::ServiceReachInferencePlan,
-    validation_facts: &validation::ProgramValidationFacts,
-    static_machine_selections: validation::ValidatedStaticMachineSelections,
+    service_reach_inference: crate::flow_effects::ServiceReachInferencePlan,
+    validation_facts: &crate::validation::ProgramValidationFacts,
+    static_machine_selections: crate::validation::ValidatedStaticMachineSelections,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<CheckFacts, Vec<diagnostics::Diagnostic>> {
     let borrow = build_borrow_facts(program);
@@ -160,7 +160,7 @@ pub(crate) fn build_check_facts(
     // flow classification, terminal ranking projections, termination progress
     // proofs, mutation frames, and crash-route refinement all classify the
     // same typed program.
-    let call_frames = validation::CallFrameResolver::new(program);
+    let call_frames = crate::validation::CallFrameResolver::new(program);
     let mut flow = build_flow_facts_with_service_reaches(
         program,
         &borrow,
@@ -235,7 +235,7 @@ pub(crate) fn build_check_facts(
         call_frames.as_ref(),
     )?;
     let mut fact_call_projection_diagnostics = Vec::new();
-    validation::validate_ordered_requirement_call_totality(
+    crate::validation::validate_ordered_requirement_call_totality(
         program,
         &operational,
         &service_reach_inference,
@@ -285,7 +285,7 @@ pub(crate) fn build_check_facts(
     let mut fact_call_projections = Vec::new();
     for call in &validation_facts.integer_embedding_calls {
         let exact_source = matches!(program.expression_table.expression(call.call_expression),
-            typed_trees::expression::ExpressionNode::Call(source) if source.target_symbol == call.target_state)
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(source) if source.target_symbol == call.target_state)
             && program
                 .machines()
                 .iter()
@@ -328,7 +328,7 @@ pub(crate) fn build_check_facts(
             )));
             continue;
         }
-        fact_call_projections.push(checked_trees::CheckedFactCallProjection {
+        fact_call_projections.push(crate::checked_trees::CheckedFactCallProjection {
             projection_expression: projection.projection_expression,
             call_expression: projection.call_expression,
             target_machine: projection.target_machine,

@@ -7,10 +7,10 @@
 //! validation, unlike the input ranges discarded by builtin arithmetic. Neither
 //! retention selects an operation or establishes predicate membership.
 
+use crate::typed_trees::TypedTrees;
+use crate::typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::BuiltinTypeAtom;
-use typed_trees::TypedTrees;
-use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn retain_arithmetic_result_type(
     source_symbols: &symbols::SymbolTable,

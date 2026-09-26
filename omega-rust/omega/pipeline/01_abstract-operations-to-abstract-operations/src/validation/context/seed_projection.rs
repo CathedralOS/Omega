@@ -3,7 +3,7 @@
 use super::super::BTreeMap;
 use super::context_projection::ContextProjection;
 use super::{OptimizationUnitValidationError, PsiOptimizationUnit, immutable_custody};
-use optimization_unit::OptimizationFact;
+use terminal_psi_to_abstract_operations::optimization_unit::OptimizationFact;
 
 pub(super) fn validate_seed_projection(
     input: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
@@ -46,7 +46,7 @@ pub(super) fn validate_seed_projection(
     }
 
     let mut seed =
-        optimization_unit::reconstruct_psi_optimization_unit_seed(input.plan(), unit.fuel_schedule)
+        terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(input.plan(), unit.fuel_schedule)
             .map_err(|_| {
                 OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch
             })?;
@@ -84,28 +84,35 @@ pub(super) fn validate_seed_projection(
             }
             let proposition = terminal_codec::canonical_proposition_order_key(&fact.proposition)
                 .map_err(OptimizationUnitValidationError::ContextIdentity)?;
-            projected_facts.push(optimization_unit::AcceptedObligationFact::new(
-                seed.psi,
-                projected_context.proof_fingerprint,
-                function.machine,
-                *support,
-                *obligation,
-                proposition,
-            ));
+            projected_facts.push(
+                terminal_psi_to_abstract_operations::optimization_unit::AcceptedObligationFact::new(
+                    seed.psi,
+                    projected_context.proof_fingerprint,
+                    function.machine,
+                    *support,
+                    *obligation,
+                    proposition,
+                ),
+            );
         }
     }
-    let projected = optimization_unit::attach_accepted_obligation_facts(seed, projected_facts)
+    let projected =
+        terminal_psi_to_abstract_operations::optimization_unit::attach_accepted_obligation_facts(
+            seed,
+            projected_facts,
+        )
         .map_err(|_| OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch)?;
-    let projected = optimization_unit::attach_proof_questions(
+    let projected = terminal_psi_to_abstract_operations::optimization_unit::attach_proof_questions(
         projected,
         projected_context.proof_questions.clone(),
     )
     .map_err(|_| OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch)?;
-    let projected = optimization_unit::attach_ownership_frontier_facts(
-        projected,
-        projected_context.ownership_frontiers.clone(),
-    )
-    .map_err(|_| OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch)?;
+    let projected =
+        terminal_psi_to_abstract_operations::optimization_unit::attach_ownership_frontier_facts(
+            projected,
+            projected_context.ownership_frontiers.clone(),
+        )
+        .map_err(|_| OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch)?;
     if (require_initial_revision && projected.identity != unit.identity)
         || projected.accepted_obligation_facts != unit.accepted_obligation_facts
         || projected.proof_questions != unit.proof_questions

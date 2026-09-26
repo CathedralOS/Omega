@@ -14,8 +14,8 @@
 //! call and borrow facts through which a call's writes are found.
 
 use std::collections::HashSet;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
 use symbols::SymbolHandle;
-use typed_trees::expression::ExpressionHandle;
 
 mod call_writes;
 pub(super) use call_writes::RangeCallContext;
@@ -30,7 +30,7 @@ pub(super) use dependencies::ReceiverLength;
 pub(super) struct RangeFacts<'field> {
     #[cfg(test)]
     pub(super) clone_work: CloneWork<'field>,
-    pub(super) checked_operators: Option<&'field checked_trees::CheckedOperatorFacts>,
+    pub(super) checked_operators: Option<&'field crate::checked_trees::CheckedOperatorFacts>,
     pub(super) checked_calls: Option<&'field RangeCallContext<'field>>,
     pub(super) mutation_summaries: std::borrow::Cow<'field, crate::flow::StateMutationSummaryCache>,
     pub(super) statement_index: usize,
@@ -69,7 +69,7 @@ pub(super) struct RangeFacts<'field> {
     boolean_locals: Vec<(
         SymbolHandle,
         String,
-        typed_trees::expression::ExpressionHandle,
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     )>,
     /// The per-state lazy whole-program bound index: dependency and read
     /// scans share one cell, so the bound maps build at most once for the
@@ -77,8 +77,9 @@ pub(super) struct RangeFacts<'field> {
     /// lookup built on one arm serves every sibling. `bound_program` carries
     /// the 'field program handle the leaf scans construct the lookup from.
     pub(super) bound_lookup:
-        std::rc::Rc<std::cell::RefCell<Option<validation::ImmutableBoundLookup<'field>>>>,
-    pub(super) bound_program: Option<&'field typed_trees::TypedTrees>,
+        std::rc::Rc<std::cell::RefCell<Option<crate::validation::ImmutableBoundLookup<'field>>>>,
+    pub(super) bound_program:
+        Option<&'field symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees>,
 }
 
 impl<'field> RangeFacts<'field> {
@@ -117,9 +118,9 @@ impl<'field> RangeFacts<'field> {
     /// nothing, then every dependency/read scan reuses the one map set.
     pub(super) fn bound_lookup(
         &self,
-    ) -> std::cell::Ref<'_, validation::ImmutableBoundLookup<'field>> {
+    ) -> std::cell::Ref<'_, crate::validation::ImmutableBoundLookup<'field>> {
         if self.bound_lookup.borrow().is_none() {
-            *self.bound_lookup.borrow_mut() = Some(validation::ImmutableBoundLookup::new(
+            *self.bound_lookup.borrow_mut() = Some(crate::validation::ImmutableBoundLookup::new(
                 self.bound_program.expect("bound program set by driver"),
             ));
         }

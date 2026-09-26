@@ -5,10 +5,10 @@ use super::{
     VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
+use crate::selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 use crate::selection::validation::scalar_graph::Replay;
 use crate::selection::validation::scalar_graph::structural::provenance;
 use crate::selection::validation::scalar_graph::structural::result;
-use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 use semantic_vocabulary::{IntegerValue, StructuralPlaceKind};
 
 pub(super) fn establish(

@@ -152,14 +152,14 @@ pub(super) fn create(
         element_stride: stride,
     });
     if crate::selection::established_view_input::requires_descriptor(function, view.place) {
-        let slot = selected_instructions::LocalStorageSlotId::Structural {
+        let slot = crate::selected_instructions::LocalStorageSlotId::Structural {
             operation: row.operation,
             place: view.place,
         };
         replay
             .transport
             .local_slots
-            .push(selected_instructions::SelectedLocalStorageSlot {
+            .push(crate::selected_instructions::SelectedLocalStorageSlot {
                 id: slot,
                 byte_size: 16,
                 alignment: 8,

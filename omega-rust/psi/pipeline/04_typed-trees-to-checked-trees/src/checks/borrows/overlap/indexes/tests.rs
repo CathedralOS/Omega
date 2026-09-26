@@ -10,24 +10,29 @@ use crate::checks::borrows::overlap::indexes::SelectorSnapshotEvaluation;
 use crate::checks::borrows::overlap::indexes::index_expression_may_contain_fixed;
 use crate::checks::borrows::overlap::indexes::index_expressions_may_overlap;
 use crate::checks::borrows::overlap::indexes::index_expressions_may_overlap_with_selectors;
-use typed_trees::expression::{BinaryOperator, Expression, NamePath, TableBinaryExpression};
-use typed_trees::machine::Machine;
-use typed_trees::name::Identifier;
-use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TableLocalData};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    BinaryOperator, Expression, NamePath, TableBinaryExpression,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier;
+use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{StatementNode, TableLocalData};
 
 fn symbol(index: u32) -> SymbolHandle {
     SymbolHandle::from_arena_index(index)
 }
 
-fn integer(program: &mut typed_trees::TypedTrees, value: i64) -> ExpressionHandle {
+fn integer(
+    program: &mut symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    value: i64,
+) -> ExpressionHandle {
     program.expression_table.insert(ExpressionNode::Integer(
         numerics::literals::IntegerLiteral::from_value(value),
     ))
 }
 
 fn range(
-    program: &mut typed_trees::TypedTrees,
+    program: &mut symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     start: i64,
     end: i64,
     end_inclusive: bool,
@@ -44,7 +49,7 @@ fn range(
 }
 
 fn named_bound(
-    program: &mut typed_trees::TypedTrees,
+    program: &mut symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     name: &'static str,
     symbol: SymbolHandle,
 ) -> ExpressionHandle {
@@ -58,18 +63,18 @@ fn named_bound(
 }
 
 fn exact_integer_type(
-    program: &mut typed_trees::TypedTrees,
-) -> typed_trees::types::TypeReferenceHandle {
-    program
-        .type_reference_table
-        .insert(typed_trees::types::TypeReferenceNode::Named {
+    program: &mut symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+) -> symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle {
+    program.type_reference_table.insert(
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named {
             symbol: SymbolHandle::invalid(),
             name: Identifier::generated_static("u64"),
-        })
+        },
+    )
 }
 
 fn offset_bound(
-    program: &mut typed_trees::TypedTrees,
+    program: &mut symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     base: ExpressionHandle,
     operator: BinaryOperator,
     offset: i64,
@@ -85,7 +90,7 @@ fn offset_bound(
 }
 
 fn range_bounds(
-    program: &mut typed_trees::TypedTrees,
+    program: &mut symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     start: ExpressionHandle,
     end: ExpressionHandle,
     end_inclusive: bool,
@@ -100,7 +105,7 @@ fn range_bounds(
 }
 
 fn install_locals(
-    program: &mut typed_trees::TypedTrees,
+    program: &mut symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     locals: impl IntoIterator<Item = (SymbolHandle, &'static str, ExpressionHandle, bool)>,
 ) {
     let type_reference = exact_integer_type(program);
@@ -108,9 +113,9 @@ fn install_locals(
 }
 
 fn install_locals_with_type(
-    program: &mut typed_trees::TypedTrees,
+    program: &mut symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     locals: impl IntoIterator<Item = (SymbolHandle, &'static str, ExpressionHandle, bool)>,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
 ) {
     let mut machine = Machine::default();
     let mut state = State::default();
@@ -133,7 +138,7 @@ fn install_locals_with_type(
 
 #[test]
 fn exclusive_range_disjoint_from_index_at_end() {
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     // `[0, 3)` does not contain index 3.
     let window = range(&mut program, 0, 3, false);
     let index = integer(&mut program, 3);
@@ -142,7 +147,7 @@ fn exclusive_range_disjoint_from_index_at_end() {
 
 #[test]
 fn inclusive_range_overlaps_index_at_end() {
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     // `0..=3` covers index 3 -- must overlap (soundness).
     let window = range(&mut program, 0, 3, true);
     let index = integer(&mut program, 3);
@@ -151,7 +156,7 @@ fn inclusive_range_overlaps_index_at_end() {
 
 #[test]
 fn inclusive_range_overlaps_adjacent_window() {
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     // `0..=3` = `[0, 4)` overlaps `3..5` = `[3, 5)` at index 3.
     let left = range(&mut program, 0, 3, true);
     let right = range(&mut program, 3, 5, false);
@@ -160,7 +165,7 @@ fn inclusive_range_overlaps_adjacent_window() {
 
 #[test]
 fn tail_range_excludes_fixed_index_before_its_start() {
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let one = integer(&mut program, 1);
     let tail = program
         .expression_table
@@ -176,7 +181,7 @@ fn tail_range_excludes_fixed_index_before_its_start() {
 
 #[test]
 fn exclusive_adjacent_windows_are_disjoint() {
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     // `[0, 3)` and `[3, 5)` share no index.
     let left = range(&mut program, 0, 3, false);
     let right = range(&mut program, 3, 5, false);
@@ -185,7 +190,7 @@ fn exclusive_adjacent_windows_are_disjoint() {
 
 #[test]
 fn symbolic_exclusive_adjacency_requires_the_exact_resolved_boundary() {
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let zero = integer(&mut program, 0);
     let four = integer(&mut program, 4);
     let left_mid = named_bound(&mut program, "mid", symbol(1));
@@ -196,20 +201,20 @@ fn symbolic_exclusive_adjacency_requires_the_exact_resolved_boundary() {
     let mutated_right = range_bounds(&mut program, other, four, false);
 
     assert!(!index_expressions_may_overlap(&program, left, right));
-    let left_place = checked_trees::CapturedPlace {
+    let left_place = crate::checked_trees::CapturedPlace {
         root_symbol: symbol(20),
-        segments: vec![facts::PlaceSegment::Index { expression: left }],
+        segments: vec![crate::fact_plan::PlaceSegment::Index { expression: left }],
     };
-    let right_place = checked_trees::CapturedPlace {
+    let right_place = crate::checked_trees::CapturedPlace {
         root_symbol: symbol(20),
-        segments: vec![facts::PlaceSegment::Index { expression: right }],
+        segments: vec![crate::fact_plan::PlaceSegment::Index { expression: right }],
     };
     let compatibility = super::super::captured_place_compatibility(
         &program,
         &left_place,
-        &checked_trees::BorrowAccessKind::Mutable,
+        &crate::checked_trees::BorrowAccessKind::Mutable,
         &right_place,
-        &checked_trees::BorrowAccessKind::Mutable,
+        &crate::checked_trees::BorrowAccessKind::Mutable,
         &[],
         &mut None,
     );
@@ -217,24 +222,24 @@ fn symbolic_exclusive_adjacency_requires_the_exact_resolved_boundary() {
     assert!(compatibility.non_interfering);
     assert_eq!(
         compatibility.containment,
-        checked_trees::CapturedPlaceContainment::None
+        crate::checked_trees::CapturedPlaceContainment::None
     );
     assert!(
         index_expressions_may_overlap(&program, left, mutated_right),
         "changing the shared boundary symbol must restore conservative overlap"
     );
-    let changed_place = checked_trees::CapturedPlace {
+    let changed_place = crate::checked_trees::CapturedPlace {
         root_symbol: symbol(20),
-        segments: vec![facts::PlaceSegment::Index {
+        segments: vec![crate::fact_plan::PlaceSegment::Index {
             expression: mutated_right,
         }],
     };
     let changed = super::super::captured_place_compatibility(
         &program,
         &left_place,
-        &checked_trees::BorrowAccessKind::Mutable,
+        &crate::checked_trees::BorrowAccessKind::Mutable,
         &changed_place,
-        &checked_trees::BorrowAccessKind::Mutable,
+        &crate::checked_trees::BorrowAccessKind::Mutable,
         &[],
         &mut None,
     );
@@ -244,7 +249,7 @@ fn symbolic_exclusive_adjacency_requires_the_exact_resolved_boundary() {
 
 #[test]
 fn selector_snapshot_retains_exact_symbol_values_and_ordered_locations() {
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let zero = integer(&mut program, 0);
     let four = integer(&mut program, 4);
     let left_mid = named_bound(&mut program, "mid", symbol(1));
@@ -338,7 +343,7 @@ fn selector_snapshot_retains_exact_symbol_values_and_ordered_locations() {
 
 #[test]
 fn unknown_selector_positions_close_replay_shape_without_positive_evidence() {
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let computed_left = named_bound(&mut program, "seed", symbol(8));
     let computed_right = integer(&mut program, 0);
     let computed_initial =
@@ -420,7 +425,7 @@ fn unknown_selector_positions_close_replay_shape_without_positive_evidence() {
 
 #[test]
 fn immutable_local_name_copy_chain_preserves_symbolic_adjacency() {
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let mid_initial = named_bound(&mut program, "mid", symbol(3));
     install_locals(&mut program, [(symbol(4), "cut", mid_initial, false)]);
     let zero = integer(&mut program, 0);
@@ -435,7 +440,7 @@ fn immutable_local_name_copy_chain_preserves_symbolic_adjacency() {
 
 #[test]
 fn mutable_and_computed_local_aliases_do_not_prove_symbolic_adjacency() {
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let mutable_initial = named_bound(&mut program, "mid", symbol(5));
     let computed_left = named_bound(&mut program, "mid", symbol(5));
     let computed_right = integer(&mut program, 0);
@@ -479,7 +484,7 @@ fn mutable_and_computed_local_aliases_do_not_prove_symbolic_adjacency() {
 
 #[test]
 fn inclusive_symbolic_end_orders_offsets_and_cyclic_aliases() {
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let first_to_second = named_bound(&mut program, "second", symbol(9));
     let second_to_first = named_bound(&mut program, "first", symbol(8));
     install_locals(
@@ -532,7 +537,7 @@ fn inclusive_symbolic_end_orders_offsets_and_cyclic_aliases() {
 
 #[test]
 fn shared_symbol_offsets_order_slice_windows() {
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let mid_symbol = symbol(30);
     let mid = named_bound(&mut program, "mid", mid_symbol);
     let mid_plus_one = offset_bound(&mut program, mid, BinaryOperator::Add, 1);
@@ -596,7 +601,7 @@ fn shared_symbol_offsets_order_slice_windows() {
 
 #[test]
 fn shared_symbol_offset_snapshot_preserves_plain_and_shifted_values() {
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let mid_symbol = symbol(32);
     let mid = named_bound(&mut program, "mid", mid_symbol);
     let shifted = offset_bound(&mut program, mid, BinaryOperator::Add, 1);
@@ -653,25 +658,24 @@ fn shared_symbol_offset_snapshot_preserves_plain_and_shifted_values() {
 
 #[test]
 fn wrapping_symbol_offset_remains_unknown() {
-    let mut program = typed_trees::TypedTrees::default();
-    let base = program
-        .type_reference_table
-        .insert(typed_trees::types::TypeReferenceNode::Named {
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
+    let base = program.type_reference_table.insert(
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named {
             symbol: SymbolHandle::invalid(),
             name: Identifier::generated_static("u64"),
-        });
+        },
+    );
     let constraints = program.type_reference_table.insert_constraints([
-        typed_trees::types::TypeConstraintNode::ArithmeticDomain(
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode::ArithmeticDomain(
             numerics::arithmetic::ArithmeticDomain::Wrapping,
         ),
     ]);
-    let wrapping =
-        program
-            .type_reference_table
-            .insert(typed_trees::types::TypeReferenceNode::Constrained {
-                base_type: base,
-                constraints,
-            });
+    let wrapping = program.type_reference_table.insert(
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained {
+            base_type: base,
+            constraints,
+        },
+    );
     let mid_symbol = symbol(33);
     let mid = named_bound(&mut program, "mid", mid_symbol);
     let shifted = offset_bound(&mut program, mid, BinaryOperator::Add, 1);
@@ -713,7 +717,7 @@ fn wrapping_symbol_offset_remains_unknown() {
 
 #[test]
 fn disjoint_windows_stay_disjoint() {
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let left = range(&mut program, 0, 2, false);
     let right = range(&mut program, 4, 8, false);
     assert!(!index_expressions_may_overlap(&program, left, right));
@@ -721,7 +725,7 @@ fn disjoint_windows_stay_disjoint() {
 
 #[test]
 fn empty_inclusive_window_overlaps_nothing() {
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     // `2..=1` normalizes to `[2, 2)` -- empty, disjoint from index 2.
     let window = range(&mut program, 2, 1, true);
     let index = integer(&mut program, 2);

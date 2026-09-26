@@ -3,8 +3,8 @@ use super::super::ClosedScalarContractValue;
 use super::{
     CheckedBoundaryScalarReturnMachinePlan, CheckedTrees, LoweringError, memberships, unsupported,
 };
-use checked_trees::domain::ProofFact;
-use checked_trees::signature::SignatureContractKind;
+use typed_trees_to_checked_trees::checked_trees::domain::ProofFact;
+use typed_trees_to_checked_trees::checked_trees::signature::SignatureContractKind;
 
 pub(crate) fn checked_requirements(
     checked: &CheckedTrees,
@@ -58,10 +58,10 @@ pub(crate) fn checked_requirements(
         let mut reference = parameter.type_reference;
         loop {
             match checked.type_reference_table.type_reference(reference) {
-                checked_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+                typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Reference { referee, .. } => {
                     reference = *referee
                 }
-                checked_trees::types::TypeReferenceNode::Constrained {
+                typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Constrained {
                     base_type,
                     constraints,
                 } => {
@@ -72,7 +72,7 @@ pub(crate) fn checked_requirements(
                         .filter(|constraint| {
                             matches!(
                                 constraint,
-                                checked_trees::types::TypeConstraintNode::Range { .. }
+                                typed_trees_to_checked_trees::checked_trees::types::TypeConstraintNode::Range { .. }
                             )
                         })
                         .count();

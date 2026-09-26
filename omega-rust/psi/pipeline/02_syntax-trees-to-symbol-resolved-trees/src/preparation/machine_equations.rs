@@ -11,12 +11,12 @@ use super::{
     generic_data::{constant_selection::ConstantSelection, module_constants},
     type_equations::{self, EquationTemplate},
 };
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
 use arena::Handle;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::CanonicalConstValue;
 use numerics::literals::{IntegerLiteral, IntegerRadix};
-use symbol_resolved_trees::SymbolResolvedTrees;
-use syntax_trees::{
+use tokens_to_syntax_trees::syntax_trees::{
     SyntaxTrees,
     expression::StaticMachineArgument,
     item::{Item, Machine, TypeParameterKind},
@@ -27,12 +27,12 @@ use syntax_trees::{
 pub(crate) struct SourceLinks {
     pub(crate) declarations: Vec<(usize, Machine)>,
     pub(crate) expressions: Vec<(
-        syntax_trees::expression::ExpressionHandle,
-        symbol_resolved_trees::expression::ExpressionHandle,
+        tokens_to_syntax_trees::syntax_trees::expression::ExpressionHandle,
+        crate::symbol_resolved_trees::expression::ExpressionHandle,
     )>,
     pub(crate) statements: Vec<(
-        syntax_trees::statement::StatementHandle,
-        Handle<symbol_resolved_trees::statement::Statement>,
+        tokens_to_syntax_trees::syntax_trees::statement::StatementHandle,
+        Handle<crate::symbol_resolved_trees::statement::Statement>,
     )>,
 }
 
@@ -121,8 +121,9 @@ pub(crate) fn complete(
         }
     }
     for conformance in &trees.conformances {
-        if let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
-            &conformance.implementation
+        if let crate::symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed {
+            rows,
+        } = &conformance.implementation
         {
             for row in rows {
                 if [row.realization_machine, row.realization_state]
@@ -142,7 +143,7 @@ pub(crate) fn complete(
     }
     for (original, resolved) in &sources.expressions {
         match trees.tables.bodies.expressions.expression(*resolved) {
-            symbol_resolved_trees::expression::ExpressionNode::Call(call) => {
+            crate::symbol_resolved_trees::expression::ExpressionNode::Call(call) => {
                 reject_machine_arguments(trees, &call.machine_arguments)?;
                 let Some(index) = selected_machine(trees, call.target_symbol) else {
                     continue;
@@ -151,7 +152,7 @@ pub(crate) fn complete(
                     continue;
                 }
                 require_closed_selected_arguments(trees, &call.machine_arguments)?;
-                let syntax_trees::expression::ExpressionNode::Call(mut authored) =
+                let tokens_to_syntax_trees::syntax_trees::expression::ExpressionNode::Call(mut authored) =
                     syntax.expressions.expression(*original).clone()
                 else {
                     return Err(vec![Diagnostic::error(
@@ -171,10 +172,10 @@ pub(crate) fn complete(
                     .map(|argument| argument.type_reference).filter(|reference| reference.is_valid()));
                 syntax.expressions.replace_expression(
                     *original,
-                    syntax_trees::expression::ExpressionNode::Call(authored),
+                    tokens_to_syntax_trees::syntax_trees::expression::ExpressionNode::Call(authored),
                 );
             }
-            symbol_resolved_trees::expression::ExpressionNode::Name(path)
+            crate::symbol_resolved_trees::expression::ExpressionNode::Name(path)
                 // `self` names the receiver storage through its owning state;
                 // it is not a first-class selection of that state's machine.
                 if !path.is_self_value && selected_machine(trees, path.symbol)
@@ -188,7 +189,7 @@ pub(crate) fn complete(
         }
     }
     for (original, resolved) in &sources.statements {
-        let symbol_resolved_trees::statement::Statement::Call(call) =
+        let crate::symbol_resolved_trees::statement::Statement::Call(call) =
             trees.tables.declarations.state_statements.get(*resolved)
         else {
             continue;
@@ -201,7 +202,7 @@ pub(crate) fn complete(
             continue;
         }
         require_closed_selected_arguments(trees, &call.machine_arguments)?;
-        let syntax_trees::statement::StatementNode::Call(mut authored) =
+        let tokens_to_syntax_trees::syntax_trees::statement::StatementNode::Call(mut authored) =
             syntax.statements.statement(*original).clone()
         else {
             return Err(vec![Diagnostic::error(
@@ -226,7 +227,7 @@ pub(crate) fn complete(
         );
         syntax.statements.replace_statement(
             *original,
-            syntax_trees::statement::StatementNode::Call(authored),
+            tokens_to_syntax_trees::syntax_trees::statement::StatementNode::Call(authored),
         );
     }
     // Completion may introduce nominal type applications after the compiler's
@@ -266,7 +267,7 @@ pub(crate) fn complete(
 
 fn reject_machine_arguments(
     trees: &SymbolResolvedTrees,
-    arguments: &[symbol_resolved_trees::expression::StaticMachineArgument],
+    arguments: &[crate::symbol_resolved_trees::expression::StaticMachineArgument],
 ) -> Result<(), Vec<Diagnostic>> {
     for argument in arguments {
         if selected_machine(trees, argument.symbol)
@@ -288,9 +289,9 @@ fn reject_machine_arguments(
 /// this is a closedness fence, not a second equation or type inference solver.
 fn require_closed_selected_arguments(
     trees: &SymbolResolvedTrees,
-    arguments: &[symbol_resolved_trees::expression::StaticMachineArgument],
+    arguments: &[crate::symbol_resolved_trees::expression::StaticMachineArgument],
 ) -> Result<(), Vec<Diagnostic>> {
-    use symbol_resolved_trees::types::{FixedArrayLength, TypeReference};
+    use crate::symbol_resolved_trees::types::{FixedArrayLength, TypeReference};
     let is_binder = |symbol| {
         matches!(
             trees.symbols.get(symbol).kind,
@@ -347,7 +348,8 @@ fn require_closed_selected_arguments(
                     .constraints
                     .span_or_empty(constrained.constraints)
                 {
-                    if let symbol_resolved_trees::types::TypeConstraint::Domain(domain) = constraint
+                    if let crate::symbol_resolved_trees::types::TypeConstraint::Domain(domain) =
+                        constraint
                     {
                         append_type_children(domain.arguments, &mut pending);
                     }
@@ -367,8 +369,8 @@ fn require_closed_selected_arguments(
 }
 
 fn append_type_children(
-    span: arena::HandleSpan<symbol_resolved_trees::types::TypeReference>,
-    pending: &mut Vec<Handle<symbol_resolved_trees::types::TypeReference>>,
+    span: arena::HandleSpan<crate::symbol_resolved_trees::types::TypeReference>,
+    pending: &mut Vec<Handle<crate::symbol_resolved_trees::types::TypeReference>>,
 ) {
     for offset in 0..span.count() {
         pending.push(Handle::from_parts(
@@ -381,7 +383,7 @@ fn append_type_children(
 fn complete_arguments(
     syntax: &mut SyntaxTrees,
     selected: usize,
-    target: &syntax_trees::identifier::Identifier,
+    target: &tokens_to_syntax_trees::syntax_trees::identifier::Identifier,
     supplied: &[StaticMachineArgument],
     sources: &SourceLinks,
     selection: &ConstantSelection<'_>,
@@ -443,13 +445,13 @@ fn complete_arguments(
             }
             TypeParameterKind::Type if argument.const_literal.is_none() && argument.application.is_none() && argument.evidence_projection.is_none() && !argument.path.is_empty() => {
                 let name = argument.path.iter().map(|part| part.as_str()).collect::<Vec<_>>().join("::");
-                syntax.type_references.insert(TypeReferenceNode::Named(syntax_trees::identifier::Identifier::new(name, argument.path[0].source_span())))
+                syntax.type_references.insert(TypeReferenceNode::Named(tokens_to_syntax_trees::syntax_trees::identifier::Identifier::new(name, argument.path[0].source_span())))
             }
             // Supplied literals retain ordinary static-argument carrier checking;
             // unrelated equations must not impose constructor-slot restrictions.
             TypeParameterKind::Const { .. } if argument.const_literal.is_some() => {
                 let value = argument.const_literal.as_ref().and_then(IntegerLiteral::value_bignum).ok_or_else(|| Diagnostic::error("machine equation const argument is not an exact integer"))?;
-                syntax.type_references.insert(TypeReferenceNode::Named(syntax_trees::identifier::Identifier::generated(value.to_string())))
+                syntax.type_references.insert(TypeReferenceNode::Named(tokens_to_syntax_trees::syntax_trees::identifier::Identifier::generated(value.to_string())))
             }
             TypeParameterKind::Const { .. } => {
                 application_argument_reference(syntax, argument, &parameter.kind, selection)?
@@ -521,9 +523,11 @@ fn complete_arguments(
                 };
                 let text = value.as_str();
                 if let Some(value) = type_equations::normalized_boolean_argument(text) {
-                    argument.path = vec![syntax_trees::identifier::Identifier::generated(
-                        CanonicalConstValue::boolean(value).atom(),
-                    )]
+                    argument.path = vec![
+                        tokens_to_syntax_trees::syntax_trees::identifier::Identifier::generated(
+                            CanonicalConstValue::boolean(value).atom(),
+                        ),
+                    ]
                     .into_boxed_slice();
                     completed.push(argument);
                     continue;
@@ -581,7 +585,7 @@ fn application_argument_reference(
                 let value = type_equations::normalized_boolean_argument(name.as_str())
                     .ok_or_else(|| reject("requires a closed Boolean constructor argument"))?;
                 return Ok(syntax.type_references.insert(TypeReferenceNode::Named(
-                    syntax_trees::identifier::Identifier::new(
+                    tokens_to_syntax_trees::syntax_trees::identifier::Identifier::new(
                         CanonicalConstValue::boolean(value).atom(),
                         name.source_span(),
                     ),
@@ -610,7 +614,9 @@ fn application_argument_reference(
                 ));
             }
             Ok(syntax.type_references.insert(TypeReferenceNode::Named(
-                syntax_trees::identifier::Identifier::generated(value.to_string()),
+                tokens_to_syntax_trees::syntax_trees::identifier::Identifier::generated(
+                    value.to_string(),
+                ),
             )))
         }
         TypeParameterKind::Type => {
@@ -623,7 +629,7 @@ fn application_argument_reference(
             let Some(first) = argument.path.first() else {
                 return Err(reject("requires a selected type name"));
             };
-            let name = syntax_trees::identifier::Identifier::new(
+            let name = tokens_to_syntax_trees::syntax_trees::identifier::Identifier::new(
                 argument
                     .path
                     .iter()

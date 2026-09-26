@@ -15,9 +15,11 @@ use crate::{
     propose_loop_invariant_scalar_motion, validate_loop_invariant_scalar_motion,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use optimization_unit::{ProvenanceDisposition, PsiProvenance, PsiRealizationSite};
-use optimization_unit_semantics::OptimizationUnitValidationError;
 use semantic_vocabulary::{BlockId, MachineId, OperationId};
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    ProvenanceDisposition, PsiProvenance, PsiRealizationSite,
+};
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::OptimizationUnitValidationError;
 
 /// A certified countdown loop: the `remaining > 0` guard and `remaining - 1`
 /// backedge carry verifier-admitted `Natural` ranking evidence that projects

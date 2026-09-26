@@ -96,7 +96,7 @@ fn call_target_type_parameters_supply_carry_bounds() {
         .expect("value parameter");
 
     assert_eq!(
-        validation::effective_type_carry_policy(
+        crate::validation::effective_type_carry_policy(
             &typed,
             crate::semantic::calls::call_target_type_parameters(&typed, state.symbol),
             value.type_reference,
@@ -105,7 +105,8 @@ fn call_target_type_parameters_supply_carry_bounds() {
         language_semantics::CarrySuspension::Allowed,
     );
     assert_eq!(
-        validation::effective_type_carry_policy(&typed, &[], value.type_reference).suspension,
+        crate::validation::effective_type_carry_policy(&typed, &[], value.type_reference)
+            .suspension,
         language_semantics::CarrySuspension::Forbidden,
         "an unowned generic name must stay born-strict",
     );
@@ -178,10 +179,10 @@ fn checked_crossing_records_canonical_site_and_joined_policy() {
     );
     assert!(crossing.target.is_valid());
     assert!(crossing.live_values.iter().any(|value| {
-        value.storage == checked_trees::SuspensionCrossingStorage::Local
+        value.storage == crate::checked_trees::SuspensionCrossingStorage::Local
             && matches!(
                 value.origin,
-                checked_trees::SuspensionCrossingValueOrigin::Local {
+                crate::checked_trees::SuspensionCrossingValueOrigin::Local {
                     statement_index: 0,
                     environment_position: 0,
                     ..
@@ -233,12 +234,12 @@ fn admitted_across_suspend_permission_relaxes_only_the_claim_suspension_axis() {
                 .display_type_reference(value.type_reference)
                 .as_str()
                 == "Token"
-                && value.storage == checked_trees::SuspensionCrossingStorage::Local
+                && value.storage == crate::checked_trees::SuspensionCrossingStorage::Local
         })
         .expect("live admitted token");
     assert!(matches!(
         token.origin,
-        checked_trees::SuspensionCrossingValueOrigin::Local {
+        crate::checked_trees::SuspensionCrossingValueOrigin::Local {
             statement_index: 0,
             environment_position: 0,
             ..
@@ -435,7 +436,7 @@ fn checked_one_to_one_call_infers_the_claims_exact_carry_policy() {
                 .display_type_reference(value.type_reference)
                 .as_str()
                 == "Token"
-                && value.storage == checked_trees::SuspensionCrossingStorage::Local
+                && value.storage == crate::checked_trees::SuspensionCrossingStorage::Local
         })
         .expect("live forwarded claim");
     assert_eq!(
@@ -453,14 +454,14 @@ fn checked_one_to_one_call_infers_the_claims_exact_carry_policy() {
             .iter()
             .map(|(_, fact)| fact)
             .any(|fact| {
-                let facts::FactPlace::Place(place) = fact.place else {
+                let crate::fact_plan::FactPlace::Place(place) = fact.place else {
                     return false;
                 };
                 checked.facts.semantic.place_label(&checked.typed, place) == "forwarded"
                     && matches!(
                         fact.payload,
-                        facts::FactPayload::DomainMembership { .. }
-                            | facts::FactPayload::ContractDomainMembership { .. }
+                        crate::fact_plan::FactPayload::DomainMembership { .. }
+                            | crate::fact_plan::FactPayload::ContractDomainMembership { .. }
                     )
             }),
         "the helper may forget `Issued` while the independent carry entry remains live"
@@ -970,7 +971,7 @@ fn erased_attached_data_field_does_not_create_contained_machine_topology() {
         .iter()
         .flat_map(|definition| checked.data_members(definition))
         .find_map(|member| match member {
-            checked_trees::data::DataMember::Field(field)
+            crate::checked_trees::data::DataMember::Field(field)
                 if field.name.as_str() == "material_leaf" =>
             {
                 Some(field)

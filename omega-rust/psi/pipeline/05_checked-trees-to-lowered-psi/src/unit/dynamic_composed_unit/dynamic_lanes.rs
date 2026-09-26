@@ -14,7 +14,11 @@ use crate::unit::dynamic_composed_unit::forwarded_helpers::{
     ForwardedHelperBody, ForwardedHelperCompletion,
 };
 use crate::unit::{LoweredPsi, LoweringError, MachineId, terminal_scalar_type, unsupported};
-use checked_trees::{
+use language_semantics::{Multiplicity, ServiceReachSummary};
+use semantic_vocabulary::ScalarType;
+use symbols::SymbolHandle;
+use terminal_psi::ClosedConformanceCallableResult;
+use typed_trees_to_checked_trees::checked_trees::{
     CheckedDynamicDescriptorTransferPlan, CheckedDynamicRealizationBodyPlan,
     CheckedDynamicRealizationCallablePlan, CheckedDynamicScalarCallOrigin,
     CheckedDynamicScalarCallPlan, CheckedDynamicSelectionPlan, CheckedDynamicUnitCallOrigin,
@@ -23,10 +27,6 @@ use checked_trees::{
     CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralPathSegment,
     DynamicConformanceBindingFact, MachineContractCommitment,
 };
-use language_semantics::{Multiplicity, ServiceReachSummary};
-use semantic_vocabulary::ScalarType;
-use symbols::SymbolHandle;
-use terminal_psi::ClosedConformanceCallableResult;
 
 #[derive(Clone)]
 pub(crate) struct LoweredDynamicRealization {
@@ -71,7 +71,7 @@ pub(crate) struct ForwardedHelperValues {
 pub(crate) enum DynamicLoweringLane<'a> {
     Direct,
     Rebound(&'a CheckedDynamicSelectionPlan),
-    Stored(&'a checked_trees::CheckedDynamicStoredDescriptorPlan),
+    Stored(&'a typed_trees_to_checked_trees::checked_trees::CheckedDynamicStoredDescriptorPlan),
 }
 
 /// The final helper of a forwarded call: its machine and state, the

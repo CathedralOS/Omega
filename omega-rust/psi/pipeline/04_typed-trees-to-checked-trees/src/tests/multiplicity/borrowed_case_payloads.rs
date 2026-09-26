@@ -3,7 +3,7 @@ use crate::tests::front_end::checked_program_result;
 
 fn check_case_source(
     source: &str,
-) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
+) -> Result<crate::checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     checked_program_result(source)
 }
 
@@ -134,7 +134,7 @@ fn indexed_case_successor_requires_exact_state_exit_resource() {
         .direct_loan_resources
         .iter()
         .find(|(_, resource)| {
-            resource.weakening_reason == checked_trees::FlowBorrowWeakeningReason::StateExit
+            resource.weakening_reason == crate::checked_trees::FlowBorrowWeakeningReason::StateExit
         })
         .expect("observation closes at source-state exit")
         .0;
@@ -161,7 +161,7 @@ fn indexed_case_successor_requires_exact_state_exit_resource() {
                     .direct_loan_resources
                     .get_mut(resource)
                     .weakening_source =
-                    checked_trees::FlowInvalidationSource::Statement { statement_index: 0 }
+                    crate::checked_trees::FlowInvalidationSource::Statement { statement_index: 0 }
             }
         }
         let diagnostics = crate::checks::check_checked_facts(&changed.typed, &changed.facts)

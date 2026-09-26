@@ -9,11 +9,11 @@ mod tests;
 
 use optimization_core::OptimizationWorkBudget;
 
+use crate::register_homes::{RecoveryClassificationPlan, RecoveryClassificationPolicy};
 use crate::{
     RecoveryClassificationError, ValidatedAllocationLegality, ValidatedLiveRanges,
     ValidatedSelectedAnalysis, ValidatedSpillChoices,
 };
-use register_homes::{RecoveryClassificationPlan, RecoveryClassificationPolicy};
 
 pub(crate) fn compute_terminal_recovery_classifications<S: ValidatedSelectedAnalysis>(
     selected: &S,

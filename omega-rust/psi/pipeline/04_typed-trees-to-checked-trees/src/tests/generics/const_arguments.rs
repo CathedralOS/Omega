@@ -1,7 +1,7 @@
 use crate::CheckingRequest;
+use crate::checked_trees::CheckedTrees;
 use crate::lower_typed_trees;
 use crate::tests::front_end::typed_program_with_generic_data_result;
-use checked_trees::CheckedTrees;
 
 fn check(source: &str) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
     let typed = typed_program_with_generic_data_result(source)?;

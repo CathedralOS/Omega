@@ -1,15 +1,15 @@
 use super::super::super::super::effective_member_symbol;
 use super::super::machine_by_symbol;
 
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use language_core::is_self_receiver;
 use symbols::SymbolHandle;
 
 pub(crate) fn relative_place_segments_from_expression(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
     self_type_symbol: Option<SymbolHandle>,
-) -> Option<Vec<facts::PlaceSegment>> {
+) -> Option<Vec<crate::fact_plan::PlaceSegment>> {
     if !expression.is_valid() {
         return None;
     }
@@ -43,7 +43,7 @@ pub(crate) fn relative_place_segments_from_expression(
             )?;
             let receiver_type = match segments.last() {
                 None => self_type_symbol,
-                Some(facts::PlaceSegment::Field { symbol }) => {
+                Some(crate::fact_plan::PlaceSegment::Field { symbol }) => {
                     crate::flow::symbol_type_symbol(program, *symbol)
                 }
                 _ => None,
@@ -72,7 +72,7 @@ pub(crate) fn relative_place_segments_from_expression(
 }
 
 fn resolve_member_symbol_from_type(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     type_symbol: Option<SymbolHandle>,
     member_name: &str,
 ) -> Option<SymbolHandle> {
@@ -85,14 +85,14 @@ fn resolve_member_symbol_from_type(
     {
         for member in program.data_members(data) {
             match member {
-                typed_trees::data::DataMember::Field(field)
-                    if field.name.as_str() == member_name =>
-                {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                    field,
+                ) if field.name.as_str() == member_name => {
                     return Some(field.symbol);
                 }
-                typed_trees::data::DataMember::Variant(variant)
-                    if variant.name.as_str() == member_name =>
-                {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
+                    variant,
+                ) if variant.name.as_str() == member_name => {
                     return Some(variant.symbol);
                 }
                 _ => {}

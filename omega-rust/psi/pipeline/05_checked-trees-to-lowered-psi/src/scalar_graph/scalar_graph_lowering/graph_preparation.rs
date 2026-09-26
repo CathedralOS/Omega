@@ -137,7 +137,10 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         // Qualified signatures carry these exact membership requirements.
         // Reconstruct the source obligation; a producer's missing contract row
         // cannot authorize erasing a predicate, route, or unrelated state clause.
-        if !validation::scalar_state_contracts_are_qualifications(&checked.typed, source) {
+        if !typed_trees_to_checked_trees::validation::scalar_state_contracts_are_qualifications(
+            &checked.typed,
+            source,
+        ) {
             return unsupported("scalar state contract is not carried by its qualified signature");
         }
     }
@@ -204,7 +207,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                         && root.statement_ordinal == *statement_ordinal
                         && root.role == CheckedScalarExpressionRole::Return
                 }) || state.unit_operations.iter().any(|operation| {
-                    matches!(operation, checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } if result.multiplicity == Multiplicity::Affine)
+                    matches!(operation, typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } if result.multiplicity == Multiplicity::Affine)
                 })
             }
             _ => false,

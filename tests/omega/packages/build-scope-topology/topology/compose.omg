@@ -2,7 +2,7 @@
 // source facet, composes the canonical deployment plan per the topology
 // reference contract, and serializes it to the caller's required output.
 //
-// Wire layout mirrors omega-rust/omega/packages/topology deployment_plan
+// Wire layout mirrors omega-rust/omega/src/topology_plan deployment_plan
 // codec exactly: LE integers, u32 length prefixes, sorted rosters, and the
 // v1 tag table. Every composition fact is reconstructed from the admitted
 // description bytes and owner digests here — nothing is copied from a

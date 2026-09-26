@@ -3,14 +3,16 @@ use super::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter, TerminalStructuralValue,
 };
 use crate::TerminalMachineSelection;
-use checked_trees::{
-    CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_interpreter::TerminalScalarValue;
 use terminal_interpreter::TerminalStructuralInputs;
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
+};
 
 #[test]
 fn composed_attached_literal_calls_preserve_positions_after_unused_self_erasure() {
@@ -168,15 +170,18 @@ machine Main::main(&mut self, selected: bool, fail: bool) reaches Trace crashes 
 #[test]
 fn mixed_literal_positions_keep_scalars_across_selective_operand_control() {
     let checked = crate::front_end::checked_program(SOURCE);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("Main::main"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap()
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                "Main::main",
+            ),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap()
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let entry = module
         .machines
@@ -348,12 +353,12 @@ fn composed_literal_plans_reject_payload_access_and_path_substitution() {
         .flat_map(|machine| program.machine_states(machine))
         .flat_map(|state| program.statement_table.statements(state.statement_nodes))
         .filter_map(|statement| match statement {
-            typed_trees::statement::StatementNode::Call(call) => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Call(call) => {
                 Some(program.statement_table.expression_handles(call.arguments))
             }
-            typed_trees::statement::StatementNode::Expression(expression) => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Expression(expression) => {
                 match program.expression_table.expression(*expression) {
-                    typed_trees::expression::ExpressionNode::Call(call) => {
+                    symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(call) => {
                         Some(program.expression_table.expression_handles(call.arguments))
                     }
                     _ => None,
@@ -365,7 +370,7 @@ fn composed_literal_plans_reject_payload_access_and_path_substitution() {
         .copied()
         .find(|expression| {
             matches!(program.expression_table.expression(*expression),
-            typed_trees::expression::ExpressionNode::String(bytes) if bytes.as_ref() == b"left")
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::String(bytes) if bytes.as_ref() == b"left")
         })
         .expect("typed call retains its exact source literal handle");
     let mut changed_source = checked.clone();
@@ -373,7 +378,9 @@ fn composed_literal_plans_reject_payload_access_and_path_substitution() {
         .typed
         .expression_table
         .expression_mut(literal) =
-        typed_trees::expression::ExpressionNode::String(std::sync::Arc::from(b"LEFT".as_slice()));
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::String(
+            std::sync::Arc::from(b"LEFT".as_slice()),
+        );
     assert!(
         matches!(
             super::super::super::lower_machine(

@@ -15,15 +15,15 @@ fn integral_reflexivity_requires_the_same_exact_parameter_and_builtin_type() {
             .proof_facts
             .iter()
             .find_map(|(source, fact)| {
-                let typed_trees::domain::ProofFact::Expression(expression) = fact else {
+                let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(expression) = fact else {
                     return None;
                 };
                 Some((source, *expression))
             })
             .expect("Boolean ensure");
-        let fact = facts::Fact {
-            payload: facts::FactPayload::ContractBooleanExpression {
-                kind: facts::ContractFactKind::Ensures,
+        let fact = crate::fact_plan::Fact {
+            payload: crate::fact_plan::FactPayload::ContractBooleanExpression {
+                kind: crate::fact_plan::ContractFactKind::Ensures,
                 fact: source,
                 expression,
                 instantiated: arena::Handle::invalid(),
@@ -76,7 +76,7 @@ fn recursive_resultless_identity_retains_its_positive_entailment_outcome() {
         .find(|machine| machine.name.as_str() == "copy_identity")
         .expect("identity theorem");
     assert_eq!(
-        validation::proven_machine_contract_expressions(&program, machine.symbol).len(),
+        crate::validation::proven_machine_contract_expressions(&program, machine.symbol).len(),
         1,
         "exact recursive theorem is positively proved, not merely admitted"
     );
@@ -96,7 +96,7 @@ fn proof_value_isolation_checks_reference_fields_beside_recursive_edges() {
     let machine = &program.machines()[0];
     let state = &program.machine_states(machine)[0];
     let parameters = program.state_parameters(state);
-    let resolver = validation::CallFrameResolver::new(&program).expect("resolved program");
+    let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolved program");
     assert!(resolver.proof_value_is_caller_isolated(parameters[0].type_reference));
     assert!(!resolver.proof_value_is_caller_isolated(parameters[1].type_reference));
     assert!(!resolver.proof_value_is_caller_isolated(parameters[2].type_reference));
@@ -155,7 +155,7 @@ fn generic_proof_isolation_requires_isolated_actual_arguments_before_closing_cyc
     );
     let machine = &program.machines()[0];
     let state = &program.machine_states(machine)[0];
-    let resolver = validation::CallFrameResolver::new(&program).expect("resolved program");
+    let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolved program");
     for (parameter, expected) in program
         .state_parameters(state)
         .iter()
@@ -200,7 +200,7 @@ fn generic_recursive_copy_retains_actual_inductive_exit_proofs() {
         .find(|machine| machine.name.as_str() == "copy_identity")
         .expect("identity theorem");
     assert_eq!(
-        validation::proven_machine_contract_expressions(&program, machine.symbol).len(),
+        crate::validation::proven_machine_contract_expressions(&program, machine.symbol).len(),
         1,
         "the actual induction engine proves this exact guarantee"
     );
@@ -210,7 +210,7 @@ fn generic_recursive_copy_retains_actual_inductive_exit_proofs() {
 
 #[test]
 fn generic_proof_isolation_rejects_stale_owners_missing_arguments_and_foreign_binders() {
-    use typed_trees::types::TypeReferenceNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
     let original = typed_program(
         r#"
         data Seq<T> { case Empty; case Cons(head: T, tail: Seq<T>); }
@@ -268,7 +268,7 @@ fn generic_proof_isolation_rejects_stale_owners_missing_arguments_and_foreign_bi
             }
             _ => unreachable!(),
         }
-        let resolver = validation::CallFrameResolver::new(&program).expect("symbol table");
+        let resolver = crate::validation::CallFrameResolver::new(&program).expect("symbol table");
         assert!(
             !resolver.proof_value_is_caller_isolated(reference),
             "{change}"

@@ -4,10 +4,10 @@ mod dynamic_calls;
 mod float_comparisons;
 mod integer_comparisons;
 
-use checked_trees::CheckedTrees;
-use lowered_psi::LoweredPsi;
+use checked_trees_to_lowered_psi::lowered_psi::LoweredPsi;
 use semantic_vocabulary::{MachineId, OperationId};
 use std::collections::BTreeSet;
+use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
 
 fn unsupported<T>(message: &'static str) -> Result<T, &'static str> {
     Err(message)
@@ -21,7 +21,8 @@ fn unsupported<T>(message: &'static str) -> Result<T, &'static str> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedBoundaryOperatorApplicationScope {
     terminal_artifact_identity: terminal_codec::TerminalArtifactIdentity,
-    applications: Vec<checked_trees::CheckedBoundaryOperatorApplicationDemand>,
+    applications:
+        Vec<typed_trees_to_checked_trees::checked_trees::CheckedBoundaryOperatorApplicationDemand>,
     occurrences: Vec<CheckedBoundaryOperatorApplicationOccurrence>,
     dynamic_call_occurrences: Vec<CheckedDynamicCallOccurrence>,
 }
@@ -37,7 +38,10 @@ impl CheckedBoundaryOperatorApplicationScope {
         Ok(())
     }
 
-    pub fn applications(&self) -> &[checked_trees::CheckedBoundaryOperatorApplicationDemand] {
+    pub fn applications(
+        &self,
+    ) -> &[typed_trees_to_checked_trees::checked_trees::CheckedBoundaryOperatorApplicationDemand]
+    {
         &self.applications
     }
 

@@ -1,12 +1,14 @@
-use optimization_unit::ValueDefinitionSite;
-use register_model::{RegisterOperandAccess, RegisterViewId};
-use selected_instructions::{VirtualRegisterId, VirtualRegisterOrigin};
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, ValueId};
+use target_operations_to_selected_instructions::register_model::{
+    RegisterOperandAccess, RegisterViewId,
+};
+use target_operations_to_selected_instructions::{VirtualRegisterId, VirtualRegisterOrigin};
+use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
 use super::fixtures::raw_fixture;
 use crate::LogicalSpillOperationError;
-use register_homes::LogicalSpillAction;
-use selected_instructions::{
+use selected_instructions_to_selected_instructions::register_homes::LogicalSpillAction;
+use target_operations_to_selected_instructions::{
     LiveRangePoint, LivenessPosition, VirtualFixedConstraint, VirtualFixedConstraintSite,
 };
 
@@ -45,10 +47,11 @@ fn bridge_semantic_anchor_does_not_authorize_an_authored_spill_victim() {
     let mut fixture = raw_fixture();
     assert!(compute(&fixture).unwrap().is_some());
     let authored = fixture.selected.blocks[0].source_block();
-    fixture.selected.blocks[0].origin = selected_instructions::SelectedBlockOrigin::EdgeTransfer {
-        edge: semantic_vocabulary::EdgeId::new(1).unwrap(),
-        target: authored,
-    };
+    fixture.selected.blocks[0].origin =
+        target_operations_to_selected_instructions::SelectedBlockOrigin::EdgeTransfer {
+            edge: semantic_vocabulary::EdgeId::new(1).unwrap(),
+            target: authored,
+        };
     // The anchor and inherited Node site still agree, but this is not the
     // authored block in which the original-victim policy permits spilling.
     assert_eq!(fixture.selected.blocks[0].source_block(), authored);
@@ -105,7 +108,7 @@ fn v1_refuses_nonlocal_fixed_missing_and_non_use_future_suffixes() {
             site: VirtualFixedConstraintSite::Operand {
                 position: LivenessPosition(3),
                 point: LiveRangePoint(6),
-                instruction: selected_instructions::SelectedInstructionId(3),
+                instruction: target_operations_to_selected_instructions::SelectedInstructionId(3),
                 operand: 0,
                 access: RegisterOperandAccess::Use,
             },

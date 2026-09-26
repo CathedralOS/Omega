@@ -6,12 +6,12 @@
 use super::{AbstractOperationPlan, Error, PsiOptimizationUnit, TargetOperationPlan};
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
-use abstract_operations::AbstractOperation;
-use legalized_operations::{
+use crate::legalized_operations::{
     LegalizedOperationPlan, LegalizedScalarArgument, LegalizedScalarInstruction,
     LegalizedScalarInstructionKind, LegalizedValueDefinition, NativeCallOrigin,
 };
 use semantic_vocabulary::{IntegerValue, ScalarType};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
 mod aggregate_results;
 mod call_instructions;
 mod normalized_foreign;
@@ -20,8 +20,8 @@ mod storage_instructions;
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate(
     actual: &LegalizedScalarInstruction,
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
@@ -242,7 +242,7 @@ pub(super) fn validate(
                 || obligation != source_obligation
                 || *accepted_fact != fact.identity
                 || !optimized.facts.iter().any(|fact| matches!(fact,
-                    optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
+                    terminal_psi_to_abstract_operations::optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
                     if referenced == source_obligation && support == psi_operation))
             {
                 return Err(invalid);
@@ -282,7 +282,7 @@ pub(super) fn validate(
                 || obligation != source_obligation
                 || *accepted_fact != fact.identity
                 || !optimized.facts.iter().any(|fact| matches!(fact,
-                    optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
+                    terminal_psi_to_abstract_operations::optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
                     if referenced == source_obligation && support == psi_operation))
             {
                 return Err(invalid);
@@ -483,7 +483,7 @@ pub(super) fn validate(
             },
             AbstractOperation::BoundaryCall {
                 boundary: expected_boundary,
-                result: abstract_operations::AbstractBoundaryResult::Structural(expected_result),
+                result: terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Structural(expected_result),
                 ..
             },
         ) if actual.has_valid_hosted_read_byte_shape()
@@ -492,7 +492,7 @@ pub(super) fn validate(
             && *layout == scalar_graph_input::read_byte::layout(expected_result, plan)?
             && matches!(
                 scalar_graph_input::hosted_realization(native, optimized.machine, operation)?,
-                target_operations::BoundaryRealization::HostedReadByte(_)
+                abstract_operations_to_target_operations::target_operations::BoundaryRealization::HostedReadByte(_)
             ) => {}
         (
             LegalizedScalarInstructionKind::HostedWriteByteI32 { boundary, source },
@@ -505,7 +505,7 @@ pub(super) fn validate(
             && arguments.as_slice() == [*source]
             && matches!(
                 scalar_graph_input::hosted_realization(native, optimized.machine, operation)?,
-                target_operations::BoundaryRealization::HostedWriteByteI32(_)
+                abstract_operations_to_target_operations::target_operations::BoundaryRealization::HostedWriteByteI32(_)
             ) => {}
         (
             LegalizedScalarInstructionKind::HostedExitProcessI32 { boundary, source },
@@ -518,7 +518,7 @@ pub(super) fn validate(
             && arguments.as_slice() == [*source]
             && matches!(
                 scalar_graph_input::hosted_realization(native, optimized.machine, operation)?,
-                target_operations::BoundaryRealization::HostedExitProcessI32(_)
+                abstract_operations_to_target_operations::target_operations::BoundaryRealization::HostedExitProcessI32(_)
             ) => {}
         (
             LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { .. },

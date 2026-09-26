@@ -2,20 +2,20 @@ use crate::diagnostics::parse_error::ParseError;
 use crate::expressions::parse_expression::parse_expression_handle_without_struct_literals_or_membership;
 use crate::expressions::parse_expression::parse_proof_fact_expression_handle;
 use crate::input::token_cursor::{Input, parse_path_handle_span};
-use arena::{Handle, HandleSpan};
-use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCallExpression,
     TableMembershipExpression,
 };
-use syntax_trees::item::{ProofFact, ProofMembershipFact};
-use syntax_trees::types::TypeReferenceHandle;
-use tokens::PunctuationKind;
+use crate::syntax_trees::item::{ProofFact, ProofMembershipFact};
+use crate::syntax_trees::types::TypeReferenceHandle;
+use arena::{Handle, HandleSpan};
+use source_files_to_tokens::tokens::PunctuationKind;
 
 fn copy_item_path_to_expression_path(
     syntax_trees: &mut SyntaxTrees,
-    span: HandleSpan<syntax_trees::identifier::Identifier>,
-) -> HandleSpan<syntax_trees::identifier::Identifier> {
+    span: HandleSpan<crate::syntax_trees::identifier::Identifier>,
+) -> HandleSpan<crate::syntax_trees::identifier::Identifier> {
     let mut start = Handle::invalid();
     let mut count = 0u32;
     let members = syntax_trees
@@ -46,7 +46,7 @@ fn copy_item_path_to_expression_path(
 
 /// One authored membership domain and its indexed application, if any.
 type MembershipDomain = (
-    HandleSpan<syntax_trees::identifier::Identifier>,
+    HandleSpan<crate::syntax_trees::identifier::Identifier>,
     HandleSpan<TypeReferenceHandle>,
 );
 
@@ -72,12 +72,12 @@ fn expand_carry_portable_item_paths(
         for permission in language_core::CarryPermission::ALL {
             let mut parts = permission.name().split("::");
             let namespace = syntax_trees.items.append_identifier_path_member(
-                syntax_trees::identifier::Identifier::generated(
+                crate::syntax_trees::identifier::Identifier::generated(
                     parts.next().expect("carry permission has a namespace"),
                 ),
             );
             let member = syntax_trees.items.append_identifier_path_member(
-                syntax_trees::identifier::Identifier::generated(
+                crate::syntax_trees::identifier::Identifier::generated(
                     parts.next().expect("carry permission has a member"),
                 ),
             );
@@ -349,14 +349,14 @@ pub(crate) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
 /// for a direct `machine`/`data` keyword made consecutive declarations parse as
 /// one machine whose clauses continued into the next item.
 pub(super) fn starts_machine_contract_following_item(input: Input<'_, '_>) -> bool {
-    if input.at_keyword(tokens::KeywordKind::Pub) {
+    if input.at_keyword(source_files_to_tokens::tokens::KeywordKind::Pub) {
         let after_pub = Input::new(input.source_id, input.tokens.get(1..).unwrap_or_default());
         return starts_machine_contract_following_item(after_pub);
     }
 
-    if input.at_keyword(tokens::KeywordKind::Machine)
-        || input.at_keyword(tokens::KeywordKind::Data)
-        || input.at_keyword(tokens::KeywordKind::Use)
+    if input.at_keyword(source_files_to_tokens::tokens::KeywordKind::Machine)
+        || input.at_keyword(source_files_to_tokens::tokens::KeywordKind::Data)
+        || input.at_keyword(source_files_to_tokens::tokens::KeywordKind::Use)
     {
         return true;
     }
@@ -366,8 +366,8 @@ pub(super) fn starts_machine_contract_following_item(input: Input<'_, '_>) -> bo
     }
 
     let after_boundary = Input::new(input.source_id, input.tokens.get(1..).unwrap_or_default());
-    after_boundary.at_keyword(tokens::KeywordKind::Machine)
-        || after_boundary.at_keyword(tokens::KeywordKind::Data)
+    after_boundary.at_keyword(source_files_to_tokens::tokens::KeywordKind::Machine)
+        || after_boundary.at_keyword(source_files_to_tokens::tokens::KeywordKind::Data)
         || after_boundary.at_contextual("requirement")
         || after_boundary.at_contextual("operator")
         || after_boundary.at_contextual("trait")
@@ -416,7 +416,7 @@ fn range_membership_expression(
 /// rejected by name rather than as a stray `<` before the fact terminator.
 fn parse_proof_fact_domain_arguments<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
-    domain: HandleSpan<syntax_trees::identifier::Identifier>,
+    domain: HandleSpan<crate::syntax_trees::identifier::Identifier>,
     input: Input<'tokens, 'source>,
 ) -> Result<(HandleSpan<TypeReferenceHandle>, Input<'tokens, 'source>), ParseError> {
     if !input.at_punctuation(PunctuationKind::Less) {

@@ -1,6 +1,8 @@
 //! Place ordinary blocks by mandatory conditional fallthrough chains.
 use super::super::{OptimizedResolvedSelectedFormLayoutError, SelectedFunctionLayoutPolicy};
-use selected_instructions::{SelectedBlock, SelectedFunction, SelectedTerminator};
+use target_operations_to_selected_instructions::{
+    SelectedBlock, SelectedFunction, SelectedTerminator,
+};
 
 pub(super) fn derive(
     function: &SelectedFunction,

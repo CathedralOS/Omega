@@ -1,6 +1,8 @@
 use super::{CheckedScalarComputationKind, CheckedScalarExpressionRole};
+use crate::checked_trees::{
+    CheckedArrayConstructionSource, CheckedScalarComputationStructuralArgument,
+};
 use crate::values::scalar::computations::tests::checked_source;
-use checked_trees::{CheckedArrayConstructionSource, CheckedScalarComputationStructuralArgument};
 
 #[test]
 fn computation_array_arguments_retain_shape_leaves_and_one_owner() {
@@ -60,7 +62,7 @@ fn computation_array_arguments_retain_shape_leaves_and_one_owner() {
             *type_reference,
             checked.state_parameters(target)[0].type_reference
         );
-        let expected = validation::scalar_array_elements(
+        let expected = crate::validation::scalar_array_elements(
             &checked.typed,
             selected.symbol,
             *expression,
@@ -109,7 +111,7 @@ fn computation_array_parameters_reuse_owned_place_arguments() {
             plans.structural_arguments.iter().any(|(_, argument)| {
                 matches!(argument, CheckedScalarComputationStructuralArgument::Place(place)
                 if place.source_parameter_index() == Some(0)
-                    && place.access == checked_trees::CheckedStructuralAccess::Owned
+                    && place.access == crate::checked_trees::CheckedStructuralAccess::Owned
                     && place.path.is_empty())
             }),
             "{array_type}: whole parameter stays in the existing place namespace"

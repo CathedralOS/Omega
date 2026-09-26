@@ -5,11 +5,7 @@ use super::{
     RuntimeSpillAllocation, RuntimeSpillAllocationError, RuntimeSpillFacts, RuntimeSpillSource,
     RuntimeSpillStep, RuntimeSpillStepRewrite, replay,
 };
-use register_homes::PostAllocationSelectedTransformation;
-use selected_instructions::{
-    FunctionLiveRanges, SelectedInstructionPlan, VirtualInterference, VirtualRegisterId,
-    VirtualRegisterOrigin,
-};
+use selected_instructions_to_selected_instructions::register_homes::PostAllocationSelectedTransformation;
 use selected_instructions_to_selected_instructions::{
     FixedPrecoloredSegmentHomeDecline, FixedViewCopyPolicy, RuntimeSpillSpanPolicy,
     SelectedProgramRef, StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
@@ -17,6 +13,10 @@ use selected_instructions_to_selected_instructions::{
     ValidatedLiveness, ValidatedSelectedAnalysis, analyze_allocation_legality,
     analyze_live_ranges_reusing, analyze_liveness_reusing, rematerialize_selected_runtime_value,
     spill_selected_runtime_value, spill_selected_runtime_value_with_span_policy,
+};
+use target_operations_to_selected_instructions::{
+    FunctionLiveRanges, SelectedInstructionPlan, VirtualInterference, VirtualRegisterId,
+    VirtualRegisterOrigin,
 };
 
 pub(crate) fn assign_source(
@@ -30,7 +30,7 @@ pub(crate) fn assign_source(
 }
 
 pub(super) fn assign(
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
     ranges: &ValidatedLiveRanges,
     legality: &ValidatedAllocationLegality,
 ) -> Result<crate::ValidatedRegisterHomes, crate::RegisterHomeError> {
@@ -46,7 +46,7 @@ pub(super) fn assign(
 }
 
 pub(super) fn analyze(
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
     availability: &ValidatedAllocatorAvailability,
     previous: &impl ValidatedSelectedAnalysis,
     previous_liveness: &ValidatedLiveness,

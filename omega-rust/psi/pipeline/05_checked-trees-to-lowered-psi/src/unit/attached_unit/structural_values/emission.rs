@@ -14,7 +14,9 @@ use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::emit_scalar_leaf;
 use crate::expression_preparation::source_custody::structural as source_custody;
-use checked_trees::{CheckedStructuralValueHandle, CheckedStructuralValueKind};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedStructuralValueHandle, CheckedStructuralValueKind,
+};
 
 mod dispatch;
 
@@ -151,9 +153,10 @@ pub(crate) fn emit(
         .statements(authored_state.statement_nodes)
         .get(result.statement_index as usize)
     {
-        Some(checked_trees::statement::StatementNode::LocalData(local))
-            if source_custody::shared_borrow_record_referent(checked, local.type_reference)
-                .is_some() =>
+        Some(typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(
+            local,
+        )) if source_custody::shared_borrow_record_referent(checked, local.type_reference)
+            .is_some() =>
         {
             StructuralAccess::SharedBorrow
         }
@@ -220,7 +223,8 @@ pub(crate) fn emit(
             .nodes
             .get(*value)
             .kind
-        && source.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+        && source.access
+            == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
     {
         emission.direct_borrow(source)?
     } else if emission.sources.is_empty()
@@ -231,7 +235,8 @@ pub(crate) fn emit(
             .nodes
             .get(*value)
             .kind
-        && source.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+        && source.access
+            == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
     {
         emission.direct_element_view(source)?
     } else {
@@ -314,7 +319,7 @@ fn prepare_owners(
         for (_, event) in checked.facts.flow.ownership.permissions.iter() {
             if event.machine_symbol != machine
                 || event.state_symbol != state
-                || event.root != facts::PlaceRoot::Symbol(symbol)
+                || event.root != typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(symbol)
                 || event.access != language_semantics::PermissionAccess::Owned
             {
                 continue;
@@ -359,7 +364,7 @@ fn prepare_owners(
             .iter()
             .enumerate()
             .find_map(|(ordinal, source)| match source {
-                checked_trees::statement::StatementNode::LocalData(local)
+                typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(local)
                     if local.symbol == *symbol =>
                 {
                     Some((ordinal, local))
@@ -375,7 +380,7 @@ fn prepare_owners(
         if ordinal >= statement as usize
             || !argument.path.is_empty()
             || argument.access != StructuralAccess::Owned
-            || !validation::has_plain_owned_contents_with_numeric_constraints(
+            || !typed_trees_to_checked_trees::validation::has_plain_owned_contents_with_numeric_constraints(
                 &checked.typed,
                 local.type_reference,
             )
@@ -449,7 +454,7 @@ fn prepare_owners(
                 || !declaration.qualifications.is_empty()
                 || !declaration.projected_qualifications.is_empty()
                 || checked.type_multiplicity(parameter.type_reference) != Multiplicity::Affine
-                || !validation::has_plain_owned_contents_with_numeric_constraints(
+                || !typed_trees_to_checked_trees::validation::has_plain_owned_contents_with_numeric_constraints(
                     &checked.typed,
                     parameter.type_reference,
                 )
@@ -493,7 +498,9 @@ fn prepare_owners(
         (!is_parameter, owner.statement)
     });
     for source in statements.iter().take(statement as usize) {
-        if let checked_trees::statement::StatementNode::LocalData(local) = source
+        if let typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(
+            local,
+        ) = source
             && checked.type_multiplicity(local.type_reference) == Multiplicity::Affine
             && available(local.symbol)?
             && !owners.iter().any(|owner| owner.symbol == local.symbol)
@@ -518,7 +525,8 @@ pub(super) struct Emission<'a, 'b, 'calls> {
     pub(super) next_place: &'b mut u64,
     pub(super) temporary_places: &'b mut Vec<StructuralPlaceDeclaration>,
     pub(super) calls: &'b mut CallEmissionContext<'calls>,
-    pub(super) operand_calls: &'a [checked_trees::CheckedStructuralValueCall],
+    pub(super) operand_calls:
+        &'a [typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueCall],
     pub(super) call_emitter: &'b mut StructuralCallEmitter<'a>,
     pub(super) evaluation: &'b mut argument_evaluation::Evaluation,
     pub(super) values: &'b mut Vec<ValueDeclaration>,
@@ -549,10 +557,12 @@ pub(super) struct ValueContinuation {
 /// leaf type while residual reconstruction replays the root's complement.
 pub(super) struct ProjectedMove {
     pub(super) root: PlaceId,
-    pub(super) path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+    pub(super) path:
+        Vec<typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment>,
     pub(super) leaf_type_identity: String,
     pub(super) root_type_identity: String,
-    pub(super) root_source: checked_trees::CheckedUnitStructuralArgumentSourcePlan,
+    pub(super) root_source:
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan,
 }
 
 impl Emission<'_, '_, '_> {
@@ -666,7 +676,7 @@ impl Emission<'_, '_, '_> {
                 Ok(continuation.place)
             }
             CheckedStructuralValueKind::Reference { source } => {
-                if source.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
+                if source.access == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow {
                     // A `&T` branch borrows its exact referent place: resolve
                     // the authored root/path against the current locals and
                     // signature parameters, then join that shared custody at
@@ -702,7 +712,7 @@ impl Emission<'_, '_, '_> {
                     self.complete_borrowed(argument, continuation)?;
                     return Ok(continuation.place);
                 }
-                let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                let typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                     parameter_index,
                 } = source.source
                 else {
@@ -716,7 +726,7 @@ impl Emission<'_, '_, '_> {
                         "reference initializer parameter missing",
                     ))?;
                 if !source.path.is_empty()
-                    || source.access != checked_trees::CheckedStructuralAccess::MutableBorrow
+                    || source.access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow
                     || parameter.access != StructuralAccess::MutableBorrow
                     || parameter.structural_type
                         != lookup_type_id(self.type_ids, &source.type_identity)?
@@ -871,8 +881,8 @@ impl Emission<'_, '_, '_> {
                     .scalar_computations
                     .nodes
                     .get(element);
-                let checked_trees::CheckedScalarComputationKind::Value(
-                    checked_trees::CheckedScalarExpression::IntegerLiteral { literal },
+                let typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationKind::Value(
+                    typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::IntegerLiteral { literal },
                 ) = &computation.kind
                 else {
                     return unsupported("zeroed scalar array element is not a literal zero");
@@ -955,12 +965,12 @@ impl Emission<'_, '_, '_> {
                     .map(|binding| binding.place);
                 }
                 if !argument.path.is_empty()
-                    || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                    || argument.access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
                 {
                     return unsupported("owned selection requires whole owned sources");
                 }
                 let selected = match &argument.source {
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                         symbol,
                     } => self
                         .evaluation
@@ -972,7 +982,7 @@ impl Emission<'_, '_, '_> {
                         .ok_or(LoweringError::Unsupported(
                             "owned selection local place missing",
                         ))?,
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                         ..
                     } => self
                         .parameter_source(&argument)?
@@ -995,7 +1005,7 @@ impl Emission<'_, '_, '_> {
                 Ok(continuation.place)
             }
             CheckedStructuralValueKind::Case(construction) => {
-                let source = validation::scalar_case_constructor(
+                let source = typed_trees_to_checked_trees::validation::scalar_case_constructor(
                     &self.checked.typed,
                     construction.expression,
                 )
@@ -1202,7 +1212,7 @@ impl Emission<'_, '_, '_> {
     /// every arm of a borrowed selection.
     fn direct_borrow(
         &mut self,
-        source: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        source: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan,
     ) -> Result<PlaceId, LoweringError> {
         if lookup_type_id(self.type_ids, &source.type_identity)? != self.structural_type {
             return unsupported("borrowed establishment changed its referent type");
@@ -1278,7 +1288,7 @@ impl Emission<'_, '_, '_> {
     /// directly as this binding's completed operation result.
     fn direct_element_view(
         &mut self,
-        source: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        source: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan,
     ) -> Result<PlaceId, LoweringError> {
         let element = self
             .structural_types
@@ -1351,7 +1361,7 @@ impl Emission<'_, '_, '_> {
     /// Returns `None` when the plan names no parameter at all.
     fn parameter_source(
         &self,
-        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        argument: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan,
     ) -> Result<Option<PlaceId>, LoweringError> {
         let Some(declaration) = self.parameter_declaration(argument)? else {
             return Ok(None);
@@ -1367,7 +1377,7 @@ impl Emission<'_, '_, '_> {
     /// parameter's ingress place to copy from.
     fn copied_parameter(
         &self,
-        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        argument: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan,
     ) -> Result<Option<StructuralArgument>, LoweringError> {
         Ok(self
             .parameter_declaration(argument)?
@@ -1384,7 +1394,7 @@ impl Emission<'_, '_, '_> {
     /// the argument; `None` when the plan names no parameter.
     fn parameter_declaration(
         &self,
-        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        argument: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan,
     ) -> Result<Option<&StructuralParameterDeclaration>, LoweringError> {
         let (_, authored) = crate::expression_preparation::source_custody::authored_state(
             self.checked,
@@ -1392,7 +1402,7 @@ impl Emission<'_, '_, '_> {
         )?;
         let parameters = self.checked.state_parameters(authored);
         let (position, parameter) = match &argument.source {
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+            typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
                 let Some(entry) = parameters
                     .iter()
                     .enumerate()
@@ -1402,7 +1412,7 @@ impl Emission<'_, '_, '_> {
                 };
                 entry
             }
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index,
             } => {
                 let Some(entry) = parameters
@@ -1453,7 +1463,7 @@ impl Emission<'_, '_, '_> {
     fn projected_root(
         &mut self,
         source: CheckedStructuralValueHandle,
-        path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+        path: Vec<typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment>,
         leaf_type_identity: String,
     ) -> Result<ProjectedMove, LoweringError> {
         let node = self
@@ -1468,7 +1478,7 @@ impl Emission<'_, '_, '_> {
             CheckedStructuralValueKind::Place(argument) => {
                 let root_source = argument.source.clone();
                 if !argument.path.is_empty()
-                    || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                    || argument.access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
                 {
                     return unsupported("projected selection root requires whole owned custody");
                 }
@@ -1477,7 +1487,7 @@ impl Emission<'_, '_, '_> {
                 // `StructuralLocal`/`Parameter` source plans that
                 // `parameter_source` and the local namespace resolve exactly.
                 let place = match &root_source {
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                         symbol,
                     } => match self
                         .evaluation
@@ -1494,7 +1504,7 @@ impl Emission<'_, '_, '_> {
                                 ))?
                         }
                     },
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                         ..
                     } => self
                         .parameter_source(&argument)?
@@ -1563,7 +1573,7 @@ impl Emission<'_, '_, '_> {
                 (
                     declaration.id,
                     root_type_identity,
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         binding_ordinal,
                     },
                 )
@@ -2015,7 +2025,7 @@ impl Emission<'_, '_, '_> {
     /// evidence establishing it would owe.
     pub(super) fn view_element_copy(
         &mut self,
-        reads: &[checked_trees::CheckedScalarExpression],
+        reads: &[typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression],
         continuation: Option<&ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
         let shape = self
@@ -2046,7 +2056,7 @@ impl Emission<'_, '_, '_> {
         .with_view_locals(&self.evaluation.view_locals);
         let mut initialized = Vec::with_capacity(fields.len());
         for (field, read) in fields.iter().zip(reads) {
-            let checked_trees::CheckedScalarExpression::StructuralParameterIndexedRead {
+            let typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::StructuralParameterIndexedRead {
                 element_path,
                 ..
             } = read
@@ -2064,7 +2074,7 @@ impl Emission<'_, '_, '_> {
             };
             if field.relevance.is_erased()
                 || element_path.as_slice()
-                    != [checked_trees::CheckedStructuralPredicatePathSegment::Field(
+                    != [typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Field(
                         field.identity.clone(),
                     )]
             {
@@ -2156,7 +2166,7 @@ impl Emission<'_, '_, '_> {
         let mut cases = Vec::new();
         for (symbol, argument) in &self.evaluation.structural_locals {
             let Some(local) = statements.iter().find_map(|statement| match statement {
-                checked_trees::statement::StatementNode::LocalData(local)
+                typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(local)
                     if local.symbol == *symbol =>
                 {
                     Some(local)
@@ -2188,7 +2198,7 @@ impl Emission<'_, '_, '_> {
     pub(super) fn scalar(
         &mut self,
         role: CheckedScalarExpressionRole,
-        value: checked_trees::CheckedScalarComputationHandle,
+        value: typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationHandle,
         source_count: usize,
     ) -> Result<ValueDeclaration, LoweringError> {
         let value = self.evaluation.source_value(
@@ -2197,7 +2207,9 @@ impl Emission<'_, '_, '_> {
             self.state,
             self.statement,
             role,
-            &checked_trees::CheckedCallScalarArgument::Computation(value),
+            &typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Computation(
+                value,
+            ),
             source_count,
             self.values,
             self.next_value,

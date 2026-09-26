@@ -2,8 +2,8 @@
 //! Canonical selected-plan construction from the complete ordinary graph roster.
 
 use crate::legalization::ValidatedLegalizedOperations;
+use crate::selected_instructions::{SelectedInstructionPlan, SelectedSelectionConstraints};
 use crate::selection::model::SelectedInstructionError;
-use selected_instructions::{SelectedInstructionPlan, SelectedSelectionConstraints};
 pub(in crate::selection) mod scalar_graph;
 
 use crate::selection::constraints::require_key_rows;
@@ -11,7 +11,7 @@ use crate::selection::constraints::require_key_rows;
 pub(super) fn build_plan(
     legalized: &ValidatedLegalizedOperations,
     constraints: &SelectedSelectionConstraints,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &crate::register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<SelectedInstructionPlan, SelectedInstructionError> {
     let target = legalized.plan();
     if target.target != environment.target() {

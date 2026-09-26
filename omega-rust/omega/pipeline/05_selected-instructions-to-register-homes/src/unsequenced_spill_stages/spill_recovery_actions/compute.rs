@@ -1,13 +1,13 @@
 //! Canonical source traversal for epoch-one logical recovery actions.
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use optimization_unit::ValueDefinitionSite;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
+use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::{
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedTerminator,
     VirtualRegisterOrigin,
 };
-use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
+use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
 use crate::unsequenced_spill_stages::{
     SpillRecoveryActionError, SpillRecoveryActionPlan, SpillRecoveryActionPolicy,
@@ -16,10 +16,14 @@ use crate::unsequenced_spill_stages::{
     SpillRecoveryLogicalUseRewrite, SpillRecoveryVictimChoice, SpillRecoveryWorkItem,
     ValidatedAbstractSpillInsertion, ValidatedSpillRecoveryChoices, ValidatedSpillRecoveryWorklist,
 };
-use register_homes::{FunctionAllocationLegality, LogicalSpillStorageClass};
-use selected_instructions::{FunctionLiveRanges, LiveRangeFragment, VirtualFixedConstraintSite};
+use selected_instructions_to_selected_instructions::register_homes::{
+    FunctionAllocationLegality, LogicalSpillStorageClass,
+};
 use selected_instructions_to_selected_instructions::{
     ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedSelectedAnalysis,
+};
+use target_operations_to_selected_instructions::{
+    FunctionLiveRanges, LiveRangeFragment, VirtualFixedConstraintSite,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -223,7 +227,7 @@ fn build_action(
         .ok_or(SpillRecoveryActionError::FunctionMismatch { function })?;
     if !matches!(
         victim.definition_site,
-        Some(ValueDefinitionSite::Node { block, .. }) if matches!(selected_block.origin, selected_instructions::SelectedBlockOrigin::Source(authored) if authored == block)
+        Some(ValueDefinitionSite::Node { block, .. }) if matches!(selected_block.origin, target_operations_to_selected_instructions::SelectedBlockOrigin::Source(authored) if authored == block)
     ) {
         return Err(SpillRecoveryActionError::UnsupportedOrigin {
             function,
@@ -418,7 +422,7 @@ pub(super) fn work_usage(
 
 fn instruction(
     selected: &SelectedFunction,
-    block: selected_instructions::SelectedBlockId,
+    block: target_operations_to_selected_instructions::SelectedBlockId,
     id: SelectedInstructionId,
 ) -> Option<&SelectedInstruction> {
     let block = selected

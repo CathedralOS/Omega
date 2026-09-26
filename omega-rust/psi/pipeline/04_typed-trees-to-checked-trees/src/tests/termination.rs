@@ -36,7 +36,10 @@ mod write_frame_requirement_calls;
 mod write_frame_returned_places;
 mod write_frame_stored_aggregates;
 
-fn symbol_of_checked(checked: &checked_trees::CheckedTrees, name: &str) -> symbols::SymbolHandle {
+fn symbol_of_checked(
+    checked: &crate::checked_trees::CheckedTrees,
+    name: &str,
+) -> symbols::SymbolHandle {
     checked
         .machines()
         .iter()

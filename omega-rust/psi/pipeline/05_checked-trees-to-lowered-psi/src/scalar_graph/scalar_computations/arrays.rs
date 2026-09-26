@@ -16,8 +16,8 @@ use super::{
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredScalarArrayConstruction;
-use checked_trees::CheckedScalarComputationStructuralArgument;
-use checked_trees::expression::ExpressionHandle;
+use typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationStructuralArgument;
+use typed_trees_to_checked_trees::checked_trees::expression::ExpressionHandle;
 
 #[derive(Clone)]
 pub(crate) struct Slot {

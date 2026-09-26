@@ -5,10 +5,12 @@ use super::{
     SelectedInstructionKind, SelectedMemoryAccessRole, memory,
 };
 use crate::SelectedInstructionError;
+use crate::selected_instructions::{
+    LocalStorageSlotId, SelectedLocalStorageSlot, VirtualRegisterId,
+};
 use crate::selection::validation::scalar_graph::Replay;
 use crate::selection::validation::scalar_graph::structural::local_storage;
 use crate::selection::validation::scalar_graph::structural::provenance;
-use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot, VirtualRegisterId};
 use semantic_vocabulary::PlaceId;
 
 #[track_caller]
@@ -172,7 +174,7 @@ struct CopyEnd<'a> {
     /// The runtime elements the pointer already scaled in; a read through
     /// them publishes one element row per chunk rather than a place extent
     /// at the static offset, which the load does not address.
-    elements: &'a [legalized_operations::LegalizedRuntimeIndexOperand],
+    elements: &'a [crate::legalized_operations::LegalizedRuntimeIndexOperand],
 }
 
 /// Replay mirror of construction `copy_bytes`.
@@ -270,9 +272,9 @@ fn check_fragments(
     place: &semantic_vocabulary::PlaceId,
     result_place: semantic_vocabulary::PlaceId,
     byte_offset: u32,
-    shape: calling_conventions::ValueShape,
-    pointer: selected_instructions::VirtualRegisterId,
-    indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
+    shape: abstract_operations_to_target_operations::calling_conventions::ValueShape,
+    pointer: crate::selected_instructions::VirtualRegisterId,
+    indices: &[crate::legalized_operations::LegalizedRuntimeIndexOperand],
     replay: &mut Replay<'_>,
 ) -> Result<(), SelectedInstructionError> {
     if !indices.is_empty() {
@@ -298,12 +300,12 @@ fn check_fragments(
         .ok_or_else(|| invalid())?;
     for location in &parameter.target.placement.locations {
         let (fragment_offset, width) = match location {
-            calling_conventions::ValueLocation::Register {
+            abstract_operations_to_target_operations::calling_conventions::ValueLocation::Register {
                 value_byte_offset,
                 byte_size,
                 ..
             }
-            | calling_conventions::ValueLocation::Stack {
+            | abstract_operations_to_target_operations::calling_conventions::ValueLocation::Stack {
                 value_byte_offset,
                 byte_size,
                 ..

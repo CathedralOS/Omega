@@ -17,7 +17,7 @@ fn comparison_source(
 ) -> LegalizedScalarFunction {
     let mut source = control::graph(
         target,
-        legalized_operations::LegalizedScalarComparison::Equal,
+        crate::legalized_operations::LegalizedScalarComparison::Equal,
         true,
     );
     source.blocks.retain(|block| block.id == source.entry_block);
@@ -138,7 +138,7 @@ fn every_ieee_relation_uses_existing_integer_forms_and_replays_both_formats() {
         target::NativeTarget::windows_x64(),
     ] {
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -264,7 +264,8 @@ fn every_ieee_relation_uses_existing_integer_forms_and_replays_both_formats() {
 #[test]
 fn comparison_replay_rejects_relation_carrier_operands_constants_and_boolean_rules() {
     let target = target::NativeTarget::macos_arm64();
-    let environment = register_environment::baseline_target_register_environment(target).unwrap();
+    let environment =
+        crate::register_environment::baseline_target_register_environment(target).unwrap();
     let constraints = SelectedSelectionConstraints {
         keys: environment.selected_keys(),
         fixed_inputs: Vec::new(),

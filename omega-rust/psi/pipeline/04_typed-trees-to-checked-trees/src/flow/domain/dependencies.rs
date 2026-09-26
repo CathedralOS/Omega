@@ -1,5 +1,5 @@
-use checked_trees::{DomainDependencyFact, DomainDependencyPathFact, DomainFacts};
-use facts::{FactPayload, FactPlace, FactPlan};
+use crate::checked_trees::{DomainDependencyFact, DomainDependencyPathFact, DomainFacts};
+use crate::fact_plan::{FactPayload, FactPlace, FactPlan};
 use std::collections::BTreeSet;
 use symbols::SymbolHandle;
 mod expression;
@@ -15,11 +15,11 @@ pub(crate) struct DomainDependencyCache {
 #[derive(Debug, Clone)]
 pub(crate) struct DomainDependencyCacheEntry {
     pub(crate) domain_symbol: SymbolHandle,
-    pub(crate) dependencies: Vec<Vec<facts::PlaceSegment>>,
+    pub(crate) dependencies: Vec<Vec<crate::fact_plan::PlaceSegment>>,
 }
 
 pub(crate) fn build_domain_facts(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: &FactPlan,
 ) -> DomainFacts {
     let mut cache = DomainDependencyCache::default();
@@ -54,11 +54,11 @@ pub(crate) fn build_domain_facts(
 }
 
 pub(crate) fn domain_dependency_segments<'cache>(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: &FactPlan,
     cache: &'cache mut DomainDependencyCache,
     domain_symbol: SymbolHandle,
-) -> &'cache [Vec<facts::PlaceSegment>] {
+) -> &'cache [Vec<crate::fact_plan::PlaceSegment>] {
     if !cache
         .by_domain
         .iter()
@@ -87,12 +87,12 @@ pub(crate) fn domain_dependency_segments<'cache>(
 }
 
 fn compute_domain_dependency_segments(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: &FactPlan,
     cache: &mut DomainDependencyCache,
     domain_symbol: SymbolHandle,
     visiting: &mut BTreeSet<u32>,
-) -> Vec<Vec<facts::PlaceSegment>> {
+) -> Vec<Vec<crate::fact_plan::PlaceSegment>> {
     if let Some(cached) = cache
         .by_domain
         .iter()

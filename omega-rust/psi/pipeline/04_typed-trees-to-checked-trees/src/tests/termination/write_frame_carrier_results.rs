@@ -1,8 +1,11 @@
 use crate::tests::front_end::typed_program;
-use typed_trees::expression::ExpressionNode;
-use typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 
-fn carrier_result_program(body: &str, extra: &str) -> typed_trees::TypedTrees {
+fn carrier_result_program(
+    body: &str,
+    extra: &str,
+) -> symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees {
     let source = format!(
         r#"
         data Cell {{ owned: u64; }}
@@ -34,7 +37,9 @@ fn carrier_result_program(body: &str, extra: &str) -> typed_trees::TypedTrees {
     typed_program(&source)
 }
 
-fn caller_frames(program: &typed_trees::TypedTrees) -> [Option<Vec<String>>; 2] {
+fn caller_frames(
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+) -> [Option<Vec<String>>; 2] {
     let machine = program
         .machines()
         .iter()
@@ -49,7 +54,7 @@ fn caller_frames(program: &typed_trees::TypedTrees) -> [Option<Vec<String>>; 2] 
     else {
         panic!("consumer");
     };
-    let resolver = validation::CallFrameResolver::new(program).expect("resolver");
+    let resolver = crate::validation::CallFrameResolver::new(program).expect("resolver");
     [
         resolver
             .inferred_state_write_frame(machine, state)

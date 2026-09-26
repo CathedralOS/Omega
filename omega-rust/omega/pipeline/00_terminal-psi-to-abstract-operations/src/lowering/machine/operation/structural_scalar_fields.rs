@@ -3,7 +3,7 @@
 //! proof reconstruction. A read captures a value; it does not relax the declared
 //! invariant, so stores without their own establishment proof remain rejected.
 
-use abstract_operations::{AbstractOperation, AbstractResult};
+use crate::abstract_operations::{AbstractOperation, AbstractResult};
 use semantic_vocabulary::{
     PlaceId, ScalarType, StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
 };

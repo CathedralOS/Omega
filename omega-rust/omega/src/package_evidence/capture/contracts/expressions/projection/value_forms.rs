@@ -1,0 +1,112 @@
+//! Literal, container, reference, and other directly structural forms.
+
+use super::super::atomic_loads::project_contract_atomic_load;
+use super::super::constructors::project_contract_constructor_expression;
+use crate::package_evidence::capture::PackageReviewInput;
+use crate::package_evidence::capture::contracts::facts::ContractProjectionContext;
+use crate::package_evidence::capture::semantics::types::review_signature_type_identity_with_binders_and_substitutions_and_lifetimes;
+use crate::package_evidence::record::{
+    PackageReviewContractExpression, PackageReviewFloatLiteral, PackageReviewReferenceAccess,
+};
+use diagnostics::Diagnostic;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
+use symbols::SymbolHandle;
+
+pub(super) fn project_value_form(
+    compilation: &PackageReviewInput<'_>,
+    context: &ContractProjectionContext<'_>,
+    binders: &[(SymbolHandle, String)],
+    node: &ExpressionNode,
+    child: &impl Fn(ExpressionHandle) -> Result<PackageReviewContractExpression, Vec<Diagnostic>>,
+) -> Option<Result<PackageReviewContractExpression, Vec<Diagnostic>>> {
+    match node {
+        ExpressionNode::Boolean(value) => {
+            Some(Ok(PackageReviewContractExpression::Boolean(*value)))
+        }
+        ExpressionNode::Integer(value) => Some(Ok(PackageReviewContractExpression::Integer(
+            value.text().to_owned(),
+        ))),
+        ExpressionNode::Float(value) => Some(match value.landing() {
+            Some(numerics::literals::FloatFormat::F32) => {
+                Ok(PackageReviewContractExpression::Float(
+                    PackageReviewFloatLiteral::F32(value.f32_bits()),
+                ))
+            }
+            Some(numerics::literals::FloatFormat::F64) => {
+                Ok(PackageReviewContractExpression::Float(
+                    PackageReviewFloatLiteral::F64(value.landed_f64().to_bits()),
+                ))
+            }
+            None => Err(vec![Diagnostic::error(format!(
+                "reviewed {} `{}` contains a float literal without an exact checked width landing",
+                context.subject_kind, context.subject_name
+            ))]),
+        }),
+        ExpressionNode::ArrayLiteral(values) => Some(
+            compilation
+                .expression_table
+                .expression_handles(*values)
+                .iter()
+                .map(|value| child(*value))
+                .collect::<Result<Vec<_>, _>>()
+                .map(PackageReviewContractExpression::Array),
+        ),
+        ExpressionNode::StructLiteral(literal) => Some(project_contract_constructor_expression(
+            compilation,
+            context,
+            literal,
+            child,
+        )),
+        ExpressionNode::Atomic(atomic) => {
+            Some(project_contract_atomic_load(context, atomic, child))
+        }
+        ExpressionNode::Range(range) => Some((|| {
+            Ok(PackageReviewContractExpression::Range {
+                start: range
+                    .start
+                    .is_valid()
+                    .then(|| child(range.start))
+                    .transpose()?
+                    .map(Box::new),
+                end: range
+                    .end
+                    .is_valid()
+                    .then(|| child(range.end))
+                    .transpose()?
+                    .map(Box::new),
+                end_inclusive: range.end_inclusive,
+            })
+        })()),
+        ExpressionNode::String(value) => Some(Ok(PackageReviewContractExpression::ByteSequence(
+            value.to_vec(),
+        ))),
+        ExpressionNode::ZeroValue(type_reference) => Some(
+            review_signature_type_identity_with_binders_and_substitutions_and_lifetimes(
+                compilation,
+                *type_reference,
+                binders,
+                context.lifetime_binders,
+                &[],
+                context.lifetime_substitutions,
+            )
+            .map(PackageReviewContractExpression::ZeroValue),
+        ),
+        ExpressionNode::Borrow(reference) => Some((|| {
+            Ok(PackageReviewContractExpression::Reference {
+                access: match reference.access {
+                    language_core::ReferenceAccess::Shared => PackageReviewReferenceAccess::Shared,
+                    language_core::ReferenceAccess::Mutable => {
+                        PackageReviewReferenceAccess::Mutable
+                    }
+                    language_core::ReferenceAccess::WriteOnly => {
+                        PackageReviewReferenceAccess::WriteOnly
+                    }
+                },
+                target: Box::new(child(reference.target)?),
+            })
+        })()),
+        _ => None,
+    }
+}

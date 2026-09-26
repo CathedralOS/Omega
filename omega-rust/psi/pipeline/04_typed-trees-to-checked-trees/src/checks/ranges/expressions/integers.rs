@@ -1,7 +1,7 @@
-use symbols::SymbolHandle;
-use typed_trees::expression::{
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableRangeExpression,
 };
+use symbols::SymbolHandle;
 
 use super::super::facts::RangeFacts;
 
@@ -14,7 +14,7 @@ use super::super::facts::RangeFacts;
 /// `..=usize::MAX` overflow edge) reports a proof failure (`None`) rather than
 /// silently wrapping — the overflow is surfaced as a diagnostic, never a panic.
 pub(in crate::checks::ranges) fn provable_range_bounds(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &RangeFacts<'_>,
     range: &TableRangeExpression,
 ) -> Option<(i64, Option<i64>)> {
@@ -48,7 +48,7 @@ pub(in crate::checks::ranges) fn normalize_exclusive_end(
 }
 
 pub(in crate::checks::ranges) fn expression_integer_value(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &RangeFacts<'_>,
     expression: ExpressionHandle,
 ) -> Option<i64> {
@@ -75,7 +75,7 @@ pub(in crate::checks::ranges) fn expression_integer_value(
 }
 
 pub(in crate::checks::ranges) fn expression_name(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<(SymbolHandle, Option<&str>)> {
     let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {

@@ -1,13 +1,15 @@
 use crate::contracts::facts::parse_proof_facts_until;
 use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::expression::ExpressionNode;
+use crate::syntax_trees::identifier::Identifier;
+use crate::syntax_trees::item::{
+    DomainAliasDefinition, DomainDefinition, ProofFact, ProofMembershipFact,
+};
+use crate::syntax_trees::types::TypeReferenceNode;
 use arena::HandleSpan;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::ExpressionNode;
-use syntax_trees::identifier::Identifier;
-use syntax_trees::item::{DomainAliasDefinition, DomainDefinition, ProofFact, ProofMembershipFact};
-use syntax_trees::types::TypeReferenceNode;
-use tokens::{KeywordKind, PunctuationKind};
+use source_files_to_tokens::tokens::{KeywordKind, PunctuationKind};
 
 pub(super) fn parse_domain_definition<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
@@ -313,7 +315,7 @@ fn parse_domain_alias<'tokens, 'source>(
 /// target uses its identifier.
 fn type_reference_target_label(
     syntax_trees: &SyntaxTrees,
-    handle: syntax_trees::types::TypeReferenceHandle,
+    handle: crate::syntax_trees::types::TypeReferenceHandle,
 ) -> String {
     match syntax_trees.type_references.type_reference(handle) {
         TypeReferenceNode::Slice { element_type } => {

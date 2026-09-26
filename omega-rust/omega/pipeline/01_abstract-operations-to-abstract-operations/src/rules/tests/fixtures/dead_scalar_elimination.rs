@@ -2,19 +2,19 @@
 
 use super::id;
 use crate::rules::tests::fixtures::proof_check_elision::exact_add_unit;
-use abstract_operations::{
-    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperation as O, AbstractOperationPlan,
-};
-use optimization_unit::{
-    PsiOptimizationUnit, recompute_psi_optimization_unit_identity,
-    reconstruct_psi_optimization_unit_seed,
-};
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
     OperationId, ScalarType, ValueId,
 };
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperation as O, AbstractOperationPlan,
+};
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    PsiOptimizationUnit, recompute_psi_optimization_unit_identity,
+    reconstruct_psi_optimization_unit_seed,
+};
 pub(crate) fn dead_scalar_literals_unit() -> PsiOptimizationUnit {
     let machine = id(1_201, MachineId::new);
     let block = id(1_202, BlockId::new);

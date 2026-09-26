@@ -7,18 +7,18 @@ use crate::authored_selections::call_targets::{
 use crate::authored_selections::finalization::push_consistent_resolution;
 use crate::authored_selections::intrinsic_calls::checked_statement_call_intrinsic;
 use crate::authored_selections::{CheckedResolution, CheckedResolutionTarget};
-use checked_trees::CheckFacts;
+use crate::checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionKind,
     AuthoredDeclarationSelectionLateBinding, AuthoredDeclarationSelectionTarget,
 };
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 use symbols::{SymbolHandle, SymbolKind};
-use typed_trees::TypedTrees;
 
 pub(crate) fn checked_struct_literal_type_symbol(
     program: &TypedTrees,
-    literal: &typed_trees::expression::TableStructLiteral,
+    literal: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableStructLiteral,
     source_span: source::SourceSpan,
 ) -> SymbolHandle {
     if literal.type_symbol.is_valid() {
@@ -45,7 +45,10 @@ pub(crate) fn collect_checked_proof_membership_selections(
     resolutions: &mut Vec<CheckedResolution>,
 ) -> Result<(), Diagnostic> {
     for (fact_handle, fact) in program.proof_facts.iter() {
-        let typed_trees::domain::ProofFact::Membership(membership) = fact else {
+        let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(
+            membership,
+        ) = fact
+        else {
             continue;
         };
         let Some(occurrence) = membership.authored_domain_selection else {
@@ -74,7 +77,7 @@ pub(crate) fn collect_checked_proof_membership_selections(
         let target = declaration_target(membership.domain_symbol).or_else(|| {
             let mut permission = None;
             for (_, checked_fact) in facts.semantic.facts.iter() {
-                let facts::FactPayload::ContractCarryPermission {
+                let crate::fact_plan::FactPayload::ContractCarryPermission {
                     fact,
                     permission: candidate,
                     ..
@@ -132,19 +135,25 @@ pub(crate) fn collect_checked_proof_view_call_selections(
     unoccurred_view_calls: &mut Vec<(
         source::SourceSpan,
         language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
-        typed_trees::expression::ExpressionHandle,
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     )>,
 ) -> Result<(), Diagnostic> {
     let mut fact_roots = Vec::new();
     for (_, fact) in program.proof_facts.iter() {
         match fact {
-            typed_trees::domain::ProofFact::Expression(expression) => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
+                expression,
+            ) => {
                 fact_roots.push(*expression);
             }
-            typed_trees::domain::ProofFact::Membership(membership) => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(
+                membership,
+            ) => {
                 fact_roots.push(membership.value);
             }
-            typed_trees::domain::ProofFact::Proposition(application) => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(
+                application,
+            ) => {
                 for argument in program
                     .expression_table
                     .expression_handles(application.arguments)
@@ -161,7 +170,7 @@ pub(crate) fn collect_checked_proof_view_call_selections(
                 .statements(state.statement_nodes)
                 .iter()
             {
-                let typed_trees::statement::StatementNode::AssemblyFact(fact) = statement else {
+                let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::AssemblyFact(fact) = statement else {
                     continue;
                 };
                 fact_roots.push(fact.expression);
@@ -189,8 +198,9 @@ pub(crate) fn collect_checked_proof_view_call_selections(
                 language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
             );
         for expression in subtree {
-            let typed_trees::expression::ExpressionNode::Call(call) =
-                program.expression_table.expression(expression)
+            let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(
+                call,
+            ) = program.expression_table.expression(expression)
             else {
                 continue;
             };
@@ -280,7 +290,7 @@ pub(crate) fn collect_checked_statement_selections(
                 .iter()
                 .enumerate()
             {
-                let typed_trees::statement::StatementNode::Call(call) = statement else {
+                let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Call(call) = statement else {
                     continue;
                 };
                 if call.operational_acknowledgement.origin
@@ -380,7 +390,7 @@ pub(crate) fn collect_checked_transition_target_selections(
         }
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
-                let typed_trees::statement::StatementNode::Transition(transition) = statement
+                let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Transition(transition) = statement
                 else {
                     continue;
                 };
@@ -388,7 +398,7 @@ pub(crate) fn collect_checked_transition_target_selections(
                     if !target.is_valid() {
                         continue;
                     }
-                    let typed_trees::statement::TransitionTargetNode::Named {
+                    let symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Named {
                         path,
                         source_span,
                         authored_call_selection: Some(occurrence),
@@ -436,7 +446,7 @@ pub(crate) fn collect_checked_transition_target_selections(
                                     parameter.name == *target_name
                                         && matches!(
                                             parameter.kind,
-                                            typed_trees::data::TypeParameterKind::Machine { .. }
+                                            symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Machine { .. }
                                         )
                                 })
                                 .map(|parameter| parameter.symbol)

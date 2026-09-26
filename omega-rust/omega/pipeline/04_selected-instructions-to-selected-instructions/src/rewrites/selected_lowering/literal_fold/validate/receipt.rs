@@ -1,4 +1,6 @@
-use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
+use target_operations_to_selected_instructions::{
+    SelectedInstructionPlan, SelectedInstructionPlanIdentity,
+};
 
 use crate::rewrites::literal_fold_identity;
 use crate::{LiteralFoldPlan, LiteralFoldValidationReceipt, ValidatedLiteralFold};

@@ -3,12 +3,12 @@ use super::{
     CheckedScalarExpression, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
     PrimitiveType,
 };
+use crate::checked_trees::{CheckedCallScalarArgument, CheckedScalarComputationKind};
 use crate::tests::flow::terminal_unit::checked;
 use crate::tests::flow::terminal_unit::checked_with_service;
 use crate::tests::flow::terminal_unit::machine_named;
-use checked_trees::{CheckedCallScalarArgument, CheckedScalarComputationKind};
 
-fn checked_operands(linear: bool, nested: bool) -> checked_trees::CheckedTrees {
+fn checked_operands(linear: bool, nested: bool) -> crate::checked_trees::CheckedTrees {
     let helper = "machine inner(value: u8) -> u8 { value }
         machine outer(value: u8) -> u8 { value }
         machine boolean(value: bool) -> bool { value }";
@@ -308,7 +308,7 @@ fn closed_sum_leaves_retain_computed_calls_before_reusing_the_payload() {
     };
     assert!(matches!(
         entry.terminator,
-        checked_trees::CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. }
+        crate::checked_trees::CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. }
     ));
     assert_eq!(byte.scalar_parameters.len(), 1);
     let [

@@ -12,7 +12,7 @@ use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact,
 };
 
-fn lower(source: &str, entry: &str) -> lowered_psi::LoweredPsi {
+fn lower(source: &str, entry: &str) -> checked_trees_to_lowered_psi::lowered_psi::LoweredPsi {
     checked_trees_to_lowered_psi::lower_machine(
         &crate::front_end::checked_program(source),
         TerminalMachineSelection::Name(entry),
@@ -26,7 +26,10 @@ fn u64_integer() -> IntegerType {
 
 /// The owner contract publishes both inclusive bounds of `row` as
 /// `LTE(minimum, parameter)` and `LTE(parameter, maximum)` conjuncts.
-fn publishes_bounds(lowered: &lowered_psi::LoweredPsi, row: &terminal_psi::ScalarIntegerRange) {
+fn publishes_bounds(
+    lowered: &checked_trees_to_lowered_psi::lowered_psi::LoweredPsi,
+    row: &terminal_psi::ScalarIntegerRange,
+) {
     let owner = lowered
         .semantic_module
         .machines

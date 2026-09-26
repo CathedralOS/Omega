@@ -3,11 +3,11 @@ use super::{
     TerminalExecutionResult, TerminalInterpretError, TerminalScalarValue, checked_arms,
     encode_module, encode_proof_section, encoded, execute,
 };
-use checked_trees::CheckedScalarExpressionRole;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use typed_trees_to_checked_trees::checked_trees::CheckedScalarExpressionRole;
 
 fn assert_initializer_roots(
-    checked: &checked_trees::CheckedTrees,
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
     names: &[&str],
     state_count: usize,
 ) {
@@ -15,12 +15,12 @@ fn assert_initializer_roots(
 }
 
 fn assert_selected_initializer_roots(
-    checked: &checked_trees::CheckedTrees,
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
     names: &[&str],
     computed_names: &[&str],
     state_count: usize,
 ) {
-    use typed_trees::statement::StatementNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 
     let machine = checked
         .typed
@@ -243,7 +243,7 @@ fn mixed_initializer_namespaces_keep_pure_call_and_storage_bindings_distinct() {
         &["direct", "current", "result_value"],
         1,
     );
-    use typed_trees::statement::StatementNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
     let machine = checked
         .typed
         .machines()
@@ -285,7 +285,7 @@ fn mixed_initializer_namespaces_keep_pure_call_and_storage_bindings_distinct() {
                 .nodes
                 .get(direct_root.root)
                 .kind,
-            checked_trees::CheckedScalarComputationKind::Call { .. }
+            typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationKind::Call { .. }
         ),
         "pure-argument call composes through the shared computation owner"
     );
@@ -555,7 +555,7 @@ fn computed_initializer_custody_mutations_reject_before_publication() {
                 7 => plans.roots.get_mut(*handle).role = opposite.role,
                 8 => {
                     plans.nodes.get_mut(root.root).primitive_type =
-                        typed_trees::types::PrimitiveType::U8;
+                        symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U8;
                     let graph = changed
                         .facts
                         .flow
@@ -574,7 +574,8 @@ fn computed_initializer_custody_mutations_reject_before_publication() {
                         .iter_mut()
                         .find(|binding| binding.statement_ordinal == root.statement_ordinal)
                         .unwrap();
-                    binding.primitive_type = typed_trees::types::PrimitiveType::U8;
+                    binding.primitive_type =
+                        symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U8;
                 }
                 _ => unreachable!(),
             }
@@ -623,7 +624,7 @@ fn computed_initializer_custody_mutations_reject_before_publication() {
             .find(|binding| binding.statement_ordinal == storage_root.statement_ordinal)
             .unwrap();
         binding.destination =
-            checked_trees::CheckedScalarBindingDestination::StorageInitialize { symbol };
+            typed_trees_to_checked_trees::checked_trees::CheckedScalarBindingDestination::StorageInitialize { symbol };
         assert!(
             checked_trees_to_lowered_psi::lower_machine(
                 &changed,
@@ -635,7 +636,9 @@ fn computed_initializer_custody_mutations_reject_before_publication() {
     }
 
     for (handle, root) in &roots {
-        let typed_trees::statement::StatementNode::LocalData(local) = &checked
+        let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
+            local,
+        ) = &checked
             .typed
             .statement_table
             .statements(state.statement_nodes)[root.statement_ordinal as usize]
@@ -645,12 +648,12 @@ fn computed_initializer_custody_mutations_reject_before_publication() {
         let (role, destination) = if handle == storage_handle {
             (
                 CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 1 },
-                checked_trees::CheckedScalarBindingDestination::Immutable,
+                typed_trees_to_checked_trees::checked_trees::CheckedScalarBindingDestination::Immutable,
             )
         } else {
             (
                 CheckedScalarExpressionRole::StorageInitializer,
-                checked_trees::CheckedScalarBindingDestination::StorageInitialize {
+                typed_trees_to_checked_trees::checked_trees::CheckedScalarBindingDestination::StorageInitialize {
                     symbol: local.symbol,
                 },
             )

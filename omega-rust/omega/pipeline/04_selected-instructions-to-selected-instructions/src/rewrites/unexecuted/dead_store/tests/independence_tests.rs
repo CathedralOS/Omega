@@ -13,13 +13,13 @@ use super::{
 use crate::rewrites::unexecuted::dead_store::{
     DeadStoreEliminationError, ValidatedDeadStoreElimination, validate_dead_store_elimination,
 };
-use register_environment::baseline_target_register_environment;
-use selected_instructions::{
+use semantic_vocabulary::{MachineId, OperationId, PlaceId};
+use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
+use target_operations_to_selected_instructions::{
     LocalStorageSlotId, SelectedInstructionKind, SelectedInstructionPlan, SelectedMemoryAccessRole,
     SelectedStructuralBinding, SelectedStructuralTransport,
 };
-use semantic_vocabulary::{MachineId, OperationId, PlaceId};
-use target::NativeTarget;
 
 /// The proposal a defective producer would publish for `source`: the named
 /// store dropped from its block, its roster rows gone, and the boundary
@@ -229,7 +229,7 @@ fn forged_proposal_does_not_launder_a_redefining_edge_transport() {
         crossed_edge(function)
             .structural_bindings
             .push(SelectedStructuralBinding {
-                semantic: abstract_operations::AbstractStructuralBinding {
+                semantic: terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding {
                     parameter: PlaceId::new(2).unwrap(),
                     argument: terminal_psi::StructuralArgument {
                         place: PlaceId::new(2).unwrap(),

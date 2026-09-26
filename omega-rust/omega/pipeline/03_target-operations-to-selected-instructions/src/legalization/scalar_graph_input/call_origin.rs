@@ -7,7 +7,9 @@ use super::{
     PsiOptimizationFunction, TargetOperationPlan,
 };
 use crate::LegalizationError;
-use target_operations::{NativeCallOrigin, TargetUnitOperation};
+use abstract_operations_to_target_operations::target_operations::{
+    NativeCallOrigin, TargetUnitOperation,
+};
 
 /// Return ordinary call mechanics only after checking the retained boundary cut.
 /// The temporary operation never replaces the original source or its evidence.
@@ -182,11 +184,11 @@ pub(in crate::legalization) fn installed_operation(
         .collect::<Vec<_>>();
     let operation = match (result, &declaration.result, &candidate.result, target_call) {
         (
-            abstract_operations::AbstractBoundaryResult::Scalar(result),
+            terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Scalar(result),
             terminal_psi::BoundaryMachineResult::Scalar(boundary_scalar),
             AbstractFunctionResult::Scalar(candidate_result),
             TargetUnitOperation::Call {
-                result: target_operations::TargetCallResult::Scalar(actual),
+                result: abstract_operations_to_target_operations::target_operations::TargetCallResult::Scalar(actual),
                 ..
             },
         ) if actual.source_value == result.value
@@ -208,11 +210,11 @@ pub(in crate::legalization) fn installed_operation(
             }
         }
         (
-            abstract_operations::AbstractBoundaryResult::Unit,
+            terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Unit,
             terminal_psi::BoundaryMachineResult::Unit,
             AbstractFunctionResult::Unit,
             TargetUnitOperation::Call {
-                result: target_operations::TargetCallResult::Unit,
+                result: abstract_operations_to_target_operations::target_operations::TargetCallResult::Unit,
                 ..
             },
         ) => AbstractOperation::CallUnit {
@@ -225,12 +227,12 @@ pub(in crate::legalization) fn installed_operation(
             crash_continuations: Vec::new(),
         },
         (
-            abstract_operations::AbstractBoundaryResult::Structural(result),
+            terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Structural(result),
             terminal_psi::BoundaryMachineResult::Structural(boundary_result),
             AbstractFunctionResult::Structural(candidate_result),
             TargetUnitOperation::Call {
                 result:
-                    target_operations::TargetCallResult::Structural {
+                    abstract_operations_to_target_operations::target_operations::TargetCallResult::Structural {
                         result: actual,
                         callee_result,
                         ..

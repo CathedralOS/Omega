@@ -12,8 +12,8 @@
 //! machine; the borrow checks use it too. `collection` holds the arenas one
 //! call appends to, and `records` writes one access row.
 
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use checked_trees::{BorrowAccessKind, BorrowArgumentAccessFact};
+use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use crate::checked_trees::{BorrowAccessKind, BorrowArgumentAccessFact};
 use symbols::SymbolHandle;
 mod collection;
 mod contextual;
@@ -26,8 +26,8 @@ pub(crate) use place::{BorrowAccessPlace, borrow_access_place};
 use read::collect_read_accesses;
 
 pub(crate) fn collect_call_argument_accesses(
-    program: &typed_trees::TypedTrees,
-    access_segments: &mut arena::Arena<facts::PlaceSegment>,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    access_segments: &mut arena::Arena<crate::fact_plan::PlaceSegment>,
     argument_accesses: &mut arena::Arena<BorrowArgumentAccessFact>,
     arguments: &[ExpressionHandle],
     state_symbol: SymbolHandle,

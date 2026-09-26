@@ -2,7 +2,7 @@ use crate::{
     ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes,
     validate_post_allocation_optimization_manifest, validate_register_homes,
 };
-use register_homes::PostAllocationSelectedTransformation;
+use selected_instructions_to_selected_instructions::register_homes::PostAllocationSelectedTransformation;
 
 use selected_instructions_to_selected_instructions::{
     StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,

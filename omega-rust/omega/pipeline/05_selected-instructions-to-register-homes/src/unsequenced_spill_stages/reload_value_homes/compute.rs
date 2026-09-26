@@ -3,12 +3,12 @@
 use std::collections::BTreeSet;
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use register_model::{
+use target_operations_to_selected_instructions::VirtualRegisterId;
+use target_operations_to_selected_instructions::register_model::{
     RegisterClassId, RegisterView, RegisterViewId, TargetRegisterEnvironmentConstraintKeys,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile, target_register_environment_identity,
 };
-use selected_instructions::VirtualRegisterId;
 
 use crate::ValidatedLogicalSpillOperations;
 use crate::unsequenced_spill_stages::{
@@ -16,10 +16,14 @@ use crate::unsequenced_spill_stages::{
     ReloadValueHomeAssignment, ReloadValueHomeError, ReloadValueHomePlan, ReloadValueHomePolicy,
     ValidatedAbstractSpillInsertion,
 };
-use register_homes::{FunctionAllocationLegality, VirtualRegisterAllocationLegality};
-use selected_instructions::{FunctionLiveRanges, LiveRangePoint, VirtualInterference};
+use selected_instructions_to_selected_instructions::register_homes::{
+    FunctionAllocationLegality, VirtualRegisterAllocationLegality,
+};
 use selected_instructions_to_selected_instructions::{
     ValidatedAllocationLegality, ValidatedLiveRanges,
+};
+use target_operations_to_selected_instructions::{
+    FunctionLiveRanges, LiveRangePoint, VirtualInterference,
 };
 
 #[derive(Clone, Copy)]
@@ -425,7 +429,7 @@ fn reload_candidates(
     victim: &VirtualRegisterAllocationLegality,
     start: LiveRangePoint,
     end: LiveRangePoint,
-    block: selected_instructions::SelectedBlockId,
+    block: target_operations_to_selected_instructions::SelectedBlockId,
 ) -> Result<Vec<RegisterViewId>, ReloadValueHomeError> {
     let points = victim
         .points

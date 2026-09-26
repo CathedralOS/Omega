@@ -3,17 +3,17 @@
 //! dense-namespace scalars — while a selected floating computation still
 //! refuses locally because it must retain its own operation and call
 //! correspondence.
-use crate::tests::front_end::checked_program;
-use checked_trees::{
+use crate::checked_trees::{
     CheckedScalarExpression, CheckedStructuralScalarFieldStoreDestination,
     CheckedStructuralScalarFieldStoreValue, CheckedUnitEffectOperationPlan,
 };
+use crate::tests::front_end::checked_program;
 
-fn checked(source: &str) -> checked_trees::CheckedTrees {
+fn checked(source: &str) -> crate::checked_trees::CheckedTrees {
     checked_program(source)
 }
 
-fn enter_store(source: &str) -> checked_trees::CheckedStructuralScalarFieldStorePlan {
+fn enter_store(source: &str) -> crate::checked_trees::CheckedStructuralScalarFieldStorePlan {
     let checked = checked(source);
     let machine = checked
         .machines()
@@ -40,22 +40,22 @@ fn local_float_field_store_admits_literal_parameter_and_local_sources() {
         (
             "f32",
             "let mut r: Rec = Rec { x: 1.0 }; r.x = 2.5; r.x",
-            typed_trees::types::PrimitiveType::F32,
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::F32,
         ),
         (
             "f64",
             "let mut r: Rec = Rec { x: 1.0 }; r.x = 2.5; r.x",
-            typed_trees::types::PrimitiveType::F64,
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::F64,
         ),
         (
             "f64",
             "let mut r: Rec = Rec { x: 1.0 }; r.x = v; r.x",
-            typed_trees::types::PrimitiveType::F64,
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::F64,
         ),
         (
             "f64",
             "let mut r: Rec = Rec { x: 1.0 }; let y: f64 = v; r.x = y; r.x",
-            typed_trees::types::PrimitiveType::F64,
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::F64,
         ),
     ] {
         let has_parameter = body.contains('v');

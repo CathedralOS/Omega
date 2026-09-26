@@ -12,7 +12,7 @@
 //! forbids, so both live here and are consulted together.
 
 use crate::monomorphization::{Diagnostic, SymbolHandle, TypedTrees};
-use typed_trees::trait_definition::{
+use symbol_resolved_trees_to_typed_trees::typed_trees::trait_definition::{
     Conformance, TraitDefinition, TraitRefinementClause, TraitRefinementReach,
 };
 

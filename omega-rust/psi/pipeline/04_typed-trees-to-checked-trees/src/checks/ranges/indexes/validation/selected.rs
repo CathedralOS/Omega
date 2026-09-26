@@ -2,13 +2,17 @@
 //! search for any precondition. The structural clause reader accepts only facts
 //! discharged by this occurrence's ordinary bounds judgment.
 
-use checked_trees::{CheckedOperatorResolutionStatus, CheckedValueOrigin};
+use crate::checked_trees::{CheckedOperatorResolutionStatus, CheckedValueOrigin};
 use language_core::operator_spelling::OperatorSpelling;
-use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, TableIndexedExpression};
-use typed_trees::machine::Machine;
-use typed_trees::operator::{resolve_indexed_spelling_for_operands, resolve_spelling};
-use typed_trees::state::State;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, TableIndexedExpression,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::operator::{
+    resolve_indexed_spelling_for_operands, resolve_spelling,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
 
 use super::{RangeFacts, lower_bounds};
 
@@ -165,8 +169,8 @@ pub(super) fn obligation(
 /// checks split every indexed occurrence between them by this one answer.
 pub(in crate::checks) fn ranges_seam_owns(
     program: &TypedTrees,
-    indexed: &typed_trees::expression::TableIndexedExpression,
-    origin: checked_trees::CheckedValueOrigin,
+    indexed: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableIndexedExpression,
+    origin: crate::checked_trees::CheckedValueOrigin,
 ) -> bool {
     crate::operators::indexed_operand_types(program, indexed, origin)
         .first()
@@ -177,7 +181,7 @@ pub(in crate::checks) fn ranges_seam_owns(
 
 fn has_builtin_collection_geometry(
     program: &TypedTrees,
-    mut collection: typed_trees::types::TypeReferenceHandle,
+    mut collection: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     for _ in 0..128 {
         if !program
@@ -187,12 +191,12 @@ fn has_builtin_collection_geometry(
             return true;
         }
         match program.type_reference_table.type_reference(collection) {
-            typed_trees::types::TypeReferenceNode::Reference { referee, .. }
-            | typed_trees::types::TypeReferenceNode::Constrained {
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { referee, .. }
+            | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained {
                 base_type: referee, ..
             } => collection = *referee,
-            typed_trees::types::TypeReferenceNode::FixedArray { .. }
-            | typed_trees::types::TypeReferenceNode::Slice { .. } => return true,
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::FixedArray { .. }
+            | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Slice { .. } => return true,
             _ => return false,
         }
     }
@@ -205,8 +209,8 @@ fn has_builtin_collection_geometry(
 /// This scratch use is not published and carries no additional proof authority.
 fn replay_selection(
     program: &TypedTrees,
-    selected: &checked_trees::CheckedOperatorUseFact,
-    live: &[typed_trees::operator::SpelledOperator<'_>],
+    selected: &crate::checked_trees::CheckedOperatorUseFact,
+    live: &[symbol_resolved_trees_to_typed_trees::typed_trees::operator::SpelledOperator<'_>],
 ) -> Option<(CheckedOperatorResolutionStatus, symbols::SymbolHandle)> {
     let count = u32::try_from(live.len()).ok()?;
     let mut candidates = arena::Arena::with_capacity(live.len());
@@ -224,8 +228,11 @@ fn replay_selection(
     use_fact.status = CheckedOperatorResolutionStatus::DomainPending;
     let mut uses = arena::Arena::with_capacity(1);
     let handle = uses.append(use_fact);
-    let mut replay =
-        checked_trees::CheckedOperatorFacts::with_roots(uses, arena::Arena::default(), candidates);
+    let mut replay = crate::checked_trees::CheckedOperatorFacts::with_roots(
+        uses,
+        arena::Arena::default(),
+        candidates,
+    );
     crate::operators::select_pending_domain_operator_meanings(program, &mut replay);
     let selected = replay.uses.get(handle);
     Some((selected.status, selected.selected_operator_symbol))

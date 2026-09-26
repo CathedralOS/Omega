@@ -3,8 +3,8 @@
 //! Encode the current physical instructions, then independently admit the
 //! bytes; replay validates a retained artifact against the same roots.
 
-use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
+use target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel;
 
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 
@@ -13,13 +13,13 @@ mod error;
 
 pub use error::OptimizedSelectedFormEncodingError;
 
-use crate::validation;
-use machine_code::{
+use crate::machine_code::{
     SelectedFormEncoding, SelectedFormEncodingCounts, SelectedFormEncodingIdentity,
     SelectedFormEncodingRow, SelectedFormMachineOptimizationCustody,
     SelectedFormMovnOptimizationCustody,
 };
-use physical_instructions::{
+use crate::validation;
+use register_homes_to_post_allocation_machine::{
     PostAllocationMachineIdentity, PostAllocationMachineOptimizationCustody,
 };
 
@@ -28,7 +28,7 @@ pub fn stage_optimized_layout_independent_selected_form_encoding<S: ValidatedSel
     selected: &S,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
-    frame: Option<&machine_code::TargetFrameLayoutPlan>,
+    frame: Option<&crate::machine_code::TargetFrameLayoutPlan>,
 ) -> Result<StagedOptimizedSelectedFormEncoding, OptimizedSelectedFormEncodingError> {
     let artifact = compute::compute(selected, machine, physical, frame)?;
     validation::validate(selected, machine, physical, frame, &artifact)?;
@@ -45,7 +45,7 @@ pub fn validate_optimized_layout_independent_selected_form_encoding<
     selected: &S,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
-    frame: Option<&machine_code::TargetFrameLayoutPlan>,
+    frame: Option<&crate::machine_code::TargetFrameLayoutPlan>,
     artifact: &StagedOptimizedSelectedFormEncoding,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
     validation::validate(selected, machine, physical, frame, artifact.program())
@@ -66,7 +66,9 @@ impl StagedOptimizedSelectedFormEncoding {
         std::sync::Arc::clone(&self.program)
     }
 
-    pub fn selected(&self) -> selected_instructions::SelectedInstructionPlanIdentity {
+    pub fn selected(
+        &self,
+    ) -> target_operations_to_selected_instructions::SelectedInstructionPlanIdentity {
         self.program.selected
     }
 

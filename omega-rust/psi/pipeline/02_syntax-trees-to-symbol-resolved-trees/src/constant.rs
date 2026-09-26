@@ -91,8 +91,8 @@ pub(crate) use selections::{
 pub(crate) use substitution::{semantic_const_name, substitute_resolved_constants};
 
 use diagnostics::Diagnostic;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::item::ConstDefinition;
+use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
+use tokens_to_syntax_trees::syntax_trees::item::ConstDefinition;
 
 /// Find unfinished values without claiming a carrier or constructor selection.
 /// Preparation separately admits exact scalar leaves in their declared owners.
@@ -100,7 +100,7 @@ pub fn requires_const_initializer_evaluation(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
 ) -> bool {
-    use syntax_trees::expression::ExpressionNode;
+    use tokens_to_syntax_trees::syntax_trees::expression::ExpressionNode;
     let mut pending = vec![definition.value];
     while let Some(expression) = pending.pop() {
         match syntax.expressions.expression(expression) {

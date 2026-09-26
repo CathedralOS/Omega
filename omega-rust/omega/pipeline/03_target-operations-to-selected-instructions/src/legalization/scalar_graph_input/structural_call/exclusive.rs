@@ -181,15 +181,15 @@ pub(super) fn argument(
 fn block_parameter_argument(
     semantic: &StructuralArgument,
     caller: &PsiOptimizationFunction,
-    block: &optimization_unit::OptimizationBlock,
+    block: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationBlock,
     declaration: &StructuralParameterDeclaration,
     destination: &StructuralParameterDeclaration,
     call: &CallPlan,
     scalar_count: usize,
     plan: &AbstractOperationPlan,
 ) -> Result<TargetStructuralArgument, LegalizationError> {
+    use abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource;
     use semantic_vocabulary::StructuralPlaceKind;
-    use target_operations::TargetStructuralArgumentSource;
     let shape = ValueShape::borrowed_reference(16, 8);
     if declaration.access != StructuralAccess::MutableBorrow
         || !matches!(

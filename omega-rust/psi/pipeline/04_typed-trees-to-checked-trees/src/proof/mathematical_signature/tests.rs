@@ -1285,9 +1285,9 @@ fn explicit_type_cannot_supply_a_level_argument() {
 
 #[test]
 fn explicit_mathematical_arguments_do_not_bypass_executable_call_admission() {
-    use typed_trees::expression::ExpressionNode;
-    use typed_trees::mathematical::MathematicalBody;
-    use typed_trees::statement::StatementNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::mathematical::MathematicalBody;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 
     let source = format!(
         "{EXPLICIT_LEVEL_IDENTITY}
@@ -1333,7 +1333,7 @@ fn explicit_mathematical_arguments_do_not_bypass_executable_call_admission() {
             *program.expression_table.expression_mut(runtime) =
                 ExpressionNode::Call(mathematical_call.clone());
         }
-        let diagnostics = validation::validate_static_machine_selections(&program)
+        let diagnostics = crate::validation::validate_static_machine_selections(&program)
             .expect_err("runtime application has no executable selection");
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic

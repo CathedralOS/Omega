@@ -60,4 +60,4 @@ a root-reported trust receipt or adequate-hardware-isolation receipt. Missing,
 unreported, or mismatched evidence rejects before forming provider execution.
 
 These are required guarantees, not a claim that the current native route
-implements all of them. See the [image implementation note](../../../omega-rust/omega/backend/images/image/footprint_replay.md).
+implements all of them. See the [image implementation note](../../../omega-rust/omega/pipeline/09_resolved-layout-to-resolved-layout/image_footprint_replay.md).

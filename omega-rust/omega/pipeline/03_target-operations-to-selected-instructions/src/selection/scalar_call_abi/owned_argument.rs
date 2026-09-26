@@ -3,7 +3,7 @@ use super::{
     CallSignature, LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarFunction,
     StructuralAccess, evaluate_call_plan,
 };
-use legalized_operations::LegalizedScalarInstructionKind;
+use crate::legalized_operations::LegalizedScalarInstructionKind;
 
 pub(super) fn validate_owned_arguments(
     source: &LegalizedScalarFunction,
@@ -39,7 +39,7 @@ pub(super) fn validate_owned_arguments(
             return None;
         }
         match target.source {
-            target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
+            abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
                 if psi_operation == operation {
                     return None;
                 }
@@ -94,7 +94,7 @@ pub(super) fn validate_owned_arguments(
                     return None;
                 }
             }
-            target_operations::TargetStructuralArgumentSource::Placement(ref placement) => {
+            abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::Placement(ref placement) => {
                 let parameter = source
                     .structural
                     .as_ref()?

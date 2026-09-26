@@ -2,9 +2,9 @@
 use super::replay_site_copies;
 use crate::FixedViewCopyError;
 use crate::rewrites::allocation_recovery::fixed_view_copy::compute::tests::immediate_fixture;
-use register_model::RegisterOperandAccess;
-use selected_instructions::VirtualFixedConstraintSite;
-use selected_instructions::{
+use target_operations_to_selected_instructions::VirtualFixedConstraintSite;
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::{
     SelectedBlockId, SelectedInstructionId, SelectedInstructionKind, SelectedTerminator,
     VirtualRegisterId,
 };
@@ -95,7 +95,8 @@ fn independent_site_replay_rejects_stale_boundary_facts() {
     ));
 
     let mut retargeted = boundaries.clone();
-    retargeted[2].to_view = register_model::RegisterViewId(88);
+    retargeted[2].to_view =
+        target_operations_to_selected_instructions::register_model::RegisterViewId(88);
     let references = retargeted.iter().collect::<Vec<_>>();
     let mut transformed = function.clone();
     assert!(matches!(

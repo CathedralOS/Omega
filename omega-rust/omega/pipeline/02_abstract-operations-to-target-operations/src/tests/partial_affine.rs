@@ -45,7 +45,8 @@ fn scalar() -> ScalarType {
     ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap())
 }
 
-fn pair_catalog() -> abstract_operations::StructuralTypeCatalog {
+fn pair_catalog() -> terminal_psi_to_abstract_operations::abstract_operations::StructuralTypeCatalog
+{
     vec![
         StructuralTypeDeclaration {
             id: structural_type(TOKEN),
@@ -150,14 +151,16 @@ fn residual_jump_plan() -> AbstractOperationPlan {
         psi_edge: edge(1),
         target: block(2),
         bindings: Vec::new(),
-        structural_bindings: vec![abstract_operations::AbstractStructuralBinding {
-            parameter: token_parameter,
-            argument: StructuralArgument {
-                place: pair,
-                access: StructuralAccess::Owned,
-                path: vec![segment("left")],
+        structural_bindings: vec![
+            terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding {
+                parameter: token_parameter,
+                argument: StructuralArgument {
+                    place: pair,
+                    access: StructuralAccess::Owned,
+                    path: vec![segment("left")],
+                },
             },
-        }],
+        ],
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: vec![StructuralAffineDiscard {
             place: pair,
@@ -226,7 +229,7 @@ fn residual_jump_plan() -> AbstractOperationPlan {
 
 fn lower(
     plan: &AbstractOperationPlan,
-) -> Result<target_operations::TargetOperationPlan, crate::LoweringError> {
+) -> Result<crate::target_operations::TargetOperationPlan, crate::LoweringError> {
     crate::lower_to_target_operations(
         plan,
         crate::TargetLoweringRequest::new(target::NativeTarget::linux_x64()),
@@ -237,7 +240,7 @@ fn lower(
 fn residual_jump_discards_the_sibling_subtree_on_the_edge() {
     let plan = residual_jump_plan();
     let lowered = lower(&plan).expect("projected owned edge with residual cleanup lowers");
-    let target_operations::TargetControlTerminator::Jump { successor } =
+    let crate::target_operations::TargetControlTerminator::Jump { successor } =
         &lowered.functions[0].graph.blocks[0].terminator
     else {
         panic!("entry block terminator");

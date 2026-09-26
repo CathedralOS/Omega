@@ -15,19 +15,19 @@ use crate::lowering::statement::value_call_hoisting::{
 };
 use crate::lowering::type_reference::lower_type_reference_handle;
 use crate::resolution::lowerer::Lowerer;
-use arena::HandleSpan;
-use diagnostics::Diagnostic;
-use language_semantics::declaration_selection::BuildOperation;
-use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
-use symbol_resolved_trees::name::DiagnosticName;
-use symbol_resolved_trees::statement::{
+use crate::symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
+use crate::symbol_resolved_trees::name::DiagnosticName;
+use crate::symbol_resolved_trees::statement::{
     AssemblyFact, AssemblyFactKind, Assignment, Call, CallStorage, LocalData, LocalDataStorage,
     NamedTransitionTarget, NamedTransitionTargetStorage, Statement, Transition, TransitionExit,
     TransitionGuard, TransitionTarget,
 };
-use symbol_resolved_trees::types::TypeReference;
+use crate::symbol_resolved_trees::types::TypeReference;
+use arena::HandleSpan;
+use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::BuildOperation;
 use symbols::SymbolHandle;
-use syntax_trees::{self as syntax, SyntaxTrees};
+use tokens_to_syntax_trees::syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_statement_node(
     lowerer: &mut Lowerer,
@@ -38,7 +38,7 @@ pub(crate) fn lower_statement_node(
 ) -> Result<Vec<Statement>, Diagnostic> {
     match statement {
         syntax::statement::StatementNode::RootBinding(binding) => Ok(vec![Statement::RootBinding(
-            symbol_resolved_trees::statement::RootBinding {
+            crate::symbol_resolved_trees::statement::RootBinding {
                 receiver: lower_statement_expression(lowerer, syntax_trees, binding.receiver)?,
                 slot: binding
                     .slot
@@ -80,7 +80,7 @@ pub(crate) fn lower_statement_node(
                         lowered?
                     }
                 } else {
-                    symbol_resolved_trees::expression::ExpressionHandle::invalid()
+                    crate::symbol_resolved_trees::expression::ExpressionHandle::invalid()
                 },
                 source_span: binding.source_span,
             },
@@ -102,7 +102,7 @@ pub(crate) fn lower_statement_node(
                 assignment.value,
             ) {
                 lowerer.symbol_resolved_trees.evidence_forwardings.push(
-                    symbol_resolved_trees::statement::EvidenceForwarding {
+                    crate::symbol_resolved_trees::statement::EvidenceForwarding {
                         machine_root_index: lowerer
                             .current_machine_root_index
                             .unwrap_or(usize::MAX),
@@ -250,7 +250,7 @@ pub(crate) fn lower_statement_node(
                             .current_evidence_term_names
                             .push(binding.binding.as_str().to_owned());
                     }
-                    symbol_resolved_trees::statement::ProofOutputSelector {
+                    crate::symbol_resolved_trees::statement::ProofOutputSelector {
                         output_field: crate::lowering::name::lower_name(&binding.output_field),
                         binding: crate::lowering::name::lower_name(&binding.binding),
                     }
@@ -276,7 +276,7 @@ pub(crate) fn lower_statement_node(
                 }));
             }
             lowered.push(Statement::ProofOutputBindingStatement(
-                symbol_resolved_trees::statement::ProofOutputBindingStatement {
+                crate::symbol_resolved_trees::statement::ProofOutputBindingStatement {
                     machine_symbol: SymbolHandle::invalid(),
                     state_symbol: SymbolHandle::invalid(),
                     statement_index,
@@ -485,7 +485,7 @@ pub(crate) fn lower_statement_node(
                     .outcome_proof_selectors(transition.proof_selectors)
                     .iter()
                     .map(
-                        |selector| symbol_resolved_trees::statement::OutcomeProofSelector {
+                        |selector| crate::symbol_resolved_trees::statement::OutcomeProofSelector {
                             output_field: crate::lowering::name::lower_name(&selector.output_field),
                             binding: crate::lowering::name::lower_name(&selector.binding),
                         },
@@ -497,10 +497,10 @@ pub(crate) fn lower_statement_node(
                     syntax::statement::TransitionExit::Crash(cause) => {
                         TransitionExit::Crash(match cause {
                             syntax::item::CrashCause::Trap => {
-                                symbol_resolved_trees::signature::CrashCause::Trap
+                                crate::symbol_resolved_trees::signature::CrashCause::Trap
                             }
                             syntax::item::CrashCause::Abort => {
-                                symbol_resolved_trees::signature::CrashCause::Abort
+                                crate::symbol_resolved_trees::signature::CrashCause::Abort
                             }
                         })
                     }
@@ -513,8 +513,8 @@ pub(crate) fn lower_statement_node(
 }
 
 fn retain_provider_call_expression(lowerer: &mut Lowerer, call: Call) -> ExpressionHandle {
+    use crate::symbol_resolved_trees::expression::{TableCallExpression, TableNamePath};
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
-    use symbol_resolved_trees::expression::{TableCallExpression, TableNamePath};
 
     let receiver_members = lowerer
         .symbol_resolved_trees
@@ -620,7 +620,7 @@ fn lower_statement_expression(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     expression: syntax::expression::ExpressionHandle,
-) -> Result<symbol_resolved_trees::expression::ExpressionHandle, Diagnostic> {
+) -> Result<crate::symbol_resolved_trees::expression::ExpressionHandle, Diagnostic> {
     lower_private_expression_into_table(lowerer, syntax_trees, expression)
 }
 
@@ -628,7 +628,7 @@ fn lower_statement_expressions(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     expressions: HandleSpan<syntax::expression::ExpressionHandle>,
-) -> Result<HandleSpan<symbol_resolved_trees::expression::ExpressionHandle>, Diagnostic> {
+) -> Result<HandleSpan<crate::symbol_resolved_trees::expression::ExpressionHandle>, Diagnostic> {
     let span = lowerer
         .symbol_resolved_trees
         .tables

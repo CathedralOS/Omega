@@ -5,9 +5,11 @@
 use selected_instructions_to_selected_instructions::test_support::exercise_single_use_rematerialization;
 
 use crate::RegisterHomeError;
-use register_homes::EntryFixedViewTransition;
-use register_model::{RegisterOperandAccess, RegisterViewId};
-use selected_instructions::{
+use selected_instructions_to_selected_instructions::register_homes::EntryFixedViewTransition;
+use target_operations_to_selected_instructions::register_model::{
+    RegisterOperandAccess, RegisterViewId,
+};
+use target_operations_to_selected_instructions::{
     LiveRangePoint, LivenessPosition, SelectedInstructionId, VirtualFixedConstraintSite,
 };
 

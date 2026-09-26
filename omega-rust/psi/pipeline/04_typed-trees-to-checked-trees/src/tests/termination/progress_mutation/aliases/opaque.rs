@@ -18,7 +18,7 @@ fn opaque_source(body: &str) -> String {
     )
 }
 
-fn opaque_fixture(body: &str) -> checked_trees::CheckedTrees {
+fn opaque_fixture(body: &str) -> crate::checked_trees::CheckedTrees {
     check_source(&opaque_source(body))
 }
 

@@ -1,19 +1,21 @@
-use register_model::{RegisterOperandAccess, RegisterUnitId};
-use selected_instructions::{
+use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType};
+use target_operations_to_selected_instructions::register_model::{
+    RegisterOperandAccess, RegisterUnitId,
+};
+use target_operations_to_selected_instructions::{
     MachineSemanticKind, SaturatingCarrier, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
     SelectedInstructionProvenance, SelectedOperand, SelectedTerminator, VirtualRegisterId,
     VirtualRegisterOrigin,
 };
-use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType};
 
 use crate::analyses::machine_effects::machine_semantic_kind;
+use crate::register_homes::{RecoveryClassification, RecoveryVictimRole};
 use crate::rewrites::block_edges::{terminator_instruction, terminator_successors};
 use crate::{
     FunctionLiteralFold, LiteralFoldAction, LiteralFoldError, ValidatedRecoveryClassifications,
     ValidatedSelectedAnalysis,
 };
-use register_homes::{RecoveryClassification, RecoveryVictimRole};
 
 use super::constraints::{
     ValidationImmediateRows, dead_unit_defs_fold_admission, effect_declaration,
@@ -70,7 +72,7 @@ pub(super) fn reconstruct_literal_fold(
 fn reconstruct_action(
     function_index: usize,
     function: &SelectedFunction,
-    candidate: &register_homes::PressureRecoveryClassification,
+    candidate: &crate::register_homes::PressureRecoveryClassification,
     rows: &ValidationImmediateRows<'_>,
 ) -> Result<LiteralFoldAction, LiteralFoldError> {
     if candidate.role != RecoveryVictimRole::Incoming {
@@ -2439,16 +2441,16 @@ fn dropped_def_is_dead(function: &SelectedFunction, register: VirtualRegisterId)
                 .filter(|binding| {
                     matches!(
                         binding.transport,
-                        selected_instructions::SelectedStructuralTransport::WholeValue {
+                        target_operations_to_selected_instructions::SelectedStructuralTransport::WholeValue {
                             argument,
                             ..
                         }
-                        | selected_instructions::SelectedStructuralTransport::Descriptor {
+                        | target_operations_to_selected_instructions::SelectedStructuralTransport::Descriptor {
                             argument,
                             ..
                         }
-                        | selected_instructions::SelectedStructuralTransport::Address {
-                            base: selected_instructions::SelectedAddressBase::Register(argument),
+                        | target_operations_to_selected_instructions::SelectedStructuralTransport::Address {
+                            base: target_operations_to_selected_instructions::SelectedAddressBase::Register(argument),
                             ..
                         } if argument == register
                     )
@@ -2459,11 +2461,11 @@ fn dropped_def_is_dead(function: &SelectedFunction, register: VirtualRegisterId)
                     .payloads
                     .iter()
                     .filter(|payload| match &payload.transport {
-                        selected_instructions::SelectedCasePayloadTransport::Unused => false,
-                        selected_instructions::SelectedCasePayloadTransport::Unmaterialized {
+                        target_operations_to_selected_instructions::SelectedCasePayloadTransport::Unused => false,
+                        target_operations_to_selected_instructions::SelectedCasePayloadTransport::Unmaterialized {
                             parameter,
                         } => *parameter == register,
-                        selected_instructions::SelectedCasePayloadTransport::Registers {
+                        target_operations_to_selected_instructions::SelectedCasePayloadTransport::Registers {
                             argument,
                             parameter,
                         } => *argument == register || *parameter == register,
@@ -2474,8 +2476,8 @@ fn dropped_def_is_dead(function: &SelectedFunction, register: VirtualRegisterId)
                 .bindings
                 .iter()
                 .filter(|binding| match &binding.transport {
-                    selected_instructions::SelectedValueTransport::Unused => false,
-                    selected_instructions::SelectedValueTransport::Registers {
+                    target_operations_to_selected_instructions::SelectedValueTransport::Unused => false,
+                    target_operations_to_selected_instructions::SelectedValueTransport::Registers {
                         argument,
                         parameter,
                     } => *argument == register || *parameter == register,
@@ -3175,16 +3177,16 @@ fn redensify(
         };
         for successor in successors {
             for binding in &mut successor.structural_bindings {
-                if let selected_instructions::SelectedStructuralTransport::Descriptor {
+                if let target_operations_to_selected_instructions::SelectedStructuralTransport::Descriptor {
                     argument,
                     ..
                 }
-                | selected_instructions::SelectedStructuralTransport::WholeValue {
+                | target_operations_to_selected_instructions::SelectedStructuralTransport::WholeValue {
                     argument,
                     ..
                 }
-                | selected_instructions::SelectedStructuralTransport::Address {
-                    base: selected_instructions::SelectedAddressBase::Register(argument),
+                | target_operations_to_selected_instructions::SelectedStructuralTransport::Address {
+                    base: target_operations_to_selected_instructions::SelectedAddressBase::Register(argument),
                     ..
                 } = &mut binding.transport
                 {
@@ -3194,14 +3196,14 @@ fn redensify(
             if let Some(case) = &mut successor.structural_case {
                 for payload in &mut case.payloads {
                     match &mut payload.transport {
-                        selected_instructions::SelectedCasePayloadTransport::Unused => {}
-                        selected_instructions::SelectedCasePayloadTransport::Unmaterialized {
+                        target_operations_to_selected_instructions::SelectedCasePayloadTransport::Unused => {}
+                        target_operations_to_selected_instructions::SelectedCasePayloadTransport::Unmaterialized {
                             parameter,
                         } => {
                             *parameter =
                                 lower_register(function_index, *parameter, removed_register)?;
                         }
-                        selected_instructions::SelectedCasePayloadTransport::Registers {
+                        target_operations_to_selected_instructions::SelectedCasePayloadTransport::Registers {
                             argument,
                             parameter,
                         } => {
@@ -3214,7 +3216,7 @@ fn redensify(
                 }
             }
             for binding in &mut successor.bindings {
-                if let selected_instructions::SelectedValueTransport::Registers {
+                if let target_operations_to_selected_instructions::SelectedValueTransport::Registers {
                     argument,
                     parameter,
                 } = &mut binding.transport
@@ -3299,7 +3301,7 @@ fn lower_register(
 }
 
 fn selected_operand(
-    constraint: &register_model::RegisterOperandConstraint,
+    constraint: &target_operations_to_selected_instructions::register_model::RegisterOperandConstraint,
     register: VirtualRegisterId,
 ) -> SelectedOperand {
     SelectedOperand {

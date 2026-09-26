@@ -9,10 +9,10 @@ mod structural;
 mod structural_equality;
 mod structural_paths;
 
+use crate::checked_trees::{CheckedBooleanExpression, CheckedOperatorFacts};
 use crate::values::scalar::boolean_lowering::lower_boolean_expression;
-use checked_trees::{CheckedBooleanExpression, CheckedOperatorFacts};
-use typed_trees::TypedTrees;
-use typed_trees::expression::ExpressionHandle;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
 
 /// Lower a contract predicate in the selected machine's entry-parameter
 /// namespace. Crash contracts use this to retain the same checked scalar
@@ -21,9 +21,9 @@ use typed_trees::expression::ExpressionHandle;
 pub(crate) fn lower_machine_parameter_boolean_expression(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     expression: ExpressionHandle,
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
+    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
 ) -> Option<CheckedBooleanExpression> {
     let entry = program.machine_states(machine).first()?;
     let parameters = program.state_parameters(entry);

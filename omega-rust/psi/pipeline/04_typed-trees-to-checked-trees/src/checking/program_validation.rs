@@ -1,43 +1,45 @@
+use crate::flow_effects::{OperationalPlan, ServiceReachInferencePlan};
+use crate::proof_engine::obligations::ProofPlan;
 use diagnostics::Diagnostic;
-use flow_effects::{OperationalPlan, ServiceReachInferencePlan};
-use proof::obligations::ProofPlan;
-use typed_trees::TypedTrees;
-use typed_trees::data::DataMember;
-use typed_trees::expression::ExpressionNode;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    TypeReferenceHandle, TypeReferenceNode,
+};
 
 pub(crate) struct ValidatedTypedProgram<'program> {
     pub(crate) proof_plan: ProofPlan<'program>,
     pub(crate) operational: OperationalPlan,
     pub(crate) service_reaches: ServiceReachInferencePlan,
-    pub(crate) validation_facts: validation::ProgramValidationFacts,
+    pub(crate) validation_facts: crate::validation::ProgramValidationFacts,
 }
 
 pub(crate) fn validate_typed_program<'program>(
     program: &'program TypedTrees,
-    opaque_property_receipts: &[validation::OpaqueDataPropertyReceipt],
+    opaque_property_receipts: &[crate::validation::OpaqueDataPropertyReceipt],
     allow_pending_opaque_copy: bool,
 ) -> Result<ValidatedTypedProgram<'program>, Vec<Diagnostic>> {
     validate_atomic_result_custody(program)?;
 
     let opaque_properties = if allow_pending_opaque_copy {
-        validation::OpaquePropertyValidation::PendingBuildSelection
+        crate::validation::OpaquePropertyValidation::PendingBuildSelection
     } else {
-        validation::OpaquePropertyValidation::Required(opaque_property_receipts)
+        crate::validation::OpaquePropertyValidation::Required(opaque_property_receipts)
     };
     // Quotient requests are judged after the checked termination facts exist
     // (`lower_typed_trees` calls `admit_checked_quotient_requests` beside
     // `build_check_facts`); validation keeps formation checking here.
-    let validated = validation::validate_specialized_program_deferring_quotient_requests(
+    let validated = crate::validation::validate_specialized_program_deferring_quotient_requests(
         program,
         opaque_properties,
     )?;
 
-    let proof_plan = proof::obligations::build_proof_plan(program);
-    proof::checker::check_proof_plan(&proof_plan)?;
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(program);
+    crate::proof_engine::checker::check_proof_plan(&proof_plan)?;
 
     let operational = validated.operational;
-    validation::validate_behavior_plan(program, &operational)?;
+    crate::validation::validate_behavior_plan(program, &operational)?;
     crate::checking::call_acknowledgements::validate_call_acknowledgements(program, &operational)?;
     validate_no_bare_boundary_trait_values(program)?;
 
@@ -249,8 +251,10 @@ mod tests {
         AtomicObservingCompareExchangeOperation as Operation,
         AtomicObservingCompareExchangeResultShape as Shape, AtomicOrderingPlan, MemoryOrdering,
     };
-    use typed_trees::TypedTrees;
-    use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableAtomicExpression};
+    use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+        ExpressionHandle, ExpressionNode, TableAtomicExpression,
+    };
 
     use super::validate_atomic_result_custody;
 

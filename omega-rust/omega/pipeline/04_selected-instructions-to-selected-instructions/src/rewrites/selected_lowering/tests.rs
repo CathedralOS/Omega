@@ -2,11 +2,13 @@ use optimization_core::{
     AcceptedObligationFactIdentity, Optimization, OptimizationExecutionPhase,
     OptimizationSelections,
 };
-use register_environment::baseline_target_register_environment;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{MachineSemanticKind, SaturatingCarrier, SelectedInstructionKind};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ObligationId, ScalarType};
 use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::{
+    MachineSemanticKind, SaturatingCarrier, SelectedInstructionKind,
+};
 
 use super::{
     LiteralFoldPolicy, PairImmediateBound, PairMachineEffects, PairOperandShape,

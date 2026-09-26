@@ -3,7 +3,7 @@ use super::{
     CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError, ReceiverSource, SymbolHandle,
     unsupported,
 };
-use checked_trees::{
+use typed_trees_to_checked_trees::checked_trees::{
     CheckedStructuralAccess, CheckedUnitCallCoordinate, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralParameterPlan, types::TypeReferenceNode,
 };
@@ -15,19 +15,19 @@ use checked_trees::{
 /// could reseat the referent and is not this carrier.
 pub(super) fn shared_borrow<'a>(
     checked: &'a CheckedTrees,
-    state: &checked_trees::state::State,
+    state: &typed_trees_to_checked_trees::checked_trees::state::State,
     statement: usize,
     symbol: SymbolHandle,
-) -> Option<&'a checked_trees::statement::TableLocalData> {
+) -> Option<&'a typed_trees_to_checked_trees::checked_trees::statement::TableLocalData> {
     let mut declarations = checked
         .statement_table
         .statements(state.statement_nodes)
         .iter()
         .take(statement)
         .filter_map(|statement| match statement {
-            checked_trees::statement::StatementNode::LocalData(local) if local.symbol == symbol => {
-                Some(local)
-            }
+            typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(
+                local,
+            ) if local.symbol == symbol => Some(local),
             _ => None,
         });
     let local = declarations.next()?;
@@ -48,10 +48,13 @@ pub(super) fn shared_borrow<'a>(
 
 pub(super) fn declaration<'a>(
     checked: &'a CheckedTrees,
-    state: &checked_trees::state::State,
+    state: &typed_trees_to_checked_trees::checked_trees::state::State,
     statement: usize,
     symbol: SymbolHandle,
-) -> Option<(usize, &'a checked_trees::statement::TableLocalData)> {
+) -> Option<(
+    usize,
+    &'a typed_trees_to_checked_trees::checked_trees::statement::TableLocalData,
+)> {
     let mut declarations = checked
         .statement_table
         .statements(state.statement_nodes)
@@ -59,15 +62,15 @@ pub(super) fn declaration<'a>(
         .take(statement)
         .enumerate()
         .filter_map(|(ordinal, statement)| match statement {
-            checked_trees::statement::StatementNode::LocalData(local) if local.symbol == symbol => {
-                Some((ordinal, local))
-            }
+            typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(
+                local,
+            ) if local.symbol == symbol => Some((ordinal, local)),
             _ => None,
         });
     let (ordinal, local) = declarations.next()?;
     (declarations.next().is_none()
         && local.initial_value.is_valid()
-        && validation::has_plain_owned_contents_with_numeric_constraints(
+        && typed_trees_to_checked_trees::validation::has_plain_owned_contents_with_numeric_constraints(
             &checked.typed,
             local.type_reference,
         ))
@@ -126,7 +129,9 @@ pub(super) fn validate(
             .iter()
             .flat_map(|data| checked.data_members(data))
             .find_map(|member| match member {
-                checked_trees::data::DataMember::Field(field) if field.symbol == source.stamp => {
+                typed_trees_to_checked_trees::checked_trees::data::DataMember::Field(field)
+                    if field.symbol == source.stamp =>
+                {
                     Some(field.type_reference)
                 }
                 _ => None,

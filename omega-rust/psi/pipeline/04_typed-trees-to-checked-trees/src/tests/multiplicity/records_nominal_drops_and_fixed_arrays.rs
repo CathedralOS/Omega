@@ -72,7 +72,7 @@ fn transparent_record_frontier_preserves_independent_field_origins() {
         .flat_map(|machine| checked.machine_states(machine))
         .flat_map(|state| checked.statement_table.statements(state.statement_nodes))
         .find_map(|statement| match statement {
-            typed_trees::statement::StatementNode::LocalData(local)
+            symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local)
                 if local.name.as_str() == "pair" =>
             {
                 Some(local.symbol)
@@ -85,7 +85,7 @@ fn transparent_record_frontier_preserves_independent_field_origins() {
         .copied()
         .filter(|event| {
             event.kind == PermissionEventKind::Establish
-                && event.root == facts::PlaceRoot::Symbol(pair_symbol)
+                && event.root == crate::fact_plan::PlaceRoot::Symbol(pair_symbol)
         })
         .collect::<Vec<_>>();
     assert_eq!(
@@ -414,7 +414,7 @@ fn fixed_array_partial_move_leaves_sibling_obligation_live() {
                         .ownership
                         .segments
                         .span_or_empty(event.segments),
-                    [facts::PlaceSegment::FixedIndex { .. }]
+                    [crate::fact_plan::PlaceSegment::FixedIndex { .. }]
                 )
         })
         .collect::<Vec<_>>();
@@ -422,7 +422,7 @@ fn fixed_array_partial_move_leaves_sibling_obligation_live() {
     let indices = receipt_establishments
         .iter()
         .map(|event| {
-            let [facts::PlaceSegment::FixedIndex { index }] = checked
+            let [crate::fact_plan::PlaceSegment::FixedIndex { index }] = checked
                 .facts
                 .flow
                 .ownership
@@ -527,7 +527,7 @@ fn fixed_array_state_result_maps_claims_by_literal_index() {
                 .ownership
                 .segments
                 .span_or_empty(entry.output_segments),
-            [facts::PlaceSegment::FixedIndex { index: expected }]
+            [crate::fact_plan::PlaceSegment::FixedIndex { index: expected }]
         );
     }
 }
@@ -592,7 +592,7 @@ fn nested_generic_transparent_record_retains_the_concrete_claim_path() {
         .flat_map(|machine| checked.machine_states(machine))
         .flat_map(|state| checked.statement_table.statements(state.statement_nodes))
         .find_map(|statement| match statement {
-            typed_trees::statement::StatementNode::LocalData(local)
+            symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local)
                 if local.name.as_str() == "envelope" =>
             {
                 Some(local.symbol)
@@ -609,7 +609,7 @@ fn nested_generic_transparent_record_retains_the_concrete_claim_path() {
         .map(|(_, event)| event)
         .find(|event| {
             event.kind == language_semantics::PermissionEventKind::Establish
-                && event.root == facts::PlaceRoot::Symbol(envelope_symbol)
+                && event.root == crate::fact_plan::PlaceRoot::Symbol(envelope_symbol)
         })
         .expect("nested generic frontier establishment");
     assert_eq!(

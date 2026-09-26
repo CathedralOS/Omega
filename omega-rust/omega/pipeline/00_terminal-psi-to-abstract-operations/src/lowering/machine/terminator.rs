@@ -1,6 +1,6 @@
 //! Ordinary-machine control-flow and terminal-edge projection.
 use super::{LoweredAffineLocal, LoweringError};
-use abstract_operations::{AbstractOperation, AbstractSuccessor, ValueBinding};
+use crate::abstract_operations::{AbstractOperation, AbstractSuccessor, ValueBinding};
 use semantic_vocabulary::{BlockId, OperationId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{TerminalAffineCleanupAction, TerminalMachine, Terminator};
@@ -64,12 +64,12 @@ pub(super) fn lower_terminator(
                     .structural_parameters
                     .iter()
                     .zip(structural_arguments)
-                    .map(
-                        |(parameter, argument)| abstract_operations::AbstractStructuralBinding {
+                    .map(|(parameter, argument)| {
+                        crate::abstract_operations::AbstractStructuralBinding {
                             parameter: parameter.place,
                             argument: argument.clone(),
-                        },
-                    )
+                        }
+                    })
                     .collect(),
                 bindings: target_block
                     .parameters
@@ -113,7 +113,7 @@ pub(super) fn lower_terminator(
                         .iter()
                         .zip(&successor.structural_arguments)
                         .map(|(parameter, argument)| {
-                            abstract_operations::AbstractStructuralBinding {
+                            crate::abstract_operations::AbstractStructuralBinding {
                                 parameter: parameter.place,
                                 argument: argument.clone(),
                             }
@@ -153,7 +153,7 @@ pub(super) fn lower_terminator(
                             edge: successor.edge,
                         });
                     }
-                    Ok(abstract_operations::AbstractStructuralCaseSuccessor {
+                    Ok(crate::abstract_operations::AbstractStructuralCaseSuccessor {
                         psi_edge: successor.edge,
                         target: successor.target,
                         case: successor.case,
@@ -162,7 +162,7 @@ pub(super) fn lower_terminator(
                             .iter()
                             .zip(&successor.payload_fields)
                             .map(|(parameter, field)| {
-                                abstract_operations::AbstractStructuralCasePayloadBinding {
+                                crate::abstract_operations::AbstractStructuralCasePayloadBinding {
                                     parameter: parameter.id,
                                     field: *field,
                                     scalar_type: parameter.scalar_type,

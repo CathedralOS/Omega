@@ -44,8 +44,8 @@ fn seeded_extension_carrier_rebases_selection_suffix_after_later_base_rows() {
     destination
         .record_resolved(
             source::SourceSpan::new(base_id, source::Span::new(0, 1)),
-            symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation,
-            symbol_resolved_trees::AuthoredDeclarationSelectionKind::MemberAccess,
+            crate::symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+            crate::symbol_resolved_trees::AuthoredDeclarationSelectionKind::MemberAccess,
             helper_symbol,
         )
         .expect("later-phase-only base selection");
@@ -72,7 +72,7 @@ fn seeded_extension_carrier_rebases_selection_suffix_after_later_base_rows() {
     let unrebased_extension =
         unrebased.authored_declaration_selections().as_slice()[base_selection_count];
     assert_eq!(unrebased_extension.source_span().source_id, extension_id);
-    let symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target) =
+    let crate::symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target) =
         unrebased_extension.target()
     else {
         panic!("generated helper call is resolved")
@@ -91,7 +91,7 @@ fn seeded_extension_carrier_rebases_selection_suffix_after_later_base_rows() {
         .statements(state.statement_nodes)
         .iter()
         .find_map(|statement| match statement {
-            symbol_resolved_trees::statement::StatementNode::Call(call) => Some(call),
+            crate::symbol_resolved_trees::statement::StatementNode::Call(call) => Some(call),
             _ => None,
         })
         .expect("unrebased generated helper call");
@@ -118,7 +118,7 @@ fn seeded_extension_carrier_rebases_selection_suffix_after_later_base_rows() {
         u64::try_from(destination.len()).expect("selection count")
     );
     assert_eq!(rebased_extension.source_span().source_id, extension_id);
-    let symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target) =
+    let crate::symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target) =
         rebased_extension.target()
     else {
         panic!("rebased helper call remains resolved")
@@ -138,7 +138,7 @@ fn seeded_extension_carrier_rebases_selection_suffix_after_later_base_rows() {
         .statements(state.statement_nodes)
         .iter()
         .find_map(|statement| match statement {
-            symbol_resolved_trees::statement::StatementNode::Call(call) => Some(call),
+            crate::symbol_resolved_trees::statement::StatementNode::Call(call) => Some(call),
             _ => None,
         })
         .expect("generated helper call");
@@ -268,10 +268,10 @@ fn seeded_extension_preserves_base_identity_and_resolves_base_peers_and_shadowin
         .data_members(generated.members)
         .iter()
         .map(|member| {
-            let symbol_resolved_trees::data::DataMember::Field(field) = member else {
+            let crate::symbol_resolved_trees::data::DataMember::Field(field) = member else {
                 panic!("Generated has fields only")
             };
-            let symbol_resolved_trees::types::TypeReference::Named { symbol, .. } =
+            let crate::symbol_resolved_trees::types::TypeReference::Named { symbol, .. } =
                 &field.type_reference
             else {
                 panic!("Generated fields retain named types")
@@ -595,8 +595,9 @@ fn trait_machine_requirement_identity_reaches_resolved_trees() {
     assert!(parameter.symbol.is_valid());
     assert!(matches!(
         parameter.kind,
-        symbol_resolved_trees::data::TypeParameterKind::Machine {
-            contract: symbol_resolved_trees::data::MachineParameterContract::RequirementIdentity
+        crate::symbol_resolved_trees::data::TypeParameterKind::Machine {
+            contract:
+                crate::symbol_resolved_trees::data::MachineParameterContract::RequirementIdentity
         }
     ));
 }
@@ -628,7 +629,8 @@ fn trait_machine_requirement_argument_resolves_one_exact_requirement() {
     let [argument] = program.child_type_references(conformance.arguments) else {
         panic!("one slot requirement argument")
     };
-    let symbol_resolved_trees::types::TypeReference::Named { symbol, name } = argument else {
+    let crate::symbol_resolved_trees::types::TypeReference::Named { symbol, name } = argument
+    else {
         panic!("requirement argument remains a named identity")
     };
     assert_eq!(name.as_str(), "WindowProcedure::call");
@@ -688,7 +690,7 @@ fn authored_trait_machine_identity_uses_the_exact_base_trait_catalog() {
                 .is_some_and(|name| name.as_str() == "Slot")
         })
         .expect("base Slot conformance");
-    let [symbol_resolved_trees::types::TypeReference::Named { symbol, .. }] =
+    let [crate::symbol_resolved_trees::types::TypeReference::Named { symbol, .. }] =
         program.child_type_references(conformance.arguments)
     else {
         panic!("one named machine-identity argument")
@@ -832,7 +834,7 @@ fn authored_conformance_result_dispatch_ignores_an_extension_domain_alias() {
                 .is_some_and(|name| name.as_str() == "Selected")
         })
         .expect("Selected conformance");
-    let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
+    let crate::symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
         &conformance.implementation
     else {
         panic!("closed conformance")

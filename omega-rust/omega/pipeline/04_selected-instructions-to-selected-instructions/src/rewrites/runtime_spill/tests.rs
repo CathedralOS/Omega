@@ -6,21 +6,21 @@ use crate::rewrites::runtime_spill::admission;
 use crate::spill_selected_runtime_value;
 use crate::validate_runtime_spill;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
-use optimization_unit::ValueDefinitionSite;
-use register_environment::baseline_target_register_environment;
-use selected_instructions::{
-    FrameStorageSlotId, LocalStorageSlotId, SelectedBlock, SelectedBlockId, SelectedFunction,
-    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
-    SelectedLocalStorageSlot, SelectedTerminator, VirtualRegister, VirtualRegisterId,
-    VirtualRegisterOrigin,
-};
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, OperationId,
     ScalarType, ValueId,
 };
 use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use target_operations_to_selected_instructions::{
+    FrameStorageSlotId, LocalStorageSlotId, SelectedBlock, SelectedBlockId, SelectedFunction,
+    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
+    SelectedLocalStorageSlot, SelectedTerminator, VirtualRegister, VirtualRegisterId,
+    VirtualRegisterOrigin,
+};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
 mod control_flow;
 mod dominance;
@@ -108,7 +108,7 @@ fn fixture(target: NativeTarget) -> ValidatedRuntimeSpill {
             virtual_registers: registers,
             blocks: vec![SelectedBlock {
                 id: SelectedBlockId(0),
-                origin: selected_instructions::SelectedBlockOrigin::Source(
+                origin: target_operations_to_selected_instructions::SelectedBlockOrigin::Source(
                     BlockId::new(1).unwrap(),
                 ),
                 instructions,
@@ -642,8 +642,8 @@ fn independent_replay_rejects_storage_use_source_and_fuel_corruption() {
                 function.blocks[0].instructions.remove(6);
             }
             10 => function.blocks[0].instructions[3].provenance.fuel.push(
-                optimization_unit::FuelSettlement {
-                    site: optimization_unit::PsiProvenance::Operation(
+                terminal_psi_to_abstract_operations::optimization_unit::FuelSettlement {
+                    site: terminal_psi_to_abstract_operations::optimization_unit::PsiProvenance::Operation(
                         semantic_vocabulary::OperationId::new(1).unwrap(),
                     ),
                     units: 1,
@@ -689,7 +689,7 @@ fn fixed_view_instruction_uses_pin_their_reload_at_the_call_operand() {
         };
         assert_eq!(
             call_operand.access,
-            register_model::RegisterOperandAccess::Use
+            target_operations_to_selected_instructions::register_model::RegisterOperandAccess::Use
         );
         assert!(call_operand.fixed_view.is_some());
         let mut source = fixture(target);

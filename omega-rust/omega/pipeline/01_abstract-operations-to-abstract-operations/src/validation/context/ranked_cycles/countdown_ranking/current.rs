@@ -1,9 +1,9 @@
 //! Optimizer module role: reconstruction leaf. Current-IR countdown evidence inference.
 
 use super::super::super::super::O;
-use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{BlockId, ValueId};
 use semantic_vocabulary::{IntegerCarrier, IntegerSign, IntegerValue, ScalarType};
+use terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction;
 
 use super::super::{
     OptimizerCycleComponent, OptimizerUnsignedCountdownRankingCertificate,
@@ -198,14 +198,14 @@ fn derive_from_header(
 fn block(
     function: &PsiOptimizationFunction,
     id: BlockId,
-) -> Option<&optimization_unit::OptimizationBlock> {
+) -> Option<&terminal_psi_to_abstract_operations::optimization_unit::OptimizationBlock> {
     function.blocks.iter().find(|block| block.id == id)
 }
 
 fn scalar_node(
-    block: &optimization_unit::OptimizationBlock,
+    block: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationBlock,
     value: ValueId,
-) -> Option<&optimization_unit::OptimizationNode> {
+) -> Option<&terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode> {
     block.nodes.iter().find(|node| {
         node.definitions
             .iter()

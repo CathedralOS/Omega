@@ -25,7 +25,7 @@ impl AllocationSource for StagedOptimizedRegisterHomes {
 impl ProjectAllocation for StagedOptimizedRegisterHomes {
     fn project_allocation(&self) -> AllocationOutput<'_> {
         AllocationOutput {
-            program: register_homes::AllocatedProgramRef {
+            program: selected_instructions_to_selected_instructions::register_homes::AllocatedProgramRef {
                 selected: self.selected().plan(),
                 homes: self.homes().plan(),
             },

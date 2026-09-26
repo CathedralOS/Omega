@@ -1,16 +1,16 @@
 //! Optimizer module role: executable entrance. Validated countdown-loop analysis coordination.
 
-use abstract_operations::AbstractOperation as O;
 use optimization_core::OptimizationUnitIdentity;
-use optimization_unit::{
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     PsiOptimizationFunction, PsiOptimizationUnit, recompute_psi_optimization_unit_identity,
 };
 
 use crate::validation::ValidatedOptimizerCycleComponents;
-use optimization_unit::{
+use semantic_vocabulary::{IntegerType, MachineId, ScalarType, ValueId};
+use terminal_psi_to_abstract_operations::optimization_unit::{
     CycleComponentEdge, OptimizerCycleComponent, OptimizerUnsignedCountdownRankingCertificate,
 };
-use semantic_vocabulary::{IntegerType, MachineId, ScalarType, ValueId};
 
 use super::LoopRegion;
 

@@ -1,15 +1,19 @@
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet};
 
-use register_model::{RegisterOperandAccess, RegisterViewId};
-use selected_instructions::{SelectedBlockId, VirtualRegisterId};
+use target_operations_to_selected_instructions::register_model::{
+    RegisterOperandAccess, RegisterViewId,
+};
+use target_operations_to_selected_instructions::{SelectedBlockId, VirtualRegisterId};
 
 use crate::FixedPrecoloredSegmentHomeError;
-use register_homes::{
+use crate::register_homes::{
     FixedPrecoloredHomeDomainId, FixedPrecoloredSourceSegmentHome,
     FunctionFixedPrecoloredSegmentHomes,
 };
-use selected_instructions::{CopyAffinity, FunctionLiveRanges, LiveRangePoint, VirtualLiveRange};
+use target_operations_to_selected_instructions::{
+    CopyAffinity, FunctionLiveRanges, LiveRangePoint, VirtualLiveRange,
+};
 
 use super::{conflicts::ConflictIndex, domains::Domain, work::Work};
 

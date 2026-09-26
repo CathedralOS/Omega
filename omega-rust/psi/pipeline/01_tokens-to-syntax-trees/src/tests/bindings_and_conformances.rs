@@ -1,8 +1,8 @@
 use crate::parser::parse_syntax_trees;
+use crate::syntax_trees::expression::ExpressionNode;
+use crate::syntax_trees::types::TypeReferenceNode;
 use language_core::ReferenceAccess;
 use source_files_to_tokens::Lexer;
-use syntax_trees::expression::ExpressionNode;
-use syntax_trees::types::TypeReferenceNode;
 
 #[test]
 fn parses_compiler_intrinsic_external_binding_as_a_closed_binding_case() {
@@ -22,7 +22,7 @@ fn parses_compiler_intrinsic_external_binding_as_a_closed_binding_case() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine)
+            crate::syntax_trees::item::Item::Machine(machine)
                 if machine.name.as_str() == "console_write_byte" =>
             {
                 Some(machine)
@@ -37,7 +37,7 @@ fn parses_compiler_intrinsic_external_binding_as_a_closed_binding_case() {
         .expect("satisfies clause");
     assert!(matches!(
         clause.via.as_ref(),
-        Some(syntax_trees::item::ExternalBinding::CompilerIntrinsic)
+        Some(crate::syntax_trees::item::ExternalBinding::CompilerIntrinsic)
     ));
     let via_source_span = clause
         .via_keyword_source_span
@@ -65,7 +65,9 @@ fn exact_requirement_application_parses_lifetimes_before_type_arguments() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) if machine.name.as_str() == "read" => {
+            crate::syntax_trees::item::Item::Machine(machine)
+                if machine.name.as_str() == "read" =>
+            {
                 Some(machine)
             }
             _ => None,
@@ -126,7 +128,7 @@ fn parses_ordinary_via_machine_call_without_bootstrap_binding_reconstruction() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine)
+            crate::syntax_trees::item::Item::Machine(machine)
                 if machine.name.as_str() == "kernel32_write_file" =>
             {
                 Some(machine)
@@ -145,7 +147,7 @@ fn parses_ordinary_via_machine_call_without_bootstrap_binding_reconstruction() {
     );
     assert!(matches!(
         parsed.expressions.expression(clause.via_expression),
-        syntax_trees::expression::ExpressionNode::Call(_)
+        crate::syntax_trees::expression::ExpressionNode::Call(_)
     ));
     let via_source_span = clause
         .via_keyword_source_span
@@ -275,18 +277,18 @@ fn parses_field_relevance_on_record_and_case_payload_bindings() {
     let data = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Data(data) => Some(data),
+            crate::syntax_trees::item::Item::Data(data) => Some(data),
             _ => None,
         })
         .expect("data declaration");
     let members = parsed.items.data_members(data.members);
-    let syntax_trees::item::DataMember::Field(value) = &members[0] else {
+    let crate::syntax_trees::item::DataMember::Field(value) = &members[0] else {
         panic!("value field");
     };
-    let syntax_trees::item::DataMember::Field(proof) = &members[1] else {
+    let crate::syntax_trees::item::DataMember::Field(proof) = &members[1] else {
         panic!("proof field");
     };
-    let syntax_trees::item::DataMember::Variant(wrapped) = &members[2] else {
+    let crate::syntax_trees::item::DataMember::Variant(wrapped) = &members[2] else {
         panic!("wrapped case");
     };
     let [witness] = parsed.items.data_payload_fields(wrapped.payload) else {
@@ -340,7 +342,7 @@ fn parses_binding_relevance_on_signature_parameters_and_locals() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine declaration");
@@ -370,7 +372,7 @@ fn parses_binding_relevance_on_signature_parameters_and_locals() {
         .statements(state.statements)
         .iter()
         .filter_map(|handle| match parsed.statements.statement(*handle) {
-            syntax_trees::statement::StatementNode::LocalData(local) => Some(local),
+            crate::syntax_trees::statement::StatementNode::LocalData(local) => Some(local),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -446,7 +448,7 @@ fn parses_zero_value_of_nested_generic_type_without_spacing_closes() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) if machine.name == "zero_is_none" => {
+            crate::syntax_trees::item::Item::Machine(machine) if machine.name == "zero_is_none" => {
                 Some(machine)
             }
             _ => None,
@@ -507,7 +509,7 @@ fn preserves_erased_lifetime_parameters_separately_from_runtime_generics() {
     let data = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Data(data) => Some(data),
+            crate::syntax_trees::item::Item::Data(data) => Some(data),
             _ => None,
         })
         .expect("data declaration");
@@ -518,7 +520,7 @@ fn preserves_erased_lifetime_parameters_separately_from_runtime_generics() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine declaration");
@@ -544,7 +546,7 @@ fn preserves_erased_lifetime_arguments_separately_from_runtime_generic_arguments
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine declaration");
@@ -668,7 +670,7 @@ fn parses_generic_standalone_conformance_arguments() {
     let conformance = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Conformance(conformance) => Some(conformance),
+            crate::syntax_trees::item::Item::Conformance(conformance) => Some(conformance),
             _ => None,
         })
         .expect("conformance root item");
@@ -708,7 +710,7 @@ fn parses_name_owned_generic_conformance_telescope() {
     let conformance = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Conformance(conformance) => Some(conformance),
+            crate::syntax_trees::item::Item::Conformance(conformance) => Some(conformance),
             _ => None,
         })
         .expect("conformance root item");
@@ -722,15 +724,15 @@ fn parses_name_owned_generic_conformance_telescope() {
     assert_eq!(parameters[0].name.as_str(), "Source");
     assert!(matches!(
         parameters[0].kind,
-        syntax_trees::item::TypeParameterKind::Type
+        crate::syntax_trees::item::TypeParameterKind::Type
     ));
     assert_eq!(parameters[1].name.as_str(), "Width");
     assert!(matches!(
         parameters[1].kind,
-        syntax_trees::item::TypeParameterKind::Const { .. }
+        crate::syntax_trees::item::TypeParameterKind::Const { .. }
     ));
-    let syntax_trees::item::TypeParameterKind::Machine {
-        contract: Some(syntax_trees::item::MachineParameterContract::Structural(contract)),
+    let crate::syntax_trees::item::TypeParameterKind::Machine {
+        contract: Some(crate::syntax_trees::item::MachineParameterContract::Structural(contract)),
     } = &parameters[2].kind
     else {
         panic!("Convert should retain its authored machine contract");
@@ -758,13 +760,13 @@ fn parses_named_concrete_subjectless_conformance_block() {
     let conformance = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Conformance(conformance) => Some(conformance),
+            crate::syntax_trees::item::Item::Conformance(conformance) => Some(conformance),
             _ => None,
         })
         .expect("conformance root item");
     assert!(matches!(
         conformance.subject,
-        syntax_trees::item::ConformanceSubject::Subjectless
+        crate::syntax_trees::item::ConformanceSubject::Subjectless
     ));
     assert_eq!(
         conformance.alias.as_ref().map(|alias| alias.as_str()),
@@ -772,7 +774,7 @@ fn parses_named_concrete_subjectless_conformance_block() {
     );
     assert!(matches!(
         conformance.body,
-        syntax_trees::item::ConformanceBody::Closed { .. }
+        crate::syntax_trees::item::ConformanceBody::Closed { .. }
     ));
 }
 
@@ -841,11 +843,11 @@ fn parses_closed_conformance_block_members() {
     let conformance = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Conformance(conformance) => Some(conformance),
+            crate::syntax_trees::item::Item::Conformance(conformance) => Some(conformance),
             _ => None,
         })
         .expect("conformance root item");
-    let syntax_trees::item::ConformanceBody::Closed { members } = conformance.body else {
+    let crate::syntax_trees::item::ConformanceBody::Closed { members } = conformance.body else {
         panic!("block must remain structurally distinct from bodyless attached-requirement lookup");
     };
     let [inline, reference] = parsed.items.conformance_members(members) else {
@@ -853,10 +855,10 @@ fn parses_closed_conformance_block_members() {
     };
     assert!(matches!(
         inline,
-        syntax_trees::item::ConformanceMember::Machine(machine)
+        crate::syntax_trees::item::ConformanceMember::Machine(machine)
             if machine.name.as_str() == "before"
     ));
-    let syntax_trees::item::ConformanceMember::Reference {
+    let crate::syntax_trees::item::ConformanceMember::Reference {
         declaring_trait,
         requirement,
         target,
@@ -923,7 +925,9 @@ fn retains_generic_and_named_conformance_bounds() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) if machine.name.as_str() == "inspect" => {
+            crate::syntax_trees::item::Item::Machine(machine)
+                if machine.name.as_str() == "inspect" =>
+            {
                 Some(machine)
             }
             _ => None,
@@ -973,7 +977,9 @@ fn retains_complete_selected_conformance_application_in_bound() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) if machine.name.as_str() == "inspect" => {
+            crate::syntax_trees::item::Item::Machine(machine)
+                if machine.name.as_str() == "inspect" =>
+            {
                 Some(machine)
             }
             _ => None,
@@ -1016,7 +1022,7 @@ fn parses_explicit_conformance_binder_in_machine_telescope() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine");
@@ -1049,7 +1055,7 @@ fn retains_named_dynamic_conformance_path() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine root item");
@@ -1096,7 +1102,7 @@ fn distinguishes_shared_mutable_and_write_only_reference_access() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine root item");
@@ -1150,7 +1156,7 @@ fn retains_generic_trait_header_conformance_bounds() {
     let trait_definition = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Trait(trait_definition)
+            crate::syntax_trees::item::Item::Trait(trait_definition)
                 if trait_definition.name.as_str() == "Calling" =>
             {
                 Some(trait_definition)
@@ -1207,7 +1213,7 @@ fn parses_attached_main_state_name_as_main() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine root item");

@@ -24,6 +24,13 @@ mod structural_result_call;
 mod trait_boundary_call;
 pub(in crate::execution) mod view_subslice;
 
+/// Rejoin a bodyless compiler-intrinsic satisfier to the exact boundary-trait
+/// requirement whose call it realizes. Provider selection may resolve a call
+/// to the target satisfier before checked Unit planning; that satisfier is not
+/// an ordinary transitive machine body. Terminal projection grants no
+/// execution authority here: the later sealed compiler catalog independently
+/// decides whether the exact requirement/realization/target tuple is native.
+pub(super) use crate::validation::exact_compiler_intrinsic_boundary_requirement;
 pub(crate) use affine_locals::{
     build_affine_array_construction_prefix, build_unit_trivial_affine_locals,
 };
@@ -43,10 +50,3 @@ pub(crate) use signatures::{
     structural_scalar_signature, structural_scalar_signature_traced, structural_signature,
 };
 pub(crate) use structural_arguments::call_claim_transfers;
-/// Rejoin a bodyless compiler-intrinsic satisfier to the exact boundary-trait
-/// requirement whose call it realizes. Provider selection may resolve a call
-/// to the target satisfier before checked Unit planning; that satisfier is not
-/// an ordinary transitive machine body. Terminal projection grants no
-/// execution authority here: the later sealed compiler catalog independently
-/// decides whether the exact requirement/realization/target tuple is native.
-pub(super) use validation::exact_compiler_intrinsic_boundary_requirement;

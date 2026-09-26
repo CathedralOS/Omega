@@ -1,19 +1,19 @@
 //! Exact attached-Unit U64 equality-call fork/join source.
 
-use abstract_operations::{
-    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperationPlan, AbstractParameter, AbstractResult, AbstractSuccessor,
-};
-use optimization_unit::PsiOptimizationUnit;
+use abstract_operations_to_target_operations::target_operations::TargetOperationPlan;
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
     OperationId, ScalarType, StructuralTypeId, ValueId,
 };
-use target_operations::TargetOperationPlan;
 use terminal_psi::{
     SemanticFingerprint, StructuralTypeDeclaration, StructuralTypeShape, TerminalPsiIdentity,
     VocabularyMarker,
 };
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperationPlan, AbstractParameter, AbstractResult, AbstractSuccessor,
+};
+use terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit;
 
 pub(in crate::tests) fn scalar_call_unit_fixture() -> (
     AbstractOperationPlan,
@@ -191,7 +191,7 @@ pub(in crate::tests) fn scalar_call_unit_fixture() -> (
         ),
     )
     .unwrap();
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &abstract_plan,
         FuelScheduleIdentity::new(1).unwrap(),
     )

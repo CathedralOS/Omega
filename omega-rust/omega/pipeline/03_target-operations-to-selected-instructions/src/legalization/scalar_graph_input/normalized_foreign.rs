@@ -7,12 +7,14 @@
 //! claims; both fail closed on missing, duplicated, or mismatched custody.
 use super::{AbstractOperationPlan, MachineId, PsiOptimizationFunction, TargetOperationPlan};
 use crate::LegalizationError;
-use calling_conventions::{BoundaryEntryPlan, ValueLocation, ValuePlacement, ValueShape};
-use semantic_vocabulary::OperationId;
-use target_operations::{
+use abstract_operations_to_target_operations::calling_conventions::{
+    BoundaryEntryPlan, ValueLocation, ValuePlacement, ValueShape,
+};
+use abstract_operations_to_target_operations::target_operations::{
     TargetNativeCallbackArgument, TargetStructuralArgument, TargetStructuralParameter,
     TargetUnitOperation,
 };
+use semantic_vocabulary::OperationId;
 
 /// The unique normalized foreign row one boundary call emitted, if any.
 /// Duplicate rows for one source operation are a custody failure, not an

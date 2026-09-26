@@ -4,8 +4,8 @@ use crate::checks::ranges::facts::dependencies::tests::initializer;
 use crate::checks::ranges::facts::dependencies::tests::parameter_place;
 use crate::flow::CanonicalPlace;
 use crate::tests::front_end::typed_program;
-use typed_trees::machine::Machine;
-use typed_trees::state::State;
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
 
 fn window(program: &TypedTrees) -> (&Machine, &State) {
     let machine = program
@@ -26,7 +26,9 @@ fn field_symbol(program: &TypedTrees, data_name: &str, field_name: &str) -> Symb
         .data_members(data)
         .iter()
         .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if field.name.as_str() == field_name => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field)
+                if field.name.as_str() == field_name =>
+            {
                 Some(field.symbol)
             }
             _ => None,
@@ -42,7 +44,7 @@ fn field_place(
 ) -> CanonicalPlace {
     let mut place = parameter_place(program, state, parameter);
     for (data, field) in fields {
-        place.segments.push(facts::PlaceSegment::Field {
+        place.segments.push(crate::fact_plan::PlaceSegment::Field {
             symbol: field_symbol(program, data, field),
         });
     }
@@ -122,15 +124,18 @@ fn a_borrowed_index_collection_reads_the_element_place() {
         .as_ref()
         .expect("borrowed collection footprint");
     let mut element = parameter_place(&program, state, "items");
-    element.segments.push(facts::PlaceSegment::Index {
-        expression: {
-            let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression)
-            else {
-                panic!("indexed fixture")
-            };
-            indexed.index
-        },
-    });
+    element
+        .segments
+        .push(crate::fact_plan::PlaceSegment::Index {
+            expression: {
+                let ExpressionNode::Indexed(indexed) =
+                    program.expression_table.expression(expression)
+                else {
+                    panic!("indexed fixture")
+                };
+                indexed.index
+            },
+        });
     assert_eq!(
         reads.as_slice(),
         [parameter_place(&program, state, "index"), element.clone(),].as_slice(),
@@ -266,26 +271,30 @@ fn a_borrowed_self_member_reads_the_attached_field_place() {
         .find(|parameter| parameter.is_self)
         .expect("self parameter");
     let mut expected = CanonicalPlace {
-        root: facts::PlaceRoot::Symbol(self_parameter.symbol),
+        root: crate::fact_plan::PlaceRoot::Symbol(self_parameter.symbol),
         segments: Vec::new(),
     };
-    expected.segments.push(facts::PlaceSegment::Field {
-        symbol: field_symbol(&program, "Main", "pair"),
-    });
-    expected.segments.push(facts::PlaceSegment::Field {
-        symbol: field_symbol(&program, "Pair", "a"),
-    });
+    expected
+        .segments
+        .push(crate::fact_plan::PlaceSegment::Field {
+            symbol: field_symbol(&program, "Main", "pair"),
+        });
+    expected
+        .segments
+        .push(crate::fact_plan::PlaceSegment::Field {
+            symbol: field_symbol(&program, "Pair", "a"),
+        });
     assert_eq!(reads.as_slice(), [expected].as_slice(), "{reads:?}");
     let label = program.expression_table.display_name(expression);
     // Writes are recorded through the machine root: `normalized_event_place_root`
     // re-bases the self parameter onto it for the overlap comparison.
     let machine_write = |fields: &[(&str, &str)]| {
         let mut place = CanonicalPlace {
-            root: facts::PlaceRoot::Symbol(machine.symbol),
+            root: crate::fact_plan::PlaceRoot::Symbol(machine.symbol),
             segments: Vec::new(),
         };
         for (data, field) in fields {
-            place.segments.push(facts::PlaceSegment::Field {
+            place.segments.push(crate::fact_plan::PlaceSegment::Field {
                 symbol: field_symbol(&program, data, field),
             });
         }

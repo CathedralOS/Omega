@@ -30,7 +30,7 @@ struct Leader {
 
 pub(super) fn deduplicate(
     machine: &mut TerminalMachine,
-    source_calls: &[lowered_psi::LoweredSourceCallOccurrence],
+    source_calls: &[checked_trees_to_lowered_psi::lowered_psi::LoweredSourceCallOccurrence],
     retained_values: &BTreeSet<ValueId>,
 ) {
     // Ranking evidence names exact value identities over the covered cyclic
@@ -289,7 +289,7 @@ mod tests {
         BTreeSet, BlockId, OperationKind, TerminalMachine, Terminator, ValueDeclaration, ValueId,
         deduplicate,
     };
-    use lowered_psi::LoweredSourceCallOccurrence;
+    use checked_trees_to_lowered_psi::lowered_psi::LoweredSourceCallOccurrence;
     use semantic_vocabulary::{
         ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
         OperationId, Proposition, ScalarTerm, ScalarType, StructuralCaseId, StructuralTypeId,

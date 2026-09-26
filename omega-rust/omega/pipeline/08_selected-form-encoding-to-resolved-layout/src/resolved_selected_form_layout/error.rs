@@ -1,7 +1,7 @@
-use isa_aarch64::Aarch64SelectedFormEncodingError;
-use isa_x86_64::X86_64SelectedFormEncodingError;
-use selected_instructions::SelectedInstructionId;
 use semantic_vocabulary::MachineId;
+use target_operations_to_selected_instructions::SelectedInstructionId;
+use target_operations_to_selected_instructions::isa_aarch64::Aarch64SelectedFormEncodingError;
+use target_operations_to_selected_instructions::isa_x86_64::X86_64SelectedFormEncodingError;
 
 use post_allocation_machine_to_selected_form_encoding::OptimizedSelectedFormEncodingError;
 

@@ -137,7 +137,7 @@ fn compilation_never_consumes_offline_as_an_option_value() {
 
 #[test]
 fn compilation_collects_explicit_required_and_optional_build_inputs() {
-    use package_compilation::BuildSourceCaptureObligation::{Optional, Required};
+    use omega::package_compilation::BuildSourceCaptureObligation::{Optional, Required};
     let parsed = parse_arguments(
         [
             "--build-input",

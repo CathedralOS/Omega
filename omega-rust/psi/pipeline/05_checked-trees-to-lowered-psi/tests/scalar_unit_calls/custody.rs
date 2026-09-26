@@ -1,16 +1,19 @@
 //! Cached call rows cannot replace authored order, access, or source referents.
 
-use checked_trees::{
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
+use typed_trees_to_checked_trees::checked_trees::{
     CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentSourcePlan,
 };
-use terminal_production::{
-    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
-};
 
-fn original() -> (checked_trees::CheckedTrees, symbols::SymbolHandle) {
+fn original() -> (
+    typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+    symbols::SymbolHandle,
+) {
     let checked = crate::front_end::checked_program(super::BOOLEAN_BRANCH);
-    let _ = terminal_production::TerminalProductionRequest::new(
+    let _ = lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("observe"),
     )
@@ -69,9 +72,9 @@ fn scalar_unit_call_rejects_missing_duplicate_reordered_or_substituted_rows() {
                             }
                     }
                     7 => {
-                        scalar_arguments[0] = checked_trees::CheckedCallScalarArgument::Pure(
-                            checked_trees::CheckedScalarExpression::Boolean(Box::new(
-                                checked_trees::CheckedBooleanExpression::Parameter { position: 0 },
+                        scalar_arguments[0] = typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(
+                            typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::Boolean(Box::new(
+                                typed_trees_to_checked_trees::checked_trees::CheckedBooleanExpression::Parameter { position: 0 },
                             )),
                         )
                     }
@@ -80,7 +83,7 @@ fn scalar_unit_call_rejects_missing_duplicate_reordered_or_substituted_rows() {
             }
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &changed,
                 TerminalMachineSelection::Name("observe")
             )
@@ -131,7 +134,7 @@ fn scalar_unit_call_requires_its_exact_borrow_occurrence() {
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &changed,
                 TerminalMachineSelection::Name("observe")
             )
@@ -151,7 +154,7 @@ fn coherent_call_and_borrow_substitution_cannot_select_another_local() {
         "    let mut spare: bool = replacement;\n    replace(&mut spare, initial);\n    replace(&mut scratch, replacement);",
     );
     let mut changed = crate::front_end::checked_program(&source);
-    let _ = terminal_production::TerminalProductionRequest::new(
+    let _ = lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
         &changed,
         TerminalMachineSelection::Name("observe"),
     )
@@ -208,7 +211,7 @@ fn coherent_call_and_borrow_substitution_cannot_select_another_local() {
             .root_symbol = spare;
     }
     assert!(
-        terminal_production::TerminalProductionRequest::new(
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
             &changed,
             TerminalMachineSelection::Name("observe")
         )
@@ -235,7 +238,7 @@ machine observe(initial: bool, replacement: bool) -> u64 {
 }
 "#;
     let mut changed = crate::front_end::checked_program(source);
-    let _ = terminal_production::TerminalProductionRequest::new(
+    let _ = lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
         &changed,
         TerminalMachineSelection::Name("observe"),
     )
@@ -294,7 +297,7 @@ machine observe(initial: bool, replacement: bool) -> u64 {
     *changed.facts.borrow.argument_accesses.get_mut(handles[0]) = second;
     *changed.facts.borrow.argument_accesses.get_mut(handles[1]) = first;
     assert!(
-        terminal_production::TerminalProductionRequest::new(
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
             &changed,
             TerminalMachineSelection::Name("observe")
         )

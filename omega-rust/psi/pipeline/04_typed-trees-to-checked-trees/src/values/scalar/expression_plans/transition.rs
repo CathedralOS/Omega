@@ -10,7 +10,7 @@ use super::{
 
 pub(super) fn plan(
     planner: StatementPlanner<'_, '_>,
-    transition: &typed_trees::statement::TableTransition,
+    transition: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableTransition,
 ) {
     let StatementPlanner {
         program,
@@ -73,7 +73,7 @@ pub(super) fn plan(
         if !target.is_valid() {
             continue;
         }
-        if transition.exit == typed_trees::statement::TransitionExit::Ordinary
+        if transition.exit == symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionExit::Ordinary
             && let TransitionTargetNode::Value(expression) =
                 program.statement_table.transition_target(target)
             && let Some(result_type) = result_type
@@ -176,15 +176,15 @@ pub(super) fn plan(
                         proof_only,
                     ) {
                         proof_terms.push(
-                            checked_trees::CheckedLocatedProofTerm {
+                            crate::checked_trees::CheckedLocatedProofTerm {
                                 state: state.symbol,
                                 statement_ordinal,
                                 role: if continuation {
-                                    checked_trees::CheckedProofTermRole::TransitionContinuationArgument {
+                                    crate::checked_trees::CheckedProofTermRole::TransitionContinuationArgument {
                                         argument_ordinal,
                                     }
                                 } else {
-                                    checked_trees::CheckedProofTermRole::TransitionArgument {
+                                    crate::checked_trees::CheckedProofTermRole::TransitionArgument {
                                         argument_ordinal,
                                     }
                                 },
@@ -205,7 +205,9 @@ pub(super) fn plan(
                     program,
                     operators,
                     *argument,
-                    checked_trees::CheckedSubsliceSite::TransitionArgument { argument_ordinal },
+                    crate::checked_trees::CheckedSubsliceSite::TransitionArgument {
+                        argument_ordinal,
+                    },
                     |endpoint| {
                         lower_return_expression(
                             program,

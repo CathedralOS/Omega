@@ -10,23 +10,23 @@ use crate::rewrites::unexecuted::{
     forward_selected_stored_load,
 };
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
-use optimization_unit::ValueDefinitionSite;
-use register_environment::baseline_target_register_environment;
-use register_model::RegisterInstructionConstraint;
-use selected_instructions::{
+use semantic_vocabulary::{
+    BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
+    OperationId, PlaceId, ScalarType, ValueId,
+};
+use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
+use target_operations_to_selected_instructions::register_model::RegisterInstructionConstraint;
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use target_operations_to_selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedMemoryAccess,
     SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedOperand, SelectedSuccessor,
     SelectedSuccessorRole, SelectedTerminator, VirtualRegister, VirtualRegisterId,
     VirtualRegisterOrigin,
 };
-use semantic_vocabulary::{
-    BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
-    OperationId, PlaceId, ScalarType, ValueId,
-};
-use target::NativeTarget;
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
 fn budget() -> OptimizationWorkBudget {
     OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()
@@ -252,7 +252,7 @@ fn fixture(target: NativeTarget) -> ValidatedStoredLoadForwarding {
 /// mutated plan is a well-formed analysis source.
 fn mutated(
     target: NativeTarget,
-    edit: impl FnOnce(&mut SelectedFunction, &register_environment::ValidatedTargetRegisterEnvironment),
+    edit: impl FnOnce(&mut SelectedFunction, &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment),
 ) -> ValidatedStoredLoadForwarding {
     let environment = baseline_target_register_environment(target).unwrap();
     let mut source = fixture(target);
@@ -268,7 +268,7 @@ fn mutated(
 
 fn forward(
     source: &ValidatedStoredLoadForwarding,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<ValidatedStoredLoadForwarding, StoredLoadForwardingError> {
     forward_selected_stored_load(source, 0, LOAD, environment, budget())
 }
@@ -322,7 +322,7 @@ fn narrowed(target: NativeTarget, byte_size: u8) -> ValidatedStoredLoadForwardin
 /// parameter register.
 fn sequence_pair(
     function: &mut SelectedFunction,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
     offset: u32,
     index: u64,
 ) {
@@ -414,7 +414,7 @@ const MATERIALIZE_READ_INDEX: SelectedInstructionId = SelectedInstructionId(8);
 #[allow(clippy::too_many_arguments)]
 fn define_index_as(
     function: &mut SelectedFunction,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
     block: usize,
     position: usize,
     id: SelectedInstructionId,
@@ -453,7 +453,7 @@ fn define_index_as(
 /// resolving only the writer's index.
 fn define_index(
     function: &mut SelectedFunction,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
     block: usize,
     position: usize,
     register: VirtualRegisterId,
@@ -478,7 +478,7 @@ fn define_index(
 /// the constant-index tests place between the source and the load.
 fn sequence_write(
     function: &mut SelectedFunction,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
     id: SelectedInstructionId,
     row: usize,
     offset: u32,
@@ -567,7 +567,7 @@ fn chained(target: NativeTarget) -> ValidatedStoredLoadForwarding {
 /// so the mutated plan is a well-formed analysis source.
 fn mutated_chained(
     target: NativeTarget,
-    edit: impl FnOnce(&mut SelectedFunction, &register_environment::ValidatedTargetRegisterEnvironment),
+    edit: impl FnOnce(&mut SelectedFunction, &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment),
 ) -> ValidatedStoredLoadForwarding {
     let environment = baseline_target_register_environment(target).unwrap();
     let mut source = chained(target);

@@ -1,11 +1,12 @@
-use super::{ScalarType, lower_machine};
+use super::ScalarType;
 use crate::TerminalMachineSelection;
+use crate::lower_machine;
+use crate::lowered_psi::LoweredPsi;
 use crate::proofs::nonzero_divisor_certificate::{
     produce_checked_canonical_integer_proof, produce_relaxed_integer_proof,
 };
 use crate::proofs::operation_proofs::finalize_operation_proofs;
 use crate::terminal_identities::obligation_id;
-use lowered_psi::LoweredPsi;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerValue, Proposition, ScalarTerm};
 use terminal_psi::OperationKind;

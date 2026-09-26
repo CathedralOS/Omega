@@ -8,10 +8,10 @@ use common::{
     undischarged_proof_check_fixture, value,
 };
 use lowered_psi_to_lowered_psi::run_psi_optimization;
-use optimization::{PsiOptimization, PsiOptimizationSelections};
 use semantic_vocabulary::{
     EvidenceIdentity, IntegerValue, RankingRelationId, RecursiveComponentId,
 };
+use terminal_codec::optimization::{PsiOptimization, PsiOptimizationSelections};
 use terminal_psi::{
     EvidenceRoute, ObligationEvidence, OperationKind, PrimitiveJudgment,
     RecursiveComponentCertificate, RecursiveComponentEvidence, RecursiveEdgeCertificate,

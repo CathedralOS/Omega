@@ -1,10 +1,10 @@
 //! Shared ownership-frontier custody for CFG rewrites that erase a unique incoming edge.
 
-use optimization_unit::{
+use semantic_vocabulary::{BlockId, EdgeId};
+use terminal_psi_to_abstract_operations::optimization_unit::{
     OwnershipFrontierSite, OwnershipFrontierWitness, OwnershipFrontierWitnessRow,
     PsiOptimizationFunction, PsiOptimizationUnit,
 };
-use semantic_vocabulary::{BlockId, EdgeId};
 
 use crate::OwnershipFrontierAnalysis;
 

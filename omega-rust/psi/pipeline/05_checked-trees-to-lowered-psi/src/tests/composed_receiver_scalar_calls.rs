@@ -9,7 +9,7 @@
 //! is the shape the run canaries exercise.
 
 use super::{checked_source_with_core_service, lower_machine};
-use crate::TerminalMachineSelection;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_psi::{OperationKind, StructuralAccess};
 
 /// A multi-state caller calls a value method on its whole receiver and
@@ -133,18 +133,18 @@ fn a_receiver_operand_that_drifts_from_its_authored_place_rejects() {
         .iter_mut()
         .flat_map(|state| &mut state.operations)
         .find_map(|operation| match operation {
-            checked_trees::CheckedUnitEffectOperationPlan::ScalarCall {
+            typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::ScalarCall {
                 structural_arguments,
                 ..
             } => structural_arguments.first_mut(),
             _ => None,
         })
         .expect("the receiver scalar call");
-    receiver
-        .path
-        .push(checked_trees::CheckedUnitStructuralPathSegment::Field(
+    receiver.path.push(
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field(
             "sum".to_owned(),
-        ));
+        ),
+    );
     assert!(
         lower_machine(&checked, TerminalMachineSelection::Name("Main::main")).is_err(),
         "a receiver operand must name the authored receiver place"

@@ -4,7 +4,7 @@
 use super::super::{BinaryOperator, SyntaxTrees};
 
 use super::anonymous::anonymous_numeric_expression;
-use syntax_trees::expression::TableBinaryExpression;
+use tokens_to_syntax_trees::syntax_trees::expression::TableBinaryExpression;
 
 pub(super) fn validate_anonymous_remainder(
     syntax: &SyntaxTrees,

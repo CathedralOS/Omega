@@ -1,7 +1,7 @@
 use optimization_core::OptimizationWorkUsage;
 
 use crate::StackSlotColoringError;
-use register_homes::FunctionStackSlotColoring;
+use selected_instructions_to_selected_instructions::register_homes::FunctionStackSlotColoring;
 
 pub(super) fn usage(
     functions: &[FunctionStackSlotColoring],

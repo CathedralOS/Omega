@@ -12,9 +12,9 @@
 //! definition anywhere — refuses the rewrite rather than guessing which
 //! surface semantics a substitution would disturb.
 use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedBlock, SelectedBlockId,
     SelectedCasePayloadTransport, SelectedFunction, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionKind, SelectedMemoryAccessRole, SelectedStructuralTransport,
@@ -167,17 +167,14 @@ fn successor_mentions(successor: &SelectedSuccessor, register: VirtualRegisterId
                 } => argument == register || local_slot_mentions(destination, register),
                 SelectedStructuralTransport::Address {
                     base, destination, ..
-                } => {
-                    local_slot_mentions(destination, register)
-                        || match base {
-                            selected_instructions::SelectedAddressBase::Register(argument) => {
-                                argument == register
-                            }
-                            selected_instructions::SelectedAddressBase::Local(slot) => {
-                                local_slot_mentions(slot, register)
-                            }
-                        }
-                }
+                } => local_slot_mentions(destination, register) || match base {
+                    target_operations_to_selected_instructions::SelectedAddressBase::Register(
+                        argument,
+                    ) => argument == register,
+                    target_operations_to_selected_instructions::SelectedAddressBase::Local(
+                        slot,
+                    ) => local_slot_mentions(slot, register),
+                },
                 SelectedStructuralTransport::Unused => false,
             });
     let case_mentions = successor.structural_case.as_ref().is_some_and(|case| {
@@ -622,10 +619,14 @@ fn lower_successor(
                 base, destination, ..
             } => {
                 match base {
-                    selected_instructions::SelectedAddressBase::Register(argument) => {
+                    target_operations_to_selected_instructions::SelectedAddressBase::Register(
+                        argument,
+                    ) => {
                         *argument = lower_register(*argument, removed_register)?;
                     }
-                    selected_instructions::SelectedAddressBase::Local(slot) => {
+                    target_operations_to_selected_instructions::SelectedAddressBase::Local(
+                        slot,
+                    ) => {
                         lower_local_slot(slot, removed_register)?;
                     }
                 }
@@ -704,7 +705,10 @@ pub(super) fn shifted_boundary_settlements(
     function: &SelectedFunction,
     block: SelectedBlockId,
     removed: usize,
-) -> Result<Vec<selected_instructions::SelectedBoundarySettlement>, CopyRemovalError> {
+) -> Result<
+    Vec<target_operations_to_selected_instructions::SelectedBoundarySettlement>,
+    CopyRemovalError,
+> {
     let body = function
         .blocks
         .iter()

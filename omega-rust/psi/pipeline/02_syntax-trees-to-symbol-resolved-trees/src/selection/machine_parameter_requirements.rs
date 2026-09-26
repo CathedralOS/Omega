@@ -8,10 +8,10 @@
 use crate::selection::signature_free_requirements::{
     SignatureFreeRequirementResolutionError, resolve_signature_free_requirement,
 };
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
+use crate::symbol_resolved_trees::data::{MachineParameterContract, TypeParameterKind};
+use crate::symbol_resolved_trees::types::TypeReference;
 use diagnostics::Diagnostic;
-use symbol_resolved_trees::SymbolResolvedTrees;
-use symbol_resolved_trees::data::{MachineParameterContract, TypeParameterKind};
-use symbol_resolved_trees::types::TypeReference;
 
 /// Resolve every authored nominal machine-parameter requirement only after
 /// top-level symbols and direct trait requirements exist. Resolution is

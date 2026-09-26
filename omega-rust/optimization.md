@@ -98,7 +98,7 @@ optimization-history combination.
 
 [Allocation](omega/pipeline/05_selected-instructions-to-register-homes/README.md)
 owns homes and pressure recovery.
-[Machine emission](omega/backend/machine-emission/README.md) owns frame
+[Machine emission](omega/pipeline/09_resolved-layout-to-resolved-layout/machine_emission.md) owns frame
 realization, fragment emission, and text placement. Target ISA crates own
 instruction alternatives, effects, encoders, and decoders. Object construction
 and callable/image admission remain later owners; an encoding receipt does not

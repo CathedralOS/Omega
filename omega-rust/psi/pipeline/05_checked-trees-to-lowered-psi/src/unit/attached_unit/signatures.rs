@@ -13,7 +13,6 @@ use crate::lowering_error::unsupported;
 use crate::terminal_identities::allocate_dense;
 use crate::terminal_identities::value_id;
 use crate::unit::runtime_requirements::lower_structural_runtime_requirement;
-use checked_trees::CheckedTrees;
 use language_semantics::SemanticDomainId;
 use semantic_vocabulary::Proposition;
 use semantic_vocabulary::StructuralDomainId;
@@ -22,6 +21,7 @@ use symbols::SymbolHandle;
 use terminal_psi::StructuralParameterDeclaration;
 use terminal_psi::StructuralTypeDeclaration;
 use terminal_psi::ValueDeclaration;
+use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
 
 #[derive(Clone)]
 pub(super) struct MachineSignature {
@@ -33,7 +33,8 @@ pub(super) struct MachineSignature {
     /// Erased proof-only formals in authored order. The checked roster is
     /// retained (not just emitted declarations) because `Formal` actuals
     /// resolve positions by parameter symbol.
-    pub erased_proof_parameters: Vec<checked_trees::CheckedErasedProofParameterPlan>,
+    pub erased_proof_parameters:
+        Vec<typed_trees_to_checked_trees::checked_trees::CheckedErasedProofParameterPlan>,
     pub predicate_parameters: Vec<StructuralParameterDeclaration>,
     pub claims: LoweredUnitClaims,
     /// Every `requires` row the emitted contract carries, in order: closed

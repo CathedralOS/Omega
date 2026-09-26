@@ -1,6 +1,12 @@
 //! Rebuilding the direct-borrow and reborrow resource arenas from the loan
 //! and flow-lifetime ledgers.
 
+use crate::checked_trees::{
+    BorrowFacts, BorrowLoanLineage, CheckedDirectBorrowLoanResource,
+    CheckedDirectBorrowParentLifetime, CheckedDirectBorrowRestorationObligation,
+    CheckedParentBorrowResource, CheckedReborrowLoanResource, FlowFacts, FlowInvalidationSource,
+    ParentLexicalStatusAtChildEnd,
+};
 use crate::checks::borrows::resources::lifecycle::weakening_boundary_key;
 use crate::checks::borrows::resources::reborrow_drafts::{
     CheckedReborrowContainmentCertificateDraft, CheckedReborrowDispositionEventDraft,
@@ -8,12 +14,6 @@ use crate::checks::borrows::resources::reborrow_drafts::{
     ParentResourceIndex, ResourceHandles,
 };
 use crate::checks::borrows::resources::retained_validation::invalid_reborrow_attenuation_diagnostic;
-use checked_trees::{
-    BorrowFacts, BorrowLoanLineage, CheckedDirectBorrowLoanResource,
-    CheckedDirectBorrowParentLifetime, CheckedDirectBorrowRestorationObligation,
-    CheckedParentBorrowResource, CheckedReborrowLoanResource, FlowFacts, FlowInvalidationSource,
-    ParentLexicalStatusAtChildEnd,
-};
 use diagnostics::Diagnostic;
 
 pub(crate) fn install_borrow_resources(
@@ -85,7 +85,7 @@ pub(crate) fn install_borrow_resources(
 }
 
 pub(crate) fn reconstruct_direct_borrow_resources(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     flow: &FlowFacts,
 ) -> Result<Vec<CheckedDirectBorrowLoanResource>, Vec<Diagnostic>> {
@@ -186,7 +186,7 @@ pub(crate) fn reconstruct_direct_borrow_resources(
                 state_symbol: state.state_symbol,
                 owner_symbol: loan.owner_symbol,
                 owner_path: borrow.loan_owner_path(loan).to_vec(),
-                captured_place: checked_trees::CapturedPlace {
+                captured_place: crate::checked_trees::CapturedPlace {
                     root_symbol: loan.root_symbol,
                     segments: borrow.loan_segments(loan).to_vec(),
                 },
@@ -334,7 +334,9 @@ pub(crate) fn reconstruct_reborrow_resource_drafts(
                 .enumerate()
                 .filter(|(_, constraint)| {
                     constraint.kind
-                        == checked_trees::FlowConstraintKind::BorrowLoan { loan: *parent_loan }
+                        == crate::checked_trees::FlowConstraintKind::BorrowLoan {
+                            loan: *parent_loan,
+                        }
                 })
                 .filter_map(|(offset, _)| span_handle(statement.entry_constraints, offset))
                 .collect::<Vec<_>>();
@@ -351,7 +353,7 @@ pub(crate) fn reconstruct_reborrow_resource_drafts(
                 state_symbol: state.state_symbol,
                 owner_symbol: loan.owner_symbol,
                 owner_path: borrow.loan_owner_path(loan).to_vec(),
-                captured_place: checked_trees::CapturedPlace {
+                captured_place: crate::checked_trees::CapturedPlace {
                     root_symbol: loan.root_symbol,
                     segments: borrow.loan_segments(loan).to_vec(),
                 },
@@ -380,9 +382,9 @@ pub(crate) fn reconstruct_reborrow_resource_drafts(
 
 fn parent_lexical_status_at_child_end(
     parent_source: FlowInvalidationSource,
-    parent_reason: checked_trees::FlowBorrowWeakeningReason,
+    parent_reason: crate::checked_trees::FlowBorrowWeakeningReason,
     child_source: FlowInvalidationSource,
-    child_reason: checked_trees::FlowBorrowWeakeningReason,
+    child_reason: crate::checked_trees::FlowBorrowWeakeningReason,
 ) -> Option<ParentLexicalStatusAtChildEnd> {
     let parent = weakening_boundary_key(parent_source, parent_reason)?;
     let child = weakening_boundary_key(child_source, child_reason)?;

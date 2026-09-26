@@ -4,16 +4,16 @@ use super::{
     ExpressionHandle, FactPayload, FactPlan, PlaceHandle, ProgramPoint, QualificationEvidence,
     QualificationPayloadIdentity, SymbolHandle,
 };
+use crate::fact_plan::{Fact, FactOrigin, FactPlace, PlaceSegment};
 use crate::flow::transfers::retain_qualification_correspondence;
 use arena::HandleSpan;
-use facts::{Fact, FactOrigin, FactPlace, PlaceSegment};
 use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
 
 struct CorrespondenceFixture {
-    program: typed_trees::TypedTrees,
+    program: symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: FactPlan,
-    source_fact: facts::FactHandle,
-    destination_fact: facts::FactHandle,
+    source_fact: crate::fact_plan::FactHandle,
+    destination_fact: crate::fact_plan::FactHandle,
     source_place: PlaceHandle,
     source_occurrence_place: PlaceHandle,
     destination_place: PlaceHandle,
@@ -105,47 +105,54 @@ fn correspondence_fixture() -> CorrespondenceFixture {
     ))
     .next()
     .expect("foreign state local");
-    let mut program = typed_trees::TypedTrees {
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees {
         symbols: symbols.finish(),
-        ..typed_trees::TypedTrees::default()
+        ..symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default()
     };
     let unit = program
         .type_reference_table
-        .insert(typed_trees::types::TypeReferenceNode::Unit);
-    let pair_type =
-        program
-            .type_reference_table
-            .insert(typed_trees::types::TypeReferenceNode::Named {
-                symbol: data_symbol,
-                name: typed_trees::name::Identifier::generated("Pair"),
-            });
-    let mut data = typed_trees::data::DataDefinition {
+        .insert(symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Unit);
+    let pair_type = program.type_reference_table.insert(
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named {
+            symbol: data_symbol,
+            name: symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated(
+                "Pair",
+            ),
+        },
+    );
+    let mut data = symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition {
         symbol: data_symbol,
-        name: typed_trees::name::Identifier::generated("Pair"),
+        name: symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated(
+            "Pair",
+        ),
         ..Default::default()
     };
     for (symbol, name) in [(source_field, "source"), (destination_field, "destination")] {
         program.push_data_member(
             &mut data,
-            typed_trees::data::DataMember::Field(typed_trees::data::DataField {
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(symbol_resolved_trees_to_typed_trees::typed_trees::data::DataField {
                 symbol,
-                name: typed_trees::name::Identifier::generated(name),
+                name: symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated(name),
                 type_reference: unit,
                 ..Default::default()
             }),
         );
     }
     program.push_data_definition(data);
-    let mut state_node = typed_trees::state::State {
+    let mut state_node = symbol_resolved_trees_to_typed_trees::typed_trees::state::State {
         symbol: state,
-        name: typed_trees::name::Identifier::generated("entry"),
+        name: symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated(
+            "entry",
+        ),
         ..Default::default()
     };
     program.push_state_parameter(
         &mut state_node,
-        typed_trees::signature::StateParameter {
+        symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter {
             symbol: parameter,
-            name: typed_trees::name::Identifier::generated("self"),
+            name: symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated(
+                "self",
+            ),
             type_reference: pair_type,
             is_self: true,
             ..Default::default()
@@ -153,27 +160,38 @@ fn correspondence_fixture() -> CorrespondenceFixture {
     );
     program.statement_table.push_statement(
         &mut state_node.statement_nodes,
-        typed_trees::statement::StatementNode::LocalData(typed_trees::statement::TableLocalData {
-            symbol: exact_local,
-            name: typed_trees::name::Identifier::generated("local"),
-            type_reference: pair_type,
-            initial_value: ExpressionHandle::invalid(),
-            is_mutable: true,
-            type_is_inferred: false,
-            relevance: language_core::BindingRelevance::Relevant,
-        }),
+        symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
+            symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableLocalData {
+                symbol: exact_local,
+                name:
+                    symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated(
+                        "local",
+                    ),
+                type_reference: pair_type,
+                initial_value: ExpressionHandle::invalid(),
+                is_mutable: true,
+                type_is_inferred: false,
+                relevance: language_core::BindingRelevance::Relevant,
+            },
+        ),
     );
     program.statement_table.push_statement(
         &mut state_node.statement_nodes,
-        typed_trees::statement::StatementNode::Expression(ExpressionHandle::invalid()),
+        symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Expression(
+            ExpressionHandle::invalid(),
+        ),
     );
     program.statement_table.push_statement(
         &mut state_node.statement_nodes,
-        typed_trees::statement::StatementNode::Expression(ExpressionHandle::invalid()),
+        symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Expression(
+            ExpressionHandle::invalid(),
+        ),
     );
-    let mut machine_node = typed_trees::machine::Machine {
+    let mut machine_node = symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine {
         symbol: machine,
-        name: typed_trees::name::Identifier::generated("transform"),
+        name: symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated(
+            "transform",
+        ),
         ..Default::default()
     };
     program.push_machine_state(&mut machine_node, state_node);
@@ -252,7 +270,7 @@ fn correspondence_fixture() -> CorrespondenceFixture {
 
 fn set_formation_parameter_type(
     fixture: &mut CorrespondenceFixture,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
 ) {
     let ProgramPoint::Statement {
         machine_symbol,
@@ -288,14 +306,14 @@ fn install_correspondence_paths(
     destination: &[PlaceSegment],
 ) {
     let root = fixture.semantic.places.get(fixture.source_place).root;
-    let source_place = fixture.semantic.append_place(facts::Place {
+    let source_place = fixture.semantic.append_place(crate::fact_plan::Place {
         root,
         segments: HandleSpan::empty(),
     });
     for segment in source {
         fixture.semantic.push_place_segment(source_place, *segment);
     }
-    let source_occurrence_place = fixture.semantic.append_place(facts::Place {
+    let source_occurrence_place = fixture.semantic.append_place(crate::fact_plan::Place {
         root,
         segments: HandleSpan::empty(),
     });
@@ -304,7 +322,7 @@ fn install_correspondence_paths(
             .semantic
             .push_place_segment(source_occurrence_place, *segment);
     }
-    let destination_place = fixture.semantic.append_place(facts::Place {
+    let destination_place = fixture.semantic.append_place(crate::fact_plan::Place {
         root,
         segments: HandleSpan::empty(),
     });
@@ -330,22 +348,22 @@ fn set_correspondence_roots(
     destination_root: SymbolHandle,
 ) {
     fixture.semantic.places.get_mut(fixture.source_place).root =
-        facts::PlaceRoot::Symbol(source_root);
+        crate::fact_plan::PlaceRoot::Symbol(source_root);
     fixture
         .semantic
         .places
         .get_mut(fixture.source_occurrence_place)
-        .root = facts::PlaceRoot::Symbol(source_root);
+        .root = crate::fact_plan::PlaceRoot::Symbol(source_root);
     fixture
         .semantic
         .places
         .get_mut(fixture.destination_place)
-        .root = facts::PlaceRoot::Symbol(destination_root);
+        .root = crate::fact_plan::PlaceRoot::Symbol(destination_root);
 }
 
 fn set_pair_field_type(
     fixture: &mut CorrespondenceFixture,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
 ) {
     let members = fixture
         .program
@@ -355,7 +373,9 @@ fn set_pair_field_type(
         .map(|data| data.members)
         .expect("Pair members");
     for member in fixture.program.data_members.span_mut_or_empty(members) {
-        let typed_trees::data::DataMember::Field(field) = member else {
+        let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) =
+            member
+        else {
             unreachable!("Pair record field")
         };
         field.type_reference = type_reference;
@@ -387,17 +407,23 @@ fn nested_fixed_array_fixture() -> CorrespondenceFixture {
     let unit = fixture
         .program
         .type_reference_table
-        .insert(typed_trees::types::TypeReferenceNode::Unit);
+        .insert(symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Unit);
     let inner = fixture.program.type_reference_table.insert(
-        typed_trees::types::TypeReferenceNode::FixedArray {
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::FixedArray {
             element_type: unit,
-            length: typed_trees::types::FixedArrayLength::Literal(2),
+            length:
+                symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::Literal(
+                    2,
+                ),
         },
     );
     let outer = fixture.program.type_reference_table.insert(
-        typed_trees::types::TypeReferenceNode::FixedArray {
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::FixedArray {
             element_type: inner,
-            length: typed_trees::types::FixedArrayLength::Literal(2),
+            length:
+                symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::Literal(
+                    2,
+                ),
         },
     );
     set_pair_field_type(&mut fixture, outer);
@@ -524,7 +550,7 @@ fn exact_prior_state_local_is_retained_as_either_endpoint() {
         .get(local_source.destination_place)
         .root
     {
-        facts::PlaceRoot::Symbol(root) => root,
+        crate::fact_plan::PlaceRoot::Symbol(root) => root,
         _ => unreachable!("symbol root"),
     };
     set_correspondence_roots(&mut local_source, local, parameter);
@@ -539,7 +565,7 @@ fn exact_prior_state_local_is_retained_as_either_endpoint() {
         .get(local_destination.source_place)
         .root
     {
-        facts::PlaceRoot::Symbol(root) => root,
+        crate::fact_plan::PlaceRoot::Symbol(root) => root,
         _ => unreachable!("symbol root"),
     };
     set_correspondence_roots(&mut local_destination, parameter, local);
@@ -558,7 +584,7 @@ fn state_local_at_or_after_formation_is_not_retained() {
     let mut fixture = correspondence_fixture();
     let local = fixture.exact_local;
     let parameter = match fixture.semantic.places.get(fixture.destination_place).root {
-        facts::PlaceRoot::Symbol(root) => root,
+        crate::fact_plan::PlaceRoot::Symbol(root) => root,
         _ => unreachable!("symbol root"),
     };
     set_correspondence_roots(&mut fixture, local, parameter);
@@ -676,13 +702,13 @@ fn nonliteral_out_of_bounds_runtime_and_wrong_type_indexes_are_not_retained() {
     let unit = nonliteral
         .program
         .type_reference_table
-        .insert(typed_trees::types::TypeReferenceNode::Unit);
+        .insert(symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Unit);
     let array = nonliteral.program.type_reference_table.insert(
-        typed_trees::types::TypeReferenceNode::FixedArray {
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::FixedArray {
             element_type: unit,
-            length: typed_trees::types::FixedArrayLength::ConstParameter {
+            length: symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::ConstParameter {
                 symbol: nonliteral.local,
-                name: typed_trees::name::Identifier::generated("N"),
+                name: symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated("N"),
             },
         },
     );
@@ -694,7 +720,7 @@ fn nonliteral_out_of_bounds_runtime_and_wrong_type_indexes_are_not_retained() {
     let unit = wrong_type
         .program
         .type_reference_table
-        .insert(typed_trees::types::TypeReferenceNode::Unit);
+        .insert(symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Unit);
     set_pair_field_type(&mut wrong_type, unit);
     retain(&mut wrong_type);
     assert!(wrong_type.semantic.qualification_correspondences.is_empty());
@@ -708,9 +734,12 @@ fn generic_or_label_only_data_traversal_is_not_retained() {
         .type_reference_table
         .insert_type_reference_handles([]);
     let generic_type = generic.program.type_reference_table.insert(
-        typed_trees::types::TypeReferenceNode::Generic {
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Generic {
             base_symbol: generic.data_symbol,
-            base_name: typed_trees::name::Identifier::generated("Pair"),
+            base_name:
+                symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated(
+                    "Pair",
+                ),
             lifetime_arguments: Vec::new(),
             arguments,
         },
@@ -721,9 +750,11 @@ fn generic_or_label_only_data_traversal_is_not_retained() {
 
     let mut label_only = correspondence_fixture();
     let wrong = label_only.program.type_reference_table.insert(
-        typed_trees::types::TypeReferenceNode::Named {
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named {
             symbol: label_only.wrong_data_symbol,
-            name: typed_trees::name::Identifier::generated("Pair"),
+            name: symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated(
+                "Pair",
+            ),
         },
     );
     set_formation_parameter_type(&mut label_only, wrong);
@@ -734,13 +765,14 @@ fn generic_or_label_only_data_traversal_is_not_retained() {
 #[test]
 fn local_or_indexed_correspondence_is_not_retained() {
     let mut local = correspondence_fixture();
-    local.semantic.places.get_mut(local.source_place).root = facts::PlaceRoot::Symbol(local.local);
+    local.semantic.places.get_mut(local.source_place).root =
+        crate::fact_plan::PlaceRoot::Symbol(local.local);
     retain(&mut local);
     assert!(local.semantic.qualification_correspondences.is_empty());
 
     let mut indexed = correspondence_fixture();
     let root = indexed.semantic.places.get(indexed.source_place).root;
-    let indexed_place = indexed.semantic.append_place(facts::Place {
+    let indexed_place = indexed.semantic.append_place(crate::fact_plan::Place {
         root,
         segments: HandleSpan::empty(),
     });
@@ -780,7 +812,7 @@ fn foreign_machine_or_sibling_state_parameter_correspondence_is_not_retained() {
             match endpoint {
                 0 => {
                     fixture.semantic.places.get_mut(fixture.source_place).root =
-                        facts::PlaceRoot::Symbol(foreign_root);
+                        crate::fact_plan::PlaceRoot::Symbol(foreign_root);
                 }
                 1 => {
                     let occurrence_place = fixture.semantic.append_symbol_place(foreign_root);
@@ -791,7 +823,7 @@ fn foreign_machine_or_sibling_state_parameter_correspondence_is_not_retained() {
                         .semantic
                         .places
                         .get_mut(fixture.destination_place)
-                        .root = facts::PlaceRoot::Symbol(foreign_root);
+                        .root = crate::fact_plan::PlaceRoot::Symbol(foreign_root);
                 }
                 _ => unreachable!(),
             }
@@ -812,7 +844,7 @@ fn foreign_machine_or_sibling_state_local_correspondence_is_not_retained() {
                 fixture.foreign_local
             };
             let parameter = match fixture.semantic.places.get(fixture.destination_place).root {
-                facts::PlaceRoot::Symbol(root) => root,
+                crate::fact_plan::PlaceRoot::Symbol(root) => root,
                 _ => unreachable!("symbol root"),
             };
             if endpoint == 0 {

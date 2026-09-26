@@ -2,13 +2,15 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use register_model::RegisterViewId;
-use selected_instructions::VirtualRegisterId;
+use target_operations_to_selected_instructions::VirtualRegisterId;
+use target_operations_to_selected_instructions::register_model::RegisterViewId;
 
 use super::conflicts::registers_interfere;
 use crate::RegisterHomeError;
-use register_homes::{FunctionAllocationLegality, VirtualRegisterAllocationLegality};
-use selected_instructions::{FunctionLiveRanges, LiveRangePoint};
+use selected_instructions_to_selected_instructions::register_homes::{
+    FunctionAllocationLegality, VirtualRegisterAllocationLegality,
+};
+use target_operations_to_selected_instructions::{FunctionLiveRanges, LiveRangePoint};
 
 #[derive(Debug)]
 pub(super) struct AllocationDomain<'a> {

@@ -10,12 +10,12 @@
 use super::{
     CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, StatementNode, unsupported,
 };
-use checked_trees::CheckedUnitStructuralArgumentPlan;
+use typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan;
 
 pub(super) fn validate(
     checked: &CheckedTrees,
-    machine: &checked_trees::machine::Machine,
-    authored: &checked_trees::state::State,
+    machine: &typed_trees_to_checked_trees::checked_trees::machine::Machine,
+    authored: &typed_trees_to_checked_trees::checked_trees::state::State,
     statement: u32,
     expression: ExpressionHandle,
     argument: &CheckedUnitStructuralArgumentPlan,
@@ -26,14 +26,16 @@ pub(super) fn validate(
     if !call.arguments.is_empty() {
         return unsupported("borrowed slice view call gained arguments");
     }
-    if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
+    if argument.access
+        != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
+    {
         return unsupported("borrowed slice view changed its planned access");
     }
     let (root, checked_path) = authored_collection_path(checked, machine, authored, call.receiver)?;
     if checked_path != argument.path {
         return unsupported("borrowed slice view path does not match its projected path");
     }
-    let leaf = validation::expression_result_type_reference(
+    let leaf = typed_trees_to_checked_trees::validation::expression_result_type_reference(
         &checked.typed,
         machine,
         authored,
@@ -108,9 +110,10 @@ pub(super) fn validate(
     // The lent place is the projected collection, not the root's whole record:
     // an attached receiver may legitimately hold members (services, loans) the
     // pipeline cannot carry while the projected array keeps plain storage.
-    if !validation::has_linear_owned_contents(
+    if !typed_trees_to_checked_trees::validation::has_linear_owned_contents(
         &checked.typed,
-        validation::unwrapped_type_reference(&checked.typed, leaf).unwrap_or(leaf),
+        typed_trees_to_checked_trees::validation::unwrapped_type_reference(&checked.typed, leaf)
+            .unwrap_or(leaf),
     ) {
         return unsupported(
             "borrowed slice view root is not a structural place the pipeline can carry",
@@ -127,13 +130,13 @@ pub(super) fn validate(
 /// (`self.items[a..b]`) replay through this one walk.
 pub(crate) fn authored_collection_path(
     checked: &CheckedTrees,
-    machine: &checked_trees::machine::Machine,
-    authored: &checked_trees::state::State,
+    machine: &typed_trees_to_checked_trees::checked_trees::machine::Machine,
+    authored: &typed_trees_to_checked_trees::checked_trees::state::State,
     receiver: ExpressionHandle,
 ) -> Result<
     (
         ExpressionHandle,
-        Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+        Vec<typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment>,
     ),
     LoweringError,
 > {
@@ -145,18 +148,25 @@ pub(crate) fn authored_collection_path(
                 if member.case_variant.is_some() {
                     return unsupported("borrowed slice view receiver uses a case member");
                 }
-                let receiver = validation::declared_place_type_raw(
+                let receiver = typed_trees_to_checked_trees::validation::declared_place_type_raw(
                     &checked.typed,
                     machine,
                     Some(authored),
                     member.receiver,
                 )
-                .and_then(|receiver| validation::unwrapped_type_reference(&checked.typed, receiver))
+                .and_then(|receiver| {
+                    typed_trees_to_checked_trees::validation::unwrapped_type_reference(
+                        &checked.typed,
+                        receiver,
+                    )
+                })
                 .ok_or(LoweringError::Unsupported(
                     "borrowed slice view lost its receiver type",
                 ))?;
-                let checked_trees::types::TypeReferenceNode::Named { symbol, name } =
-                    checked.type_reference_table.type_reference(receiver)
+                let typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Named {
+                    symbol,
+                    name,
+                } = checked.type_reference_table.type_reference(receiver)
                 else {
                     return unsupported("borrowed slice view receiver is not a named record");
                 };
@@ -181,15 +191,18 @@ pub(crate) fn authored_collection_path(
                     checked
                         .data_members(owner)
                         .iter()
-                        .filter_map(|candidate| match candidate {
-                            checked_trees::data::DataMember::Field(field)
-                                if field.name.as_str() == member.member.as_str()
-                                    && field.symbol.is_valid()
-                                    && field.type_reference.is_valid() =>
-                            {
-                                Some(field)
-                            }
-                            _ => None,
+                        .filter_map(|candidate| {
+                            match candidate {
+                        typed_trees_to_checked_trees::checked_trees::data::DataMember::Field(
+                            field,
+                        ) if field.name.as_str() == member.member.as_str()
+                            && field.symbol.is_valid()
+                            && field.type_reference.is_valid() =>
+                        {
+                            Some(field)
+                        }
+                        _ => None,
+                    }
                         });
                 let field = named.next();
                 if named.next().is_some() {
@@ -201,7 +214,7 @@ pub(crate) fn authored_collection_path(
                 if field.relevance.is_erased() {
                     return unsupported("borrowed slice view reads an erased member");
                 }
-                checked_path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
+                checked_path.push(typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field(
                     field.path_identity(),
                 ));
                 cursor = member.receiver;

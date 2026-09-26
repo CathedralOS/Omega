@@ -1,12 +1,12 @@
 use super::value_origin_before_statement;
+use crate::checked_trees::FlowStateFact;
+use crate::fact_plan::PlaceRoot;
 use crate::flow::CanonicalPlace;
 use crate::tests::front_end::typed_program;
-use checked_trees::FlowStateFact;
-use facts::PlaceRoot;
+use symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::{TypedTrees, machine::Machine};
 use symbols::SymbolHandle;
-use typed_trees::data::DataMember;
-use typed_trees::statement::StatementNode;
-use typed_trees::{TypedTrees, machine::Machine};
 
 struct Fixture {
     program: TypedTrees,

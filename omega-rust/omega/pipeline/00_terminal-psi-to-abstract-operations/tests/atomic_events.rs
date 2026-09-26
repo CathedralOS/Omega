@@ -8,21 +8,21 @@
 //! validation refuses it, and that a load after a join of distinct writes
 //! refuses rather than naming one of them.
 
-use abstract_operations::{
-    AbstractAtomicEvent, AbstractAtomicReadModifyWrite, AbstractOperation, AbstractOperationPlan,
-    AtomicModificationAfter, AtomicReadsFrom,
-};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::OperationId;
 use terminal_codec::{encode_module, encode_proof_section};
 use terminal_psi::{MemoryOrdering, OperationKind, StructuralTypeShape, TerminalModule};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractAtomicEvent, AbstractAtomicReadModifyWrite, AbstractOperation, AbstractOperationPlan,
+    AtomicModificationAfter, AtomicReadsFrom,
+};
 use terminal_psi_to_abstract_operations::{
     ArtifactLoweringError, ArtifactSections, LoweringError, ProviderInstallationError,
     admit_provider_installation, build_verified_psi_optimization_unit, lower_artifact,
 };
 
-fn checked(source: &str) -> checked_trees::CheckedTrees {
+fn checked(source: &str) -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
         .expect("tokenize");
@@ -109,7 +109,10 @@ fn event_mut(operation: &mut AbstractOperation) -> &mut AbstractAtomicEvent {
 }
 
 /// The verified optimization unit the artifact admits.
-fn unit(semantic: &[u8], proof: &[u8]) -> optimization_unit::PsiOptimizationUnit {
+fn unit(
+    semantic: &[u8],
+    proof: &[u8],
+) -> terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit {
     let input = lower_artifact(
         ArtifactSections {
             semantic_bytes: semantic,
@@ -136,10 +139,10 @@ fn unit(semantic: &[u8], proof: &[u8]) -> optimization_unit::PsiOptimizationUnit
 /// `unit` with the `ordinal`-th atomic node changed by `change` and its
 /// identity recomputed, so only the substitution can fail validation.
 fn substitute(
-    unit: &optimization_unit::PsiOptimizationUnit,
+    unit: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
     ordinal: usize,
     change: impl FnOnce(&mut AbstractOperation),
-) -> optimization_unit::PsiOptimizationUnit {
+) -> terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit {
     let mut changed = unit.clone();
     let operation = changed
         .functions
@@ -151,7 +154,7 @@ fn substitute(
         .nth(ordinal)
         .expect("atomic node");
     change(operation);
-    changed.identity = optimization_unit::recompute_psi_optimization_unit_identity(&changed);
+    changed.identity = terminal_psi_to_abstract_operations::optimization_unit::recompute_psi_optimization_unit_identity(&changed);
     changed
 }
 
@@ -255,7 +258,7 @@ fn every_serial_event_keeps_its_location_orderings_and_coherence_edges() {
             Some(AtomicModificationAfter::Write { operation: after }))
             if *read == swap.0 && *after == swap.0
     ));
-    optimization_unit_semantics::validate_psi_optimization_unit(&unit(&semantic, &proof))
+    terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&unit(&semantic, &proof))
         .expect("the unit rechecks every retained edge");
     admit_provider_installation(&plan, &semantic, &proof, &AdmissionProfile::default(), &[])
         .expect("the plan replays from its artifact");
@@ -355,11 +358,11 @@ fn a_substituted_location_ordering_operand_or_edge_is_refused() {
         }),
     ];
     for drifted in &edge_refusals {
-        let refusal = optimization_unit_semantics::validate_psi_optimization_unit(drifted);
+        let refusal = terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(drifted);
         assert!(
             matches!(
                 refusal,
-                Err(optimization_unit_semantics::OptimizationUnitValidationError::AtomicEventCoherenceMismatch { .. })
+                Err(terminal_psi_to_abstract_operations::optimization_unit_semantics::OptimizationUnitValidationError::AtomicEventCoherenceMismatch { .. })
             ),
             "{refusal:?}"
         );

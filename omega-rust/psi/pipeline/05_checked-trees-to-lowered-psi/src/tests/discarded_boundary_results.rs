@@ -1,14 +1,16 @@
 //! Explicit result discard belongs to the boundary's immediate normal continuation.
 use super::{CheckedTrees, SymbolHandle, lower_machine};
-use crate::TerminalMachineSelection;
-use checked_trees::CheckedUnitEffectOperationPlan;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalBoundaryByteBuffer, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
     TerminalEffectResult, TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,
     TerminalScalarValue, TerminalStructuralValue,
 };
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
+use typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan;
 
 const SOURCE: &str = r#"
     data ReadResult { case Empty; case Bytes(count: u64); }
@@ -71,22 +73,23 @@ fn discarded_boundary_result_replays_immediate_cleanup_and_canonical_artifact() 
     assert!(affine_discards[0].path.is_empty());
     assert_eq!(
         affine_discards[0].source,
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: result.binding_ordinal,
         }
     );
 
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("run"))
         .expect("explicit discard lowers");
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("run"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("publish checked discard")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name("run"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("publish checked discard")
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     assert_eq!(module, lowered.semantic_module);
@@ -148,7 +151,7 @@ fn discarded_boundary_result_rejects_missing_authored_discard_marker() {
         .find(|machine| machine.symbol == run_symbol(&checked))
         .unwrap();
     let statements = checked.machine_states(machine)[0].statement_nodes;
-    let typed_trees::statement::StatementNode::Call(call) =
+    let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Call(call) =
         &mut checked.typed.statement_table.statements_mut(statements)[1]
     else {
         panic!("authored discard call");
@@ -157,9 +160,9 @@ fn discarded_boundary_result_rejects_missing_authored_discard_marker() {
     call.discards_result = false;
     assert!(lower_machine(&checked, TerminalMachineSelection::Name("run")).is_err());
     assert!(
-        terminal_production::TerminalProductionRequest::new(
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
             &checked,
-            terminal_production::TerminalMachineSelection::Name("run")
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name("run")
         )
         .produce(TerminalProductionCustody::artifact_only(
             &mut TerminalProductionTimings::default()
@@ -244,7 +247,7 @@ fn discarded_boundary_result_rejects_result_cleanup_and_later_operand_drift() {
                 };
                 match mutation {
                     "cleanup ordinal" => {
-                        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        let typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                             binding_ordinal,
                         } = &mut affine_discards[0].source else { panic!("result root"); };
                         *binding_ordinal += 1;
@@ -277,9 +280,11 @@ fn discarded_boundary_result_rejects_result_cleanup_and_later_operand_drift() {
             "source drift: {mutation}"
         );
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &checked,
-                terminal_production::TerminalMachineSelection::Name("run")
+                lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                    "run"
+                )
             )
             .produce(TerminalProductionCustody::artifact_only(
                 &mut TerminalProductionTimings::default()
@@ -305,15 +310,16 @@ fn discarded_boundary_result_cannot_replace_a_same_typed_live_operand() {
         }
     "#,
     );
-    let _artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("run"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("independent live operand survives discard")
-    .into_artifact();
+    let _artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name("run"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("independent live operand survives discard")
+        .into_artifact();
     let symbol = run_symbol(&checked);
     let plan = checked
         .facts
@@ -337,13 +343,13 @@ fn discarded_boundary_result_cannot_replace_a_same_typed_live_operand() {
     };
     assert_eq!(structural_arguments[0].type_identity, result.type_identity);
     structural_arguments[0].source =
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: result.binding_ordinal,
         };
     assert!(
-        terminal_production::TerminalProductionRequest::new(
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
             &checked,
-            terminal_production::TerminalMachineSelection::Name("run")
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name("run")
         )
         .produce(TerminalProductionCustody::artifact_only(
             &mut TerminalProductionTimings::default()
@@ -361,15 +367,16 @@ fn discarded_boundary_result_preserves_effect_order_across_every_fuel_pause() {
         .replace("buffer: &mut [u8]", "")
         .replace("Host::read(buffer)", "Host::read()");
     let checked = crate::front_end::checked_program(&source);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("run"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("source discard caller")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name("run"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("source discard caller")
+        .into_artifact();
     let mut execution = TerminalExecution::start_artifact(
         artifact.semantic_bytes(),
         artifact.proof_bytes(),

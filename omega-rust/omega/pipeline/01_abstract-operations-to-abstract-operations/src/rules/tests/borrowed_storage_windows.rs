@@ -11,7 +11,6 @@
 //! standalone ranked/specialization boundaries keep the pair in place and in
 //! order while relocating only genuinely admissible scalar work around it.
 
-use abstract_operations::AbstractOperation;
 use optimization_core::{Optimization, OptimizationSelections, OptimizationWorkBudget};
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
@@ -25,6 +24,7 @@ use terminal_psi::{
     TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
 use terminal_verifier::ProofBundle;
 
 use crate::{
@@ -448,7 +448,7 @@ fn verified_unit(module: &TerminalModule) -> VerifiedPsiOptimizationUnit {
 /// The window operations of `unit` as `(operation, node)` rows in visitation
 /// order — the value every optimization boundary must preserve.
 fn window_operations(
-    unit: &optimization_unit::PsiOptimizationUnit,
+    unit: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
 ) -> Vec<(semantic_vocabulary::OperationId, &AbstractOperation)> {
     unit.functions
         .iter()
@@ -456,7 +456,7 @@ fn window_operations(
         .flat_map(|block| &block.nodes)
         .filter_map(|node| {
             let operation = match node.provenance.first() {
-                Some(optimization_unit::PsiProvenance::Operation(operation)) => *operation,
+                Some(terminal_psi_to_abstract_operations::optimization_unit::PsiProvenance::Operation(operation)) => *operation,
                 _ => return None,
             };
             matches!(
@@ -473,7 +473,7 @@ fn window_operations(
 /// by its `StoreStructuralField`, both byte-identical to the expected pair and
 /// still in the same block.
 fn assert_window_pair(
-    unit: &optimization_unit::PsiOptimizationUnit,
+    unit: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
     expected_move: &AbstractOperation,
     expected_store: &AbstractOperation,
 ) {
@@ -663,7 +663,7 @@ fn loop_invariant_scalar_motion_preserves_the_window_pair() {
             .nodes
             .iter()
             .all(|node| node.provenance.first()
-                != Some(&optimization_unit::PsiProvenance::Operation(leaf))),
+                != Some(&terminal_psi_to_abstract_operations::optimization_unit::PsiProvenance::Operation(leaf))),
         "the leaf left the member block"
     );
     assert!(
@@ -674,7 +674,7 @@ fn loop_invariant_scalar_motion_preserves_the_window_pair() {
             .is_some_and(|block| {
                 block.nodes.iter().any(|node| {
                     node.provenance.first()
-                        == Some(&optimization_unit::PsiProvenance::Operation(leaf))
+                        == Some(&terminal_psi_to_abstract_operations::optimization_unit::PsiProvenance::Operation(leaf))
                 })
             }),
         "the leaf relocated into the component's preheader"

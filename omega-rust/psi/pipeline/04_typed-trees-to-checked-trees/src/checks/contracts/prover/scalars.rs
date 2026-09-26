@@ -4,16 +4,18 @@
 
 #[cfg(test)]
 use numerics::bignum::BigInt;
-use typed_trees::TypedTrees;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator,
+};
 
-pub(in crate::checks::contracts) use facts::ScalarValue;
+pub(in crate::checks::contracts) use crate::fact_plan::ScalarValue;
 
 /// Closed Boolean facts need no state-entry premise. Resolve no names or
 /// runtime leaves, and use only the independently selected builtin meanings.
 pub(in crate::checks::contracts) fn closed_boolean_value(
     program: &TypedTrees,
-    operators: &checked_trees::CheckedOperatorFacts,
+    operators: &crate::checked_trees::CheckedOperatorFacts,
     expression: ExpressionHandle,
 ) -> Option<bool> {
     if !has_builtin_operators(program, operators, expression) {
@@ -27,13 +29,13 @@ pub(in crate::checks::contracts) fn closed_boolean_value(
 
 pub(in crate::checks::contracts) fn has_builtin_operators(
     program: &TypedTrees,
-    operators: &checked_trees::CheckedOperatorFacts,
+    operators: &crate::checked_trees::CheckedOperatorFacts,
     expression: ExpressionHandle,
 ) -> bool {
     if operators.uses.iter().any(|(_, operator_use)| {
         operator_use.expression == expression
             && operator_use.status
-                != checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+                != crate::checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
     }) {
         return false;
     }
@@ -207,13 +209,15 @@ mod tests {
         BigInt, BinaryOperator, ExpressionHandle, ExpressionNode, ScalarValue, TypedTrees,
         UnaryOperator, evaluate,
     };
+    use crate::checked_trees::{
+        CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedOperatorUseFact,
+    };
     use crate::checks::contracts::prover::closed_boolean_value;
     use crate::checks::contracts::prover::scalars::evaluate_with_comparisons;
     use crate::checks::contracts::prover::scalars::literal;
-    use checked_trees::{
-        CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedOperatorUseFact,
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+        TableBinaryExpression, TableUnaryExpression,
     };
-    use typed_trees::expression::{TableBinaryExpression, TableUnaryExpression};
 
     #[test]
     fn closed_boolean_values_preserve_false_and_selected_operator_identity() {
@@ -275,7 +279,7 @@ mod tests {
     fn short_circuit_proofs_do_not_query_the_unevaluated_operand() {
         let mut program = TypedTrees::default();
         let unknown = program.expression_table.insert(ExpressionNode::Name(
-            typed_trees::expression::TableNamePath::default(),
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableNamePath::default(),
         ));
         for (operator, left_value) in [(BinaryOperator::And, false), (BinaryOperator::Or, true)] {
             let left = program

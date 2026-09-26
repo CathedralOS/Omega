@@ -210,8 +210,10 @@ fn check_source(source: &str) {
 
 #[test]
 fn installed_affine_result_custody_rejects_changed_plan_and_selection() {
-    use abstract_operations::{AbstractBoundaryResult, AbstractFunctionResult, AbstractOperation};
     use terminal_psi_to_abstract_operations::ProviderInstallationError;
+    use terminal_psi_to_abstract_operations::abstract_operations::{
+        AbstractBoundaryResult, AbstractFunctionResult, AbstractOperation,
+    };
 
     let (_, semantic, proof) = artifact(SOURCE);
     let profile = AdmissionProfile::default();

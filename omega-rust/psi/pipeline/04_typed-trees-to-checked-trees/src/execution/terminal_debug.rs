@@ -1,7 +1,7 @@
-use checked_trees::{
+use crate::checked_trees::{
     CheckedTerminalDebugPlans, CheckedTerminalMachineDebugPlan, CheckedTerminalStateDebugPlan,
 };
-use typed_trees::{
+use symbol_resolved_trees_to_typed_trees::typed_trees::{
     TypedTrees,
     domain::ProofFact,
     expression::{ExpressionHandle, ExpressionNode},
@@ -23,7 +23,7 @@ pub(crate) fn build_checked_terminal_debug_plans(
 
 fn build_machine_debug_plan(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
 ) -> CheckedTerminalMachineDebugPlan {
     let machine_span = program.symbols.symbol_source_span(machine.symbol);
     let contract_span = source_ensures_span(program, machine)
@@ -89,7 +89,7 @@ fn build_machine_debug_plan(
 
 fn source_ensures_span(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
 ) -> Option<source::SourceSpan> {
     let contract = program
         .machine_contracts(machine)
@@ -104,7 +104,7 @@ fn source_ensures_span(
 
 fn source_transition_spans(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
 ) -> Vec<source::SourceSpan> {
     program
         .statement_table
@@ -122,7 +122,7 @@ fn source_transition_spans(
 
 fn source_operation_spans(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
 ) -> Vec<source::SourceSpan> {
     let mut spans = Vec::new();
     for statement in program.statement_table.statements(state.statement_nodes) {

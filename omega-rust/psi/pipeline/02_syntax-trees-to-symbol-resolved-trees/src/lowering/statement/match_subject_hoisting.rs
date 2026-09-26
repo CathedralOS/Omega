@@ -6,16 +6,16 @@ use crate::lowering::statement::indexed_read_hoisting::{
 };
 use crate::lowering::statement::statement_nodes::set_expression;
 use crate::resolution::lowerer::Lowerer;
-use arena::HandleSpan;
-use symbol_resolved_trees::expression::{
+use crate::symbol_resolved_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableBorrowExpression,
     TableIndexedExpression, TableMembershipExpression, TableNamePath,
 };
-use symbol_resolved_trees::name::DiagnosticName;
-use symbol_resolved_trees::statement::{LocalData, LocalDataStorage, Statement};
-use symbol_resolved_trees::types::TypeReference;
+use crate::symbol_resolved_trees::name::DiagnosticName;
+use crate::symbol_resolved_trees::statement::{LocalData, LocalDataStorage, Statement};
+use crate::symbol_resolved_trees::types::TypeReference;
+use arena::HandleSpan;
 use symbols::SymbolHandle;
-use syntax_trees::{self as syntax, SyntaxTrees};
+use tokens_to_syntax_trees::syntax_trees::{self as syntax, SyntaxTrees};
 
 /// Capture a membership place for observation without extracting its value.
 /// The ordinary borrow preserves address evaluation and loan checking; an

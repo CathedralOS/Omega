@@ -1,5 +1,4 @@
 //! A repeated and nested Unit closure with a Boolean, runtime index and borrowed view.
-use abstract_operations::{AbstractOperation, AbstractParameter};
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, OperationId,
     PlaceId, ScalarType, StructuralTypeId, ValueId,
@@ -10,13 +9,16 @@ use terminal_psi::{
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeDeclaration,
     StructuralTypeShape, TerminalAffineCleanupAction,
 };
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractOperation, AbstractParameter,
+};
 
 pub(in crate::tests) fn fixture(
     native: target::NativeTarget,
 ) -> (
-    abstract_operations::AbstractOperationPlan,
-    target_operations::TargetOperationPlan,
-    optimization_unit::PsiOptimizationUnit,
+    terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan,
+    abstract_operations_to_target_operations::target_operations::TargetOperationPlan,
+    terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
 ) {
     let (mut plan, _, _) = super::plain_unit::plain_unit_fixture();
     let structural_type = StructuralTypeId::new(1).unwrap();
@@ -93,7 +95,7 @@ pub(in crate::tests) fn fixture(
         abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
     )
     .unwrap();
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &plan,
         FuelScheduleIdentity::new(1).unwrap(),
     )
@@ -106,9 +108,9 @@ pub(in crate::tests) fn fixture(
 pub(in crate::tests) fn mixed_borrowed_fixture(
     native: target::NativeTarget,
 ) -> (
-    abstract_operations::AbstractOperationPlan,
-    target_operations::TargetOperationPlan,
-    optimization_unit::PsiOptimizationUnit,
+    terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan,
+    abstract_operations_to_target_operations::target_operations::TargetOperationPlan,
+    terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
 ) {
     mixed_fixture(native, StructuralAccess::SharedBorrow)
 }
@@ -118,9 +120,9 @@ pub(in crate::tests) fn mixed_borrowed_fixture(
 pub(in crate::tests) fn mixed_owned_fixture(
     native: target::NativeTarget,
 ) -> (
-    abstract_operations::AbstractOperationPlan,
-    target_operations::TargetOperationPlan,
-    optimization_unit::PsiOptimizationUnit,
+    terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan,
+    abstract_operations_to_target_operations::target_operations::TargetOperationPlan,
+    terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
 ) {
     mixed_fixture(native, StructuralAccess::Owned)
 }
@@ -129,9 +131,9 @@ fn mixed_fixture(
     native: target::NativeTarget,
     access: StructuralAccess,
 ) -> (
-    abstract_operations::AbstractOperationPlan,
-    target_operations::TargetOperationPlan,
-    optimization_unit::PsiOptimizationUnit,
+    terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan,
+    abstract_operations_to_target_operations::target_operations::TargetOperationPlan,
+    terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
 ) {
     let (mut plan, _, _) = super::plain_unit::plain_unit_fixture();
     let structural_type = StructuralTypeId::new(1).unwrap();
@@ -232,7 +234,7 @@ fn mixed_fixture(
         abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
     )
     .unwrap();
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &plan,
         FuelScheduleIdentity::new(1).unwrap(),
     )

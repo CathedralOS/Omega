@@ -10,8 +10,11 @@ mod owned_types;
 pub(crate) fn parameter_storage<'checked>(
     checked: &'checked CheckedTrees,
     machine: symbols::SymbolHandle,
-    graph: &checked_trees::CheckedScalarStateGraph,
-) -> Result<&'checked [checked_trees::CheckedScalarParameterStorage], LoweringError> {
+    graph: &typed_trees_to_checked_trees::checked_trees::CheckedScalarStateGraph,
+) -> Result<
+    &'checked [typed_trees_to_checked_trees::checked_trees::CheckedScalarParameterStorage],
+    LoweringError,
+> {
     let (owner, state) = authored_state(checked, graph.state)?;
     if owner.symbol != machine {
         return unsupported("scalar parameter storage belongs to another machine");
@@ -58,7 +61,7 @@ pub(crate) fn parameter_storage<'checked>(
                 checked
                     .type_reference_table
                     .type_reference(parameter.type_reference),
-                checked_trees::types::TypeReferenceNode::Reference { .. }
+                typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Reference { .. }
             ) {
                 return unsupported(
                     "scalar parameter storage disagrees with its authored signature",
@@ -70,7 +73,7 @@ pub(crate) fn parameter_storage<'checked>(
                 ))?;
                 if !retained.is_self
                     || retained.position as usize != position
-                    || retained.access != checked_trees::CheckedStructuralAccess::SharedBorrow
+                    || retained.access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
                     || retained.multiplicity != Multiplicity::Unrestricted
                 {
                     return unsupported(
@@ -143,13 +146,15 @@ pub(crate) fn parameter_storage<'checked>(
 
 fn validate_structural_parameter(
     checked: &CheckedTrees,
-    parameter: &checked_trees::signature::StateParameter,
+    parameter: &typed_trees_to_checked_trees::checked_trees::signature::StateParameter,
     position: usize,
-    retained: &checked_trees::CheckedUnitStructuralParameterPlan,
+    retained: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralParameterPlan,
 ) -> Result<(), LoweringError> {
-    use checked_trees::types::TypeReferenceNode;
-    let primitive_array =
-        validation::is_closed_primitive_array_type(checked, parameter.type_reference);
+    use typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode;
+    let primitive_array = typed_trees_to_checked_trees::validation::is_closed_primitive_array_type(
+        checked,
+        parameter.type_reference,
+    );
     if primitive_array
         || matches!(
             checked
@@ -160,14 +165,14 @@ fn validate_structural_parameter(
     {
         if parameter.is_mutable
             || (!primitive_array
-                && !validation::has_plain_owned_contents_with_numeric_constraints(
+                && !typed_trees_to_checked_trees::validation::has_plain_owned_contents_with_numeric_constraints(
                     checked,
                     parameter.type_reference,
                 ))
             || (primitive_array && retained.multiplicity != Multiplicity::Unrestricted)
             || retained.is_self
             || retained.position as usize != position
-            || retained.access != checked_trees::CheckedStructuralAccess::Owned
+            || retained.access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
             || !matches!(
                 retained.multiplicity,
                 Multiplicity::Unrestricted | Multiplicity::Affine
@@ -194,13 +199,13 @@ fn validate_structural_parameter(
     };
     let access = match access {
         language_semantics::ReferenceAccess::Shared => {
-            checked_trees::CheckedStructuralAccess::SharedBorrow
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
         }
         language_semantics::ReferenceAccess::Mutable => {
-            checked_trees::CheckedStructuralAccess::MutableBorrow
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow
         }
         language_semantics::ReferenceAccess::WriteOnly => {
-            checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
         }
     };
     let referee_node = checked.type_reference_table.type_reference(*referee);
@@ -241,18 +246,18 @@ fn validate_structural_parameter(
         // leaves every other element type on the identity-joined route below.
         if matches!(
             &shape.shape,
-            checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
-                checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
+            typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
+                typed_trees_to_checked_trees::checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
             )
         ) {
             if checked.primitive_type_reference(*element_type)
-                != Some(checked_trees::types::PrimitiveType::U8)
+                != Some(typed_trees_to_checked_trees::checked_trees::types::PrimitiveType::U8)
             {
                 return unsupported("scalar graph byte view element is not a byte");
             }
             return Ok(());
         }
-        let checked_trees::CheckedUnitStructuralTypeShape::BorrowedSliceView {
+        let typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypeShape::BorrowedSliceView {
             element_type_identity,
         } = &shape.shape
         else {
@@ -275,7 +280,7 @@ fn validate_structural_parameter(
             .iter()
             .filter(|candidate| candidate.identity == *element_type_identity);
         if elements.next().map(|candidate| &candidate.shape)
-            != Some(&checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive))
+            != Some(&typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive))
             || elements.next().is_some()
         {
             return unsupported("scalar graph slice element shape differs from its source");
@@ -306,7 +311,7 @@ fn validate_structural_parameter(
     ))?;
     if shapes.next().is_some()
         || shape.shape
-            != checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(
+            != typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(
                 checked
                     .primitive_type_reference(*referee)
                     .ok_or(LoweringError::Unsupported(

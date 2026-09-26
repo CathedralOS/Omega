@@ -1,6 +1,9 @@
 //! Exact hosted-exit admission, using the existing admitted scalar boundary fixture.
 use crate::{legalize_target_operations, validate_legalized_operations};
-use abstract_operations::{AbstractOperation, AbstractOperationPlan};
+use abstract_operations_to_target_operations::target_operations::{
+    BoundaryExecutionBinding, BoundaryRealization, CompilerBuiltinExecution, TargetOperationPlan,
+    TargetUnitOperation,
+};
 use abstract_operations_to_target_operations::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement,
 };
@@ -8,9 +11,8 @@ use semantic_vocabulary::{
     BoundaryMachineId, FuelScheduleIdentity, IntegerValue, OperationId, ValueId,
 };
 use target::NativeTarget;
-use target_operations::{
-    BoundaryExecutionBinding, BoundaryRealization, CompilerBuiltinExecution, TargetOperationPlan,
-    TargetUnitOperation,
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractOperation, AbstractOperationPlan,
 };
 
 fn lower(
@@ -20,10 +22,10 @@ fn lower(
 ) -> TargetOperationPlan {
     let realization = match execution {
         CompilerBuiltinExecution::HostedExitProcessI32 => {
-            target_operations::HostedExitProcessI32Realization.into()
+            abstract_operations_to_target_operations::target_operations::HostedExitProcessI32Realization.into()
         }
         CompilerBuiltinExecution::HostedWriteByteI32 => {
-            target_operations::HostedWriteByteI32Realization.into()
+            abstract_operations_to_target_operations::target_operations::HostedWriteByteI32Realization.into()
         }
         _ => panic!("fixture hosted scalar role"),
     };
@@ -44,8 +46,10 @@ fn lower(
     .unwrap()
 }
 
-fn seed(source: &AbstractOperationPlan) -> optimization_unit::PsiOptimizationUnit {
-    optimization_unit::reconstruct_psi_optimization_unit_seed(
+fn seed(
+    source: &AbstractOperationPlan,
+) -> terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit {
+    terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         source,
         FuelScheduleIdentity::new(1).unwrap(),
     )
@@ -81,12 +85,12 @@ fn process_exit_admits_runtime_and_constant_i32_and_replays_exact_role() {
             let unit = seed(&source);
             let legal = legalize_target_operations(&target, &source, &unit).unwrap();
             let mut wrong_return = legal.plan().clone();
-            let legalized_operations::LegalizedScalarTerminator::Return(returned) =
+            let crate::legalized_operations::LegalizedScalarTerminator::Return(returned) =
                 &mut wrong_return.scalar_functions[0].blocks[0].terminator
             else {
                 panic!("return");
             };
-            returned.value = legalized_operations::LegalizedScalarReturnValue::Value {
+            returned.value = crate::legalized_operations::LegalizedScalarReturnValue::Value {
                 value: ValueId::new(5).unwrap(),
                 scalar_type: semantic_vocabulary::ScalarType::Integer(
                     semantic_vocabulary::IntegerType::new(
@@ -102,18 +106,18 @@ fn process_exit_admits_runtime_and_constant_i32_and_replays_exact_role() {
                 let mut candidate = legal.plan().clone();
                 let row = &mut candidate.scalar_functions[0].blocks[0].instructions[position];
                 row.kind = match mutation {
-                    0 => legalized_operations::LegalizedScalarInstructionKind::HostedWriteByteI32 {
+                    0 => crate::legalized_operations::LegalizedScalarInstructionKind::HostedWriteByteI32 {
                         boundary: BoundaryMachineId::new(1).unwrap(),
                         source: ValueId::new(5).unwrap(),
                     },
                     1 => {
-                        legalized_operations::LegalizedScalarInstructionKind::HostedExitProcessI32 {
+                        crate::legalized_operations::LegalizedScalarInstructionKind::HostedExitProcessI32 {
                             boundary: BoundaryMachineId::new(2).unwrap(),
                             source: ValueId::new(5).unwrap(),
                         }
                     }
                     2 => {
-                        legalized_operations::LegalizedScalarInstructionKind::HostedExitProcessI32 {
+                        crate::legalized_operations::LegalizedScalarInstructionKind::HostedExitProcessI32 {
                             boundary: BoundaryMachineId::new(1).unwrap(),
                             source: ValueId::new(99).unwrap(),
                         }
@@ -247,7 +251,7 @@ fn provider_specialization_and_service_custody(with_receiver: bool, with_local: 
             0,
             AbstractOperation::IntegerStructuralField {
                 psi_operation: OperationId::new(8).unwrap(),
-                result: abstract_operations::AbstractResult {
+                result: terminal_psi_to_abstract_operations::abstract_operations::AbstractResult {
                     value: parameter.value,
                     scalar_type: parameter.scalar_type,
                 },
@@ -292,27 +296,30 @@ fn provider_specialization_and_service_custody(with_receiver: bool, with_local: 
                         projected_qualifications: Vec::new(),
                         claims: Vec::new(),
                     },
-                    value: abstract_operations::AbstractResult {
-                        value: scalar.value,
-                        scalar_type: scalar.scalar_type,
-                    },
+                    value:
+                        terminal_psi_to_abstract_operations::abstract_operations::AbstractResult {
+                            value: scalar.value,
+                            scalar_type: scalar.scalar_type,
+                        },
                 },
                 AbstractOperation::PrimitiveLocalStore {
                     psi_operation: OperationId::new(21).unwrap(),
                     destination: local_place,
-                    value: abstract_operations::AbstractResult {
-                        value: scalar.value,
-                        scalar_type: scalar.scalar_type,
-                    },
+                    value:
+                        terminal_psi_to_abstract_operations::abstract_operations::AbstractResult {
+                            value: scalar.value,
+                            scalar_type: scalar.scalar_type,
+                        },
                 },
                 AbstractOperation::PrimitiveScalarRead {
                     psi_operation: OperationId::new(22).unwrap(),
                     source: local_place,
                     path: Vec::new(),
-                    result: abstract_operations::AbstractResult {
-                        value: read_value,
-                        scalar_type: scalar.scalar_type,
-                    },
+                    result:
+                        terminal_psi_to_abstract_operations::abstract_operations::AbstractResult {
+                            value: read_value,
+                            scalar_type: scalar.scalar_type,
+                        },
                 },
             ],
         );
@@ -342,15 +349,16 @@ fn provider_specialization_and_service_custody(with_receiver: bool, with_local: 
                 boundary: BoundaryMachineId::new(1).unwrap(),
             },
         });
-    unit.identity = optimization_unit::recompute_psi_optimization_unit_identity(&unit);
-    optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+    unit.identity = terminal_psi_to_abstract_operations::optimization_unit::recompute_psi_optimization_unit_identity(&unit);
+    terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
     let legal = legalize_target_operations(&target, &source, &unit).unwrap();
     assert_eq!(
         legal.plan().scalar_functions[0].structural.is_some(),
         with_receiver || with_local
     );
     validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
-    let environment = register_environment::baseline_target_register_environment(native).unwrap();
+    let environment =
+        crate::register_environment::baseline_target_register_environment(native).unwrap();
     let constraints = crate::selection_constraints(&legal, &environment);
     let selected = crate::select_instructions(
         &legal,
@@ -386,7 +394,7 @@ fn provider_specialization_and_service_custody(with_receiver: bool, with_local: 
                 *producer = OperationId::new(99).unwrap();
             }
             changed.identity =
-                optimization_unit::recompute_psi_optimization_unit_identity(&changed);
+                terminal_psi_to_abstract_operations::optimization_unit::recompute_psi_optimization_unit_identity(&changed);
             assert!(legalize_target_operations(&target, &source, &changed).is_err());
             assert!(
                 validate_legalized_operations(&target, &source, &changed, legal.plan().clone())
@@ -396,7 +404,7 @@ fn provider_specialization_and_service_custody(with_receiver: bool, with_local: 
             let mut proposed = legal.plan().clone();
             let instructions = &mut proposed.scalar_functions[0].blocks[0].instructions;
             let position = instructions.iter().position(|instruction| matches!(
-                instruction.kind, legalized_operations::LegalizedScalarInstructionKind::EstablishPrimitiveLocal { .. }
+                instruction.kind, crate::legalized_operations::LegalizedScalarInstructionKind::EstablishPrimitiveLocal { .. }
             )).unwrap();
             if remove {
                 instructions.remove(position);
@@ -455,7 +463,7 @@ fn provider_specialization_and_service_custody(with_receiver: bool, with_local: 
                 }
             }
         }
-        changed.identity = optimization_unit::recompute_psi_optimization_unit_identity(&changed);
+        changed.identity = terminal_psi_to_abstract_operations::optimization_unit::recompute_psi_optimization_unit_identity(&changed);
         assert!(
             legalize_target_operations(&target, &source, &changed).is_err(),
             "metadata mutation {mutation}"
@@ -482,6 +490,6 @@ fn provider_specialization_and_service_custody(with_receiver: bool, with_local: 
         .clear();
     let mut changed = unit.clone();
     changed.functions[0].published_service_ceiling.clear();
-    changed.identity = optimization_unit::recompute_psi_optimization_unit_identity(&changed);
+    changed.identity = terminal_psi_to_abstract_operations::optimization_unit::recompute_psi_optimization_unit_identity(&changed);
     assert!(legalize_target_operations(&target, &changed_source, &changed).is_err());
 }

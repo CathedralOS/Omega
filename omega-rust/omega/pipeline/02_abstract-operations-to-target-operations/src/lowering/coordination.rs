@@ -32,11 +32,11 @@ use super::scalar_abi::{
 };
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::AbstractOperationPlan;
+use crate::target_operations::{BoundarySettlementBinding, TargetFunction, TargetOperationPlan};
 use installation_evidence::ProviderInstallationEvidence;
 use std::collections::BTreeMap;
 use target::NativeTarget;
-use target_operations::{BoundarySettlementBinding, TargetFunction, TargetOperationPlan};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan;
 
 mod ieee_float_fma_settlements;
 mod installed_provider_calls;

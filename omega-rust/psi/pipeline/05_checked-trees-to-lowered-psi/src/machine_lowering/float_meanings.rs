@@ -6,10 +6,10 @@
 //! fallback, so surviving fallback identities renumber densely in emission
 //! order; equalities lower without remapping.
 
-use checked_trees::CheckedTrees;
-use lowered_psi::LoweredPsi;
+use crate::lowered_psi::LoweredPsi;
 use semantic_vocabulary::MachineId;
 use symbols::SymbolHandle;
+use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
 
 use crate::lowering_error::LoweringError;
 use crate::proofs::float_meaning_projection::{

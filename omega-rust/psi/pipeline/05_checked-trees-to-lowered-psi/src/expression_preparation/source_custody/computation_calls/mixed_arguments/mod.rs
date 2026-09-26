@@ -1,12 +1,12 @@
 //! Rejoin one invocation before its dense operands enter producer resolution.
 
 use super::super::authored_state;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use checked_trees::{
+use symbols::SymbolHandle;
+use typed_trees_to_checked_trees::checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees_to_checked_trees::checked_trees::{
     CheckedScalarComputationHandle, CheckedScalarComputationKind,
     CheckedScalarComputationStructuralArgument, CheckedTrees, CheckedUnitCallCoordinate,
 };
-use symbols::SymbolHandle;
 
 use super::{borrow_rows, owned_arguments, primitive_arguments, shared_nominal_arguments};
 use crate::lowering_error::LoweringError;
@@ -189,8 +189,8 @@ pub(crate) fn rejoin_computation_call_arguments(
         CheckedScalarComputationStructuralArgument::Case(_) => true,
         CheckedScalarComputationStructuralArgument::Place(argument) => matches!(
             argument.access,
-            checked_trees::CheckedStructuralAccess::SharedBorrow
-                | checked_trees::CheckedStructuralAccess::Owned
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
+                | typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
         ),
     }) {
         Some(access_occurrences::rejoin(
@@ -318,7 +318,9 @@ pub(crate) fn rejoin_computation_call_arguments(
             let borrow_call = borrow_call.ok_or(LoweringError::Unsupported(
                 "computed invocation has no exact borrow call",
             ))?;
-            let position = if argument.access == checked_trees::CheckedStructuralAccess::Owned {
+            let position = if argument.access
+                == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
+            {
                 owned_arguments::validate(
                     checked,
                     caller_state,
@@ -334,7 +336,7 @@ pub(crate) fn rejoin_computation_call_arguments(
                         ))?,
                 )?
             } else if matches!(checked.type_reference_table.type_reference(parameter.type_reference),
-                checked_trees::types::TypeReferenceNode::Reference { referee, .. }
+                typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Reference { referee, .. }
                     if checked.primitive_type_reference(*referee).is_none())
             {
                 let position = access_positions

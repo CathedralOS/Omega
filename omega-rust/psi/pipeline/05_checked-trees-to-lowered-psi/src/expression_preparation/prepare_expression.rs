@@ -125,7 +125,7 @@ fn parameter_view_carrier(
 fn view_local_observation(
     view_locals: &[ViewLocalBinding],
     symbol: symbols::SymbolHandle,
-    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    path: &[typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment],
 ) -> Result<(PlaceId, ViewCarrier), LoweringError> {
     if !path.is_empty() {
         return unsupported("a view local is observed whole, never through a projection");
@@ -147,7 +147,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
         CheckedScalarExpression::StructuralParameterByteLength { root, path } => {
             let count_type = terminal_scalar_type(PrimitiveType::U64)?;
             let (source, carrier) = match *root {
-                checked_trees::CheckedStorageRoot::Parameter {
+                typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::Parameter {
                     index: parameter_position,
                 } => {
                     if !path.is_empty() {
@@ -174,9 +174,9 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                         parameter_view_carrier(element_views, parameter.structural_type),
                     )
                 }
-                checked_trees::CheckedStorageRoot::ViewLocal { symbol } => {
-                    view_local_observation(view_locals, symbol, path)?
-                }
+                typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::ViewLocal {
+                    symbol,
+                } => view_local_observation(view_locals, symbol, path)?,
             };
             Ok(match carrier {
                 ViewCarrier::Bytes => LoweredDirectExpression::ByteSequenceLength {
@@ -237,7 +237,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             }
             if matches!(
                 path.first(),
-                Some(checked_trees::CheckedStructuralPredicatePathSegment::Case(
+                Some(typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Case(
                     _
                 ))
             ) {
@@ -270,7 +270,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             // whose carrier may itself cross one literal index.
             if matches!(
                 path.last(),
-                Some(checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_))
+                Some(typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_))
             ) {
                 let (source, path) =
                     crate::expression_preparation::bindings::structural_fields::resolve_primitive(
@@ -445,7 +445,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             primitive_type,
         } => {
             let (source, carrier) = match *root {
-                checked_trees::CheckedStorageRoot::Parameter {
+                typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::Parameter {
                     index: parameter_position,
                 } => {
                     if !path.is_empty() {
@@ -517,9 +517,9 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                         parameter_view_carrier(element_views, parameter.structural_type),
                     )
                 }
-                checked_trees::CheckedStorageRoot::ViewLocal { symbol } => {
-                    view_local_observation(view_locals, symbol, path)?
-                }
+                typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::ViewLocal {
+                    symbol,
+                } => view_local_observation(view_locals, symbol, path)?,
             };
             let element_scalar = match carrier {
                 ViewCarrier::Bytes => None,
@@ -538,13 +538,13 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     let path = element_path
                         .iter()
                         .map(|segment| match segment {
-                            checked_trees::CheckedStructuralPredicatePathSegment::Field(
+                            typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Field(
                                 identity,
                             ) => Ok(terminal_psi::StructuralPathSegment::Field(identity.clone())),
-                            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(
+                            typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(
                                 index,
                             ) => Ok(terminal_psi::StructuralPathSegment::FixedIndex(*index)),
-                            checked_trees::CheckedStructuralPredicatePathSegment::Case(_) => {
+                            typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Case(_) => {
                                 unsupported("an element field path selects no case")
                             }
                         })
@@ -741,7 +741,7 @@ fn lower_checked_boolean_expression_with_parameters(
             if !structural_fields.is_empty()
                 && matches!(
                     path.first(),
-                    Some(checked_trees::CheckedStructuralPredicatePathSegment::Case(
+                    Some(typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Case(
                         _
                     ))
                 )
@@ -772,7 +772,7 @@ fn lower_checked_boolean_expression_with_parameters(
                 // may itself cross one literal index.
                 if matches!(
                     path.last(),
-                    Some(checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_))
+                    Some(typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_))
                 ) {
                     let (source, path) =
                         crate::expression_preparation::bindings::structural_fields::resolve_primitive(
@@ -799,11 +799,11 @@ fn lower_checked_boolean_expression_with_parameters(
             let path = path
                 .iter()
                 .map(|segment| match segment {
-                    checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
                         Ok(identity.clone())
                     }
-                    checked_trees::CheckedStructuralPredicatePathSegment::Case(_)
-                    | checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_) => {
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Case(_)
+                    | typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_) => {
                         unsupported("case-payload predicates are contract-only")
                     }
                 })

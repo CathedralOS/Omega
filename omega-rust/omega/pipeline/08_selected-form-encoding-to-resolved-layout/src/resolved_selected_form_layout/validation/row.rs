@@ -1,13 +1,13 @@
 use std::collections::BTreeMap;
 
-use physical_instructions::PostAllocationMachineInstruction;
-use register_model::ValidatedPhysicalRegisterModel;
-use selected_instructions::{
+use register_homes_to_post_allocation_machine::PostAllocationMachineInstruction;
+use target::Architecture;
+use target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel;
+use target_operations_to_selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedInstruction, SelectedInstructionKind,
 };
-use target::Architecture;
 
-use machine_code::{
+use post_allocation_machine_to_selected_form_encoding::machine_code::{
     DeferredControlEncodingReason, SelectedFormEncodingRow, SelectedFormEncodingState,
     SelectedFormMachineDisposition,
 };

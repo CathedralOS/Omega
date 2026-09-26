@@ -1,4 +1,4 @@
-use register_model::RegisterViewId;
+use target_operations_to_selected_instructions::register_model::RegisterViewId;
 
 use super::{compute_function, fixtures::*, validate};
 use crate::RegisterHomeError;

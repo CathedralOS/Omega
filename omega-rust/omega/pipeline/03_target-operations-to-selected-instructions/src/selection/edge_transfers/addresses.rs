@@ -8,23 +8,23 @@
 //! pointer is then stored whole into the join's own block slot.
 use super::VirtualRegisterId;
 use crate::SelectedInstructionError;
-use crate::selection::edge_transfers::descriptors::provenance;
-use crate::selection::edge_transfers::invalid;
-use register_model::ValidatedRegisterConstraintCatalog;
-use selected_instructions::{
+use crate::register_model::ValidatedRegisterConstraintCatalog;
+use crate::selected_instructions::{
     FrameStorageSlotId, SelectedAddressBase, SelectedBlock, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind, SelectedMemoryAccess,
     SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedSelectionConstraints,
     SelectedStructuralBinding, SelectedStructuralTransport, SelectedSuccessor, VirtualRegister,
     VirtualRegisterOrigin,
 };
+use crate::selection::edge_transfers::descriptors::provenance;
+use crate::selection::edge_transfers::invalid;
 
 /// One address transport: its base, displacement, lent span and join slot.
 type Address = (
     SelectedAddressBase,
     u32,
     u32,
-    selected_instructions::LocalStorageSlotId,
+    crate::selected_instructions::LocalStorageSlotId,
 );
 
 fn address(transport: SelectedStructuralTransport) -> Option<Address> {
@@ -189,7 +189,7 @@ pub(super) fn check(
         };
         if byte_count == 0
             || destination
-                != (selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
+                != (crate::selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
                     block: continuation.source_target,
                     place: binding.semantic.parameter,
                 })

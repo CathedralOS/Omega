@@ -1,14 +1,14 @@
 //! Ordinary Unit calls borrow original primitive locals across every scalar width.
 
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 use semantic_vocabulary::{IeeeFloatValue, IntegerSign, IntegerType, IntegerValue};
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralPrimitiveValue, TerminalStructuralValue,
-};
-use terminal_production::{
-    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
 use terminal_psi::{OperationKind, StructuralAccess};
 
@@ -35,15 +35,16 @@ fn source(scalar: &str) -> String {
 }
 
 fn artifact(source: &str) -> terminal_codec::CanonicalTerminalArtifact {
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &crate::front_end::checked_program(source),
-        TerminalMachineSelection::Name("observe"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap_or_else(|error| panic!("{source}: {error:?}"))
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &crate::front_end::checked_program(source),
+            TerminalMachineSelection::Name("observe"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap_or_else(|error| panic!("{source}: {error:?}"))
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).expect("reload module");
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).expect("reload proof");
     terminal_verifier::verify_module(

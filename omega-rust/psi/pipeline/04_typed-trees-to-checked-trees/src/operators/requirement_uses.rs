@@ -7,16 +7,18 @@
 //! target's selected plan joins either spelling by requirement identity and
 //! the intrinsic execution bridge resolves both through one requirement view.
 
-use arena::Arena;
-use checked_trees::{
+use crate::checked_trees::{
     CheckedArithmeticPolicyAdapter, CheckedNamedRequirementUseFact, CheckedValueFacts,
     CheckedValueOrigin,
 };
+use arena::Arena;
 use numerics::float_semantics::FloatFormat;
 use std::collections::HashSet;
-use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
-use typed_trees::types::PrimitiveType;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode, TableCallExpression,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
 
 /// A public, receiver-free top-level `boundary requirement` with no static
 /// generic binders: the shape a direct call may execute through its selected
@@ -26,7 +28,7 @@ use typed_trees::types::PrimitiveType;
 fn directly_callable_requirement(
     program: &TypedTrees,
     entry_symbol: symbols::SymbolHandle,
-) -> Option<&typed_trees::machine::Machine> {
+) -> Option<&symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine> {
     if !entry_symbol.is_valid() {
         return None;
     }
@@ -145,7 +147,7 @@ fn named_requirement_use_fact(
 #[cfg(test)]
 mod tests {
     use crate::tests::front_end::checked_program;
-    fn checked(source: &str) -> checked_trees::CheckedTrees {
+    fn checked(source: &str) -> crate::checked_trees::CheckedTrees {
         checked_program(source)
     }
 
@@ -182,7 +184,7 @@ mod tests {
                     .expression_table
                     .expression(selected_use.expression)
                 {
-                    typed_trees::expression::ExpressionNode::Call(call) => {
+                    symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(call) => {
                         call.target.as_str().to_owned()
                     }
                     other => panic!("use is not a call: {other:?}"),

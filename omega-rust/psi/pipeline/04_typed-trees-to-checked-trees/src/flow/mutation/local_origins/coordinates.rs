@@ -9,10 +9,10 @@ use crate::flow::place_segment_has_unresolved_identity;
 /// an unresolved runtime index truncates the place, and only an exact result
 /// may feed value transport such as returned-reference evidence re-anchoring.
 pub(crate) fn origin_place(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
-    origin: &validation::LocalWriteOrigin,
+    origin: &crate::validation::LocalWriteOrigin,
 ) -> Option<(CanonicalPlace, bool)> {
     if origin.collection_coarse
         && let Some(place) = structural_origin(program, state, statement_index, origin)
@@ -24,10 +24,10 @@ pub(crate) fn origin_place(
 }
 
 fn structural_origin(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
-    origin: &validation::LocalWriteOrigin,
+    origin: &crate::validation::LocalWriteOrigin,
 ) -> Option<(CanonicalPlace, bool)> {
     let mut place = canonical_place_from_symbol(origin.source_root)?;
     // Existing storage-frame consumers retain the authored self parameter,
@@ -39,7 +39,7 @@ fn structural_origin(
             .iter()
             .find(|parameter| parameter.is_self)
     {
-        place.root = facts::PlaceRoot::Symbol(receiver.symbol);
+        place.root = crate::fact_plan::PlaceRoot::Symbol(receiver.symbol);
     }
     canonical_place_type_reference(program, state.symbol, statement_index, &place)?;
     for segment in &origin.source_segments {
@@ -49,8 +49,8 @@ fn structural_origin(
         // A runtime selector was evaluated at binding formation. Its current
         // expression value cannot narrow a later write through that binding.
         let segment = match segment {
-            facts::PlaceSegment::Index { .. } => return Some((place, false)),
-            facts::PlaceSegment::FixedRange { .. } => return None,
+            crate::fact_plan::PlaceSegment::Index { .. } => return Some((place, false)),
+            crate::fact_plan::PlaceSegment::FixedRange { .. } => return None,
             _ => *segment,
         };
         place.segments.push(segment);

@@ -7,11 +7,11 @@ use crate::rewrites::runtime_spill::tests::{
     selected_instruction_plan_identity,
 };
 use crate::{RuntimeSpillError, spill_selected_runtime_value, validate_runtime_spill};
-use selected_instructions::{
+use semantic_vocabulary::{OperationId, PlaceId};
+use target_operations_to_selected_instructions::{
     LocalStorageSlotId, SelectedStructuralBinding, SelectedStructuralTransport,
     SelectedValueBinding, SelectedValueTransport,
 };
-use semantic_vocabulary::{OperationId, PlaceId};
 
 #[test]
 fn instruction_defined_edge_snapshots_spill_in_any_block_order_on_every_target() {
@@ -151,7 +151,7 @@ fn registers_binding_arguments_admit_while_other_transports_reject() {
                     .operands
                     .push(function.blocks[1].instructions[1].operands[0]),
                 1 | 2 => edge.bindings.push(SelectedValueBinding {
-                    semantic: abstract_operations::ValueBinding {
+                    semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                         parameter: ValueId::new(2).unwrap(),
                         argument: ValueId::new(1).unwrap(),
                         scalar_type: function.virtual_registers[1].scalar_type,
@@ -162,7 +162,7 @@ fn registers_binding_arguments_admit_while_other_transports_reject() {
                     },
                 }),
                 3 | 4 => edge.structural_bindings.push(SelectedStructuralBinding {
-                    semantic: abstract_operations::AbstractStructuralBinding {
+                    semantic: terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding {
                         parameter: PlaceId::new(1).unwrap(),
                         argument: terminal_psi::StructuralArgument {
                             place: PlaceId::new(2).unwrap(),
@@ -372,7 +372,7 @@ fn terminator_operand_uses_reload_at_block_end_on_every_target() {
                     3 => {
                         super::super::super::control_mut(&mut function.blocks[2].terminator)
                             .operands[0]
-                            .access = register_model::RegisterOperandAccess::Def;
+                            .access = target_operations_to_selected_instructions::register_model::RegisterOperandAccess::Def;
                     }
                     4 => {
                         function.virtual_registers.pop();
@@ -431,7 +431,7 @@ fn edge_binding_arguments_reload_at_predecessor_end_on_every_target() {
                 unreachable!()
             };
             successor.bindings.push(SelectedValueBinding {
-                semantic: abstract_operations::ValueBinding {
+                semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                     parameter: ValueId::new(2).unwrap(),
                     argument: ValueId::new(1).unwrap(),
                     scalar_type,
@@ -589,7 +589,7 @@ fn branch_bindings_reload_per_edge_after_terminator_operands() {
             .clone();
         let mut bound = successor(2);
         bound.bindings.push(SelectedValueBinding {
-            semantic: abstract_operations::ValueBinding {
+            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                 parameter: ValueId::new(2).unwrap(),
                 argument: ValueId::new(1).unwrap(),
                 scalar_type,
@@ -601,7 +601,7 @@ fn branch_bindings_reload_per_edge_after_terminator_operands() {
         });
         let mut second = successor(0);
         second.bindings.push(SelectedValueBinding {
-            semantic: abstract_operations::ValueBinding {
+            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                 parameter: ValueId::new(2).unwrap(),
                 argument: ValueId::new(1).unwrap(),
                 scalar_type,
@@ -669,10 +669,10 @@ fn branch_bindings_reload_per_edge_after_terminator_operands() {
 
 #[test]
 fn case_payload_arguments_reload_after_binding_pairs_on_every_target() {
-    use selected_instructions::{
+    use semantic_vocabulary::{StructuralCaseId, StructuralFieldId};
+    use target_operations_to_selected_instructions::{
         SelectedCasePayloadBinding, SelectedCasePayloadTransport, SelectedStructuralCaseEdge,
     };
-    use semantic_vocabulary::{StructuralCaseId, StructuralFieldId};
     for target in [
         NativeTarget::linux_x64(),
         NativeTarget::linux_arm64(),
@@ -709,7 +709,7 @@ fn case_payload_arguments_reload_after_binding_pairs_on_every_target() {
                 unreachable!()
             };
             successor.bindings.push(SelectedValueBinding {
-                semantic: abstract_operations::ValueBinding {
+                semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                     parameter: ValueId::new(2).unwrap(),
                     argument: ValueId::new(1).unwrap(),
                     scalar_type,
@@ -731,10 +731,10 @@ fn case_payload_arguments_reload_after_binding_pairs_on_every_target() {
                 payloads: [6u32, 7]
                     .iter()
                     .map(|id| SelectedCasePayloadBinding {
-                        semantic: legalized_operations::LegalizedStructuralCasePayload {
+                        semantic: target_operations_to_selected_instructions::legalized_operations::LegalizedStructuralCasePayload {
                             field: StructuralFieldId::new(u64::from(*id)).unwrap(),
                             field_byte_offset: 0,
-                            parameter: legalized_operations::LegalizedValueDefinition {
+                            parameter: target_operations_to_selected_instructions::legalized_operations::LegalizedValueDefinition {
                                 value: ValueId::new(u64::from(*id)).unwrap(),
                                 scalar_type,
                                 definition_site: ValueDefinitionSite::BlockParameter {
@@ -900,7 +900,7 @@ fn undominated_and_misdeclared_binding_arguments_do_not_gain_spill_authority() {
         let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
         let scalar_type = function.virtual_registers[1].scalar_type;
         let binding = |argument, semantic_argument| SelectedValueBinding {
-            semantic: abstract_operations::ValueBinding {
+            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                 parameter: ValueId::new(2).unwrap(),
                 argument: semantic_argument,
                 scalar_type,

@@ -10,13 +10,13 @@ use super::place_observations::{
     invariant_member_place_parameters, member_root_producer_count, place_observation_root_visible,
 };
 use super::relocation_rewrites::scalar_case_result_contained;
-use abstract_operations::AbstractOperation as O;
-use optimization_unit::{
+use semantic_vocabulary::{MachineId, PlaceId, ValueId};
+use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     OptimizationBlock, OptimizationNode, OptimizerCycleComponent, OwnershipEvent,
     PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
 };
-use semantic_vocabulary::{MachineId, PlaceId, ValueId};
-use std::collections::{BTreeMap, BTreeSet};
 
 /// The source-owned node shape both scalar-call lanes share: an exact
 /// `Call` provenance whose node keeps its own operation identity as the

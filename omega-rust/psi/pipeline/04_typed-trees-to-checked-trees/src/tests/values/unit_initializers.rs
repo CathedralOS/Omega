@@ -72,10 +72,10 @@ fn destructuring_retains_generated_unit_inference_sentinels() {
         .flat_map(|state| typed.statement_table.statements(state.statement_nodes))
         .any(|statement| {
             matches!(statement,
-            typed_trees::statement::StatementNode::LocalData(local)
+            symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local)
                 if local.type_is_inferred && matches!(
                     typed.type_reference_table.type_reference(local.type_reference),
-                    typed_trees::types::TypeReferenceNode::Unit))
+                    symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Unit))
         });
     assert!(
         inferred_unit,

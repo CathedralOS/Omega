@@ -25,7 +25,7 @@ Retained acceptance cannot validate a false proof or suppress actual reachable
 authority. Reconstruct compiler findings from selected code; cached analysis is
 not an admission certificate. Preserve normalized policy sufficient to explain
 changes without the old checkout, not only opaque hashes. The lock uses versioned,
-deterministic LF text; [its codec](../../../omega-rust/omega/packages/manager/src/lock/README.md)
+deterministic LF text; [its codec](../../../omega-rust/omega/src/package_manager/lock/README.md)
 owns the physical format.
 
 ## Review and publication
@@ -180,6 +180,6 @@ transaction is recoverable rather than two simultaneously visible renames:
 recover pending intent before reading accepted state, stop on unrelated edits,
 and never delete pending publication state as disposable cache. Exact command
 and interruption behavior belongs to the
-[command](../../../omega-rust/omega/packages/manager/src/package_manager/README.md)
-and [publication](../../../omega-rust/omega/packages/manager/src/operations/publication/README.md)
+[command](../../../omega-rust/omega/src/package_manager/package_manager/README.md)
+and [publication](../../../omega-rust/omega/src/package_manager/operations/publication/README.md)
 owners.

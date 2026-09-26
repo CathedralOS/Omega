@@ -51,16 +51,16 @@ fn owned_array_arguments_replay_exact_home_type_and_fragments() {
             .unwrap();
             row.ownership.clear();
             row.kind =
-                LegalizedScalarInstructionKind::Call(legalized_operations::LegalizedScalarCall {
-                    source: legalized_operations::NativeCallOrigin::Authored,
+                LegalizedScalarInstructionKind::Call(crate::legalized_operations::LegalizedScalarCall {
+                    source: crate::legalized_operations::NativeCallOrigin::Authored,
                     callee: semantic_vocabulary::MachineId::new(2).unwrap(),
-                    arguments: vec![legalized_operations::LegalizedScalarArgument::Structural {
+                    arguments: vec![crate::legalized_operations::LegalizedScalarArgument::Structural {
                         semantic: terminal_psi::StructuralArgument {
                             place: input.place,
                             access: StructuralAccess::Owned,
                             path: Vec::new(),
                         },
-                        target: target_operations::TargetStructuralArgument {
+                        target: abstract_operations_to_target_operations::target_operations::TargetStructuralArgument {
                             place: input.place,
                             access: StructuralAccess::Owned,
                             path: Vec::new(),
@@ -71,7 +71,7 @@ fn owned_array_arguments_replay_exact_home_type_and_fragments() {
                             fixed_array_length: None,
                             element_stride: None,
                             source:
-                                target_operations::TargetStructuralArgumentSource::StructuralHome {
+                                abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::StructuralHome {
                                     psi_operation: producer,
                                 },
                             destination: call_plan.parameters[0].clone(),
@@ -90,14 +90,15 @@ fn owned_array_arguments_replay_exact_home_type_and_fragments() {
                 panic!("return");
             };
             returned.value = LegalizedScalarReturnValue::Structural {
-                source: legalized_operations::LegalizedStructuralCaseSource::OperationResult {
-                    operation: row.operation,
-                    result: output,
-                },
+                source:
+                    crate::legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+                        operation: row.operation,
+                        result: output,
+                    },
             };
             source.blocks[0].instructions.push(row);
             let environment =
-                register_environment::baseline_target_register_environment(target).unwrap();
+                crate::register_environment::baseline_target_register_environment(target).unwrap();
             let constraints = SelectedSelectionConstraints {
                 keys: environment.selected_keys(),
                 fixed_inputs: Vec::new(),
@@ -240,15 +241,16 @@ fn owned_array_arguments_replay_exact_home_type_and_fragments() {
                 else {
                     panic!("call");
                 };
-                let legalized_operations::LegalizedScalarArgument::Structural { target, .. } =
-                    &mut call.arguments[0]
+                let crate::legalized_operations::LegalizedScalarArgument::Structural {
+                    target, ..
+                } = &mut call.arguments[0]
                 else {
                     panic!("argument");
                 };
                 match mutation {
                     0 => {
                         target.source =
-                            target_operations::TargetStructuralArgumentSource::StructuralHome {
+                            abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::StructuralHome {
                                 psi_operation: OperationId::new(99).unwrap(),
                             }
                     }
@@ -319,7 +321,7 @@ fn with_narrow_scalar_result(mut source: LegalizedScalarFunction) -> LegalizedSc
     .unwrap();
     let block = source.blocks[0].id;
     let row = &mut source.blocks[0].instructions[3];
-    row.result = Some(legalized_operations::LegalizedValueDefinition {
+    row.result = Some(crate::legalized_operations::LegalizedValueDefinition {
         value: ValueId::new(3).unwrap(),
         scalar_type: ScalarType::Integer(integer),
         definition_site: ValueDefinitionSite::Node { block, node: 3 },
@@ -371,19 +373,24 @@ fn with_borrowed_argument(
     )
     .unwrap();
     let placement = source.call_plan.parameters[0].clone();
-    source.structural.as_mut().unwrap().parameters.push(
-        legalized_operations::LegalizedCallUnitParameter {
-            semantic: terminal_psi::StructuralParameterDeclaration {
-                place,
-                position: 0,
-                is_self: false,
-                structural_type,
-                multiplicity: StructuralMultiplicity::Unrestricted,
-                access: StructuralAccess::SharedBorrow,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-            },
-            target: target_operations::TargetStructuralParameter {
+    source
+        .structural
+        .as_mut()
+        .unwrap()
+        .parameters
+        .push(crate::legalized_operations::LegalizedCallUnitParameter {
+        semantic: terminal_psi::StructuralParameterDeclaration {
+            place,
+            position: 0,
+            is_self: false,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::SharedBorrow,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        },
+        target:
+            abstract_operations_to_target_operations::target_operations::TargetStructuralParameter {
                 place,
                 structural_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,
@@ -392,10 +399,13 @@ fn with_borrowed_argument(
                 shape,
                 placement: placement.clone(),
             },
-        },
-    );
+    });
     let row = &mut source.blocks[0].instructions[3];
-    row.ownership = vec![optimization_unit::OwnershipEvent::ClaimTransfer(Vec::new())];
+    row.ownership = vec![
+        terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::ClaimTransfer(
+            Vec::new(),
+        ),
+    ];
     let LegalizedScalarInstructionKind::Call(call) = &mut row.kind else {
         panic!("call");
     };
@@ -405,19 +415,20 @@ fn with_borrowed_argument(
             access: StructuralAccess::SharedBorrow,
             path: Vec::new(),
         },
-        target: target_operations::TargetStructuralArgument {
-            place,
-            access: StructuralAccess::SharedBorrow,
-            path: Vec::new(),
-            root_structural_type: structural_type,
-            structural_type,
-            shape,
-            source_byte_offset: 0,
-            fixed_array_length: None,
-            element_stride: None,
-            source: placement.clone().into(),
-            destination: placement,
-        },
+        target:
+            abstract_operations_to_target_operations::target_operations::TargetStructuralArgument {
+                place,
+                access: StructuralAccess::SharedBorrow,
+                path: Vec::new(),
+                root_structural_type: structural_type,
+                structural_type,
+                shape,
+                source_byte_offset: 0,
+                fixed_array_length: None,
+                element_stride: None,
+                source: placement.clone().into(),
+                destination: placement,
+            },
     };
     call.arguments
         .insert(usize::from(!borrowed_first), argument);

@@ -32,15 +32,15 @@ pub(super) enum AssignmentSource {
 pub(super) fn assignment_value(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     root: &Root<'_>,
     statement_index: u32,
-    assignment: &typed_trees::statement::TableAssignment,
+    assignment: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableAssignment,
     source: AssignmentSource,
     primitive_type: PrimitiveType,
     trace: &LocalConstructionTrace,
-) -> Option<checked_trees::CheckedStructuralScalarFieldStoreValue> {
+) -> Option<crate::checked_trees::CheckedStructuralScalarFieldStoreValue> {
     let value = match source {
         AssignmentSource::CallResult {
             position,
@@ -57,7 +57,7 @@ pub(super) fn assignment_value(
             ) {
                 return None;
             }
-            checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { position }
+            crate::checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { position }
         }
         AssignmentSource::Authored => authored_value(
             facts,
@@ -80,14 +80,14 @@ pub(super) fn assignment_value(
 /// mismatch, not permission to fall back to another source.
 pub(super) fn authored_value(
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: u32,
     role: CheckedScalarExpressionRole,
-    authored: typed_trees::expression::ExpressionHandle,
+    authored: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     primitive_type: PrimitiveType,
     trace: &LocalConstructionTrace,
-) -> Option<checked_trees::CheckedStructuralScalarFieldStoreValue> {
+) -> Option<crate::checked_trees::CheckedStructuralScalarFieldStoreValue> {
     let computations = &facts.values.scalar_computations;
     if let Some(root) = computations.root_at(state.symbol, statement_index, role) {
         trace.phase("structural field store: computation source");
@@ -103,7 +103,9 @@ pub(super) fn authored_value(
         {
             return None;
         }
-        return Some(checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(root.root));
+        return Some(
+            crate::checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(root.root),
+        );
     }
     trace.phase("structural field store: pure source: scalar expression row");
     let (binding, value) =
@@ -117,9 +119,7 @@ pub(super) fn authored_value(
     {
         return None;
     }
-    Some(checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(
-        value.clone(),
-    ))
+    Some(crate::checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(value.clone()))
 }
 
 /// One literal record member's value: the computation rooted at the
@@ -128,15 +128,15 @@ pub(super) fn authored_value(
 /// authored.
 pub(super) fn record_field_value(
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: u32,
-    literal: typed_trees::expression::ExpressionHandle,
+    literal: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     field_ordinal: u32,
-    field: &checked_trees::CheckedStructuralRecordField,
+    field: &crate::checked_trees::CheckedStructuralRecordField,
     primitive_type: PrimitiveType,
-) -> Option<checked_trees::CheckedStructuralScalarFieldStoreValue> {
-    let checked_trees::CheckedStructuralRecordFieldValue::Scalar(root) = field.value else {
+) -> Option<crate::checked_trees::CheckedStructuralScalarFieldStoreValue> {
+    let crate::checked_trees::CheckedStructuralRecordFieldValue::Scalar(root) = field.value else {
         return None;
     };
     facts
@@ -156,7 +156,7 @@ pub(super) fn record_field_value(
         })?;
     let node = facts.values.scalar_computations.nodes.get(root);
     (node.authored_root == field.expression && node.primitive_type == primitive_type)
-        .then_some(checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(root))
+        .then_some(crate::checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(root))
 }
 
 /// Floating stores forward existing bits: an authored IEEE literal or an
@@ -168,22 +168,22 @@ pub(super) fn record_field_value(
 fn admits(
     root: &Root<'_>,
     primitive_type: PrimitiveType,
-    value: &checked_trees::CheckedStructuralScalarFieldStoreValue,
+    value: &crate::checked_trees::CheckedStructuralScalarFieldStoreValue,
 ) -> bool {
     if !matches!(primitive_type, PrimitiveType::F32 | PrimitiveType::F64) {
         return true;
     }
     match value {
-        checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(expression) => matches!(
+        crate::checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(expression) => matches!(
             expression,
             CheckedScalarExpression::IeeeFloatLiteral { .. }
                 | CheckedScalarExpression::Parameter { .. }
                 | CheckedScalarExpression::Local { .. }
         ),
-        checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(_) => {
+        crate::checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(_) => {
             matches!(root, Root::Parameter { .. })
         }
-        checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { .. } => true,
+        crate::checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { .. } => true,
     }
 }
 
@@ -192,9 +192,9 @@ fn admits(
 /// carrier.
 pub(super) fn runtime_index(
     facts: &CheckFacts,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: u32,
-    index: typed_trees::expression::ExpressionHandle,
+    index: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> Option<CheckedScalarExpression> {
     let (binding, value) = facts.values.scalar_expressions.bound_expression_at(
         state.symbol,
@@ -223,14 +223,14 @@ pub(super) fn runtime_index(
 pub(super) fn byte_value(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     root: &Root<'_>,
     statement_index: u32,
-    assignment: &typed_trees::statement::TableAssignment,
+    assignment: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableAssignment,
     source: AssignmentSource,
     trace: &LocalConstructionTrace,
-) -> Option<checked_trees::CheckedByteSequenceStoreValue> {
+) -> Option<crate::checked_trees::CheckedByteSequenceStoreValue> {
     match assignment_value(
         program,
         facts,
@@ -243,12 +243,12 @@ pub(super) fn byte_value(
         PrimitiveType::U8,
         trace,
     )? {
-        checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(value) => {
-            Some(checked_trees::CheckedByteSequenceStoreValue::Pure(value))
+        crate::checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(value) => Some(
+            crate::checked_trees::CheckedByteSequenceStoreValue::Pure(value),
+        ),
+        crate::checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { position } => {
+            Some(crate::checked_trees::CheckedByteSequenceStoreValue::ScalarResult { position })
         }
-        checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { position } => {
-            Some(checked_trees::CheckedByteSequenceStoreValue::ScalarResult { position })
-        }
-        checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(_) => None,
+        crate::checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(_) => None,
     }
 }

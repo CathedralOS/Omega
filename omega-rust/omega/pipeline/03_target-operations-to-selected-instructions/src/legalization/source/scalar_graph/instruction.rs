@@ -4,10 +4,10 @@
 //! `scalar_instructions`.
 
 use super::{AbstractOperationPlan, Error, PsiOptimizationUnit, TargetOperationPlan};
-use abstract_operations::AbstractOperation;
-use legalized_operations::{
+use crate::legalized_operations::{
     LegalizedScalarInstruction, LegalizedScalarInstructionKind, LegalizedValueDefinition,
 };
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
 mod call_instructions;
 mod scalar_instructions;
 mod storage_instructions;
@@ -16,8 +16,8 @@ use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
 use semantic_vocabulary::IntegerValue;
 pub(super) fn project(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
@@ -179,11 +179,11 @@ pub(super) fn project(
         }
         AbstractOperation::BoundaryCall {
             boundary,
-            result: abstract_operations::AbstractBoundaryResult::Structural(result),
+            result: terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Structural(result),
             ..
         } if matches!(
             scalar_graph_input::hosted_realization(native, optimized.machine, operation)?,
-            target_operations::BoundaryRealization::HostedReadByte(_)
+            abstract_operations_to_target_operations::target_operations::BoundaryRealization::HostedReadByte(_)
         ) =>
         {
             LegalizedScalarInstructionKind::HostedReadByte {

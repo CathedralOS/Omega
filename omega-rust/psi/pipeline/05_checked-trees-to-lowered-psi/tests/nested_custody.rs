@@ -1,9 +1,11 @@
-use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use checked_trees_to_lowered_psi::{LoweringError, lower_machine};
 use proof_admission::AdmissionProfile;
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan,
+};
 
-fn checked_siblings() -> checked_trees::CheckedTrees {
+fn checked_siblings() -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
     let source = "data Main {} machine Main::run() {}
         data Value { number: u64; }
         machine forward(value: Value) -> Value { value }

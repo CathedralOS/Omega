@@ -13,8 +13,8 @@ use super::{
 };
 use crate::proofs::{CheckedIntegerComparisonKind, PrimitiveType, integer_scalar_type};
 use crate::terminal_identities::value_id;
-use checked_trees::CheckedIeeeFloatComparisonKind;
 use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue, IntegerType, PropositionError};
+use typed_trees_to_checked_trees::checked_trees::CheckedIeeeFloatComparisonKind;
 
 fn declared_value(identity: usize, scalar_type: ScalarType) -> ValueDeclaration {
     ValueDeclaration {

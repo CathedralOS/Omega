@@ -1,13 +1,19 @@
 //! Adapt exact value origins to the field-only progress subject surface.
 
 use super::{FlowCallFact, FlowFacts, FlowStateFact, ProgressSubject};
+use crate::fact_plan::{PlaceRoot, PlaceSegment};
 use crate::flow::{self, CanonicalPlace};
-use facts::{PlaceRoot, PlaceSegment};
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
-use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-use typed_trees::{TypedTrees, machine::Machine};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode, TableCallExpression,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+    StatementNode, TransitionExit, TransitionTargetNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    TypeReferenceHandle, TypeReferenceNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::{TypedTrees, machine::Machine};
 
 #[cfg(test)]
 mod tests;
@@ -19,7 +25,7 @@ pub(super) fn at_call(
     state: &FlowStateFact,
     call: &FlowCallFact,
     subject: ProgressSubject,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<ProgressSubject>> {
     let mut place = CanonicalPlace {
         root: PlaceRoot::Symbol(subject.root),
@@ -96,7 +102,7 @@ pub(super) fn at_call(
 /// trace still has to walk keeps the single-origin path.
 fn disagreeing_call_result_subjects(
     program: &TypedTrees,
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &crate::validation::CallFrameResolver<'_>,
     state: &FlowStateFact,
     call: &FlowCallFact,
     place: &CanonicalPlace,
@@ -163,7 +169,7 @@ pub(super) fn call_argument_place(
     actual: ExpressionHandle,
     declared_type: TypeReferenceHandle,
     relative: &[PlaceSegment],
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<CanonicalPlace> {
     let mut owned_frames = None;
     let frames = flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
@@ -192,7 +198,7 @@ pub(super) fn call_argument_boundary_place(
     state: &FlowStateFact,
     bound: usize,
     place: CanonicalPlace,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<CanonicalPlace> {
     let mut owned_frames = None;
     let frames = flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
@@ -244,7 +250,7 @@ struct CalleeBody<'a> {
 /// never evidence of a caller identity.
 fn call_result_value_place(
     program: &TypedTrees,
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &crate::validation::CallFrameResolver<'_>,
     state: &FlowStateFact,
     statement_index: usize,
     call: &TableCallExpression,
@@ -282,7 +288,7 @@ fn single_route(places: Option<Vec<CanonicalPlace>>) -> Option<CanonicalPlace> {
 /// that nested callee instead of stopping at an opaque leaf.
 fn call_result_place(
     program: &TypedTrees,
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &crate::validation::CallFrameResolver<'_>,
     scope: ArgumentScope<'_>,
     call: &TableCallExpression,
     result_relative: &[PlaceSegment],
@@ -378,12 +384,12 @@ fn call_result_place(
 #[allow(clippy::too_many_arguments)]
 fn call_route_place(
     program: &TypedTrees,
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &crate::validation::CallFrameResolver<'_>,
     scope: ArgumentScope<'_>,
     call: &TableCallExpression,
-    callee_state: &typed_trees::state::State,
+    callee_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     body: CalleeBody<'_>,
-    result: typed_trees::expression::ExpressionHandle,
+    result: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     result_relative: &[PlaceSegment],
     depth: usize,
 ) -> Option<CanonicalPlace> {
@@ -458,7 +464,7 @@ fn call_route_place(
 /// expression that recurses through that callee's locals and nested calls.
 fn scope_argument_place(
     program: &TypedTrees,
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &crate::validation::CallFrameResolver<'_>,
     scope: ArgumentScope<'_>,
     actual: ExpressionHandle,
     declared_type: TypeReferenceHandle,
@@ -500,7 +506,7 @@ fn scope_argument_place(
 /// names several operands, so it is not one exact origin.
 fn caller_argument_place(
     program: &TypedTrees,
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &crate::validation::CallFrameResolver<'_>,
     state: &FlowStateFact,
     statement_index: usize,
     actual: ExpressionHandle,
@@ -594,7 +600,7 @@ fn literal_operand_type(
             .find_named_type_reference(literal.type_symbol)
             .or(declared),
         ExpressionNode::ArrayLiteral(_) => {
-            declared.or_else(|| validation::declared_constant_array_type(program, rooted))
+            declared.or_else(|| crate::validation::declared_constant_array_type(program, rooted))
         }
         _ => None,
     }
@@ -608,7 +614,7 @@ fn literal_operand_type(
 /// (an opaque expression, an unresolved route) stays unproven.
 fn callee_value_place(
     program: &TypedTrees,
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &crate::validation::CallFrameResolver<'_>,
     body: CalleeBody<'_>,
     expression: ExpressionHandle,
     declared_type: TypeReferenceHandle,
@@ -652,7 +658,7 @@ fn callee_value_place(
 /// composed path as its result projection.
 fn callee_value_place_leaf(
     program: &TypedTrees,
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &crate::validation::CallFrameResolver<'_>,
     body: CalleeBody<'_>,
     expression: ExpressionHandle,
     relative: &[PlaceSegment],
@@ -770,7 +776,7 @@ fn callee_value_place_leaf(
 /// resolve through the same callee scope at a decremented depth.
 fn callee_demanded_origin(
     program: &TypedTrees,
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &crate::validation::CallFrameResolver<'_>,
     body: CalleeBody<'_>,
     place: CanonicalPlace,
     depth: usize,
@@ -828,7 +834,7 @@ fn callee_demanded_origin(
 /// stays unproven rather than borrowing a same-shaped guarantee.
 fn callee_leaves_demanded_path_unwritten(
     program: &TypedTrees,
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &crate::validation::CallFrameResolver<'_>,
     callee: &Machine,
     callee_state: &State,
     demanded: &CanonicalPlace,
@@ -929,7 +935,7 @@ const REFERENCE_BOUNDARY_HOPS: usize = 16;
 /// the next frontier's rebase — or the leaf scan's own relocation — resolves.
 fn reference_boundary_before_statement<Resolve>(
     program: &TypedTrees,
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &crate::validation::CallFrameResolver<'_>,
     machine: &Machine,
     state: &FlowStateFact,
     bound: usize,
@@ -978,7 +984,7 @@ where
 /// the position where it was captured.
 fn exclusive_reference_root_place<Resolve>(
     program: &TypedTrees,
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &crate::validation::CallFrameResolver<'_>,
     machine: &Machine,
     state: &FlowStateFact,
     bound: usize,
@@ -1154,7 +1160,7 @@ where
 /// operands.
 fn reference_bound_operand_place<Resolve>(
     program: &TypedTrees,
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &crate::validation::CallFrameResolver<'_>,
     machine: &Machine,
     state: &FlowStateFact,
     index: usize,
@@ -1185,7 +1191,7 @@ where
 /// the projection instead of a suffix appended afterward.
 fn reference_bound_operand_place_segments<Resolve>(
     program: &TypedTrees,
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &crate::validation::CallFrameResolver<'_>,
     machine: &Machine,
     state: &FlowStateFact,
     index: usize,
@@ -1432,7 +1438,7 @@ enum LeafArrival {
 /// source slot holds at the call.
 fn shared_reference_leaf_origin<Resolve>(
     program: &TypedTrees,
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &crate::validation::CallFrameResolver<'_>,
     machine: &Machine,
     state: &FlowStateFact,
     bound: usize,
@@ -1513,7 +1519,7 @@ where
                 )?;
                 let target_is_slot = target.root == slot.root;
                 let stored_type = || {
-                    validation::declared_place_type_raw(
+                    crate::validation::declared_place_type_raw(
                         program,
                         machine,
                         Some(typed_state),
@@ -1694,7 +1700,7 @@ where
 /// relocates to it. Anything else is the referent itself.
 fn leaf_candidate_arrival(
     program: &TypedTrees,
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &crate::validation::CallFrameResolver<'_>,
     machine: &Machine,
     state: &FlowStateFact,
     index: usize,

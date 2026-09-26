@@ -1,11 +1,11 @@
+use crate::checked_trees::{
+    CheckedComposedUnitControlTerminatorPlan, CheckedScalarBinding, CheckedScalarBindingValue,
+};
 use crate::tests::flow::terminal_unit::checked_with_service;
 use crate::tests::flow::terminal_unit::{
     CheckedBoundaryMachineResultPlan, CheckedScalarExpression, CheckedScalarExpressionRole,
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType, CheckedUnitStructuralTypeShape,
     Multiplicity, PrimitiveType, checked, machine_named,
-};
-use checked_trees::{
-    CheckedComposedUnitControlTerminatorPlan, CheckedScalarBinding, CheckedScalarBindingValue,
 };
 
 #[test]
@@ -217,15 +217,16 @@ fn ordered_structural_returns_keep_payload_effects_at_selected_destinations() {
         .chain(fallback.iter())
         .zip(return_values)
     {
-        let checked_trees::CheckedScalarBranchDestination::Return {
+        let crate::checked_trees::CheckedScalarBranchDestination::Return {
             statement_ordinal,
             is_continuation,
         } = destination
         else {
             panic!("value destination");
         };
-        let typed_trees::statement::StatementNode::Transition(transition) =
-            &statements[*statement_ordinal as usize]
+        let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Transition(
+            transition,
+        ) = &statements[*statement_ordinal as usize]
         else {
             panic!("authored return transition");
         };
@@ -234,7 +235,7 @@ fn ordered_structural_returns_keep_payload_effects_at_selected_destinations() {
         } else {
             transition.target
         };
-        let typed_trees::statement::TransitionTargetNode::Value(expression) =
+        let symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Value(expression) =
             checked.statement_table.transition_target(target)
         else {
             panic!("authored constructor expression");
@@ -256,7 +257,7 @@ fn ordered_structural_returns_keep_payload_effects_at_selected_destinations() {
             .root_for_expression(state.state, *statement_ordinal, *expression)
             .unwrap();
         assert_eq!(root.root, *value);
-        let checked_trees::CheckedStructuralValueKind::Case(construction) = &checked
+        let crate::checked_trees::CheckedStructuralValueKind::Case(construction) = &checked
             .facts
             .values
             .structural_values
@@ -399,7 +400,7 @@ fn retains_owned_affine_i64_record_literal_for_direct_unit_call() {
             && matches!(structural_arguments.as_slice(), [argument]
                 if argument.source_structural_result_binding_ordinal() == Some(0)
                     && argument.path.is_empty()
-                    && argument.access == checked_trees::CheckedStructuralAccess::Owned)
+                    && argument.access == crate::checked_trees::CheckedStructuralAccess::Owned)
             && trivial_affine_local_discard_ordinals.is_empty()
     ));
     let CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. } =
@@ -407,7 +408,7 @@ fn retains_owned_affine_i64_record_literal_for_direct_unit_call() {
     else {
         panic!("record construction");
     };
-    let checked_trees::CheckedStructuralValueKind::Record { fields, .. } = checked
+    let crate::checked_trees::CheckedStructuralValueKind::Record { fields, .. } = checked
         .facts
         .values
         .structural_values
@@ -426,12 +427,12 @@ fn retains_owned_affine_i64_record_literal_for_direct_unit_call() {
     else {
         panic!("one field");
     };
-    let checked_trees::CheckedStructuralRecordFieldValue::Scalar(value) = field.value else {
+    let crate::checked_trees::CheckedStructuralRecordFieldValue::Scalar(value) = field.value else {
         panic!("exact scalar field operand");
     };
     assert!(
         matches!(&checked.facts.values.scalar_computations.nodes.get(value).kind,
-        checked_trees::CheckedScalarComputationKind::Value(CheckedScalarExpression::IntegerLiteral { literal }) if literal.value_i64() == Some(7))
+        crate::checked_trees::CheckedScalarComputationKind::Value(CheckedScalarExpression::IntegerLiteral { literal }) if literal.value_i64() == Some(7))
     );
 }
 
@@ -467,7 +468,7 @@ fn retains_exact_byte_literal_for_static_bodyless_boundary() {
     assert!(matches!(
         byte_type.shape,
         CheckedUnitStructuralTypeShape::ByteSequence(
-            checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
+            crate::checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
         )
     ));
     let root = plans
@@ -789,7 +790,7 @@ fn retains_boundary_case_payload_and_mutable_view_on_the_same_state_edge() {
             let event = changed.flow.ownership.permissions.get_mut(handle);
             match mutation {
                 "missing" => event.source = language_semantics::PermissionEventSource::StateEntry,
-                "root" => event.root = facts::PlaceRoot::Unknown,
+                "root" => event.root = crate::fact_plan::PlaceRoot::Unknown,
                 "provenance" => {
                     event.provenance = language_semantics::PermissionProvenance::Unknown
                 }
@@ -950,7 +951,7 @@ fn composes_conditional_unit_control_with_exact_boundary_call_leaves() {
     assert!(entry.operations.is_empty());
     assert!(matches!(
         entry.terminator,
-        checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
+        crate::checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
     ));
     for leaf in [when_true, when_false] {
         assert!(matches!(
@@ -959,7 +960,7 @@ fn composes_conditional_unit_control_with_exact_boundary_call_leaves() {
         ));
         assert!(matches!(
             leaf.terminator,
-            checked_trees::CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+            crate::checked_trees::CheckedComposedUnitControlTerminatorPlan::ReturnUnit
         ));
     }
 }
@@ -995,7 +996,7 @@ fn composes_closed_guard_with_one_provider_backed_attachment() {
     );
     assert!(matches!(
         machine.states[0].terminator,
-        checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
+        crate::checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
     ));
 }
 
@@ -1028,7 +1029,7 @@ fn composes_one_compile_known_u64_binding_with_exact_boundary_leaves() {
     assert!(matches!(
         entry.bindings.as_slice(),
         [CheckedScalarBinding {
-            destination: checked_trees::CheckedScalarBindingDestination::Immutable,
+            destination: crate::checked_trees::CheckedScalarBindingDestination::Immutable,
             statement_ordinal: 0,
             primitive_type: PrimitiveType::U64,
             value: CheckedScalarBindingValue::Expression,
@@ -1085,7 +1086,7 @@ fn rejects_the_whole_composed_control_plan_when_one_leaf_loses_scalar_evidence()
     let leaf = &plan.states[2];
     assert!(matches!(leaf.operations.as_slice(), [
         CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. },
-        CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value: checked_trees::CheckedCallScalarArgument::Pure(_), .. },
+        CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value: crate::checked_trees::CheckedCallScalarArgument::Pure(_), .. },
     ] if coordinate.statement_index == 0 && result.statement_index == 1 && result.binding_ordinal == 0));
     let mut facts = checked.facts.clone();
     let before = facts.values.scalar_expressions.expressions.len();
@@ -1252,7 +1253,7 @@ fn retains_shared_byte_sequence_forwarding_access() {
         .expect("shared byte-sequence forwarding plan");
     assert_eq!(
         enter.structural_parameters[0].access,
-        checked_trees::CheckedStructuralAccess::SharedBorrow
+        crate::checked_trees::CheckedStructuralAccess::SharedBorrow
     );
     let CheckedUnitEffectOperationPlan::BoundaryCall {
         structural_arguments,
@@ -1263,6 +1264,6 @@ fn retains_shared_byte_sequence_forwarding_access() {
     };
     assert_eq!(
         structural_arguments[0].access,
-        checked_trees::CheckedStructuralAccess::SharedBorrow
+        crate::checked_trees::CheckedStructuralAccess::SharedBorrow
     );
 }

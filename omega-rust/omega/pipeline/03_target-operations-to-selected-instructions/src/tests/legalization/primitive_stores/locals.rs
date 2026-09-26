@@ -90,7 +90,7 @@ fn local_establishment_store_and_read_reject_target_and_legalized_corruption() {
             abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
         )
         .unwrap();
-        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             FuelScheduleIdentity::new(1).unwrap(),
         )
@@ -171,9 +171,13 @@ fn local_establishment_store_and_read_reject_target_and_legalized_corruption() {
 
 #[test]
 fn boolean_branch_replay_rejects_substituted_or_unavailable_read_homes() {
-    use abstract_operations::{AbstractBlockEntry, AbstractSuccessor};
+    use abstract_operations_to_target_operations::target_operations::{
+        TargetBooleanExpression, TargetControlTerminator,
+    };
     use semantic_vocabulary::{BlockId, EdgeId};
-    use target_operations::{TargetBooleanExpression, TargetControlTerminator};
+    use terminal_psi_to_abstract_operations::abstract_operations::{
+        AbstractBlockEntry, AbstractSuccessor,
+    };
 
     let mut source = fixture(ScalarType::Boolean);
     let function = &mut source.functions[0];
@@ -215,7 +219,7 @@ fn boolean_branch_replay_rejects_substituted_or_unavailable_read_homes() {
             abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
         )
         .unwrap();
-        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             FuelScheduleIdentity::new(1).unwrap(),
         )
@@ -247,8 +251,9 @@ fn boolean_branch_replay_rejects_substituted_or_unavailable_read_homes() {
             );
         }
         let mut changed = legalized.plan().clone();
-        let legalized_operations::LegalizedScalarTerminator::Conditional { condition, .. } =
-            &mut changed.scalar_functions[0].blocks[0].terminator
+        let crate::legalized_operations::LegalizedScalarTerminator::Conditional {
+            condition, ..
+        } = &mut changed.scalar_functions[0].blocks[0].terminator
         else {
             panic!("legalized conditional");
         };

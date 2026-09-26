@@ -23,7 +23,10 @@ pub(crate) fn collect_machine_proposals_for_callee(
     candidates: &[Candidate],
     callee: &CalleeState,
     machine_arguments: &[StaticMachineArgument],
-    runtime_scope: Option<(&typed_trees::state::State, usize)>,
+    runtime_scope: Option<(
+        &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+        usize,
+    )>,
     machine_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
     evidence_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
     type_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
@@ -162,8 +165,9 @@ pub(crate) fn collect_machine_proposals_for_callee(
             // contract. Generic specialization binds the underlying runtime
             // carrier so a qualified entry still matches the ordinary value
             // supplied at the selecting call site.
-            let actual_type = validation::unwrapped_type_reference(program, actual.type_reference)
-                .unwrap_or(actual.type_reference);
+            let actual_type =
+                crate::validation::unwrapped_type_reference(program, actual.type_reference)
+                    .unwrap_or(actual.type_reference);
             infer_static_bindings(
                 program,
                 required.type_reference,
@@ -213,7 +217,7 @@ pub(crate) fn resolve_callee<'a>(
 pub(crate) fn state_by_symbol(
     program: &TypedTrees,
     symbol: SymbolHandle,
-) -> Option<&typed_trees::state::State> {
+) -> Option<&symbol_resolved_trees_to_typed_trees::typed_trees::state::State> {
     program
         .machines()
         .iter()
@@ -303,7 +307,7 @@ pub(crate) fn collect_expression_tree(
         ExpressionNode::Match(dispatch) => {
             collect_expression_tree(program, dispatch.subject, handles);
             for arm in program.expression_table.match_arms(dispatch.arms) {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                     collect_expression_tree(program, pattern, handles);
                 }
                 collect_expression_tree(program, arm.value, handles);
@@ -361,7 +365,7 @@ pub(crate) fn collect_expression_tree(
 /// statement whose expression tree contains it.
 pub(crate) fn enclosing_statement_ordinal(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     site: CallSite,
 ) -> Option<usize> {
     match site {

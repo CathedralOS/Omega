@@ -8,8 +8,10 @@ use crate::checks::contracts::exits::scalars::ExitScalars;
 use crate::checks::contracts::exits::scalars::stable_segments;
 use crate::checks::contracts::prover::evaluate_scalar;
 use crate::flow::canonical_place_from_expression_in_state;
-use typed_trees::data::{TypeParameter, TypeParameterKind};
-use typed_trees::expression::{BinaryOperator, ExpressionNode, StaticMachineArgument};
+use symbol_resolved_trees_to_typed_trees::typed_trees::data::{TypeParameter, TypeParameterKind};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    BinaryOperator, ExpressionNode, StaticMachineArgument,
+};
 
 #[derive(PartialEq, Eq)]
 enum StaticResult {
@@ -74,7 +76,8 @@ impl ExitScalars<'_, '_> {
             .program
             .primitive_type_reference(selected.entry.return_type)?;
         if !result_type.accepts_integer_literal()
-            && result_type != typed_trees::types::PrimitiveType::Bool
+            && result_type
+                != symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::Bool
         {
             return None;
         }
@@ -92,7 +95,7 @@ impl ExitScalars<'_, '_> {
             // reserved occurrence owned by this exact ensures clause denotes
             // the returned value; the declaration's ordinary binders do not.
             let is_returned_value = |expression| {
-                validation::reserved_result_owner(self.program, expression)
+                crate::validation::reserved_result_owner(self.program, expression)
                     .is_some_and(|(owner, _)| owner == selected.callee.symbol)
             };
             let value = if is_returned_value(binary.left) {
@@ -129,7 +132,7 @@ impl ExitScalars<'_, '_> {
                 ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => {
                     // Specialization has already replaced the const binder by
                     // a typed closed leaf in the declaration's guarantee.
-                    if !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                    if !symbol_resolved_trees_to_typed_trees::typed_trees::operator::has_builtin_spelled_expression_meaning(
                         self.program,
                         selected.callee.symbol,
                         guarantee,
@@ -152,7 +155,7 @@ impl ExitScalars<'_, '_> {
                 _ => continue,
             };
             if self.program.primitive_type_reference(value_type) != Some(result_type)
-                || !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                || !symbol_resolved_trees_to_typed_trees::typed_trees::operator::has_builtin_spelled_expression_meaning(
                     self.program,
                     selected.callee.symbol,
                     guarantee,

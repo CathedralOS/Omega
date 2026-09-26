@@ -1,7 +1,7 @@
+use crate::symbol_resolved_trees::data::{DataDefinition, DataMember};
+use crate::symbol_resolved_trees::types::TypeReference;
 use arena::{Arena, OrderedRootArena};
 use language_core::is_self_receiver;
-use symbol_resolved_trees::data::{DataDefinition, DataMember};
-use symbol_resolved_trees::types::TypeReference;
 use symbols::{SymbolHandle, SymbolLookup, SymbolTable};
 
 #[derive(Clone, Copy)]
@@ -11,9 +11,9 @@ pub(super) struct AttachedMachine {
 }
 
 pub(super) fn attached_machines(
-    program: &symbol_resolved_trees::SymbolResolvedTrees,
+    program: &crate::symbol_resolved_trees::SymbolResolvedTrees,
 ) -> Vec<AttachedMachine> {
-    use symbol_resolved_trees::trait_definition::{
+    use crate::symbol_resolved_trees::trait_definition::{
         ConformanceImplementation, ConformanceRowSource,
     };
     program
@@ -59,15 +59,16 @@ pub(super) fn attached_machines(
 pub(super) struct MachineScope<'program> {
     pub(super) symbol: SymbolHandle,
     pub(super) attached_machines: &'program [AttachedMachine],
-    pub(super) type_parameters: &'program [symbol_resolved_trees::data::TypeParameter],
-    pub(super) attached_data: Option<&'program symbol_resolved_trees::name::DiagnosticName>,
+    pub(super) type_parameters: &'program [crate::symbol_resolved_trees::data::TypeParameter],
+    pub(super) attached_data: Option<&'program crate::symbol_resolved_trees::name::DiagnosticName>,
     pub(super) attached_data_symbol: SymbolHandle,
-    pub(super) inherited_data_members: Option<&'program [symbol_resolved_trees::data::DataMember]>,
-    pub(super) owned_data: &'program [symbol_resolved_trees::machine::OwnedData],
+    pub(super) inherited_data_members:
+        Option<&'program [crate::symbol_resolved_trees::data::DataMember]>,
+    pub(super) owned_data: &'program [crate::symbol_resolved_trees::machine::OwnedData],
     /// Only the already-stamped prefix of the current state's statements.
     /// Local receiver types cannot come from a later declaration or from the
     /// binding whose initializer is currently being resolved.
-    pub(super) prior_statements: &'program [symbol_resolved_trees::statement::Statement],
+    pub(super) prior_statements: &'program [crate::symbol_resolved_trees::statement::Statement],
     /// All top-level data definitions and the shared member arena -- lets the
     /// receiver walk resolve a NESTED member chain's declared field types
     /// (`self.p.a` -> `p: PairD` -> `a: BoxI`). Empty for scopes built outside
@@ -75,8 +76,9 @@ pub(super) struct MachineScope<'program> {
     /// receivers do not occur.
     pub(super) data_definitions: &'program OrderedRootArena<DataDefinition>,
     pub(super) data_members: &'program Arena<DataMember>,
-    pub(super) data_payload_fields: &'program Arena<symbol_resolved_trees::data::DataField>,
-    pub(super) type_constraints: &'program Arena<symbol_resolved_trees::types::TypeConstraint>,
+    pub(super) data_payload_fields: &'program Arena<crate::symbol_resolved_trees::data::DataField>,
+    pub(super) type_constraints:
+        &'program Arena<crate::symbol_resolved_trees::types::TypeConstraint>,
 }
 
 impl MachineScope<'_> {
@@ -84,7 +86,7 @@ impl MachineScope<'_> {
         &self,
         symbols: &SymbolTable,
         owner: SymbolHandle,
-        target: &symbol_resolved_trees::name::DiagnosticName,
+        target: &crate::symbol_resolved_trees::name::DiagnosticName,
     ) -> SymbolHandle {
         if !owner.is_valid() || symbols.get(owner).kind != symbols::SymbolKind::Data {
             return SymbolHandle::invalid();
@@ -173,7 +175,7 @@ impl MachineScope<'_> {
         &self,
         symbols: &SymbolTable,
         field_symbol: SymbolHandle,
-    ) -> Option<&symbol_resolved_trees::types::TypeReference> {
+    ) -> Option<&crate::symbol_resolved_trees::types::TypeReference> {
         if symbols.get(self.symbol).kind == symbols::SymbolKind::Variant
             && symbols.get(field_symbol).parent == self.symbol
         {
@@ -197,7 +199,7 @@ impl MachineScope<'_> {
         }
         if let Some(data_members) = self.inherited_data_members {
             for member in data_members {
-                let symbol_resolved_trees::data::DataMember::Field(field) = member else {
+                let crate::symbol_resolved_trees::data::DataMember::Field(field) = member else {
                     continue;
                 };
                 if field.symbol == field_symbol

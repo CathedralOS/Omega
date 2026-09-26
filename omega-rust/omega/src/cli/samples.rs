@@ -1,5 +1,5 @@
-use compiler::CompileOptions;
 use omega::compilation::{CompileProjectRequest, compile_project};
+use omega::compiler::CompileOptions;
 use std::path::{Path, PathBuf};
 use target::TargetProfile;
 

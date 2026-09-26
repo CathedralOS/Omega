@@ -25,13 +25,14 @@ pub(super) struct Planner<'a, 'program, 'shapes> {
     pub(super) facts: &'program CheckFacts,
     pub(super) scalar_callees: ScalarCalleePlans<'a>,
     pub(super) shapes: &'a mut ShapeCollector<'shapes>,
-    pub(super) machine: &'program typed_trees::machine::Machine,
-    pub(super) state: &'program typed_trees::state::State,
+    pub(super) machine:
+        &'program symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    pub(super) state: &'program symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     pub(super) structural_parameters: &'a mut [CheckedUnitStructuralParameterPlan],
     pub(super) entry_claims: &'a [CheckedUnitEntryClaimPlan],
     pub(super) trivial_affine_locals:
         &'a [(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
-    pub(super) calls: &'a [&'a checked_trees::FlowCallFact],
+    pub(super) calls: &'a [&'a crate::checked_trees::FlowCallFact],
     pub(super) trace: &'a LocalConstructionTrace,
     pub(super) binders: &'a [(SymbolHandle, String)],
     pub(super) operations: &'a mut Vec<CheckedUnitEffectOperationPlan>,
@@ -40,8 +41,10 @@ pub(super) struct Planner<'a, 'program, 'shapes> {
     pub(super) structural_local_symbols: &'a mut Vec<SymbolHandle>,
     pub(super) array_bindings: &'a mut Vec<(SymbolHandle, CheckedUnitStructuralResultBindingPlan)>,
     pub(super) returned_call: &'a mut Option<CheckedUnitStructuralResultBindingPlan>,
-    pub(super) structural_results:
-        &'a mut Vec<(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)>,
+    pub(super) structural_results: &'a mut Vec<(
+        CheckedUnitStructuralResultBindingPlan,
+        crate::fact_plan::PlaceRoot,
+    )>,
 }
 
 /// What the statement's own producer left for its call.
@@ -63,7 +66,7 @@ pub(super) struct StatementCall {
 
 pub(super) fn plan(
     planner: Planner<'_, '_, '_>,
-    statement: &typed_trees::statement::StatementNode,
+    statement: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode,
     index: usize,
     statement_index: u32,
     statement_call: StatementCall,
@@ -150,7 +153,7 @@ pub(super) fn plan(
                 *structural_count = structural_count.checked_add(1)?;
                 structural_results.push((
                     result.clone(),
-                    facts::PlaceRoot::Expression(array.expression),
+                    crate::fact_plan::PlaceRoot::Expression(array.expression),
                 ));
                 operations.push(CheckedUnitEffectOperationPlan::EstablishScalarArray {
                     source: array.source,
@@ -197,14 +200,14 @@ pub(super) fn plan(
                 *structural_count = structural_count.checked_add(1)?;
                 structural_results.push((
                     result.clone(),
-                    facts::PlaceRoot::Expression(root.expression),
+                    crate::fact_plan::PlaceRoot::Expression(root.expression),
                 ));
                 operations.push(CheckedUnitEffectOperationPlan::EstablishStructuralValue {
                     result,
                     value: root.root,
                     calls,
                     operand_source: Some(
-                        checked_trees::CheckedArrayConstructionSource::CallArgument {
+                        crate::checked_trees::CheckedArrayConstructionSource::CallArgument {
                             call_ordinal: u32::try_from(call.call_ordinal).ok()?,
                             parameter_position,
                         },
@@ -248,7 +251,7 @@ pub(super) fn plan(
         operations.push(operation);
         structural_results.push((
             result,
-            facts::PlaceRoot::Expression(nested.authored_expression),
+            crate::fact_plan::PlaceRoot::Expression(nested.authored_expression),
         ));
         *structural_count = structural_count.checked_add(1)?;
     }
@@ -276,7 +279,7 @@ pub(super) fn plan(
             .iter()
             .filter(|(result, root)| {
                 result.statement_index == statement_index
-                    && matches!(root, facts::PlaceRoot::Expression(_))
+                    && matches!(root, crate::fact_plan::PlaceRoot::Expression(_))
             })
             .filter_map(|(result, root)| {
                 let candidate = super::super::super::cleanup::anonymous::binding_at(
@@ -368,7 +371,7 @@ pub(super) fn plan(
         if let Some(symbol) = symbol {
             structural_local_symbols.push(symbol);
             if matches!(statement, StatementNode::LocalData(local)
-                if validation::is_closed_primitive_array_type(program, local.type_reference))
+                if crate::validation::is_closed_primitive_array_type(program, local.type_reference))
             {
                 array_bindings.push((symbol, result.clone()));
             }
@@ -377,7 +380,7 @@ pub(super) fn plan(
                 CheckedUnitEffectOperationPlan::StructuralCall { .. }
                     | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
             ) {
-                structural_results.push((result, facts::PlaceRoot::Symbol(symbol)));
+                structural_results.push((result, crate::fact_plan::PlaceRoot::Symbol(symbol)));
             }
         }
         *structural_count = structural_count.checked_add(1)?;

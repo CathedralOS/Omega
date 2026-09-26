@@ -10,12 +10,12 @@
 //! survives that replacement boundary. Baseline contents still copy per sweep,
 //! including context-point links, while clone_from reuses their allocations.
 //! This is not a generation-preserving suffix rollback into a live fact plan.
+use crate::checked_trees::{BorrowFacts, DomainFacts, FlowFacts, ProofFacts};
+use crate::fact_plan::{FactPlan, ProgramPoint};
 use crate::flow::FlowBuildContext;
 use crate::flow::StateMutationSummaryCache;
 use crate::flow::attach_reach_summaries;
 use crate::flow::build_state_flow_fact;
-use checked_trees::{BorrowFacts, DomainFacts, FlowFacts, ProofFacts};
-use facts::{FactPlan, ProgramPoint};
 
 #[cfg(test)]
 pub(super) mod tests;
@@ -24,14 +24,14 @@ mod whole_pass_reference;
 
 #[cfg(test)]
 pub(crate) fn build_flow_facts(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     proof: &ProofFacts,
     semantic: &mut FactPlan,
     domains: &DomainFacts,
-    operational: &flow_effects::OperationalPlan,
+    operational: &crate::flow_effects::OperationalPlan,
 ) -> FlowFacts {
-    let service_reaches = validation::infer_service_reaches(program, operational);
+    let service_reaches = crate::validation::infer_service_reaches(program, operational);
     let state_mutation_summary_cache = StateMutationSummaryCache::default();
     build_flow_facts_with_service_reaches(
         program,
@@ -51,18 +51,18 @@ pub(crate) fn build_flow_facts(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn build_flow_facts_with_service_reaches(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     proof: &ProofFacts,
     semantic: &mut FactPlan,
     domains: &DomainFacts,
-    operational: &flow_effects::OperationalPlan,
-    service_reaches: &flow_effects::ServiceReachInferencePlan,
-    scalar_expressions: &checked_trees::CheckedScalarExpressionPlans,
-    operators: &checked_trees::CheckedOperatorFacts,
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
+    operational: &crate::flow_effects::OperationalPlan,
+    service_reaches: &crate::flow_effects::ServiceReachInferencePlan,
+    scalar_expressions: &crate::checked_trees::CheckedScalarExpressionPlans,
+    operators: &crate::checked_trees::CheckedOperatorFacts,
+    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
     state_mutation_summary_cache: &StateMutationSummaryCache,
-    shared_call_frames: Option<&validation::CallFrameResolver<'_>>,
+    shared_call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> FlowFacts {
     #[cfg(test)]
     if tests::WHOLE_PASS_REFERENCE.get() {

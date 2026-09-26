@@ -4,16 +4,16 @@ use std::collections::BTreeMap;
 
 use optimization_core::OptimizationWorkUsage;
 
-use crate::{
-    FixedViewCopyError, ValidatedAllocationLegality, ValidatedFixedPrecoloredIntervals,
-    ValidatedFixedPrecoloredSegmentHomes, ValidatedFixedPrecoloredSplitRequirements,
-    ValidatedLiveRanges,
-};
-use register_homes::{
+use crate::register_homes::{
     FixedPrecoloredIntervalPolicy, FixedPrecoloredSegmentHomePolicy,
     FixedPrecoloredSourceSegmentHome, FixedPrecoloredSourceSegmentOpening,
     FixedPrecoloredSplitRequirementPolicy, FunctionFixedPrecoloredSegmentHomes,
     FunctionFixedPrecoloredSplitRequirements,
+};
+use crate::{
+    FixedViewCopyError, ValidatedAllocationLegality, ValidatedFixedPrecoloredIntervals,
+    ValidatedFixedPrecoloredSegmentHomes, ValidatedFixedPrecoloredSplitRequirements,
+    ValidatedLiveRanges,
 };
 
 use super::{AuthenticatedFixedViewBoundary, FixedViewBoundaryEvidence};
@@ -176,9 +176,9 @@ fn derive_roster(
 }
 
 fn validate_assignment(
-    register: selected_instructions::VirtualRegisterId,
-    class: register_model::RegisterClassId,
-    segment: &register_homes::FixedPrecoloredSourceSegment,
+    register: target_operations_to_selected_instructions::VirtualRegisterId,
+    class: target_operations_to_selected_instructions::register_model::RegisterClassId,
+    segment: &crate::register_homes::FixedPrecoloredSourceSegment,
     assignment: &FixedPrecoloredSourceSegmentHome,
 ) -> Result<(), FixedViewCopyError> {
     if assignment.virtual_register != register

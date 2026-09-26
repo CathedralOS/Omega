@@ -4,15 +4,15 @@ use super::{
     SelectedValueTransport, VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
-use crate::selection::edge_transfers::instruction_count;
-use crate::selection::edge_transfers::invalid;
-use crate::selection::edge_transfers::successors_mut;
-use register_model::ValidatedRegisterConstraintCatalog;
-use selected_instructions::{
+use crate::register_model::ValidatedRegisterConstraintCatalog;
+use crate::selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionProvenance, SelectedSelectionConstraints, VirtualRegister,
     VirtualRegisterOrigin,
 };
+use crate::selection::edge_transfers::instruction_count;
+use crate::selection::edge_transfers::invalid;
+use crate::selection::edge_transfers::successors_mut;
 mod structural_case;
 
 pub(in crate::selection) fn prepare(
@@ -65,7 +65,8 @@ pub(in crate::selection) fn prepare(
                 .collect::<Vec<_>>();
             if active.is_empty()
                 && successor.structural_bindings.iter().all(|binding| {
-                    binding.transport == selected_instructions::SelectedStructuralTransport::Unused
+                    binding.transport
+                        == crate::selected_instructions::SelectedStructuralTransport::Unused
                 })
             {
                 if !conditional || position != 1 {
@@ -210,7 +211,8 @@ pub(in crate::selection) fn prepare(
                 binding.transport = SelectedValueTransport::Unused;
             }
             for binding in &mut successor.structural_bindings {
-                binding.transport = selected_instructions::SelectedStructuralTransport::Unused;
+                binding.transport =
+                    crate::selected_instructions::SelectedStructuralTransport::Unused;
             }
         }
     }

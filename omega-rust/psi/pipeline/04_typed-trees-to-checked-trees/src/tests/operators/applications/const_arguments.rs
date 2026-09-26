@@ -26,7 +26,7 @@ fn checked_named_boundary_use_retains_inferred_const_value_and_carrier() {
         panic!("one closed const application")
     };
     let [
-        checked_trees::CheckedBoundaryOperatorApplicationArgument::Const {
+        crate::checked_trees::CheckedBoundaryOperatorApplicationArgument::Const {
             binder_owner,
             binder_ordinal,
             binder_symbol,
@@ -42,7 +42,7 @@ fn checked_named_boundary_use_retains_inferred_const_value_and_carrier() {
     assert!(binder_symbol.is_valid());
     assert_eq!(
         checked.typed.primitive_type_reference(*declared_carrier),
-        Some(typed_trees::types::PrimitiveType::U64)
+        Some(symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U64)
     );
     assert_eq!(*value, CanonicalConstIdentity::integer("u64", 4));
     assert_eq!(
@@ -72,7 +72,7 @@ fn checked_spelled_boundary_use_retains_inferred_const_value() {
     let [application] = checked.facts.operators.boundary_applications.as_slice() else {
         panic!("one spelled const application")
     };
-    let [checked_trees::CheckedBoundaryOperatorApplicationArgument::Const { value, .. }] =
+    let [crate::checked_trees::CheckedBoundaryOperatorApplicationArgument::Const { value, .. }] =
         application.arguments.as_slice()
     else {
         panic!("one const argument")
@@ -159,11 +159,11 @@ fn mixed_type_and_const_application_retains_declaration_order() {
     assert!(matches!(
         application.arguments.as_slice(),
         [
-            checked_trees::CheckedBoundaryOperatorApplicationArgument::Const {
+            crate::checked_trees::CheckedBoundaryOperatorApplicationArgument::Const {
                 binder_ordinal: 0,
                 ..
             },
-            checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
+            crate::checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
                 binder_ordinal: 1,
                 ..
             }
@@ -190,7 +190,7 @@ fn synthesized_generic_operand_recovers_its_const_application() {
     let [application] = checked.facts.operators.boundary_applications.as_slice() else {
         panic!("one reconstructed generic application")
     };
-    let [checked_trees::CheckedBoundaryOperatorApplicationArgument::Const { value, .. }] =
+    let [crate::checked_trees::CheckedBoundaryOperatorApplicationArgument::Const { value, .. }] =
         application.arguments.as_slice()
     else {
         panic!("one reconstructed const argument")
@@ -243,19 +243,20 @@ fn spelled_const_application_reports_an_invalid_declared_carrier_value() {
 
 #[test]
 fn const_binder_absent_from_operands_remains_open() {
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let const_carrier = named_type(&mut program, "u64");
     let operand_type = named_type(&mut program, "u8");
     let mut operator =
         operator_with_spelling(SymbolHandle::from_arena_index(901), OperatorSpelling::Add);
     program.push_operator_type_parameter(
         &mut operator,
-        typed_trees::data::TypeParameter {
+        symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameter {
             symbol: SymbolHandle::from_arena_index(902),
             name: Identifier::generated("N"),
-            kind: typed_trees::data::TypeParameterKind::Const {
-                type_reference: const_carrier,
-            },
+            kind:
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Const {
+                    type_reference: const_carrier,
+                },
             bounds: Default::default(),
         },
     );
@@ -273,7 +274,7 @@ fn const_binder_absent_from_operands_remains_open() {
     );
 
     assert!(
-        typed_trees::operator::closed_operator_application_for_operands(
+        symbol_resolved_trees_to_typed_trees::typed_trees::operator::closed_operator_application_for_operands(
             &program,
             &operator,
             &[Some(operand_type)],

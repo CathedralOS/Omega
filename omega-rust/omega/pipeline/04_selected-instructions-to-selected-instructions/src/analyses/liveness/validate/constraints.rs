@@ -2,9 +2,9 @@
 
 use super::instruction_order::ordered_instructions;
 use crate::analyses::liveness::LivenessError;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{SelectedFunction, VirtualRegisterId};
 use std::collections::BTreeSet;
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::{SelectedFunction, VirtualRegisterId};
 
 pub(super) fn reject_v1_unsupported(
     function_index: usize,

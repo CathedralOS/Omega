@@ -6,24 +6,26 @@ use crate::rewrites::unexecuted::peepholes::ValidatedProjectedAccess;
 use crate::rewrites::unexecuted::peepholes::fold_selected_projected_access;
 use crate::rewrites::unexecuted::peepholes::validate_projected_access_fold;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
-use optimization_unit::ValueDefinitionSite;
-use register_environment::{
-    ValidatedTargetRegisterEnvironment, baseline_target_register_environment,
-};
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
-use selected_instructions::{
-    SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedOperand,
-    SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator, ValidatedMachineEffectCatalog,
-    VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
-};
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, OperationId,
     ScalarType, ValueId,
 };
 use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::{
+    ValidatedTargetRegisterEnvironment, baseline_target_register_environment,
+};
+use target_operations_to_selected_instructions::register_model::{
+    RegisterInstructionConstraint, RegisterOperandAccess,
+};
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use target_operations_to_selected_instructions::{
+    SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
+    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedOperand,
+    SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator, ValidatedMachineEffectCatalog,
+    VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
 fn budget() -> OptimizationWorkBudget {
     OptimizationWorkBudget::new(100, 100, 100_000, 100, 100).unwrap()
@@ -96,7 +98,7 @@ impl Access {
     fn key(
         self,
         environment: &ValidatedTargetRegisterEnvironment,
-    ) -> register_model::RegisterConstraintKey {
+    ) -> target_operations_to_selected_instructions::register_model::RegisterConstraintKey {
         let keys = environment.selected_keys();
         match self {
             Self::Load8 => keys.load8,
@@ -112,7 +114,7 @@ impl Access {
 fn register(
     id: VirtualRegisterId,
     scalar_type: ScalarType,
-    class: register_model::RegisterClassId,
+    class: target_operations_to_selected_instructions::register_model::RegisterClassId,
     origin: VirtualRegisterOrigin,
 ) -> VirtualRegister {
     VirtualRegister {
@@ -654,7 +656,7 @@ fn undeclared_consumer_kinds_reject() {
         function.blocks[0].instructions[1] = instruction(
             ACCESS,
             SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Incoming {
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Incoming {
                     parameter_index: 0,
                     abi_stack_byte_offset: 0,
                 },
@@ -734,7 +736,7 @@ fn decorated_operands_reject() {
     let environment = baseline_target_register_environment(target).unwrap();
     let pinned_consumer = mutated(target, |function, _| {
         function.blocks[0].instructions[1].operands[0].fixed_view =
-            Some(register_model::RegisterViewId(0));
+            Some(target_operations_to_selected_instructions::register_model::RegisterViewId(0));
     });
     assert_eq!(
         fold(&pinned_consumer, &environment).unwrap_err(),
@@ -837,7 +839,8 @@ fn operand_shape_mismatch_rejects() {
 fn class_mismatch_rejects() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
-    let foreign_class = register_model::RegisterClassId(u16::MAX);
+    let foreign_class =
+        target_operations_to_selected_instructions::register_model::RegisterClassId(u16::MAX);
     // The consumer's operand-0 class no longer matches its constraint row.
     let consumer_operand_class = mutated(target, |function, _| {
         function.blocks[0].instructions[1].operands[0].class = foreign_class;

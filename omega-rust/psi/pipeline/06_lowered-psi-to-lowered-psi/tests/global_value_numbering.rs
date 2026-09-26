@@ -5,13 +5,13 @@
 
 use crate::common;
 
+use checked_trees_to_lowered_psi::lowered_psi::LoweredPsi;
 use common::{
     block, block_id, boolean, conditional, edge, i32, jump, lowered, machine, operation,
     operation_id, return_value, successor, value, with_debug_sites,
 };
-use lowered_psi::LoweredPsi;
 use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};
-use optimization::{PsiOptimization, PsiOptimizationSelections};
+use terminal_codec::optimization::{PsiOptimization, PsiOptimizationSelections};
 use terminal_psi::{DebugSubject, OperationKind, TerminalMachineResult, Terminator};
 use terminal_verifier::{GlobalValueNumberingRewriteError, validate_global_value_numbering};
 

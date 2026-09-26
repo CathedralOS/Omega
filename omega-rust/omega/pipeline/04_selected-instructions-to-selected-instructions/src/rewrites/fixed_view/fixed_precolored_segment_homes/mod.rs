@@ -23,8 +23,8 @@ use crate::{
     ValidatedLiveRanges, ValidatedLiveness,
 };
 use optimization_core::OptimizationSelections;
-use register_environment::ValidatedTargetRegisterEnvironment;
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
 
 /// Borrow-only admission probe for this stage: the same source custody check
 /// and fixed/precolored derivation the consuming entry runs, without taking

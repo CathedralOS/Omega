@@ -18,7 +18,7 @@ use crate::{
     ValidatedAllocatorAvailability, ValidatedLiveRanges, ValidatedLiveness,
 };
 use optimization_core::{OptimizationSelections, OptimizationWorkBudget};
-use register_environment::ValidatedTargetRegisterEnvironment;
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
 
 pub fn stage_optimized_selected_reanalysis(
     transformation: StagedOptimizedFixedViewCopies,
@@ -95,10 +95,10 @@ impl StagedOptimizedSelectedReanalysis {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StagedOptimizedSelectedReanalysisCustodyReceipt {
     source: StagedOptimizedFixedViewCopyCustodyReceipt,
-    transformed_liveness: selected_instructions::LivenessIdentity,
-    transformed_ranges: selected_instructions::LiveRangeIdentity,
-    transformed_legality: register_homes::AllocationLegalityIdentity,
-    allocator_availability: register_homes::AllocatorAvailabilityIdentity,
+    transformed_liveness: target_operations_to_selected_instructions::LivenessIdentity,
+    transformed_ranges: target_operations_to_selected_instructions::LiveRangeIdentity,
+    transformed_legality: crate::register_homes::AllocationLegalityIdentity,
+    allocator_availability: crate::register_homes::AllocatorAvailabilityIdentity,
     function_count: usize,
     virtual_register_count: usize,
     entry_transition_count: usize,
@@ -108,16 +108,22 @@ impl StagedOptimizedSelectedReanalysisCustodyReceipt {
     pub const fn source(self) -> StagedOptimizedFixedViewCopyCustodyReceipt {
         self.source
     }
-    pub const fn transformed_liveness(self) -> selected_instructions::LivenessIdentity {
+    pub const fn transformed_liveness(
+        self,
+    ) -> target_operations_to_selected_instructions::LivenessIdentity {
         self.transformed_liveness
     }
-    pub const fn transformed_ranges(self) -> selected_instructions::LiveRangeIdentity {
+    pub const fn transformed_ranges(
+        self,
+    ) -> target_operations_to_selected_instructions::LiveRangeIdentity {
         self.transformed_ranges
     }
-    pub const fn transformed_legality(self) -> register_homes::AllocationLegalityIdentity {
+    pub const fn transformed_legality(self) -> crate::register_homes::AllocationLegalityIdentity {
         self.transformed_legality
     }
-    pub const fn allocator_availability(self) -> register_homes::AllocatorAvailabilityIdentity {
+    pub const fn allocator_availability(
+        self,
+    ) -> crate::register_homes::AllocatorAvailabilityIdentity {
         self.allocator_availability
     }
     pub const fn function_count(self) -> usize {

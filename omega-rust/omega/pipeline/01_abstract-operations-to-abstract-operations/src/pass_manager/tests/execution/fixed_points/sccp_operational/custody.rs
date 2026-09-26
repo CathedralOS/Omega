@@ -119,12 +119,12 @@ pub(super) fn assert_operational_custody(cases: Vec<Case>) {
             .scalar_evaluation_witness()
             .expect("every SCCP candidate retains typed evaluation evidence")
         {
-            optimization_unit::IntegerEvaluationWitness::Unary { .. } => 1,
-            optimization_unit::IntegerEvaluationWitness::Binary { .. }
-            | optimization_unit::IntegerEvaluationWitness::ProofCertifiedUnary { .. }
-            | optimization_unit::IntegerEvaluationWitness::RangeAgainstConstant { .. }
-            | optimization_unit::IntegerEvaluationWitness::RangeAgainstRange { .. } => 2,
-            optimization_unit::IntegerEvaluationWitness::ProofCertifiedBinary { .. } => 3,
+            terminal_psi_to_abstract_operations::optimization_unit::IntegerEvaluationWitness::Unary { .. } => 1,
+            terminal_psi_to_abstract_operations::optimization_unit::IntegerEvaluationWitness::Binary { .. }
+            | terminal_psi_to_abstract_operations::optimization_unit::IntegerEvaluationWitness::ProofCertifiedUnary { .. }
+            | terminal_psi_to_abstract_operations::optimization_unit::IntegerEvaluationWitness::RangeAgainstConstant { .. }
+            | terminal_psi_to_abstract_operations::optimization_unit::IntegerEvaluationWitness::RangeAgainstRange { .. } => 2,
+            terminal_psi_to_abstract_operations::optimization_unit::IntegerEvaluationWitness::ProofCertifiedBinary { .. } => 3,
         };
         assert_eq!(decision.consumed_facts().len(), expected_fact_count);
 

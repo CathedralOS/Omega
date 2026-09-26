@@ -12,16 +12,16 @@
 //! selected boundary operator and its closed application; only which
 //! realization runs remains open until settlement.
 
-use crate::values::scalar::expression_plans::ScalarLocal;
-use crate::values::scalar::scalar_lowering::lower_return_expression;
-use checked_trees::{
+use crate::checked_trees::{
     CheckedLocatedScalarExpression, CheckedOperatorFacts, CheckedScalarExpressionRole,
     CheckedValueOrigin, CheckedValueStatementRole,
 };
-use typed_trees::TypedTrees;
-use typed_trees::expression::ExpressionHandle;
-use typed_trees::signature::StateParameter;
-use typed_trees::types::PrimitiveType;
+use crate::values::scalar::expression_plans::ScalarLocal;
+use crate::values::scalar::scalar_lowering::lower_return_expression;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
 
 /// One lowered scalar expression per scalar operand, beside the authored
 /// operand it was lowered from. Structural operands and an initializer that
@@ -30,15 +30,15 @@ use typed_trees::types::PrimitiveType;
 pub(crate) fn lower_selected_operator_operands(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_ordinal: u32,
-    local: &typed_trees::statement::TableLocalData,
+    local: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableLocalData,
     parameters: &[StateParameter],
     authored_parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
     locals: &[ScalarLocal],
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
+    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
 ) -> Vec<(ExpressionHandle, CheckedLocatedScalarExpression)> {
     if local.is_mutable {
         return Vec::new();

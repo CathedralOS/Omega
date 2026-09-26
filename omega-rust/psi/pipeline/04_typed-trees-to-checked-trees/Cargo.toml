@@ -9,28 +9,27 @@ name = "typed_trees_to_checked_trees"
 path = "src/lib.rs"
 
 [dependencies]
+symbol-resolved-trees-to-typed-trees = { path = "../03_symbol-resolved-trees-to-typed-trees" }
+terminal-psi = { path = "../../terminal-psi" }
 arena = { path = "../../foundation/arena" }
-checked-trees = { path = "../../representations/checked-trees" }
-semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
 diagnostics = { path = "../../foundation/diagnostics" }
-flow-effects = { path = "../../representations/flow-effects" }
-facts = { path = "../../representations/facts" }
 language-core = { path = "../../foundation/language-core" }
 language-semantics = { path = "../../foundation/language-semantics" }
 numerics = { path = "../../foundation/numerics" }
-proof = { path = "../../semantics/proof" }
-proof-admission = { path = "../../semantics/proof-admission" }
+proof-admission = { path = "../../proof-admission" }
+semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
+sha2 = "0.10"
 source = { path = "../../foundation/source" }
 symbols = { path = "../../foundation/symbols" }
-typed-trees = { path = "../../representations/typed-trees" }
-validation = { path = "../../semantics/validation" }
-sha2 = "0.10"
+tokens-to-syntax-trees = { path = "../01_tokens-to-syntax-trees" }
 
 [dev-dependencies]
 mimalloc = { version = "0.1", default-features = false }
-source-files-to-tokens = { path = "../00_source-files-to-tokens" }
-symbol-resolved-trees = { path = "../../representations/symbol-resolved-trees" }
-symbol-resolved-trees-to-typed-trees = { path = "../03_symbol-resolved-trees-to-typed-trees" }
-syntax-trees = { path = "../../representations/syntax-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../02_syntax-trees-to-symbol-resolved-trees" }
 tokens-to-syntax-trees = { path = "../01_tokens-to-syntax-trees" }
+source-files-to-tokens = { path = "../00_source-files-to-tokens" }
+symbol-resolved-trees-to-typed-trees = { path = "../03_symbol-resolved-trees-to-typed-trees" }
+
+[[test]]
+name = "validation-suite"
+path = "tests/validation/suite.rs"

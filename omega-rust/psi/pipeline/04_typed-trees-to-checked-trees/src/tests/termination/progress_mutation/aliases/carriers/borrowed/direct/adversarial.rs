@@ -5,10 +5,16 @@ use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::a
 use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::direct::direct_source;
 use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::source;
 use crate::tests::termination::progress_mutation::check_source;
+use symbol_resolved_trees_to_typed_trees::typed_trees::{
+    expression::ExpressionNode, statement::StatementNode,
+};
 use symbols::SymbolHandle;
-use typed_trees::{expression::ExpressionNode, statement::StatementNode};
 
-pub(super) fn assert_identity(program: &typed_trees::TypedTrees, local_name: &str, known: bool) {
+pub(super) fn assert_identity(
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    local_name: &str,
+    known: bool,
+) {
     let machine = program
         .machines()
         .iter()
@@ -25,20 +31,20 @@ pub(super) fn assert_identity(program: &typed_trees::TypedTrees, local_name: &st
             _ => None,
         })
         .unwrap();
-    let resolver = validation::CallFrameResolver::new(program).unwrap();
+    let resolver = crate::validation::CallFrameResolver::new(program).unwrap();
     let frame = resolver.inferred_state_write_frame(machine, state);
-    let query = |resolver: &validation::CallFrameResolver<'_>| {
+    let query = |resolver: &crate::validation::CallFrameResolver<'_>| {
         resolver.local_reference_origin_before_statement(machine, statements.last().unwrap(), local)
     };
     let origin = query(&resolver);
     assert_eq!(resolver.inferred_state_write_frame(machine, state), frame);
-    let fresh = validation::CallFrameResolver::new(program).unwrap();
+    let fresh = crate::validation::CallFrameResolver::new(program).unwrap();
     assert_eq!(query(&fresh), origin, "query order cannot change identity");
     assert_eq!(fresh.inferred_state_write_frame(machine, state), frame);
     if known {
         let (root, segments) = origin.expect("the exact frozen input leaf");
         assert_eq!(root, program.state_parameters(state)[0].symbol);
-        let [facts::PlaceSegment::Field { symbol }] = segments.as_slice() else {
+        let [crate::fact_plan::PlaceSegment::Field { symbol }] = segments.as_slice() else {
             panic!("one declared reference boundary: {segments:?}")
         };
         assert_eq!(

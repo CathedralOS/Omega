@@ -1,21 +1,21 @@
 //! Typed fixture for obligation-free wrapping identity rows.
 
 use super::super::id;
-use abstract_operations::AbstractOperation as O;
-use abstract_operations::{
-    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperationPlan,
-    AbstractParameter, AbstractResult,
-};
-use optimization_unit::{
-    PsiOptimizationUnit, recompute_psi_optimization_unit_identity,
-    reconstruct_psi_optimization_unit_seed,
-};
-use optimization_unit_semantics::validate_psi_optimization_unit;
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
     OperationId, ScalarType, ValueId,
 };
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperationPlan,
+    AbstractParameter, AbstractResult,
+};
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    PsiOptimizationUnit, recompute_psi_optimization_unit_identity,
+    reconstruct_psi_optimization_unit_seed,
+};
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum WrappingNeutralOperation {

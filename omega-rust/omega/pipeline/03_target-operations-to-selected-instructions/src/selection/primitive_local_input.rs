@@ -1,8 +1,8 @@
 //! Primitive referent geometry and original local producer identity.
-use calling_conventions::ValueShape;
-use legalized_operations::{
+use crate::legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstructionKind as Instruction,
 };
+use abstract_operations_to_target_operations::calling_conventions::ValueShape;
 use semantic_vocabulary::{OperationId, PlaceId, ScalarType, StructuralPlaceKind};
 use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralOperationResult, StructuralTypeShape,
@@ -117,7 +117,7 @@ pub(super) fn readable(
 /// value ABI, an established local, or an original borrowed referent.
 pub(super) fn read_geometry(
     source: &LegalizedScalarFunction,
-    row: &legalized_operations::LegalizedScalarInstruction,
+    row: &crate::legalized_operations::LegalizedScalarInstruction,
 ) -> Option<(PlaceId, u32)> {
     let scalar = row.result?.scalar_type;
     match &row.kind {

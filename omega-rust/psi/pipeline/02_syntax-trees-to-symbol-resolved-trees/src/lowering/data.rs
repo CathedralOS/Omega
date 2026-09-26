@@ -7,16 +7,16 @@
 
 use crate::lowering::type_reference::{lower_child_type_references, lower_type_reference_handle};
 use crate::resolution::lowerer::Lowerer;
+use crate::symbol_resolved_trees::data::{
+    DataDefinition, DataDefinitionStorage, DataField, DataMember, DataProperties, DataVariant,
+    QuotientDefinition, TypeParameter, TypeParameterKind,
+};
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::CollectionMeasure;
 use std::collections::HashSet;
-use symbol_resolved_trees::data::{
-    DataDefinition, DataDefinitionStorage, DataField, DataMember, DataProperties, DataVariant,
-    QuotientDefinition, TypeParameter, TypeParameterKind,
-};
 use symbols::SymbolHandle;
-use syntax_trees::{self as syntax, SyntaxTrees};
+use tokens_to_syntax_trees::syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_data_definition(
     lowerer: &mut Lowerer,
@@ -182,7 +182,7 @@ fn lower_data_definition_with_argument_origins(
                     .as_ref()
                     .map(|selection| {
                         Ok::<_, Diagnostic>(
-                            symbol_resolved_trees::data::QuotientEquivalenceSelection {
+                            crate::symbol_resolved_trees::data::QuotientEquivalenceSelection {
                                 relation: syntax_trees
                                     .items
                                     .identifier_path_members(selection.relation)
@@ -230,7 +230,7 @@ fn lower_data_definition_with_argument_origins(
     let mut zero_gated = false;
     for fact in lowerer.symbol_resolved_trees.proof_facts(where_facts) {
         match fact {
-            symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
+            crate::symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
                 match zero_fold(
                     &lowerer.symbol_resolved_trees.tables.bodies.expressions,
                     *expression,
@@ -259,7 +259,7 @@ fn lower_data_definition_with_argument_origins(
             // top-level declaration exists. Start conservative; the symbol
             // pass below clears the gate only when it can prove that the
             // referenced domain admits the carrier's zero value.
-            symbol_resolved_trees::domain::ProofFact::Membership(_) => {
+            crate::symbol_resolved_trees::domain::ProofFact::Membership(_) => {
                 zero_gated = true;
             }
         }
@@ -304,10 +304,10 @@ fn lower_data_definition_with_argument_origins(
 /// every field name reads 0, literals read themselves, `+ - *` fold,
 /// comparisons and `&&`/`||` yield 1/0. `None` = outside the fragment.
 pub(crate) fn zero_fold(
-    expressions: &symbol_resolved_trees::expression::ExpressionTable,
-    expression: symbol_resolved_trees::expression::ExpressionHandle,
+    expressions: &crate::symbol_resolved_trees::expression::ExpressionTable,
+    expression: crate::symbol_resolved_trees::expression::ExpressionHandle,
 ) -> Option<i128> {
-    use symbol_resolved_trees::expression::{BinaryOperator, ExpressionNode};
+    use crate::symbol_resolved_trees::expression::{BinaryOperator, ExpressionNode};
     match expressions.expression(expression) {
         ExpressionNode::Name(_) => Some(0),
         ExpressionNode::Member(member)
@@ -379,7 +379,7 @@ pub(crate) fn lower_type_parameters(
                 match contract {
                     syntax::item::MachineParameterContract::RequirementIdentity => (
                         TypeParameterKind::Machine {
-                            contract: symbol_resolved_trees::data::MachineParameterContract::RequirementIdentity,
+                            contract: crate::symbol_resolved_trees::data::MachineParameterContract::RequirementIdentity,
                         },
                         None,
                     ),
@@ -405,7 +405,7 @@ terminates_guarantee: contract.terminates_guarantee,
 where_facts: contract.where_facts })?;
                         (
                             TypeParameterKind::Machine {
-                                contract: symbol_resolved_trees::data::MachineParameterContract::Structural(
+                                contract: crate::symbol_resolved_trees::data::MachineParameterContract::Structural(
                                     lowered_contract.signature,
                                 ),
                             },
@@ -417,7 +417,7 @@ where_facts: contract.where_facts })?;
                     }
                     syntax::item::MachineParameterContract::Nominal { requirement } => (
                         TypeParameterKind::Machine {
-                            contract: symbol_resolved_trees::data::MachineParameterContract::AuthoredNominal {
+                            contract: crate::symbol_resolved_trees::data::MachineParameterContract::AuthoredNominal {
                                 requirement: syntax_trees
                                     .items
                                     .identifier_path_members(*requirement)
@@ -439,14 +439,15 @@ where_facts: contract.where_facts })?;
                 })?;
                 (
                     TypeParameterKind::Proposition {
-                        contract: symbol_resolved_trees::data::PropositionParameterSignature {
-                            name: crate::lowering::name::lower_name(&contract.name),
-                            parameters: crate::lowering::state::lower_state_parameters(
-                                lowerer,
-                                syntax_trees,
-                                contract.parameters,
-                            )?,
-                        },
+                        contract:
+                            crate::symbol_resolved_trees::data::PropositionParameterSignature {
+                                name: crate::lowering::name::lower_name(&contract.name),
+                                parameters: crate::lowering::state::lower_state_parameters(
+                                    lowerer,
+                                    syntax_trees,
+                                    contract.parameters,
+                                )?,
+                            },
                     },
                     None,
                 )

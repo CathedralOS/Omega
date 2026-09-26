@@ -1,6 +1,6 @@
-use checked_trees::CheckFacts;
+use crate::checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 
 pub(crate) fn finalize_execution(
     program: &TypedTrees,
@@ -10,7 +10,7 @@ pub(crate) fn finalize_execution(
     // contract-identity mutation that ends the check pass's resolver lifetime.
     // One frame resolver answers every planner that still classifies typed
     // call frames.
-    let call_frames = validation::CallFrameResolver::new(program);
+    let call_frames = crate::validation::CallFrameResolver::new(program);
     // Finalize the discovered graph shapes against completed ownership facts.
     crate::execution::terminal_scalar::finalize_checked_scalar_graph_plans_with_call_frames(
         program,

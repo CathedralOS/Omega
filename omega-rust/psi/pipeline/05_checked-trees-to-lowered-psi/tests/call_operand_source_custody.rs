@@ -1,17 +1,17 @@
-use checked_trees::{
-    CheckedCallScalarArgument, CheckedScalarExpression, CheckedScalarExpressionBindings,
-    CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
-};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecutionResult,
     TerminalScalarValue, interpret_terminal_artifact_measured,
 };
-use typed_trees::statement::StatementNode;
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedCallScalarArgument, CheckedScalarExpression, CheckedScalarExpressionBindings,
+    CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
+};
 
 const BOUNDARY_SOURCE: &str = r#"
     boundary trait Host {
@@ -74,7 +74,9 @@ const CALLABLE_BOUNDARY_SOURCE: &str = r#"
     }
 "#;
 
-fn encoded(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec<u8>) {
+fn encoded(
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+) -> (Vec<u8>, Vec<u8>) {
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         checked,
         TerminalMachineSelection::Name("Main::main"),
@@ -94,7 +96,7 @@ fn encoded(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec<u8>) {
 }
 
 fn rows(
-    checked: &checked_trees::CheckedTrees,
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
 ) -> Vec<(
     arena::Handle<CheckedScalarExpressionBindings>,
     CheckedScalarExpressionBindings,
@@ -218,9 +220,9 @@ fn boundary_and_unit_scalar_arguments_keep_their_authored_values_after_roundtrip
 }
 
 fn replace_source_argument(
-    checked: &mut checked_trees::CheckedTrees,
+    checked: &mut typed_trees_to_checked_trees::checked_trees::CheckedTrees,
     row: &CheckedScalarExpressionBindings,
-    replacement: typed_trees::expression::ExpressionHandle,
+    replacement: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) {
     let machine = checked
         .typed
@@ -268,12 +270,12 @@ fn replace_source_argument(
 }
 
 fn replace_expression_call_argument(
-    checked: &mut checked_trees::CheckedTrees,
-    call_expression: typed_trees::expression::ExpressionHandle,
-    original: typed_trees::expression::ExpressionHandle,
-    replacement: typed_trees::expression::ExpressionHandle,
+    checked: &mut typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+    call_expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    original: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    replacement: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) {
-    let typed_trees::expression::ExpressionNode::Call(call) =
+    let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(call) =
         checked.typed.expression_table.expression(call_expression)
     else {
         panic!("bare expression call");
@@ -326,7 +328,7 @@ fn arguments_mut(
 }
 
 fn replace_operation_argument(
-    checked: &mut checked_trees::CheckedTrees,
+    checked: &mut typed_trees_to_checked_trees::checked_trees::CheckedTrees,
     row: &CheckedScalarExpressionBindings,
     value: CheckedScalarExpression,
 ) {
@@ -409,16 +411,16 @@ fn mutate_operation_custody(operation: &mut CheckedUnitEffectOperationPlan, muta
             } else {
                 Some(
                     match source_site.expect("baseline retains the authored boundary site") {
-                        checked_trees::NominalMachineUseSite::Statement(handle) => {
-                            checked_trees::NominalMachineUseSite::Statement(
+                        typed_trees_to_checked_trees::checked_trees::NominalMachineUseSite::Statement(handle) => {
+                            typed_trees_to_checked_trees::checked_trees::NominalMachineUseSite::Statement(
                                 arena::Handle::from_parts(
                                     handle.arena_index(),
                                     handle.generation() + 1,
                                 ),
                             )
                         }
-                        checked_trees::NominalMachineUseSite::Expression(handle) => {
-                            checked_trees::NominalMachineUseSite::Expression(
+                        typed_trees_to_checked_trees::checked_trees::NominalMachineUseSite::Expression(handle) => {
+                            typed_trees_to_checked_trees::checked_trees::NominalMachineUseSite::Expression(
                                 arena::Handle::from_parts(
                                     handle.arena_index(),
                                     handle.generation() + 1,
@@ -434,7 +436,7 @@ fn mutate_operation_custody(operation: &mut CheckedUnitEffectOperationPlan, muta
     true
 }
 
-fn assert_operation_custody(checked: &checked_trees::CheckedTrees) {
+fn assert_operation_custody(checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees) {
     let main = checked
         .typed
         .machines()

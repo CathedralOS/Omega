@@ -1,9 +1,11 @@
 use super::StatementNode;
 use crate::CheckingRequest;
+use crate::checked_trees::CheckedScalarExpressionRole;
 use crate::lower_typed_trees;
 use crate::tests::front_end::typed_program;
-use checked_trees::CheckedScalarExpressionRole;
-use typed_trees::{expression::ExpressionNode, statement::TransitionGuardNode};
+use symbol_resolved_trees_to_typed_trees::typed_trees::{
+    expression::ExpressionNode, statement::TransitionGuardNode,
+};
 
 #[test]
 fn callable_boundary_arguments_keep_the_nominal_requirement_role() {
@@ -312,14 +314,14 @@ fn nested_structural_pure_arguments_keep_captured_roles_and_prior_local_namespac
             );
             if argument_ordinal == 0 {
                 let expected = if call_ordinal == 1 {
-                    checked_trees::CheckedScalarExpression::Local {
+                    crate::checked_trees::CheckedScalarExpression::Local {
                         position: 1,
-                        primitive_type: typed_trees::types::PrimitiveType::U32,
+                        primitive_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U32,
                     }
                 } else {
-                    checked_trees::CheckedScalarExpression::Parameter {
+                    crate::checked_trees::CheckedScalarExpression::Parameter {
                         position: 0,
-                        primitive_type: typed_trees::types::PrimitiveType::U32,
+                        primitive_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U32,
                     }
                 };
                 assert_eq!(selected, &expected);
@@ -382,9 +384,11 @@ fn explicit_compiler_intrinsic_arguments_retain_boundary_custody() {
     else {
         panic!("authored intrinsic call");
     };
-    let (requirement, _) =
-        validation::exact_compiler_intrinsic_boundary_requirement(&checked, call.target_symbol)
-            .expect("exact explicit intrinsic realization");
+    let (requirement, _) = crate::validation::exact_compiler_intrinsic_boundary_requirement(
+        &checked,
+        call.target_symbol,
+    )
+    .expect("exact explicit intrinsic realization");
     let plans = &checked.facts.values.scalar_expressions;
     let (binding, _) = plans
         .bound_expression_at(
@@ -424,7 +428,7 @@ fn explicit_compiler_intrinsic_arguments_retain_boundary_custody() {
         .for_machine(machine.symbol)
         .expect("exact intrinsic caller plan");
     assert!(
-        matches!(plan.operations.first(), Some(checked_trees::CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, scalar_arguments, .. }) if *target_machine == requirement && scalar_arguments.len() == 1)
+        matches!(plan.operations.first(), Some(crate::checked_trees::CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, scalar_arguments, .. }) if *target_machine == requirement && scalar_arguments.len() == 1)
     );
 }
 

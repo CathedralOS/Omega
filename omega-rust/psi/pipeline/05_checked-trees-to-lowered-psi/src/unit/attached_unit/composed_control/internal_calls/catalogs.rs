@@ -17,7 +17,7 @@ pub(in crate::unit::attached_unit::composed_control) fn lower(
     attachment_type_identity: Option<&str>,
     contract_service_reach: ServiceReachPlan,
     service_reach: ServiceReachSummary,
-    states: &[checked_trees::CheckedComposedUnitControlStatePlan],
+    states: &[typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlStatePlan],
     boundaries: &[(&CheckedBoundaryMachinePlan, String)],
     targets: &[(UnitBody<'_>, String)],
 ) -> Result<super::super::catalogs::ComposedCatalogs<'static>, LoweringError> {

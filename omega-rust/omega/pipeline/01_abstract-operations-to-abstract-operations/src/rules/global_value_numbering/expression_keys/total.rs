@@ -2,8 +2,8 @@
 
 use std::collections::BTreeMap;
 
-use abstract_operations::AbstractOperation as O;
 use semantic_vocabulary::{ScalarType, ValueId};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
 
 use super::{ScalarExpressionRow, TotalScalarExpressionKey, canonical_pair};
 

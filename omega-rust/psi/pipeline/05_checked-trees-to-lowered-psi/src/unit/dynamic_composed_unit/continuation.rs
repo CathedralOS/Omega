@@ -38,7 +38,7 @@ use crate::unit::dynamic_composed_unit::structural_types::terminal_structural_mu
 pub(super) fn lower(
     checked: &CheckedTrees,
     plan: &CheckedDynamicScalarCallPlan,
-    continuation: &checked_trees::CheckedDynamicUnitContinuationPlan,
+    continuation: &typed_trees_to_checked_trees::checked_trees::CheckedDynamicUnitContinuationPlan,
     lane: DynamicLoweringLane<'_>,
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
     validate_exact_plan(checked, plan, lane)?;
@@ -129,7 +129,7 @@ pub(super) fn lower(
         .unwrap_or(1);
     let forwarded_count = if matches!(
         plan.origin,
-        checked_trees::CheckedDynamicScalarCallOrigin::Forwarded { .. }
+        typed_trees_to_checked_trees::checked_trees::CheckedDynamicScalarCallOrigin::Forwarded { .. }
     ) {
         plan.forwarding_transfers
             .len()

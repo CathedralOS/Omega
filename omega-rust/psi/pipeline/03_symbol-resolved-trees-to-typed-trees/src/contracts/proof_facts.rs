@@ -4,10 +4,10 @@ use crate::expressions::expression::{
 use crate::lowerer::Lowerer;
 use crate::lowerer::name::lower_name;
 use crate::type_reference::domain_aliases::expand_domain_reference;
+use crate::typed_trees as typed;
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
-use symbol_resolved_trees as resolved;
-use typed_trees as typed;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees as resolved;
 
 pub(crate) fn lower_proof_facts(
     lowerer: &mut Lowerer,

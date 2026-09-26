@@ -223,7 +223,7 @@ pub(super) fn validate(
                     || field.range_obligation.is_some_and(|obligation| !unit.accepted_obligation_facts.iter().any(|fact|
                         fact.machine == optimized.machine && fact.operation == *psi_operation && fact.obligation == obligation)
                         || !optimized.facts.iter().any(|fact| matches!(fact,
-                            optimization_unit::OptimizationFact::OperationObligationReference { obligation: retained, support }
+                            terminal_psi_to_abstract_operations::optimization_unit::OptimizationFact::OperationObligationReference { obligation: retained, support }
                             if *retained == obligation && support == psi_operation)))
                 { return Err(LegalizationError::custody()); }
             }

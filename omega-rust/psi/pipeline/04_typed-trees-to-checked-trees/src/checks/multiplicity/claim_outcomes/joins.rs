@@ -9,24 +9,28 @@ use super::{
     claim_paths_are_case_alternatives, derive_checked_claim_outcome_maps,
     expression_statically_excludes_claim_path,
 };
-use crate::checks::multiplicity::linear_obligations::{
-    CheckedClaimOutcomeEntry, CheckedClaimOutcomeMap, CheckedClaimOutcomeSource,
-};
-use crate::checks::multiplicity::linear_validation::linear_claim_frontier;
-use checked_trees::{
+use crate::checked_trees::{
     CheckFacts, FlowClaimJoinAlternative, FlowClaimJoinAlternativeSource, FlowClaimJoinExit,
     FlowClaimJoinExitKind, FlowClaimJoinReceipt, FlowClaimOutcomeSource, FlowOwnershipFacts,
     FlowPermissionEventFact,
 };
+use crate::checks::multiplicity::linear_obligations::{
+    CheckedClaimOutcomeEntry, CheckedClaimOutcomeMap, CheckedClaimOutcomeSource,
+};
+use crate::checks::multiplicity::linear_validation::linear_claim_frontier;
+use crate::fact_plan::{PlaceRoot, PlaceSegment};
 use diagnostics::Diagnostic;
-use facts::{PlaceRoot, PlaceSegment};
 use language_semantics::{
     PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
     PermissionProvenance,
 };
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+    StatementNode, TransitionExit, TransitionTargetNode,
+};
 use symbols::SymbolHandle;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
 
 #[cfg(test)]
 mod tests;
@@ -94,8 +98,8 @@ fn known_source(source: &CheckedClaimOutcomeSource) -> bool {
 /// No exit may disappear through filter_map. Missing facts, unknown sources,
 /// and recursive expansion all make the complete correspondence unavailable.
 fn state_frontiers(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     ownership: &FlowOwnershipFacts,
     events: &[FlowPermissionEventFact],
     maps: &[CheckedClaimOutcomeMap],
@@ -118,7 +122,7 @@ fn state_frontiers(
             let StatementNode::Transition(transition) = &statements[*last] else {
                 return None;
             };
-            if !matches!(transition.guard, typed_trees::statement::TransitionGuardNode::Always)
+            if !matches!(transition.guard, symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionGuardNode::Always)
                 && !transition.continuation.is_valid()
                 && !crate::checks::multiplicity::permission_events::case_transition_run_is_exhaustive(
                     program, statements, &transition_indices)
@@ -231,8 +235,8 @@ fn state_frontiers(
 
 #[allow(clippy::too_many_arguments)]
 fn expression_frontiers(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement: usize,
     expression: ExpressionHandle,
     ownership: &FlowOwnershipFacts,
@@ -315,8 +319,8 @@ fn expression_frontiers(
 /// alternatives together, preserving correlations between returned fields.
 #[allow(clippy::too_many_arguments)]
 fn expand_joined_frontier(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     ownership: &FlowOwnershipFacts,
     events: &[FlowPermissionEventFact],
     maps: &[CheckedClaimOutcomeMap],
@@ -478,8 +482,8 @@ fn expand_joined_frontier(
 }
 
 fn complete_frontier(
-    program: &typed_trees::TypedTrees,
-    result_type: typed_trees::types::TypeReferenceHandle,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    result_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
     entries: &[CheckedClaimOutcomeEntry],
     inactive_paths: &[Vec<PlaceSegment>],
 ) -> bool {
@@ -519,12 +523,12 @@ fn complete_frontier(
 /// entire statement, including earlier argument evaluation.
 #[allow(clippy::too_many_arguments)]
 fn excluded_input_at_call(
-    program: &typed_trees::TypedTrees,
-    borrow: &checked_trees::BorrowFacts,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    borrow: &crate::checked_trees::BorrowFacts,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
-    call: &typed_trees::expression::TableCallExpression,
-    target: &typed_trees::state::State,
+    call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
+    target: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     source: &CheckedClaimOutcomeSource,
     ownership: &FlowOwnershipFacts,
     events: &[FlowPermissionEventFact],
@@ -584,7 +588,7 @@ fn excluded_input_at_call(
         return None;
     };
     let machine = crate::lookup::machine_by_symbol(program, establishment.machine_symbol)?;
-    let frames = validation::CallFrameResolver::new(program)?;
+    let frames = crate::validation::CallFrameResolver::new(program)?;
     let borrowed_state = borrow
         .states
         .iter()
@@ -662,8 +666,8 @@ fn excluded_input_at_call(
 }
 
 fn derive_receipts(
-    program: &typed_trees::TypedTrees,
-    borrow: &checked_trees::BorrowFacts,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    borrow: &crate::checked_trees::BorrowFacts,
     ownership: &FlowOwnershipFacts,
     events: &[FlowPermissionEventFact],
 ) -> Vec<Receipt> {
@@ -873,7 +877,7 @@ fn store_source(
 }
 
 pub(crate) fn publish_conditional_claim_joins(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &mut CheckFacts,
 ) {
     let ownership = &mut facts.flow.ownership;
@@ -967,8 +971,8 @@ fn read_source(
 }
 
 pub(crate) fn validate_conditional_claim_joins(
-    program: &typed_trees::TypedTrees,
-    borrow: &checked_trees::BorrowFacts,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    borrow: &crate::checked_trees::BorrowFacts,
     ownership: &FlowOwnershipFacts,
     diagnostics: &mut Vec<Diagnostic>,
 ) {

@@ -4,7 +4,7 @@ use tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
 fn static_signature_contracts_bind_their_own_value_parameters() {
-    use symbol_resolved_trees::{
+    use crate::symbol_resolved_trees::{
         data::TypeParameterKind, domain::ProofFact, expression::ExpressionNode,
     };
     let source = r#"
@@ -46,7 +46,7 @@ fn static_signature_contracts_bind_their_own_value_parameters() {
 
 #[test]
 fn contract_membership_values_use_exact_callable_parameters() {
-    use symbol_resolved_trees::{domain::ProofFact, expression::ExpressionNode};
+    use crate::symbol_resolved_trees::{domain::ProofFact, expression::ExpressionNode};
 
     let source = r#"
         domain u64::Small requires self < 10;
@@ -101,7 +101,7 @@ fn contract_membership_values_use_exact_callable_parameters() {
 
 #[test]
 fn state_contract_value_arguments_share_the_explicit_frontier() {
-    use symbol_resolved_trees::{domain::ProofFact, expression::ExpressionNode};
+    use crate::symbol_resolved_trees::{domain::ProofFact, expression::ExpressionNode};
 
     let source = r#"
         data Packet { value: u64; }
@@ -198,7 +198,7 @@ fn computed_receiver_does_not_select_a_same_spelling_free_machine() {
             .find(|machine| machine.name.as_str() == "run")
             .expect("caller");
         let state = program.machine_state(program.machine_state_handles(machine.states)[0]);
-        let symbol_resolved_trees::statement::StatementNode::LocalData(local) = &program
+        let crate::symbol_resolved_trees::statement::StatementNode::LocalData(local) = &program
             .tables
             .bodies
             .statements
@@ -206,7 +206,7 @@ fn computed_receiver_does_not_select_a_same_spelling_free_machine() {
         else {
             panic!("result");
         };
-        let symbol_resolved_trees::expression::ExpressionNode::Call(call) = program
+        let crate::symbol_resolved_trees::expression::ExpressionNode::Call(call) = program
             .tables
             .bodies
             .expressions
@@ -254,13 +254,13 @@ fn state_local_receiver_wins_over_same_named_enclosing_state() {
         .statements
         .statements(state.statement_nodes);
     let [
-        symbol_resolved_trees::statement::StatementNode::LocalData(local),
-        symbol_resolved_trees::statement::StatementNode::Transition(transition),
+        crate::symbol_resolved_trees::statement::StatementNode::LocalData(local),
+        crate::symbol_resolved_trees::statement::StatementNode::Transition(transition),
     ] = statements
     else {
         panic!("local declaration followed by transition")
     };
-    let symbol_resolved_trees::statement::TransitionTargetNode::Value(value) = program
+    let crate::symbol_resolved_trees::statement::TransitionTargetNode::Value(value) = program
         .tables
         .bodies
         .statements
@@ -268,12 +268,12 @@ fn state_local_receiver_wins_over_same_named_enclosing_state() {
     else {
         panic!("value transition")
     };
-    let symbol_resolved_trees::expression::ExpressionNode::Call(call) =
+    let crate::symbol_resolved_trees::expression::ExpressionNode::Call(call) =
         program.tables.bodies.expressions.expression(*value)
     else {
         panic!("local receiver call")
     };
-    let symbol_resolved_trees::expression::ExpressionNode::Name(receiver) =
+    let crate::symbol_resolved_trees::expression::ExpressionNode::Name(receiver) =
         program.tables.bodies.expressions.expression(call.receiver)
     else {
         panic!("named local receiver")
@@ -293,8 +293,8 @@ fn state_local_receiver_wins_over_same_named_enclosing_state() {
 
 #[test]
 fn local_call_targets_follow_prior_declarations_not_receiver_spelling() {
-    use symbol_resolved_trees::expression::ExpressionNode;
-    use symbol_resolved_trees::statement::StatementNode;
+    use crate::symbol_resolved_trees::expression::ExpressionNode;
+    use crate::symbol_resolved_trees::statement::StatementNode;
     use symbols::SymbolHandle;
 
     let cases = [
@@ -464,27 +464,26 @@ fn named_states_require_explicit_entry_value_transfers() {
             let states = program.machine_state_handles(machine.states);
             let entry = program.machine_state(states[0]);
             let target = program.machine_state(states[1]);
-            let source_symbol =
-                program
-                    .state_parameters(entry.parameters)
-                    .iter()
-                    .find(|parameter| parameter.name.as_str() == "packet")
-                    .map(|parameter| parameter.symbol)
-                    .or_else(|| {
-                        program
-                            .tables
-                            .bodies
-                            .statements
-                            .statements(entry.statement_nodes)
-                            .iter()
-                            .find_map(|statement| match statement {
-                                symbol_resolved_trees::statement::StatementNode::LocalData(
-                                    local,
-                                ) if local.name.as_str() == "packet" => Some(local.symbol),
-                                _ => None,
-                            })
-                    })
-                    .expect("entry declares packet");
+            let source_symbol = program
+                .state_parameters(entry.parameters)
+                .iter()
+                .find(|parameter| parameter.name.as_str() == "packet")
+                .map(|parameter| parameter.symbol)
+                .or_else(|| {
+                    program
+                        .tables
+                        .bodies
+                        .statements
+                        .statements(entry.statement_nodes)
+                        .iter()
+                        .find_map(|statement| match statement {
+                            crate::symbol_resolved_trees::statement::StatementNode::LocalData(
+                                local,
+                            ) if local.name.as_str() == "packet" => Some(local.symbol),
+                            _ => None,
+                        })
+                })
+                .expect("entry declares packet");
             assert!(source_symbol.is_valid());
 
             // The read uses a distinct name when forwarded so it cannot be
@@ -495,14 +494,14 @@ fn named_states_require_explicit_entry_value_transfers() {
                 .expressions
                 .iter_expressions()
                 .find_map(|(_, node)| match node {
-                    symbol_resolved_trees::expression::ExpressionNode::Name(path)
+                    crate::symbol_resolved_trees::expression::ExpressionNode::Name(path)
                         if program
                             .tables
                             .bodies
                             .expressions
                             .name_path_members(path.members)
                             .iter()
-                            .map(symbol_resolved_trees::name::DiagnosticName::as_str)
+                            .map(crate::symbol_resolved_trees::name::DiagnosticName::as_str)
                             .eq([read_name]) =>
                     {
                         Some(path)

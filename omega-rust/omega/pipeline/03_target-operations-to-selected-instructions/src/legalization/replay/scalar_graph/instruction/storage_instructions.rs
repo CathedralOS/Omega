@@ -4,14 +4,14 @@
 use super::super::{AbstractOperationPlan, Error, PsiOptimizationUnit};
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
-use abstract_operations::AbstractOperation;
-use legalized_operations::{LegalizedScalarInstruction, LegalizedScalarInstructionKind};
+use crate::legalized_operations::{LegalizedScalarInstruction, LegalizedScalarInstructionKind};
 use semantic_vocabulary::OperationId;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
 
 pub(super) fn validate_structural_scalar_field_read(
     actual: &LegalizedScalarInstruction,
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
 ) -> Result<(), LegalizationError> {
     let ((
@@ -43,8 +43,8 @@ pub(super) fn validate_structural_scalar_field_read(
 /// verifier's certificates; a static read carries none.
 pub(super) fn validate_primitive_scalar_read(
     actual: &LegalizedScalarInstruction,
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
     operation: OperationId,
 ) -> Result<(), LegalizationError> {
@@ -91,8 +91,8 @@ pub(super) fn validate_primitive_scalar_read(
 
 pub(super) fn validate_write_only_primitive_store(
     actual: &LegalizedScalarInstruction,
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
     operation: OperationId,
 ) -> Result<(), LegalizationError> {
@@ -140,8 +140,8 @@ pub(super) fn validate_write_only_primitive_store(
 
 pub(super) fn validate_structural_scalar_field_store(
     actual: &LegalizedScalarInstruction,
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
     operation: OperationId,
 ) -> Result<(), LegalizationError> {
@@ -193,8 +193,8 @@ pub(super) fn validate_structural_scalar_field_store(
 
 pub(super) fn validate_byte_sequence_subslice(
     actual: &LegalizedScalarInstruction,
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
     operation: OperationId,
 ) -> Result<(), LegalizationError> {
@@ -242,8 +242,8 @@ pub(super) fn validate_byte_sequence_subslice(
 
 pub(super) fn validate_element_view_subslice(
     actual: &LegalizedScalarInstruction,
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
     operation: OperationId,
 ) -> Result<(), LegalizationError> {
@@ -291,8 +291,8 @@ pub(super) fn validate_element_view_subslice(
 
 pub(super) fn validate_element_view_read(
     actual: &LegalizedScalarInstruction,
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
     operation: OperationId,
 ) -> Result<(), LegalizationError> {
@@ -334,8 +334,8 @@ pub(super) fn validate_element_view_read(
 
 pub(super) fn validate_structural_byte_sequence_field_byte_store(
     actual: &LegalizedScalarInstruction,
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
     operation: OperationId,
@@ -388,8 +388,8 @@ pub(super) fn validate_structural_byte_sequence_field_byte_store(
 
 pub(super) fn validate_structural_byte_sequence_field_read(
     actual: &LegalizedScalarInstruction,
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
     operation: OperationId,
@@ -439,8 +439,8 @@ pub(super) fn validate_structural_byte_sequence_field_read(
 
 pub(super) fn validate_structural_byte_sequence_field_store(
     actual: &LegalizedScalarInstruction,
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
     operation: OperationId,
@@ -490,8 +490,8 @@ pub(super) fn validate_structural_byte_sequence_field_store(
 
 pub(super) fn validate_byte_sequence_write(
     actual: &LegalizedScalarInstruction,
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
     operation: OperationId,
 ) -> Result<(), LegalizationError> {
@@ -536,8 +536,8 @@ pub(super) fn validate_byte_sequence_write(
 
 pub(super) fn validate_byte_sequence_read(
     actual: &LegalizedScalarInstruction,
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
     operation: OperationId,
 ) -> Result<(), LegalizationError> {

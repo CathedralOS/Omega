@@ -1,0 +1,186 @@
+//! Current section-relative machine bytes, spans, and resolved internal calls.
+//! The record is independent of its producer and grants no publication authority.
+
+mod identity;
+mod publication;
+pub use identity::relocation_free_text_section_identity;
+pub use publication::{
+    FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionManifestDecodeError,
+    FunctionFragmentTextSectionStage, FunctionFragmentTextSectionStatistics,
+    FunctionFragmentTextSectionUnavailableData,
+};
+
+use optimization_core::{
+    FunctionFragmentEmissionIdentity, TerminalRelocationFreeTextSectionIdentity,
+};
+use semantic_vocabulary::{FuelScheduleIdentity, MachineId, OperationId};
+use target::NativeTarget;
+use target_operations_to_selected_instructions::{
+    MachineAlternativeKey, SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity,
+};
+use terminal_psi::TerminalPsiIdentity;
+
+/// Exact deterministic placement used by the first clean Terminal text-section boundary.
+///
+/// Functions remain in the already validated fragment order. No sorting, padding, symbol
+/// assignment, or object-container policy is implied by this value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TextSectionPlacementPolicy {
+    DenseValidatedFragmentOrderNoPaddingV1,
+}
+
+/// Closed relocation conclusion for the currently admitted clean Terminal instruction set.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TextSectionRelocationRequirements {
+    ProvenNoneForFullyResolvedInternalControlV1,
+    /// The section still carries normalized-foreign-call fields bound only at
+    /// object construction to declared import symbols. Internal control is
+    /// fully resolved; foreign imports remain object relocations, never
+    /// in-section patches.
+    UnresolvedNormalizedForeignImportFieldsV1,
+}
+
+/// One relocation-free, section-relative concatenation of validated function fragments.
+///
+/// This is representation data only. It is not an object-container plan, has no symbols or external
+/// entry point, and grants no object serialization, image, installation, or publication
+/// authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RelocationFreeTextSectionPlacement {
+    pub identity: TerminalRelocationFreeTextSectionIdentity,
+    pub source_fragments: FunctionFragmentEmissionIdentity,
+    pub psi: TerminalPsiIdentity,
+    pub fuel_schedule: FuelScheduleIdentity,
+    pub selected: SelectedInstructionPlanIdentity,
+    pub target: NativeTarget,
+    pub semantic_entry: MachineId,
+    pub semantic_entry_offset: u64,
+    pub policy: TextSectionPlacementPolicy,
+    pub section_alignment: u64,
+    pub byte_count: u64,
+    pub bytes: Vec<u8>,
+    pub functions: Vec<PlacedFunctionFragment>,
+    /// Section-relative evidence for every internal-Machine call discharged
+    /// during placement. The final call bytes live in `bytes`; these rows bind
+    /// their source spans, exact coordinates, and resolved target equations
+    /// without duplicating executable bytes or introducing object relocations.
+    pub resolved_internal_machine_calls: Vec<PlacedInternalMachineCallResolution>,
+    /// Section-relative evidence for every normalized foreign call whose
+    /// import field stays unresolved. Object construction binds each row to
+    /// the declared import symbol for the roster entry the `{boundary,
+    /// ordinal}` pair names; these fields are object relocations, never
+    /// in-section patches.
+    pub unresolved_normalized_foreign_calls: Vec<PlacedNormalizedForeignCallResolution>,
+    pub relocation_requirements: TextSectionRelocationRequirements,
+}
+
+impl RelocationFreeTextSectionPlacement {
+    pub fn recomputed_identity(&self) -> TerminalRelocationFreeTextSectionIdentity {
+        relocation_free_text_section_identity(self)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlacedFunctionFragment {
+    pub source_function_index: u64,
+    pub machine: MachineId,
+    pub section_offset: u64,
+    pub byte_count: u64,
+    pub blocks: Vec<PlacedBlockSpan>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlacedBlockSpan {
+    pub block: SelectedBlockId,
+    pub function_offset: u64,
+    pub section_offset: u64,
+    pub byte_count: u64,
+    pub instructions: Vec<PlacedInstructionSpan>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlacedInstructionSpan {
+    pub instruction: SelectedInstructionId,
+    pub alternative: MachineAlternativeKey,
+    pub function_offset: u64,
+    pub section_offset: u64,
+    pub byte_count: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InternalMachineCallResolutionKind {
+    X86Relative32FromNextInstructionToInternalMachineV1,
+    Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InternalMachineCallResolutionState {
+    ResolvedInSectionV1,
+}
+
+/// Generic, ISA-tagged placement evidence for one fully discharged internal
+/// call. Function-relative coordinates retain the fragment source meaning;
+/// section-relative coordinates bind the final dense text representation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlacedInternalMachineCallResolution {
+    pub kind: InternalMachineCallResolutionKind,
+    pub state: InternalMachineCallResolutionState,
+    pub caller: MachineId,
+    pub block: SelectedBlockId,
+    pub instruction: SelectedInstructionId,
+    pub operation: OperationId,
+    pub callee: MachineId,
+    pub call_function_offset: u64,
+    pub call_section_offset: u64,
+    pub call_byte_count: u64,
+    pub opcode_function_offset: u64,
+    pub opcode_section_offset: u64,
+    pub field_function_offset: u64,
+    pub field_section_offset: u64,
+    pub next_instruction_function_offset: u64,
+    pub next_instruction_section_offset: u64,
+    pub callee_section_offset: u64,
+    pub field_byte_width: u8,
+    pub addend: i64,
+    pub displacement: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NormalizedForeignCallResolutionKind {
+    X86Relative32FromNextInstructionToNormalizedForeignImportV1,
+    Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NormalizedForeignCallResolutionState {
+    /// The field is a canonical zero placeholder awaiting its object-level
+    /// import-symbol relocation.
+    UnresolvedImportFieldV1,
+}
+
+/// Generic, ISA-tagged placement evidence for one normalized foreign call
+/// whose import field object construction still binds. The `{boundary,
+/// ordinal}` pair names the selected roster row owning the evaluated locator;
+/// the raw foreign coordinate never enters the section record.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlacedNormalizedForeignCallResolution {
+    pub kind: NormalizedForeignCallResolutionKind,
+    pub state: NormalizedForeignCallResolutionState,
+    pub caller: MachineId,
+    pub block: SelectedBlockId,
+    pub instruction: SelectedInstructionId,
+    pub operation: OperationId,
+    pub boundary: semantic_vocabulary::BoundaryMachineId,
+    pub ordinal: u32,
+    pub call_function_offset: u64,
+    pub call_section_offset: u64,
+    pub call_byte_count: u64,
+    pub opcode_function_offset: u64,
+    pub opcode_section_offset: u64,
+    pub field_function_offset: u64,
+    pub field_section_offset: u64,
+    pub next_instruction_function_offset: u64,
+    pub next_instruction_section_offset: u64,
+    pub field_byte_width: u8,
+    pub addend: i64,
+}

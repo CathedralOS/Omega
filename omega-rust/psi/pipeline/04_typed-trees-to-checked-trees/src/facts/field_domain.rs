@@ -14,23 +14,25 @@
 //! exactly one recognized comptime byte-predicate fact grants nothing. There is NO
 //! hardcoded domain name here.
 
-use symbols::SymbolHandle;
-pub(crate) use typed_trees::byte_predicates::{ByteSequencePredicate, domain_byte_predicate};
-use typed_trees::expression::ExpressionNode;
-use typed_trees::machine::Machine;
-use typed_trees::types::{
+pub(crate) use symbol_resolved_trees_to_typed_trees::typed_trees::byte_predicates::{
+    ByteSequencePredicate, domain_byte_predicate,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
     FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
+use symbols::SymbolHandle;
 
 /// The declared type of an assignment destination, preserving domain and
 /// capacity constraints. Machine-attached fields and direct state
 /// parameter/local places share the same write-establishment rule; only the
 /// lookup route differs.
 pub(crate) fn assignment_target_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
-    state: &typed_trees::state::State,
-    target: typed_trees::expression::ExpressionHandle,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    target: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     attached_data_field_type(program, machine, target)
         .or_else(|| direct_state_place_type_reference(program, state, target))
@@ -42,10 +44,10 @@ pub(crate) fn assignment_target_type_reference(
 /// assigned value was checked against every predicate declaration in the
 /// conjunction.
 pub(crate) fn assignment_target_domain_symbols(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
-    state: &typed_trees::state::State,
-    target: typed_trees::expression::ExpressionHandle,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    target: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> Vec<SymbolHandle> {
     assignment_target_domain_identities(program, machine, state, target)
         .into_iter()
@@ -56,10 +58,10 @@ pub(crate) fn assignment_target_domain_symbols(
 /// [`assignment_target_domain_symbols`] paired with each constraint's interned
 /// identity, for producers that seed provable membership facts.
 pub(crate) fn assignment_target_domain_identities(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
-    state: &typed_trees::state::State,
-    target: typed_trees::expression::ExpressionHandle,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    target: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> Vec<(SymbolHandle, language_semantics::SemanticDomainId)> {
     let Some(type_reference) = assignment_target_type_reference(program, machine, state, target)
     else {
@@ -73,9 +75,9 @@ pub(crate) fn assignment_target_domain_identities(
 /// [`attached_data_field_type`]: the root type comes from the parameter/local,
 /// then each member descends through the ordinary data declaration.
 pub(crate) fn direct_state_place_type_reference(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
-    expression: typed_trees::expression::ExpressionHandle,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     let (symbol, members) = state_place_path(program, state, expression)?;
     let mut type_reference = if let Some(parameter) = program
@@ -93,7 +95,7 @@ pub(crate) fn direct_state_place_type_reference(
             .statements(state.statement_nodes)
             .iter()
             .find_map(|statement| match statement {
-                typed_trees::statement::StatementNode::LocalData(local)
+                symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local)
                     if local.symbol == symbol && local.type_reference.is_valid() =>
                 {
                     Some(local.type_reference)
@@ -110,9 +112,9 @@ pub(crate) fn direct_state_place_type_reference(
 }
 
 fn state_place_path(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
-    expression: typed_trees::expression::ExpressionHandle,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> Option<(SymbolHandle, Vec<String>)> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(inner) => state_place_path(program, state, inner.target),
@@ -141,7 +143,7 @@ fn state_place_path(
                                 .statements(state.statement_nodes)
                                 .iter()
                                 .find_map(|statement| match statement {
-                                    typed_trees::statement::StatementNode::LocalData(local)
+                                    symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local)
                                         if local.name.as_str() == root_name =>
                                     {
                                         Some(local.symbol)
@@ -168,9 +170,9 @@ fn state_place_path(
 /// intact) via the machine's attached data. Mirrors proof
 /// `obligations::attached_data_field_type` (#63).
 pub(crate) fn attached_data_field_type(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     // A `self.a.b.c` field path -- ONE level (`self.f`) or NESTED. Descend into
     // each intermediate field's data type so a nested domained field's declared
@@ -200,8 +202,8 @@ pub(crate) fn attached_data_field_type(
 /// `self`-rooted field access. Handles both the nested `Member` chain and a flat
 /// `Name` path the parser may produce.
 fn self_field_path(
-    program: &typed_trees::TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> Option<Vec<String>> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Member(member) => {
@@ -224,15 +226,17 @@ fn self_field_path(
 }
 
 fn data_field_type_by_name(
-    program: &typed_trees::TypedTrees,
-    data: &typed_trees::data::DataDefinition,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    data: &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition,
     field_name: &str,
 ) -> Option<TypeReferenceHandle> {
     program
         .data_members(data)
         .iter()
         .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if field.name.as_str() == field_name => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field)
+                if field.name.as_str() == field_name =>
+            {
                 field
                     .type_reference
                     .is_valid()
@@ -248,7 +252,7 @@ fn data_field_type_by_name(
 /// resolved against the peeled reference. Callers that need the declared
 /// surface (`&[u8] in Utf8`) keep the original handle.
 pub(crate) fn readable_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     mut reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     while reference.is_valid() {
@@ -268,7 +272,7 @@ pub(crate) fn readable_type_reference(
 /// `&`/`&mut`/mut-access and domain-constraint shells. Non-literal lengths are
 /// lowered before checking; anything unresolved fails closed (`None`).
 pub(crate) fn readable_fixed_array_elements(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     reference: TypeReferenceHandle,
 ) -> Option<(TypeReferenceHandle, usize)> {
     let reference = readable_type_reference(program, reference)?;
@@ -286,9 +290,9 @@ pub(crate) fn readable_fixed_array_elements(
 /// storage. Generic substitutions need their own structural evidence rather
 /// than a nominal-name guess.
 pub(crate) fn readable_nominal_definition(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     reference: TypeReferenceHandle,
-) -> Option<&typed_trees::data::DataDefinition> {
+) -> Option<&symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition> {
     let reference = readable_type_reference(program, reference)?;
     let symbol = match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Named { symbol, .. } => *symbol,
@@ -317,9 +321,9 @@ pub(crate) fn readable_nominal_definition(
 /// NOT peel reference shells: `-> &mut Room` returns a borrow, not owned `Room`
 /// storage, so result-field obligations must not be synthesized for it.
 pub(crate) fn owned_nominal_data_definition(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
-) -> Option<&typed_trees::data::DataDefinition> {
+) -> Option<&symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition> {
     let symbol = match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Constrained { base_type, .. } => {
             return owned_nominal_data_definition(program, *base_type);
@@ -346,9 +350,9 @@ pub(crate) fn owned_nominal_data_definition(
 /// and returns no paths -- borrowed fields stay proven through their source
 /// places so a later source write still invalidates them.
 pub(crate) fn declared_result_field_domain_paths(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
-) -> Vec<(Vec<facts::PlaceSegment>, SymbolHandle)> {
+) -> Vec<(Vec<crate::fact_plan::PlaceSegment>, SymbolHandle)> {
     let mut reference = type_reference;
     while let TypeReferenceNode::Constrained { base_type, .. } =
         program.type_reference_table.type_reference(reference)
@@ -368,7 +372,7 @@ pub(crate) fn declared_result_field_domain_paths(
             for (mut path, domain_symbol) in
                 declared_result_field_domain_paths(program, *element_type)
             {
-                path.insert(0, facts::PlaceSegment::FixedIndex { index });
+                path.insert(0, crate::fact_plan::PlaceSegment::FixedIndex { index });
                 paths.push((path, domain_symbol));
             }
         }
@@ -378,14 +382,14 @@ pub(crate) fn declared_result_field_domain_paths(
 }
 
 type OwnedFieldDomainIdentities = Vec<(
-    Vec<facts::PlaceSegment>,
+    Vec<crate::fact_plan::PlaceSegment>,
     SymbolHandle,
     language_semantics::SemanticDomainId,
 )>;
 
 type FieldDomainSlot = Option<
     Option<(
-        *const typed_trees::TypedTrees,
+        *const symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
         std::collections::HashMap<TypeReferenceHandle, OwnedFieldDomainIdentities>,
     )>,
 >;
@@ -423,7 +427,7 @@ pub(crate) fn enter_field_domain_scope() -> FieldDomainScopeGuard {
 /// result claims. Inside a field-domain scope each distinct type reference
 /// walks once; outside it every call walks.
 pub(crate) fn declared_owned_field_domain_identities(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     reference: TypeReferenceHandle,
 ) -> OwnedFieldDomainIdentities {
     enum SlotState {
@@ -476,16 +480,16 @@ pub(crate) fn declared_owned_field_domain_identities(
 }
 
 fn declared_owned_field_domain_identities_uncached(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     reference: TypeReferenceHandle,
 ) -> OwnedFieldDomainIdentities {
     fn visit(
-        program: &typed_trees::TypedTrees,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
         reference: TypeReferenceHandle,
-        prefix: &mut Vec<facts::PlaceSegment>,
+        prefix: &mut Vec<crate::fact_plan::PlaceSegment>,
         ancestors: &mut Vec<SymbolHandle>,
         output: &mut Vec<(
-            Vec<facts::PlaceSegment>,
+            Vec<crate::fact_plan::PlaceSegment>,
             SymbolHandle,
             language_semantics::SemanticDomainId,
         )>,
@@ -516,8 +520,8 @@ fn declared_owned_field_domain_identities_uncached(
             ancestors.push(data.symbol);
             for member in program.data_members(data) {
                 let fields = match member {
-                    typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
-                    typed_trees::data::DataMember::Variant(variant) => {
+                    symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
+                    symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant) => {
                         program.data_payload_fields(variant)
                     }
                 };
@@ -543,7 +547,7 @@ fn declared_owned_field_domain_identities_uncached(
             // one element under a placeholder index and repeat the result per
             // index rather than walking each element of a large buffer.
             let mut element = Vec::new();
-            let mut element_prefix = vec![facts::PlaceSegment::FixedIndex { index: 0 }];
+            let mut element_prefix = vec![crate::fact_plan::PlaceSegment::FixedIndex { index: 0 }];
             visit(
                 program,
                 *element_type,
@@ -555,7 +559,7 @@ fn declared_owned_field_domain_identities_uncached(
                 for (path, symbol, identity) in &element {
                     let mut indexed = Vec::with_capacity(prefix.len() + path.len());
                     indexed.extend_from_slice(prefix);
-                    indexed.push(facts::PlaceSegment::FixedIndex { index });
+                    indexed.push(crate::fact_plan::PlaceSegment::FixedIndex { index });
                     indexed.extend_from_slice(&path[1..]);
                     output.push((indexed, *symbol, *identity));
                 }
@@ -586,14 +590,16 @@ fn declared_owned_field_domain_identities_uncached(
 thread_local! {
     static DOMAIN_SYMBOL_INDEX: std::cell::RefCell<
         Option<(
-            typed_trees::ProgramIdentity,
+            symbol_resolved_trees_to_typed_trees::typed_trees::ProgramIdentity,
             usize,
             std::collections::HashMap<SymbolHandle, usize>,
         )>,
     > = const { std::cell::RefCell::new(None) };
 }
 
-fn domain_index_fingerprint(program: &typed_trees::TypedTrees) -> usize {
+fn domain_index_fingerprint(
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+) -> usize {
     let domains = program.domain_definitions();
     let sample = |index: usize| -> usize {
         domains
@@ -613,9 +619,9 @@ fn domain_index_fingerprint(program: &typed_trees::TypedTrees) -> usize {
 }
 
 fn domain_by_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     symbol: SymbolHandle,
-) -> Option<&typed_trees::domain::DomainDefinition> {
+) -> Option<&symbol_resolved_trees_to_typed_trees::typed_trees::domain::DomainDefinition> {
     DOMAIN_SYMBOL_INDEX.with(|cell| {
         let mut slot = cell.borrow_mut();
         let fingerprint = domain_index_fingerprint(program);
@@ -640,11 +646,11 @@ fn domain_by_symbol(
 /// Transparent aliases retain their constituents' provenance requirement;
 /// testing only the alias's own route list would permit predicate-only minting.
 pub(crate) fn domain_requires_provenance(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     symbol: SymbolHandle,
 ) -> bool {
     fn visit(
-        program: &typed_trees::TypedTrees,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
         symbol: SymbolHandle,
         ancestors: &mut Vec<SymbolHandle>,
     ) -> bool {
@@ -663,7 +669,10 @@ pub(crate) fn domain_requires_provenance(
                 .constituents
                 .iter()
                 .any(|part| visit(program, part.domain_symbol, ancestors))
-        }) || typed_trees::domain::self_membership_facts(program, domain)
+        })
+            || symbol_resolved_trees_to_typed_trees::typed_trees::domain::self_membership_facts(
+                program, domain,
+            )
             .any(|membership| visit(program, membership.domain_symbol, ancestors));
         ancestors.pop();
         routed
@@ -678,23 +687,25 @@ pub(crate) fn domain_requires_provenance(
 /// `semantic::field_domains` exactly, so the same canonical places discharge
 /// the result/returned-element obligations built from them.
 pub(crate) fn declared_field_domain_paths(
-    program: &typed_trees::TypedTrees,
-    data: &typed_trees::data::DataDefinition,
-) -> Vec<(Vec<facts::PlaceSegment>, SymbolHandle)> {
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    data: &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition,
+) -> Vec<(Vec<crate::fact_plan::PlaceSegment>, SymbolHandle)> {
     let mut paths = Vec::new();
     append_declared_field_domain_paths(program, data, &[], &[data.symbol], &mut paths);
     paths
 }
 
 fn append_declared_field_domain_paths(
-    program: &typed_trees::TypedTrees,
-    data: &typed_trees::data::DataDefinition,
-    prefix: &[facts::PlaceSegment],
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    data: &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition,
+    prefix: &[crate::fact_plan::PlaceSegment],
     visited: &[SymbolHandle],
-    paths: &mut Vec<(Vec<facts::PlaceSegment>, SymbolHandle)>,
+    paths: &mut Vec<(Vec<crate::fact_plan::PlaceSegment>, SymbolHandle)>,
 ) {
     for member in program.data_members(data) {
-        let typed_trees::data::DataMember::Field(field) = member else {
+        let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) =
+            member
+        else {
             continue;
         };
         if readable_type_reference(program, field.type_reference).is_none() {
@@ -724,7 +735,7 @@ fn append_declared_field_domain_paths(
             next_visited.push(nested.symbol);
             for index in 0..length {
                 let mut element_path = field_path.clone();
-                element_path.push(facts::PlaceSegment::FixedIndex { index });
+                element_path.push(crate::fact_plan::PlaceSegment::FixedIndex { index });
                 append_declared_field_domain_paths(
                     program,
                     nested,
@@ -741,7 +752,7 @@ fn append_declared_field_domain_paths(
 /// domain `Constrained` wrapper), for descending a nested field path into the
 /// next data definition.
 fn type_reference_data_name(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<String> {
     match program.type_reference_table.type_reference(type_reference) {
@@ -758,9 +769,9 @@ fn type_reference_data_name(
 /// `&`/`&mut` and a domain wrapper), or `None` if the field is not data-typed.
 /// Used to descend a nested field path for the entry-invariant seed.
 pub(crate) fn data_definition_for_field_type(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
-) -> Option<&typed_trees::data::DataDefinition> {
+) -> Option<&symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition> {
     let name = type_reference_data_name(program, type_reference)?;
     program
         .data_definitions()
@@ -773,7 +784,7 @@ pub(crate) fn data_definition_for_field_type(
 /// distinct node and are deliberately absent. This never re-resolves a short
 /// name globally.
 pub(crate) fn domain_constraint_symbols(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Vec<SymbolHandle> {
     domain_constraint_identities(program, type_reference)
@@ -786,7 +797,7 @@ pub(crate) fn domain_constraint_symbols(
 /// so the field's bounded carrier represents membership completely and a
 /// write needs only the carrier's own range obligation.
 pub(crate) fn domains_are_exact_intervals(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     mut type_reference: TypeReferenceHandle,
 ) -> bool {
     loop {
@@ -802,7 +813,7 @@ pub(crate) fn domains_are_exact_intervals(
                     .iter()
                     .any(|constraint| {
                         matches!(constraint, TypeConstraintNode::Domain(domain)
-                            if validation::exact_declared_domain_interval(program, domain).is_none())
+                            if crate::validation::exact_declared_domain_interval(program, domain).is_none())
                     })
                 {
                     return false;
@@ -821,7 +832,7 @@ pub(crate) fn domains_are_exact_intervals(
 /// definition symbol alone proves atomic domains only. For an atomic domain
 /// the identity is the definition's own.
 pub(crate) fn domain_constraint_identities(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Vec<(SymbolHandle, language_semantics::SemanticDomainId)> {
     match program.type_reference_table.type_reference(type_reference) {
@@ -847,7 +858,7 @@ pub(crate) fn domain_constraint_identities(
 /// domains are binding qualifications whose facts must come from retained
 /// establishment evidence, not from predicate proof.
 pub(crate) fn predicate_domain_constraint_symbols(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Vec<SymbolHandle> {
     predicate_domain_constraint_identities(program, type_reference)
@@ -858,7 +869,7 @@ pub(crate) fn predicate_domain_constraint_symbols(
 
 /// The predicate-bearing subset of [`domain_constraint_identities`].
 pub(crate) fn predicate_domain_constraint_identities(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Vec<(SymbolHandle, language_semantics::SemanticDomainId)> {
     domain_constraint_identities(program, type_reference)
@@ -885,11 +896,15 @@ pub(crate) fn predicate_domain_constraint_identities(
 /// carrier. Comparing only symbols would make the documented
 /// `[u8; N]::Utf8` family fracture at every borrow, concat, or call boundary.
 pub(crate) fn declared_domain_implies(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     source_domain: SymbolHandle,
     target_domain: SymbolHandle,
 ) -> bool {
-    typed_trees::domain::declared_domain_implies(program, source_domain, target_domain)
+    symbol_resolved_trees_to_typed_trees::typed_trees::domain::declared_domain_implies(
+        program,
+        source_domain,
+        target_domain,
+    )
 }
 
 /// Whether an established membership in `source_domain` proves membership in
@@ -905,16 +920,20 @@ pub(crate) fn declared_domain_implies(
 /// by the view satisfy precisely the required theory without conflating the two
 /// carrier identities or blessing unrelated cross-carrier recasts.
 pub(crate) fn domain_membership_implies(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     source_domain: SymbolHandle,
     target_domain: SymbolHandle,
 ) -> bool {
     // This legacy relation has no instance arguments. Even an intermediate
     // indexed membership must not be reduced to its family symbol: another
     // application of that family has no implicit variance relationship.
-    if !typed_trees::domain::supports_symbol_only_proof(program, source_domain)
-        || !typed_trees::domain::supports_symbol_only_proof(program, target_domain)
-    {
+    if !symbol_resolved_trees_to_typed_trees::typed_trees::domain::supports_symbol_only_proof(
+        program,
+        source_domain,
+    ) || !symbol_resolved_trees_to_typed_trees::typed_trees::domain::supports_symbol_only_proof(
+        program,
+        target_domain,
+    ) {
         return false;
     }
     if declared_domain_implies(program, source_domain, target_domain) {
@@ -952,7 +971,7 @@ pub(crate) fn domain_membership_implies(
 }
 
 fn is_fixed_byte_carrier(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
@@ -962,14 +981,14 @@ fn is_fixed_byte_carrier(
         } => is_fixed_byte_carrier(program, *base_type),
         TypeReferenceNode::FixedArray { element_type, .. } => {
             program.type_reference_table.primitive_type(*element_type)
-                == Some(typed_trees::types::PrimitiveType::U8)
+                == Some(symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U8)
         }
         _ => false,
     }
 }
 
 fn is_byte_slice_carrier(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
@@ -979,7 +998,7 @@ fn is_byte_slice_carrier(
         } => is_byte_slice_carrier(program, *base_type),
         TypeReferenceNode::Slice { element_type } => {
             program.type_reference_table.primitive_type(*element_type)
-                == Some(typed_trees::types::PrimitiveType::U8)
+                == Some(symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U8)
         }
         _ => false,
     }
@@ -993,12 +1012,13 @@ fn is_byte_slice_carrier(
 /// `expression` is not a string literal, or the domain has no recognized
 /// comptime byte-predicate fact.
 pub(crate) fn string_literal_expression_grants_domain(
-    program: &typed_trees::TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     domain_symbol: SymbolHandle,
 ) -> bool {
-    let typed_trees::expression::ExpressionNode::String(literal) =
-        program.expression_table.expression(expression)
+    let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::String(
+        literal,
+    ) = program.expression_table.expression(expression)
     else {
         return false;
     };
@@ -1021,7 +1041,7 @@ pub(crate) fn string_literal_expression_grants_domain(
 /// the empty sequence; a `len > 0`-style domain (e.g. `non_empty`) does not, so
 /// its entry-invariant must be withheld.
 pub(crate) fn domain_admits_empty_byte_sequence(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     domain_symbol: SymbolHandle,
 ) -> bool {
     domain_byte_predicate(program, domain_symbol).is_some_and(|predicate| predicate.holds_for(&[]))
@@ -1032,7 +1052,7 @@ pub(crate) fn domain_admits_empty_byte_sequence(
 /// are each in the domain is itself in the domain. Underwrites the concat-domain
 /// law in `checks::contracts::writes::value_proves_domain`.
 pub(crate) fn domain_is_concat_preserving(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     domain_symbol: SymbolHandle,
 ) -> bool {
     domain_byte_predicate(program, domain_symbol)
@@ -1045,7 +1065,7 @@ pub(crate) fn domain_is_concat_preserving(
 /// `checks::contracts::calls::subslice_grants_domain`. True only for per-byte
 /// facts (`no_nul`, `ascii_only`); `false` for `valid_utf8`/`non_empty`.
 pub(crate) fn domain_is_subslice_preserving(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     domain_symbol: SymbolHandle,
 ) -> bool {
     domain_byte_predicate(program, domain_symbol)
@@ -1060,7 +1080,7 @@ pub(crate) fn domain_is_subslice_preserving(
 /// `None`. Used by the length-fits check to bound writes into a bounded text
 /// carrier.
 pub(crate) fn type_reference_fixed_array_capacity(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<usize> {
     match program.type_reference_table.type_reference(type_reference) {

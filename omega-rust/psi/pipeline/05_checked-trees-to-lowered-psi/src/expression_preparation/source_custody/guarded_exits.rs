@@ -5,7 +5,9 @@ use super::{
     CheckedScalarExpressionRole, CheckedTrees, ExpressionNode, LoweringError, ScalarType,
     StatementNode, TransitionGuardNode, authored_state, storage_reads, unsupported, validate_pure,
 };
-use checked_trees::{CheckedScalarBranchDestination, CheckedScalarGuardedExit};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedScalarBranchDestination, CheckedScalarGuardedExit,
+};
 
 pub(crate) fn validate(
     checked: &CheckedTrees,
@@ -121,7 +123,9 @@ pub(crate) fn validate(
                 "scalar case coverage has no nominal owner",
             ))?;
         for member in checked.data_members(data) {
-            let checked_trees::data::DataMember::Variant(case) = member else {
+            let typed_trees_to_checked_trees::checked_trees::data::DataMember::Variant(case) =
+                member
+            else {
                 return unsupported("scalar case coverage is not a closed sum");
             };
             let identity = case.path_identity();
@@ -158,10 +162,13 @@ fn destination(
 /// consumer separately reconstructs the declared result and value evidence.
 pub(crate) fn completion_expression(
     checked: &CheckedTrees,
-    source: &checked_trees::state::State,
+    source: &typed_trees_to_checked_trees::checked_trees::state::State,
     ordinal: usize,
-) -> Result<checked_trees::expression::ExpressionHandle, LoweringError> {
-    use checked_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
+) -> Result<typed_trees_to_checked_trees::checked_trees::expression::ExpressionHandle, LoweringError>
+{
+    use typed_trees_to_checked_trees::checked_trees::statement::{
+        StatementNode, TransitionExit, TransitionTargetNode,
+    };
     match checked
         .statement_table
         .statements(source.statement_nodes)

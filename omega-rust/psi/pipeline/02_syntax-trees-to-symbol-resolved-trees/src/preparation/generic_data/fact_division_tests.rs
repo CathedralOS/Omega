@@ -4,10 +4,10 @@ use diagnostics::Diagnostic;
 use source::SourceId;
 use source_files_to_tokens::Lexer;
 use std::collections::HashMap;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::item::Item;
-use syntax_trees::item::ProofFact;
 use tokens_to_syntax_trees::parse_syntax_trees_with_id;
+use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
+use tokens_to_syntax_trees::syntax_trees::item::Item;
+use tokens_to_syntax_trees::syntax_trees::item::ProofFact;
 
 fn parse(source: &str) -> SyntaxTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize const fact");

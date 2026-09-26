@@ -10,8 +10,8 @@ use super::{
 
 pub(super) fn compute_function(
     function_index: usize,
-    selected: &selected_instructions::SelectedFunction,
-    liveness: &selected_instructions::FunctionLiveness,
+    selected: &target_operations_to_selected_instructions::SelectedFunction,
+    liveness: &target_operations_to_selected_instructions::FunctionLiveness,
 ) -> Result<FunctionLiveRanges, LiveRangeError> {
     reject_unsupported(function_index, liveness)?;
     let block_domains = liveness
@@ -122,7 +122,7 @@ pub(super) fn compute_function(
 
 fn reject_unsupported(
     function: usize,
-    liveness: &selected_instructions::FunctionLiveness,
+    liveness: &target_operations_to_selected_instructions::FunctionLiveness,
 ) -> Result<(), LiveRangeError> {
     for operand in &liveness.operand_positions {
         let error = if operand.access == RegisterOperandAccess::UseDef {

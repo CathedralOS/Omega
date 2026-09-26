@@ -1,6 +1,8 @@
 use optimization_core::{OptimizationUnitIdentity, OwnershipFrontierFactIdentity};
-use optimization_unit::{OwnershipFrontierSite, OwnershipFrontierSnapshot, PsiOptimizationUnit};
 use semantic_vocabulary::MachineId;
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    OwnershipFrontierSite, OwnershipFrontierSnapshot, PsiOptimizationUnit,
+};
 
 /// Exact immutable verifier fact made available in one optimization revision.
 /// The site remains a source Terminal-Psi site; consumers must match that exact

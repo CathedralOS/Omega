@@ -5,7 +5,7 @@ use crate::ValidatedLiveRanges;
 use crate::ValidatedRecoveryClassifications;
 use crate::ValidatedSelectedAnalysis;
 use crate::ValidatedSpillChoices;
-use register_model::{
+use target_operations_to_selected_instructions::register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile,
@@ -18,20 +18,22 @@ pub(crate) mod validate;
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) mod tests;
 
-use identity::encode_terminal_pressure_rematerialization_content;
-pub(crate) use identity::pressure_rematerialization_identity;
-use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
-use register_homes::{
+use crate::register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, RecoveryClassificationIdentity,
     SpillChoiceIdentity,
 };
-use register_model::{RegisterConstraintKey, RegisterViewId};
-use selected_instructions::{
+use identity::encode_terminal_pressure_rematerialization_content;
+pub(crate) use identity::pressure_rematerialization_identity;
+use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
+use semantic_vocabulary::{FuelScheduleIdentity, IntegerValue, MachineId, ValueId};
+use target_operations_to_selected_instructions::register_model::{
+    RegisterConstraintKey, RegisterViewId,
+};
+use target_operations_to_selected_instructions::{
     LiveRangeIdentity, LiveRangePoint, PressureRematerializationIdentity, SelectedBlockId,
     SelectedInstructionId, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
     VirtualRegisterId,
 };
-use semantic_vocabulary::{FuelScheduleIdentity, IntegerValue, MachineId, ValueId};
 pub use validate::validate_pressure_rematerialization;
 
 /// Insert one value-lineage-only, zero-fuel rematerialization immediately
@@ -476,11 +478,11 @@ fn decode_constraint_key(
     cursor: &mut Cursor<'_>,
 ) -> Result<RegisterConstraintKey, PressureRematerializationDecodeError> {
     let family = match cursor.byte()? {
-        0 => register_model::RegisterConstraintFamily::Call,
-        1 => register_model::RegisterConstraintFamily::Return,
-        2 => register_model::RegisterConstraintFamily::SystemCall,
-        3 => register_model::RegisterConstraintFamily::InlineAssembly,
-        4 => register_model::RegisterConstraintFamily::Instruction,
+        0 => target_operations_to_selected_instructions::register_model::RegisterConstraintFamily::Call,
+        1 => target_operations_to_selected_instructions::register_model::RegisterConstraintFamily::Return,
+        2 => target_operations_to_selected_instructions::register_model::RegisterConstraintFamily::SystemCall,
+        3 => target_operations_to_selected_instructions::register_model::RegisterConstraintFamily::InlineAssembly,
+        4 => target_operations_to_selected_instructions::register_model::RegisterConstraintFamily::Instruction,
         tag => {
             return Err(PressureRematerializationDecodeError::UnknownConstraintFamily(tag));
         }

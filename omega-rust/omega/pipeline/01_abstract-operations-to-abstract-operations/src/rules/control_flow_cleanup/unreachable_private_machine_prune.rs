@@ -6,12 +6,12 @@ use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
-use optimization_unit::{
+use semantic_vocabulary::MachineId;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     NodeLocation, ProvenanceDisposition, ProvenanceRewrite, PrunedMachineCustody,
     PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
     UnreachablePrivateMachinesRewrite,
 };
-use semantic_vocabulary::MachineId;
 
 use crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME;
 use crate::{

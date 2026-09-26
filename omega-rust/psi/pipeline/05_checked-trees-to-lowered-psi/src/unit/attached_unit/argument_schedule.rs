@@ -52,7 +52,7 @@ pub(super) fn build(
             }
             CheckedUnitEffectOperationPlan::EstablishScalarArray {
                 result,
-                source: checked_trees::CheckedArrayConstructionSource::CallArgument { .. },
+                source: typed_trees_to_checked_trees::checked_trees::CheckedArrayConstructionSource::CallArgument { .. },
                 ..
             } => result.statement_index,
             _ => {
@@ -112,7 +112,7 @@ fn append(
     if matches!(
         &plan.operations[index],
         CheckedUnitEffectOperationPlan::EstablishScalarArray {
-            source: checked_trees::CheckedArrayConstructionSource::CallArgument { .. },
+            source: typed_trees_to_checked_trees::checked_trees::CheckedArrayConstructionSource::CallArgument { .. },
             ..
         }
     ) {
@@ -207,7 +207,7 @@ fn append(
             matches!(
                 &plan.operations[*producer],
                 CheckedUnitEffectOperationPlan::EstablishScalarArray {
-                    source: checked_trees::CheckedArrayConstructionSource::CallArgument {
+                    source: typed_trees_to_checked_trees::checked_trees::CheckedArrayConstructionSource::CallArgument {
                         call_ordinal,
                         parameter_position,
                     }, result, ..
@@ -246,7 +246,7 @@ fn append(
             continue;
         }
         if byte_subslices::arguments(&plan.operations[index]).get(structural_ordinal).is_some_and(|argument| {
-            matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. })
+            matches!(argument.source, typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. })
         }) {
             steps.push(Step::Subslice { operation: index, ordinal: structural_ordinal });
             continue;
@@ -258,7 +258,7 @@ fn append(
             &plan.operations[*producer],
             CheckedUnitEffectOperationPlan::StructuralCall { source_site, .. }
                 | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { source_site, .. }
-                if *source_site == Some(checked_trees::NominalMachineUseSite::Expression(expression))
+                if *source_site == Some(typed_trees_to_checked_trees::checked_trees::NominalMachineUseSite::Expression(expression))
         ));
         let producer = producers.next().ok_or(LoweringError::Unsupported(
             "nested structural argument has no retained producer",

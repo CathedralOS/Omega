@@ -11,14 +11,14 @@ use crate::rewrites::runtime_spill::admission;
 use crate::rewrites::runtime_spill::tests::budget;
 use crate::spill_selected_runtime_value;
 use crate::validate_runtime_spill;
-use selected_instructions::{
+use semantic_vocabulary::{
+    BoundaryMachineId, OperationId, PlaceId, StructuralCaseId, StructuralFieldId,
+};
+use target_operations_to_selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedBlockOrigin, SelectedBoundarySettlement,
     SelectedBoundarySettlementPayload, SelectedCasePayloadBinding, SelectedCasePayloadTransport,
     SelectedLocalStorageSlot, SelectedStructuralCaseEdge, SelectedSuccessor, SelectedSuccessorRole,
     SelectedValueBinding, SelectedValueTransport,
-};
-use semantic_vocabulary::{
-    BoundaryMachineId, OperationId, PlaceId, StructuralCaseId, StructuralFieldId,
 };
 
 pub(super) fn parameter_fixture(target: NativeTarget) -> ValidatedRuntimeSpill {
@@ -79,7 +79,7 @@ pub(super) fn parameter_fixture(target: NativeTarget) -> ValidatedRuntimeSpill {
     let incoming = |argument| {
         let mut edge = successor(2);
         edge.bindings.push(SelectedValueBinding {
-            semantic: abstract_operations::ValueBinding {
+            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                 parameter: ValueId::new(2).unwrap(),
                 argument: ValueId::new(1).unwrap(),
                 scalar_type,
@@ -252,14 +252,16 @@ pub(super) fn case_parameter_fixture(target: NativeTarget) -> ValidatedRuntimeSp
             entry_fixed_view: None,
         });
     }
-    let declaration = || legalized_operations::LegalizedStructuralCasePayload {
+    let declaration = || {
+        target_operations_to_selected_instructions::legalized_operations::LegalizedStructuralCasePayload {
         field: StructuralFieldId::new(1).unwrap(),
         field_byte_offset: 0,
-        parameter: legalized_operations::LegalizedValueDefinition {
+        parameter: target_operations_to_selected_instructions::legalized_operations::LegalizedValueDefinition {
             value: ValueId::new(2).unwrap(),
             scalar_type,
             definition_site: site,
         },
+    }
     };
     let case_edge = |payloads| SelectedStructuralCaseEdge {
         source: selected_instructions::SelectedCaseDispatchSource::Local { slot },
@@ -590,7 +592,7 @@ fn edge_initialized_parameters_transport_through_fresh_reload_registers() {
             onward.role = SelectedSuccessorRole::Semantic;
             onward.source_target = BlockId::new(4).unwrap();
             onward.bindings.push(SelectedValueBinding {
-                semantic: abstract_operations::ValueBinding {
+                semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                     parameter: ValueId::new(3).unwrap(),
                     argument: ValueId::new(2).unwrap(),
                     scalar_type,
@@ -1046,11 +1048,12 @@ fn case_payload_parameter_arrivals_still_require_exact_edge_definitions() {
             10 => {
                 let scalar_type = function.virtual_registers[1].scalar_type;
                 incoming(function, 3).bindings.push(SelectedValueBinding {
-                    semantic: abstract_operations::ValueBinding {
-                        parameter: ValueId::new(2).unwrap(),
-                        argument: ValueId::new(1).unwrap(),
-                        scalar_type,
-                    },
+                    semantic:
+                        terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
+                            parameter: ValueId::new(2).unwrap(),
+                            argument: ValueId::new(1).unwrap(),
+                            scalar_type,
+                        },
                     transport: SelectedValueTransport::Registers {
                         argument: VirtualRegisterId(5),
                         parameter: VirtualRegisterId(1),
@@ -1683,10 +1686,10 @@ fn structural_entry_fixture(target: NativeTarget) -> ValidatedRuntimeSpill {
         };
         register.definition_site = None;
         register.entry_fixed_view = Some(view);
-        function.structural = Some(legalized_operations::LegalizedStructuralContract {
+        function.structural = Some(target_operations_to_selected_instructions::legalized_operations::LegalizedStructuralContract {
             result: None,
             structural_types: Vec::new().into(),
-            parameters: vec![legalized_operations::LegalizedCallUnitParameter {
+            parameters: vec![target_operations_to_selected_instructions::legalized_operations::LegalizedCallUnitParameter {
                 semantic: terminal_psi::StructuralParameterDeclaration {
                     place,
                     position: 0,
@@ -1697,15 +1700,15 @@ fn structural_entry_fixture(target: NativeTarget) -> ValidatedRuntimeSpill {
                     qualifications: Vec::new(),
                     projected_qualifications: Vec::new(),
                 },
-                target: target_operations::TargetStructuralParameter {
+                target: abstract_operations_to_target_operations::target_operations::TargetStructuralParameter {
                     place,
                     structural_type,
                     multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                     access: terminal_psi::StructuralAccess::SharedBorrow,
                     projected_qualifications: Vec::new(),
-                    shape: calling_conventions::ValueShape::borrowed_reference(8, 8),
-                    placement: calling_conventions::ValuePlacement {
-                        shape: calling_conventions::ValueShape::borrowed_reference(8, 8),
+                    shape: abstract_operations_to_target_operations::calling_conventions::ValueShape::borrowed_reference(8, 8),
+                    placement: abstract_operations_to_target_operations::calling_conventions::ValuePlacement {
+                        shape: abstract_operations_to_target_operations::calling_conventions::ValueShape::borrowed_reference(8, 8),
                         locations: Vec::new(),
                     },
                 },
@@ -1748,7 +1751,7 @@ fn hidden_result_fixture(target: NativeTarget) -> ValidatedRuntimeSpill {
         };
         register.definition_site = None;
         register.entry_fixed_view = Some(view);
-        function.structural = Some(legalized_operations::LegalizedStructuralContract {
+        function.structural = Some(target_operations_to_selected_instructions::legalized_operations::LegalizedStructuralContract {
             result: Some(terminal_psi::StructuralResultDeclaration {
                 place,
                 structural_type,
@@ -2279,7 +2282,7 @@ fn structural_live_in_rejects_value_binding_transport_and_reentry() {
         let function = &mut Arc::make_mut(&mut bound.transformed).functions[0];
         let mut edge = successor(1);
         edge.bindings.push(SelectedValueBinding {
-            semantic: abstract_operations::ValueBinding {
+            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                 parameter: ValueId::new(9).unwrap(),
                 argument: ValueId::new(8).unwrap(),
                 scalar_type,

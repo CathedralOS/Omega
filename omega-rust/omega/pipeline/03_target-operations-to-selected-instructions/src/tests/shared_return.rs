@@ -6,12 +6,12 @@ use crate::{
     legalize_target_operations, select_instructions, selection_constraints,
     validate_legalized_operations, validate_selected_instructions,
 };
-use abstract_operations::{
-    AbstractBlockEntry, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan,
-    AbstractParameter, AbstractResult, AbstractSuccessor, ValueBinding,
-};
 use semantic_vocabulary::{
     BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, OperationId, ScalarType, ValueId,
+};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractBlockEntry, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan,
+    AbstractParameter, AbstractResult, AbstractSuccessor, ValueBinding,
 };
 
 fn value(raw: u64) -> ValueId {
@@ -31,8 +31,8 @@ fn fixture(
     target: target::NativeTarget,
 ) -> (
     AbstractOperationPlan,
-    target_operations::TargetOperationPlan,
-    optimization_unit::PsiOptimizationUnit,
+    abstract_operations_to_target_operations::target_operations::TargetOperationPlan,
+    terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
 ) {
     let (mut abstracted, _, previous) = super::fixtures::plain_unit::plain_unit_fixture();
     let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
@@ -142,7 +142,7 @@ fn fixture(
         abstract_operations_to_target_operations::TargetLoweringRequest::new(target),
     )
     .unwrap();
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &abstracted,
         previous.fuel_schedule,
     )
@@ -189,7 +189,7 @@ fn shared_return_selection_preserves_real_blocks_and_binding_edges() {
         let (abstracted, target_plan, unit) = fixture(target);
         let legalized = legalize_target_operations(&target_plan, &abstracted, &unit).unwrap();
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = selection_constraints(&legalized, &environment);
         let selected = select_instructions(
             &legalized,
@@ -204,19 +204,22 @@ fn shared_return_selection_preserves_real_blocks_and_binding_edges() {
                 .blocks
                 .iter()
                 .filter_map(|block| match block.origin {
-                    selected_instructions::SelectedBlockOrigin::Source(source) => Some(source),
-                    selected_instructions::SelectedBlockOrigin::EdgeTransfer { .. }
-                    | selected_instructions::SelectedBlockOrigin::CaseDispatch { .. } => None,
+                    crate::selected_instructions::SelectedBlockOrigin::Source(source) =>
+                        Some(source),
+                    crate::selected_instructions::SelectedBlockOrigin::EdgeTransfer { .. }
+                    | crate::selected_instructions::SelectedBlockOrigin::CaseDispatch { .. } =>
+                        None,
                 })
                 .collect::<Vec<_>>(),
             [block(1), block(3), block(4), block(2)]
         );
         assert_return_bridges(function, 4);
         assert!(
-            function.virtual_registers.iter().any(|register| matches!(register.origin, selected_instructions::VirtualRegisterOrigin::BlockParameter { source_value, .. } if source_value == value(3)))
+            function.virtual_registers.iter().any(|register| matches!(register.origin, crate::selected_instructions::VirtualRegisterOrigin::BlockParameter { source_value, .. } if source_value == value(3)))
         );
         for arm in &function.blocks[1..3] {
-            let selected_instructions::SelectedTerminator::Jump { successor, .. } = &arm.terminator
+            let crate::selected_instructions::SelectedTerminator::Jump { successor, .. } =
+                &arm.terminator
             else {
                 panic!("actual jump")
             };
@@ -224,18 +227,21 @@ fn shared_return_selection_preserves_real_blocks_and_binding_edges() {
             assert_eq!(successor.bindings[0].semantic.parameter, value(3));
             assert_eq!(
                 successor.role,
-                selected_instructions::SelectedSuccessorRole::Semantic
+                crate::selected_instructions::SelectedSuccessorRole::Semantic
             );
             assert_eq!(
                 successor.bindings[0].transport,
-                selected_instructions::SelectedValueTransport::Unused
+                crate::selected_instructions::SelectedValueTransport::Unused
             );
         }
     }
 }
 
-fn assert_return_bridges(function: &selected_instructions::SelectedFunction, source_count: usize) {
-    use selected_instructions::{
+fn assert_return_bridges(
+    function: &crate::selected_instructions::SelectedFunction,
+    source_count: usize,
+) {
+    use crate::selected_instructions::{
         SelectedBlockOrigin, SelectedSuccessorRole, SelectedTerminator, SelectedValueTransport,
     };
     assert_eq!(function.blocks.len(), source_count + 2);
@@ -252,7 +258,7 @@ fn assert_return_bridges(function: &selected_instructions::SelectedFunction, sou
                 .instructions
                 .iter()
                 .all(|instruction| instruction.kind
-                    == selected_instructions::SelectedInstructionKind::CopyI64
+                    == crate::selected_instructions::SelectedInstructionKind::CopyI64
                     && instruction.provenance.operations.is_empty()
                     && instruction.provenance.fuel.is_empty())
         );
@@ -284,7 +290,7 @@ fn assert_return_bridges(function: &selected_instructions::SelectedFunction, sou
         );
         assert!(
             matches!(function.virtual_registers[parameter.0 as usize].origin,
-            selected_instructions::VirtualRegisterOrigin::BlockParameter { source_value, block: owner, .. }
+            crate::selected_instructions::VirtualRegisterOrigin::BlockParameter { source_value, block: owner, .. }
                 if source_value == value(3) && owner == successor.block)
         );
     }
@@ -301,16 +307,18 @@ fn shared_return_legalization_rejects_substituted_bindings_and_join_identity() {
         let function = &mut proposed.scalar_functions[0];
         match change {
             0 => {
-                let legalized_operations::LegalizedScalarTerminator::Jump { successor, .. } =
-                    &mut function.blocks[2].terminator
+                let crate::legalized_operations::LegalizedScalarTerminator::Jump {
+                    successor, ..
+                } = &mut function.blocks[2].terminator
                 else {
                     panic!("jump");
                 };
                 successor.bindings[0].argument = value(10);
             }
             1 => {
-                let legalized_operations::LegalizedScalarTerminator::Conditional {
-                    when_true, ..
+                let crate::legalized_operations::LegalizedScalarTerminator::Conditional {
+                    when_true,
+                    ..
                 } = &mut function.blocks[0].terminator
                 else {
                     panic!("conditional");
@@ -319,8 +327,9 @@ fn shared_return_legalization_rejects_substituted_bindings_and_join_identity() {
             }
             2 => function.blocks[1].parameters[0].value = value(9),
             3 => {
-                let legalized_operations::LegalizedScalarTerminator::Jump { successor, .. } =
-                    &mut function.blocks[3].terminator
+                let crate::legalized_operations::LegalizedScalarTerminator::Jump {
+                    successor, ..
+                } = &mut function.blocks[3].terminator
                 else {
                     panic!("jump");
                 };
@@ -329,8 +338,8 @@ fn shared_return_legalization_rejects_substituted_bindings_and_join_identity() {
             _ => function.blocks[2].parameters.clear(),
         }
         assert_ne!(
-            legalized_operations::legalized_operation_plan_identity(&proposed),
-            legalized_operations::legalized_operation_plan_identity(legalized.plan())
+            crate::legalized_operations::legalized_operation_plan_identity(&proposed),
+            crate::legalized_operations::legalized_operation_plan_identity(legalized.plan())
         );
         assert!(validate_legalized_operations(&target, &abstracted, &unit, proposed).is_err());
     }
@@ -342,7 +351,7 @@ fn shared_return_selection_rejects_substituted_transfer_and_parameter_home() {
     let (abstracted, target, unit) = fixture(native_target);
     let legalized = legalize_target_operations(&target, &abstracted, &unit).unwrap();
     let environment =
-        register_environment::baseline_target_register_environment(native_target).unwrap();
+        crate::register_environment::baseline_target_register_environment(native_target).unwrap();
     let constraints = selection_constraints(&legalized, &environment);
     let selected = select_instructions(
         &legalized,
@@ -356,7 +365,7 @@ fn shared_return_selection_rejects_substituted_transfer_and_parameter_home() {
         let function = &mut plan.functions[0];
         match change {
             0 => {
-                let selected_instructions::SelectedTerminator::Jump { successor, .. } =
+                let crate::selected_instructions::SelectedTerminator::Jump { successor, .. } =
                     &mut function.blocks[1].terminator
                 else {
                     unreachable!()
@@ -364,7 +373,7 @@ fn shared_return_selection_rejects_substituted_transfer_and_parameter_home() {
                 successor.bindings[0].semantic.argument = value(10);
             }
             1 => {
-                let selected_instructions::SelectedTerminator::Jump { successor, .. } =
+                let crate::selected_instructions::SelectedTerminator::Jump { successor, .. } =
                     &mut function.blocks[1].terminator
                 else {
                     unreachable!()
@@ -372,15 +381,15 @@ fn shared_return_selection_rejects_substituted_transfer_and_parameter_home() {
                 successor.source_target = block(4);
             }
             2 => {
-                function.virtual_registers.iter_mut().find(|register| matches!(register.origin,selected_instructions::VirtualRegisterOrigin::BlockParameter {source_value,..} if source_value == value(3))).unwrap().origin =
-                    selected_instructions::VirtualRegisterOrigin::BlockParameter {
+                function.virtual_registers.iter_mut().find(|register| matches!(register.origin,crate::selected_instructions::VirtualRegisterOrigin::BlockParameter {source_value,..} if source_value == value(3))).unwrap().origin =
+                    crate::selected_instructions::VirtualRegisterOrigin::BlockParameter {
                         source_value: value(3),
-                        block: selected_instructions::SelectedBlockId(2),
+                        block: crate::selected_instructions::SelectedBlockId(2),
                         parameter_index: 0,
                     }
             }
             3 => {
-                let selected_instructions::SelectedTerminator::ConditionalBranch {
+                let crate::selected_instructions::SelectedTerminator::ConditionalBranch {
                     when_zero, ..
                 } = &mut function.blocks[0].terminator
                 else {
@@ -390,7 +399,7 @@ fn shared_return_selection_rejects_substituted_transfer_and_parameter_home() {
             }
             _ => {
                 function.blocks[2].instructions[0].kind =
-                    selected_instructions::SelectedInstructionKind::MaterializeI64 {
+                    crate::selected_instructions::SelectedInstructionKind::MaterializeI64 {
                         value: IntegerValue::Unsigned(1),
                     }
             }

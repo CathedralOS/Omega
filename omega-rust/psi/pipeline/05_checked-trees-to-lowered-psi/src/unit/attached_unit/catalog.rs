@@ -19,7 +19,9 @@ use super::{
     allocate_dense, content_conservation, dense_identity, lookup_domain_id, lookup_service_id,
     lookup_type_id, terminal_scalar_type, unique_unit_boundary, unsupported,
 };
-use checked_trees::{CheckedBoundaryMachineResultPlan, CheckedUnitStructuralTypePlan};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedBoundaryMachineResultPlan, CheckedUnitStructuralTypePlan,
+};
 
 /// Root the leaf type identity of every structural argument plan reachable
 /// inside a structural value tree: member/fixed-index leaf reads mint the
@@ -28,19 +30,19 @@ use checked_trees::{CheckedBoundaryMachineResultPlan, CheckedUnitStructuralTypeP
 /// identity against the unit catalog.
 fn collect_value_roots(
     checked: &CheckedTrees,
-    value: checked_trees::CheckedStructuralValueHandle,
+    value: typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueHandle,
     roots: &mut Vec<String>,
 ) {
     let node = checked.facts.values.structural_values.nodes.get(value);
     match &node.kind {
-        checked_trees::CheckedStructuralValueKind::Place(source)
-        | checked_trees::CheckedStructuralValueKind::Reference { source }
-        | checked_trees::CheckedStructuralValueKind::ScalarCasePlace { source, .. }
-        | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { source, .. }
-        | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { source } => {
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Place(source)
+        | typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Reference { source }
+        | typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::ScalarCasePlace { source, .. }
+        | typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { source, .. }
+        | typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::BorrowedSliceView { source } => {
             roots.push(source.type_identity.clone());
         }
-        checked_trees::CheckedStructuralValueKind::Projection {
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Projection {
             source,
             type_identity,
             ..
@@ -48,8 +50,8 @@ fn collect_value_roots(
             roots.push(type_identity.clone());
             collect_value_roots(checked, *source, roots);
         }
-        checked_trees::CheckedStructuralValueKind::Record { fields, .. }
-        | checked_trees::CheckedStructuralValueKind::StructuralCase { fields, .. } => {
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Record { fields, .. }
+        | typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::StructuralCase { fields, .. } => {
             for field in checked
                 .facts
                 .values
@@ -57,19 +59,19 @@ fn collect_value_roots(
                 .record_fields
                 .span_or_empty(*fields)
             {
-                if let checked_trees::CheckedStructuralRecordFieldValue::Structural(nested) =
+                if let typed_trees_to_checked_trees::checked_trees::CheckedStructuralRecordFieldValue::Structural(nested) =
                     field.value
                 {
                     collect_value_roots(checked, nested, roots);
                 }
             }
         }
-        checked_trees::CheckedStructuralValueKind::FixedArray { elements } => {
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::FixedArray { elements } => {
             for element in elements {
                 collect_value_roots(checked, *element, roots);
             }
         }
-        checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => {
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => {
             for arm in checked
                 .facts
                 .values
@@ -223,7 +225,9 @@ pub(super) fn lower_unit_structural_types_including(
         )?);
         let body = UnitBody::find(plans, *symbol)?;
         if !matches!(body, UnitBody::Ordinary(plan) if plan.scalar_result.is_some() || plan.scalar_control.is_some())
-            && let checked_trees::CheckedControlResultPlan::Structural(result) = body.result()?
+            && let typed_trees_to_checked_trees::checked_trees::CheckedControlResultPlan::Structural(
+                result,
+            ) = body.result()?
         {
             roots.push(result.type_identity);
         }
@@ -271,7 +275,7 @@ pub(super) fn lower_unit_structural_types_including(
                     ..
                 } if UnitBody::contains(plans, *target_machine) => {
                     let target = UnitBody::find(plans, *target_machine)?;
-                    let checked_trees::CheckedControlResultPlan::Structural(signature) =
+                    let typed_trees_to_checked_trees::checked_trees::CheckedControlResultPlan::Structural(signature) =
                         target.result()?
                     else {
                         return unsupported(
@@ -515,12 +519,12 @@ pub(crate) fn lower_unit_structural_type_roots(
                 access,
             } => {
                 let access = match *access {
-                    checked_trees::CheckedStructuralAccess::MutableBorrow => {
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow => {
                         StructuralAccess::MutableBorrow
                     }
                     // A `&'a V` shared view loans its referent the same way —
                     // immutably.
-                    checked_trees::CheckedStructuralAccess::SharedBorrow => {
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow => {
                         StructuralAccess::SharedBorrow
                     }
                     _ => {
@@ -933,7 +937,7 @@ pub(super) fn lower_establishment_routes(
 pub(super) fn call_result_qualification_establishments(
     checked: &CheckedTrees,
     caller_state: symbols::SymbolHandle,
-    coordinate: checked_trees::CheckedUnitCallCoordinate,
+    coordinate: typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate,
     boundary_callee: symbols::SymbolHandle,
     result_domains: &[SemanticDomainId],
     domain_ids: &[(SemanticDomainId, StructuralDomainId)],
@@ -950,7 +954,7 @@ pub(super) fn call_result_qualification_establishments(
         })
         .map(|machine| machine.symbol)
         .unwrap_or_default();
-    let point = facts::ProgramPoint::CallEnsures {
+    let point = typed_trees_to_checked_trees::fact_plan::ProgramPoint::CallEnsures {
         machine_symbol: caller_machine,
         state_symbol: caller_state,
         statement_index: usize::try_from(coordinate.statement_index)
@@ -974,13 +978,13 @@ pub(super) fn call_result_qualification_establishments(
             continue;
         }
         let established_here = checked.facts.semantic.facts.iter().any(|(_, fact)| {
-            fact.origin == facts::FactOrigin::CallEnsures
+            fact.origin == typed_trees_to_checked_trees::fact_plan::FactOrigin::CallEnsures
                 && fact.point == point
                 && fact.evidence.origin
                     == language_semantics::QualificationEvidenceOrigin::AdmittedReceipt
                 && matches!(
                     fact.payload,
-                    facts::FactPayload::ContractDomainMembership { semantic_domain, .. }
+                    typed_trees_to_checked_trees::fact_plan::FactPayload::ContractDomainMembership { semantic_domain, .. }
                         if semantic_domain == *domain
                 )
         });

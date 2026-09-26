@@ -55,7 +55,7 @@ pub(super) fn prepare(
     evaluated_scalar_arguments: Option<&[ValueDeclaration]>,
     caller_scalar_values: &[ValueDeclaration],
     caller_erased_scalar_parameters: &[ValueDeclaration],
-    caller_erased_proof_parameters: &[checked_trees::CheckedErasedProofParameterPlan],
+    caller_erased_proof_parameters: &[typed_trees_to_checked_trees::checked_trees::CheckedErasedProofParameterPlan],
     parameters: &[StructuralParameterDeclaration],
     local_places: &[StructuralPlaceDeclaration],
     structural_result_places: &[(StructuralPlaceDeclaration, bool)],
@@ -137,7 +137,10 @@ pub(super) fn prepare(
     let erased_arguments = erased_scalar_arguments
         .iter()
         .map(|argument| {
-            let checked_trees::CheckedCallScalarArgument::Pure(expression) = argument else {
+            let typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(
+                expression,
+            ) = argument
+            else {
                 return unsupported("erased Unit call actual must be a pure checked expression");
             };
             crate::proofs::crash_routes::checked_scalar_term(
@@ -373,7 +376,7 @@ pub(super) fn emit_structural(
             .map(|domain| lookup_domain_id(domain_ids, *domain))
             .collect::<Result<Vec<_>, _>>()?,
         projected_qualifications: super::parameters::lower_projected_qualifications(
-            validation::structural_result_projected_qualifications(
+            typed_trees_to_checked_trees::validation::structural_result_projected_qualifications(
                 &checked.typed,
                 checked
                     .typed

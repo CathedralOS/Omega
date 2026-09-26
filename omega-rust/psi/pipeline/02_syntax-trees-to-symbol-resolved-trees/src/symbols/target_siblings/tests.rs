@@ -1,9 +1,9 @@
 //! Calls inside a target sibling's body bind to the same target's siblings,
 //! both for a free helper only that target declares and for an attached
 //! method reached through `self`.
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
 use crate::{ResolutionRequest, resolve};
 use source_files_to_tokens::Lexer;
-use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::SymbolHandle;
 
 fn resolve_source(source: &str) -> SymbolResolvedTrees {
@@ -36,12 +36,12 @@ fn first_local_call_callee(program: &SymbolResolvedTrees, machine: &str) -> Symb
             statements.start().arena_index() + offset,
             statements.start().generation(),
         );
-        let symbol_resolved_trees::statement::StatementNode::LocalData(local) =
+        let crate::symbol_resolved_trees::statement::StatementNode::LocalData(local) =
             program.tables.bodies.statements.statement(handle)
         else {
             continue;
         };
-        let symbol_resolved_trees::expression::ExpressionNode::Call(call) = program
+        let crate::symbol_resolved_trees::expression::ExpressionNode::Call(call) = program
             .tables
             .bodies
             .expressions

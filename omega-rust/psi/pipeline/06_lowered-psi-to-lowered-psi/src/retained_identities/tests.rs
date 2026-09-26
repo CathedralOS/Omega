@@ -7,12 +7,12 @@
 //! fails closed at the module-validation gate.
 
 use crate::{PsiOptimizationStageError, run_psi_optimization};
-use lowered_psi::{LoweredPsi, LoweredSourceCallOccurrence};
-use optimization::{PsiOptimization, PsiOptimizationSelections};
+use checked_trees_to_lowered_psi::lowered_psi::{LoweredPsi, LoweredSourceCallOccurrence};
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
     ScalarType, ValueId,
 };
+use terminal_codec::optimization::{PsiOptimization, PsiOptimizationSelections};
 use terminal_psi::{
     Block, MachineContract, Operation, OperationKind, OperationResult, ProofBundle, SuccessorEdge,
     TerminalBlockNaturalRank, TerminalMachine, TerminalMachineResult, TerminalNaturalCycle,

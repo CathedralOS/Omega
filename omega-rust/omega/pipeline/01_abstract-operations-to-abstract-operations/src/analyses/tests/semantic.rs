@@ -6,10 +6,10 @@ use crate::analyses::{
     ExecutableEdgeKnowledge, PlaceAliasRelation, PlaceView, ScalarConstantSupport,
 };
 use crate::{AnalysisProduct, EffectClass, EffectKnowledge, ScalarConstant, compute_analysis};
-use abstract_operations::AbstractOperation as O;
 use optimization_core::*;
-use optimization_unit::*;
 use semantic_vocabulary::*;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::*;
 
 #[test]
 fn sccp_case_paths_and_payloads_do_not_invent_join_constants() {
@@ -22,7 +22,7 @@ fn sccp_case_paths_and_payloads_do_not_invent_join_constants() {
         let case_edge = id(501, EdgeId::new);
         let second_case_edge = id(502, EdgeId::new);
         let payloads = if payload_arrival {
-            vec![abstract_operations::AbstractStructuralCasePayloadBinding {
+            vec![terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralCasePayloadBinding {
                 parameter,
                 field: id(504, StructuralFieldId::new),
                 scalar_type,
@@ -37,7 +37,7 @@ fn sccp_case_paths_and_payloads_do_not_invent_join_constants() {
                 .into_iter()
                 .enumerate()
                 .map(
-                    |(index, psi_edge)| abstract_operations::AbstractStructuralCaseSuccessor {
+                    |(index, psi_edge)| terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralCaseSuccessor {
                         psi_edge,
                         target: id(target, BlockId::new),
                         case: id(506 + index as u64, StructuralCaseId::new),
@@ -584,9 +584,9 @@ fn effects_are_conservative_and_liveness_reaches_fixed_point() {
     assert_eq!(liveness.blocks[0].nodes[0].exit, vec![condition]);
     assert_eq!(liveness.blocks[0].nodes[1].entry, vec![condition]);
     assert!(liveness.blocks[0].nodes[1].exit.is_empty());
-    let independent = optimization_unit_semantics::reconstruct_closed_scalar_node_boundary(
+    let independent = terminal_psi_to_abstract_operations::optimization_unit_semantics::reconstruct_closed_scalar_node_boundary(
         &unit,
-        optimization_unit::NodeLocation {
+        terminal_psi_to_abstract_operations::optimization_unit::NodeLocation {
             machine: id(100, MachineId::new),
             block: id(1, BlockId::new),
             node: 1,

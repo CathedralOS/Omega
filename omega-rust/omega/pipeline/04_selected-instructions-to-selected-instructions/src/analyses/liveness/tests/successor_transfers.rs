@@ -1,19 +1,21 @@
 //! Successor binding substitution and block-parameter fixtures.
 
-use register_model::{RegisterClassId, RegisterOperandAccess};
-use selected_instructions::{
+use semantic_vocabulary::{BlockId, EdgeId};
+use target_operations_to_selected_instructions::register_model::{
+    RegisterClassId, RegisterOperandAccess,
+};
+use target_operations_to_selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstructionId,
     SelectedInstructionKind, SelectedOperand, SelectedSuccessor, SelectedTerminator,
     VirtualRegisterId,
 };
-use semantic_vocabulary::{BlockId, EdgeId};
 
 use super::{compute_function, function_with_operand};
 
 pub(crate) fn successor_parameter_function() -> SelectedFunction {
-    use optimization_unit::ValueDefinitionSite;
-    use selected_instructions::{VirtualRegister, VirtualRegisterOrigin};
     use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, ValueId};
+    use target_operations_to_selected_instructions::{VirtualRegister, VirtualRegisterOrigin};
+    use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
     let value = |number| ValueId::new(number).unwrap();
     let mut function = function_with_operand(RegisterOperandAccess::Use);
@@ -35,19 +37,19 @@ pub(crate) fn successor_parameter_function() -> SelectedFunction {
     function.blocks[0].terminator = SelectedTerminator::Jump {
         instruction: jump,
         successor: SelectedSuccessor {
-            role: selected_instructions::SelectedSuccessorRole::Semantic,
+            role: target_operations_to_selected_instructions::SelectedSuccessorRole::Semantic,
             structural_case: None,
             structural_bindings: Vec::new(),
             psi_edge: EdgeId::new(1).unwrap(),
             block: SelectedBlockId(1),
             source_target: BlockId::new(2).unwrap(),
-            bindings: vec![selected_instructions::SelectedValueBinding {
-                semantic: abstract_operations::ValueBinding {
+            bindings: vec![target_operations_to_selected_instructions::SelectedValueBinding {
+                semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                     parameter: value(3),
                     argument: value(1),
                     scalar_type,
                 },
-                transport: selected_instructions::SelectedValueTransport::Registers {
+                transport: target_operations_to_selected_instructions::SelectedValueTransport::Registers {
                     argument: VirtualRegisterId(0),
                     parameter: VirtualRegisterId(2),
                 },
@@ -57,7 +59,9 @@ pub(crate) fn successor_parameter_function() -> SelectedFunction {
     };
     function.blocks.push(SelectedBlock {
         id: SelectedBlockId(1),
-        origin: selected_instructions::SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
+        origin: target_operations_to_selected_instructions::SelectedBlockOrigin::Source(
+            BlockId::new(2).unwrap(),
+        ),
         instructions: Vec::new(),
         terminator: SelectedTerminator::Return {
             instruction: return_instruction,
@@ -109,10 +113,11 @@ fn successor_parameter_liveness_substitutes_the_actual_edge_argument() {
         unreachable!()
     };
     successor.bindings[0].semantic.argument = semantic_vocabulary::ValueId::new(2).unwrap();
-    successor.bindings[0].transport = selected_instructions::SelectedValueTransport::Registers {
-        argument: VirtualRegisterId(1),
-        parameter: VirtualRegisterId(2),
-    };
+    successor.bindings[0].transport =
+        target_operations_to_selected_instructions::SelectedValueTransport::Registers {
+            argument: VirtualRegisterId(1),
+            parameter: VirtualRegisterId(2),
+        };
     let changed = compute_function(0, &selected).unwrap();
     assert_eq!(changed.blocks[0].virtual_live_out, [VirtualRegisterId(1)]);
     assert_ne!(live, changed);
@@ -124,7 +129,8 @@ fn source_blocks_cannot_claim_implementation_edge_roles() {
     let SelectedTerminator::Jump { successor, .. } = &mut function.blocks[0].terminator else {
         unreachable!()
     };
-    successor.role = selected_instructions::SelectedSuccessorRole::EdgeTransferContinuation;
+    successor.role =
+        target_operations_to_selected_instructions::SelectedSuccessorRole::EdgeTransferContinuation;
     assert!(compute_function(0, &function).is_err());
 }
 
@@ -137,17 +143,18 @@ fn successor_transport_distinguishes_duplicate_semantic_copies() {
     let SelectedTerminator::Jump { successor, .. } = &mut function.blocks[0].terminator else {
         unreachable!()
     };
-    successor.bindings[0].transport = selected_instructions::SelectedValueTransport::Registers {
-        argument: VirtualRegisterId(3),
-        parameter: VirtualRegisterId(2),
-    };
+    successor.bindings[0].transport =
+        target_operations_to_selected_instructions::SelectedValueTransport::Registers {
+            argument: VirtualRegisterId(3),
+            parameter: VirtualRegisterId(2),
+        };
     let live = compute_function(0, &function).unwrap();
     assert_eq!(live.blocks[0].virtual_live_out, [VirtualRegisterId(3)]);
 }
 
 #[test]
 fn successor_transport_rejects_absent_wrong_and_unused_register_pairs() {
-    use selected_instructions::SelectedValueTransport;
+    use target_operations_to_selected_instructions::SelectedValueTransport;
     for transport in [
         SelectedValueTransport::Unused,
         SelectedValueTransport::Registers {
@@ -173,13 +180,13 @@ fn successor_transport_rejects_absent_wrong_and_unused_register_pairs() {
 }
 
 fn case_payload_function() -> SelectedFunction {
-    use selected_instructions::{
-        LocalStorageSlotId, SelectedCasePayloadBinding, SelectedCasePayloadTransport,
-        SelectedStructuralCaseEdge, VirtualRegisterOrigin,
-    };
     use semantic_vocabulary::{
         IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralCaseId,
         StructuralFieldId, ValueId,
+    };
+    use target_operations_to_selected_instructions::{
+        LocalStorageSlotId, SelectedCasePayloadBinding, SelectedCasePayloadTransport,
+        SelectedStructuralCaseEdge, VirtualRegisterOrigin,
     };
     let mut function = successor_parameter_function();
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
@@ -210,13 +217,13 @@ fn case_payload_function() -> SelectedFunction {
         case_tag: 1,
         trivial_affine_discards: vec![PlaceId::new(1).unwrap()],
         payloads: vec![SelectedCasePayloadBinding {
-            semantic: legalized_operations::LegalizedStructuralCasePayload {
+            semantic: target_operations_to_selected_instructions::legalized_operations::LegalizedStructuralCasePayload {
                 field: StructuralFieldId::new(1).unwrap(),
                 field_byte_offset: 4,
-                parameter: legalized_operations::LegalizedValueDefinition {
+                parameter: target_operations_to_selected_instructions::legalized_operations::LegalizedValueDefinition {
                     value: ValueId::new(3).unwrap(),
                     scalar_type,
-                    definition_site: optimization_unit::ValueDefinitionSite::BlockParameter {
+                    definition_site: terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite::BlockParameter {
                         block: BlockId::new(2).unwrap(),
                         position: 0,
                     },
@@ -257,7 +264,9 @@ fn case_payload_function() -> SelectedFunction {
 
 #[test]
 fn case_payload_liveness_uses_exact_observation_and_rejects_unprepared_or_substituted_transport() {
-    use selected_instructions::{SelectedCasePayloadTransport, VirtualRegisterOrigin};
+    use target_operations_to_selected_instructions::{
+        SelectedCasePayloadTransport, VirtualRegisterOrigin,
+    };
     let function = case_bridge_function();
     let live = compute_function(0, &function).unwrap();
     assert_eq!(live.blocks[2].virtual_live_out, [VirtualRegisterId(0)]);
@@ -282,14 +291,14 @@ fn case_payload_liveness_uses_exact_observation_and_rejects_unprepared_or_substi
             2 => case.payloads[0].semantic.field_byte_offset = 0,
             3 => {
                 case.payloads[0].semantic.parameter.definition_site =
-                    optimization_unit::ValueDefinitionSite::BlockParameter {
+                    terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite::BlockParameter {
                         block: BlockId::new(2).unwrap(),
                         position: 1,
                     }
             }
             4 => {
                 changed.virtual_registers[0].definition_site =
-                    Some(optimization_unit::ValueDefinitionSite::FunctionParameter(0))
+                    Some(terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite::FunctionParameter(0))
             }
             _ => {
                 changed.virtual_registers[0].origin = VirtualRegisterOrigin::InstructionResult {
@@ -306,7 +315,7 @@ fn case_payload_liveness_uses_exact_observation_and_rejects_unprepared_or_substi
 }
 
 fn case_bridge_function() -> SelectedFunction {
-    use selected_instructions::{
+    use target_operations_to_selected_instructions::{
         SelectedBlockOrigin, SelectedCasePayloadTransport, SelectedSuccessorRole,
     };
     let mut function = case_payload_function();

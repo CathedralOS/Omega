@@ -2,7 +2,9 @@ use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::front_end::typed_program;
 
-fn stored_aggregate_program(body: &str) -> typed_trees::TypedTrees {
+fn stored_aggregate_program(
+    body: &str,
+) -> symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees {
     let source = format!(
         r#"
         data View {{ body: &mut u64; tag: u64; }}
@@ -123,7 +125,7 @@ fn stored_aggregate_reference_leaves_reach_caller_frames() {
             .find(|machine| machine.name.as_str() == "Main::run")
             .expect("caller");
         let state = &program.machine_states(machine)[0];
-        let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
+        let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolver");
         let actual = resolver
             .inferred_state_write_frame(machine, state)
             .into_complete_paths()
@@ -140,24 +142,26 @@ fn stored_aggregate_reference_leaves_reach_caller_frames() {
 }
 
 fn storage_place_label(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     place: &crate::flow::CanonicalPlace,
 ) -> String {
-    let facts::PlaceRoot::Symbol(root) = place.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(root) = place.root else {
         panic!("expected declared storage root: {place:?}");
     };
     let mut label = program.symbols.name(root).to_owned();
     for segment in &place.segments {
         match segment {
-            facts::PlaceSegment::Case { variant } => {
+            crate::fact_plan::PlaceSegment::Case { variant } => {
                 label.push_str("::");
                 label.push_str(program.symbols.name(*variant));
             }
-            facts::PlaceSegment::Field { symbol } => {
+            crate::fact_plan::PlaceSegment::Field { symbol } => {
                 label.push('.');
                 label.push_str(program.symbols.name(*symbol));
             }
-            facts::PlaceSegment::FixedIndex { index } => label.push_str(&format!("[{index}]")),
+            crate::fact_plan::PlaceSegment::FixedIndex { index } => {
+                label.push_str(&format!("[{index}]"))
+            }
             _ => panic!("unexpected storage selector: {segment:?}"),
         }
     }
@@ -255,7 +259,7 @@ fn stored_aggregate_storage_projection_keeps_leaf_selectors() {
             state.symbol,
             statements.len() - 1,
             statements.last().expect("store"),
-            ::validation::CallFrameResolver::new(&program).as_ref(),
+            crate::validation::CallFrameResolver::new(&program).as_ref(),
         )
         .map(|places| {
             let mut paths: Vec<_> = places
@@ -313,7 +317,7 @@ fn stored_aggregate_call_storage_and_access_routes_are_distinct() {
         &borrow,
         &calls[0],
         &cache,
-        ::validation::CallFrameResolver::new(&program).as_ref(),
+        crate::validation::CallFrameResolver::new(&program).as_ref(),
     )
     .expect("complete storage frame");
     assert_eq!(
@@ -370,7 +374,7 @@ fn aggregate_literal_storage_origins_reach_direct_and_transitive_calls() {
             &borrow,
             &calls[0],
             &cache,
-            ::validation::CallFrameResolver::new(&program).as_ref(),
+            crate::validation::CallFrameResolver::new(&program).as_ref(),
         )
         .expect("literal storage origin is complete");
         assert_eq!(
@@ -405,7 +409,7 @@ fn unproven_stored_aggregate_origins_never_become_private_storage() {
                 state.symbol,
                 statements.len() - 1,
                 statements.last().expect("store"),
-                ::validation::CallFrameResolver::new(&program).as_ref(),
+                crate::validation::CallFrameResolver::new(&program).as_ref(),
             )
             .is_none(),
             "unproven origin became complete: {body}"
@@ -433,7 +437,7 @@ fn stored_aggregate_reference_origin_survives_named_state_cycle() {
         .find(|machine| machine.name.as_str() == "stored_cycle")
         .expect("machine");
     let entry = &program.machine_states(machine)[0];
-    let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
+    let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolver");
     for _ in 0..2 {
         assert_eq!(
             resolver
@@ -469,7 +473,7 @@ fn stored_aggregate_writes_invalidate_arithmetic_facts_in_both_spellings() {
              machine Main::run(&mut self) {{ {body} }}"
         );
         let program = typed_program(&source);
-        match validation::validate_program(&program) {
+        match crate::validation::validate_program(&program) {
             Err(diagnostics)
                 if diagnostics.iter().any(|diagnostic| {
                     let message = diagnostic.to_string();
@@ -486,7 +490,7 @@ fn stored_aggregate_writes_invalidate_arithmetic_facts_in_both_spellings() {
 
 #[test]
 fn stored_aggregate_metadata_requires_exact_live_local_identity() {
-    use typed_trees::statement::StatementNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
     let source = r#"
         data View { body: &mut u64; }
         data Main { value: u64; }
@@ -549,7 +553,7 @@ fn stored_aggregate_metadata_requires_exact_live_local_identity() {
             .expect("caller");
         let state = &program.machine_states(caller)[0];
         let statement = &program.statement_table.statements(statements)[1];
-        let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
+        let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolver");
         let origins = resolver.local_write_origins_before_statement(caller, statement);
         assert_eq!(origins.is_some(), complete, "{name}: stored metadata");
         if let Some(origins) = origins {

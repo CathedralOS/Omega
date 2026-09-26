@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 
-use physical_instructions::PostAllocationMachineFunction;
-use register_model::ValidatedPhysicalRegisterModel;
-use selected_instructions::SelectedFunction;
+use register_homes_to_post_allocation_machine::PostAllocationMachineFunction;
 use target::Architecture;
+use target_operations_to_selected_instructions::SelectedFunction;
+use target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel;
 
 use super::super::row;
 use super::{PreLayoutRows, order, plan, roster};

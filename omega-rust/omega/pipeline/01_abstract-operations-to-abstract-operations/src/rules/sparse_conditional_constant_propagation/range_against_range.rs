@@ -2,16 +2,16 @@
 //! less-or-equal between two closed integer ranges: one row each over the
 //! shared traversal in `propose` and the closed `evaluate`.
 
-use abstract_operations::AbstractOperation as O;
 use optimization_core::{
     AnalysisKind, AnalysisSet, OptimizationRuleContract, OptimizationSafetyClass,
 };
-use optimization_unit::{
+use semantic_vocabulary::{IntegerType, IntegerValue};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     BooleanConstantRewrite, IntegerEvaluationWitness, NodeLocation, ProvenanceDisposition,
     ProvenanceRewrite, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
     ValueRangeSupport,
 };
-use semantic_vocabulary::{IntegerType, IntegerValue};
 
 use super::IntegerRangePairComparisonKind;
 use crate::rules::sparse_conditional_constant_propagation::{

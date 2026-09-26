@@ -9,13 +9,13 @@
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
-use register_model::{
+use target_operations_to_selected_instructions::SelectedBlockId;
+use target_operations_to_selected_instructions::register_model::{
     RegisterClass, RegisterClassId, RegisterUnitId, RegisterViewId, ValidatedPhysicalRegisterModel,
     ValidatedRegisterReservationProfile,
 };
-use selected_instructions::SelectedBlockId;
 
-use selected_instructions::{FunctionLiveRanges, LiveRangePoint};
+use target_operations_to_selected_instructions::{FunctionLiveRanges, LiveRangePoint};
 
 #[derive(Clone)]
 pub(super) struct GeneralCandidates {

@@ -12,9 +12,9 @@
 //! `replay` re-derives all of it without the table.
 
 use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::{
     MachineEffectDeclaration, MachineSemanticKind, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind, ValidatedMachineEffectCatalog,
     VirtualRegisterId,
@@ -361,7 +361,7 @@ pub(super) fn rewritten(admitted: &AdmittedPair<'_>) -> SelectedInstruction {
 fn effect_declaration(
     catalog: &ValidatedMachineEffectCatalog,
     semantic: MachineSemanticKind,
-    constraint: register_model::RegisterConstraintKey,
+    constraint: target_operations_to_selected_instructions::register_model::RegisterConstraintKey,
 ) -> Option<&MachineEffectDeclaration> {
     let mut matches = catalog.catalog().declarations.iter().filter(|declaration| {
         declaration.semantic == semantic && declaration.constraint == constraint

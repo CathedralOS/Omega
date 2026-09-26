@@ -11,14 +11,14 @@ use crate::expressions::parse_expression::{
     parse_const_integer_expression_handle, parse_expression_handle_without_struct_literals,
 };
 use crate::input::token_cursor::{Input, ParseResult};
-use arena::HandleSpan;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{BinaryOperator, ExpressionNode};
-use syntax_trees::identifier::Identifier;
-use syntax_trees::types::{
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::expression::{BinaryOperator, ExpressionNode};
+use crate::syntax_trees::identifier::Identifier;
+use crate::syntax_trees::types::{
     DomainConstraint, FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
-use tokens::{KeywordKind, PunctuationKind};
+use arena::HandleSpan;
+use source_files_to_tokens::tokens::{KeywordKind, PunctuationKind};
 
 pub(crate) fn parse_type_reference_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
@@ -372,7 +372,7 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
 /// establish their meaning or decide which logical operand executes.
 fn const_expression_requires_semantic_admission(
     syntax_trees: &SyntaxTrees,
-    expression: syntax_trees::expression::ExpressionHandle,
+    expression: crate::syntax_trees::expression::ExpressionHandle,
 ) -> bool {
     // Decimal literals and division need exact anonymous evaluation before a
     // declaration requests integer landing. Structural literals likewise require
@@ -416,7 +416,7 @@ fn const_expression_requires_semantic_admission(
 
 fn const_expression_contains_name(
     syntax_trees: &SyntaxTrees,
-    expression: syntax_trees::expression::ExpressionHandle,
+    expression: crate::syntax_trees::expression::ExpressionHandle,
 ) -> bool {
     match syntax_trees.expressions.expression(expression) {
         ExpressionNode::Name(_) => true,
@@ -438,7 +438,7 @@ fn const_expression_contains_name(
 /// const-fact slice, where declaration types and parameter bindings are known.
 fn evaluate_closed_const_integer_expression(
     syntax_trees: &SyntaxTrees,
-    expression: syntax_trees::expression::ExpressionHandle,
+    expression: crate::syntax_trees::expression::ExpressionHandle,
 ) -> Result<i128, String> {
     match syntax_trees.expressions.expression(expression) {
         ExpressionNode::Integer(value) => const_literal_value(value),
@@ -741,7 +741,7 @@ fn parse_borrow_type_reference<'tokens, 'source>(
 /// identifier (frozen decision 15 stage 2).
 pub(crate) fn parse_optional_lifetime<'tokens, 'source>(
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, Option<syntax_trees::identifier::Identifier>> {
+) -> ParseResult<'tokens, 'source, Option<crate::syntax_trees::identifier::Identifier>> {
     if !input.at_punctuation(PunctuationKind::Apostrophe) {
         return Ok((None, input));
     }

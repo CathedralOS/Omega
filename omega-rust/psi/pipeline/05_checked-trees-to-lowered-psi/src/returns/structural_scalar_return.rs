@@ -33,7 +33,7 @@ use nominal::lower_nominal_structural_scalar_return_machine;
 
 pub(crate) fn lower_trait_operator_scalar_return_machine(
     checked: &CheckedTrees,
-    plan: &checked_trees::CheckedTraitOperatorScalarReturnMachinePlan,
+    plan: &typed_trees_to_checked_trees::checked_trees::CheckedTraitOperatorScalarReturnMachinePlan,
 ) -> Result<LoweredPsi, LoweringError> {
     let realization_matches = checked
         .facts
@@ -589,7 +589,7 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
             LoweringError::Unsupported("structural scalar return binding index exceeds u32")
         })?;
         if binding.statement_ordinal != statement_ordinal
-            || binding.destination != checked_trees::CheckedScalarBindingDestination::Immutable
+            || binding.destination != typed_trees_to_checked_trees::checked_trees::CheckedScalarBindingDestination::Immutable
             || binding.value != CheckedScalarBindingValue::Expression
         {
             return unsupported(
@@ -630,7 +630,7 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
             LoweringError::Unsupported("structural scalar return binding index exceeds u32")
         })?;
         if binding.statement_ordinal != statement_ordinal
-            || binding.destination != checked_trees::CheckedScalarBindingDestination::Immutable
+            || binding.destination != typed_trees_to_checked_trees::checked_trees::CheckedScalarBindingDestination::Immutable
             || binding.value != CheckedScalarBindingValue::Expression
         {
             return unsupported(
@@ -1068,7 +1068,7 @@ mod trait_operator_tests {
     use super::{OperationKind, machine_id};
     use crate::TerminalMachineSelection;
     use crate::machine_lowering::lower_machine;
-    use checked_trees::CheckedBooleanExpression;
+    use typed_trees_to_checked_trees::checked_trees::CheckedBooleanExpression;
 
     #[test]
     fn exact_trait_operator_call_closes_into_terminal_structural_scalar_call() {

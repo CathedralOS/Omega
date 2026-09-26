@@ -28,11 +28,11 @@
 
 use std::cell::RefCell;
 
-use checked_trees::{FlowCallFact, FlowStateFact};
-use typed_trees::expression::ExpressionHandle;
-use typed_trees::machine::Machine;
-use typed_trees::signature::StateParameter;
-use typed_trees::state::State;
+use crate::checked_trees::{FlowCallFact, FlowStateFact};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
+use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
 
 mod booleans;
 mod collections;
@@ -46,15 +46,15 @@ enum BooleanExpressionOwner {
 }
 
 pub(super) fn call_site_proves_boolean_contract_expression(
-    program: &typed_trees::TypedTrees,
-    operators: &checked_trees::CheckedOperatorFacts,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    operators: &crate::checked_trees::CheckedOperatorFacts,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
     call_site: &crate::semantic::calls::CallSite<'_>,
     target_symbol: symbols::SymbolHandle,
     target_parameters: &[StateParameter],
     expression: ExpressionHandle,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> bool {
     call_site_boolean_contract_expression_value_with_operators(
         program,
@@ -74,14 +74,14 @@ pub(super) fn call_site_proves_boolean_contract_expression(
 /// invocation's concrete arguments. `None` is deliberately distinct from
 /// `false`: crash refinement may discard a route only when false is proved.
 pub(crate) fn call_site_boolean_contract_expression_value(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
     call_site: &crate::semantic::calls::CallSite<'_>,
     target_symbol: symbols::SymbolHandle,
     target_parameters: &[StateParameter],
     expression: ExpressionHandle,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<bool> {
     call_site_boolean_contract_expression_value_with_operators(
         program,
@@ -98,15 +98,15 @@ pub(crate) fn call_site_boolean_contract_expression_value(
 
 #[allow(clippy::too_many_arguments)]
 fn call_site_boolean_contract_expression_value_with_operators<'program, 'call>(
-    program: &'program typed_trees::TypedTrees,
-    operators: Option<&'program checked_trees::CheckedOperatorFacts>,
+    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    operators: Option<&'program crate::checked_trees::CheckedOperatorFacts>,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
     call_site: &'call crate::semantic::calls::CallSite<'program>,
     target_symbol: symbols::SymbolHandle,
     target_parameters: &'program [StateParameter],
     expression: ExpressionHandle,
-    call_frames: Option<&'call validation::CallFrameResolver<'program>>,
+    call_frames: Option<&'call crate::validation::CallFrameResolver<'program>>,
 ) -> Option<bool> {
     let caller_state = crate::semantic::calls::find_state_in_machine(
         program,
@@ -132,14 +132,14 @@ fn call_site_boolean_contract_expression_value_with_operators<'program, 'call>(
 }
 
 pub(super) struct ContractExpressionEvaluator<'program, 'call> {
-    program: &'program typed_trees::TypedTrees,
+    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     // Source call checking has selected operator facts. Earlier crash-fact
     // construction does not, and cannot gain Boolean equality authority here.
-    operators: Option<&'program checked_trees::CheckedOperatorFacts>,
+    operators: Option<&'program crate::checked_trees::CheckedOperatorFacts>,
     /// The enclosing pass's shared frame resolver, when one is live in this
     /// immutable program window. `None` reconstructs a private resolver on
     /// first use so standalone queries keep their established behavior.
-    call_frames: Option<&'call validation::CallFrameResolver<'program>>,
+    call_frames: Option<&'call crate::validation::CallFrameResolver<'program>>,
     caller_machine: &'program Machine,
     caller_state: &'program State,
     statement_index: usize,

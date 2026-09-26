@@ -2,19 +2,21 @@
 use super::unit::scalar_call::KnownUnitInteger;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractFunction, AbstractFunctionResult, AbstractOperation};
+use crate::target_operations::{
+    BoundarySettlementBinding, ScalarFunctionAbi, TargetFunction, TargetUnitScalarHomeRequirement,
+    TerminalPsiProvenance,
+};
 use installation_evidence::InstalledProviderCallEvidence;
 use semantic_vocabulary::{
     BoundaryMachineId, MachineId, OperationId, PlaceId, StructuralTypeId, ValueId,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use target::NativeTarget;
-use target_operations::{
-    BoundarySettlementBinding, ScalarFunctionAbi, TargetFunction, TargetUnitScalarHomeRequirement,
-    TerminalPsiProvenance,
-};
 use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralPathSegment, TerminalAffineCleanupAction,
+};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractFunction, AbstractFunctionResult, AbstractOperation,
 };
 mod aggregate_borrows;
 pub(super) mod aggregate_results;
@@ -35,21 +37,23 @@ pub(super) mod scalar_sources;
 mod structural_case;
 mod terminator;
 mod transfers;
+use crate::target_operations::{
+    TargetControlBlock, TargetControlGraph, TargetScalarBlockParameter,
+};
 use operations::lower_operation;
-use target_operations::{TargetControlBlock, TargetControlGraph, TargetScalarBlockParameter};
 use terminator::lower_terminator;
 
 #[derive(Clone)]
 struct LiveDefinitions {
     // Dominating definitions only. Abstract-unit validation owns edge liveness.
-    structural_homes: BTreeMap<PlaceId, target_operations::TargetStructuralHomeRequirement>,
+    structural_homes: BTreeMap<PlaceId, crate::target_operations::TargetStructuralHomeRequirement>,
     nonreturning: bool,
     stored_descriptors: BTreeSet<OperationId>,
     integers: BTreeMap<ValueId, KnownUnitInteger>,
     booleans: BTreeMap<ValueId, (OperationId, bool)>,
     scalar_homes: BTreeMap<ValueId, TargetUnitScalarHomeRequirement>,
     ieee_float_constants: BTreeMap<ValueId, (OperationId, semantic_vocabulary::IeeeFloatValue)>,
-    scalar_block_parameters: BTreeMap<ValueId, target_operations::TargetScalarBlockValue>,
+    scalar_block_parameters: BTreeMap<ValueId, crate::target_operations::TargetScalarBlockValue>,
     views: BTreeMap<PlaceId, (OperationId, StructuralTypeId)>,
     block_views: BTreeSet<PlaceId>,
     /// Shared block parameters carried as their referent's address (see
@@ -80,7 +84,10 @@ pub(super) fn lower(
         InstalledProviderCallEvidence,
     >,
     scalar_abis: &BTreeMap<MachineId, ScalarFunctionAbi>,
-    native_callbacks: &BTreeMap<OperationId, target_operations::TargetNativeCallbackArgument>,
+    native_callbacks: &BTreeMap<
+        OperationId,
+        crate::target_operations::TargetNativeCallbackArgument,
+    >,
 ) -> Result<TargetFunction, LoweringError> {
     if function.block_entries.is_empty() {
         return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -249,7 +256,7 @@ pub(super) fn lower(
             | AbstractOperation::ByteSequenceSubslice { result, .. }
             | AbstractOperation::ElementViewSubslice { result, .. }
             | AbstractOperation::BoundaryCall {
-                result: abstract_operations::AbstractBoundaryResult::Structural(result),
+                result: terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Structural(result),
                 ..
             } => Some(result.place),
             AbstractOperation::EstablishElementView { destination, .. } => Some(*destination),

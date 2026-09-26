@@ -51,7 +51,7 @@ mod details;
 mod overlap;
 
 use super::ranges::incoming_guards::IncomingGuardIndex;
-use checked_trees::{CheckFacts, FlowStateFact};
+use crate::checked_trees::{CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 
 use self::elision::check_view_return_elision;
@@ -60,10 +60,10 @@ use self::persistent::check_persistent_borrow_assignments;
 use self::statements::check_statement_borrows;
 
 pub(crate) fn check_flow_call_borrows(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &mut CheckFacts,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
     incoming_guards: &IncomingGuardIndex,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
@@ -266,7 +266,7 @@ pub(crate) fn check_flow_call_borrows(
 }
 
 pub(super) fn initialize_checked_direct_borrow_resources(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &mut CheckFacts,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -274,7 +274,7 @@ pub(super) fn initialize_checked_direct_borrow_resources(
 }
 
 pub(super) fn initialize_checked_borrow_call_certificates(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &mut CheckFacts,
     guard_index: &crate::checks::ranges::incoming_guards::IncomingGuardIndexCache,
 ) {
@@ -282,11 +282,11 @@ pub(super) fn initialize_checked_borrow_call_certificates(
 }
 
 fn validate_checked_borrow_compatibility_certificates<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &CheckFacts,
     incoming_guards: &IncomingGuardIndex,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
+    bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
 ) -> Vec<Diagnostic> {
     let certificates = facts
         .borrow
@@ -318,7 +318,7 @@ fn validate_checked_borrow_compatibility_certificates<'p>(
 }
 
 fn duplicate_compatibility_certificate_diagnostic(
-    certificate: &checked_trees::CheckedBorrowCompatibilityCertificate,
+    certificate: &crate::checked_trees::CheckedBorrowCompatibilityCertificate,
 ) -> Diagnostic {
     Diagnostic::error(format!(
         "checked borrow compatibility certificate duplicates the formation loan-pair key at statement {}",
@@ -327,8 +327,8 @@ fn duplicate_compatibility_certificate_diagnostic(
 }
 
 fn compatibility_certificate_key_matches(
-    left: &checked_trees::CheckedBorrowCompatibilityCertificate,
-    right: &checked_trees::CheckedBorrowCompatibilityCertificate,
+    left: &crate::checked_trees::CheckedBorrowCompatibilityCertificate,
+    right: &crate::checked_trees::CheckedBorrowCompatibilityCertificate,
 ) -> bool {
     left.formation == right.formation
         && left.forming_loan == right.forming_loan
@@ -336,12 +336,12 @@ fn compatibility_certificate_key_matches(
 }
 
 fn replay_checked_borrow_compatibility_certificate<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &CheckFacts,
-    certificate: &checked_trees::CheckedBorrowCompatibilityCertificate,
+    certificate: &crate::checked_trees::CheckedBorrowCompatibilityCertificate,
     incoming_guards: &IncomingGuardIndex,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
+    bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
 ) -> Result<(), Diagnostic> {
     if !facts
         .borrow
@@ -355,9 +355,9 @@ fn replay_checked_borrow_compatibility_certificate<'p>(
     // premised conclusion must name at least one exact establishment token, and a
     // structural conclusion must have consulted none.
     match certificate.derivation {
-        checked_trees::BorrowCompatibilityDerivation::Structural
+        crate::checked_trees::BorrowCompatibilityDerivation::Structural
             if certificate.premises.is_empty() => {}
-        checked_trees::BorrowCompatibilityDerivation::Premised
+        crate::checked_trees::BorrowCompatibilityDerivation::Premised
             if !certificate.premises.is_empty() => {}
         _ => {
             return Err(Diagnostic::error(
@@ -437,7 +437,7 @@ fn replay_checked_borrow_compatibility_certificate<'p>(
             ));
         }
     };
-    let replayed_conclusion = checked_trees::BorrowCompatibilityConclusion {
+    let replayed_conclusion = crate::checked_trees::BorrowCompatibilityConclusion {
         disjoint: replayed.disjoint,
         containment: replayed.containment,
         non_interfering: replayed.non_interfering,
@@ -471,11 +471,11 @@ fn replay_checked_borrow_compatibility_certificate<'p>(
 }
 
 fn validate_checked_borrow_mutation_certificates<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &CheckFacts,
     incoming_guards: &IncomingGuardIndex,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
+    bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
 ) -> Vec<Diagnostic> {
     let certificates = facts
         .borrow
@@ -507,7 +507,7 @@ fn validate_checked_borrow_mutation_certificates<'p>(
 }
 
 fn duplicate_mutation_certificate_diagnostic(
-    certificate: &checked_trees::CheckedBorrowMutationCertificate,
+    certificate: &crate::checked_trees::CheckedBorrowMutationCertificate,
 ) -> Diagnostic {
     Diagnostic::error(format!(
         "checked borrow mutation certificate duplicates the formation mutation-loan key at statement {}",
@@ -516,19 +516,19 @@ fn duplicate_mutation_certificate_diagnostic(
 }
 
 fn mutation_certificate_key_matches(
-    left: &checked_trees::CheckedBorrowMutationCertificate,
-    right: &checked_trees::CheckedBorrowMutationCertificate,
+    left: &crate::checked_trees::CheckedBorrowMutationCertificate,
+    right: &crate::checked_trees::CheckedBorrowMutationCertificate,
 ) -> bool {
     left.formation == right.formation && left.active_loan == right.active_loan
 }
 
 fn replay_checked_borrow_mutation_certificate<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &CheckFacts,
-    certificate: &checked_trees::CheckedBorrowMutationCertificate,
+    certificate: &crate::checked_trees::CheckedBorrowMutationCertificate,
     incoming_guards: &IncomingGuardIndex,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
+    bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
 ) -> Result<(), Diagnostic> {
     if !facts
         .borrow
@@ -542,9 +542,9 @@ fn replay_checked_borrow_mutation_certificate<'p>(
     // premised conclusion must name at least one exact establishment token, and a
     // structural conclusion must have consulted none.
     match certificate.derivation {
-        checked_trees::BorrowCompatibilityDerivation::Structural
+        crate::checked_trees::BorrowCompatibilityDerivation::Structural
             if certificate.premises.is_empty() => {}
-        checked_trees::BorrowCompatibilityDerivation::Premised
+        crate::checked_trees::BorrowCompatibilityDerivation::Premised
             if !certificate.premises.is_empty() => {}
         _ => {
             return Err(Diagnostic::error(
@@ -670,7 +670,7 @@ fn replay_checked_borrow_mutation_certificate<'p>(
     let replayed = match overlap::captured_place_loan_compatibility_from_selector_snapshot(
         program,
         &certificate.mutated_place,
-        &checked_trees::BorrowAccessKind::Mutable,
+        &crate::checked_trees::BorrowAccessKind::Mutable,
         active_loan,
         active_access,
         &facts.borrow,
@@ -691,7 +691,7 @@ fn replay_checked_borrow_mutation_certificate<'p>(
             ));
         }
     };
-    let replayed_conclusion = checked_trees::BorrowCompatibilityConclusion {
+    let replayed_conclusion = crate::checked_trees::BorrowCompatibilityConclusion {
         disjoint: replayed.disjoint,
         containment: replayed.containment,
         non_interfering: replayed.non_interfering,
@@ -717,7 +717,7 @@ fn replay_checked_borrow_mutation_certificate<'p>(
 fn matching_borrow_state<'a>(
     facts: &'a CheckFacts,
     state_flow: &FlowStateFact,
-) -> Option<&'a checked_trees::StateBorrowFact> {
+) -> Option<&'a crate::checked_trees::StateBorrowFact> {
     facts.borrow.states.iter().find_map(|(_, state)| {
         (state.machine_symbol == state_flow.machine_symbol
             && state.state_symbol == state_flow.state_symbol)

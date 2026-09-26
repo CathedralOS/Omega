@@ -4,6 +4,7 @@ use super::{
     IntegerValue, ScalarType, fixture,
 };
 use crate::legalize_target_operations;
+use crate::legalized_operations::{LegalizedScalarComparison, LegalizedScalarInstructionKind};
 use crate::select_instructions;
 use crate::selection_constraints;
 use crate::tests::shared_return::assert_return_bridges;
@@ -13,15 +14,14 @@ use crate::tests::shared_return::operation;
 use crate::tests::shared_return::value;
 use crate::validate_legalized_operations;
 use crate::validate_selected_instructions;
-use legalized_operations::{LegalizedScalarComparison, LegalizedScalarInstructionKind};
 fn expanded(
     native: target::NativeTarget,
     signed: bool,
     comparison: u8,
 ) -> (
     AbstractOperationPlan,
-    target_operations::TargetOperationPlan,
-    optimization_unit::PsiOptimizationUnit,
+    abstract_operations_to_target_operations::target_operations::TargetOperationPlan,
+    terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
 ) {
     let (mut plan, _, old) = fixture(native);
     let function = &mut plan.functions[0];
@@ -109,7 +109,7 @@ fn expanded(
         abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
     )
     .unwrap();
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(&plan, old.fuel_schedule)
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(&plan, old.fuel_schedule)
         .unwrap();
     (plan, target, unit)
 }
@@ -153,7 +153,8 @@ fn scalar_cfg_accepts_signed_comparisons_and_more_than_four_blocks() {
                 validate_legalized_operations(&target, &plan, &unit, legalized.plan().clone())
                     .unwrap();
                 let environment =
-                    register_environment::baseline_target_register_environment(native).unwrap();
+                    crate::register_environment::baseline_target_register_environment(native)
+                        .unwrap();
                 let constraints = selection_constraints(&legalized, &environment);
                 let selected = select_instructions(
                     &legalized,
@@ -167,11 +168,15 @@ fn scalar_cfg_accepts_signed_comparisons_and_more_than_four_blocks() {
                     .blocks
                     .iter()
                     .filter_map(|block| match block.origin {
-                        selected_instructions::SelectedBlockOrigin::Source(source) => {
+                        crate::selected_instructions::SelectedBlockOrigin::Source(source) => {
                             Some(source.get())
                         }
-                        selected_instructions::SelectedBlockOrigin::EdgeTransfer { .. }
-                        | selected_instructions::SelectedBlockOrigin::CaseDispatch { .. } => None,
+                        crate::selected_instructions::SelectedBlockOrigin::EdgeTransfer {
+                            ..
+                        }
+                        | crate::selected_instructions::SelectedBlockOrigin::CaseDispatch {
+                            ..
+                        } => None,
                     })
                     .collect::<Vec<_>>();
                 sources.sort();
@@ -218,13 +223,11 @@ fn scalar_cfg_replay_rejects_comparison_type_operands_and_fuel_substitution() {
                     ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap())
             }
             5 => row.fuel.clear(),
-            _ => {
-                row.result.as_mut().unwrap().definition_site =
-                    optimization_unit::ValueDefinitionSite::Node {
-                        block: block(5),
-                        node: 0,
-                    }
-            }
+            _ => row.result.as_mut().unwrap().definition_site =
+                terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite::Node {
+                    block: block(5),
+                    node: 0,
+                },
         }
         assert!(validate_legalized_operations(&target, &plan, &unit, proposed).is_err());
     }

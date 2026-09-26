@@ -26,7 +26,7 @@ fn local_fixture(target: target::NativeTarget, unit_call: bool) -> LegalizedScal
     let place = PlaceId::new(1).unwrap();
     let identity = StructuralTypeId::new(1).unwrap();
     let producer = OperationId::new(2).unwrap();
-    source.structural = Some(legalized_operations::LegalizedStructuralContract {
+    source.structural = Some(crate::legalized_operations::LegalizedStructuralContract {
         result: None,
         structural_types: vec![StructuralTypeDeclaration {
             id: identity,
@@ -57,7 +57,7 @@ fn local_fixture(target: target::NativeTarget, unit_call: bool) -> LegalizedScal
                 projected_qualifications: Vec::new(),
                 claims: Vec::new(),
             },
-            value: abstract_operations::AbstractResult {
+            value: terminal_psi_to_abstract_operations::abstract_operations::AbstractResult {
                 value: ValueId::new(1).unwrap(),
                 scalar_type: scalar,
             },
@@ -76,17 +76,20 @@ fn local_fixture(target: target::NativeTarget, unit_call: bool) -> LegalizedScal
         source: NativeCallOrigin::Authored, callee: MachineId::new(10).unwrap(),
         arguments: vec![LegalizedScalarArgument::Structural {
             semantic: terminal_psi::StructuralArgument { place, access: StructuralAccess::MutableBorrow, path: Vec::new() },
-            target: target_operations::TargetStructuralArgument {
+            target: abstract_operations_to_target_operations::target_operations::TargetStructuralArgument {
                 place, access: StructuralAccess::MutableBorrow, path: Vec::new(), root_structural_type: identity, structural_type: identity,
                 shape: ValueShape::borrowed_reference(8, 8), source_byte_offset: 0, fixed_array_length: None, element_stride: None,
-                source: target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal { psi_operation: producer },
+                source: abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal { psi_operation: producer },
                 destination: call_plan.parameters[0].clone(),
             },
         }],
         result_placement: call_plan.result.clone(), call_plan, claim_transfers: Vec::new(), requirement_obligations: Vec::new(), crash_continuations: Vec::new(),
     });
-    source.blocks[0].instructions[2].ownership =
-        vec![optimization_unit::OwnershipEvent::ClaimTransfer(Vec::new())];
+    source.blocks[0].instructions[2].ownership = vec![
+        terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::ClaimTransfer(
+            Vec::new(),
+        ),
+    ];
     if unit_call {
         source.blocks[0].instructions[2].result = None;
     }
@@ -109,7 +112,7 @@ fn primitive_local_call_and_read_replay_rejects_source_and_physical_substitution
         for unit_call in [false, true] {
             let source = local_fixture(target, unit_call);
             let environment =
-                register_environment::baseline_target_register_environment(target).unwrap();
+                crate::register_environment::baseline_target_register_environment(target).unwrap();
             let constraints = SelectedSelectionConstraints {
                 keys: environment.selected_keys(),
                 fixed_inputs: Vec::new(),
@@ -136,14 +139,10 @@ fn primitive_local_call_and_read_replay_rejects_source_and_physical_substitution
             };
             validate(&source, &selected).unwrap();
             assert_eq!(selected.local_storage_slots.len(), 1);
-            assert!(
-                selected.memory_accesses.iter().any(|access| access.role
-                    == selected_instructions::SelectedMemoryAccessRole::WritePlace)
-            );
-            assert!(
-                selected.memory_accesses.iter().any(|access| access.role
-                    == selected_instructions::SelectedMemoryAccessRole::ReadPlace)
-            );
+            assert!(selected.memory_accesses.iter().any(|access| access.role
+                == crate::selected_instructions::SelectedMemoryAccessRole::WritePlace));
+            assert!(selected.memory_accesses.iter().any(|access| access.role
+                == crate::selected_instructions::SelectedMemoryAccessRole::ReadPlace));
             for mutation in 0..5 {
                 let mut changed = selected.clone();
                 match mutation {
@@ -209,7 +208,7 @@ fn primitive_local_call_and_read_replay_rejects_source_and_physical_substitution
                         else {
                             panic!("reference");
                         };
-                        target.source = target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal { psi_operation: OperationId::new(99).unwrap() };
+                        target.source = abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal { psi_operation: OperationId::new(99).unwrap() };
                     }
                     _ => changed.blocks[0].instructions.swap(1, 2),
                 }

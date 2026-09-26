@@ -4,8 +4,8 @@ use crate::lower_typed_trees;
 use crate::tests::front_end::typed_program;
 use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::source;
 use crate::tests::termination::progress_mutation::check_source;
-use typed_trees::expression::ExpressionNode;
-use typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 
 // These are identity queries, not permission to mutate a parent while its
 // saved loan is active. Keep replacement/exposure cases below the borrow check.
@@ -37,14 +37,14 @@ fn assert_prefix_effect(inner_access: &str, operation: &str, extra: &str, retain
     let StatementNode::LocalData(borrowed) = &statements[0] else {
         panic!("reference local")
     };
-    let resolver = validation::CallFrameResolver::new(&program).unwrap();
+    let resolver = crate::validation::CallFrameResolver::new(&program).unwrap();
     let frame = resolver.inferred_state_write_frame(machine, state);
     let origin_before = |statement| {
         resolver.local_reference_origin_before_statement(machine, statement, borrowed.symbol)
     };
     let initial = origin_before(&statements[1]).expect("unexposed input leaf");
     assert_eq!(initial.0, program.state_parameters(state)[0].symbol);
-    let [facts::PlaceSegment::Field { symbol }] = initial.1.as_slice() else {
+    let [crate::fact_plan::PlaceSegment::Field { symbol }] = initial.1.as_slice() else {
         panic!("one exact reference field: {initial:?}")
     };
     assert_eq!(
@@ -160,7 +160,7 @@ fn earlier_operand_exposure_is_not_exempted_by_an_empty_frame() {
         let StatementNode::LocalData(borrowed) = &statements[0] else {
             panic!("reference local")
         };
-        let resolver = validation::CallFrameResolver::new(&program).unwrap();
+        let resolver = crate::validation::CallFrameResolver::new(&program).unwrap();
         let frame = resolver.inferred_state_write_frame(machine, state);
         assert!(
             resolver

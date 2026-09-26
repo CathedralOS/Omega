@@ -14,7 +14,7 @@ pub(super) struct DirectCall<'a> {
     /// decided from the typed relevance rather than the producer's count.
     pub arguments: Vec<ExpressionHandle>,
     /// The retained typed parameters, parallel to `arguments`.
-    pub parameters: Vec<&'a checked_trees::signature::StateParameter>,
+    pub parameters: Vec<&'a typed_trees_to_checked_trees::checked_trees::signature::StateParameter>,
 }
 
 pub(super) fn locate(

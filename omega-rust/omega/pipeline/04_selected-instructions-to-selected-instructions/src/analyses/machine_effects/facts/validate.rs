@@ -1,10 +1,10 @@
 use crate::ValidatedSelectedAnalysis;
-use register_model::{
+use target_operations_to_selected_instructions::register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile, target_register_environment_identity,
 };
-use selected_instructions::{
+use target_operations_to_selected_instructions::{
     MachineEffectDeclaration, SelectedConstraintKeys, SelectedFunction, SelectedInstruction,
     SelectedInstructionKind, SelectedTerminator, ValidatedMachineEffectCatalog,
 };
@@ -12,7 +12,7 @@ use selected_instructions::{
 use super::compute::machine_semantic_kind;
 use super::receipt;
 use super::{MachineEffectError, ValidatedPreAllocationMachineEffects};
-use selected_instructions::{
+use target_operations_to_selected_instructions::{
     FunctionMachineEffects, InstructionMachineEffects, PreAllocationMachineEffectPlan,
     pre_allocation_machine_effect_identity,
 };
@@ -78,7 +78,7 @@ pub fn validate_pre_allocation_machine_effects<S: ValidatedSelectedAnalysis>(
 }
 
 fn validate_function(
-    source: &selected_instructions::SelectedFunction,
+    source: &target_operations_to_selected_instructions::SelectedFunction,
     actual: &FunctionMachineEffects,
     constraints: &ValidatedRegisterConstraintCatalog,
     catalog: &ValidatedMachineEffectCatalog,

@@ -7,7 +7,7 @@ use crate::execution::terminal_unit::types::ShapeCollector;
 use crate::execution::terminal_unit::structural_scalar_store::build_structural_scalar_field_store_sequence;
 use crate::tests::front_end::typed_program_from_source_map_with_generic_data;
 
-fn fixture() -> checked_trees::CheckedTrees {
+fn fixture() -> crate::checked_trees::CheckedTrees {
     let source = r#"
         data Counter<T> { value: T; times: i32 in Wrapping; }
         machine Counter::record<T>(&mut self, value: T) {
@@ -89,7 +89,9 @@ fn generated_store_owner_requires_closed_origin_and_preserves_record_gates() {
         .unwrap();
     assert!(plain_record(owner, program));
     let mut missing_origin = owner.clone();
-    missing_origin.generic_instance = Some(typed_trees::types::TypeReferenceHandle::invalid());
+    missing_origin.generic_instance = Some(
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
+    );
     assert!(!plain_record(&missing_origin, program));
     let mut gated = owner.clone();
     gated.zero_gated = true;
@@ -116,7 +118,9 @@ fn generic_receiver_identity_matches_ordinary_field_uses_without_aliasing_argume
         .unwrap();
     let mut identities = Vec::new();
     for member in program.data_members(main) {
-        let typed_trees::data::DataMember::Field(field) = member else {
+        let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) =
+            member
+        else {
             continue;
         };
         let field_identity = program

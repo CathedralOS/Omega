@@ -1,13 +1,13 @@
 use super::{CheckedOperatorFacts, ClosedScalarContractValue, TypedTrees};
-use crate::facts::contract_plan_facts::build_closed_scalar_value_contract_plan;
-use crate::tests::front_end::typed_program;
-use checked_trees::{
+use crate::checked_trees::{
     CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedScalarExpression,
 };
-use typed_trees::expression::ExpressionNode;
-use typed_trees::types::PrimitiveType;
+use crate::facts::contract_plan_facts::build_closed_scalar_value_contract_plan;
+use crate::tests::front_end::typed_program;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
 
-fn plan(program: &TypedTrees) -> checked_trees::ClosedScalarValueContractPlan {
+fn plan(program: &TypedTrees) -> crate::checked_trees::ClosedScalarValueContractPlan {
     build_closed_scalar_value_contract_plan(
         program,
         program.machines().first().unwrap(),
@@ -153,8 +153,8 @@ fn formal_predicates_reject_selected_operators_and_carry_exact_arithmetic() {
     };
     assert!(matches!(
         left.as_ref(),
-        checked_trees::CheckedScalarExpression::IntegerBinary {
-            kind: checked_trees::CheckedIntegerBinaryKind::ExactAdd,
+        crate::checked_trees::CheckedScalarExpression::IntegerBinary {
+            kind: crate::checked_trees::CheckedIntegerBinaryKind::ExactAdd,
             ..
         }
     ));

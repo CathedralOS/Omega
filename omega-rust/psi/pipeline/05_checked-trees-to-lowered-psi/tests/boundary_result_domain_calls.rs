@@ -30,7 +30,7 @@ fn program(domain_declaration: &str) -> String {
     )
 }
 
-fn lowered(domain_declaration: &str) -> lowered_psi::LoweredPsi {
+fn lowered(domain_declaration: &str) -> checked_trees_to_lowered_psi::lowered_psi::LoweredPsi {
     checked_trees_to_lowered_psi::lower_machine(
         &crate::front_end::checked_program(&program(domain_declaration)),
         TerminalMachineSelection::Name("Main::main"),

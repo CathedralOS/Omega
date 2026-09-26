@@ -1,7 +1,7 @@
 //! Exact abstract operations whose accepted obligations imply integer ranges.
 
-use abstract_operations::AbstractOperation as O;
 use semantic_vocabulary::{ObligationId, OperationId, ScalarTerm, ScalarType};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
 use terminal_semantics::CanonicalScalarGoal;
 
 pub(super) fn for_operation(

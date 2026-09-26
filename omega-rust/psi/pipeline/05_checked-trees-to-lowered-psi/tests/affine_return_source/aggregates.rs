@@ -1,7 +1,4 @@
 use super::{assert_identity_execution, checked};
-use checked_trees::{
-    CheckedUnitStructuralFieldType, CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
-};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use checked_trees_to_lowered_psi::lower_machine;
 use proof_admission::AdmissionProfile;
@@ -11,6 +8,9 @@ use semantic_vocabulary::{
 use terminal_codec::{decode_module, encode_module};
 use terminal_psi::{
     StructuralFieldType, StructuralTypeShape, TerminalMachineResult, TerminalModule, Terminator,
+};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedUnitStructuralFieldType, CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
 };
 
 enum ExpectedShape<'a> {

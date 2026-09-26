@@ -1,5 +1,5 @@
-use register_model::RegisterInstructionConstraint;
-use selected_instructions::SelectedInstructionPlan;
+use target_operations_to_selected_instructions::SelectedInstructionPlan;
+use target_operations_to_selected_instructions::register_model::RegisterInstructionConstraint;
 
 use crate::{
     PressureRematerializationError, PressureRematerializationPlan, ValidatedLiveRanges,

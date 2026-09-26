@@ -16,11 +16,11 @@ use semantic_vocabulary::{ObligationId, Proposition, ScalarTerm};
 use terminal_psi::{ScalarBlockInvariantArrival, Terminator};
 use terminal_verifier::{ReconstructedTerminalObligationOwner, ReconstructedTerminalObligationSet};
 
+use crate::lowered_psi::LoweredPsi;
 use crate::lowering_error::LoweringError;
 use crate::proofs::nonzero_divisor_certificate::{
     produce_checked_canonical_integer_proof, produce_relaxed_integer_proof,
 };
-use lowered_psi::LoweredPsi;
 
 mod cyclic_guarantees;
 mod entry_ranges;

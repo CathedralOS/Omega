@@ -2,18 +2,20 @@
 use super::LiveDefinitions;
 use super::observations;
 use crate::LoweringError;
+use crate::calling_conventions::ValueShape;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractFunction, AbstractOperation};
-use calling_conventions::ValueShape;
+use crate::target_operations::{
+    BoundaryRealization, BoundarySettlementBinding, ScalarFunctionAbi, TargetStructuralParameter,
+    TargetUnitOperation, TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
+};
 use installation_evidence::InstalledProviderCallEvidence;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, PlaceId, ScalarType};
 use std::collections::{BTreeMap, BTreeSet};
 use target::NativeTarget;
-use target_operations::{
-    BoundaryRealization, BoundarySettlementBinding, ScalarFunctionAbi, TargetStructuralParameter,
-    TargetUnitOperation, TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
-};
 use terminal_psi::{StructuralAccess, StructuralTypeShape};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractFunction, AbstractOperation,
+};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_operation(
@@ -29,7 +31,10 @@ pub(super) fn lower_operation(
         InstalledProviderCallEvidence,
     >,
     scalar_abis: &BTreeMap<MachineId, ScalarFunctionAbi>,
-    native_callbacks: &BTreeMap<OperationId, target_operations::TargetNativeCallbackArgument>,
+    native_callbacks: &BTreeMap<
+        OperationId,
+        crate::target_operations::TargetNativeCallbackArgument,
+    >,
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
     live: &mut LiveDefinitions,
@@ -585,11 +590,11 @@ pub(super) fn lower_operation(
             if settlements.get(boundary).is_some_and(|binding| {
                 matches!(
                     binding.realization,
-                    target_operations::BoundarySettlementRealization::Builtin(
+                    crate::target_operations::BoundarySettlementRealization::Builtin(
                         BoundaryRealization::HostedWriteByteI32(_)
                             | BoundaryRealization::HostedExitProcessI32(_)
                             | BoundaryRealization::HostedReadByte(_)
-                    ) | target_operations::BoundarySettlementRealization::NormalizedForeignCall(_)
+                    ) | crate::target_operations::BoundarySettlementRealization::NormalizedForeignCall(_)
                 )
             }) =>
         {
@@ -615,7 +620,7 @@ pub(super) fn lower_operation(
                 &mut live.nonreturning,
             )?;
             if let Some(TargetUnitOperation::BoundarySettlement {
-                result: target_operations::TargetBoundaryResult::Structural(home),
+                result: crate::target_operations::TargetBoundaryResult::Structural(home),
                 ..
             }) = operations.last()
                 && live
@@ -681,7 +686,7 @@ pub(super) fn lower_operation(
             )?;
             let TargetUnitOperation::Call {
                 psi_operation,
-                result: target_operations::TargetCallResult::Scalar(home),
+                result: crate::target_operations::TargetCallResult::Scalar(home),
                 ..
             } = &call
             else {

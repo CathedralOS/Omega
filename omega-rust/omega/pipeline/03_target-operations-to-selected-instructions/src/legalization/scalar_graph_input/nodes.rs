@@ -13,8 +13,8 @@ use crate::legalization::scalar_graph_input::value_type;
 use crate::legalization::scalar_graph_input::{
     saturating_carrier, supports_wrapping_division, trapping_form, trapping_operands_rejoin,
 };
-use optimization_unit::OptimizationBlock;
 use semantic_vocabulary::OperationId;
+use terminal_psi_to_abstract_operations::optimization_unit::OptimizationBlock;
 /// Why a node has no legal instruction row. Only the first kind is a custody
 /// defect; the second is a limit of this stage that the diagnostic must name.
 pub(in crate::legalization) enum NodeRejection {
@@ -737,7 +737,7 @@ pub(super) fn validate(
             AbstractOperation::CallStructuralScalar { result, .. }
             | AbstractOperation::CallDynamicParameterScalar { result, .. }
             | AbstractOperation::BoundaryCall {
-                result: abstract_operations::AbstractBoundaryResult::Scalar(result),
+                result: terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Scalar(result),
                 ..
             }
             | AbstractOperation::PrimitiveScalarRead { result, .. }

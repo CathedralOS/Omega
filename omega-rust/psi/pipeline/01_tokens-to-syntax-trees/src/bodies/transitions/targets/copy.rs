@@ -1,9 +1,9 @@
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use arena::{Handle, HandleSpan};
-use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 
 pub(super) struct StatementIdentifierPath {
-    pub(super) members: HandleSpan<syntax_trees::identifier::Identifier>,
+    pub(super) members: HandleSpan<crate::syntax_trees::identifier::Identifier>,
     pub(super) starts_at_self: bool,
 }
 
@@ -18,7 +18,7 @@ pub(super) fn copy_expression_identifier_path_to_statement_table(
         }),
         ExpressionNode::SelfValue => {
             let self_member = syntax_trees.statements.append_identifier_path_member(
-                syntax_trees::identifier::Identifier::generated("self"),
+                crate::syntax_trees::identifier::Identifier::generated("self"),
             );
             Some(StatementIdentifierPath {
                 members: HandleSpan::from_parts(self_member, 1),
@@ -41,8 +41,8 @@ pub(super) fn copy_expression_identifier_path_to_statement_table(
 
 fn copy_identifier_members_to_statement_table(
     syntax_trees: &mut SyntaxTrees,
-    path: HandleSpan<syntax_trees::identifier::Identifier>,
-) -> HandleSpan<syntax_trees::identifier::Identifier> {
+    path: HandleSpan<crate::syntax_trees::identifier::Identifier>,
+) -> HandleSpan<crate::syntax_trees::identifier::Identifier> {
     let mut start = Handle::invalid();
     let mut count = 0u32;
 
@@ -70,9 +70,9 @@ fn copy_identifier_members_to_statement_table(
 
 pub(super) fn append_statement_identifier_path_member(
     syntax_trees: &mut SyntaxTrees,
-    path: HandleSpan<syntax_trees::identifier::Identifier>,
-    member: syntax_trees::identifier::Identifier,
-) -> HandleSpan<syntax_trees::identifier::Identifier> {
+    path: HandleSpan<crate::syntax_trees::identifier::Identifier>,
+    member: crate::syntax_trees::identifier::Identifier,
+) -> HandleSpan<crate::syntax_trees::identifier::Identifier> {
     let handle = syntax_trees
         .statements
         .append_identifier_path_member(member);

@@ -29,11 +29,11 @@ fn retains_explicit_mutable_to_write_only_attenuation() {
         .expect("write-only callee plan");
     assert_eq!(
         enter.structural_parameters[0].access,
-        checked_trees::CheckedStructuralAccess::MutableBorrow
+        crate::checked_trees::CheckedStructuralAccess::MutableBorrow
     );
     assert_eq!(
         fill.structural_parameters[0].access,
-        checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+        crate::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
     );
     let CheckedUnitEffectOperationPlan::CallUnit {
         coordinate,
@@ -47,7 +47,7 @@ fn retains_explicit_mutable_to_write_only_attenuation() {
     assert_eq!(coordinate.call_ordinal, 0);
     assert_eq!(
         structural_arguments[0].access,
-        checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+        crate::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
     );
 }
 
@@ -73,7 +73,7 @@ fn retains_one_direct_write_only_primitive_literal_store() {
     assert_eq!(fill.structural_parameters.len(), 1);
     assert_eq!(
         fill.structural_parameters[0].access,
-        checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+        crate::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
     );
     assert_eq!(
         fill.structural_parameters[0].multiplicity,
@@ -94,8 +94,8 @@ fn retains_one_direct_write_only_primitive_literal_store() {
             CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                 path: store_path,
                 statement_index: 0,
-                destination: checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
-                value: checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::IntegerLiteral { literal }),
+                destination: crate::checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
+                value: crate::checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::IntegerLiteral { literal }),
             },
             CheckedUnitEffectOperationPlan::Complete {
                 statement_index: 1,
@@ -111,7 +111,7 @@ fn retains_one_direct_write_only_primitive_literal_store() {
         .expect("mutable caller in the literal-store closure");
     assert_eq!(
         enter.structural_parameters[0].access,
-        checked_trees::CheckedStructuralAccess::MutableBorrow
+        crate::checked_trees::CheckedStructuralAccess::MutableBorrow
     );
     assert!(matches!(
         &enter.operations[0],
@@ -122,7 +122,7 @@ fn retains_one_direct_write_only_primitive_literal_store() {
             if argument.source_parameter_index() == Some(0)
                 && argument.path.is_empty()
                 && argument.access
-                    == checked_trees::CheckedStructuralAccess::WriteOnlyBorrow)
+                    == crate::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow)
     ));
     assert!(
         checked
@@ -156,14 +156,14 @@ fn retains_one_direct_mutable_primitive_literal_store() {
         .expect("literal store through readable mutable authority");
     assert_eq!(
         fill.structural_parameters[0].access,
-        checked_trees::CheckedStructuralAccess::MutableBorrow
+        crate::checked_trees::CheckedStructuralAccess::MutableBorrow
     );
     assert!(matches!(
         fill.operations.as_slice(),
         [
             CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
-                destination: checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
-                value: checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::IntegerLiteral { literal }),
+                destination: crate::checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
+                value: crate::checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::IntegerLiteral { literal }),
                 ..
             },
             CheckedUnitEffectOperationPlan::Complete { .. },
@@ -269,7 +269,7 @@ fn retains_direct_and_nested_write_only_record_field_literal_stores() {
         .expect("mutable record-field store plan");
     assert_eq!(
         mutable.structural_parameters[0].access,
-        checked_trees::CheckedStructuralAccess::MutableBorrow
+        crate::checked_trees::CheckedStructuralAccess::MutableBorrow
     );
     assert!(matches!(
         mutable.operations.as_slice(),
@@ -370,7 +370,7 @@ fn retains_only_certificate_backed_restored_reference_alias_call() {
                 if argument.source_parameter_index() == Some(0)
                     && argument.path.is_empty()
                     && argument.access
-                        == checked_trees::CheckedStructuralAccess::MutableBorrow)
+                        == crate::checked_trees::CheckedStructuralAccess::MutableBorrow)
     ));
 
     let mut without_certificate = checked.facts.clone();
@@ -429,7 +429,7 @@ fn retains_only_certificate_backed_sole_shared_freeze_alias_call() {
                 if argument.source_parameter_index() == Some(0)
                     && argument.path.is_empty()
                     && argument.access
-                        == checked_trees::CheckedStructuralAccess::MutableBorrow)
+                        == crate::checked_trees::CheckedStructuralAccess::MutableBorrow)
     ));
 
     let mut without_certificate = checked.facts.clone();
@@ -487,8 +487,8 @@ fn retains_one_direct_write_only_boolean_literal_store() {
             CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                 path: store_path,
                 statement_index: 0,
-                destination: checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
-                value: checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Boolean(expression)),
+                destination: crate::checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
+                value: crate::checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Boolean(expression)),
             },
             CheckedUnitEffectOperationPlan::Complete {
                 statement_index: 1,
@@ -496,7 +496,7 @@ fn retains_one_direct_write_only_boolean_literal_store() {
             },
         ] if store_path.is_empty() && matches!(
             expression.as_ref(),
-            checked_trees::CheckedBooleanExpression::Constant(true)
+            crate::checked_trees::CheckedBooleanExpression::Constant(true)
         )
     ));
 }
@@ -536,10 +536,10 @@ fn retains_one_direct_write_only_ieee_float_literal_store() {
             CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                 path: store_path,
                 statement_index: 0,
-                destination: checked_trees::CheckedPrimitiveStoreDestination::Parameter {
+                destination: crate::checked_trees::CheckedPrimitiveStoreDestination::Parameter {
                     parameter_index: 0
                 },
-                value: checked_trees::CheckedCallScalarArgument::Pure(
+                value: crate::checked_trees::CheckedCallScalarArgument::Pure(
                     CheckedScalarExpression::IeeeFloatLiteral {
                         value: semantic_vocabulary::IeeeFloatValue::Binary32(0x3fa0_0000),
                     }
@@ -580,10 +580,10 @@ fn retains_a_later_direct_write_only_fixed_integer_parameter_store() {
             CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                 path: store_path,
                 statement_index: 0,
-                destination: checked_trees::CheckedPrimitiveStoreDestination::Parameter {
+                destination: crate::checked_trees::CheckedPrimitiveStoreDestination::Parameter {
                     parameter_index: 0
                 },
-                value: checked_trees::CheckedCallScalarArgument::Pure(
+                value: crate::checked_trees::CheckedCallScalarArgument::Pure(
                     CheckedScalarExpression::Parameter {
                         position: 1,
                         primitive_type: PrimitiveType::I32,
@@ -650,7 +650,9 @@ fn scalar_store_planning_retains_computed_sources_and_multiple_stores_in_order()
                 path: store_path,
                 statement_index,
                 destination:
-                    checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
+                    crate::checked_trees::CheckedPrimitiveStoreDestination::Parameter {
+                        parameter_index: 0,
+                    },
                 value,
             } = operation
             else {
@@ -658,13 +660,13 @@ fn scalar_store_planning_retains_computed_sources_and_multiple_stores_in_order()
             };
             assert!(store_path.is_empty());
             assert_eq!(*statement_index as usize, ordinal);
-            let checked_trees::CheckedCallScalarArgument::Pure(value) = value else {
+            let crate::checked_trees::CheckedCallScalarArgument::Pure(value) = value else {
                 panic!("retained pure store operand");
             };
             match case_index {
                 0 => {
                     let CheckedScalarExpression::IntegerBinary {
-                        kind: checked_trees::CheckedIntegerBinaryKind::BitwiseXor,
+                        kind: crate::checked_trees::CheckedIntegerBinaryKind::BitwiseXor,
                         primitive_type: PrimitiveType::I32,
                         left,
                         right,
@@ -721,7 +723,7 @@ fn scalar_store_planning_retains_short_circuit_replacement() {
             path: store_path,
             statement_index: 0,
             destination:
-                checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
+                crate::checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
             value,
         },
         CheckedUnitEffectOperationPlan::Complete {
@@ -733,7 +735,7 @@ fn scalar_store_planning_retains_short_circuit_replacement() {
     };
     assert!(store_path.is_empty());
     match value {
-        checked_trees::CheckedCallScalarArgument::Pure(value) => assert_eq!(
+        crate::checked_trees::CheckedCallScalarArgument::Pure(value) => assert_eq!(
             Some(value),
             checked.facts.values.scalar_expressions.expression_at(
                 plan.state,
@@ -741,7 +743,7 @@ fn scalar_store_planning_retains_short_circuit_replacement() {
                 CheckedScalarExpressionRole::AssignmentValue
             )
         ),
-        checked_trees::CheckedCallScalarArgument::Computation(value) => {
+        crate::checked_trees::CheckedCallScalarArgument::Computation(value) => {
             let roots = &checked.facts.values.scalar_computations;
             assert!(
                 roots
@@ -792,12 +794,12 @@ fn retains_exact_write_only_common_field_subloan() {
     assert_eq!(argument.source_parameter_index(), Some(0));
     assert_eq!(
         argument.access,
-        checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+        crate::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
     );
     assert_eq!(argument.path.len(), 2);
     assert!(argument.path.iter().all(|segment| matches!(
         segment,
-        checked_trees::CheckedUnitStructuralPathSegment::Field(_)
+        crate::checked_trees::CheckedUnitStructuralPathSegment::Field(_)
     )));
 }
 
@@ -834,14 +836,14 @@ fn retains_exact_literal_indexed_write_only_subloan() {
     assert_eq!(argument.source_parameter_index(), Some(0));
     assert_eq!(
         argument.access,
-        checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+        crate::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
     );
     assert!(matches!(
         argument.path.as_slice(),
         [
-            checked_trees::CheckedUnitStructuralPathSegment::Field(_),
-            checked_trees::CheckedUnitStructuralPathSegment::Field(_),
-            checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(1),
+            crate::checked_trees::CheckedUnitStructuralPathSegment::Field(_),
+            crate::checked_trees::CheckedUnitStructuralPathSegment::Field(_),
+            crate::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(1),
         ]
     ));
 }
@@ -876,13 +878,11 @@ fn retains_exact_direct_root_literal_indexed_write_only_subloan() {
     assert_eq!(argument.source_parameter_index(), Some(0));
     assert_eq!(
         argument.access,
-        checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+        crate::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
     );
     assert_eq!(
         argument.path,
-        [checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
-            1
-        )]
+        [crate::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(1)]
     );
 }
 
@@ -917,17 +917,17 @@ fn retains_finite_literal_index_suffix_for_direct_root_write_only_subloan() {
     };
     assert_eq!(
         argument.access,
-        checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+        crate::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
     );
     assert_eq!(
         argument.path,
         [
-            checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(1),
-            checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(2),
-            checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(3),
-            checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(4),
-            checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(5),
-            checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(6),
+            crate::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(1),
+            crate::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(2),
+            crate::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(3),
+            crate::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(4),
+            crate::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(5),
+            crate::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(6),
         ]
     );
 }
@@ -965,13 +965,13 @@ fn retains_finite_literal_index_suffix_after_write_only_field_prefix() {
     assert!(matches!(
         argument.path.as_slice(),
         [
-            checked_trees::CheckedUnitStructuralPathSegment::Field(_),
-            checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(1),
-            checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(2),
-            checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(3),
-            checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(4),
-            checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(5),
-            checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(6),
+            crate::checked_trees::CheckedUnitStructuralPathSegment::Field(_),
+            crate::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(1),
+            crate::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(2),
+            crate::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(3),
+            crate::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(4),
+            crate::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(5),
+            crate::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(6),
         ]
     ));
 }
@@ -1008,15 +1008,15 @@ fn retains_scalar_parameter_beside_projected_write_only_argument() {
     };
     assert!(matches!(
         scalar_arguments.as_slice(),
-        [checked_trees::CheckedCallScalarArgument::Pure(
-            checked_trees::CheckedScalarExpression::Parameter { .. }
+        [crate::checked_trees::CheckedCallScalarArgument::Pure(
+            crate::checked_trees::CheckedScalarExpression::Parameter { .. }
         )]
     ));
     assert!(matches!(
         structural_arguments.as_slice(),
         [argument]
             if argument.access
-                == checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+                == crate::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
                 && argument.path.len() == 7
     ));
 }
@@ -1057,7 +1057,7 @@ fn write_only_common_field_subloans_retain_independent_roots() {
         assert_eq!(argument.source_parameter_index(), Some(position as u32));
         assert_eq!(
             argument.access,
-            checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+            crate::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
         );
         assert_eq!(
             argument.path,

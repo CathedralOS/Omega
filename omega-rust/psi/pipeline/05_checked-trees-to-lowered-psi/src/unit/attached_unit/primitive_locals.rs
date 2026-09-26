@@ -9,7 +9,7 @@ use super::{
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
-use checked_trees::statement::{StatementNode, TableLocalData};
+use typed_trees_to_checked_trees::checked_trees::statement::{StatementNode, TableLocalData};
 
 use super::admission::CallerView;
 
@@ -52,7 +52,7 @@ pub(crate) fn source<'checked>(
             checked
                 .type_reference_table
                 .type_reference(local.type_reference),
-            checked_trees::types::TypeReferenceNode::Named { .. }
+            typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Named { .. }
         )
         || checked
             .primitive_type_reference(local.type_reference)
@@ -159,12 +159,12 @@ pub(crate) fn validate_roster(
 pub(super) fn validate_argument_source(
     checked: &CheckedTrees,
     caller: &CallerView<'_>,
-    coordinate: checked_trees::CheckedUnitCallCoordinate,
+    coordinate: typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate,
     source_target: symbols::SymbolHandle,
-    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
-    expression: checked_trees::expression::ExpressionHandle,
+    argument: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan,
+    expression: typed_trees_to_checked_trees::checked_trees::expression::ExpressionHandle,
 ) -> Result<bool, LoweringError> {
-    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } =
+    let typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } =
         argument.source
     else {
         return Ok(false);
@@ -181,7 +181,8 @@ pub(super) fn validate_argument_source(
         || !path.is_empty()
         || !argument.path.is_empty()
         || access != Some(argument.access)
-        || argument.access == checked_trees::CheckedStructuralAccess::Owned
+        || argument.access
+            == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
         || argument.type_identity
             != checked
                 .typed

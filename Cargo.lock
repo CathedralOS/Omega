@@ -3,25 +3,11 @@
 version = 4
 
 [[package]]
-name = "abstract-operations"
-version = "0.1.0"
-dependencies = [
- "language-core",
- "semantic-vocabulary",
- "terminal-psi",
-]
-
-[[package]]
 name = "abstract-operations-to-abstract-operations"
 version = "0.1.0"
 dependencies = [
- "abstract-operations",
- "abstract-operations-to-abstract-operations",
  "checked-trees-to-lowered-psi",
- "optimization",
  "optimization-core",
- "optimization-unit",
- "optimization-unit-semantics",
  "proof-admission",
  "semantic-vocabulary",
  "source-files-to-tokens",
@@ -41,15 +27,12 @@ dependencies = [
 name = "abstract-operations-to-target-operations"
 version = "0.1.0"
 dependencies = [
- "abstract-operations",
  "abstract-operations-to-abstract-operations",
- "access-plans",
- "calling-conventions",
  "checked-trees-to-lowered-psi",
  "diagnostics",
- "effects",
- "function-identity",
  "installation-evidence",
+ "language-core",
+ "language-semantics",
  "numerics",
  "proof-admission",
  "semantic-vocabulary",
@@ -59,8 +42,6 @@ dependencies = [
  "symbols",
  "syntax-trees-to-symbol-resolved-trees",
  "target",
- "target-operations",
- "task-plans",
  "terminal-codec",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
@@ -68,16 +49,6 @@ dependencies = [
  "terminal-verifier",
  "tokens-to-syntax-trees",
  "typed-trees-to-checked-trees",
-]
-
-[[package]]
-name = "access-plans"
-version = "0.1.0"
-dependencies = [
- "extents",
- "language-core",
- "layout-plans",
- "sha2",
 ]
 
 [[package]]
@@ -103,41 +74,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "artifacts"
-version = "0.1.0"
-dependencies = [
- "calling-conventions",
- "checked-trees",
- "diagnostics",
- "effects",
- "executable-installation",
- "extents",
- "external-roots",
- "layout-plans",
- "semantic-vocabulary",
- "target",
- "terminal-psi",
- "typed-trees",
-]
-
-[[package]]
-name = "backend-plan"
-version = "0.1.0"
-dependencies = [
- "arena",
- "calling-conventions",
- "checked-trees",
- "function-identity",
- "layout-plans",
- "symbols",
- "target",
-]
-
-[[package]]
 name = "bitflags"
-version = "2.13.1"
+version = "2.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b588b76d00fde79687d7646a9b5bdf3cc0f655e0bbd080335a95d7e96f3587da"
+checksum = "3ded4057c258ba199e2d26386d3af3780957ecaee6c4ef4041c6b4b8b97c0b06"
 
 [[package]]
 name = "block-buffer"
@@ -146,122 +86,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3078c7629b62d3f0439517fa394996acacc5cbc91c5a20d8c658e77abd503a71"
 dependencies = [
  "generic-array",
-]
-
-[[package]]
-name = "boundary-applications"
-version = "0.1.0"
-dependencies = [
- "effects",
- "semantic-vocabulary",
- "sha2",
- "terminal-psi",
-]
-
-[[package]]
-name = "bounded-process"
-version = "0.1.0"
-dependencies = [
- "command-group",
- "libc",
- "rustix",
- "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "build-declarations"
-version = "0.1.0"
-dependencies = [
- "source-files-to-tokens",
- "syntax-trees",
- "tokens-to-syntax-trees",
-]
-
-[[package]]
-name = "build-evaluation"
-version = "0.1.0"
-dependencies = [
- "arena",
- "artifacts",
- "build-declarations",
- "build-output",
- "build-time-evaluation",
- "calling-conventions",
- "checked-interpreter",
- "component-description",
- "diagnostics",
- "effects",
- "flow-effects",
- "language-core",
- "language-semantics",
- "layout-plans",
- "optimization-core",
- "package-compilation",
- "program-entry-plan",
- "provider-planning",
- "representation-planning",
- "semantic-vocabulary",
- "sha2",
- "source",
- "source-files-to-tokens",
- "symbol-resolved-trees-to-typed-trees",
- "symbols",
- "syntax-trees",
- "syntax-trees-to-symbol-resolved-trees",
- "target",
- "terminal-psi",
- "tokens",
- "tokens-to-syntax-trees",
- "trust-model",
- "typed-trees",
- "typed-trees-to-checked-trees",
- "validation",
-]
-
-[[package]]
-name = "build-output"
-version = "0.1.0"
-dependencies = [
- "checked-interpreter",
- "diagnostics",
- "platform-custody",
- "sha2",
-]
-
-[[package]]
-name = "build-time-evaluation"
-version = "0.1.0"
-dependencies = [
- "access-plans",
- "arena",
- "checked-interpreter",
- "checked-trees",
- "diagnostics",
- "flow-effects",
- "language-core",
- "language-semantics",
- "layout-plans",
- "numerics",
- "semantic-vocabulary",
- "source",
- "source-files-to-tokens",
- "symbol-resolved-trees",
- "symbol-resolved-trees-to-typed-trees",
- "symbols",
- "syntax-trees",
- "syntax-trees-to-symbol-resolved-trees",
- "tokens-to-syntax-trees",
- "typed-trees",
- "typed-trees-to-checked-trees",
- "validation",
-]
-
-[[package]]
-name = "calling-conventions"
-version = "0.1.0"
-dependencies = [
- "sha2",
- "target",
 ]
 
 [[package]]
@@ -318,66 +142,23 @@ dependencies = [
 
 [[package]]
 name = "cfg-if"
-version = "1.0.4"
+version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
-
-[[package]]
-name = "checked-interpreter"
-version = "0.1.0"
-dependencies = [
- "arena",
- "checked-trees",
- "diagnostics",
- "language-core",
- "language-semantics",
- "layout-plans",
- "numerics",
- "source",
- "source-files-to-tokens",
- "symbol-resolved-trees-to-typed-trees",
- "symbols",
- "syntax-trees-to-symbol-resolved-trees",
- "tokens-to-syntax-trees",
- "typed-trees",
- "typed-trees-to-checked-trees",
- "validation",
-]
-
-[[package]]
-name = "checked-trees"
-version = "0.1.0"
-dependencies = [
- "access-plans",
- "arena",
- "facts",
- "flow-effects",
- "language-core",
- "language-semantics",
- "numerics",
- "semantic-vocabulary",
- "sha2",
- "source",
- "symbols",
- "typed-trees",
-]
+checksum = "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600"
 
 [[package]]
 name = "checked-trees-to-lowered-psi"
 version = "0.1.0"
 dependencies = [
  "arena",
- "checked-trees",
  "diagnostics",
- "facts",
  "language-core",
  "language-semantics",
- "lowered-psi",
  "lowered-psi-to-lowered-psi",
  "lowered-psi-to-terminal-psi",
  "mimalloc",
  "numerics",
- "optimization",
+ "omega",
  "proof-admission",
  "semantic-vocabulary",
  "sha2",
@@ -385,20 +166,16 @@ dependencies = [
  "source-files-to-tokens",
  "symbol-resolved-trees-to-typed-trees",
  "symbols",
- "syntax-trees",
  "syntax-trees-to-symbol-resolved-trees",
  "terminal-codec",
- "terminal-fixed-fuel",
  "terminal-fuel",
  "terminal-interpreter",
- "terminal-production",
  "terminal-psi",
+ "terminal-psi-to-abstract-operations",
  "terminal-semantics",
  "terminal-verifier",
  "tokens-to-syntax-trees",
- "typed-trees",
  "typed-trees-to-checked-trees",
- "validation",
 ]
 
 [[package]]
@@ -409,173 +186,6 @@ checksum = "a68fa787550392a9d58f44c21a3022cfb3ea3e2458b7f85d3b399d0ceeccf409"
 dependencies = [
  "nix",
  "winapi",
-]
-
-[[package]]
-name = "compiler"
-version = "0.1.0"
-dependencies = [
- "abstract-operations",
- "abstract-operations-to-abstract-operations",
- "abstract-operations-to-target-operations",
- "access-plans",
- "arena",
- "artifacts",
- "backend-plan",
- "boundary-applications",
- "build-declarations",
- "build-evaluation",
- "build-output",
- "build-time-evaluation",
- "calling-conventions",
- "checked-interpreter",
- "checked-trees",
- "checked-trees-to-lowered-psi",
- "component-description",
- "diagnostics",
- "effects",
- "extents",
- "facts",
- "flow-effects",
- "function-identity",
- "image",
- "image-emission",
- "image-macho",
- "image-pe",
- "installation-evidence",
- "isa-x86_64",
- "language-core",
- "language-semantics",
- "layout-plans",
- "legalized-operations",
- "lowered-psi",
- "lowered-psi-to-lowered-psi",
- "lowered-psi-to-terminal-psi",
- "machine-code",
- "machine-emission",
- "mimalloc",
- "native-artifact",
- "numerics",
- "object-file",
- "optimization-core",
- "optimization-unit",
- "package-compilation",
- "program-entry-plan",
- "proof-admission",
- "provider-planning",
- "register-environment",
- "register-homes-to-post-allocation-machine",
- "representation-planning",
- "resolved-layout-to-resolved-layout",
- "selected-dispatch",
- "selected-form-encoding-to-resolved-layout",
- "selected-instructions",
- "selected-instructions-to-register-homes",
- "selected-instructions-to-selected-instructions",
- "semantic-vocabulary",
- "serde",
- "serde_json",
- "sha2",
- "source",
- "source-files-to-tokens",
- "symbol-resolved-trees",
- "symbol-resolved-trees-to-typed-trees",
- "symbols",
- "syntax-trees",
- "syntax-trees-to-symbol-resolved-trees",
- "target",
- "target-operations",
- "target-operations-to-selected-instructions",
- "task-plans",
- "terminal-codec",
- "terminal-fuel",
- "terminal-production",
- "terminal-psi",
- "terminal-psi-to-abstract-operations",
- "terminal-verifier",
- "tokens",
- "tokens-to-syntax-trees",
- "trust-model",
- "typed-trees",
- "typed-trees-to-checked-trees",
- "validation",
-]
-
-[[package]]
-name = "component-candidate"
-version = "0.1.0"
-dependencies = [
- "component-description",
- "effects",
- "image-emission",
- "native-artifact",
- "target",
- "terminal-codec",
-]
-
-[[package]]
-name = "component-deployment"
-version = "0.1.0"
-dependencies = [
- "boundary-applications",
- "calling-conventions",
- "component-candidate",
- "component-publication",
- "effects",
- "executable-installation",
- "extents",
- "external-roots",
- "image-emission",
- "installation-evidence",
- "layout-plans",
- "semantic-vocabulary",
- "target",
-]
-
-[[package]]
-name = "component-description"
-version = "0.1.0"
-dependencies = [
- "effects",
- "language-semantics",
- "proof-admission",
- "semantic-vocabulary",
- "sha2",
- "terminal-codec",
- "terminal-psi",
- "terminal-verifier",
-]
-
-[[package]]
-name = "component-publication"
-version = "0.1.0"
-dependencies = [
- "boundary-applications",
- "calling-conventions",
- "checked-trees-to-lowered-psi",
- "effects",
- "executable-installation",
- "extents",
- "external-roots",
- "function-identity",
- "image-emission",
- "layout-plans",
- "machine-code",
- "optimization-core",
- "proof-admission",
- "semantic-vocabulary",
- "source-files-to-tokens",
- "symbol-resolved-trees-to-typed-trees",
- "symbols",
- "syntax-trees-to-symbol-resolved-trees",
- "target",
- "target-operations",
- "terminal-codec",
- "terminal-interpreter",
- "terminal-psi",
- "terminal-verifier",
- "tokens-to-syntax-trees",
- "typed-trees-to-checked-trees",
 ]
 
 [[package]]
@@ -615,22 +225,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "effects"
-version = "0.1.0"
-dependencies = [
- "diagnostics",
- "installation-evidence",
- "language-core",
- "language-semantics",
- "numerics",
- "semantic-vocabulary",
- "sha2",
- "symbols",
- "target",
- "typed-trees",
-]
-
-[[package]]
 name = "errno"
 version = "0.3.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -641,72 +235,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "executable-installation"
-version = "0.1.0"
-dependencies = [
- "extents",
- "installation-evidence",
- "layout-plans",
- "optimization-core",
- "sha2",
- "target",
-]
-
-[[package]]
-name = "extents"
-version = "0.1.0"
-
-[[package]]
-name = "external-roots"
-version = "0.1.0"
-dependencies = [
- "calling-conventions",
- "effects",
- "executable-installation",
- "extents",
- "installation-evidence",
- "isa-x86_64",
- "language-semantics",
- "layout-plans",
- "numerics",
- "program-entry-plan",
- "proof-admission",
- "semantic-vocabulary",
- "sha2",
- "symbols",
- "target",
- "terminal-codec",
- "terminal-fixed-fuel",
- "terminal-psi",
- "terminal-verifier",
-]
-
-[[package]]
-name = "facts"
-version = "0.1.0"
-dependencies = [
- "arena",
- "language-core",
- "language-semantics",
- "numerics",
- "symbols",
- "typed-trees",
-]
-
-[[package]]
 name = "find-msvc-tools"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aedcfb3409746eddb02b9e19ebda1c3394f759a152e48ee875a0844d1b955484"
-
-[[package]]
-name = "flow-effects"
-version = "0.1.0"
-dependencies = [
- "arena",
- "language-semantics",
- "symbols",
-]
 
 [[package]]
 name = "fs-set-times"
@@ -717,13 +249,6 @@ dependencies = [
  "io-lifetimes 2.0.4",
  "rustix",
  "windows-sys 0.59.0",
-]
-
-[[package]]
-name = "function-identity"
-version = "0.1.0"
-dependencies = [
- "symbols",
 ]
 
 [[package]]
@@ -743,110 +268,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c447cff8c7f384a7d4f741cfcff32f75f3ad02b406432e8d6c878d56b1edf6b"
 dependencies = [
  "lazy_static",
-]
-
-[[package]]
-name = "image"
-version = "0.1.0"
-dependencies = [
- "arena",
- "calling-conventions",
- "diagnostics",
- "function-identity",
- "object-file",
- "sha2",
- "target",
-]
-
-[[package]]
-name = "image-elf"
-version = "0.1.0"
-dependencies = [
- "arena",
- "diagnostics",
- "image",
- "object-file",
- "target",
-]
-
-[[package]]
-name = "image-emission"
-version = "0.1.0"
-dependencies = [
- "abstract-operations",
- "abstract-operations-to-target-operations",
- "boundary-applications",
- "calling-conventions",
- "checked-trees",
- "checked-trees-to-lowered-psi",
- "compiler",
- "diagnostics",
- "executable-installation",
- "extents",
- "function-identity",
- "iced-x86",
- "image",
- "image-elf",
- "image-emission",
- "image-macho",
- "image-pe",
- "installation-evidence",
- "isa-aarch64",
- "isa-x86_64",
- "layout-plans",
- "legalized-operations",
- "machine-code",
- "machine-emission",
- "object-file",
- "optimization-core",
- "program-entry-plan",
- "proof-admission",
- "register-model",
- "selected-instructions",
- "semantic-vocabulary",
- "sha2",
- "source-files-to-tokens",
- "symbol-resolved-trees-to-typed-trees",
- "symbols",
- "syntax-trees-to-symbol-resolved-trees",
- "target",
- "target-operations",
- "task-plans",
- "terminal-codec",
- "terminal-fuel",
- "terminal-psi",
- "terminal-psi-to-abstract-operations",
- "terminal-semantics",
- "terminal-verifier",
- "tokens-to-syntax-trees",
- "typed-trees-to-checked-trees",
- "x86-encoding",
-]
-
-[[package]]
-name = "image-macho"
-version = "0.1.0"
-dependencies = [
- "arena",
- "calling-conventions",
- "diagnostics",
- "image",
- "isa-x86_64",
- "object-file",
- "sha2",
- "target",
-]
-
-[[package]]
-name = "image-pe"
-version = "0.1.0"
-dependencies = [
- "arena",
- "calling-conventions",
- "diagnostics",
- "image",
- "object-file",
- "target",
 ]
 
 [[package]]
@@ -883,38 +304,9 @@ checksum = "2f0fb0570afe1fed943c5c3d4102d5358592d8625fda6a0007fdbe65a92fba96"
 
 [[package]]
 name = "ipnet"
-version = "2.12.1"
+version = "2.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a756c3fac73139e83f14c2d742155dd2b78d3ee56597b419a0579b7bdd6dd78"
-
-[[package]]
-name = "isa-aarch64"
-version = "0.1.0"
-dependencies = [
- "calling-conventions",
- "diagnostics",
- "layout-plans",
- "optimization-core",
- "register-model",
- "selected-instructions",
- "semantic-vocabulary",
- "target",
-]
-
-[[package]]
-name = "isa-x86_64"
-version = "0.1.0"
-dependencies = [
- "calling-conventions",
- "diagnostics",
- "layout-plans",
- "optimization-core",
- "optimization-unit",
- "register-model",
- "selected-instructions",
- "semantic-vocabulary",
- "target",
-]
+checksum = "791930b43c0d5973160d90a8f3894509f2b273430f5c5c73b668636d0287c5c0"
 
 [[package]]
 name = "itoa"
@@ -938,54 +330,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "layout"
-version = "0.1.0"
-dependencies = [
- "arena",
- "build-time-evaluation",
- "calling-conventions",
- "checked-trees",
- "diagnostics",
- "language-semantics",
- "layout-plans",
- "numerics",
- "representation-selections",
- "runtime-abi",
- "source-files-to-tokens",
- "symbol-resolved-trees-to-typed-trees",
- "symbols",
- "syntax-trees-to-symbol-resolved-trees",
- "target",
- "tokens-to-syntax-trees",
- "typed-trees",
-]
-
-[[package]]
-name = "layout-plans"
-version = "0.1.0"
-
-[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
-
-[[package]]
-name = "legalized-operations"
-version = "0.1.0"
-dependencies = [
- "abstract-operations",
- "calling-conventions",
- "function-identity",
- "optimization-core",
- "optimization-unit",
- "semantic-vocabulary",
- "sha2",
- "target",
- "target-operations",
- "terminal-codec",
- "terminal-psi",
-]
 
 [[package]]
 name = "libc"
@@ -1009,22 +357,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
 
 [[package]]
-name = "lowered-psi"
-version = "0.1.0"
-dependencies = [
- "checked-trees",
- "semantic-vocabulary",
- "symbols",
- "terminal-psi",
-]
-
-[[package]]
 name = "lowered-psi-to-lowered-psi"
 version = "0.1.0"
 dependencies = [
+ "checked-trees-to-lowered-psi",
  "language-core",
- "lowered-psi",
- "optimization",
  "semantic-vocabulary",
  "symbols",
  "terminal-codec",
@@ -1037,65 +374,18 @@ dependencies = [
 name = "lowered-psi-to-terminal-psi"
 version = "0.1.0"
 dependencies = [
- "checked-trees",
- "lowered-psi",
+ "checked-trees-to-lowered-psi",
+ "language-semantics",
  "lowered-psi-to-lowered-psi",
  "semantic-vocabulary",
+ "source-files-to-tokens",
+ "symbol-resolved-trees-to-typed-trees",
  "symbols",
+ "syntax-trees-to-symbol-resolved-trees",
  "terminal-codec",
  "terminal-psi",
-]
-
-[[package]]
-name = "machine-code"
-version = "0.1.0"
-dependencies = [
- "abstract-operations",
- "calling-conventions",
- "function-identity",
- "optimization-core",
- "optimization-unit",
- "physical-instructions",
- "register-homes",
- "register-model",
- "selected-instructions",
- "semantic-vocabulary",
- "sha2",
- "target",
- "target-operations",
- "task-plans",
- "terminal-psi",
-]
-
-[[package]]
-name = "machine-emission"
-version = "0.1.0"
-dependencies = [
- "abstract-operations",
- "abstract-operations-to-abstract-operations",
- "abstract-operations-to-target-operations",
- "calling-conventions",
- "diagnostics",
- "isa-aarch64",
- "isa-x86_64",
- "machine-code",
- "optimization-core",
- "physical-instructions",
- "post-allocation-machine-to-selected-form-encoding",
- "register-environment",
- "register-homes-to-post-allocation-machine",
- "register-model",
- "resolved-layout-to-resolved-layout",
- "selected-form-encoding-to-resolved-layout",
- "selected-instructions",
- "selected-instructions-to-register-homes",
- "semantic-vocabulary",
- "sha2",
- "target",
- "target-operations",
- "terminal-fuel",
- "terminal-psi",
- "terminal-psi-to-abstract-operations",
+ "tokens-to-syntax-trees",
+ "typed-trees-to-checked-trees",
 ]
 
 [[package]]
@@ -1120,43 +410,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mutation-matrix"
-version = "0.1.0"
-
-[[package]]
-name = "native-artifact"
-version = "0.1.0"
-dependencies = [
- "abstract-operations",
- "boundary-applications",
- "calling-conventions",
- "diagnostics",
- "effects",
- "function-identity",
- "image",
- "image-emission",
- "installation-evidence",
- "isa-aarch64",
- "isa-x86_64",
- "legalized-operations",
- "machine-code",
- "object-file",
- "optimization-core",
- "program-entry-plan",
- "register-model",
- "selected-instructions",
- "selected-instructions-to-register-homes",
- "semantic-vocabulary",
- "sha2",
- "target",
- "target-operations",
- "terminal-codec",
- "terminal-psi",
- "terminal-psi-to-abstract-operations",
- "x86-encoding",
-]
-
-[[package]]
 name = "nix"
 version = "0.27.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1175,48 +428,55 @@ dependencies = [
 ]
 
 [[package]]
-name = "object-file"
-version = "0.1.0"
-dependencies = [
- "arena",
- "function-identity",
- "machine-code",
- "machine-emission",
- "optimization-core",
- "selected-instructions",
- "semantic-vocabulary",
- "sha2",
- "target",
- "terminal-codec",
- "terminal-psi",
- "terminal-psi-to-abstract-operations",
-]
-
-[[package]]
 name = "omega"
 version = "0.1.0"
 dependencies = [
- "artifacts",
- "checked-interpreter",
+ "abstract-operations-to-abstract-operations",
+ "abstract-operations-to-target-operations",
+ "arena",
+ "cap-fs-ext",
+ "cap-std",
  "checked-trees-to-lowered-psi",
- "compiler",
+ "command-group",
  "diagnostics",
- "lowered-psi",
+ "installation-evidence",
+ "language-core",
+ "language-semantics",
+ "libc",
  "lowered-psi-to-lowered-psi",
  "lowered-psi-to-terminal-psi",
- "package-compilation",
- "package-manager",
- "package-source",
- "platform-custody",
+ "nix",
+ "numerics",
+ "optimization-core",
+ "post-allocation-machine-to-selected-form-encoding",
  "proof-admission",
- "resolver-execution",
+ "register-homes-to-post-allocation-machine",
+ "resolved-layout-to-resolved-layout",
+ "rustix",
+ "selected-form-encoding-to-resolved-layout",
+ "selected-instructions-to-register-homes",
+ "selected-instructions-to-selected-instructions",
  "semantic-vocabulary",
+ "serde",
+ "serde_json",
+ "sha1-checked",
+ "sha2",
+ "source",
+ "source-files-to-tokens",
+ "symbol-resolved-trees-to-typed-trees",
+ "symbols",
+ "syntax-trees-to-symbol-resolved-trees",
  "target",
- "terminal-fixed-fuel",
- "terminal-production",
+ "target-operations-to-selected-instructions",
+ "terminal-codec",
+ "terminal-fuel",
+ "terminal-interpreter",
  "terminal-psi",
+ "terminal-psi-to-abstract-operations",
  "terminal-verifier",
- "trust-ledger",
+ "tokens-to-syntax-trees",
+ "typed-trees-to-checked-trees",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1226,198 +486,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
-name = "optimization"
-version = "0.1.0"
-dependencies = [
- "sha2",
-]
-
-[[package]]
 name = "optimization-core"
 version = "0.1.0"
 dependencies = [
- "mutation-matrix",
- "optimization",
  "sha2",
-]
-
-[[package]]
-name = "optimization-unit"
-version = "0.1.0"
-dependencies = [
- "abstract-operations",
- "language-core",
- "optimization-core",
- "semantic-vocabulary",
- "terminal-psi",
-]
-
-[[package]]
-name = "optimization-unit-semantics"
-version = "0.1.0"
-dependencies = [
- "abstract-operations",
- "checked-trees-to-lowered-psi",
- "language-core",
- "language-semantics",
- "optimization-core",
- "optimization-unit",
- "proof-admission",
- "semantic-vocabulary",
- "source-files-to-tokens",
- "symbol-resolved-trees-to-typed-trees",
- "syntax-trees-to-symbol-resolved-trees",
  "terminal-codec",
- "terminal-fuel",
  "terminal-psi",
- "terminal-psi-to-abstract-operations",
- "terminal-semantics",
- "tokens-to-syntax-trees",
- "typed-trees-to-checked-trees",
-]
-
-[[package]]
-name = "package-compilation"
-version = "0.1.0"
-dependencies = [
- "build-declarations",
- "build-output",
- "build-time-evaluation",
- "checked-interpreter",
- "checked-trees",
- "diagnostics",
- "effects",
- "optimization-core",
- "semantic-vocabulary",
- "sha2",
- "source",
- "target",
- "terminal-psi",
-]
-
-[[package]]
-name = "package-evidence"
-version = "0.1.0"
-dependencies = [
- "arena",
- "build-declarations",
- "build-evaluation",
- "calling-conventions",
- "checked-trees",
- "compiler",
- "diagnostics",
- "effects",
- "facts",
- "flow-effects",
- "language-core",
- "language-semantics",
- "layout",
- "mimalloc",
- "numerics",
- "package-compilation",
- "provider-planning",
- "representation-planning",
- "selected-dispatch",
- "semantic-vocabulary",
- "sha2",
- "source",
- "source-files-to-tokens",
- "symbol-resolved-trees-to-typed-trees",
- "symbols",
- "syntax-trees-to-symbol-resolved-trees",
- "target",
- "tokens-to-syntax-trees",
- "trust-model",
- "typed-trees",
- "typed-trees-to-checked-trees",
- "validation",
-]
-
-[[package]]
-name = "package-manager"
-version = "0.1.0"
-dependencies = [
- "arena",
- "boundary-applications",
- "build-declarations",
- "build-evaluation",
- "cap-fs-ext",
- "cap-std",
- "checked-interpreter",
- "compiler",
- "diagnostics",
- "effects",
- "language-semantics",
- "mimalloc",
- "optimization-core",
- "package-compilation",
- "package-evidence",
- "package-source",
- "platform-custody",
- "proof-admission",
- "provider-planning",
- "semantic-vocabulary",
- "sha2",
- "source",
- "source-files-to-tokens",
- "syntax-trees",
- "target",
- "tokens",
- "tokens-to-syntax-trees",
-]
-
-[[package]]
-name = "package-source"
-version = "0.1.0"
-dependencies = [
- "bounded-process",
- "cap-fs-ext",
- "cap-std",
- "nix",
- "platform-custody",
- "resolver-execution",
- "sha1-checked",
- "sha2",
-]
-
-[[package]]
-name = "physical-instructions"
-version = "0.1.0"
-dependencies = [
- "optimization-core",
- "optimization-unit",
- "register-homes",
- "register-model",
- "selected-instructions",
- "semantic-vocabulary",
- "sha2",
- "target",
- "target-operations",
- "terminal-psi",
-]
-
-[[package]]
-name = "platform-custody"
-version = "0.1.0"
-dependencies = [
- "cap-fs-ext",
- "cap-std",
 ]
 
 [[package]]
 name = "post-allocation-machine-to-selected-form-encoding"
 version = "0.1.0"
 dependencies = [
- "isa-aarch64",
- "isa-x86_64",
- "machine-code",
- "physical-instructions",
+ "abstract-operations-to-target-operations",
+ "optimization-core",
  "register-homes-to-post-allocation-machine",
- "register-model",
- "selected-instructions",
  "selected-instructions-to-register-homes",
+ "selected-instructions-to-selected-instructions",
  "semantic-vocabulary",
+ "sha2",
  "target",
+ "target-operations-to-selected-instructions",
+ "terminal-psi",
+ "terminal-psi-to-abstract-operations",
 ]
 
 [[package]]
@@ -1427,44 +518,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9"
 dependencies = [
  "unicode-ident",
-]
-
-[[package]]
-name = "program-entry-plan"
-version = "0.1.0"
-dependencies = [
- "arena",
- "calling-conventions",
- "checked-trees",
- "diagnostics",
- "effects",
- "executable-installation",
- "function-identity",
- "isa-aarch64",
- "isa-x86_64",
- "language-semantics",
- "layout",
- "layout-plans",
- "sha2",
- "symbols",
- "target",
-]
-
-[[package]]
-name = "proof"
-version = "0.1.0"
-dependencies = [
- "arena",
- "diagnostics",
- "language-core",
- "language-semantics",
- "numerics",
- "proof-admission",
- "semantic-vocabulary",
- "symbols",
- "syntax-trees",
- "typed-trees",
- "validation",
 ]
 
 [[package]]
@@ -1478,49 +531,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "provider-planning"
-version = "0.1.0"
-dependencies = [
- "arena",
- "backend-plan",
- "build-time-evaluation",
- "calling-conventions",
- "checked-trees",
- "component-description",
- "diagnostics",
- "effects",
- "executable-installation",
- "external-roots",
- "facts",
- "flow-effects",
- "language-core",
- "language-semantics",
- "layout",
- "layout-plans",
- "numerics",
- "package-compilation",
- "program-entry-plan",
- "representation-planning",
- "semantic-vocabulary",
- "sha2",
- "source",
- "source-files-to-tokens",
- "symbol-resolved-trees-to-typed-trees",
- "symbols",
- "syntax-trees-to-symbol-resolved-trees",
- "target",
- "target-operations",
- "task-plans",
- "terminal-codec",
- "terminal-psi",
- "tokens-to-syntax-trees",
- "trust-model",
- "typed-trees",
- "typed-trees-to-checked-trees",
- "validation",
-]
-
-[[package]]
 name = "quote"
 version = "1.0.47"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1530,124 +540,61 @@ dependencies = [
 ]
 
 [[package]]
-name = "register-environment"
-version = "0.1.0"
-dependencies = [
- "isa-aarch64",
- "isa-x86_64",
- "mimalloc",
- "register-model",
- "selected-instructions",
- "target",
- "target-operations",
-]
-
-[[package]]
-name = "register-homes"
-version = "0.1.0"
-dependencies = [
- "abstract-operations",
- "calling-conventions",
- "function-identity",
- "legalized-operations",
- "optimization-core",
- "optimization-unit",
- "register-model",
- "selected-instructions",
- "semantic-vocabulary",
- "sha2",
- "symbols",
- "target",
- "target-operations",
- "task-plans",
- "terminal-codec",
- "terminal-psi",
-]
-
-[[package]]
 name = "register-homes-to-post-allocation-machine"
 version = "0.1.0"
 dependencies = [
- "isa-x86_64",
+ "abstract-operations-to-target-operations",
  "optimization-core",
- "physical-instructions",
- "register-environment",
- "register-model",
- "selected-instructions",
  "selected-instructions-to-register-homes",
+ "selected-instructions-to-selected-instructions",
  "semantic-vocabulary",
-]
-
-[[package]]
-name = "register-model"
-version = "0.1.0"
-dependencies = [
  "sha2",
  "target",
-]
-
-[[package]]
-name = "representation-planning"
-version = "0.1.0"
-dependencies = [
- "arena",
- "diagnostics",
- "language-semantics",
- "optimization-core",
- "representation-selections",
- "source",
- "symbols",
- "typed-trees",
- "typed-trees-to-checked-trees",
-]
-
-[[package]]
-name = "representation-selections"
-version = "0.1.0"
-dependencies = [
- "sha2",
- "source",
- "symbols",
- "typed-trees",
+ "target-operations-to-selected-instructions",
+ "terminal-psi",
 ]
 
 [[package]]
 name = "resolved-layout-to-resolved-layout"
 version = "0.1.0"
 dependencies = [
- "isa-x86_64",
- "machine-code",
+ "abstract-operations-to-abstract-operations",
+ "abstract-operations-to-target-operations",
+ "arena",
+ "checked-trees-to-lowered-psi",
+ "diagnostics",
+ "iced-x86",
+ "installation-evidence",
+ "language-semantics",
+ "numerics",
+ "omega",
  "optimization-core",
- "physical-instructions",
  "post-allocation-machine-to-selected-form-encoding",
+ "proof-admission",
  "register-homes-to-post-allocation-machine",
- "register-model",
  "selected-form-encoding-to-resolved-layout",
- "selected-instructions",
  "selected-instructions-to-register-homes",
  "semantic-vocabulary",
+ "sha2",
+ "source",
+ "source-files-to-tokens",
+ "symbol-resolved-trees-to-typed-trees",
+ "symbols",
+ "syntax-trees-to-symbol-resolved-trees",
  "target",
-]
-
-[[package]]
-name = "resolver-execution"
-version = "0.1.0"
-dependencies = [
- "bounded-process",
-]
-
-[[package]]
-name = "runtime-abi"
-version = "0.1.0"
-dependencies = [
- "target",
+ "target-operations-to-selected-instructions",
+ "terminal-codec",
+ "terminal-psi",
+ "terminal-psi-to-abstract-operations",
+ "tokens-to-syntax-trees",
+ "typed-trees-to-checked-trees",
 ]
 
 [[package]]
 name = "rustix"
-version = "1.1.4"
+version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6fe4565b9518b83ef4f91bb47ce29620ca828bd32cb7e408f0062e9930ba190"
+checksum = "891efababe418670775f199f0d233d84843c227a0949a883ce15b37c78d6629d"
 dependencies = [
  "bitflags",
  "errno",
@@ -1673,121 +620,47 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
 
 [[package]]
-name = "selected-dispatch"
-version = "0.1.0"
-dependencies = [
- "arena",
- "checked-trees",
- "diagnostics",
- "effects",
- "facts",
- "language-core",
- "language-semantics",
- "numerics",
- "package-compilation",
- "program-entry-plan",
- "provider-planning",
- "semantic-vocabulary",
- "source",
- "source-files-to-tokens",
- "symbol-resolved-trees-to-typed-trees",
- "symbols",
- "syntax-trees-to-symbol-resolved-trees",
- "target",
- "tokens-to-syntax-trees",
- "typed-trees",
- "typed-trees-to-checked-trees",
- "validation",
-]
-
-[[package]]
 name = "selected-form-encoding-to-resolved-layout"
 version = "0.1.0"
 dependencies = [
- "calling-conventions",
- "isa-aarch64",
- "isa-x86_64",
- "machine-code",
- "optimization-core",
- "physical-instructions",
  "post-allocation-machine-to-selected-form-encoding",
  "register-homes-to-post-allocation-machine",
- "register-model",
- "selected-instructions",
  "selected-instructions-to-register-homes",
  "semantic-vocabulary",
  "target",
-]
-
-[[package]]
-name = "selected-instructions"
-version = "0.1.0"
-dependencies = [
- "abstract-operations",
- "calling-conventions",
- "legalized-operations",
- "optimization-core",
- "optimization-unit",
- "register-model",
- "semantic-vocabulary",
- "sha2",
- "target",
- "target-operations",
- "terminal-codec",
- "terminal-psi",
+ "target-operations-to-selected-instructions",
 ]
 
 [[package]]
 name = "selected-instructions-to-register-homes"
 version = "0.1.0"
 dependencies = [
- "abstract-operations",
  "abstract-operations-to-target-operations",
- "calling-conventions",
- "isa-aarch64",
- "isa-x86_64",
- "legalized-operations",
  "optimization-core",
- "optimization-unit",
- "register-environment",
- "register-homes",
- "register-model",
- "selected-instructions",
  "selected-instructions-to-selected-instructions",
  "semantic-vocabulary",
  "sha2",
  "target",
- "target-operations",
  "target-operations-to-selected-instructions",
- "terminal-codec",
  "terminal-psi",
+ "terminal-psi-to-abstract-operations",
 ]
 
 [[package]]
 name = "selected-instructions-to-selected-instructions"
 version = "0.1.0"
 dependencies = [
- "abstract-operations",
  "abstract-operations-to-target-operations",
- "calling-conventions",
- "isa-aarch64",
- "isa-x86_64",
- "legalized-operations",
  "mimalloc",
  "optimization-core",
- "optimization-unit",
- "register-environment",
- "register-homes",
- "register-model",
- "selected-instructions",
  "semantic-vocabulary",
  "sha2",
+ "symbols",
  "target",
- "target-operations",
  "target-operations-to-selected-instructions",
- "task-plans",
  "terminal-codec",
  "terminal-psi",
+ "terminal-psi-to-abstract-operations",
 ]
 
 [[package]]
@@ -1887,22 +760,6 @@ name = "source-files-to-tokens"
 version = "0.1.0"
 dependencies = [
  "source",
- "tokens",
-]
-
-[[package]]
-name = "symbol-resolved-trees"
-version = "0.1.0"
-dependencies = [
- "arena",
- "diagnostics",
- "language-core",
- "language-semantics",
- "numerics",
- "serde",
- "serde_json",
- "source",
- "symbols",
 ]
 
 [[package]]
@@ -1910,19 +767,20 @@ name = "symbol-resolved-trees-to-typed-trees"
 version = "0.1.0"
 dependencies = [
  "arena",
- "checked-trees",
  "diagnostics",
  "language-core",
  "language-semantics",
  "numerics",
+ "semantic-vocabulary",
+ "serde",
+ "serde_json",
  "source",
  "source-files-to-tokens",
- "symbol-resolved-trees",
  "symbols",
- "syntax-trees",
  "syntax-trees-to-symbol-resolved-trees",
+ "terminal-psi",
  "tokens-to-syntax-trees",
- "typed-trees",
+ "typed-trees-to-checked-trees",
 ]
 
 [[package]]
@@ -1936,26 +794,13 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "3.0.4"
+version = "3.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6275cddf4610d1775e6d1fe9469b2e77d0f39fd98fb7450901b821e0c53649f"
+checksum = "8593e8e72159ed2257d083c7a454a85cbf854f37a0966d8d483aff8c8a3ebcee"
 dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
-]
-
-[[package]]
-name = "syntax-trees"
-version = "0.1.0"
-dependencies = [
- "arena",
- "diagnostics",
- "language-core",
- "numerics",
- "serde",
- "serde_json",
- "source",
 ]
 
 [[package]]
@@ -1968,11 +813,11 @@ dependencies = [
  "language-semantics",
  "numerics",
  "semantic-vocabulary",
+ "serde",
+ "serde_json",
  "source",
  "source-files-to-tokens",
- "symbol-resolved-trees",
  "symbols",
- "syntax-trees",
  "tokens-to-syntax-trees",
 ]
 
@@ -1981,20 +826,7 @@ name = "target"
 version = "0.1.0"
 dependencies = [
  "diagnostics",
- "layout-plans",
  "sha2",
-]
-
-[[package]]
-name = "target-operations"
-version = "0.1.0"
-dependencies = [
- "abstract-operations",
- "calling-conventions",
- "function-identity",
- "semantic-vocabulary",
- "target",
- "task-plans",
  "terminal-psi",
 ]
 
@@ -2002,40 +834,19 @@ dependencies = [
 name = "target-operations-to-selected-instructions"
 version = "0.1.0"
 dependencies = [
- "abstract-operations",
  "abstract-operations-to-abstract-operations",
  "abstract-operations-to-target-operations",
- "calling-conventions",
+ "diagnostics",
  "installation-evidence",
- "isa-x86_64",
- "legalized-operations",
  "mimalloc",
  "optimization-core",
- "optimization-unit",
- "optimization-unit-semantics",
- "proof-admission",
- "register-environment",
- "register-model",
- "selected-instructions",
  "semantic-vocabulary",
+ "sha2",
  "target",
- "target-operations",
- "task-plans",
  "terminal-codec",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
  "terminal-semantics",
- "terminal-verifier",
-]
-
-[[package]]
-name = "task-plans"
-version = "0.1.0"
-dependencies = [
- "language-core",
- "semantic-vocabulary",
- "sha2",
- "symbols",
 ]
 
 [[package]]
@@ -2043,26 +854,13 @@ name = "terminal-codec"
 version = "0.1.0"
 dependencies = [
  "language-semantics",
- "mutation-matrix",
  "numerics",
- "optimization",
+ "optimization-core",
  "proof-admission",
  "semantic-vocabulary",
  "sha2",
  "terminal-psi",
  "terminal-semantics",
- "terminal-verifier",
-]
-
-[[package]]
-name = "terminal-fixed-fuel"
-version = "0.1.0"
-dependencies = [
- "proof-admission",
- "semantic-vocabulary",
- "terminal-codec",
- "terminal-fuel",
- "terminal-psi",
  "terminal-verifier",
 ]
 
@@ -2079,38 +877,14 @@ name = "terminal-interpreter"
 version = "0.1.0"
 dependencies = [
  "numerics",
+ "omega",
  "proof-admission",
  "semantic-vocabulary",
  "terminal-codec",
- "terminal-fixed-fuel",
  "terminal-fuel",
  "terminal-psi",
  "terminal-semantics",
  "terminal-verifier",
-]
-
-[[package]]
-name = "terminal-production"
-version = "0.1.0"
-dependencies = [
- "checked-trees",
- "checked-trees-to-lowered-psi",
- "language-semantics",
- "lowered-psi",
- "lowered-psi-to-lowered-psi",
- "lowered-psi-to-terminal-psi",
- "optimization",
- "semantic-vocabulary",
- "source-files-to-tokens",
- "symbol-resolved-trees-to-typed-trees",
- "symbols",
- "syntax-trees-to-symbol-resolved-trees",
- "terminal-codec",
- "terminal-psi",
- "terminal-semantics",
- "tokens-to-syntax-trees",
- "typed-trees-to-checked-trees",
- "validation",
 ]
 
 [[package]]
@@ -2128,18 +902,13 @@ dependencies = [
 name = "terminal-psi-to-abstract-operations"
 version = "0.1.0"
 dependencies = [
- "abstract-operations",
  "abstract-operations-to-target-operations",
- "calling-conventions",
- "checked-trees",
  "checked-trees-to-lowered-psi",
- "effects",
  "installation-evidence",
- "optimization-unit",
- "optimization-unit-semantics",
- "program-entry-plan",
+ "language-core",
+ "language-semantics",
+ "optimization-core",
  "proof-admission",
- "provider-planning",
  "semantic-vocabulary",
  "source-files-to-tokens",
  "symbol-resolved-trees-to-typed-trees",
@@ -2178,90 +947,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "tokens"
-version = "0.1.0"
-dependencies = [
- "source",
-]
-
-[[package]]
 name = "tokens-to-syntax-trees"
 version = "0.1.0"
 dependencies = [
  "arena",
- "language-core",
- "numerics",
- "source",
- "source-files-to-tokens",
- "syntax-trees",
- "tokens",
-]
-
-[[package]]
-name = "topology-plan"
-version = "0.1.0"
-dependencies = [
- "bounded-process",
- "compiler",
- "component-description",
- "libc",
- "mutation-matrix",
- "package-manager",
- "package-source",
- "proof-admission",
- "semantic-vocabulary",
- "sha2",
- "target",
- "terminal-psi",
-]
-
-[[package]]
-name = "trust-ledger"
-version = "0.1.0"
-dependencies = [
- "artifacts",
- "compiler",
- "diagnostics",
- "effects",
- "optimization-core",
- "provider-planning",
- "trust-model",
-]
-
-[[package]]
-name = "trust-model"
-version = "0.1.0"
-dependencies = [
- "artifacts",
- "checked-trees",
- "diagnostics",
- "effects",
- "language-semantics",
- "semantic-vocabulary",
- "sha2",
- "source",
- "symbols",
- "target",
- "typed-trees",
- "typed-trees-to-checked-trees",
-]
-
-[[package]]
-name = "typed-trees"
-version = "0.1.0"
-dependencies = [
- "access-plans",
- "arena",
  "diagnostics",
  "language-core",
- "language-semantics",
- "layout-plans",
  "numerics",
- "semantic-vocabulary",
  "serde",
  "serde_json",
  "source",
- "symbols",
+ "source-files-to-tokens",
 ]
 
 [[package]]
@@ -2269,28 +965,21 @@ name = "typed-trees-to-checked-trees"
 version = "0.1.0"
 dependencies = [
  "arena",
- "checked-trees",
  "diagnostics",
- "facts",
- "flow-effects",
  "language-core",
  "language-semantics",
  "mimalloc",
  "numerics",
- "proof",
  "proof-admission",
  "semantic-vocabulary",
  "sha2",
  "source",
  "source-files-to-tokens",
- "symbol-resolved-trees",
  "symbol-resolved-trees-to-typed-trees",
  "symbols",
- "syntax-trees",
  "syntax-trees-to-symbol-resolved-trees",
+ "terminal-psi",
  "tokens-to-syntax-trees",
- "typed-trees",
- "validation",
 ]
 
 [[package]]
@@ -2301,34 +990,9 @@ checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
 
 [[package]]
 name = "unicode-ident"
-version = "1.0.24"
+version = "1.0.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
-
-[[package]]
-name = "validation"
-version = "0.1.0"
-dependencies = [
- "access-plans",
- "arena",
- "checked-trees",
- "diagnostics",
- "facts",
- "flow-effects",
- "language-core",
- "language-semantics",
- "layout-plans",
- "numerics",
- "semantic-vocabulary",
- "sha2",
- "source",
- "source-files-to-tokens",
- "symbol-resolved-trees-to-typed-trees",
- "symbols",
- "syntax-trees-to-symbol-resolved-trees",
- "tokens-to-syntax-trees",
- "typed-trees",
-]
+checksum = "d245f478577f809a851594d02313b640fb437e0bb33866753cff937863096954"
 
 [[package]]
 name = "version_check"
@@ -2529,10 +1193,6 @@ dependencies = [
  "bitflags",
  "windows-sys 0.59.0",
 ]
-
-[[package]]
-name = "x86-encoding"
-version = "0.1.0"
 
 [[package]]
 name = "zmij"

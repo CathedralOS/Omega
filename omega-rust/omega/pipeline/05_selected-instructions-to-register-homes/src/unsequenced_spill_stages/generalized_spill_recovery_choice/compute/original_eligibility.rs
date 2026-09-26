@@ -1,24 +1,24 @@
 //! Exact selected-role eligibility for an original epoch-two victim.
 
-use optimization_unit::ValueDefinitionSite;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
+use semantic_vocabulary::{IntegerCarrier, IntegerSign, ScalarType};
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::{
     SelectedFunction, SelectedInstruction, SelectedTerminator, VirtualRegisterOrigin,
 };
-use semantic_vocabulary::{IntegerCarrier, IntegerSign, ScalarType};
+use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
 use crate::unsequenced_spill_stages::{
     GeneralizedSpillRecoveryChoiceError, GeneralizedSpillRecoveryResident,
 };
-use selected_instructions::{LiveRangePoint, VirtualFixedConstraintSite};
+use target_operations_to_selected_instructions::{LiveRangePoint, VirtualFixedConstraintSite};
 
 use super::{Work, add, count};
-use selected_instructions::{FunctionLiveRanges, LiveRangeFragment};
+use target_operations_to_selected_instructions::{FunctionLiveRanges, LiveRangeFragment};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn is_eligible(
-    register: selected_instructions::VirtualRegisterId,
-    block: selected_instructions::SelectedBlockId,
+    register: target_operations_to_selected_instructions::VirtualRegisterId,
+    block: target_operations_to_selected_instructions::SelectedBlockId,
     point: LiveRangePoint,
     resident: &GeneralizedSpillRecoveryResident,
     selected: &SelectedFunction,
@@ -66,7 +66,7 @@ pub(super) fn is_eligible(
     };
     let definition_site_ok = matches!(
         value.definition_site,
-        Some(ValueDefinitionSite::Node { block: source, .. }) if matches!(selected_block.origin, selected_instructions::SelectedBlockOrigin::Source(authored) if authored == source)
+        Some(ValueDefinitionSite::Node { block: source, .. }) if matches!(selected_block.origin, target_operations_to_selected_instructions::SelectedBlockOrigin::Source(authored) if authored == source)
     );
     if !scalar_ok
         || !definition_site_ok
@@ -135,8 +135,8 @@ pub(super) fn is_eligible(
 }
 
 fn instruction(
-    block: &selected_instructions::SelectedBlock,
-    id: selected_instructions::SelectedInstructionId,
+    block: &target_operations_to_selected_instructions::SelectedBlock,
+    id: target_operations_to_selected_instructions::SelectedInstructionId,
 ) -> Option<&SelectedInstruction> {
     block
         .instructions

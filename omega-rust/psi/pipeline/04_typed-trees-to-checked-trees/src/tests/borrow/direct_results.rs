@@ -1,6 +1,6 @@
 use super::checks::check_program;
+use crate::checked_trees::BorrowAccessKind;
 use crate::tests::front_end::typed_program;
-use checked_trees::BorrowAccessKind;
 
 fn rejects(source: &str, expected: &str) {
     let diagnostics = check_program(source).expect_err(expected);
@@ -152,7 +152,7 @@ fn direct_result_loan_facts_preserve_read_and_write_only_access() {
             .statements(state.statement_nodes)
             .iter()
             .find_map(|statement| match statement {
-                typed_trees::statement::StatementNode::LocalData(local)
+                symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local)
                     if local.name.as_str() == "held" =>
                 {
                     Some(local.symbol)

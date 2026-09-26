@@ -1,26 +1,28 @@
-use optimization_unit::{FuelSettlement, PsiProvenance, ValueDefinitionSite};
-use register_model::{
-    RegisterClassId, RegisterConstraintFamily, RegisterConstraintKey, RegisterOperandAccess,
-    RegisterViewId,
-};
-use selected_instructions::{
-    SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstruction, SelectedInstructionId,
-    SelectedInstructionKind, SelectedInstructionProvenance, SelectedOperand, SelectedTerminator,
-    VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
-};
 use semantic_vocabulary::{
     BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId, ScalarType,
     ValueId,
 };
+use target_operations_to_selected_instructions::register_model::{
+    RegisterClassId, RegisterConstraintFamily, RegisterConstraintKey, RegisterOperandAccess,
+    RegisterViewId,
+};
+use target_operations_to_selected_instructions::{
+    SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstruction, SelectedInstructionId,
+    SelectedInstructionKind, SelectedInstructionProvenance, SelectedOperand, SelectedTerminator,
+    VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+};
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    FuelSettlement, PsiProvenance, ValueDefinitionSite,
+};
 
 use super::function_classification::classify;
 use crate::RecoveryClassificationError;
-use register_homes::{
+use crate::register_homes::{
     FunctionAllocationLegality, FunctionSpillChoices, NoAdmittedRecoveryReason, PressureContender,
     RecoveryClassification, RecoveryVictimRole, SpillChoice, VirtualPointLegality,
     VirtualRegisterAllocationLegality,
 };
-use selected_instructions::{
+use target_operations_to_selected_instructions::{
     BlockPointDomain, FunctionLiveRanges, LiveRangeFragment, LiveRangePoint, LivenessPosition,
     VirtualLiveRange, VirtualOccurrence,
 };
@@ -122,7 +124,9 @@ fn fixture() -> (
             .collect(),
         blocks: vec![SelectedBlock {
             id: SelectedBlockId(0),
-            origin: selected_instructions::SelectedBlockOrigin::Source(source_block),
+            origin: target_operations_to_selected_instructions::SelectedBlockOrigin::Source(
+                source_block,
+            ),
             instructions: definitions,
             terminator: SelectedTerminator::Return {
                 instruction: returned,
@@ -174,12 +178,12 @@ fn fixture() -> (
         architectural_units: Vec::new(),
         interference: [(0, 1), (0, 2), (1, 2)]
             .into_iter()
-            .map(
-                |(lower, higher)| selected_instructions::VirtualInterference {
+            .map(|(lower, higher)| {
+                target_operations_to_selected_instructions::VirtualInterference {
                     lower: VirtualRegisterId(lower),
                     higher: VirtualRegisterId(higher),
-                },
-            )
+                }
+            })
             .collect(),
     };
     let legality = FunctionAllocationLegality {
@@ -209,14 +213,14 @@ fn fixture() -> (
             incoming_class: RegisterClassId(0),
             incoming_common_candidates: vec![RegisterViewId(0), RegisterViewId(1)],
             active_residents: vec![
-                register_homes::PressureResident {
+                crate::register_homes::PressureResident {
                     virtual_register: VirtualRegisterId(0),
                     class: RegisterClassId(0),
                     start: LiveRangePoint(1),
                     exclusive_end: LiveRangePoint(7),
                     view: RegisterViewId(0),
                 },
-                register_homes::PressureResident {
+                crate::register_homes::PressureResident {
                     virtual_register: VirtualRegisterId(1),
                     class: RegisterClassId(0),
                     start: LiveRangePoint(3),
@@ -271,36 +275,38 @@ fn incoming_literal_is_classified_identically_by_compute_and_replay() {
 #[test]
 fn edge_used_literal_is_not_an_instruction_local_recovery_candidate() {
     let (mut selected, ranges, legality, choices) = fixture();
-    let selected_instructions::SelectedTerminator::Return { instruction, .. } =
-        selected.blocks[0].terminator.clone()
+    let target_operations_to_selected_instructions::SelectedTerminator::Return {
+        instruction, ..
+    } = selected.blocks[0].terminator.clone()
     else {
         unreachable!()
     };
     let mut jump = instruction;
-    jump.kind = selected_instructions::SelectedInstructionKind::Jump;
+    jump.kind = target_operations_to_selected_instructions::SelectedInstructionKind::Jump;
     jump.operands.clear();
     let source_value = match selected.virtual_registers[2].origin {
-        selected_instructions::VirtualRegisterOrigin::InstructionResult {
-            source_value, ..
+        target_operations_to_selected_instructions::VirtualRegisterOrigin::InstructionResult {
+            source_value,
+            ..
         } => source_value,
         _ => unreachable!(),
     };
-    selected.blocks[0].terminator = selected_instructions::SelectedTerminator::Jump {
+    selected.blocks[0].terminator = target_operations_to_selected_instructions::SelectedTerminator::Jump {
         instruction: jump,
-        successor: selected_instructions::SelectedSuccessor {
-            role: selected_instructions::SelectedSuccessorRole::Semantic,
+        successor: target_operations_to_selected_instructions::SelectedSuccessor {
+            role: target_operations_to_selected_instructions::SelectedSuccessorRole::Semantic,
             structural_case: None,
             structural_bindings: Vec::new(),
             psi_edge: semantic_vocabulary::EdgeId::new(90).unwrap(),
-            block: selected_instructions::SelectedBlockId(1),
+            block: target_operations_to_selected_instructions::SelectedBlockId(1),
             source_target: semantic_vocabulary::BlockId::new(91).unwrap(),
-            bindings: vec![selected_instructions::SelectedValueBinding {
-                semantic: abstract_operations::ValueBinding {
+            bindings: vec![target_operations_to_selected_instructions::SelectedValueBinding {
+                semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                     parameter: ValueId::new(92).unwrap(),
                     argument: source_value,
                     scalar_type: selected.virtual_registers[2].scalar_type,
                 },
-                transport: selected_instructions::SelectedValueTransport::Registers {
+                transport: target_operations_to_selected_instructions::SelectedValueTransport::Registers {
                     argument: VirtualRegisterId(2),
                     parameter: VirtualRegisterId(3),
                 },

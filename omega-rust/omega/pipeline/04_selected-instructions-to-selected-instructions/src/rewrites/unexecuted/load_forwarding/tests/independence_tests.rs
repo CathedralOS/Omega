@@ -11,15 +11,15 @@ use super::{
 use crate::rewrites::unexecuted::{
     StoredLoadForwardingError, ValidatedStoredLoadForwarding, validate_stored_load_forwarding,
 };
-use register_environment::{
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType, ValueId};
+use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::{
     ValidatedTargetRegisterEnvironment, baseline_target_register_environment,
 };
-use selected_instructions::{
+use target_operations_to_selected_instructions::{
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedValueBinding,
     SelectedValueTransport,
 };
-use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType, ValueId};
-use target::NativeTarget;
 
 /// The proposal a defective producer would publish for `source`: the named
 /// load replaced by the contract's `CopyI64` of the stored register —
@@ -179,7 +179,7 @@ fn forged_proposal_does_not_launder_a_redefining_edge_transport() {
     let environment = baseline_target_register_environment(target).unwrap();
     let source = mutated_chained(target, |function, _| {
         crossed_edge(function).bindings.push(SelectedValueBinding {
-            semantic: abstract_operations::ValueBinding {
+            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                 parameter: ValueId::new(5).unwrap(),
                 argument: ValueId::new(1).unwrap(),
                 scalar_type: ScalarType::Integer(

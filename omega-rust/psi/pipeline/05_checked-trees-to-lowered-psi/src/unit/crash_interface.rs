@@ -19,7 +19,7 @@
 
 use std::collections::BTreeMap;
 
-use checked_trees::{
+use typed_trees_to_checked_trees::checked_trees::{
     CheckedBooleanExpression, CheckedScalarExpression, CheckedTrees, CrashInterface,
     CrashRouteBucket, CrashRouteGuard,
 };
@@ -46,7 +46,10 @@ pub(crate) fn effective_crash_routes(
     if plan.crash.interface() == CrashInterface::PublishedCeiling {
         return Ok(plan.crash.published().to_vec());
     }
-    let mut grouped = BTreeMap::<checked_trees::CrashCause, Vec<CrashRouteGuard>>::new();
+    let mut grouped = BTreeMap::<
+        typed_trees_to_checked_trees::checked_trees::CrashCause,
+        Vec<CrashRouteGuard>,
+    >::new();
     // An explicit body crash is unconditional implementation evidence, matching
     // the checker's private-summary widening.
     for site in plan.crash.checked_sites() {
@@ -57,7 +60,7 @@ pub(crate) fn effective_crash_routes(
     // which is the only bucket that covers an operation site.
     if !plan.crash.trapping_sites().is_empty() {
         grouped.insert(
-            checked_trees::CrashCause::Trap,
+            typed_trees_to_checked_trees::checked_trees::CrashCause::Trap,
             vec![CrashRouteGuard::Truth],
         );
     }
@@ -78,7 +81,10 @@ pub(crate) fn effective_crash_routes(
 /// a guard whose checked evidence cannot name contract parameters widens its
 /// cause to `Truth` rather than lowering a partial contract.
 fn contribute(
-    grouped: &mut BTreeMap<checked_trees::CrashCause, Vec<CrashRouteGuard>>,
+    grouped: &mut BTreeMap<
+        typed_trees_to_checked_trees::checked_trees::CrashCause,
+        Vec<CrashRouteGuard>,
+    >,
     buckets: &[CrashRouteBucket],
 ) {
     for bucket in buckets {

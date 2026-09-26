@@ -1,8 +1,8 @@
 //! Literal byte arguments retain their source order across authored graph edges.
 use super::CheckedUnitEffectOperationPlan;
+use crate::checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralArgumentSourcePlan};
 use crate::tests::flow::terminal_unit::checked;
 use crate::tests::flow::terminal_unit::machine_named;
-use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralArgumentSourcePlan};
 
 fn retains_literal_graph(boundary: bool) {
     let (declaration, reach) = if boundary {
@@ -87,7 +87,7 @@ fn retains_literal_graph(boundary: bool) {
         }
     }
     assert!(matches!(&plan.states[1].terminator,
-        checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, when_false, .. }
+        crate::checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, when_false, .. }
             if when_true.target_state == plan.states[1].state && when_false.target_state == plan.states[2].state));
 }
 

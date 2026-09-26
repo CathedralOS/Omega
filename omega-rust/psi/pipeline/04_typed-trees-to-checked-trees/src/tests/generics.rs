@@ -14,9 +14,9 @@ mod specializations;
 mod symbolic_ranges;
 
 fn specialized_machine<'program>(
-    program: &'program checked_trees::CheckedTrees,
+    program: &'program crate::checked_trees::CheckedTrees,
     name: &str,
-) -> &'program typed_trees::machine::Machine {
+) -> &'program symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine {
     let template = program
         .machines()
         .iter()

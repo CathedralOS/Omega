@@ -1,0 +1,244 @@
+//! Build edit planning and source-qualified update selection.
+
+use super::{PackageCommandError, PackageCommandKind, failure};
+use crate::package_manager::declarations::{
+    AliasName, BuildDependencyEditPlan, BuildFileReplacement, DependencySourceRequest, PackageKey,
+    PackageName, PackageSelection, plan_dependency_addition_from_source,
+    plan_dependency_replacement_from_source,
+};
+use crate::package_manager::lock::PackageLock;
+use crate::package_manager::resolution::graph::{
+    CanonicalDependencySourceRequest, CanonicalSourceClosureSubject,
+};
+use crate::package_source::GitSourceRequest;
+use std::path::Path;
+
+pub(super) struct Plan {
+    pub kind: PackageCommandKind,
+    pub replacement: BuildFileReplacement,
+    /// None refreshes all selectors; Some(empty) preserves every accepted pin.
+    pub updates: Option<Vec<PackageKey>>,
+}
+
+pub(super) fn install(
+    source: String,
+    revision: Option<String>,
+    alias: Option<String>,
+    package: Option<String>,
+    root: &Path,
+    before: &str,
+) -> Result<Plan, PackageCommandError> {
+    let build_path = root.join("build.omg");
+    let alias = alias.map(AliasName::parse).transpose().map_err(failure)?;
+    let request = source_request(source, revision, alias, package)?;
+    let edit =
+        plan_dependency_addition_from_source(build_path.clone(), before.to_owned(), &request)
+            .map_err(failure)?;
+    let proposed = proposed(edit, before)?;
+    Ok(Plan {
+        kind: PackageCommandKind::Install,
+        replacement: BuildFileReplacement::from_sources(build_path, before, proposed)
+            .map_err(failure)?,
+        updates: Some(Vec::new()),
+    })
+}
+
+pub(super) fn update(
+    packages: Vec<String>,
+    revision: Option<String>,
+    root: &Path,
+    before: &str,
+    accepted: Option<&PackageLock>,
+) -> Result<Plan, PackageCommandError> {
+    let build_path = root.join("build.omg");
+    let subject = accepted.map(|lock| lock.targets()[0].source());
+    if revision.is_some() && packages.len() != 1 {
+        return Err(failure(
+            "--to requires exactly one package or root dependency alias",
+        ));
+    }
+    let updates = if packages.is_empty() {
+        None
+    } else {
+        let subject = subject.ok_or_else(|| failure("omega.lock is missing; run omega update without package selections to review the complete graph first"))?;
+        Some(select_packages(subject, &packages)?)
+    };
+    let mut proposed_source = before.to_owned();
+    if let Some(revision) = revision {
+        let subject = subject.expect("selected update has an accepted graph");
+        // One authored spelling may select a different package per scope, so
+        // retargeting to a single requested revision requires one selection.
+        let updates = updates.as_ref().expect("--to has one selection");
+        let [selected] = updates.as_slice() else {
+            return Err(failure(
+                "--to requires exactly one package or root dependency alias",
+            ));
+        };
+        let mut replaced = false;
+        // Every root-authored edge selecting this package's lineage moves:
+        // both scopes' rows for a dual-purpose package must agree on the
+        // revision because one source pin cannot split across purposes.
+        for edge in subject.dependency_requests().iter().filter(|edge| {
+            edge.requester() == subject.root().selected().key()
+                && edge.selected().key().source_lineage() == selected.source_lineage()
+        }) {
+            let CanonicalDependencySourceRequest::Git {
+                explicit_alias,
+                repository,
+                revision: before_revision,
+                selection,
+            } = edge.request()
+            else {
+                continue;
+            };
+            let validated = GitSourceRequest::new(repository.clone(), Some(revision.clone()))
+                .map_err(failure)?;
+            let before_request = DependencySourceRequest::Git {
+                explicit_alias: explicit_alias.clone(),
+                repository: repository.clone(),
+                revision: before_revision.clone(),
+                selection: selection.clone(),
+            };
+            let candidate = DependencySourceRequest::Git {
+                explicit_alias: explicit_alias.clone(),
+                repository: repository.clone(),
+                revision: validated.requested_revision().to_owned(),
+                selection: selection.clone(),
+            };
+            let edit = plan_dependency_replacement_from_source(
+                build_path.clone(),
+                proposed_source.clone(),
+                edge.purpose(),
+                &before_request,
+                &candidate,
+            )
+            .map_err(failure)?;
+            proposed_source = proposed(edit, &proposed_source)?;
+            replaced = true;
+        }
+        if !replaced {
+            return Err(failure(
+                "--to requires a root-authored Git dependency; transitive requests belong to their declaring package and local paths have no Git revision",
+            ));
+        }
+    }
+    Ok(Plan {
+        kind: PackageCommandKind::Update,
+        replacement: BuildFileReplacement::from_sources(build_path, before, proposed_source)
+            .map_err(failure)?,
+        updates,
+    })
+}
+
+fn proposed(edit: BuildDependencyEditPlan, before: &str) -> Result<String, PackageCommandError> {
+    match edit {
+        BuildDependencyEditPlan::Unchanged => Ok(before.to_owned()),
+        BuildDependencyEditPlan::Automatic(replacement) => {
+            Ok(replacement.replacement_source().to_owned())
+        }
+        BuildDependencyEditPlan::Manual(patch) => Err(failure(format!(
+            "build.omg needs a manually placed dependency edit: {}\n{}\nAccepted project files are unchanged; edit the declaration and run omega update to review it.",
+            patch.reason(),
+            patch.proposed_statement(),
+        ))),
+    }
+}
+
+fn source_request(
+    source: String,
+    revision: Option<String>,
+    alias: Option<AliasName>,
+    package: Option<String>,
+) -> Result<DependencySourceRequest, PackageCommandError> {
+    let network = source.contains("://") && !source.starts_with("file://")
+        || source
+            .split_once('@')
+            .is_some_and(|(_, tail)| tail.contains(':'));
+    if network {
+        let selection = package
+            .map(PackageName::parse)
+            .transpose()
+            .map_err(failure)?
+            .map_or(PackageSelection::Root, PackageSelection::Named);
+        let request = GitSourceRequest::new(source, revision).map_err(failure)?;
+        Ok(DependencySourceRequest::Git {
+            explicit_alias: alias,
+            repository: request.requested_locator().to_owned(),
+            revision: request.requested_revision().to_owned(),
+            selection,
+        })
+    } else {
+        if package.is_some() {
+            return Err(failure(
+                "--package is only valid for a Git source; use the local package directory directly",
+            ));
+        }
+        let request = crate::package_manager::operations::PackageSourceRequest::parse(
+            crate::package_manager::operations::SourceAdapter::Local,
+            source,
+            revision,
+        )
+        .map_err(|error| failure(format!("invalid local package source: {error:?}")))?;
+        let crate::package_manager::operations::PackageSourceRequest::LocalPath(path) = request
+        else {
+            unreachable!()
+        };
+        let location = path
+            .to_str()
+            .ok_or_else(|| failure("local dependency locations must be UTF-8 Omega strings"))?
+            .to_owned();
+        Ok(DependencySourceRequest::Path {
+            explicit_alias: alias,
+            location,
+        })
+    }
+}
+
+fn select_packages(
+    subject: &CanonicalSourceClosureSubject,
+    names: &[String],
+) -> Result<Vec<PackageKey>, PackageCommandError> {
+    let mut selected = Vec::new();
+    for name in names {
+        // Aliases are authorized per dependency scope: product and build rows
+        // may select different packages under one spelling. An update
+        // selection refreshes every distinct package the alias authorizes;
+        // `--to` above requires that selection to be exactly one package.
+        let mut aliased = subject
+            .dependency_requests()
+            .iter()
+            .filter(|edge| {
+                edge.requester() == subject.root().selected().key() && edge.alias().as_str() == name
+            })
+            .map(|edge| edge.selected().key().clone())
+            .collect::<Vec<_>>();
+        aliased.sort();
+        aliased.dedup();
+        let packages = if aliased.is_empty() {
+            let mut candidates = subject.packages().iter().filter(|source| {
+                source.key() != subject.root().selected().key()
+                    && source.key().name().as_str() == name
+            });
+            let candidate = candidates
+                .next()
+                .ok_or_else(|| failure(format!("no accepted dependency matches {name:?}")))?;
+            if candidates.next().is_some() {
+                return Err(failure(format!(
+                    "package name {name:?} occurs in multiple sources; use a root dependency alias"
+                )));
+            }
+            vec![candidate.key().clone()]
+        } else {
+            aliased
+        };
+        for package in packages {
+            if selected.contains(&package) {
+                return Err(failure(format!(
+                    "dependency {name:?} was selected more than once"
+                )));
+            }
+            selected.push(package);
+        }
+    }
+    Ok(selected)
+}

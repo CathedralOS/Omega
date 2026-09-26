@@ -5,9 +5,9 @@
 use super::SymbolHandle;
 use crate::tests::front_end::checked_program;
 use numerics::literals::IntegerLiteral;
-use typed_trees::types::PrimitiveType;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
 
-fn machine_named(checked: &checked_trees::CheckedTrees, name: &str) -> SymbolHandle {
+fn machine_named(checked: &crate::checked_trees::CheckedTrees, name: &str) -> SymbolHandle {
     checked
         .machines()
         .iter()
@@ -19,9 +19,9 @@ fn machine_named(checked: &checked_trees::CheckedTrees, name: &str) -> SymbolHan
 }
 
 fn contract_plan(
-    checked: &checked_trees::CheckedTrees,
+    checked: &crate::checked_trees::CheckedTrees,
     machine: SymbolHandle,
-) -> &checked_trees::MachineContractPlan {
+) -> &crate::checked_trees::MachineContractPlan {
     checked
         .facts
         .contract_plans
@@ -73,7 +73,7 @@ fn inclusive_u64_entry_range_retains_authored_endpoints() {
     };
     assert_eq!(
         *requirement,
-        checked_trees::ClosedIntegerRangeRequirement {
+        crate::checked_trees::ClosedIntegerRangeRequirement {
             position: 0,
             primitive_type: PrimitiveType::U64,
             minimum: IntegerLiteral::from_value(0),
@@ -89,8 +89,8 @@ fn inclusive_u64_entry_range_retains_authored_endpoints() {
     assert!(
         matches!(
             clause,
-            Some(checked_trees::ClosedScalarContractValue::Predicate(
-                checked_trees::CheckedBooleanExpression::And { .. }
+            Some(crate::checked_trees::ClosedScalarContractValue::Predicate(
+                crate::checked_trees::CheckedBooleanExpression::And { .. }
             ))
         ),
         "the integer range rides the requires tail as a predicate conjunction"
@@ -115,7 +115,7 @@ fn exclusive_u64_entry_range_retains_its_inclusive_predecessor() {
     };
     assert_eq!(
         *requirement,
-        checked_trees::ClosedIntegerRangeRequirement {
+        crate::checked_trees::ClosedIntegerRangeRequirement {
             position: 0,
             primitive_type: PrimitiveType::U64,
             minimum: IntegerLiteral::from_value(0),
@@ -163,7 +163,7 @@ fn signed_i64_entry_range_retains_signed_endpoints() {
     };
     assert_eq!(
         *requirement,
-        checked_trees::ClosedIntegerRangeRequirement {
+        crate::checked_trees::ClosedIntegerRangeRequirement {
             position: 0,
             primitive_type: PrimitiveType::I64,
             minimum: IntegerLiteral::from_value(-4),

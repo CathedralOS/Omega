@@ -1,9 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use abstract_operations::AbstractOperation as O;
 use optimization_core::OptimizationUnitIdentity;
-use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance};
 use semantic_vocabulary::{BlockId, BoundaryMachineId, MachineId, ServiceId};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
+};
 
 use super::scalar_operation_successors;
 
@@ -168,11 +170,11 @@ fn transitive_function_effects(unit: &PsiOptimizationUnit) -> Vec<FunctionEffect
                 } => {
                     summary.callees.insert(*callee);
                     for argument in dynamic_arguments {
-                        if let abstract_operations::AbstractDynamicDescriptorSource::Selection {
+                        if let terminal_psi_to_abstract_operations::abstract_operations::AbstractDynamicDescriptorSource::Selection {
                             application,
                             ..
                         }
-                        | abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+                        | terminal_psi_to_abstract_operations::abstract_operations::AbstractDynamicDescriptorSource::Rebound {
                             application,
                             ..
                         } = &argument.source

@@ -1,8 +1,8 @@
+use crate::legalized_operations::LegalizedOperationPlan;
 use crate::{LegalizationError, LegalizationError as Error};
-use abstract_operations::AbstractOperationPlan;
-use legalized_operations::LegalizedOperationPlan;
-use optimization_unit::PsiOptimizationUnit;
-use target_operations::TargetOperationPlan;
+use abstract_operations_to_target_operations::target_operations::TargetOperationPlan;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan;
+use terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit;
 
 pub(super) fn validate_replay_custody(
     target: &TargetOperationPlan,
@@ -18,7 +18,7 @@ pub(super) fn validate_replay_custody(
         verified_input,
     )
     .is_err()
-        || optimization_unit::recompute_psi_optimization_unit_identity(unit) != unit.identity
+        || terminal_psi_to_abstract_operations::optimization_unit::recompute_psi_optimization_unit_identity(unit) != unit.identity
         || target.psi != abstract_plan.psi
         || target.psi != unit.psi
         || target.entry != abstract_plan.entry

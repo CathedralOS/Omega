@@ -1,18 +1,18 @@
 //! Optimizer module role: executable entrance. Independently joins all graph rows to source CFG and ABI.
 use crate::legalization::scalar_graph_input;
+use crate::legalized_operations::{LegalizedOperationPlan, LegalizedScalarFunction};
 use crate::{LegalizationError, LegalizationError as Error};
-use abstract_operations::AbstractOperationPlan;
-use legalized_operations::{LegalizedOperationPlan, LegalizedScalarFunction};
-use optimization_unit::PsiOptimizationUnit;
-use target_operations::TargetOperationPlan;
+use abstract_operations_to_target_operations::target_operations::TargetOperationPlan;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan;
+use terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit;
 mod instruction;
 mod structural_case;
 mod terminator;
 #[allow(clippy::too_many_arguments)]
 pub(super) fn replay(
-    target: &target_operations::TargetFunction,
-    abstracted: &abstract_operations::AbstractFunction,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    target: &abstract_operations_to_target_operations::target_operations::TargetFunction,
+    abstracted: &terminal_psi_to_abstract_operations::abstract_operations::AbstractFunction,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,

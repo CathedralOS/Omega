@@ -12,7 +12,7 @@ use crate::emission::operation_emission::buffer::OperationBuffer;
 impl emission::Emission<'_, '_, '_> {
     pub(super) fn record(
         &mut self,
-        value: checked_trees::CheckedStructuralValueHandle,
+        value: typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueHandle,
     ) -> Result<PlaceId, LoweringError> {
         let node = self
             .checked
@@ -22,7 +22,7 @@ impl emission::Emission<'_, '_, '_> {
             .nodes
             .get(value)
             .clone();
-        let checked_trees::CheckedStructuralValueKind::Record {
+        let typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Record {
             data_symbol,
             fields,
         } = node.kind
@@ -64,11 +64,9 @@ impl emission::Emission<'_, '_, '_> {
             let declaration = declarations
                 .iter()
                 .find_map(|member| match member {
-                    checked_trees::data::DataMember::Field(declaration)
-                        if declaration.symbol == field.field =>
-                    {
-                        Some(declaration)
-                    }
+                    typed_trees_to_checked_trees::checked_trees::data::DataMember::Field(
+                        declaration,
+                    ) if declaration.symbol == field.field => Some(declaration),
                     _ => None,
                 })
                 .ok_or(LoweringError::Unsupported(
@@ -86,7 +84,7 @@ impl emission::Emission<'_, '_, '_> {
                 return unsupported("erased record member has no runtime initializer");
             }
             let value = match field.value {
-                checked_trees::CheckedStructuralRecordFieldValue::Scalar(value) => {
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralRecordFieldValue::Scalar(value) => {
                     let evaluated = self.scalar(
                         CheckedScalarExpressionRole::RecordField {
                             expression: node.expression,
@@ -126,7 +124,7 @@ impl emission::Emission<'_, '_, '_> {
                         range_obligation,
                     }
                 }
-                checked_trees::CheckedStructuralRecordFieldValue::Structural(value) => {
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralRecordFieldValue::Structural(value) => {
                     // A `&[T]` view member's declared carrier is the borrowed
                     // byte sequence itself: the nested value's descriptor is
                     // the shared view element type the signature registers
@@ -140,7 +138,7 @@ impl emission::Emission<'_, '_, '_> {
                             self.type_ids,
                             self.checked
                                 .normalized_type_identity(
-                                    validation::unwrapped_type_reference(
+                                    typed_trees_to_checked_trees::validation::unwrapped_type_reference(
                                         &self.checked.typed,
                                         field.type_reference,
                                     )
@@ -172,7 +170,7 @@ impl emission::Emission<'_, '_, '_> {
                     let parent_multiplicity = self.multiplicity;
                     self.structural_type = child_type;
                     self.multiplicity =
-                        match validation::reference_result_custody::result_multiplicity(
+                        match typed_trees_to_checked_trees::validation::reference_result_custody::result_multiplicity(
                             &self.checked.typed,
                             field.type_reference,
                         ) {

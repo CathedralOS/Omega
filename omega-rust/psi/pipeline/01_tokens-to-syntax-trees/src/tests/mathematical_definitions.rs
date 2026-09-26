@@ -1,20 +1,20 @@
 //! Top-level `let`/`boundary let` parsing (PROOF-CONTRACT-MIGRATION).
 
 use crate::parser::parse_syntax_trees;
-use source_files_to_tokens::Lexer;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::ExpressionNode;
-use syntax_trees::item::{
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::expression::ExpressionNode;
+use crate::syntax_trees::item::{
     MathematicalDefinitionBody, MathematicalTypeHandle, MathematicalTypeNode, TypeParameterKind,
 };
-use syntax_trees::types::TypeReferenceNode;
+use crate::syntax_trees::types::TypeReferenceNode;
+use source_files_to_tokens::Lexer;
 
 fn parse(source: &str) -> SyntaxTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     parse_syntax_trees(&tokens).expect("parse")
 }
 
-fn single_definition(parsed: &SyntaxTrees) -> &syntax_trees::item::MathematicalDefinition {
+fn single_definition(parsed: &SyntaxTrees) -> &crate::syntax_trees::item::MathematicalDefinition {
     let handles = parsed.root_mathematical_definition_handles();
     assert_eq!(handles.len(), 1, "exactly one mathematical definition");
     parsed.root_mathematical_definition(handles[0])
@@ -53,7 +53,7 @@ fn render_type(parsed: &SyntaxTrees, handle: MathematicalTypeHandle) -> String {
 
 fn render_expression(
     parsed: &SyntaxTrees,
-    handle: syntax_trees::expression::ExpressionHandle,
+    handle: crate::syntax_trees::expression::ExpressionHandle,
 ) -> String {
     match parsed.expressions.expression(handle) {
         ExpressionNode::Name(path) => parsed
@@ -69,7 +69,7 @@ fn render_expression(
 
 fn render_type_reference(
     parsed: &SyntaxTrees,
-    handle: syntax_trees::types::TypeReferenceHandle,
+    handle: crate::syntax_trees::types::TypeReferenceHandle,
 ) -> String {
     match parsed.type_references.type_reference(handle) {
         TypeReferenceNode::Named(name) => name.as_str().to_owned(),

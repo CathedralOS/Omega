@@ -5,10 +5,10 @@
 //! overloads. Establishment routes, nominal machine binders, and lookup all
 //! resolve through this module.
 
-use symbol_resolved_trees::SymbolResolvedTrees;
-use symbol_resolved_trees::name::DiagnosticName;
-use symbol_resolved_trees::signature::StateSignature;
-use symbol_resolved_trees::trait_definition::TraitDefinition;
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
+use crate::symbol_resolved_trees::name::DiagnosticName;
+use crate::symbol_resolved_trees::signature::StateSignature;
+use crate::symbol_resolved_trees::trait_definition::TraitDefinition;
 
 /// One exact trait-requirement row selected by a path that carries no call
 /// signature. Domain establishment routes and nominal static-machine binders
@@ -73,7 +73,7 @@ pub(crate) fn resolve_signature_free_requirement<'program>(
 /// (`a::b::make` or `Data::method`); neither visible conformers nor an
 /// expected call shape may select among same-named machines.
 pub(crate) struct ExactSignatureFreeMachine<'program> {
-    pub(crate) machine: &'program symbol_resolved_trees::machine::Machine,
+    pub(crate) machine: &'program crate::symbol_resolved_trees::machine::Machine,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -107,7 +107,7 @@ pub(crate) fn signature_free_machine_candidates<'program>(
     program: &'program SymbolResolvedTrees,
     machine_name: &str,
     use_span: source::SourceSpan,
-) -> Vec<&'program symbol_resolved_trees::machine::Machine> {
+) -> Vec<&'program crate::symbol_resolved_trees::machine::Machine> {
     let selected = program
         .symbols
         .lookup_signature_free_top_level_from_source_matching(
@@ -182,9 +182,11 @@ pub(crate) fn validate_signature_free_requirement_compatibility(
 ) -> Vec<diagnostics::Diagnostic> {
     let mut uses = Vec::new();
     for (_, parameter) in program.tables.declarations.data_type_parameters.iter() {
-        let symbol_resolved_trees::data::TypeParameterKind::Machine {
+        let crate::symbol_resolved_trees::data::TypeParameterKind::Machine {
             contract:
-                symbol_resolved_trees::data::MachineParameterContract::AuthoredNominal { requirement },
+                crate::symbol_resolved_trees::data::MachineParameterContract::AuthoredNominal {
+                    requirement,
+                },
         } = &parameter.kind
         else {
             continue;

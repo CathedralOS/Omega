@@ -4,7 +4,7 @@ use super::super::{
     CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralScalarParameterPlan,
     PrimitiveType, SymbolHandle,
 };
-use checked_trees::CheckedScalarExpressionPlans;
+use crate::checked_trees::CheckedScalarExpressionPlans;
 
 /// The deepest a chain of immutable local initializers the guard inliner
 /// follows: each bound expression may only name earlier locals, so a small
@@ -43,17 +43,17 @@ pub(super) fn exact_guard(
 /// value it computed rather than on a local slot the joined caller does not
 /// carry. Unresolvable or cyclic references decline the whole guard.
 fn inline_guard_locals(
-    expression: &checked_trees::CheckedBooleanExpression,
+    expression: &crate::checked_trees::CheckedBooleanExpression,
     scalar_parameter_count: usize,
     expressions: &CheckedScalarExpressionPlans,
     state: SymbolHandle,
     depth: u32,
-) -> Option<checked_trees::CheckedBooleanExpression> {
+) -> Option<crate::checked_trees::CheckedBooleanExpression> {
     if depth == 0 {
         return None;
     }
     match expression {
-        checked_trees::CheckedBooleanExpression::Local { position } => {
+        crate::checked_trees::CheckedBooleanExpression::Local { position } => {
             let bound =
                 bound_local_initializer(expressions, state, *position, scalar_parameter_count)?;
             let CheckedScalarExpression::Boolean(inner) = bound else {
@@ -61,13 +61,17 @@ fn inline_guard_locals(
             };
             inline_guard_locals(inner, scalar_parameter_count, expressions, state, depth - 1)
         }
-        checked_trees::CheckedBooleanExpression::Not(inner) => {
-            Some(checked_trees::CheckedBooleanExpression::Not(Box::new(
-                inline_guard_locals(inner, scalar_parameter_count, expressions, state, depth)?,
-            )))
-        }
-        checked_trees::CheckedBooleanExpression::Equal { left, right } => {
-            Some(checked_trees::CheckedBooleanExpression::Equal {
+        crate::checked_trees::CheckedBooleanExpression::Not(inner) => Some(
+            crate::checked_trees::CheckedBooleanExpression::Not(Box::new(inline_guard_locals(
+                inner,
+                scalar_parameter_count,
+                expressions,
+                state,
+                depth,
+            )?)),
+        ),
+        crate::checked_trees::CheckedBooleanExpression::Equal { left, right } => {
+            Some(crate::checked_trees::CheckedBooleanExpression::Equal {
                 left: Box::new(inline_guard_locals(
                     left,
                     scalar_parameter_count,
@@ -84,27 +88,29 @@ fn inline_guard_locals(
                 )?),
             })
         }
-        checked_trees::CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
-            Some(checked_trees::CheckedBooleanExpression::IntegerComparison {
-                kind: *kind,
-                left: Box::new(inline_scalar_locals(
-                    left,
-                    scalar_parameter_count,
-                    expressions,
-                    state,
-                    depth,
-                )?),
-                right: Box::new(inline_scalar_locals(
-                    right,
-                    scalar_parameter_count,
-                    expressions,
-                    state,
-                    depth,
-                )?),
-            })
+        crate::checked_trees::CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
+            Some(
+                crate::checked_trees::CheckedBooleanExpression::IntegerComparison {
+                    kind: *kind,
+                    left: Box::new(inline_scalar_locals(
+                        left,
+                        scalar_parameter_count,
+                        expressions,
+                        state,
+                        depth,
+                    )?),
+                    right: Box::new(inline_scalar_locals(
+                        right,
+                        scalar_parameter_count,
+                        expressions,
+                        state,
+                        depth,
+                    )?),
+                },
+            )
         }
-        checked_trees::CheckedBooleanExpression::And { left, right } => {
-            Some(checked_trees::CheckedBooleanExpression::And {
+        crate::checked_trees::CheckedBooleanExpression::And { left, right } => {
+            Some(crate::checked_trees::CheckedBooleanExpression::And {
                 left: Box::new(inline_guard_locals(
                     left,
                     scalar_parameter_count,
@@ -121,8 +127,8 @@ fn inline_guard_locals(
                 )?),
             })
         }
-        checked_trees::CheckedBooleanExpression::Or { left, right } => {
-            Some(checked_trees::CheckedBooleanExpression::Or {
+        crate::checked_trees::CheckedBooleanExpression::Or { left, right } => {
+            Some(crate::checked_trees::CheckedBooleanExpression::Or {
                 left: Box::new(inline_guard_locals(
                     left,
                     scalar_parameter_count,
@@ -251,26 +257,28 @@ fn bound_local_initializer(
 /// the admitted operand roots, and negations of those. Everything else —
 /// locals and calls — still declines.
 fn admitted_guard_shape(
-    expression: &checked_trees::CheckedBooleanExpression,
+    expression: &crate::checked_trees::CheckedBooleanExpression,
     scalar_parameters: &[CheckedStructuralScalarParameterPlan],
 ) -> bool {
     match expression {
-        checked_trees::CheckedBooleanExpression::Parameter { position } => scalar_parameters
+        crate::checked_trees::CheckedBooleanExpression::Parameter { position } => scalar_parameters
             .get(*position)
             .is_some_and(|parameter| parameter.primitive_type == PrimitiveType::Bool),
-        checked_trees::CheckedBooleanExpression::StructuralParameterField {
+        crate::checked_trees::CheckedBooleanExpression::StructuralParameterField {
             parameter_position,
             path,
         } => retained_field_subject(*parameter_position, path),
-        checked_trees::CheckedBooleanExpression::Equal { left, right } => {
+        crate::checked_trees::CheckedBooleanExpression::Equal { left, right } => {
             (boolean_subject(left) || boolean_subject(right))
                 && boolean_operand(left, scalar_parameters)
                 && boolean_operand(right, scalar_parameters)
         }
-        checked_trees::CheckedBooleanExpression::Not(inner) => {
+        crate::checked_trees::CheckedBooleanExpression::Not(inner) => {
             admitted_guard_shape(inner, scalar_parameters)
         }
-        checked_trees::CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+        crate::checked_trees::CheckedBooleanExpression::IntegerComparison {
+            left, right, ..
+        } => {
             (integer_subject(left) || integer_subject(right))
                 && integer_operand(left, scalar_parameters)
                 && integer_operand(right, scalar_parameters)
@@ -289,7 +297,7 @@ fn admitted_guard_shape(
 /// here today.
 fn retained_field_subject(
     parameter_position: u32,
-    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    path: &[crate::checked_trees::CheckedStructuralPredicatePathSegment],
 ) -> bool {
     parameter_position <= 1
         && !path.is_empty()
@@ -298,7 +306,7 @@ fn retained_field_subject(
             .filter(|segment| {
                 matches!(
                     segment,
-                    checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_)
+                    crate::checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_)
                 )
             })
             .count()
@@ -307,8 +315,8 @@ fn retained_field_subject(
             .iter()
             .enumerate()
             .all(|(ordinal, segment)| match segment {
-                checked_trees::CheckedStructuralPredicatePathSegment::Field(_) => true,
-                checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_) => {
+                crate::checked_trees::CheckedStructuralPredicatePathSegment::Field(_) => true,
+                crate::checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_) => {
                     ordinal + 2 == path.len() || ordinal + 1 == path.len()
                 }
                 _ => false,
@@ -318,15 +326,15 @@ fn retained_field_subject(
 /// One Boolean operand of a joined equality: a Boolean parameter, a
 /// retained `self` field, or a Boolean literal.
 fn boolean_operand(
-    expression: &checked_trees::CheckedBooleanExpression,
+    expression: &crate::checked_trees::CheckedBooleanExpression,
     scalar_parameters: &[CheckedStructuralScalarParameterPlan],
 ) -> bool {
     match expression {
-        checked_trees::CheckedBooleanExpression::Parameter { position } => scalar_parameters
+        crate::checked_trees::CheckedBooleanExpression::Parameter { position } => scalar_parameters
             .get(*position)
             .is_some_and(|parameter| parameter.primitive_type == PrimitiveType::Bool),
-        checked_trees::CheckedBooleanExpression::Constant(_) => true,
-        checked_trees::CheckedBooleanExpression::StructuralParameterField {
+        crate::checked_trees::CheckedBooleanExpression::Constant(_) => true,
+        crate::checked_trees::CheckedBooleanExpression::StructuralParameterField {
             parameter_position,
             path,
         } => retained_field_subject(*parameter_position, path),
@@ -359,11 +367,11 @@ fn integer_operand(
 
 /// Whether a comparison operand names a runtime subject — a joined
 /// parameter or a retained field — rather than a pair of literals.
-fn boolean_subject(expression: &checked_trees::CheckedBooleanExpression) -> bool {
+fn boolean_subject(expression: &crate::checked_trees::CheckedBooleanExpression) -> bool {
     matches!(
         expression,
-        checked_trees::CheckedBooleanExpression::Parameter { .. }
-            | checked_trees::CheckedBooleanExpression::StructuralParameterField { .. }
+        crate::checked_trees::CheckedBooleanExpression::Parameter { .. }
+            | crate::checked_trees::CheckedBooleanExpression::StructuralParameterField { .. }
     )
 }
 
@@ -401,27 +409,33 @@ pub(super) fn evaluatable_scalar(expression: &CheckedScalarExpression) -> bool {
     }
 }
 
-fn evaluatable_boolean(expression: &checked_trees::CheckedBooleanExpression) -> bool {
+fn evaluatable_boolean(expression: &crate::checked_trees::CheckedBooleanExpression) -> bool {
     match expression {
-        checked_trees::CheckedBooleanExpression::Constant(_)
-        | checked_trees::CheckedBooleanExpression::Parameter { .. }
-        | checked_trees::CheckedBooleanExpression::StructuralParameterField { .. } => true,
-        checked_trees::CheckedBooleanExpression::Not(inner) => evaluatable_boolean(inner),
-        checked_trees::CheckedBooleanExpression::Equal { left, right } => {
+        crate::checked_trees::CheckedBooleanExpression::Constant(_)
+        | crate::checked_trees::CheckedBooleanExpression::Parameter { .. }
+        | crate::checked_trees::CheckedBooleanExpression::StructuralParameterField { .. } => true,
+        crate::checked_trees::CheckedBooleanExpression::Not(inner) => evaluatable_boolean(inner),
+        crate::checked_trees::CheckedBooleanExpression::Equal { left, right } => {
             evaluatable_boolean(left) && evaluatable_boolean(right)
         }
-        checked_trees::CheckedBooleanExpression::IntegerComparison { left, right, .. }
-        | checked_trees::CheckedBooleanExpression::ScalarIeeeFloatComparison {
+        crate::checked_trees::CheckedBooleanExpression::IntegerComparison {
             left, right, ..
+        }
+        | crate::checked_trees::CheckedBooleanExpression::ScalarIeeeFloatComparison {
+            left,
+            right,
+            ..
         } => evaluatable_scalar(left) && evaluatable_scalar(right),
         _ => false,
     }
 }
 
-fn closed_boolean(expression: &checked_trees::CheckedBooleanExpression) -> bool {
+fn closed_boolean(expression: &crate::checked_trees::CheckedBooleanExpression) -> bool {
     match expression {
-        checked_trees::CheckedBooleanExpression::Constant(_) => true,
-        checked_trees::CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+        crate::checked_trees::CheckedBooleanExpression::Constant(_) => true,
+        crate::checked_trees::CheckedBooleanExpression::IntegerComparison {
+            left, right, ..
+        } => {
             matches!(
                 left.as_ref(),
                 CheckedScalarExpression::IntegerLiteral { .. }

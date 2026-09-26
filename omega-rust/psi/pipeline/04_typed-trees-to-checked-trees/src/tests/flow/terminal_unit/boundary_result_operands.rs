@@ -1,8 +1,8 @@
 //! A returned boundary scalar keeps operand evaluation separate from settlement.
 use super::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan};
+use crate::checked_trees::{CheckedCallScalarArgument, CheckedScalarComputationKind};
 use crate::tests::flow::terminal_unit::checked;
 use crate::tests::flow::terminal_unit::machine_named;
-use checked_trees::{CheckedCallScalarArgument, CheckedScalarComputationKind};
 
 const SOURCE: &str = r#"
     machine identity(value: bool) -> bool { value }
@@ -78,21 +78,24 @@ fn returned_boundary_result_retains_one_outer_call_and_operand_roots() {
         .find(|source| source.symbol == machine)
         .unwrap();
     let state = &checked.machine_states(source)[0];
-    let typed_trees::statement::StatementNode::LocalData(local) =
-        &checked.statement_table.statements(state.statement_nodes)[0]
+    let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
+        local,
+    ) = &checked.statement_table.statements(state.statement_nodes)[0]
     else {
         panic!("authored result");
     };
-    assert!(validation::result_initializer_call_is_supported(
+    assert!(crate::validation::result_initializer_call_is_supported(
         &checked.typed,
         source,
         local.initial_value
     ));
-    assert!(!validation::unit_result_initializer_call_is_supported(
-        &checked.typed,
-        source,
-        local.initial_value
-    ));
+    assert!(
+        !crate::validation::unit_result_initializer_call_is_supported(
+            &checked.typed,
+            source,
+            local.initial_value
+        )
+    );
 }
 
 #[test]

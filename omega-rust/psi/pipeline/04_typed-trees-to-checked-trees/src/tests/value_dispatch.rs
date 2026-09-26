@@ -8,7 +8,7 @@ mod float_patterns;
 mod owned_results;
 mod semantic_results;
 
-fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
+fn check(source: &str) -> Result<crate::checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     lower_typed_trees(typed_program_result(source)?, &CheckingRequest::settled())
 }
 
@@ -110,7 +110,7 @@ fn match_pattern_evidence_rejects_foreign_arm_identity() {
         .expression_table
         .iter_expressions()
         .filter_map(|(expression, node)| {
-            if let typed_trees::expression::ExpressionNode::Match(dispatch) = node {
+            if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Match(dispatch) = node {
                 Some((expression, dispatch))
             } else {
                 None
@@ -123,13 +123,13 @@ fn match_pattern_evidence_rejects_foreign_arm_identity() {
         .iter()
         .find(|(_, other)| other.arms != dispatch.arms)
         .unwrap();
-    let valid = facts::FactPayload::MatchPattern {
+    let valid = crate::fact_plan::FactPayload::MatchPattern {
         expression,
         arm: dispatch.arms.start(),
         matched: true,
     };
     assert!(valid.match_pattern_comparison(program).is_some());
-    let foreign = facts::FactPayload::MatchPattern {
+    let foreign = crate::fact_plan::FactPayload::MatchPattern {
         expression,
         arm: foreign.arms.start(),
         matched: true,

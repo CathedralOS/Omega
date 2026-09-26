@@ -6,8 +6,8 @@ use super::lowerer::ExpressionTableLowerer;
 use crate::expressions::call_results::peel;
 use crate::lowerer::{exact_field_symbol, exact_top_level_data_symbol};
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
-use symbol_resolved_trees as resolved;
 use symbols::{SymbolHandle, SymbolKind};
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees as resolved;
 
 use resolved::data::{DataField, DataMember};
 use resolved::expression::{ExpressionHandle, ExpressionNode, TableMemberExpression};

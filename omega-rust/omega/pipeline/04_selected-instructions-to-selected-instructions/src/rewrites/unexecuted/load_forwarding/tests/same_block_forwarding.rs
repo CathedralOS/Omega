@@ -8,17 +8,17 @@ use crate::rewrites::unexecuted::{
     StoredLoadForwardingError, forward_selected_stored_load, validate_stored_load_forwarding,
 };
 use optimization_core::OptimizationWorkBudget;
-use register_environment::baseline_target_register_environment;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
-    FrameStorageSlotId, LocalStorageSlotId, SelectedInstructionId, SelectedInstructionKind,
-    SelectedLocalStorageSlot, SelectedMemoryAccess, SelectedMemoryAccessRole, VirtualRegisterId,
-};
 use semantic_vocabulary::{
     IntegerSign, IntegerType, MachineId, OperationId, PlaceId, ScalarType, ValueId,
 };
 use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use target_operations_to_selected_instructions::{
+    FrameStorageSlotId, LocalStorageSlotId, SelectedInstructionId, SelectedInstructionKind,
+    SelectedLocalStorageSlot, SelectedMemoryAccess, SelectedMemoryAccessRole, VirtualRegisterId,
+};
 
 #[test]
 fn same_block_store_forwards_through_copy_and_drops_the_read_row() {
@@ -314,7 +314,7 @@ fn overlapping_or_dynamic_writes_between_reject() {
         function.blocks[0].instructions[2] = instruction(
             BETWEEN,
             SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(slot),
                 byte_offset: 0,
             },
             store64,
@@ -2272,13 +2272,13 @@ fn constant_index_writer_against_a_dynamic_read() {
         );
         function
             .virtual_registers
-            .push(selected_instructions::VirtualRegister {
+            .push(target_operations_to_selected_instructions::VirtualRegister {
                 id: VirtualRegisterId(20),
                 scalar_type: ScalarType::Integer(
                     IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
                 ),
                 class: function.virtual_registers[0].class,
-                origin: selected_instructions::VirtualRegisterOrigin::InstructionResult {
+                origin: target_operations_to_selected_instructions::VirtualRegisterOrigin::InstructionResult {
                     instruction: SelectedInstructionId(9),
                     source_value: ValueId::new(9).unwrap(),
                 },

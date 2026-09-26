@@ -6,7 +6,7 @@ use super::{
     TargetUnitOperation, ValueId,
 };
 use crate::legalization::scalar_graph_input::indirect_calls::parameter_call_contract;
-use target_operations::TargetUnitScalarHomeRequirement;
+use abstract_operations_to_target_operations::target_operations::TargetUnitScalarHomeRequirement;
 
 pub(super) fn validate(
     function: &TargetFunction,

@@ -1,0 +1,134 @@
+use omega::checked_interpreter::BuildMachineEntry;
+use omega::checked_interpreter::InterpretOptions;
+use omega::checked_interpreter::interpret_entry;
+
+fn execute(source: &str) -> omega::checked_interpreter::InterpretOutcome {
+    let checked = crate::front_end::checked_program_result(source)
+        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+    interpret_entry(
+        &checked,
+        BuildMachineEntry::Name("main"),
+        &[],
+        InterpretOptions::default(),
+    )
+}
+
+#[test]
+fn value_dispatch_selects_only_first_matching_arm() {
+    let outcome = execute("machine main() -> i64 { match 0i64 { 0 -> 7, 0 -> 99, _ -> 88 } }");
+    assert_eq!(outcome.error, None);
+    assert_eq!(outcome.exit_code, 7);
+}
+
+#[test]
+fn value_dispatch_does_not_execute_unselected_trapping_calls() {
+    let outcome = execute(
+        "machine divide(value: i64) -> i64 { 7 / value } machine main() -> i64 { match 0i64 { 0 -> 7, _ -> divide(0) } }",
+    );
+    assert_eq!(outcome.error, None);
+    assert_eq!(outcome.exit_code, 7);
+}
+
+#[test]
+fn value_dispatch_evaluates_effectful_subject_once() {
+    let outcome = execute(
+        "machine read(calls: &mut i32 in Wrapping) -> i64 { calls = calls + 1; 2 } machine main() -> i32 { let mut calls: i32 in Wrapping = 0; let result: i64 = match read(&mut calls) { 0 -> 11, 1 -> 22, 2 -> 7, _ -> 44 }; transition result == 7 && calls == 1 { true -> 7 false -> 0 } }",
+    );
+    assert_eq!(outcome.error, None);
+    assert_eq!(outcome.exit_code, 7);
+}
+
+#[test]
+fn value_dispatch_forwards_exact_integer_destination_to_selected_arm() {
+    let outcome = execute("machine main() -> i32 { match true { true -> 7 / 2 * 2, false -> 0 } }");
+    assert_eq!(outcome.error, None);
+    assert_eq!(outcome.exit_code, 7);
+}
+
+#[test]
+fn selected_float_equality_cannot_execute_as_unselected_builtin_comparison() {
+    let outcome = execute(
+        "boundary operator == Float::equal(left: f32, right: f32) -> bool;
+         machine choose(value: f32) -> i64 { match value { 1.0f32 -> 7, _ -> 11 } }
+         machine main() -> i64 { choose(1.0f32) }",
+    );
+    let error = outcome
+        .error
+        .expect("selected equality needs its execution custody");
+    assert!(error.contains("Match equality"), "{error}");
+}
+
+#[test]
+fn wildcard_only_float_dispatch_does_not_invoke_equality() {
+    let outcome = execute(
+        "machine choose(value: f32) -> i64 { match value { _ -> 7 } }
+         machine main() -> i64 { choose(1.0f32) }",
+    );
+    assert_eq!(outcome.error, None);
+    assert_eq!(outcome.exit_code, 7);
+}
+
+#[test]
+fn wildcard_before_float_pattern_does_not_require_unreached_execution_custody() {
+    let outcome = execute(
+        "boundary operator == Float::equal(left: f32, right: f32) -> bool;
+         machine choose(value: f32) -> i64 { match value { _ -> 7, 1.0f32 -> 11 } }
+         machine main() -> i64 { choose(1.0f32) }",
+    );
+    assert_eq!(outcome.error, None);
+    assert_eq!(outcome.exit_code, 7);
+}
+
+#[test]
+fn indexed_float_subject_cannot_bypass_selected_equality_custody() {
+    let outcome = execute(
+        "boundary operator == Float::equal(left: f32, right: f32) -> bool;
+         machine choose(values: [f32; 1]) -> i64 { match values[0u64] { 1.0f32 -> 7, _ -> 11 } }
+         machine main() -> i64 { choose([1.0f32]) }",
+    );
+    let error = outcome
+        .error
+        .expect("projection metadata cannot choose builtin equality");
+    assert!(error.contains("Match equality"), "{error}");
+}
+
+#[test]
+fn mixed_fresh_and_existing_owned_arms_execute() {
+    for (selected, expected) in [("true", 7), ("false", 0)] {
+        let outcome = execute(&format!(
+            "{}\nmachine main() -> i32 {{ transition choose({selected}) {{ true -> 7 false -> 0 }} }}",
+            "../../../../tests/omega/pass/expressions/owned_match_mixed_values/main.omg"
+        ));
+        assert_eq!(outcome.error, None, "selected={selected}");
+        assert_eq!(outcome.exit_code, expected, "selected={selected}");
+    }
+}
+
+#[test]
+fn owned_match_source_with_closed_loan_dispatches_normally() {
+    // A stored borrow whose loan closed before the selection edge joins the
+    // source roster like any other owner: `view`'s last read precedes the
+    // match, so moving `right` through the selected arm cannot dangle it.
+    for (selected, expected) in [("true", 37), ("false", 0)] {
+        let outcome = execute(&format!(
+            "data Choice {{ case Empty; case Some(value: u32); }}
+             machine choose(selected: bool) -> i64 {{
+                 let left: Choice = Choice::Some {{ value: 37 }};
+                 let right: Choice = Choice::Empty;
+                 let view: &Choice = &right;
+                 let seen: bool = view in Choice::Empty;
+                 let result: Choice = match selected {{
+                     true -> left,
+                     false -> right
+                 }};
+                 match result in Choice::Some && seen {{
+                     true -> 37,
+                     false -> 0
+                 }}
+             }}
+             machine main() -> i64 {{ choose({selected}) }}",
+        ));
+        assert_eq!(outcome.error, None, "selected={selected}");
+        assert_eq!(outcome.exit_code, expected, "selected={selected}");
+    }
+}

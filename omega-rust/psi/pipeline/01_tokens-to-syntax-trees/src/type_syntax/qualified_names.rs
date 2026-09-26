@@ -1,8 +1,8 @@
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::item::{DataMember, Item};
+use crate::syntax_trees::types::TypeReferenceNode;
 use source::SourceId;
 use source_files_to_tokens::Lexer;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::item::{DataMember, Item};
-use syntax_trees::types::TypeReferenceNode;
 
 #[test]
 fn boolean_domain_indices_retain_literal_identity_and_span_in_qualifications_and_casts() {
@@ -26,7 +26,8 @@ fn boolean_domain_indices_retain_literal_identity_and_span_in_qualifications_and
                     .expressions
                     .iter_expressions()
                     .find_map(|(_, expression)| {
-                        let syntax_trees::expression::ExpressionNode::Cast(cast) = expression
+                        let crate::syntax_trees::expression::ExpressionNode::Cast(cast) =
+                            expression
                         else {
                             return None;
                         };

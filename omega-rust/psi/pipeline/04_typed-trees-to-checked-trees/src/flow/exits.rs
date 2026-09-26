@@ -2,30 +2,30 @@
 //! then for the target and continuation arms adds the guard outcome (`guards`),
 //! evaluates the arm, and records its exit facts. `append_state_exit_facts`
 //! records one `FlowExitFact` for each matching contract exit.
+use crate::checked_trees::{
+    BorrowCallFact, BorrowFacts, DomainFacts, FlowCallFact, FlowConstraintKind, FlowConstraintRef,
+    FlowExitFact, FlowSemanticContextRef, ProofFacts,
+};
+use crate::fact_plan::{FactPlan, ProgramPoint};
 use crate::flow::FlowBuildContext;
 use crate::flow::append_constraint_ref;
 use crate::flow::append_flow_contexts_for_points;
 use crate::flow::retained_constraint_refs;
 use crate::flow::retained_flow_contexts;
 use arena::HandleSpan;
-use checked_trees::{
-    BorrowCallFact, BorrowFacts, DomainFacts, FlowCallFact, FlowConstraintKind, FlowConstraintRef,
-    FlowExitFact, FlowSemanticContextRef, ProofFacts,
-};
-use facts::{FactPlan, ProgramPoint};
 use symbols::SymbolHandle;
 
 mod guards;
 pub(super) use guards::{append_match_pattern_context, append_predicate_context};
 
 pub(super) fn append_state_exit_facts(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     proof: &ProofFacts,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-    transition_target: typed_trees::statement::TransitionTargetHandle,
+    transition_target: symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetHandle,
     active_contexts: arena::HandleSpan<FlowSemanticContextRef>,
     active_constraints: arena::HandleSpan<FlowConstraintRef>,
 ) -> arena::HandleSpan<FlowExitFact> {
@@ -112,16 +112,16 @@ pub(super) fn append_state_exit_facts(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_transition_flow_facts<'plans>(
-    program: &'plans typed_trees::TypedTrees,
+    program: &'plans symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     proof: &ProofFacts,
     semantic: &mut FactPlan,
     domains: &DomainFacts,
     build: &mut FlowBuildContext<'plans>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
-    transition: &typed_trees::statement::TableTransition,
+    transition: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableTransition,
     calls: &[BorrowCallFact],
     state_calls: &mut HandleSpan<FlowCallFact>,
     active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
@@ -142,7 +142,10 @@ pub(super) fn append_transition_flow_facts<'plans>(
         active_contexts,
         active_constraints,
     );
-    if let typed_trees::statement::TransitionGuardNode::When(expression) = transition.guard {
+    if let symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionGuardNode::When(
+        expression,
+    ) = transition.guard
+    {
         execution.expression(expression, active_contexts, active_constraints);
     }
     // Guards execute on both paths. Their effects survive a missed arm, while
@@ -182,7 +185,7 @@ pub(super) fn append_transition_flow_facts<'plans>(
         );
         if matches!(
             program.statement_table.transition_target(target),
-            typed_trees::statement::TransitionTargetNode::SelfTarget
+            symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::SelfTarget
         ) {
             // Self has no argument evaluation or ordinary call record. Retain
             // its actual post-guard contexts for arrival checking. Reuse the

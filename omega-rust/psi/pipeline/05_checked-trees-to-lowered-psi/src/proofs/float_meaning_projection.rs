@@ -1,12 +1,5 @@
 //! Exact erasure of checked float-meaning projections into Terminal Psi.
 
-use checked_trees::{
-    CheckedFloatMeaningEqualityProposition, CheckedFloatMeaningProjection,
-    CheckedFloatMeaningProjectionError, CheckedFloatProjectionSource,
-    CheckedFloatSemanticApplication, CheckedFloatSemanticApplicationError,
-    CheckedFloatSemanticApplicationOperand, CheckedProofOnlyValueType, CheckedTrees,
-    types::PrimitiveType,
-};
 use semantic_vocabulary::{BlockId, IeeeFloatFormat, MachineId, ScalarType};
 use terminal_psi::{
     DirectBlockFloatParameter, DirectCallFloatResult, DirectMachineFloatParameter,
@@ -16,6 +9,13 @@ use terminal_psi::{
     FloatProjectionInputId, FloatSemanticApplication, FloatSemanticApplicationOperand,
     FloatSemanticContractIdentity, ProofOnlyValueType, ProofPropositionId, ProofValueDeclaration,
     ProofValueId, TerminalMachine, TerminalMachineResult,
+};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedFloatMeaningEqualityProposition, CheckedFloatMeaningProjection,
+    CheckedFloatMeaningProjectionError, CheckedFloatProjectionSource,
+    CheckedFloatSemanticApplication, CheckedFloatSemanticApplicationError,
+    CheckedFloatSemanticApplicationOperand, CheckedProofOnlyValueType, CheckedTrees,
+    types::PrimitiveType,
 };
 
 use crate::emission::scalar_types::terminal_scalar_type;
@@ -208,7 +208,7 @@ pub(crate) fn resolve_direct_float_source_binding(
     machine_bindings: &[(symbols::SymbolHandle, MachineId)],
     terminal_machines: &[TerminalMachine],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
-    source_call_occurrences: &[lowered_psi::LoweredSourceCallOccurrence],
+    source_call_occurrences: &[crate::lowered_psi::LoweredSourceCallOccurrence],
     projection: CheckedFloatMeaningProjection,
 ) -> Result<Option<FloatMeaningSource>, LoweringError> {
     let owner_machine = match &projection.source {
@@ -364,10 +364,10 @@ pub(crate) fn resolve_direct_float_source_binding(
 
 fn resolve_direct_float_parameter(
     checked: &CheckedTrees,
-    source_entry: &checked_trees::state::State,
+    source_entry: &typed_trees_to_checked_trees::checked_trees::state::State,
     terminal_machine: &TerminalMachine,
     terminal_owner: MachineId,
-    parameter: checked_trees::CheckedDirectMachineFloatParameter,
+    parameter: typed_trees_to_checked_trees::checked_trees::CheckedDirectMachineFloatParameter,
 ) -> Result<Option<FloatMeaningSource>, LoweringError> {
     let invalid_source = || {
         LoweringError::InvalidFloatMeaningProjection(
@@ -432,10 +432,10 @@ fn resolve_direct_float_parameter(
 /// the machine-parameter class, never block parameters.
 fn resolve_direct_block_float_parameter(
     checked: &CheckedTrees,
-    source_machine: &checked_trees::machine::Machine,
+    source_machine: &typed_trees_to_checked_trees::checked_trees::machine::Machine,
     terminal_machine: &TerminalMachine,
     terminal_owner: MachineId,
-    parameter: checked_trees::CheckedDirectBlockFloatParameter,
+    parameter: typed_trees_to_checked_trees::checked_trees::CheckedDirectBlockFloatParameter,
 ) -> Result<Option<FloatMeaningSource>, LoweringError> {
     let invalid_source = || {
         LoweringError::InvalidFloatMeaningProjection(

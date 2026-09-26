@@ -6,8 +6,10 @@ use super::super::super::{
 };
 use super::super::{CheckedTrees, LoweringError};
 use super::{CheckedComposedUnitControlMachinePlan, claims, edges, scalars, topology};
-use checked_trees::statement::{StatementNode, TransitionExit, TransitionGuardNode};
-use checked_trees::types::TypeReferenceNode;
+use typed_trees_to_checked_trees::checked_trees::statement::{
+    StatementNode, TransitionExit, TransitionGuardNode,
+};
+use typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode;
 
 /// Custody, not topology, selects this emitter. Once selected, failed source
 /// rejoining must not retry an older matcher that ignores additional statements.
@@ -50,8 +52,8 @@ pub(in crate::unit::attached_unit::composed_control) fn has_shared_graph_custody
                 .all(|state| {
                     state.structural_parameters.iter().all(|parameter| {
                         ((parameter.multiplicity == Multiplicity::Unrestricted
-                            && matches!(parameter.access, checked_trees::CheckedStructuralAccess::SharedBorrow | checked_trees::CheckedStructuralAccess::MutableBorrow))
-                            || parameter.access == checked_trees::CheckedStructuralAccess::Owned)
+                            && matches!(parameter.access, typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow | typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow))
+                            || parameter.access == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned)
                             && (parameter.qualifications.is_empty() || parameter.multiplicity == Multiplicity::Linear)
                     })
                 })
@@ -82,7 +84,7 @@ pub(in crate::unit::attached_unit) struct AdmittedGraph<'a> {
     /// Entry-state successor-closure mask over the full `plan.states` roster;
     /// dead positions keep their index alignment but emit no block.
     pub(super) live: Vec<bool>,
-    pub(super) source_states: &'a [checked_trees::state::State],
+    pub(super) source_states: &'a [typed_trees_to_checked_trees::checked_trees::state::State],
     pub(super) claim_transport: claims::ClaimTransport,
     pub(in crate::unit::attached_unit::composed_control) boundaries:
         Vec<(&'a CheckedBoundaryMachinePlan, String)>,
@@ -126,7 +128,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
     }
     // Whole linear transport retains declaration qualifications and claim
     // conservation, not an arbitrary authored machine precondition package.
-    if matches!(&plan.result, checked_trees::CheckedControlResultPlan::Structural(result)
+    if matches!(&plan.result, typed_trees_to_checked_trees::checked_trees::CheckedControlResultPlan::Structural(result)
         if result.multiplicity == Multiplicity::Linear)
         && !checked.machine_contracts(machine).is_empty()
     {
@@ -164,7 +166,10 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         // `requires` rows that lower into closed scalar predicates stay on
         // the plan as retained state requires and emit as header invariants;
         // every other authored contract row is still rejected outright.
-        match validation::structural_state_contract_scalar_predicates(&checked.typed, source) {
+        match typed_trees_to_checked_trees::validation::structural_state_contract_scalar_predicates(
+            &checked.typed,
+            source,
+        ) {
             Some(predicates)
                 if predicates.len() == state.requires.len()
                     && state.requires.iter().all(Option::is_some) => {}
@@ -200,7 +205,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
             let source = source_parameters.get(parameter.position as usize).ok_or(
                 LoweringError::Unsupported("Unit graph view parameter position is invalid"),
             )?;
-            if validation::structural_result_projected_qualifications(
+            if typed_trees_to_checked_trees::validation::structural_result_projected_qualifications(
                 &checked.typed,
                 source.type_reference,
             )
@@ -217,13 +222,15 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 // execute: they cannot disqualify the route.
                 continue;
             }
-            if parameter.access == checked_trees::CheckedStructuralAccess::Owned {
+            if parameter.access
+                == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
+            {
                 if source.is_self
                     || source.is_const
                     || source.is_mutable
                     || parameter.is_self
                     || parameter.fused_service_erasure.is_some()
-                    || validation::structural_result_qualifications(
+                    || typed_trees_to_checked_trees::validation::structural_result_qualifications(
                         &checked.typed,
                         source.type_reference,
                     )
@@ -241,7 +248,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                         .as_str()
                         != parameter.type_identity
                     || (parameter.multiplicity != Multiplicity::Linear
-                        && !validation::has_plain_owned_contents_with_numeric_constraints(
+                        && !typed_trees_to_checked_trees::validation::has_plain_owned_contents_with_numeric_constraints(
                             &checked.typed,
                             crate::unit::attached_unit::parameters::structural_carrier_type(
                                 checked,
@@ -285,23 +292,23 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 ) {
                     return unsupported("Unit graph primitive borrow has qualified storage");
                 }
-                checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive)
+                typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive)
             } else {
                 match checked.type_reference_table.type_reference(*referee) {
                     TypeReferenceNode::Slice { element_type } => {
                         if checked.primitive_type_reference(*element_type)
                             == Some(PrimitiveType::U8)
                         {
-                            checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
+                            typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
                                 // Matched against the registered view type,
                                 // which binds no access; the borrow's own
                                 // `access` is checked separately.
-                                checked_trees::CheckedByteSequenceCarrier::BorrowedView {
+                                typed_trees_to_checked_trees::checked_trees::CheckedByteSequenceCarrier::BorrowedView {
                                     access: None,
                                 },
                             )
                         } else {
-                            checked_trees::CheckedUnitStructuralTypeShape::BorrowedSliceView {
+                            typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypeShape::BorrowedSliceView {
                                 element_type_identity: checked
                                     .normalized_type_identity(*element_type)
                                     .into_string(),
@@ -310,8 +317,8 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     }
                     TypeReferenceNode::FixedArray {
                         element_type,
-                        length: checked_trees::types::FixedArrayLength::Literal(length),
-                    } => checked_trees::CheckedUnitStructuralTypeShape::FixedArray {
+                        length: typed_trees_to_checked_trees::checked_trees::types::FixedArrayLength::Literal(length),
+                    } => typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypeShape::FixedArray {
                         element_type_identity: checked
                             .normalized_type_identity(*element_type)
                             .into_string(),
@@ -349,9 +356,9 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 || parameter.access
                     != match *access {
                         language_core::ReferenceAccess::Mutable => {
-                            checked_trees::CheckedStructuralAccess::MutableBorrow
+                            typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow
                         }
-                        _ => checked_trees::CheckedStructuralAccess::SharedBorrow,
+                        _ => typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow,
                     }
                 || !parameter.qualifications.is_empty()
                 || parameter.fused_service_erasure.is_some()
@@ -384,7 +391,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 super::cases::validate(checked, plan, source, state, tail, terminator_ordinal)?;
             }
             (CheckedComposedUnitControlTerminatorPlan::ReturnUnit, [])
-                if plan.result == checked_trees::CheckedControlResultPlan::Unit =>
+                if plan.result == typed_trees_to_checked_trees::checked_trees::CheckedControlResultPlan::Unit =>
             {
                 edges::return_discards(checked, plan.machine, source, state)?;
             }
@@ -520,8 +527,8 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                         )
                     };
                 let arm_ordinal = match return_arm {
-                    checked_trees::CheckedConditionalReturnArm::Structural(
-                        checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                    typed_trees_to_checked_trees::checked_trees::CheckedConditionalReturnArm::Structural(
+                        typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
                             result,
                             ..
                         },
@@ -529,18 +536,18 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     // A scalar arm returns the value checking retained under its
                     // own `Return` role: the machine's result is that scalar and
                     // the authored arm names a value, not a state.
-                    checked_trees::CheckedConditionalReturnArm::Scalar {
+                    typed_trees_to_checked_trees::checked_trees::CheckedConditionalReturnArm::Scalar {
                         statement_ordinal,
                         primitive_type,
                     } if plan.result
-                        == checked_trees::CheckedControlResultPlan::Scalar {
+                        == typed_trees_to_checked_trees::checked_trees::CheckedControlResultPlan::Scalar {
                             primitive_type: *primitive_type,
                         }
                         && matches!(
                             checked
                                 .statement_table
                                 .transition_target(return_source.target),
-                            checked_trees::statement::TransitionTargetNode::Value(_)
+                            typed_trees_to_checked_trees::checked_trees::statement::TransitionTargetNode::Value(_)
                         ) =>
                     {
                         *statement_ordinal as usize
@@ -608,7 +615,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     let StatementNode::Transition(transition) = &tail[index] else {
                         return unsupported("guarded jump arm lost its authored transition");
                     };
-                    let checked_trees::CheckedScalarBranchDestination::Jump(selected) =
+                    let typed_trees_to_checked_trees::checked_trees::CheckedScalarBranchDestination::Jump(selected) =
                         &exit.destination
                     else {
                         return unsupported("guarded jump arm is not a named-state edge");
@@ -634,7 +641,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                         ordinal,
                     )?;
                 }
-                let Some(checked_trees::CheckedScalarBranchDestination::Jump(selected)) =
+                let Some(typed_trees_to_checked_trees::checked_trees::CheckedScalarBranchDestination::Jump(selected)) =
                     &retained.fallback
                 else {
                     return unsupported("guarded jump fallback is not a named-state edge");
@@ -714,7 +721,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 if parameter.is_self
                     && parameter.type_identity == *attachment
                     && parameter.multiplicity == Multiplicity::Linear
-                    && parameter.access == checked_trees::CheckedStructuralAccess::Owned
+                    && parameter.access == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
                     && parameter.qualifications.is_empty())
                 || !boundary.result.is_unit())
         {
@@ -758,7 +765,7 @@ fn validate_guard(
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     ordinal: usize,
-    guard: &checked_trees::CheckedCallScalarArgument,
+    guard: &typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument,
 ) -> Result<(), LoweringError> {
     let statement = u32::try_from(ordinal)
         .map_err(|_| LoweringError::Unsupported("Unit graph ordinal overflow"))?;
@@ -768,7 +775,9 @@ fn validate_guard(
         .scalar_expressions
         .expression_at(state, statement, role);
     match guard {
-        checked_trees::CheckedCallScalarArgument::Pure(expression) => {
+        typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(
+            expression,
+        ) => {
             if pure != Some(expression) {
                 return unsupported("Unit graph guard disagrees with checked expression");
             }
@@ -787,7 +796,9 @@ fn validate_guard(
                 return unsupported("Unit graph guard is not Boolean");
             }
         }
-        checked_trees::CheckedCallScalarArgument::Computation(handle) => {
+        typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Computation(
+            handle,
+        ) => {
             if pure.is_some() {
                 return unsupported("Unit graph guard computation competes with a pure guard");
             }

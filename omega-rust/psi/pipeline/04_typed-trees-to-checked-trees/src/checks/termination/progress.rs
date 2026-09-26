@@ -15,7 +15,7 @@ mod qualification_correspondences;
 #[cfg(test)]
 mod tests;
 
-use checked_trees::{BuildBoundProgressDemand, FlowCallFact, FlowFacts, FlowStateFact};
+use crate::checked_trees::{BuildBoundProgressDemand, FlowCallFact, FlowFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 use language_semantics::{ProgressPremise, ProgressSubject, TerminationGuarantee};
 use symbols::SymbolHandle;
@@ -38,18 +38,18 @@ pub(crate) struct CheckedProgressSummary {
 
 #[cfg(test)]
 pub(crate) fn analyze_checked_progress(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     flow: &FlowFacts,
-    semantic: &facts::FactPlan,
+    semantic: &crate::fact_plan::FactPlan,
 ) -> Result<Vec<CheckedProgressSummary>, Vec<Diagnostic>> {
     analyze_checked_progress_with_call_frames(program, flow, semantic, None)
 }
 
 pub(crate) fn analyze_checked_progress_with_call_frames(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     flow: &FlowFacts,
-    semantic: &facts::FactPlan,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    semantic: &crate::fact_plan::FactPlan,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Result<Vec<CheckedProgressSummary>, Vec<Diagnostic>> {
     let correspondence_diagnostics = validate_qualification_correspondences(program, semantic);
     if !correspondence_diagnostics.is_empty() {

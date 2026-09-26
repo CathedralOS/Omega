@@ -15,7 +15,7 @@ use crate::scalar_graph::scalar_graph_lowering::call_lowering::lower_checked_dir
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
 };
-use checked_trees::CheckedErasedProofParameterPlan;
+use typed_trees_to_checked_trees::checked_trees::CheckedErasedProofParameterPlan;
 
 pub(super) struct Prepared {
     pub(super) value_types: Vec<QualifiedScalarType>,
@@ -67,7 +67,7 @@ enum PendingValue {
 pub(super) fn prepare(
     checked: &CheckedTrees,
     qualifications: &PreparedScalarQualifications,
-    state: &checked_trees::CheckedScalarStateGraph,
+    state: &typed_trees_to_checked_trees::checked_trees::CheckedScalarStateGraph,
     parameter_types: Vec<QualifiedScalarType>,
     erased_formal_types: Vec<QualifiedScalarType>,
     erased_proof_formals: &[CheckedErasedProofParameterPlan],
@@ -88,9 +88,9 @@ pub(super) fn prepare(
         .take_while(|statement| {
             matches!(
                 statement,
-                checked_trees::statement::StatementNode::LocalData(_)
-                    | checked_trees::statement::StatementNode::Assignment(_)
-                    | checked_trees::statement::StatementNode::Call(_)
+                typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(_)
+                    | typed_trees_to_checked_trees::checked_trees::statement::StatementNode::Assignment(_)
+                    | typed_trees_to_checked_trees::checked_trees::statement::StatementNode::Call(_)
             )
         })
         .count();
@@ -127,7 +127,7 @@ pub(super) fn prepare(
         .filter(|statement| {
             !matches!(
                 statement,
-                checked_trees::statement::StatementNode::LocalData(local)
+                typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(local)
                     if local.name.as_str().starts_with("__arm_destructure#")
             )
         })
@@ -144,9 +144,9 @@ pub(super) fn prepare(
         let ordinal = u32::try_from(ordinal)
             .map_err(|_| LoweringError::Unsupported("scalar statement ordinal exceeds u32"))?;
         match statement {
-            checked_trees::statement::StatementNode::LocalData(local)
+            typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(local)
                 if local.name.as_str().starts_with("__arm_destructure#") => {}
-            checked_trees::statement::StatementNode::Call(_) => {
+            typed_trees_to_checked_trees::checked_trees::statement::StatementNode::Call(_) => {
                 let operation = unit_rows.next().ok_or(LoweringError::Unsupported(
                     "scalar graph lost an authored Unit call",
                 ))?;
@@ -157,7 +157,7 @@ pub(super) fn prepare(
                     );
                 }
             }
-            checked_trees::statement::StatementNode::LocalData(local)
+            typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(local)
                 if checked
                     .primitive_type_reference(local.type_reference)
                     .is_none() =>
@@ -165,17 +165,17 @@ pub(super) fn prepare(
                 let operation = unit_rows.next().ok_or(LoweringError::Unsupported(
                     "scalar graph lost an authored structural local",
                 ))?;
-                if !matches!(operation, checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } if result.statement_index == ordinal)
+                if !matches!(operation, typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } if result.statement_index == ordinal)
                 {
                     return unsupported(
                         "scalar graph structural local moved from its authored statement",
                     );
                 }
             }
-            checked_trees::statement::StatementNode::Assignment(_)
+            typed_trees_to_checked_trees::checked_trees::statement::StatementNode::Assignment(_)
                 if unit_rows.peek().is_some_and(|operation| {
                     matches!(operation,
-                    checked_trees::CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store)
+                    typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store)
                         if store.statement_index == ordinal)
                 }) =>
             {
@@ -207,7 +207,7 @@ pub(super) fn prepare(
     let destructures = statements[..authored_prefix].iter().any(|statement| {
         matches!(
             statement,
-            checked_trees::statement::StatementNode::LocalData(local)
+            typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(local)
                 if local.name.as_str().starts_with("__arm_destructure#")
         )
     });
@@ -264,7 +264,7 @@ pub(super) fn prepare(
             }));
             parameter_types = value_types.clone();
         }
-        use checked_trees::CheckedScalarBindingDestination;
+        use typed_trees_to_checked_trees::checked_trees::CheckedScalarBindingDestination;
         scalar_bindings = scalar_bindings.with_primitive_storage(
             &primitive_locals::storage_before(primitive_locals, binding.statement_ordinal),
         );
@@ -355,8 +355,9 @@ pub(super) fn prepare(
         if binding_type.scalar_type != terminal_scalar_type(binding.primitive_type)? {
             return unsupported("scalar binding carrier disagrees with its retained value");
         }
-        if let Some(checked_trees::statement::StatementNode::LocalData(local)) =
-            statements.get(binding.statement_ordinal as usize)
+        if let Some(
+            typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(local),
+        ) = statements.get(binding.statement_ordinal as usize)
             && !local.type_is_inferred
             && qualifications.value_type(checked, local.type_reference)? != binding_type
         {
@@ -538,14 +539,14 @@ fn prepare_operation(
     checked: &CheckedTrees,
     qualifications: &PreparedScalarQualifications,
     machine: symbols::SymbolHandle,
-    state: &checked_trees::CheckedScalarStateGraph,
-    operation: &checked_trees::CheckedUnitEffectOperationPlan,
+    state: &typed_trees_to_checked_trees::checked_trees::CheckedScalarStateGraph,
+    operation: &typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan,
     bindings: &mut storage::ScalarBindings,
     value_types: &[QualifiedScalarType],
     types: &[StructuralTypeDeclaration],
     next_place: &mut u64,
 ) -> Result<PreparedOperation, LoweringError> {
-    if let checked_trees::CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) =
+    if let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) =
         operation
     {
         return field_stores::prepare(checked, machine, state.state, store, bindings, types)
@@ -553,7 +554,7 @@ fn prepare_operation(
     }
     if matches!(
         operation,
-        checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
     ) {
         let prepared = structural_values::prepare(
             checked,

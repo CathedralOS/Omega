@@ -1,14 +1,14 @@
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::front_end::typed_program;
-use typed_trees::expression::ExpressionNode;
-use typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 
 fn parameter_aggregate_program(
     parameter_type: &str,
     body: &str,
     scalar: &str,
-) -> typed_trees::TypedTrees {
+) -> symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees {
     let source = format!(
         r#"
         data View {{ body: &mut {scalar}; tag: u64; }}
@@ -227,7 +227,7 @@ fn parameter_aggregate_moves_preserve_caller_reference_origins() {
         else {
             panic!("last statement must demand writes");
         };
-        let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
+        let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolver");
         for (query, paths) in [
             (
                 "state",
@@ -342,7 +342,7 @@ fn parameter_aggregate_moves_require_exact_live_parameter_identity() {
         let StatementNode::Call(call) = statement else {
             panic!("call");
         };
-        let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
+        let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolver");
         assert_eq!(
             resolver
                 .inferred_state_write_frame(machine, state)
@@ -381,7 +381,7 @@ fn parameter_array_origin_metadata_is_independent_of_declared_length() {
         let state = &program.machine_states(machine)[0];
         let statements = program.statement_table.statements(state.statement_nodes);
         let statement = statements.last().expect("store");
-        let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
+        let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolver");
         let origins = resolver
             .local_write_origins_before_statement(machine, statement)
             .expect("complete array origins");
@@ -395,9 +395,9 @@ fn parameter_array_origin_metadata_is_independent_of_declared_length() {
             assert!(origin.collection_coarse);
             assert!(
                 matches!(origin.local_segments.as_slice(), [
-                facts::PlaceSegment::Index { expression },
-                facts::PlaceSegment::Field { .. },
-                facts::PlaceSegment::Field { .. },
+                crate::fact_plan::PlaceSegment::Index { expression },
+                crate::fact_plan::PlaceSegment::Field { .. },
+                crate::fact_plan::PlaceSegment::Field { .. },
             ] if !expression.is_valid()),
                 "compact element shape: {:?}",
                 origin.local_segments
@@ -409,7 +409,7 @@ fn parameter_array_origin_metadata_is_independent_of_declared_length() {
             state.symbol,
             statements.len() - 2,
             &statements[statements.len() - 2],
-            ::validation::CallFrameResolver::new(&program).as_ref(),
+            crate::validation::CallFrameResolver::new(&program).as_ref(),
         )
         .expect("reference write projects and reverse-closes");
         assert_eq!(
@@ -418,7 +418,7 @@ fn parameter_array_origin_metadata_is_independent_of_declared_length() {
             "caller collection plus both aliases"
         );
         for place in reference_store {
-            let facts::PlaceRoot::Symbol(root) = place.root else {
+            let crate::fact_plan::PlaceRoot::Symbol(root) = place.root else {
                 panic!("storage root");
             };
             match program.symbols.name(root) {
@@ -426,9 +426,9 @@ fn parameter_array_origin_metadata_is_independent_of_declared_length() {
                 "first" | "second" => {
                     assert!(
                         matches!(place.segments.as_slice(), [
-                        facts::PlaceSegment::Index { expression },
-                        facts::PlaceSegment::Field { symbol: inner },
-                        facts::PlaceSegment::Field { symbol: body },
+                        crate::fact_plan::PlaceSegment::Index { expression },
+                        crate::fact_plan::PlaceSegment::Field { symbol: inner },
+                        crate::fact_plan::PlaceSegment::Field { symbol: body },
                     ] if !expression.is_valid()
                         && program.symbols.name(*inner) == "inner"
                         && program.symbols.name(*body) == "body"),
@@ -444,14 +444,14 @@ fn parameter_array_origin_metadata_is_independent_of_declared_length() {
             state.symbol,
             statements.len() - 1,
             statement,
-            ::validation::CallFrameResolver::new(&program).as_ref(),
+            crate::validation::CallFrameResolver::new(&program).as_ref(),
         )
         .expect("owned sibling remains private");
         assert_eq!(owned_store.len(), 1);
         assert!(matches!(owned_store[0].segments.as_slice(), [
-            facts::PlaceSegment::FixedIndex { index: 0 },
-            facts::PlaceSegment::Field { symbol: inner },
-            facts::PlaceSegment::Field { symbol: tag },
+            crate::fact_plan::PlaceSegment::FixedIndex { index: 0 },
+            crate::fact_plan::PlaceSegment::Field { symbol: inner },
+            crate::fact_plan::PlaceSegment::Field { symbol: tag },
         ] if program.symbols.name(*inner) == "inner" && program.symbols.name(*tag) == "tag"));
     }
 }
@@ -473,7 +473,7 @@ fn parameter_aggregate_writes_invalidate_both_fact_spellings() {
         ),
     ] {
         let program = parameter_aggregate_program("View", body, "u8");
-        match validation::validate_program(&program) {
+        match crate::validation::validate_program(&program) {
             Err(diagnostics)
                 if diagnostics.iter().any(|diagnostic| {
                     let message = diagnostic.to_string();
@@ -501,7 +501,7 @@ fn parameter_aggregate_helper_move_invalidates_literal_caller_storage() {
         }
     "#;
     let program = typed_program(source);
-    match validation::validate_program(&program) {
+    match crate::validation::validate_program(&program) {
         Err(diagnostics)
             if diagnostics.iter().any(|diagnostic| {
                 let message = diagnostic.to_string();
@@ -561,7 +561,7 @@ fn parameter_aggregate_unknown_shapes_and_empty_arrays_cannot_supply_leaves() {
         else {
             panic!("write demand");
         };
-        let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
+        let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolver");
         assert!(
             !resolver
                 .inferred_state_write_frame(machine, state)
@@ -595,7 +595,7 @@ fn parameter_aggregate_move_survives_named_state_cycle() {
         .find(|machine| machine.name.as_str() == "parameter_cycle")
         .expect("machine");
     let entry = &program.machine_states(machine)[0];
-    let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
+    let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolver");
     for _ in 0..2 {
         assert_eq!(
             resolver

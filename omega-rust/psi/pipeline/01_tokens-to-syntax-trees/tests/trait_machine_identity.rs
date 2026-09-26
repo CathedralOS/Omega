@@ -1,6 +1,8 @@
 use source_files_to_tokens::Lexer;
-use syntax_trees::item::{Item, MachineParameterContract, TypeParameterKind};
 use tokens_to_syntax_trees::parse_syntax_trees;
+use tokens_to_syntax_trees::syntax_trees::item::{
+    Item, MachineParameterContract, TypeParameterKind,
+};
 
 #[test]
 fn trait_machine_parameter_is_a_declaration_identity_without_a_where_contract() {

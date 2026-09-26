@@ -10,7 +10,7 @@ use crate::FixedViewCopyError;
 
 pub(super) fn apply_copy(
     function_index: usize,
-    function: &mut selected_instructions::SelectedFunction,
+    function: &mut target_operations_to_selected_instructions::SelectedFunction,
     copy: &FixedViewCopy,
     row: &RegisterInstructionConstraint,
 ) -> Result<(), FixedViewCopyError> {
@@ -161,7 +161,7 @@ fn terminator_instruction_mut(terminator: &mut SelectedTerminator) -> &mut Selec
 }
 
 fn selected_operand(
-    constraint: &register_model::RegisterOperandConstraint,
+    constraint: &target_operations_to_selected_instructions::register_model::RegisterOperandConstraint,
     register: VirtualRegisterId,
 ) -> SelectedOperand {
     SelectedOperand {

@@ -55,15 +55,18 @@ fn write_only_immutable_local_range_bounds_retain_exact_element_window() {
         &facts,
         call,
         &cache,
-        ::validation::CallFrameResolver::new(&program).as_ref(),
+        crate::validation::CallFrameResolver::new(&program).as_ref(),
     )
     .expect("complete storage frame");
 
     assert_eq!(places.len(), 1, "exact callee write: {places:?}");
-    assert_eq!(places[0].root, facts::PlaceRoot::Symbol(values_symbol));
+    assert_eq!(
+        places[0].root,
+        crate::fact_plan::PlaceRoot::Symbol(values_symbol)
+    );
     assert_eq!(
         places[0].segments,
-        [facts::PlaceSegment::FixedRange { start: 1, end: 3 }]
+        [crate::fact_plan::PlaceSegment::FixedRange { start: 1, end: 3 }]
     );
 }
 
@@ -118,15 +121,18 @@ fn write_only_fixed_copy_record_range_call_retains_exact_element_window() {
         &facts,
         call,
         &cache,
-        ::validation::CallFrameResolver::new(&program).as_ref(),
+        crate::validation::CallFrameResolver::new(&program).as_ref(),
     )
     .expect("complete storage frame");
 
     assert_eq!(places.len(), 1, "exact callee write: {places:?}");
-    assert_eq!(places[0].root, facts::PlaceRoot::Symbol(values_symbol));
+    assert_eq!(
+        places[0].root,
+        crate::fact_plan::PlaceRoot::Symbol(values_symbol)
+    );
     assert_eq!(
         places[0].segments,
-        [facts::PlaceSegment::FixedRange { start: 1, end: 3 }]
+        [crate::fact_plan::PlaceSegment::FixedRange { start: 1, end: 3 }]
     );
 }
 
@@ -184,15 +190,18 @@ fn write_only_fixed_copy_sum_range_call_retains_atomic_element_window() {
         &facts,
         call,
         &cache,
-        ::validation::CallFrameResolver::new(&program).as_ref(),
+        crate::validation::CallFrameResolver::new(&program).as_ref(),
     )
     .expect("complete storage frame");
 
     assert_eq!(places.len(), 1, "exact callee write: {places:?}");
-    assert_eq!(places[0].root, facts::PlaceRoot::Symbol(values_symbol));
+    assert_eq!(
+        places[0].root,
+        crate::fact_plan::PlaceRoot::Symbol(values_symbol)
+    );
     assert_eq!(
         places[0].segments,
-        [facts::PlaceSegment::FixedRange { start: 1, end: 3 }],
+        [crate::fact_plan::PlaceSegment::FixedRange { start: 1, end: 3 }],
         "copy-sum elements remain atomic element ordinals without case/payload segments"
     );
 }
@@ -246,15 +255,18 @@ fn write_only_nested_fixed_array_range_call_retains_atomic_outer_window() {
         &facts,
         call,
         &cache,
-        ::validation::CallFrameResolver::new(&program).as_ref(),
+        crate::validation::CallFrameResolver::new(&program).as_ref(),
     )
     .expect("complete storage frame");
 
     assert_eq!(places.len(), 1, "exact callee write: {places:?}");
-    assert_eq!(places[0].root, facts::PlaceRoot::Symbol(values_symbol));
+    assert_eq!(
+        places[0].root,
+        crate::fact_plan::PlaceRoot::Symbol(values_symbol)
+    );
     assert_eq!(
         places[0].segments,
-        [facts::PlaceSegment::FixedRange { start: 1, end: 3 }],
+        [crate::fact_plan::PlaceSegment::FixedRange { start: 1, end: 3 }],
         "nested arrays remain atomic outer element ordinals"
     );
 }
@@ -310,15 +322,18 @@ fn write_only_fixed_copy_record_call_retains_exact_literal_index() {
         &facts,
         call,
         &cache,
-        ::validation::CallFrameResolver::new(&program).as_ref(),
+        crate::validation::CallFrameResolver::new(&program).as_ref(),
     )
     .expect("complete storage frame");
 
     assert_eq!(places.len(), 1, "exact callee write: {places:?}");
-    assert_eq!(places[0].root, facts::PlaceRoot::Symbol(values_symbol));
+    assert_eq!(
+        places[0].root,
+        crate::fact_plan::PlaceRoot::Symbol(values_symbol)
+    );
     assert_eq!(
         places[0].segments,
-        [facts::PlaceSegment::FixedIndex { index: 2 }]
+        [crate::fact_plan::PlaceSegment::FixedIndex { index: 2 }]
     );
 }
 
@@ -373,16 +388,19 @@ fn write_only_dynamic_copy_record_call_retains_collection_coarse_mutation() {
         &facts,
         call,
         &cache,
-        ::validation::CallFrameResolver::new(&program).as_ref(),
+        crate::validation::CallFrameResolver::new(&program).as_ref(),
     )
     .expect("complete storage frame");
 
     assert_eq!(places.len(), 1, "coarse callee write: {places:?}");
-    assert_eq!(places[0].root, facts::PlaceRoot::Symbol(values_symbol));
+    assert_eq!(
+        places[0].root,
+        crate::fact_plan::PlaceRoot::Symbol(values_symbol)
+    );
     assert!(
         matches!(
             places[0].segments.as_slice(),
-            [facts::PlaceSegment::Index { .. }]
+            [crate::fact_plan::PlaceSegment::Index { .. }]
         ),
         "a dynamic index must retain a runtime-index segment, which overlap and frame analysis conservatively treat as collection-wide: {places:?}"
     );
@@ -437,16 +455,19 @@ fn write_only_dynamic_byte_slice_call_retains_collection_coarse_mutation() {
         &facts,
         call,
         &cache,
-        ::validation::CallFrameResolver::new(&program).as_ref(),
+        crate::validation::CallFrameResolver::new(&program).as_ref(),
     )
     .expect("complete storage frame");
 
     assert_eq!(places.len(), 1, "coarse slice callee write: {places:?}");
-    assert_eq!(places[0].root, facts::PlaceRoot::Symbol(bytes_symbol));
+    assert_eq!(
+        places[0].root,
+        crate::fact_plan::PlaceRoot::Symbol(bytes_symbol)
+    );
     assert!(
         matches!(
             places[0].segments.as_slice(),
-            [facts::PlaceSegment::Index { .. }]
+            [crate::fact_plan::PlaceSegment::Index { .. }]
         ),
         "a dynamic byte-slice store must retain the runtime-index segment that overlap and invalidation conservatively treat as collection-wide: {places:?}"
     );

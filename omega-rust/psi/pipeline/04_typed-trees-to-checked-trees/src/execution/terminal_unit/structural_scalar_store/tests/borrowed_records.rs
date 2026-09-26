@@ -82,12 +82,12 @@ fn borrowed_receiver_scalar_results_survive_later_mutation_in_composed_plan() {
             .root_at(
                 initialized.symbol,
                 statement,
-                checked_trees::CheckedScalarExpressionRole::LocalInitializer {
+                crate::checked_trees::CheckedScalarExpressionRole::LocalInitializer {
                     binding_ordinal: binding,
                 },
             )
             .expect("each initializer retains its own whole-call computation");
-        let checked_trees::CheckedScalarComputationKind::Call {
+        let crate::checked_trees::CheckedScalarComputationKind::Call {
             source_call,
             target_state,
             structural_arguments,
@@ -102,26 +102,25 @@ fn borrowed_receiver_scalar_results_survive_later_mutation_in_composed_plan() {
         else {
             panic!("ordinary scalar call");
         };
-        let [checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)] = checked
-            .facts
-            .values
-            .scalar_computations
-            .structural_arguments
-            .span(structural_arguments)
-            .unwrap()
+        let [crate::checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)] =
+            checked
+                .facts
+                .values
+                .scalar_computations
+                .structural_arguments
+                .span(structural_arguments)
+                .unwrap()
         else {
             panic!("one projected receiver");
         };
         assert_eq!(argument.source_parameter_index(), Some(0));
         assert_eq!(
             argument.path,
-            [checked_trees::CheckedUnitStructuralPathSegment::Field(
-                "source".into()
-            )]
+            [crate::checked_trees::CheckedUnitStructuralPathSegment::Field("source".into())]
         );
         assert_eq!(
             argument.access,
-            checked_trees::CheckedStructuralAccess::SharedBorrow
+            crate::checked_trees::CheckedStructuralAccess::SharedBorrow
         );
         receiver_calls.push((source_call, target_state));
     }
@@ -131,14 +130,18 @@ fn borrowed_receiver_scalar_results_survive_later_mutation_in_composed_plan() {
     );
     let first = checked.facts.flow.control.calls.get(receiver_calls[0].0);
     let later = checked.facts.flow.control.calls.get(receiver_calls[1].0);
-    let typed_trees::expression::ExpressionNode::Call(first_expression) = checked
+    let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(
+        first_expression,
+    ) = checked
         .typed
         .expression_table
         .expression(first.authored_expression)
     else {
         panic!("call");
     };
-    let typed_trees::expression::ExpressionNode::Call(later_expression) = checked
+    let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(
+        later_expression,
+    ) = checked
         .typed
         .expression_table
         .expression(later.authored_expression)
@@ -187,7 +190,9 @@ fn borrowed_receiver_scalar_results_survive_later_mutation_in_composed_plan() {
             .root_at(
                 initialized.symbol,
                 1,
-                checked_trees::CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 }
+                crate::checked_trees::CheckedScalarExpressionRole::LocalInitializer {
+                    binding_ordinal: 0
+                }
             )
             .is_none(),
         "an earlier captured receiver cannot be replayed at the later call site"
@@ -197,7 +202,9 @@ fn borrowed_receiver_scalar_results_survive_later_mutation_in_composed_plan() {
             .root_at(
                 initialized.symbol,
                 3,
-                checked_trees::CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 1 }
+                crate::checked_trees::CheckedScalarExpressionRole::LocalInitializer {
+                    binding_ordinal: 1
+                }
             )
             .is_some(),
         "the later call retains its own exact authored occurrence"
@@ -216,7 +223,9 @@ fn borrowed_receiver_scalar_calls_do_not_grant_shared_storage_mutation() {
     assert!(checked("data Counter { value: i32; } machine Counter::write(&mut self, value: i32) { self.value = value; } machine invalid(counter: &Counter) { counter.write(66); }").is_err());
 }
 
-fn checked(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
+fn checked(
+    source: &str,
+) -> Result<crate::checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     checked_program_result(source)
 }
 
@@ -258,7 +267,7 @@ fn borrowed_record_store_selects_the_exact_destination_among_other_inputs() {
         };
         assert_eq!(
             store.destination,
-            checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter {
+            crate::checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter {
                 position: destination_position
             }
         );
@@ -294,7 +303,7 @@ fn borrowed_record_store_selects_the_exact_destination_among_other_inputs() {
             .iter_mut()
             .find(|parameter| parameter.position == destination_position)
             .unwrap()
-            .access = checked_trees::CheckedStructuralAccess::SharedBorrow;
+            .access = crate::checked_trees::CheckedStructuralAccess::SharedBorrow;
         assert!(
             build_structural_scalar_field_store_sequence(
                 program,

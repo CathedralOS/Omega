@@ -133,7 +133,7 @@ fn unused_attached_equations_still_validate_type_and_value_kinds() {
 
 #[test]
 fn bare_attached_selection_retains_its_exact_owner_and_member_roster() {
-    use symbol_resolved_trees::expression::ExpressionNode;
+    use crate::symbol_resolved_trees::expression::ExpressionNode;
     for (module, selection) in [
         ("", "Buffer::capacity"),
         ("module scope;", "scope::Buffer::capacity"),
@@ -167,7 +167,7 @@ fn bare_attached_selection_retains_its_exact_owner_and_member_roster() {
 
 #[test]
 fn bare_attached_selection_cannot_reopen_a_shadowed_owner() {
-    use symbol_resolved_trees::expression::ExpressionNode;
+    use crate::symbol_resolved_trees::expression::ExpressionNode;
     for (caller, expected_kind) in [
         (
             "machine recovered(Buffer: u64) -> u64 { Buffer::capacity }",

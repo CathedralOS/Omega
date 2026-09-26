@@ -11,19 +11,19 @@
 //! roster.
 
 use super::{CheckedDynamicCallLane, CheckedDynamicCallOccurrence, unsupported};
-use checked_trees::{
-    CheckedDynamicBinding, CheckedDynamicDispatchPlan, CheckedDynamicScalarCallOrigin,
-    CheckedDynamicSelectionPlan, CheckedDynamicUnitCallOrigin, CheckedStructuralAccess,
-    CheckedTrees, CheckedUnitCallCoordinate, CheckedUnitStructuralPathSegment,
-    DynamicConformanceRowFact,
-};
-use lowered_psi::{LoweredPsi, LoweredSourceCallOccurrence};
+use checked_trees_to_lowered_psi::lowered_psi::{LoweredPsi, LoweredSourceCallOccurrence};
 use semantic_vocabulary::MachineId;
 use std::collections::BTreeSet;
 use symbols::SymbolHandle;
 use terminal_psi::{
     ClosedConformanceApplication, OperationKind, StructuralAccess, StructuralArgument,
     StructuralPathSegment, TerminalDynamicConformanceSelection, TerminalMachine, TerminalModule,
+};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedDynamicBinding, CheckedDynamicDispatchPlan, CheckedDynamicScalarCallOrigin,
+    CheckedDynamicSelectionPlan, CheckedDynamicUnitCallOrigin, CheckedStructuralAccess,
+    CheckedTrees, CheckedUnitCallCoordinate, CheckedUnitStructuralPathSegment,
+    DynamicConformanceRowFact,
 };
 
 /// Borrowed view over the dispatch coordinates shared by the scalar and Unit
@@ -38,7 +38,7 @@ struct ReboundDispatchView<'a> {
     target_trait: SymbolHandle,
     selected_conformance: SymbolHandle,
     family_tuple: &'a [String],
-    selection: &'a checked_trees::DynamicConformanceBindingFact,
+    selection: &'a typed_trees_to_checked_trees::checked_trees::DynamicConformanceBindingFact,
     source_path: &'a [CheckedUnitStructuralPathSegment],
     source_type_identity: &'a str,
     source_parameter_position: u32,

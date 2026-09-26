@@ -133,7 +133,7 @@ the exact resolved source supplies instance identity.
 
 The workspace owns its lock; dependency locks do not pin the consumer's graph.
 Membership does not merge acceptance across roots. The current
-[lock codec](../../../omega-rust/omega/packages/manager/src/lock/README.md)
+[lock codec](../../../omega-rust/omega/src/package_manager/lock/README.md)
 retains one selected source closure with target sections, not a complete
 multi-root workspace lock. Multi-root storage remains implementation work;
 neither catalog membership nor another root's acceptance can fill missing state.

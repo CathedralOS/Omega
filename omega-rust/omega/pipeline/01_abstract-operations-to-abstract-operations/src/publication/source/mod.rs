@@ -2,8 +2,12 @@
 
 mod function;
 
-use abstract_operations::{AbstractOperationPlan, AbstractParameter};
-use optimization_unit::{PsiOptimizationUnit, ValueDefinition, ValueDefinitionSite};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractOperationPlan, AbstractParameter,
+};
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    PsiOptimizationUnit, ValueDefinition, ValueDefinitionSite,
+};
 
 use crate::OptimizedAbstractProjectionError;
 

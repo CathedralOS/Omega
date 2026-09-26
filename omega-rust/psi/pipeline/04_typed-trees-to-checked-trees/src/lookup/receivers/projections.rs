@@ -1,8 +1,7 @@
 //! Resolve projected types only beneath an exact, in-scope value declaration.
 
 use diagnostics::Diagnostic;
-use symbols::SymbolHandle;
-use typed_trees::{
+use symbol_resolved_trees_to_typed_trees::typed_trees::{
     TypedTrees,
     data::DataMember,
     expression::{ExpressionHandle, ExpressionNode},
@@ -11,6 +10,7 @@ use typed_trees::{
     statement::StatementNode,
     types::{TypeReferenceHandle, TypeReferenceNode},
 };
+use symbols::SymbolHandle;
 
 pub(super) struct Projection {
     pub root_symbol: SymbolHandle,
@@ -62,7 +62,7 @@ pub(super) fn root(
             }
             let (machine, _) =
                 crate::semantic::calls::find_state_with_machine(program, state.symbol)?;
-            validation::exact_attached_field(program, machine, symbol, name.as_str())
+            crate::validation::exact_attached_field(program, machine, symbol, name.as_str())
                 .map(|field| field.type_reference)
         })?;
     Some(Projection {
@@ -186,7 +186,12 @@ pub(super) fn expression(
             let Some(machine) = crate::semantic::calls::find_machine(program, state.symbol) else {
                 return Ok(None);
             };
-            if !validation::place_has_builtin_coordinates(program, machine, Some(state), handle) {
+            if !crate::validation::place_has_builtin_coordinates(
+                program,
+                machine,
+                Some(state),
+                handle,
+            ) {
                 // Authored indexing retains its selected result declaration;
                 // the collection's element type cannot replace that meaning.
                 return Ok(None);
@@ -198,7 +203,7 @@ pub(super) fn expression(
                 return Ok(None);
             }
             let Some(collection) =
-                validation::unwrapped_type_reference(program, receiver.type_reference)
+                crate::validation::unwrapped_type_reference(program, receiver.type_reference)
             else {
                 return Ok(None);
             };
@@ -260,7 +265,7 @@ pub(super) fn matches_symbol(
             |(machine, _)| {
                 program.state_parameters(state).iter().any(|parameter| {
                     parameter.is_self && (root == machine.symbol || root == parameter.symbol)
-                }) && validation::exact_attached_field(
+                }) && crate::validation::exact_attached_field(
                     program,
                     machine,
                     authored,

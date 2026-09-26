@@ -1,8 +1,8 @@
 //! Unit call arguments retain their authored local and exact borrow event.
 
-use checked_trees::expression::ExpressionNode;
-use checked_trees::statement::StatementNode;
-use checked_trees::{
+use typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode;
+use typed_trees_to_checked_trees::checked_trees::statement::StatementNode;
+use typed_trees_to_checked_trees::checked_trees::{
     CheckedTrees, CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralParameterPlan,
 };

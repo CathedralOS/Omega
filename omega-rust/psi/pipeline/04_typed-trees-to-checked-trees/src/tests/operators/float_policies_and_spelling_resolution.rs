@@ -3,7 +3,9 @@ use crate::operators::build_operator_facts;
 use crate::tests::front_end::checked_program;
 use crate::tests::{HandleSpan, SignatureContract, SignatureContractKind, SymbolHandle};
 use language_core::operator_spelling::OperatorSpelling;
-use typed_trees::expression::{ExpressionNode, TableIndexedExpression, TableRangeExpression};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionNode, TableIndexedExpression, TableRangeExpression,
+};
 
 #[test]
 fn records_checked_float_policy_adapters_from_operand_domains() {
@@ -46,22 +48,22 @@ fn records_checked_float_policy_adapters_from_operand_domains() {
         .collect::<Vec<_>>();
 
     assert!(adapters.contains(
-        &checked_trees::CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
+        &crate::checked_trees::CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
             format: numerics::float_semantics::FloatFormat::BINARY32,
         }
     ));
     assert!(adapters.contains(
-        &checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
+        &crate::checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
             format: numerics::float_semantics::FloatFormat::BINARY64,
         }
     ));
-    assert!(adapters.contains(&checked_trees::CheckedArithmeticPolicyAdapter::None));
+    assert!(adapters.contains(&crate::checked_trees::CheckedArithmeticPolicyAdapter::None));
     assert_eq!(
         adapters
             .iter()
             .filter(|adapter| matches!(
                 adapter,
-                checked_trees::CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
+                crate::checked_trees::CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
                     format: numerics::float_semantics::FloatFormat::BINARY32,
                 }
             ))
@@ -74,7 +76,7 @@ fn records_checked_float_policy_adapters_from_operand_domains() {
             .iter()
             .filter(|adapter| matches!(
                 adapter,
-                checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
+                crate::checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
                     format: numerics::float_semantics::FloatFormat::BINARY64,
                 }
             ))
@@ -124,16 +126,16 @@ fn records_checked_named_float_policy_adapters() {
         .collect::<Vec<_>>();
 
     assert!(adapters.contains(
-        &checked_trees::CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
+        &crate::checked_trees::CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
             format: numerics::float_semantics::FloatFormat::BINARY32,
         }
     ));
     assert!(adapters.contains(
-        &checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
+        &crate::checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
             format: numerics::float_semantics::FloatFormat::BINARY64,
         }
     ));
-    assert!(adapters.contains(&checked_trees::CheckedArithmeticPolicyAdapter::None));
+    assert!(adapters.contains(&crate::checked_trees::CheckedArithmeticPolicyAdapter::None));
 }
 
 #[test]
@@ -197,7 +199,7 @@ fn records_indexed_expression_operator_spelling_resolution() {
     let index_operator_symbol = SymbolHandle::from_arena_index(80);
     let range_operator_symbol = SymbolHandle::from_arena_index(81);
 
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let index_operator = operator_with_placeholder_operands(
         &mut program,
         index_operator_symbol,
@@ -260,7 +262,7 @@ fn records_indexed_expression_operator_spelling_resolution() {
     assert!(!facts.candidates(indexed_use)[0].is_domain_owned());
     assert_eq!(
         indexed_use.status,
-        checked_trees::CheckedOperatorResolutionStatus::Resolved
+        crate::checked_trees::CheckedOperatorResolutionStatus::Resolved
     );
     assert_eq!(ranged_use.spelling, OperatorSpelling::Range);
     assert_eq!(ranged_use.selected_operator_symbol, range_operator_symbol);
@@ -270,7 +272,7 @@ fn records_indexed_expression_operator_spelling_resolution() {
     );
     assert_eq!(
         ranged_use.status,
-        checked_trees::CheckedOperatorResolutionStatus::Resolved
+        crate::checked_trees::CheckedOperatorResolutionStatus::Resolved
     );
 }
 
@@ -279,7 +281,7 @@ fn records_ambiguous_operator_spelling_status() {
     let first_candidate = SymbolHandle::from_arena_index(90);
     let second_candidate = SymbolHandle::from_arena_index(91);
 
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let first_operator =
         operator_with_placeholder_operands(&mut program, first_candidate, OperatorSpelling::Index);
     program.push_operator(first_operator);
@@ -308,7 +310,7 @@ fn records_ambiguous_operator_spelling_status() {
     assert_eq!(indexed_use.spelling, OperatorSpelling::Index);
     assert_eq!(
         indexed_use.status,
-        checked_trees::CheckedOperatorResolutionStatus::Ambiguous
+        crate::checked_trees::CheckedOperatorResolutionStatus::Ambiguous
     );
     assert_eq!(indexed_use.candidate_count, 2);
     assert_eq!(
@@ -323,8 +325,8 @@ fn records_domain_owned_operator_candidates() {
     let domain_symbol = SymbolHandle::from_arena_index(100);
     let domain_operator_symbol = SymbolHandle::from_arena_index(101);
 
-    let mut program = typed_trees::TypedTrees::default();
-    let mut domain = typed_trees::domain::DomainDefinition {
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
+    let mut domain = symbol_resolved_trees_to_typed_trees::typed_trees::domain::DomainDefinition {
         symbol: domain_symbol,
         ..Default::default()
     };
@@ -357,7 +359,7 @@ fn records_domain_owned_operator_candidates() {
 
     assert_eq!(
         indexed_use.status,
-        checked_trees::CheckedOperatorResolutionStatus::DomainPending
+        crate::checked_trees::CheckedOperatorResolutionStatus::DomainPending
     );
     assert!(!indexed_use.selected_operator_symbol.is_valid());
     assert_eq!(candidates.len(), 1);
@@ -370,7 +372,7 @@ fn records_domain_owned_operator_candidates() {
 fn records_operator_contract_span_for_proof_bridge() {
     let operator_symbol = SymbolHandle::from_arena_index(105);
 
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let mut operator =
         operator_with_placeholder_operands(&mut program, operator_symbol, OperatorSpelling::Index);
     program.push_operator_contract(
@@ -420,7 +422,7 @@ fn records_operator_uses_per_semantic_origin() {
     let first_state = SymbolHandle::from_arena_index(111);
     let second_state = SymbolHandle::from_arena_index(112);
 
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let operator =
         operator_with_placeholder_operands(&mut program, operator_symbol, OperatorSpelling::Index);
     program.push_operator(operator);
@@ -438,30 +440,30 @@ fn records_operator_uses_per_semantic_origin() {
                 collection,
                 index,
             }));
-    let first_origin = checked_trees::CheckedValueOrigin::StateStatement {
+    let first_origin = crate::checked_trees::CheckedValueOrigin::StateStatement {
         machine_symbol: SymbolHandle::from_arena_index(113),
         state_symbol: first_state,
         statement_index: 0,
-        role: checked_trees::CheckedValueStatementRole::Expression,
+        role: crate::checked_trees::CheckedValueStatementRole::Expression,
     };
-    let second_origin = checked_trees::CheckedValueOrigin::StateStatement {
+    let second_origin = crate::checked_trees::CheckedValueOrigin::StateStatement {
         machine_symbol: SymbolHandle::from_arena_index(113),
         state_symbol: second_state,
         statement_index: 0,
-        role: checked_trees::CheckedValueStatementRole::Expression,
+        role: crate::checked_trees::CheckedValueStatementRole::Expression,
     };
     let mut value_roots = arena::Arena::with_capacity(2);
-    value_roots.append(checked_trees::CheckedValueFact {
+    value_roots.append(crate::checked_trees::CheckedValueFact {
         expression: indexed,
         origin: first_origin,
         ..Default::default()
     });
-    value_roots.append(checked_trees::CheckedValueFact {
+    value_roots.append(crate::checked_trees::CheckedValueFact {
         expression: indexed,
         origin: second_origin,
         ..Default::default()
     });
-    let values = checked_trees::CheckedValueFacts::with_roots(value_roots);
+    let values = crate::checked_trees::CheckedValueFacts::with_roots(value_roots);
 
     let facts = build_operator_facts(&program, &values);
 

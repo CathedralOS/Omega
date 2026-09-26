@@ -1,18 +1,20 @@
 //! Local referents demanded by checked computation and ordinary Unit calls.
 
-use checked_trees::{
+use crate::checked_trees::{
     CheckedScalarBinding, CheckedScalarBindingDestination, CheckedScalarBindingValue,
     CheckedScalarComputationKind, CheckedScalarComputationPlans, CheckedScalarExpressionPlans,
     CheckedScalarExpressionRole, CheckedScalarPrimitiveLocalPlan, CheckedStructuralAccess,
     CheckedUnitStructuralArgumentSourcePlan,
 };
+use symbol_resolved_trees_to_typed_trees::typed_trees::{
+    TypedTrees, statement::StatementNode, types::TypeReferenceNode,
+};
 use symbols::SymbolHandle;
-use typed_trees::{TypedTrees, statement::StatementNode, types::TypeReferenceNode};
 
 pub(in crate::execution) fn collect(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     expressions: &CheckedScalarExpressionPlans,
     computations: &CheckedScalarComputationPlans,
     bindings: &[CheckedScalarBinding],
@@ -45,13 +47,15 @@ pub(in crate::execution) fn collect(
             match &computations.nodes.get(handle).kind {
                 CheckedScalarComputationKind::CaseMembership {
                     subject:
-                        checked_trees::CheckedScalarComputationStructuralArgument::Place(_)
-                        | checked_trees::CheckedScalarComputationStructuralArgument::Array { .. },
+                        crate::checked_trees::CheckedScalarComputationStructuralArgument::Place(_)
+                        | crate::checked_trees::CheckedScalarComputationStructuralArgument::Array {
+                            ..
+                        },
                     ..
                 } => {}
                 CheckedScalarComputationKind::CaseMembership {
                     subject:
-                        checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
+                        crate::checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
                     ..
                 } => {
                     pending.extend(
@@ -72,7 +76,7 @@ pub(in crate::execution) fn collect(
                 CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
                     pending.push(*subject);
                     for arm in computations.dispatch_arms.span(*arms)? {
-                        if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) =
+                        if let crate::checked_trees::CheckedScalarDispatchPattern::Value(pattern) =
                             arm.pattern
                         {
                             pending.push(pattern);
@@ -93,7 +97,7 @@ pub(in crate::execution) fn collect(
                         .span(*structural_arguments)?
                     {
                         let argument = match argument {
-                            checked_trees::CheckedScalarComputationStructuralArgument::Case(
+                            crate::checked_trees::CheckedScalarComputationStructuralArgument::Case(
                                 subject,
                             ) => {
                                 pending.extend(
@@ -105,10 +109,10 @@ pub(in crate::execution) fn collect(
                                 );
                                 continue;
                             }
-                            checked_trees::CheckedScalarComputationStructuralArgument::Place(
+                            crate::checked_trees::CheckedScalarComputationStructuralArgument::Place(
                                 argument,
                             ) => argument,
-                            checked_trees::CheckedScalarComputationStructuralArgument::Array {
+                            crate::checked_trees::CheckedScalarComputationStructuralArgument::Array {
                                 elements,
                                 ..
                             } => {
@@ -171,13 +175,14 @@ pub(in crate::execution) fn collect(
             continue;
         };
         for expression in program.statement_table.expression_handles(call.arguments) {
-            let typed_trees::expression::ExpressionNode::Borrow(borrow) =
+            let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Borrow(borrow) =
                 program.expression_table.expression(*expression)
             else {
                 continue;
             };
-            let typed_trees::expression::ExpressionNode::Name(name) =
-                program.expression_table.expression(borrow.target)
+            let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Name(
+                name,
+            ) = program.expression_table.expression(borrow.target)
             else {
                 continue;
             };
@@ -204,8 +209,8 @@ pub(in crate::execution) fn collect(
 
 fn local_plan(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     expressions: &CheckedScalarExpressionPlans,
     computations: &CheckedScalarComputationPlans,
     bindings: &[CheckedScalarBinding],

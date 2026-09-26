@@ -4,7 +4,7 @@
 //! Classification retains the prior wildcard-free semantic order: shifts,
 //! add/subtract/multiply, quotient/remainder, then bitwise operations.
 
-use abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
 
 use crate::rules::sparse_conditional_constant_propagation::integer_binary_constants::{
     IntegerBinaryKind, IntegerBinaryShape,

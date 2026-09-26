@@ -1,18 +1,20 @@
 //! Unit-result dynamic dispatch and forwarded descriptor custody.
 
-use abstract_operations::{AbstractDynamicDescriptorSource, AbstractOperation};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use optimization_unit::{
-    recompute_psi_optimization_unit_identity, reconstruct_psi_optimization_unit_seed,
-};
-use optimization_unit_semantics::validate_psi_optimization_unit;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::FuelScheduleIdentity;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{encode_module, encode_proof_section};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractDynamicDescriptorSource, AbstractOperation,
+};
 use terminal_psi_to_abstract_operations::lower_artifact;
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    recompute_psi_optimization_unit_identity, reconstruct_psi_optimization_unit_seed,
+};
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit;
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;

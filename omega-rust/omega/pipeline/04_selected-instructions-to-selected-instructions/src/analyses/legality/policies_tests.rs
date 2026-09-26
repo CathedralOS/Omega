@@ -3,7 +3,8 @@ use crate::analyses::legality::policies::active_resident_immediate_u64_multi_use
 
 #[test]
 fn active_resident_two_view_policy_reports_the_exact_missing_required_view() {
-    let mut model = isa_x86_64::x86_64_physical_register_model();
+    let mut model =
+        target_operations_to_selected_instructions::isa_x86_64::x86_64_physical_register_model();
     model.views.retain(|view| view.name != "rcx");
 
     assert_eq!(

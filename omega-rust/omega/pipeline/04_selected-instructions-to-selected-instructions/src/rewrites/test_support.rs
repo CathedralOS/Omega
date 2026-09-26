@@ -6,8 +6,8 @@
 //! file holds only the identifiers and shapes that distinguish its subject.
 
 use optimization_core::OptimizationWorkBudget;
-use register_model::RegisterInstructionConstraint;
-use selected_instructions::{
+use target_operations_to_selected_instructions::register_model::RegisterInstructionConstraint;
+use target_operations_to_selected_instructions::{
     SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedOperand,
     VirtualRegisterId,
 };

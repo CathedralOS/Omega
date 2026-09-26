@@ -1,8 +1,8 @@
 use crate::parse;
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::item::Item;
 use source::SourceId;
 use source_files_to_tokens::Lexer;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::item::Item;
 
 #[test]
 fn appending_sources_preserves_root_handles_and_source_identity() {

@@ -12,11 +12,11 @@
 //! body, and the verifier replays the same exact-case exit
 //! (`exact_payloadless_case_return_exits`) before it accepts any guarded row.
 
-use checked_trees::CheckedTrees;
 use symbols::SymbolHandle;
 use terminal_psi::{
     OperationKind, OutcomeSpecificGuard, TerminalMachine, TerminalModule, Terminator,
 };
+use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
 
 use crate::lowering_error::{LoweringError, unsupported};
 

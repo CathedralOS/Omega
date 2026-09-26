@@ -5,10 +5,10 @@ use super::{
     SelectedInstructionKind, VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
+use crate::selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::transport_register;
-use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 use semantic_vocabulary::{IntegerValue, StructuralPlaceKind};
 use terminal_psi::{StructuralAccess, StructuralTypeShape};
 

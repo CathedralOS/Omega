@@ -1,7 +1,7 @@
 use super::fixture::{Fixture, assert_status};
-use package_manager::resolution::graph::CanonicalDependencySourceRequest;
-use package_manager::review::ReviewOnlyRootPolicyDisposition;
-use package_source::ImmutableSourceResolution;
+use omega::package_manager::resolution::graph::CanonicalDependencySourceRequest;
+use omega::package_manager::review::ReviewOnlyRootPolicyDisposition;
+use omega::package_source::ImmutableSourceResolution;
 use std::fs;
 use std::process::Output;
 

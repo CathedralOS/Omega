@@ -44,8 +44,8 @@ fn shared_self_receiver_results_keep_their_decline() {
     assert!(
         matches!(
             error,
-            crate::lowering_error::LoweringError::InvalidUnitMachinePlan { .. }
-                | crate::lowering_error::LoweringError::Unsupported(_)
+            crate::LoweringError::InvalidUnitMachinePlan { .. }
+                | crate::LoweringError::Unsupported(_)
         ),
         "unexpected outcome: {error:?}"
     );
@@ -68,8 +68,8 @@ fn member_leaf_shared_results_keep_their_decline() {
     assert!(
         matches!(
             error,
-            crate::lowering_error::LoweringError::InvalidUnitMachinePlan { .. }
-                | crate::lowering_error::LoweringError::Unsupported(_)
+            crate::LoweringError::InvalidUnitMachinePlan { .. }
+                | crate::LoweringError::Unsupported(_)
         ),
         "unexpected outcome: {error:?}"
     );
@@ -93,8 +93,8 @@ fn mutable_named_results_keep_their_owned_decline() {
     assert!(
         matches!(
             error,
-            crate::lowering_error::LoweringError::InvalidUnitMachinePlan { .. }
-                | crate::lowering_error::LoweringError::Unsupported(_)
+            crate::LoweringError::InvalidUnitMachinePlan { .. }
+                | crate::LoweringError::Unsupported(_)
         ),
         "unexpected outcome: {error:?}"
     );

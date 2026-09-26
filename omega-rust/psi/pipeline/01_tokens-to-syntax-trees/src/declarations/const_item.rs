@@ -6,11 +6,11 @@
 
 use crate::expressions::parse_expression::parse_expression_handle;
 use crate::input::token_cursor::{Input, ParseResult};
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::identifier::Identifier;
+use crate::syntax_trees::item::ConstDefinition;
 use crate::type_syntax::parse_type::parse_type_reference_handle;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::identifier::Identifier;
-use syntax_trees::item::ConstDefinition;
-use tokens::PunctuationKind;
+use source_files_to_tokens::tokens::PunctuationKind;
 
 pub(super) fn parse_const_definition<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,

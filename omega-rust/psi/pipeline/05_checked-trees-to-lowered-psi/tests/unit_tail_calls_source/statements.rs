@@ -1,6 +1,6 @@
 //! Standalone Unit expressions perform work without becoming scalar values.
 use super::{ExpressionNode, StatementNode};
-use checked_trees::CheckedScalarExpressionRole;
+use typed_trees_to_checked_trees::checked_trees::CheckedScalarExpressionRole;
 
 fn source(result: &str, callee_result: &str, body: &str) -> String {
     format!(
@@ -34,11 +34,15 @@ fn standalone_unit_call_before_later_work_checks_without_return_authority() {
             else {
                 panic!("the indexed call must exercise source expression-statement admission")
             };
-            assert!(validation::unit_statement_call_is_supported(
-                &typed, root, state, expression,
-            ));
             assert!(
-                !validation::unit_return_call_is_supported(&typed, root, state, expression),
+                typed_trees_to_checked_trees::validation::unit_statement_call_is_supported(
+                    &typed, root, state, expression,
+                )
+            );
+            assert!(
+                !typed_trees_to_checked_trees::validation::unit_return_call_is_supported(
+                    &typed, root, state, expression
+                ),
                 "the public tail-only contract must remain unchanged"
             );
             typed_trees_to_checked_trees::lower_typed_trees(
@@ -158,7 +162,7 @@ fn standalone_unit_call_requires_its_exact_ordinary_target() {
             "scalar target" => call.target_symbol = scalar_target,
             "machine argument" => {
                 call.machine_arguments =
-                    Box::new([typed_trees::expression::StaticMachineArgument {
+                    Box::new([symbol_resolved_trees_to_typed_trees::typed_trees::expression::StaticMachineArgument {
                         path: Box::new([]),
                         application: None,
                         type_reference: Default::default(),
@@ -170,7 +174,9 @@ fn standalone_unit_call_requires_its_exact_ordinary_target() {
             _ => unreachable!(),
         }
         assert!(
-            !validation::unit_statement_call_is_supported(&changed, root, state, expression),
+            !typed_trees_to_checked_trees::validation::unit_statement_call_is_supported(
+                &changed, root, state, expression
+            ),
             "{modifier} cannot acquire standalone Unit authority"
         );
     }
@@ -193,11 +199,15 @@ fn reused_unit_statement_handle_cannot_authorize_a_scalar_return_tail() {
     };
     *statements.last_mut().unwrap() = StatementNode::Expression(expression);
     assert!(
-        !validation::unit_statement_call_is_supported(&typed, &root, &state, expression),
+        !typed_trees_to_checked_trees::validation::unit_statement_call_is_supported(
+            &typed, &root, &state, expression
+        ),
         "a reused direct root has no unique statement occurrence"
     );
     assert!(
-        !validation::unit_return_call_is_supported(&typed, &root, &state, expression),
+        !typed_trees_to_checked_trees::validation::unit_return_call_is_supported(
+            &typed, &root, &state, expression
+        ),
         "the scalar return contract must still reject the Unit tail"
     );
     let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(

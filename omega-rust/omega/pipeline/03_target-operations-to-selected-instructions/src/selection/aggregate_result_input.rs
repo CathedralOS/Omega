@@ -1,5 +1,5 @@
 //! Exact semantic shape, value backing, and ABI custody for aggregates.
-use legalized_operations::{
+use crate::legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
 };
 use semantic_vocabulary::PlaceId;
@@ -32,8 +32,8 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
     let dispatched = source.blocks.iter().any(|block| {
         matches!(
             &block.terminator,
-            legalized_operations::LegalizedScalarTerminator::StructuralCase {
-                source: legalized_operations::LegalizedStructuralCaseSource::Parameter { declaration },
+            crate::legalized_operations::LegalizedScalarTerminator::StructuralCase {
+                source: crate::legalized_operations::LegalizedStructuralCaseSource::Parameter { declaration },
                 ..
             } if declaration.place == place
         )
@@ -46,7 +46,7 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
             LegalizedScalarInstructionKind::StructuralCaseMembership { source, path, .. } => *source == place && !path.is_empty(),
             LegalizedScalarInstructionKind::StructuralLeafCopy { source, .. } => *source == place,
             LegalizedScalarInstructionKind::Call(call) => call.arguments.iter().any(|argument| {
-                matches!(argument, legalized_operations::LegalizedScalarArgument::Structural { semantic, .. }
+                matches!(argument, crate::legalized_operations::LegalizedScalarArgument::Structural { semantic, .. }
                     if semantic.place == place && semantic.access != StructuralAccess::Owned)
             }),
             _ => false,
@@ -154,9 +154,12 @@ pub(super) fn membership_layout(
                 .collect::<Option<Vec<_>>>()
         })
         .collect::<Option<Vec<_>>>()?;
-    let layout = calling_conventions::evaluate_conventional_sum_layout(&[], &payloads).ok()?;
+    let layout = abstract_operations_to_target_operations::calling_conventions::evaluate_conventional_sum_layout(&[], &payloads).ok()?;
     if layout.tag_byte_offset != 0
-        || layout.tag_shape != calling_conventions::ValueShape::integer(4, 4)
+        || layout.tag_shape
+            != abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(
+                4, 4,
+            )
     {
         return None;
     }
@@ -196,10 +199,10 @@ pub(super) fn has_local_aggregates(source: &LegalizedScalarFunction) -> bool {
 
 pub(super) fn call_result<'a>(
     source: &LegalizedScalarFunction,
-    call: &'a legalized_operations::LegalizedScalarCall,
+    call: &'a crate::legalized_operations::LegalizedScalarCall,
 ) -> Option<(
     &'a terminal_psi::StructuralOperationResult,
-    &'a calling_conventions::ValuePlacement,
+    &'a abstract_operations_to_target_operations::calling_conventions::ValuePlacement,
 )> {
     let result = call.structural_result.as_ref()?;
     // The qualification roster is custody evidence carried on the result,
@@ -252,12 +255,13 @@ pub(super) fn call_result<'a>(
 
 pub(super) fn returned_parameter<'a>(
     source: &'a LegalizedScalarFunction,
-    value: &legalized_operations::LegalizedScalarReturnValue,
+    value: &crate::legalized_operations::LegalizedScalarReturnValue,
 ) -> Option<(
-    &'a legalized_operations::LegalizedCallUnitParameter,
-    &'a calling_conventions::ValuePlacement,
+    &'a crate::legalized_operations::LegalizedCallUnitParameter,
+    &'a abstract_operations_to_target_operations::calling_conventions::ValuePlacement,
 )> {
-    let legalized_operations::LegalizedScalarReturnValue::StructuralParameter { place } = value
+    let crate::legalized_operations::LegalizedScalarReturnValue::StructuralParameter { place } =
+        value
     else {
         return None;
     };
@@ -303,19 +307,22 @@ pub(super) fn returned_parameter<'a>(
 
 /// Inline arguments may occupy registers or a contiguous incoming stack extent.
 /// Result admission remains separate: a stack argument does not admit a hidden result pointer.
-pub(super) fn inline_argument_fragments(placement: &calling_conventions::ValuePlacement) -> bool {
+pub(super) fn inline_argument_fragments(
+    placement: &abstract_operations_to_target_operations::calling_conventions::ValuePlacement,
+) -> bool {
     if !placement.shape.alignment.is_power_of_two() {
         return false;
     }
     if direct_fragments(placement) {
         return true;
     }
-    if placement.shape.class != calling_conventions::ValueClass::Integer
+    if placement.shape.class
+        != abstract_operations_to_target_operations::calling_conventions::ValueClass::Integer
         || placement.shape.byte_size == 0
     {
         return false;
     }
-    let Some(calling_conventions::ValueLocation::Stack {
+    let Some(abstract_operations_to_target_operations::calling_conventions::ValueLocation::Stack {
         stack_byte_offset: base,
         ..
     }) = placement.locations.first()
@@ -327,7 +334,7 @@ pub(super) fn inline_argument_fragments(placement: &calling_conventions::ValuePl
     }
     let mut offset = 0u16;
     for location in &placement.locations {
-        let calling_conventions::ValueLocation::Stack {
+        let abstract_operations_to_target_operations::calling_conventions::ValueLocation::Stack {
             stack_byte_offset,
             value_byte_offset,
             byte_size,
@@ -354,15 +361,20 @@ pub(super) fn inline_argument_fragments(placement: &calling_conventions::ValuePl
 
 /// Complete call-plan replay fixes register choice and disjoint stack offsets.
 /// This classifier distinguishes an owned value copy from a borrowed pointer.
-pub(super) fn owned_argument_placement(placement: &calling_conventions::ValuePlacement) -> bool {
+pub(super) fn owned_argument_placement(
+    placement: &abstract_operations_to_target_operations::calling_conventions::ValuePlacement,
+) -> bool {
     inline_argument_fragments(placement) || indirect_argument(placement).is_some()
 }
 
 pub(super) fn indirect_argument(
-    placement: &calling_conventions::ValuePlacement,
-) -> Option<(calling_conventions::IndirectPointerLocation, u32)> {
+    placement: &abstract_operations_to_target_operations::calling_conventions::ValuePlacement,
+) -> Option<(
+    abstract_operations_to_target_operations::calling_conventions::IndirectPointerLocation,
+    u32,
+)> {
     let [
-        calling_conventions::ValueLocation::Indirect {
+        abstract_operations_to_target_operations::calling_conventions::ValueLocation::Indirect {
             pointer,
             copy_stack_byte_offset: Some(copy_offset),
             byte_size,
@@ -372,7 +384,8 @@ pub(super) fn indirect_argument(
     else {
         return None;
     };
-    if placement.shape.class != calling_conventions::ValueClass::Integer
+    if placement.shape.class
+        != abstract_operations_to_target_operations::calling_conventions::ValueClass::Integer
         || *byte_size == 0
         || *byte_size != placement.shape.byte_size
         || *alignment != placement.shape.alignment
@@ -385,18 +398,21 @@ pub(super) fn indirect_argument(
     Some((*pointer, *copy_offset))
 }
 
-pub(super) fn direct_fragments(placement: &calling_conventions::ValuePlacement) -> bool {
+pub(super) fn direct_fragments(
+    placement: &abstract_operations_to_target_operations::calling_conventions::ValuePlacement,
+) -> bool {
     if super::scalar_call_abi::empty_aggregate_placement(placement) {
         return true;
     }
-    if placement.shape.class != calling_conventions::ValueClass::Integer
+    if placement.shape.class
+        != abstract_operations_to_target_operations::calling_conventions::ValueClass::Integer
         || !(1..=2).contains(&placement.locations.len())
     {
         return false;
     }
     let mut offset = 0;
     for location in &placement.locations {
-        let calling_conventions::ValueLocation::Register {
+        let abstract_operations_to_target_operations::calling_conventions::ValueLocation::Register {
             value_byte_offset,
             byte_size,
             ..
@@ -417,18 +433,19 @@ pub(super) fn direct_fragments(placement: &calling_conventions::ValuePlacement) 
 
 pub(super) fn returned<'a>(
     source: &'a LegalizedScalarFunction,
-    value: &legalized_operations::LegalizedScalarReturnValue,
+    value: &crate::legalized_operations::LegalizedScalarReturnValue,
 ) -> Option<(
-    selected_instructions::LocalStorageSlotId,
-    &'a calling_conventions::ValuePlacement,
+    crate::selected_instructions::LocalStorageSlotId,
+    &'a abstract_operations_to_target_operations::calling_conventions::ValuePlacement,
 )> {
-    let legalized_operations::LegalizedScalarReturnValue::Structural { source: owner } = value
+    let crate::legalized_operations::LegalizedScalarReturnValue::Structural { source: owner } =
+        value
     else {
         return None;
     };
     let declared = source.structural.as_ref()?.result.as_ref()?;
     let (slot, shape, structural_type, multiplicity) = match owner {
-        legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+        crate::legalized_operations::LegalizedStructuralCaseSource::OperationResult {
             operation,
             result: returned,
         } => {
@@ -467,7 +484,7 @@ pub(super) fn returned<'a>(
                 return None;
             }
             (
-                selected_instructions::LocalStorageSlotId::Structural {
+                crate::selected_instructions::LocalStorageSlotId::Structural {
                     operation: *operation,
                     place: result.place,
                 },
@@ -476,7 +493,7 @@ pub(super) fn returned<'a>(
                 result.multiplicity,
             )
         }
-        legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+        crate::legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
             block,
             declaration,
         } => {
@@ -491,7 +508,7 @@ pub(super) fn returned<'a>(
                 return None;
             }
             (
-                selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
+                crate::selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
                     block: *block,
                     place: declaration.place,
                 },
@@ -500,6 +517,8 @@ pub(super) fn returned<'a>(
                 parameter.multiplicity,
             )
         }
+        // A returned parameter uses `StructuralParameter`, never this owner.
+        crate::legalized_operations::LegalizedStructuralCaseSource::Parameter { .. } => {
         // A returned parameter uses `StructuralParameter`, never this owner;
         // a borrowed dispatch source has no local custody slot at all.
         legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
@@ -559,7 +578,10 @@ pub(super) fn fields<'a>(
         || layout.cases.len() != cases.len()
         || !layout.common_fields.is_empty()
         || layout.tag_byte_offset != 0
-        || layout.tag_shape != calling_conventions::ValueShape::integer(4, 4)
+        || layout.tag_shape
+            != abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(
+                4, 4,
+            )
     {
         return None;
     }
@@ -587,7 +609,7 @@ pub(super) fn fields<'a>(
 pub(super) fn block_parameter_shape(
     source: &LegalizedScalarFunction,
     parameter: &terminal_psi::StructuralParameterDeclaration,
-) -> Option<calling_conventions::ValueShape> {
+) -> Option<abstract_operations_to_target_operations::calling_conventions::ValueShape> {
     if parameter.access != terminal_psi::StructuralAccess::Owned
         || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
         || !parameter.qualifications.is_empty()
@@ -633,7 +655,7 @@ pub(super) fn block_parameter_shape(
         })
         .collect::<Option<Vec<_>>>()?;
     Some(
-        calling_conventions::evaluate_conventional_sum_layout(&[], &payloads)
+        abstract_operations_to_target_operations::calling_conventions::evaluate_conventional_sum_layout(&[], &payloads)
             .ok()?
             .shape,
     )
@@ -641,13 +663,14 @@ pub(super) fn block_parameter_shape(
 
 /// The ABI planner, rather than an arbitrary pointer register, owns the hidden destination.
 pub(super) fn indirect_result(
-    placement: &calling_conventions::ValuePlacement,
-    policy: calling_conventions::CallingPolicy,
-) -> Option<calling_conventions::MachineRegister> {
-    use calling_conventions::{
+    placement: &abstract_operations_to_target_operations::calling_conventions::ValuePlacement,
+    policy: abstract_operations_to_target_operations::calling_conventions::CallingPolicy,
+) -> Option<abstract_operations_to_target_operations::calling_conventions::MachineRegister> {
+    use abstract_operations_to_target_operations::calling_conventions::{
         CallSignature, IndirectPointerLocation, ValueLocation, evaluate_call_plan,
     };
-    if placement.shape.class != calling_conventions::ValueClass::Integer
+    if placement.shape.class
+        != abstract_operations_to_target_operations::calling_conventions::ValueClass::Integer
         || placement.shape.byte_size == 0
         || !placement.shape.alignment.is_power_of_two()
     {

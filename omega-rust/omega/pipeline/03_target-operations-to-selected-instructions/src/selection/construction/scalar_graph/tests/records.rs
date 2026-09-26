@@ -60,7 +60,7 @@ fn record_selection_rejoins_fields_layout_and_store_occurrences() {
     ] {
         let source = record_fixture(target, 2);
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -139,7 +139,7 @@ fn nested_record_copy_rejoins_child_identity_and_narrow_tail() {
     ] {
         let source = nested_fixture(target, 3);
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -218,7 +218,7 @@ fn indirect_record_return_replays_hidden_entry_and_exact_writes() {
     ] {
         let source = record_fixture(target, 24);
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -246,8 +246,8 @@ fn indirect_record_return_replays_hidden_entry_and_exact_writes() {
         validate(&source, &selected).unwrap();
         if matches!(
             source.call_plan.policy,
-            calling_conventions::CallingPolicy::MicrosoftX64
-                | calling_conventions::CallingPolicy::SystemVAMD64
+            abstract_operations_to_target_operations::calling_conventions::CallingPolicy::MicrosoftX64
+                | abstract_operations_to_target_operations::calling_conventions::CallingPolicy::SystemVAMD64
         ) {
             let SelectedTerminator::Return { instruction, .. } = &selected.blocks[0].terminator
             else {
@@ -346,7 +346,7 @@ fn indirect_record_call_keeps_hidden_input_separate_from_shifted_arguments() {
             crash_continuations: Vec::new(),
         });
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -500,7 +500,7 @@ fn nested_fixture(target: target::NativeTarget, child_count: u16) -> LegalizedSc
         panic!("return");
     };
     returned.value = LegalizedScalarReturnValue::Structural {
-        source: legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+        source: crate::legalized_operations::LegalizedStructuralCaseSource::OperationResult {
             operation,
             result,
         },

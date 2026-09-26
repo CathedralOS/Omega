@@ -3,13 +3,13 @@
 //! this pins the exact spelling for every root and segment kind so the
 //! diagnostics this crate emits cannot drift silently.
 
+use crate::fact_plan::{PlaceRoot, PlaceSegment};
 use crate::tests::front_end::typed_program;
-use facts::{PlaceRoot, PlaceSegment};
 use numerics::literals::IntegerLiteral;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::data::DataMember;
-use typed_trees::expression::ExpressionNode;
 
 const SOURCE: &str = r#"
     data Inner { value: u64; }
@@ -88,7 +88,7 @@ fn receiver_and_local(program: &TypedTrees) -> (SymbolHandle, SymbolHandle) {
         .statements(state.statement_nodes)
         .iter()
         .find_map(|statement| match statement {
-            typed_trees::statement::StatementNode::LocalData(local) => Some(local.symbol),
+            symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) => Some(local.symbol),
             _ => None,
         })
         .expect("picked local");
@@ -126,7 +126,7 @@ fn place_labels_spell_every_root_and_segment_kind() {
         .expect("count type");
 
     let label = |root: PlaceRoot, segments: &[PlaceSegment]| {
-        facts::canonical_place_label_from_parts(&program, root, segments)
+        crate::fact_plan::canonical_place_label_from_parts(&program, root, segments)
     };
     let receiver_root = PlaceRoot::Symbol(receiver);
 
@@ -209,7 +209,7 @@ fn receiver_rooted_labels_round_trip_through_language_core() {
     let program = typed_program(SOURCE);
     let (receiver, _) = receiver_and_local(&program);
     let items = field_symbol(&program, "Carrier", "items");
-    let label = facts::canonical_place_label_from_parts(
+    let label = crate::fact_plan::canonical_place_label_from_parts(
         &program,
         PlaceRoot::Symbol(receiver),
         &[

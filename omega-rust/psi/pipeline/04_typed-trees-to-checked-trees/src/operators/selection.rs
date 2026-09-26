@@ -10,16 +10,20 @@
 //! one exists (unique root candidate or a primitive operand's builtin), and is
 //! rejected otherwise. Two or more admissible domain meanings are ambiguous.
 
-use checked_trees::{
+use crate::checked_trees::{
     CheckedOperatorCandidateFact, CheckedOperatorFacts, CheckedOperatorResolutionStatus,
     CheckedOperatorUseFact, CheckedValueOrigin,
 };
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode, TableCastExpression,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
+};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::domain::ProofFact;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
-use typed_trees::signature::SignatureContractKind;
-use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 use super::receiver::expression_type_reference_for_origin;
 
@@ -150,7 +154,7 @@ fn type_selects_semantic_domain(
             .constraints(*constraints)
             .iter()
             .any(|constraint| match constraint {
-                typed_trees::types::TypeConstraintNode::Domain(domain) => {
+                symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode::Domain(domain) => {
                     domain.symbol == domain_symbol
                         && domain.semantic_roles.denotation_dimension.is_some()
                 }
@@ -193,9 +197,11 @@ fn cast_selects_domain(
     if cast.semantic_domain.is_empty() {
         return false;
     }
-    let Some(domain) = typed_trees::domain::domain_by_symbol(program, domain_symbol)
-        .filter(|domain| domain.semantic_roles.denotation_dimension.is_some())
-    else {
+    let Some(domain) = symbol_resolved_trees_to_typed_trees::typed_trees::domain::domain_by_symbol(
+        program,
+        domain_symbol,
+    )
+    .filter(|domain| domain.semantic_roles.denotation_dimension.is_some()) else {
         return false;
     };
     let authored = program
@@ -238,7 +244,7 @@ fn local_initializer_selects_domain(
         .iter()
         .take(statement_index)
         .find_map(|statement| match statement {
-            typed_trees::statement::StatementNode::LocalData(local)
+            symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local)
                 if (symbol.is_valid() && local.symbol == symbol)
                     || local.name.as_str() == binding_name =>
             {
@@ -313,7 +319,7 @@ fn direct_binding_symbol(
 /// primitive scalar does, a user data type does not. Indexed core surfaces
 /// normally retain their root candidate and therefore do not need this path.
 fn builtin_meaning_exists(program: &TypedTrees, operator_use: &CheckedOperatorUseFact) -> bool {
-    if operator_use.occurrence != checked_trees::CheckedOperatorOccurrence::Expression {
+    if operator_use.occurrence != crate::checked_trees::CheckedOperatorOccurrence::Expression {
         return false;
     }
     let Some(left_operand) = operator_use

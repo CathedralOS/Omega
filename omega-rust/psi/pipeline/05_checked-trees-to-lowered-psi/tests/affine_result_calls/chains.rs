@@ -151,8 +151,8 @@ pub(super) fn assert_execution(
         terminal_verifier::verify_module(&decoded, &decoded_proof, &AdmissionProfile::default())
             .unwrap();
     let certificate =
-        terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, decoded.entry).unwrap();
-    terminal_fixed_fuel::validate_fixed_entry_fuel(&verified, &certificate).unwrap();
+        omega::terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, decoded.entry).unwrap();
+    omega::terminal_fixed_fuel::validate_fixed_entry_fuel(&verified, &certificate).unwrap();
     assert_eq!(certificate.ceiling_units(), fuel as u64);
     let caller = &module.machines[0];
     let structural_arguments = caller
@@ -345,7 +345,7 @@ fn unused_results_are_disposed_in_reverse_order_before_older_parameters() {
 
 #[test]
 fn result_chains_reject_binding_source_and_cleanup_drift() {
-    use checked_trees::CheckedUnitStructuralArgumentSourcePlan as ArgumentSource;
+    use typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan as ArgumentSource;
     for mutation in 0..7 {
         let mut checked = checked(CHAIN);
         let caller = checked

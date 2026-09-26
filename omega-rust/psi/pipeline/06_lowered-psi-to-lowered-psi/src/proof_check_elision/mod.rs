@@ -15,7 +15,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::PsiOptimizationStageError;
-use lowered_psi::LoweredPsi;
+use checked_trees_to_lowered_psi::lowered_psi::LoweredPsi;
 use semantic_vocabulary::{ObligationId, ScalarType, ValueId};
 use terminal_psi::{OperationKind, TerminalMachine};
 use terminal_semantics::ScalarLeafLiteral;

@@ -9,8 +9,10 @@ use super::{
     Block, LoweringError, OperationKind, StructuralAccess, StructuralMultiplicity,
     StructuralParameterDeclaration, TerminalAffineCleanupAction, Terminator, complete,
 };
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
 use semantic_vocabulary::OperationId;
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 #[test]
 fn parameter_completion_preserves_disjoint_temporary_and_local_cleanup() {
@@ -520,15 +522,18 @@ fn actual_affine_limits_artifact_rejects_missing_duplicate_and_transferred_clean
         }
     ";
     let checked = crate::front_end::checked_program(source);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("root"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("publish affine scalar graph")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                "root",
+            ),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("publish affine scalar graph")
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).expect("module");
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).expect("proof");
     let profile = proof_admission::AdmissionProfile::default();

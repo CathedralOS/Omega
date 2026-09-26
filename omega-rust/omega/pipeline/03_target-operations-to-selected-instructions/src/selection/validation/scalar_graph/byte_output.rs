@@ -4,12 +4,12 @@ use super::{
     SelectedInstructionProvenance,
 };
 use crate::SelectedInstructionError;
-use crate::selection::validation::scalar_graph::Replay;
-use legalized_operations::LegalizedScalarInstruction;
-use selected_instructions::{
+use crate::legalized_operations::LegalizedScalarInstruction;
+use crate::selected_instructions::{
     LocalStorageSlotId, SelectedBoundarySettlement, SelectedBoundarySettlementPayload,
     SelectedLocalStorageSlot,
 };
+use crate::selection::validation::scalar_graph::Replay;
 
 pub(super) fn validate(
     row: &LegalizedScalarInstruction,
@@ -20,7 +20,7 @@ pub(super) fn validate(
     };
     let (_, input, _, scalar_type) = replay.resolve(source).ok_or_else(|| replay.invalid())?;
     if row.result.is_some()
-        || !matches!(row.ownership.as_slice(), [optimization_unit::OwnershipEvent::ClaimCompletion(claims)] if claims.is_empty())
+        || !matches!(row.ownership.as_slice(), [terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::ClaimCompletion(claims)] if claims.is_empty())
         || !matches!(scalar_type, ScalarType::Integer(integer)
             if integer.bits() == 32 && integer.sign() == IntegerSign::Signed)
     {

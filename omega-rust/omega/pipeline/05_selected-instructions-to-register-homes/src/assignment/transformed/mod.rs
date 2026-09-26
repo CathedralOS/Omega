@@ -20,7 +20,7 @@ use crate::{
     ValidatedRegisterHomes,
 };
 use optimization_core::PostAllocationOptimizationManifestIdentity;
-use register_homes::PostAllocationOptimizationManifestError;
+use selected_instructions_to_selected_instructions::register_homes::PostAllocationOptimizationManifestError;
 use selected_instructions_to_selected_instructions::{
     OptimizedLiteralFoldCustodyError, OptimizedPreAllocationCustodyError, SelectedProgramRef,
     StagedOptimizedLiteralFoldCustodyReceipt, StagedOptimizedLiteralFolds,
@@ -97,7 +97,7 @@ impl StagedOptimizedRegisterHomesAfterLiteralFolds {
     /// folds preserve it, so the source's environment is the current one.
     pub const fn register_environment(
         &self,
-    ) -> &register_environment::ValidatedTargetRegisterEnvironment {
+    ) -> &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment{
         self.folds.source_legality_stage().register_environment()
     }
     /// The governing optimizer selections admitted with the source stage.
@@ -229,7 +229,7 @@ impl StagedOptimizedRegisterHomesAfterSelectedLowering {
     /// current one.
     pub const fn register_environment(
         &self,
-    ) -> &register_environment::ValidatedTargetRegisterEnvironment {
+    ) -> &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment{
         self.run.source_legality_stage().register_environment()
     }
     /// The governing optimizer selections admitted with the run.
@@ -348,7 +348,7 @@ impl StagedOptimizedRegisterHomesAfterPreAllocation {
     /// is the current one.
     pub const fn register_environment(
         &self,
-    ) -> &register_environment::ValidatedTargetRegisterEnvironment {
+    ) -> &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment{
         self.run.source_legality_stage().register_environment()
     }
     /// The governing optimizer selections admitted with the run.

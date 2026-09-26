@@ -1,11 +1,11 @@
-use checked_trees::{CheckFacts, CheckedTrees};
 use source::{SourceId, SourceSpan, Span};
-use symbol_resolved_trees::{
+use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+use symbols::SymbolHandle;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::{
     AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
     AuthoredDeclarationSelectionLateBinding, SymbolResolvedTrees,
 };
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use symbols::SymbolHandle;
+use typed_trees_to_checked_trees::checked_trees::{CheckFacts, CheckedTrees};
 
 #[test]
 fn typing_and_checked_wrapping_preserve_authored_selection_occurrences() {

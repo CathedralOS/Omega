@@ -1,9 +1,9 @@
 //! Declared call-result types select typed method candidates. These queries do
 //! not prove a runtime receiver origin, effects, or reference access legality.
 
-use symbol_resolved_trees as resolved;
+use crate::typed_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use symbols::{SymbolHandle, SymbolKind};
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees as resolved;
 
 #[cfg(test)]
 mod tests;

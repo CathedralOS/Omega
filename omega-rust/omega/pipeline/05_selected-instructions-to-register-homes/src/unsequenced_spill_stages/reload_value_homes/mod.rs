@@ -17,18 +17,20 @@ use crate::unsequenced_spill_stages::{
     AbstractSpillInsertionIdentity, ValidatedAbstractSpillInsertion,
 };
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use register_homes::{
+use selected_instructions_to_selected_instructions::register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, LogicalReloadValueId,
     LogicalSpillOperationIdentity,
-};
-use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
-use selected_instructions::{
-    LiveRangeIdentity, LiveRangePoint, SelectedBlockId, VirtualRegisterId,
 };
 use selected_instructions_to_selected_instructions::{
     ValidatedAllocationLegality, ValidatedLiveRanges,
 };
 use semantic_vocabulary::MachineId;
+use target_operations_to_selected_instructions::register_model::{
+    RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity,
+};
+use target_operations_to_selected_instructions::{
+    LiveRangeIdentity, LiveRangePoint, SelectedBlockId, VirtualRegisterId,
+};
 
 #[allow(clippy::too_many_arguments)]
 pub fn assign_reload_value_homes(
@@ -36,10 +38,10 @@ pub fn assign_reload_value_homes(
     logical: &ValidatedLogicalSpillOperations,
     legality: &ValidatedAllocationLegality,
     ranges: &ValidatedLiveRanges,
-    physical: &register_model::ValidatedPhysicalRegisterModel,
-    constraints: &register_model::ValidatedRegisterConstraintCatalog,
-    reservations: &register_model::ValidatedRegisterReservationProfile,
-    selected_keys: &register_model::TargetRegisterEnvironmentConstraintKeys,
+    physical: &target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel,
+    constraints: &target_operations_to_selected_instructions::register_model::ValidatedRegisterConstraintCatalog,
+    reservations: &target_operations_to_selected_instructions::register_model::ValidatedRegisterReservationProfile,
+    selected_keys: &target_operations_to_selected_instructions::register_model::TargetRegisterEnvironmentConstraintKeys,
     policy: ReloadValueHomePolicy,
     budget: optimization_core::OptimizationWorkBudget,
 ) -> Result<ValidatedReloadValueHomes, ReloadValueHomeError> {

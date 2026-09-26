@@ -1,6 +1,6 @@
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
+use crate::symbol_resolved_trees::signature::SignatureContractKind;
 use diagnostics::Diagnostic;
-use symbol_resolved_trees::SymbolResolvedTrees;
-use symbol_resolved_trees::signature::SignatureContractKind;
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use super::expression_paths::resolve_expression_table_call_target_symbol;
@@ -173,7 +173,8 @@ pub(super) fn assign_contract_reference_symbols(
     // using the same lexical expression resolver as other callable contracts.
     // This scope has no executable receiver or enclosing value parameters.
     for (_, parameter) in data_type_parameters.iter() {
-        let symbol_resolved_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind
+        let crate::symbol_resolved_trees::data::TypeParameterKind::Machine { contract } =
+            &parameter.kind
         else {
             continue;
         };
@@ -213,20 +214,22 @@ pub(super) fn assign_contract_reference_symbols(
 fn assign_contract_span(
     symbols: &SymbolTable,
     machine: &MachineScope<'_>,
-    signature_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
-    parameters: &[symbol_resolved_trees::signature::StateParameter],
+    signature_type_parameters: &[crate::symbol_resolved_trees::data::TypeParameter],
+    parameters: &[crate::symbol_resolved_trees::signature::StateParameter],
     state_symbol: SymbolHandle,
-    contracts: arena::HandleSpan<symbol_resolved_trees::signature::SignatureContract>,
-    signature_contracts: &arena::Arena<symbol_resolved_trees::signature::SignatureContract>,
-    proof_facts: &arena::Arena<symbol_resolved_trees::domain::ProofFact>,
-    expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
-    child_type_references: &mut arena::Arena<symbol_resolved_trees::types::TypeReference>,
+    contracts: arena::HandleSpan<crate::symbol_resolved_trees::signature::SignatureContract>,
+    signature_contracts: &arena::Arena<crate::symbol_resolved_trees::signature::SignatureContract>,
+    proof_facts: &arena::Arena<crate::symbol_resolved_trees::domain::ProofFact>,
+    expression_table: &mut crate::symbol_resolved_trees::expression::ExpressionTable,
+    child_type_references: &mut arena::Arena<crate::symbol_resolved_trees::types::TypeReference>,
 ) {
     for contract in signature_contracts.span_or_empty(contracts) {
         for fact in proof_facts.span_or_empty(contract.facts) {
             let expression = match fact {
-                symbol_resolved_trees::domain::ProofFact::Expression(expression) => *expression,
-                symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
+                crate::symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
+                    *expression
+                }
+                crate::symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
                     // An indexed application's arguments resolve in the
                     // signature's lexical generic scope, exactly as a
                     // parameter's `T in Family<P>` constraint arguments do:
@@ -271,13 +274,13 @@ fn assign_contract_span(
 fn assign_contract_call_symbols(
     symbols: &SymbolTable,
     machine: &MachineScope<'_>,
-    parameters: &[symbol_resolved_trees::signature::StateParameter],
+    parameters: &[crate::symbol_resolved_trees::signature::StateParameter],
     state_symbol: SymbolHandle,
-    expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
-    child_type_references: &mut arena::Arena<symbol_resolved_trees::types::TypeReference>,
-    expression: symbol_resolved_trees::expression::ExpressionHandle,
+    expression_table: &mut crate::symbol_resolved_trees::expression::ExpressionTable,
+    child_type_references: &mut arena::Arena<crate::symbol_resolved_trees::types::TypeReference>,
+    expression: crate::symbol_resolved_trees::expression::ExpressionHandle,
 ) {
-    use symbol_resolved_trees::expression::ExpressionNode;
+    use crate::symbol_resolved_trees::expression::ExpressionNode;
 
     if !expression.is_valid() {
         return;
@@ -294,7 +297,8 @@ fn assign_contract_call_symbols(
                 dispatch.subject,
             );
             for arm in expression_table.match_arms(dispatch.arms).to_vec() {
-                if let symbol_resolved_trees::expression::MatchPattern::Value(pattern) = arm.pattern
+                if let crate::symbol_resolved_trees::expression::MatchPattern::Value(pattern) =
+                    arm.pattern
                 {
                     assign_contract_call_symbols(
                         symbols,
@@ -584,7 +588,7 @@ fn assign_contract_call_symbols(
 /// Bind every pending outcome-specific contract to the result data and case
 /// it names, once top-level symbols exist.
 pub(crate) fn finalize_outcome_specific_contract_symbols(
-    program: &mut symbol_resolved_trees::SymbolResolvedTrees,
+    program: &mut crate::symbol_resolved_trees::SymbolResolvedTrees,
     pending: &[crate::resolution::lowerer::PendingOutcomeSpecificContract],
 ) -> Result<(), Diagnostic> {
     for pending in pending {
@@ -611,7 +615,7 @@ pub(crate) fn finalize_outcome_specific_contract_symbols(
                 .data_members(data.members)
                 .iter()
                 .find_map(|member| match member {
-                    symbol_resolved_trees::data::DataMember::Variant(variant)
+                    crate::symbol_resolved_trees::data::DataMember::Variant(variant)
                         if variant.name.as_str() == pending.result_case_name =>
                     {
                         Some(variant.symbol)

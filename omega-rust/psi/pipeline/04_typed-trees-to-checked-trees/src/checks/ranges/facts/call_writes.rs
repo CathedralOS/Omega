@@ -3,7 +3,9 @@
 use super::RangeFacts;
 use crate::flow::CanonicalPlace;
 use crate::semantic::calls::CallSite;
-use typed_trees::{TypedTrees, machine::Machine, state::State};
+use symbol_resolved_trees_to_typed_trees::typed_trees::{
+    TypedTrees, machine::Machine, state::State,
+};
 
 #[cfg(test)]
 mod tests;
@@ -12,19 +14,19 @@ mod tests;
 pub(in crate::checks::ranges) struct RangeCallContext<'program> {
     machine: &'program Machine,
     state: &'program State,
-    borrows: &'program checked_trees::BorrowFacts,
-    borrow_calls: &'program [checked_trees::BorrowCallFact],
-    flow_calls: &'program [checked_trees::FlowCallFact],
-    call_frames: Option<&'program validation::CallFrameResolver<'program>>,
+    borrows: &'program crate::checked_trees::BorrowFacts,
+    borrow_calls: &'program [crate::checked_trees::BorrowCallFact],
+    flow_calls: &'program [crate::checked_trees::FlowCallFact],
+    call_frames: Option<&'program crate::validation::CallFrameResolver<'program>>,
 }
 
 impl<'program> RangeCallContext<'program> {
     pub(in crate::checks::ranges) fn new(
         machine: &'program Machine,
         state: &'program State,
-        borrows: &'program checked_trees::BorrowFacts,
-        flow: &'program checked_trees::FlowFacts,
-        call_frames: Option<&'program validation::CallFrameResolver<'program>>,
+        borrows: &'program crate::checked_trees::BorrowFacts,
+        flow: &'program crate::checked_trees::FlowFacts,
+        call_frames: Option<&'program crate::validation::CallFrameResolver<'program>>,
     ) -> Self {
         let borrow_calls = borrows
             .states
@@ -57,7 +59,7 @@ impl<'program> RangeCallContext<'program> {
     /// caller to construct its own exactly as it did before the pass shared one.
     pub(in crate::checks::ranges) fn call_frames(
         &self,
-    ) -> Option<&validation::CallFrameResolver<'_>> {
+    ) -> Option<&crate::validation::CallFrameResolver<'_>> {
         self.call_frames
     }
 
@@ -71,7 +73,7 @@ impl<'program> RangeCallContext<'program> {
         state: &State,
         statement_index: usize,
         site: &CallSite<'_>,
-    ) -> Option<&checked_trees::BorrowCallFact> {
+    ) -> Option<&crate::checked_trees::BorrowCallFact> {
         if machine.symbol != self.machine.symbol || state.symbol != self.state.symbol {
             return None;
         }
@@ -82,7 +84,7 @@ impl<'program> RangeCallContext<'program> {
                 CallSite::Statement(statement_call) => call.call_ordinal == 0
                     && !call.authored_expression.is_valid()
                     && matches!(program.statement_table.statements(state.statement_nodes).get(statement_index),
-                        Some(typed_trees::statement::StatementNode::Call(candidate))
+                        Some(symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Call(candidate))
                             if std::ptr::eq(*statement_call, candidate)),
                 // The named target call is the one occurrence in a transition
                 // statement whose checked row has no authored expression;
@@ -104,7 +106,7 @@ impl<'program> RangeCallContext<'program> {
                             target.is_valid()
                                 && matches!(
                                     program.statement_table.transition_target(target),
-                                    typed_trees::statement::TransitionTargetNode::Named {
+                                    symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Named {
                                         path: candidate,
                                         ..
                                     } if std::ptr::eq(*path, candidate)
@@ -127,14 +129,14 @@ impl<'program> RangeCallContext<'program> {
     /// caller place as a read.
     pub(in crate::checks::ranges) fn operand_access_places(
         &self,
-        call: &checked_trees::BorrowCallFact,
+        call: &crate::checked_trees::BorrowCallFact,
     ) -> Vec<CanonicalPlace> {
         self.borrows
             .argument_accesses
             .span_or_empty(call.accesses)
             .iter()
             .map(|access| CanonicalPlace {
-                root: facts::PlaceRoot::Symbol(access.root_symbol),
+                root: crate::fact_plan::PlaceRoot::Symbol(access.root_symbol),
                 segments: self
                     .borrows
                     .access_segments
@@ -169,8 +171,8 @@ impl RangeFacts<'_> {
         // coordinates may overlap; only retained fixed selectors narrow writes.
         for write in &mut writes {
             for segment in &mut write.segments {
-                if let facts::PlaceSegment::Index { expression } = segment {
-                    *expression = typed_trees::expression::ExpressionHandle::invalid();
+                if let crate::fact_plan::PlaceSegment::Index { expression } = segment {
+                    *expression = symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid();
                 }
             }
         }

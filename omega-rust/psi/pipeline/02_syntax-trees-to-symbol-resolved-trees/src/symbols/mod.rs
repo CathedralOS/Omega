@@ -8,8 +8,8 @@
 
 use std::sync::Arc;
 
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
 use source::SourceMap;
-use symbol_resolved_trees::SymbolResolvedTrees;
 
 mod symbol_table;
 
@@ -40,15 +40,15 @@ use top_level::assign_top_level_symbols;
 pub(crate) fn normalize_static_module_calls(
     program: &mut SymbolResolvedTrees,
     calls: &[(
-        symbol_resolved_trees::expression::ExpressionHandle,
-        Vec<symbol_resolved_trees::name::DiagnosticName>,
+        crate::symbol_resolved_trees::expression::ExpressionHandle,
+        Vec<crate::symbol_resolved_trees::name::DiagnosticName>,
     )],
     statement_calls: &[(
         source::SourceSpan,
-        Vec<symbol_resolved_trees::name::DiagnosticName>,
+        Vec<crate::symbol_resolved_trees::name::DiagnosticName>,
     )],
 ) {
-    use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
+    use crate::symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
     use symbols::{SymbolHandle, SymbolKind};
     for (expression, path) in calls {
         let Some((target, receiver)) = path.split_last() else {
@@ -137,7 +137,8 @@ pub(crate) fn normalize_static_module_calls(
             .expression_mut(*expression)
         {
             call.receiver = ExpressionHandle::invalid();
-            call.target = symbol_resolved_trees::name::DiagnosticName::from_str(&name, reference);
+            call.target =
+                crate::symbol_resolved_trees::name::DiagnosticName::from_str(&name, reference);
             call.target_symbol = selected;
         }
     }
@@ -147,7 +148,7 @@ pub(crate) fn normalize_static_module_calls(
         .declarations
         .state_statements
         .for_each_mut(|_, statement| {
-            let symbol_resolved_trees::statement::Statement::Call(call) = statement else {
+            let crate::symbol_resolved_trees::statement::Statement::Call(call) = statement else {
                 return;
             };
             let Some((_, path)) = statement_calls
@@ -193,15 +194,16 @@ pub(crate) fn normalize_static_module_calls(
             call.receiver = arena::HandleSpan::empty();
             call.receiver_symbol = SymbolHandle::invalid();
             call.receiver_root_symbol = SymbolHandle::invalid();
-            call.target = symbol_resolved_trees::name::DiagnosticName::from_str(&name, reference);
+            call.target =
+                crate::symbol_resolved_trees::name::DiagnosticName::from_str(&name, reference);
             call.target_symbol = selected;
         });
 }
 
 #[derive(Default)]
 pub(crate) struct NamespaceDeclarations {
-    pub(crate) modules: Vec<Vec<syntax_trees::identifier::Identifier>>,
-    pub(crate) imports: Vec<Vec<syntax_trees::identifier::Identifier>>,
+    pub(crate) modules: Vec<Vec<tokens_to_syntax_trees::syntax_trees::identifier::Identifier>>,
+    pub(crate) imports: Vec<Vec<tokens_to_syntax_trees::syntax_trees::identifier::Identifier>>,
 }
 
 impl NamespaceDeclarations {
@@ -397,7 +399,7 @@ pub(crate) fn assign_symbols_against_resolved_base(
 /// initializer into any body; use-site namespaces never resolve its constructors.
 pub(crate) fn assign_constant_expression_symbols(
     program: &mut SymbolResolvedTrees,
-    initializers: impl IntoIterator<Item = symbol_resolved_trees::expression::ExpressionHandle>,
+    initializers: impl IntoIterator<Item = crate::symbol_resolved_trees::expression::ExpressionHandle>,
 ) {
     let attached_machines = scope::attached_machines(program);
     let declarations = &mut program.tables.declarations;

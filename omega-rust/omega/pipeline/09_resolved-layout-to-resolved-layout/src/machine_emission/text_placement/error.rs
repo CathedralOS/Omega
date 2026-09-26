@@ -1,0 +1,60 @@
+use semantic_vocabulary::MachineId;
+
+use super::placement::TextPlacementError;
+use crate::machine_emission::fragment_emission::FunctionFragmentEmissionError;
+use crate::machine_emission::frame_application::FunctionFragmentFrameApplicationError;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RelocationFreeTextSectionPlacementError {
+    Source(FunctionFragmentEmissionError),
+    FrameSource(FunctionFragmentFrameApplicationError),
+    DuplicateFunction(MachineId),
+    MissingSemanticEntry(MachineId),
+    DuplicateSemanticEntry(MachineId),
+    OffsetOverflow,
+    StatisticsOverflow,
+    SourceShapeMismatch,
+    MisalignedAarch64Span,
+    UnsupportedRelocationShape,
+    UnresolvedInternalMachineFixups,
+    MissingInternalMachineTarget(MachineId),
+    InternalCallOutOfRange,
+    ArtifactMismatch,
+    ManifestMismatch,
+    ReceiptMismatch,
+}
+
+impl std::fmt::Display for RelocationFreeTextSectionPlacementError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "optimized relocation-free text-section placement failed: {self:?}"
+        )
+    }
+}
+
+impl std::error::Error for RelocationFreeTextSectionPlacementError {}
+
+impl From<TextPlacementError> for RelocationFreeTextSectionPlacementError {
+    fn from(error: TextPlacementError) -> Self {
+        use TextPlacementError as Source;
+        match error {
+            Source::OffsetOverflow => Self::OffsetOverflow,
+            Source::StatisticsOverflow => Self::StatisticsOverflow,
+            Source::SourceShapeMismatch => Self::SourceShapeMismatch,
+            Source::MisalignedAarch64Span => Self::MisalignedAarch64Span,
+            Source::UnsupportedRelocationShape => Self::UnsupportedRelocationShape,
+            Source::UnresolvedInternalMachineFixups => Self::UnresolvedInternalMachineFixups,
+            Source::InternalCallOutOfRange => Self::InternalCallOutOfRange,
+            Source::ArtifactMismatch => Self::ArtifactMismatch,
+            Source::DuplicateFunction(machine) => Self::DuplicateFunction(machine),
+            Source::MissingSemanticEntry(machine) => Self::MissingSemanticEntry(machine),
+            Source::DuplicateSemanticEntry(machine) => Self::DuplicateSemanticEntry(machine),
+            Source::MissingInternalMachineTarget(machine) => {
+                Self::MissingInternalMachineTarget(machine)
+            }
+        }
+    }
+}
+
+pub use post_allocation_machine_to_selected_form_encoding::machine_code::FunctionFragmentTextSectionManifestDecodeError;

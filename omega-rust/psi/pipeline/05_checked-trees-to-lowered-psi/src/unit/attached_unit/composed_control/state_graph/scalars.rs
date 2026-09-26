@@ -8,7 +8,9 @@ use super::super::{CheckedTrees, LoweringError};
 use super::CheckedComposedUnitControlStatePlan;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::expression_preparation::bindings::ScalarBindings;
-use checked_trees::{CheckedScalarBindingDestination, CheckedScalarBindingValue};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedScalarBindingDestination, CheckedScalarBindingValue,
+};
 
 /// Select the retained value at its authored successor coordinate. Storage
 /// reads use computation nodes; pure expressions keep their ordinary binding.
@@ -16,8 +18,8 @@ pub(in crate::unit::attached_unit::composed_control) fn successor_value(
     checked: &CheckedTrees,
     state: &CheckedComposedUnitControlStatePlan,
     edge: &super::CheckedStructuralControlSuccessorPlan,
-    argument: &checked_trees::CheckedStructuralScalarArgumentPlan,
-) -> Result<checked_trees::CheckedCallScalarArgument, LoweringError> {
+    argument: &typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentPlan,
+) -> Result<typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument, LoweringError> {
     let role = CheckedScalarExpressionRole::TransitionArgument {
         argument_ordinal: argument.argument_ordinal,
     };
@@ -73,9 +75,11 @@ pub(in crate::unit::attached_unit::composed_control) fn successor_value(
             root.root,
             source.expression,
         )?;
-        Ok(checked_trees::CheckedCallScalarArgument::Computation(
-            root.root,
-        ))
+        Ok(
+            typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Computation(
+                root.root,
+            ),
+        )
     } else {
         let (binding, value) = pure
             .bound_expression_at(state.state, edge.statement_ordinal, role)
@@ -87,14 +91,16 @@ pub(in crate::unit::attached_unit::composed_control) fn successor_value(
             binding,
             terminal_scalar_type(argument.primitive_type)?,
         )?;
-        Ok(checked_trees::CheckedCallScalarArgument::Pure(
-            value.clone(),
-        ))
+        Ok(
+            typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(
+                value.clone(),
+            ),
+        )
     }
 }
 
 fn role(
-    binding: &checked_trees::CheckedScalarBinding,
+    binding: &typed_trees_to_checked_trees::checked_trees::CheckedScalarBinding,
     immutable_ordinal: u32,
 ) -> CheckedScalarExpressionRole {
     match binding.destination {
@@ -309,10 +315,10 @@ pub(in crate::unit::attached_unit::composed_control) fn flat_case_payload_reads<
 /// member, leaf)` so the staged block can mint the member copy and its scalar
 /// leaf read. Other shapes stay on the ordinary observation path and decline.
 pub(in crate::unit::attached_unit::composed_control) fn nested_case_payload_reads<'a>(
-    expression: &'a checked_trees::CheckedScalarExpression,
+    expression: &'a typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression,
     reads: &mut Vec<(u32, &'a str, &'a str, &'a str)>,
 ) {
-    use checked_trees::{
+    use typed_trees_to_checked_trees::checked_trees::{
         CheckedBooleanExpression as Boolean, CheckedScalarExpression as Scalar,
         CheckedStructuralPredicatePathSegment as Segment,
     };
@@ -328,7 +334,7 @@ pub(in crate::unit::attached_unit::composed_control) fn nested_case_payload_read
         Some((case.as_str(), member.as_str(), leaf.as_str()))
     }
     fn scalar<'a>(
-        expression: &'a checked_trees::CheckedScalarExpression,
+        expression: &'a typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression,
         reads: &mut Vec<(u32, &'a str, &'a str, &'a str)>,
     ) {
         match expression {
@@ -357,7 +363,7 @@ pub(in crate::unit::attached_unit::composed_control) fn nested_case_payload_read
         }
     }
     fn boolean<'a>(
-        expression: &'a checked_trees::CheckedBooleanExpression,
+        expression: &'a typed_trees_to_checked_trees::checked_trees::CheckedBooleanExpression,
         reads: &mut Vec<(u32, &'a str, &'a str, &'a str)>,
     ) {
         match expression {

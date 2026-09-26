@@ -2,9 +2,11 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use abstract_operations::{AbstractOperation, AbstractOperationPlan};
+use crate::target_operations::{TargetOperationPlan, TargetUnitOperation};
 use target::NativeTarget;
-use target_operations::{TargetOperationPlan, TargetUnitOperation};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractOperation, AbstractOperationPlan,
+};
 
 use super::{
     AbstractToTargetFunctionRosterReceipt, AbstractToTargetTranslationValidationError,
@@ -50,7 +52,7 @@ pub fn validate_abstract_to_target_translation_with_ieee_float_fma_settlements(
             .collect::<BTreeMap<_, _>>()
             .into_values()
             .cloned()
-            .collect::<abstract_operations::StructuralTypeCatalog>()
+            .collect::<terminal_psi_to_abstract_operations::abstract_operations::StructuralTypeCatalog>()
     };
     let mut function_roster = Vec::with_capacity(source.functions.len());
     for (position, (source_function, target_function)) in

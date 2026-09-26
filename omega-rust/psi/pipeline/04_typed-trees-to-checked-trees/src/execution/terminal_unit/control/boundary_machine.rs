@@ -21,7 +21,7 @@ pub(crate) fn build_boundary_machine(
     program: &TypedTrees,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
 ) -> Option<CheckedBoundaryMachinePlan> {
     let [state] = program.machine_states(machine) else {
         return None;
@@ -75,12 +75,12 @@ pub(crate) fn build_boundary_machine(
 /// proposition form here and, as before this lane existed, is not published.
 fn boundary_scalar_requires(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    contract: &checked_trees::MachineContractPlan,
-) -> Option<Vec<checked_trees::ClosedScalarContractValue>> {
-    use checked_trees::ClosedScalarContractValue;
-    use typed_trees::domain::ProofFact;
-    use typed_trees::signature::SignatureContractKind;
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    contract: &crate::checked_trees::MachineContractPlan,
+) -> Option<Vec<crate::checked_trees::ClosedScalarContractValue>> {
+    use crate::checked_trees::ClosedScalarContractValue;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind;
 
     let closed = &contract.closed_scalar_values;
     let authored = program
@@ -142,10 +142,10 @@ pub(crate) fn build_static_boundary_requirements(
             // plan, retained as `callback_placement` on each recorded use of
             // this registrar.
             let nominal_use_backs_binder =
-                |ordinal: usize, parameter: &typed_trees::data::TypeParameter| {
-                    let typed_trees::data::TypeParameterKind::Machine {
+                |ordinal: usize, parameter: &symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameter| {
+                    let symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Machine {
                         contract:
-                            typed_trees::data::MachineParameterContract::Nominal {
+                            symbol_resolved_trees_to_typed_trees::typed_trees::data::MachineParameterContract::Nominal {
                                 trait_definition,
                                 requirement,
                             },
@@ -173,9 +173,9 @@ pub(crate) fn build_static_boundary_requirements(
                                 parameter.name == callback.binder
                                     && matches!(
                                     parameter.kind,
-                                    typed_trees::data::TypeParameterKind::Machine {
+                                    symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Machine {
                                         contract:
-                                            typed_trees::data::MachineParameterContract::Nominal {
+                                            symbol_resolved_trees_to_typed_trees::typed_trees::data::MachineParameterContract::Nominal {
                                                 ..
                                             }
                                     }
@@ -289,7 +289,7 @@ pub(crate) fn build_static_boundary_requirements(
                     break;
                 };
                 if is_reference(program, parameter_type)
-                    && !checked_trees::is_borrowed_view(byte_sequence_carrier(
+                    && !crate::checked_trees::is_borrowed_view(byte_sequence_carrier(
                         program,
                         parameter_type,
                         &[],
@@ -475,10 +475,15 @@ fn static_boundary_call_targets(
 fn specialized_signature_substitutions(
     program: &TypedTrees,
     facts: &CheckFacts,
-    signature: &typed_trees::signature::StateSignature,
-    type_parameters: &[typed_trees::data::TypeParameter],
-) -> Option<Vec<(SymbolHandle, typed_trees::types::TypeReferenceHandle)>> {
-    let mut resolved: Option<Vec<checked_trees::CheckedRequirementCallTypeBinding>> = None;
+    signature: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateSignature,
+    type_parameters: &[symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameter],
+) -> Option<
+    Vec<(
+        SymbolHandle,
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    )>,
+> {
+    let mut resolved: Option<Vec<crate::checked_trees::CheckedRequirementCallTypeBinding>> = None;
     for (_, flow_state) in facts.flow.control.states.iter() {
         for call in facts.flow.control.calls.span_or_empty(flow_state.calls) {
             if call.target_symbol != signature.symbol {
@@ -499,17 +504,19 @@ fn specialized_signature_substitutions(
                         flow_state.state_symbol,
                     )?;
                     let offset = u32::try_from(call.statement_index).ok()?;
-                    checked_trees::NominalMachineUseSite::Statement(arena::Handle::from_parts(
-                        state
-                            .statement_nodes
-                            .start()
-                            .arena_index()
-                            .checked_add(offset)?,
-                        state.statement_nodes.start().generation(),
-                    ))
+                    crate::checked_trees::NominalMachineUseSite::Statement(
+                        arena::Handle::from_parts(
+                            state
+                                .statement_nodes
+                                .start()
+                                .arena_index()
+                                .checked_add(offset)?,
+                            state.statement_nodes.start().generation(),
+                        ),
+                    )
                 }
                 crate::semantic::calls::CallSite::Expression { expression, .. } => {
-                    checked_trees::NominalMachineUseSite::Expression(*expression)
+                    crate::checked_trees::NominalMachineUseSite::Expression(*expression)
                 }
                 crate::semantic::calls::CallSite::TransitionNamed { .. } => return None,
             };
@@ -539,11 +546,11 @@ fn specialized_signature_substitutions(
             if !type_parameters
                 .iter()
                 .all(|parameter| match &parameter.kind {
-                    typed_trees::data::TypeParameterKind::Type => specialization
+                    symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Type => specialization
                         .type_bindings
                         .iter()
                         .any(|binding| binding.parameter == parameter.symbol),
-                    typed_trees::data::TypeParameterKind::Machine { .. } => {
+                    symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Machine { .. } => {
                         specialization.machine_selections.iter().any(|selection| {
                             selection.parameter == parameter.symbol
                                 && selection.selected_machine.is_valid()
@@ -576,9 +583,12 @@ fn specialized_signature_substitutions(
 pub(crate) fn boundary_result_plan(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
-    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
+    substitutions: &[(
+        SymbolHandle,
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    )],
 ) -> Option<CheckedBoundaryMachineResultPlan> {
     let type_reference = substituted_formal_type(program, type_reference, substitutions);
     if is_unit(program, type_reference) {

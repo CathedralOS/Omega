@@ -22,11 +22,14 @@ fn target_erased_proof_arity(
     .len())
 }
 use crate::unit::attached_unit::bodies::{UnitBody, UnitPlans};
-use checked_trees::{CheckedUnitCallCoordinate, CheckedUnitEffectOperationPlan};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedUnitCallCoordinate, CheckedUnitEffectOperationPlan,
+};
 
 pub(super) struct Prepared {
     pub(super) coordinate: CheckedUnitCallCoordinate,
-    pub(super) arguments: Vec<checked_trees::CheckedCallScalarArgument>,
+    pub(super) arguments:
+        Vec<typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument>,
     pub(super) argument_types: Vec<QualifiedScalarType>,
     pub(super) call: LoweredUnitCall,
 }
@@ -57,7 +60,7 @@ pub(super) fn coordinate(
 pub(super) fn prepare(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
-    state: &checked_trees::CheckedScalarStateGraph,
+    state: &typed_trees_to_checked_trees::checked_trees::CheckedScalarStateGraph,
     operation: &CheckedUnitEffectOperationPlan,
     bindings: &storage::ScalarBindings,
     value_types: &[QualifiedScalarType],
@@ -98,7 +101,7 @@ pub(super) fn prepare(
         *target_machine,
     )?;
     let target = body.entry()?;
-    if body.result()? != checked_trees::CheckedControlResultPlan::Unit
+    if body.result()? != typed_trees_to_checked_trees::checked_trees::CheckedControlResultPlan::Unit
         || target.state != *target_state
         || target.contract_report_fingerprint != *target_contract_report_fingerprint
         || !crate::unit::attached_unit::catalog::checked_unit_target_reach_matches(
@@ -134,7 +137,9 @@ pub(super) fn prepare(
     )?;
     let (_, caller_state) = source_custody::authored_state(checked, state.state)?;
     let (_, callee_state) = source_custody::authored_state(checked, *target_state)?;
-    let Some(checked_trees::statement::StatementNode::Call(source_call)) = checked
+    let Some(typed_trees_to_checked_trees::checked_trees::statement::StatementNode::Call(
+        source_call,
+    )) = checked
         .statement_table
         .statements(caller_state.statement_nodes)
         .get(coordinate.statement_index as usize)
@@ -219,7 +224,7 @@ pub(super) fn prepare(
                 {
                     !matches!(
                         reference,
-                        checked_trees::types::TypeReferenceNode::Named { .. }
+                        typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Named { .. }
                     )
                 } else {
                     false
@@ -274,7 +279,10 @@ pub(super) fn prepare(
         if actual_position != access_position {
             return unsupported("scalar Unit call reordered its structural access occurrences");
         }
-        let checked_trees::types::TypeReferenceNode::Reference { referee, .. } = checked
+        let typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Reference {
+            referee,
+            ..
+        } = checked
             .type_reference_table
             .type_reference(source_parameter.type_reference)
         else {

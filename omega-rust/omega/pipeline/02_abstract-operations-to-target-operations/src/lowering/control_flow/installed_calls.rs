@@ -8,17 +8,25 @@
 //! distinction available to independent legalization and physical replay.
 
 use crate::LoweringError;
-use abstract_operations::{AbstractFunction, AbstractFunctionResult, AbstractOperation};
+use crate::target_operations::TargetUnitOperation;
 use installation_evidence::InstalledProviderCallEvidence;
 use semantic_vocabulary::MachineId;
 use std::collections::BTreeMap;
-use target_operations::TargetUnitOperation;
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractFunction, AbstractFunctionResult, AbstractOperation,
+};
 
 pub(super) fn resolve(
     operation: &AbstractOperation,
     installed: &InstalledProviderCallEvidence,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
-) -> Result<(AbstractOperation, target_operations::NativeCallOrigin), LoweringError> {
+) -> Result<
+    (
+        AbstractOperation,
+        crate::target_operations::NativeCallOrigin,
+    ),
+    LoweringError,
+> {
     let AbstractOperation::BoundaryCall {
         psi_operation,
         result,
@@ -50,7 +58,7 @@ pub(super) fn resolve(
         })
         .collect();
     let resolved = match (result, &candidate.result) {
-        (abstract_operations::AbstractBoundaryResult::Unit, AbstractFunctionResult::Unit) => {
+        (terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Unit, AbstractFunctionResult::Unit) => {
             AbstractOperation::CallUnit {
                 psi_operation: *psi_operation,
                 callee,
@@ -62,7 +70,7 @@ pub(super) fn resolve(
             }
         }
         (
-            abstract_operations::AbstractBoundaryResult::Structural(result),
+            terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Structural(result),
             AbstractFunctionResult::Structural(candidate_result),
         ) if result.structural_type == candidate_result.structural_type
             && result.multiplicity == candidate_result.multiplicity
@@ -96,7 +104,7 @@ pub(super) fn resolve(
         // structural operands it takes the plain scalar call lane; otherwise
         // the structural-scalar lane carries its borrowed operands.
         (
-            abstract_operations::AbstractBoundaryResult::Scalar(result),
+            terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Scalar(result),
             AbstractFunctionResult::Scalar(candidate_result),
         ) if result.scalar_type == candidate_result.scalar_type
             && matches!(
@@ -130,7 +138,7 @@ pub(super) fn resolve(
         }
         _ => return Err(invalid()),
     };
-    let origin = target_operations::NativeCallOrigin::InstalledProvider {
+    let origin = crate::target_operations::NativeCallOrigin::InstalledProvider {
         boundary: *boundary,
         provider: installed.provider.clone(),
         completion_claim_sources: completion_claim_sources.clone(),
@@ -142,7 +150,7 @@ pub(super) fn resolve(
 pub(super) fn retain_origin(
     operations: &mut [TargetUnitOperation],
     installed: &InstalledProviderCallEvidence,
-    origin: target_operations::NativeCallOrigin,
+    origin: crate::target_operations::NativeCallOrigin,
 ) -> Result<(), LoweringError> {
     let [
         TargetUnitOperation::Call {
@@ -161,7 +169,7 @@ pub(super) fn retain_origin(
     };
     if *psi_operation != installed.psi_operation
         || *callee != installed.provider.candidate
-        || *actual != target_operations::NativeCallOrigin::Authored
+        || *actual != crate::target_operations::NativeCallOrigin::Authored
     {
         return Err(LoweringError::InstalledProviderCallEvidenceMismatch {
             machine: installed.caller,

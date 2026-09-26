@@ -2,10 +2,12 @@
 use super::{KnownUnitInteger, LiveDefinitions, references};
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractBlockEntry, AbstractFunction, AbstractOperation, ValueBinding};
+use crate::target_operations::TargetScalarBlockValue;
 use semantic_vocabulary::{BlockId, ScalarType, ValueId};
 use std::collections::BTreeSet;
-use target_operations::TargetScalarBlockValue;
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractBlockEntry, AbstractFunction, AbstractOperation, ValueBinding,
+};
 
 pub(super) fn validate_parameters(
     function: &AbstractFunction,
@@ -66,7 +68,7 @@ pub(super) fn is_address_join(
     parameter: &terminal_psi::StructuralParameterDeclaration,
     structural_types: &StructuralTypeLookup<'_>,
 ) -> bool {
-    abstract_operations::control_flow::address_joins::is_address_join(parameter, |identity| {
+    terminal_psi_to_abstract_operations::abstract_operations::control_flow::address_joins::is_address_join(parameter, |identity| {
         structural_types.get(&identity).copied()
     })
 }
@@ -81,12 +83,12 @@ fn address_join_argument(
     function: &AbstractFunction,
     live: &LiveDefinitions,
     structural_types: &StructuralTypeLookup<'_>,
-    binding: &abstract_operations::AbstractStructuralBinding,
+    binding: &terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding,
     parameter: &terminal_psi::StructuralParameterDeclaration,
 ) -> bool {
     let argument = &binding.argument;
     if argument.access != terminal_psi::StructuralAccess::SharedBorrow
-        || !abstract_operations::control_flow::address_joins::is_static_projection(&argument.path)
+        || !terminal_psi_to_abstract_operations::abstract_operations::control_flow::address_joins::is_static_projection(&argument.path)
         || references::is_suspended_root(live, argument.place)
     {
         return false;
@@ -131,7 +133,7 @@ pub(super) fn validate_successors(
     let validate =
         |target: BlockId,
          bindings: &[ValueBinding],
-         structural: &[abstract_operations::AbstractStructuralBinding]| {
+         structural: &[terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding]| {
             let block = function
                 .block_entries
                 .iter()

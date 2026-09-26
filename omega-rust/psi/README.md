@@ -20,7 +20,7 @@ than acquiring an alternate source-to-native route.
   flow and ownership settlement.
 - [Source representations](representations/README.md): durable semantic shape
   and the links between increasingly resolved forms.
-- [Terminal production](compiler/terminal-production/README.md): checked trees
+- [Terminal production](pipeline/07_lowered-psi-to-terminal-psi/terminal_production.md): checked trees
   → Lowered Psi → optimized Lowered Psi → Terminal Psi. Its coordinator
   sequences those transforms rather than defining another executable IR.
 - [Terminal representation](representations/terminal-psi/src/lib.rs),

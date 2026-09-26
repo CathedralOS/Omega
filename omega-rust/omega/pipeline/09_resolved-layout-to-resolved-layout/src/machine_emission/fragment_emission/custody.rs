@@ -1,0 +1,41 @@
+use crate::machine_emission::function_realization::validate_fixed_frame_function_relative_realization;
+use post_allocation_machine_to_selected_form_encoding::machine_code::FunctionFragmentEmissionPlan;
+
+use super::error::FunctionFragmentEmissionError;
+use super::source::StagedOptimizedFunctionFragmentEmissionSource;
+use super::{
+    StagedFunctionFragmentEmissionCustodyReceipt, ValidatedFunctionFragmentEmissionManifest,
+};
+
+pub(super) fn validate_source(
+    source: &StagedOptimizedFunctionFragmentEmissionSource,
+) -> Result<(), FunctionFragmentEmissionError> {
+    validate_fixed_frame_function_relative_realization(source.replay().fixed_frame())
+        .map_err(FunctionFragmentEmissionError::Source)?;
+    source.validate_current()?;
+    let expected_allocation_recovery = source
+        .optimized_target()
+        .optimized()
+        .selections()
+        .for_phase(optimization_core::OptimizationExecutionPhase::AllocationRecovery)
+        .identity();
+    if source
+        .function_relative_manifest()
+        .record()
+        .allocation_recovery_selections
+        != expected_allocation_recovery
+    {
+        return Err(FunctionFragmentEmissionError::RootMismatch);
+    }
+    Ok(())
+}
+pub(super) fn receipt(
+    manifest: &ValidatedFunctionFragmentEmissionManifest,
+    fragments: &FunctionFragmentEmissionPlan,
+) -> StagedFunctionFragmentEmissionCustodyReceipt {
+    StagedFunctionFragmentEmissionCustodyReceipt {
+        source_realization: manifest.record.source_realization,
+        fragments: fragments.identity,
+        manifest: manifest.record.identity,
+    }
+}

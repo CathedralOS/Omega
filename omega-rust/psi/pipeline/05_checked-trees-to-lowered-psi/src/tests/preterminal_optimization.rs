@@ -1,12 +1,12 @@
 //! Pre-Terminal Psi optimization entrance regressions.
 use super::{ScalarType, TerminalMachineResult, hard_root_checked_fixture, lower_machine};
-use crate::TerminalMachineSelection;
-use lowered_psi::LoweredPsi;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use checked_trees_to_lowered_psi::lowered_psi::LoweredPsi;
 use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};
 use lowered_psi_to_terminal_psi::finalize_terminal_artifact;
-use optimization::{PsiOptimization, PsiOptimizationSelections};
 use semantic_vocabulary::{IntegerValue, ObligationId, OperationId, Proposition, ValueId};
 use std::collections::BTreeSet;
+use terminal_codec::optimization::{PsiOptimization, PsiOptimizationSelections};
 use terminal_codec::{DebugSite, DebugSubject, terminal_psi_identity};
 use terminal_psi::{
     ContractClause, Operation, OperationKind, OperationResult, Terminator, ValueDeclaration,

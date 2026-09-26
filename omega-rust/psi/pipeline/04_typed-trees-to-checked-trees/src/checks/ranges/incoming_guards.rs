@@ -1,11 +1,13 @@
 use language_core::receiver_place_field;
-use symbols::SymbolHandle;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::machine::Machine;
-use typed_trees::state::State;
-use typed_trees::statement::{
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
     StatementNode, TransitionGuardNode, TransitionTargetHandle, TransitionTargetNode,
 };
+use symbols::SymbolHandle;
 
 use super::facts::RangeFacts;
 use super::guards::{seed_guard_facts, seed_negated_guard_facts};
@@ -80,13 +82,13 @@ impl IncomingGuardIndexCache {
 
 impl IncomingGuardIndex {
     pub(in crate::checks) fn build(
-        program: &typed_trees::TypedTrees,
-        call_frames: Option<&validation::CallFrameResolver<'_>>,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
     ) -> Self {
         // The bound index is immutable program data: build it once here
         // rather than once per state, edge, and argument expression inside
         // the walks.
-        let bound_lookup = validation::ImmutableBoundLookup::new(program);
+        let bound_lookup = crate::validation::ImmutableBoundLookup::new(program);
         Self {
             machines: program
                 .machines()
@@ -223,10 +225,10 @@ enum StateWrites {
 /// index, so batch consumers pass one in instead of paying that whole-program
 /// cost once per machine (or, in contract checking, once per call).
 pub(in crate::checks) fn collect_incoming_guard_facts_with_call_frames(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-    bound_lookup: &validation::ImmutableBoundLookup<'_>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
+    bound_lookup: &crate::validation::ImmutableBoundLookup<'_>,
 ) -> Vec<IncomingGuard> {
     let mut edges: Vec<Edge> = Vec::new();
     // External invocation reaches entry without any transition guard, even
@@ -466,11 +468,11 @@ pub(in crate::checks) fn collect_incoming_guard_facts_with_call_frames(
 /// own guard (evaluated after P's statements, so it holds at J's entry without a
 /// survives check). Used by the multi-predecessor meet.
 fn edge_carried_facts(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     walk_facts: &[IncomingGuard],
     writes: &[(SymbolHandle, StateWrites)],
     edge: &Edge,
-    bound_lookup: &validation::ImmutableBoundLookup<'_>,
+    bound_lookup: &crate::validation::ImmutableBoundLookup<'_>,
 ) -> Vec<CarriedGuard> {
     let (written, written_any): (Vec<String>, bool) = match state_field_writes(writes, edge.source)
     {
@@ -546,7 +548,7 @@ fn single_incoming_edge(edges: &[Edge], target: SymbolHandle) -> Option<Edge> {
 }
 
 fn compose_parameter_argument_places(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     target: SymbolHandle,
     arguments: arena::HandleSpan<ExpressionHandle>,
     bindings: &[(SymbolHandle, Option<crate::flow::CanonicalPlace>)],
@@ -583,7 +585,7 @@ fn compose_parameter_argument_places(
 }
 
 fn direct_edge_parameter_argument_places(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     edge: &Edge,
 ) -> Option<Vec<(SymbolHandle, Option<crate::flow::CanonicalPlace>)>> {
     let target_state = crate::semantic::calls::find_state(program, edge.target)?;
@@ -608,7 +610,7 @@ fn direct_edge_parameter_argument_places(
 }
 
 fn compose_carried_parameter_argument_places(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     edge: &Edge,
     fact: &IncomingGuard,
 ) -> Option<Vec<(SymbolHandle, Option<crate::flow::CanonicalPlace>)>> {
@@ -639,7 +641,7 @@ fn compose_carried_parameter_argument_places(
 }
 
 fn immutable_parameter_symbols(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state: &State,
 ) -> ImmutableArgumentSymbols {
     program
@@ -662,9 +664,9 @@ fn immutable_parameter_symbols(
 /// Scalar transport follows the same edges as place transport, but cannot
 /// substitute away a mutable intermediate binding's changed value.
 fn direct_edge_immutable_argument_symbols(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     edge: &Edge,
-    bound_lookup: &validation::ImmutableBoundLookup<'_>,
+    bound_lookup: &crate::validation::ImmutableBoundLookup<'_>,
 ) -> Option<ImmutableArgumentSymbols> {
     let target = crate::semantic::calls::find_state(program, edge.target)?;
     let mut bindings = immutable_parameter_symbols(program, target);
@@ -716,10 +718,10 @@ fn substituted_immutable_symbol(
 }
 
 fn immutable_argument_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state: &State,
     expression: ExpressionHandle,
-    bound_lookup: &validation::ImmutableBoundLookup<'_>,
+    bound_lookup: &crate::validation::ImmutableBoundLookup<'_>,
 ) -> Option<SymbolHandle> {
     let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
         return None;
@@ -738,20 +740,23 @@ fn immutable_argument_symbol(
     // and binding gates above still reject most expressions before it is
     // consulted.
     let symbol = if let Some(normalized) =
-        validation::normalize_immutable_integer_bound_expression(program, bound_lookup, expression)
-    {
+        crate::validation::normalize_immutable_integer_bound_expression(
+            program,
+            bound_lookup,
+            expression,
+        ) {
         let ExpressionNode::Name(path) = program.expression_table.expression(normalized) else {
             return None;
         };
         path.symbol
     } else {
-        validation::immutable_integer_bound_value_symbol(program, bound_lookup, expression)?
+        crate::validation::immutable_integer_bound_value_symbol(program, bound_lookup, expression)?
     };
     immutable_integer_binding(program, state, symbol).then_some(symbol)
 }
 
 fn immutable_integer_binding(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state: &State,
     symbol: SymbolHandle,
 ) -> bool {
@@ -789,10 +794,10 @@ fn immutable_integer_binding(
     let mut reference = type_reference;
     loop {
         match program.type_reference_table.type_reference(reference) {
-            typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
                 reference = *base_type
             }
-            typed_trees::types::TypeReferenceNode::Named { symbol, .. } => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named { symbol, .. } => {
                 return matches!(
                     program.symbols.builtin_type_atom(*symbol),
                     Some(
@@ -813,16 +818,17 @@ fn immutable_integer_binding(
 }
 
 fn source_independent_argument_place(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<crate::flow::CanonicalPlace> {
     let place = crate::flow::canonical_place_from_expression(program, expression)?;
-    if !matches!(place.root, facts::PlaceRoot::Symbol(symbol) if symbol.is_valid())
+    if !matches!(place.root, crate::fact_plan::PlaceRoot::Symbol(symbol) if symbol.is_valid())
         || !place.segments.iter().all(|segment| match segment {
-            facts::PlaceSegment::Field { symbol } => symbol.is_valid(),
-            facts::PlaceSegment::Case { variant } => variant.is_valid(),
-            facts::PlaceSegment::FixedIndex { .. } => true,
-            facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::Index { .. } => false,
+            crate::fact_plan::PlaceSegment::Field { symbol } => symbol.is_valid(),
+            crate::fact_plan::PlaceSegment::Case { variant } => variant.is_valid(),
+            crate::fact_plan::PlaceSegment::FixedIndex { .. } => true,
+            crate::fact_plan::PlaceSegment::FixedRange { .. }
+            | crate::fact_plan::PlaceSegment::Index { .. } => false,
         })
     {
         return None;
@@ -834,7 +840,7 @@ fn substitute_parameter_place(
     place: &crate::flow::CanonicalPlace,
     replacements: &[(SymbolHandle, Option<crate::flow::CanonicalPlace>)],
 ) -> Option<crate::flow::CanonicalPlace> {
-    let facts::PlaceRoot::Symbol(root) = place.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(root) = place.root else {
         return None;
     };
     let Some((_, replacement)) = replacements
@@ -863,7 +869,7 @@ fn state_field_writes(
 /// opaque call frame. An un-analyzable guard only survives at the immediate
 /// edge (nothing written yet).
 fn guard_survives(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     guard: ExpressionHandle,
     written: &[String],
     written_any: bool,
@@ -875,7 +881,7 @@ fn guard_survives(
         Some(paths) => paths.iter().all(|guard_path| {
             written
                 .iter()
-                .all(|write_path| !validation::frame_paths_overlap(guard_path, write_path))
+                .all(|write_path| !crate::validation::frame_paths_overlap(guard_path, write_path))
         }),
         None => written.is_empty(),
     }
@@ -885,10 +891,10 @@ fn guard_survives(
 /// their authored `self` place; nested and statement-position calls contribute
 /// the shared R5 normalized frame. Opaque calls fail closed.
 fn state_writes(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> StateWrites {
     let Some(call_frames) = call_frames else {
         return StateWrites::Any;
@@ -929,7 +935,7 @@ fn extend_unique(target: &mut Vec<String>, additions: &[String]) {
 /// The set of machine-field paths a guard names, or `None` if it contains a node we
 /// cannot conservatively analyze (a call, range, literal aggregate, ...).
 fn guard_member_paths(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     guard: ExpressionHandle,
 ) -> Option<Vec<String>> {
     let mut paths = Vec::new();
@@ -939,7 +945,7 @@ fn guard_member_paths(
 /// Collect every `self.field` path the expression names; returns false if it
 /// contains a node that might reference a field through a path we do not walk.
 fn collect_member_paths(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
     paths: &mut Vec<String>,
 ) -> bool {
@@ -974,7 +980,7 @@ fn collect_member_paths(
 }
 
 fn push_edge(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     edges: &mut Vec<Edge>,
     source: SymbolHandle,
@@ -1007,7 +1013,7 @@ fn push_edge(
 
 /// Seed `facts` with every entry guard collected for `state`.
 pub(super) fn seed_incoming_guard_facts(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     facts: &mut RangeFacts<'_>,
     state: &State,
@@ -1044,7 +1050,7 @@ pub(super) fn seed_incoming_guard_facts(
 /// only. The whole guard when it already qualifies; otherwise each qualifying
 /// side, so a mixed conjunction still contributes its shared-storage half.
 fn machine_storage_conjuncts(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     guard: ExpressionHandle,
 ) -> Vec<ExpressionHandle> {
@@ -1055,7 +1061,7 @@ fn machine_storage_conjuncts(
         return Vec::new();
     };
     match binary.operator {
-        typed_trees::expression::BinaryOperator::And => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::And => {
             let mut conjuncts = machine_storage_conjuncts(program, machine, binary.left);
             conjuncts.extend(machine_storage_conjuncts(program, machine, binary.right));
             conjuncts
@@ -1063,7 +1069,7 @@ fn machine_storage_conjuncts(
         // A dispatch arm reaches here as `<predicate> == true`: the arm's
         // selection is spelled against the literal. The conjuncts of the
         // predicate are the conjuncts of the comparison.
-        typed_trees::expression::BinaryOperator::Equal => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Equal => {
             let is_true = |side| {
                 matches!(
                     program.expression_table.expression(side),
@@ -1083,7 +1089,7 @@ fn machine_storage_conjuncts(
 }
 
 fn guard_uses_machine_storage_only(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     expression: ExpressionHandle,
 ) -> bool {
@@ -1092,7 +1098,7 @@ fn guard_uses_machine_storage_only(
         ExpressionNode::Name(_) => {
             crate::flow::canonical_place_from_expression(program, expression).is_some_and(|place| {
                 crate::flow::normalized_event_place_root(program, place.root)
-                    == facts::PlaceRoot::Symbol(machine.symbol)
+                    == crate::fact_plan::PlaceRoot::Symbol(machine.symbol)
             })
         }
         ExpressionNode::Member(member) => eligible(member.receiver),
@@ -1114,8 +1120,10 @@ mod tests {
     use super::IncomingGuardIndex;
     use crate::tests::front_end::typed_program;
 
-    fn incoming(program: &typed_trees::TypedTrees) -> IncomingGuardIndex {
-        let frames = validation::CallFrameResolver::new(program).expect("call frames");
+    fn incoming(
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    ) -> IncomingGuardIndex {
+        let frames = crate::validation::CallFrameResolver::new(program).expect("call frames");
         IncomingGuardIndex::build(program, Some(&frames))
     }
 

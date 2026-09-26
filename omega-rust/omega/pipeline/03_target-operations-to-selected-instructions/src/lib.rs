@@ -12,10 +12,56 @@
 //! input-only reconstruction of structural storage, parameter shape and
 //! unobserved-owned eligibility both consume.
 
+pub mod isa_aarch64;
+pub mod isa_x86_64;
 mod legalization;
+pub mod legalized_operations;
 mod optimized;
+pub mod register_environment;
+pub mod register_model;
+pub mod selected_instructions;
 mod selection;
 mod structural_inputs;
+
+pub use selected_instructions::{
+    AddressFoldIdentity, ArchitecturalUnitAction, ArchitecturalUnitActionKind,
+    ArchitecturalUnitLiveRange, BlockLiveness, BlockMachineEffects, BlockPointDomain,
+    ConstantBooleanIdentity, CopyAffinity, CopyRemovalIdentity, DistinctUseDefTie,
+    EarlyClobberConstraint, EarlyClobberUse, EdgeRegisterTransfer, EntryDefinition,
+    FixedViewCopyIdentity, FrameStorageSlotId, FunctionLiveRanges, FunctionLiveness,
+    FunctionMachineEffects, InstructionLiveness, InstructionMachineEffects, LiteralFoldIdentity,
+    LiveRangeEdgeConnector, LiveRangeFragment, LiveRangeIdentity, LiveRangePlan, LiveRangePoint,
+    LivenessIdentity, LivenessPlan, LivenessPosition, LocalStorageSlotId, MachineAlternative,
+    MachineAlternativeApplicability, MachineAlternativeFamily, MachineAlternativeKey,
+    MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineEffectCatalog,
+    MachineEffectCatalogIdentity, MachineEffectCatalogValidationError, MachineEffectDeclaration,
+    MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
+    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineIdentityBytes,
+    MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
+    MachineTrapBehavior, OperandPosition, OutgoingArgumentSlotId, OutgoingArgumentSlotRole,
+    PackedByteWidth, PreAllocationMachineEffectDecodeError, PreAllocationMachineEffectIdentity,
+    PreAllocationMachineEffectPlan, PressureRematerializationIdentity, RedundantExtensionIdentity,
+    SaturatingCarrier, SaturatingOperation, SelectedAddressBase, SelectedBlock, SelectedBlockId,
+    SelectedBlockOrigin, SelectedBoundarySettlement, SelectedBoundarySettlementPayload,
+    SelectedCallContract, SelectedCasePayloadBinding, SelectedCasePayloadTransport,
+    SelectedConstraintKeys, SelectedFixedInputConstraint, SelectedFunction, SelectedFunctions,
+    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
+    SelectedInstructionPlanIdentity, SelectedInstructionProvenance, SelectedLocalStorageSlot,
+    SelectedMemoryAccess, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
+    SelectedNormalizedForeignCall, SelectedOperand, SelectedOutgoingArgumentSlot,
+    SelectedSelectionConstraints, SelectedStructuralBinding, SelectedStructuralCaseEdge,
+    SelectedStructuralTransport, SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator,
+    SelectedValueBinding, SelectedValueTransport, SuccessorLiveness, TrappingForm,
+    TrappingOperation, ValidatedMachineEffectCatalog, VirtualFixedConstraint,
+    VirtualFixedConstraintSite, VirtualInterference, VirtualLiveRange, VirtualOccurrence,
+    VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin, alternative_family_tag, calls,
+    constraints, control_flow, effects, encode_machine_alternative_identity,
+    encode_machine_alternative_key_identity, encode_machine_encoded_effects_identity, identity,
+    instructions, live_range_identity, live_ranges, liveness, liveness_identity,
+    machine_effect_catalog_identity, plan_identity, pre_allocation_machine_effect_identity,
+    provenance, saturating_family_tag, structural_case, trapping_family_tag,
+    validate_machine_effect_catalog, values,
+};
 
 // The stage entry and its custody join.
 pub use optimized::{

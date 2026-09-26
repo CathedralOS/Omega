@@ -1,9 +1,9 @@
 use super::fixtures::{budget, source};
 use crate::color_logical_spill_stack_slots;
-use register_homes::{
+use selected_instructions_to_selected_instructions::register_homes::{
     LogicalSpillStorageId, StackSlotColoringPolicy, stack_slot_coloring_identity,
 };
-use selected_instructions::LiveRangePoint;
+use target_operations_to_selected_instructions::LiveRangePoint;
 
 #[test]
 fn colors_the_validated_u64_logical_spill_relative_to_a_future_spill_area() {
@@ -16,7 +16,10 @@ fn colors_the_validated_u64_logical_spill_relative_to_a_future_spill_area() {
     .unwrap();
     let assignment = colored.plan().functions[0].assignments[0];
     assert_eq!(assignment.storage, LogicalSpillStorageId(0));
-    assert_eq!(assignment.block, selected_instructions::SelectedBlockId(0));
+    assert_eq!(
+        assignment.block,
+        target_operations_to_selected_instructions::SelectedBlockId(0)
+    );
     assert_eq!(assignment.live_from, LiveRangePoint(5));
     assert_eq!(assignment.live_through, LiveRangePoint(8));
     assert_eq!(assignment.size_bytes, 8);

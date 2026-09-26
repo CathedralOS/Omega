@@ -1,11 +1,13 @@
 use super::sole_certificate;
-use crate::tests::front_end::{checked_program, checked_program_result};
-use checked_trees::{
+use crate::checked_trees::{
     BorrowCompatibilityPlaceSide, BorrowCompatibilitySelectorPosition,
     BorrowCompatibilitySelectorValue,
 };
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::statement::{StatementNode, TableLocalData};
+use crate::tests::front_end::{checked_program, checked_program_result};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{StatementNode, TableLocalData};
 
 fn split_source(declarations: &str, left: &str, right: &str, reverse: bool) -> String {
     let left = format!("let left: &mut [i32] = self.items[{left}];");
@@ -25,7 +27,7 @@ fn split_source(declarations: &str, left: &str, right: &str, reverse: bool) -> S
     )
 }
 
-fn local(checked: &checked_trees::CheckedTrees, name: &str) -> TableLocalData {
+fn local(checked: &crate::checked_trees::CheckedTrees, name: &str) -> TableLocalData {
     let machine_symbol = sole_certificate(checked).formation.machine_symbol;
     checked
         .typed
@@ -46,18 +48,18 @@ fn local(checked: &checked_trees::CheckedTrees, name: &str) -> TableLocalData {
         .expect("fixture local in the certificate's forming machine")
 }
 
-fn selector(place: &checked_trees::CapturedPlace) -> ExpressionHandle {
+fn selector(place: &crate::checked_trees::CapturedPlace) -> ExpressionHandle {
     place
         .segments
         .iter()
         .find_map(|segment| match segment {
-            facts::PlaceSegment::Index { expression } => Some(*expression),
+            crate::fact_plan::PlaceSegment::Index { expression } => Some(*expression),
             _ => None,
         })
         .expect("fixture range selector")
 }
 
-fn assert_adjacency_snapshot(checked: &checked_trees::CheckedTrees, reverse: bool) {
+fn assert_adjacency_snapshot(checked: &crate::checked_trees::CheckedTrees, reverse: bool) {
     let certificate = sole_certificate(checked);
     let mid = local(checked, "mid").symbol;
     assert!(mid.is_valid());
@@ -104,11 +106,11 @@ fn assert_adjacency_snapshot(checked: &checked_trees::CheckedTrees, reverse: boo
     assert!(certificate.conclusion.non_interfering);
     assert_eq!(
         certificate.conclusion.containment,
-        checked_trees::CapturedPlaceContainment::None
+        crate::checked_trees::CapturedPlaceContainment::None
     );
     assert_eq!(
         certificate.derivation,
-        checked_trees::BorrowCompatibilityDerivation::Structural
+        crate::checked_trees::BorrowCompatibilityDerivation::Structural
     );
     assert!(
         checked
@@ -122,7 +124,7 @@ fn assert_adjacency_snapshot(checked: &checked_trees::CheckedTrees, reverse: boo
 /// `mid + 1`: one for `0..mid`, two for `0..=mid` because the inclusive end
 /// is frozen as its exclusive equivalent.
 fn assert_offset_adjacency_snapshot(
-    checked: &mut checked_trees::CheckedTrees,
+    checked: &mut crate::checked_trees::CheckedTrees,
     shifted_rows: usize,
 ) {
     let certificate = sole_certificate(checked);
@@ -170,7 +172,7 @@ fn assert_offset_adjacency_snapshot(
     assert!(certificate.conclusion.non_interfering);
     assert_eq!(
         certificate.conclusion.containment,
-        checked_trees::CapturedPlaceContainment::None
+        crate::checked_trees::CapturedPlaceContainment::None
     );
     let before = checked.facts.borrow.compatibility_certificates.clone();
     crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
@@ -476,7 +478,7 @@ fn unrelated_same_spelled_local_in_another_machine_cannot_supply_boundary_identi
     }
 }
 
-fn checked_with_spare_boundary() -> checked_trees::CheckedTrees {
+fn checked_with_spare_boundary() -> crate::checked_trees::CheckedTrees {
     checked_program(&split_source(
         "let mid: u64 = 1 + 1; let cut: u64 = mid; let other: u64 = 1 + 1; let other_copy: u64 = other;",
         "0..cut",
@@ -485,7 +487,7 @@ fn checked_with_spare_boundary() -> checked_trees::CheckedTrees {
     ))
 }
 
-fn assert_replay_rejects_snapshot_drift(checked: &mut checked_trees::CheckedTrees) {
+fn assert_replay_rejects_snapshot_drift(checked: &mut crate::checked_trees::CheckedTrees) {
     let before = checked.facts.borrow.compatibility_certificates.clone();
     let diagnostics =
         crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)

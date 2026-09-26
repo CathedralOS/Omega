@@ -123,15 +123,15 @@ fn owned_array_calls_preserve_constructed_and_returned_home_identity() {
             .operations
             .iter()
             .filter_map(|operation| {
-                let target_operations::TargetUnitOperation::Call {
+                let crate::target_operations::TargetUnitOperation::Call {
                     arguments,
-                    result: target_operations::TargetCallResult::Structural { .. },
+                    result: crate::target_operations::TargetCallResult::Structural { .. },
                     ..
                 } = operation
                 else {
                     return None;
                 };
-                let target_operations::TargetStructuralArgumentSource::StructuralHome {
+                let crate::target_operations::TargetStructuralArgumentSource::StructuralHome {
                     psi_operation,
                 } = arguments[0].source
                 else {
@@ -143,8 +143,8 @@ fn owned_array_calls_preserve_constructed_and_returned_home_identity() {
         assert_eq!(producers, vec![operation(2), operation(2), operation(3)]);
         let identity = &lowered.functions[1].graph;
         assert!(
-            matches!(&identity.blocks[0].terminator, target_operations::TargetControlTerminator::ReturnStructural {
-            source: target_operations::TargetStructuralReturnSource::Parameter(parameter), ..
+            matches!(&identity.blocks[0].terminator, crate::target_operations::TargetControlTerminator::ReturnStructural {
+            source: crate::target_operations::TargetStructuralReturnSource::Parameter(parameter), ..
         } if parameter.place == PlaceId::new(10).unwrap())
         );
     }

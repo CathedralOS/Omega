@@ -6,22 +6,26 @@ use crate::rewrites::unexecuted::ValidatedBoundaryBranch;
 use crate::rewrites::unexecuted::fold_selected_boundary_branch;
 use crate::rewrites::unexecuted::validate_boundary_branch_fold;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
-use optimization_unit::{FuelSettlement, PsiProvenance, ValueDefinitionSite};
-use register_environment::baseline_target_register_environment;
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
-use selected_instructions::{
-    SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedOperand,
-    SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator, SelectedValueBinding,
-    SelectedValueTransport, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
-};
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
     OperationId, ScalarType, ValueId,
 };
 use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
+use target_operations_to_selected_instructions::register_model::{
+    RegisterInstructionConstraint, RegisterOperandAccess,
+};
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use target_operations_to_selected_instructions::{
+    SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
+    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedOperand,
+    SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator, SelectedValueBinding,
+    SelectedValueTransport, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    FuelSettlement, PsiProvenance, ValueDefinitionSite,
+};
 
 fn budget() -> OptimizationWorkBudget {
     OptimizationWorkBudget::new(100, 100, 100_000, 100, 100).unwrap()
@@ -50,7 +54,7 @@ enum BranchShape {
 fn register(
     id: VirtualRegisterId,
     scalar_type: ScalarType,
-    class: register_model::RegisterClassId,
+    class: target_operations_to_selected_instructions::register_model::RegisterClassId,
     origin: VirtualRegisterOrigin,
 ) -> VirtualRegister {
     VirtualRegister {
@@ -205,7 +209,7 @@ fn fixture(
     // The decided arm's record carries cargo the fold must move verbatim.
     let mut taken = arm(SelectedBlockId(1), 2, 2);
     taken.bindings.push(SelectedValueBinding {
-        semantic: abstract_operations::ValueBinding {
+        semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
             parameter: ValueId::new(8).unwrap(),
             argument: ValueId::new(4).unwrap(),
             scalar_type,
@@ -298,8 +302,8 @@ fn fixture(
 }
 
 fn keys(
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
-) -> selected_instructions::SelectedConstraintKeys {
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
+) -> target_operations_to_selected_instructions::SelectedConstraintKeys {
     environment.selected_keys()
 }
 
@@ -309,7 +313,7 @@ fn keys(
 /// register against the domain minimum.
 fn mutated(
     target: NativeTarget,
-    edit: impl FnOnce(&mut SelectedFunction, &register_environment::ValidatedTargetRegisterEnvironment),
+    edit: impl FnOnce(&mut SelectedFunction, &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment),
 ) -> ValidatedBoundaryBranch {
     let environment = baseline_target_register_environment(target).unwrap();
     let mut source = fixture(target, None, Some(0), BranchShape::U64LessThan);
@@ -325,7 +329,7 @@ fn mutated(
 
 fn fold(
     source: &ValidatedBoundaryBranch,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<ValidatedBoundaryBranch, BoundaryBranchError> {
     fold_selected_boundary_branch(source, 0, BRANCH, environment, budget())
 }
@@ -333,7 +337,7 @@ fn fold(
 /// A jump terminator on `block_index` targeting `arm`, rebuilt from the
 /// fixture's own jump row.
 fn jump_terminator(
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
     instruction_id: u32,
     arm_block: u32,
     edge: u64,
@@ -853,7 +857,7 @@ fn non_flag_surface_partition_is_outcome_scoped() {
     let foreign_use = |function: &mut SelectedFunction| {
         // Unit 998 is neither a compare-published flag unit nor in the
         // jump row's program-counter-only surface.
-        let spare = register_model::RegisterUnitId(998);
+        let spare = target_operations_to_selected_instructions::register_model::RegisterUnitId(998);
         let instruction = match &mut function.blocks[0].terminator {
             SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. } => instruction,
             _ => unreachable!(),
@@ -895,7 +899,7 @@ fn unpublishable_unit_traffic_refuses() {
         };
         instruction
             .implicit_defs
-            .push(register_model::RegisterUnitId(997));
+            .push(target_operations_to_selected_instructions::register_model::RegisterUnitId(997));
     });
     assert_eq!(
         fold(&extra_def, &environment).unwrap_err(),
@@ -907,7 +911,8 @@ fn unpublishable_unit_traffic_refuses() {
             SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. } => instruction,
             _ => unreachable!(),
         };
-        instruction.clobbers = vec![register_model::RegisterUnitId(996)];
+        instruction.clobbers =
+            vec![target_operations_to_selected_instructions::register_model::RegisterUnitId(996)];
     });
     assert_eq!(
         fold(&clobbering, &environment).unwrap_err(),

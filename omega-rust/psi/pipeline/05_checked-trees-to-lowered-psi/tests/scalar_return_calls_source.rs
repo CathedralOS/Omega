@@ -44,7 +44,10 @@ fn encoded_arms(source: &str, combined: bool) -> (Vec<u8>, Vec<u8>) {
     )
 }
 
-fn checked_arms(source: &str, combined: bool) -> checked_trees::CheckedTrees {
+fn checked_arms(
+    source: &str,
+    combined: bool,
+) -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
     crate::front_end::checked_program_with_syntax_edit(source, |syntax| {
         if combined {
             combine_value_machine_arms(syntax);
@@ -52,13 +55,15 @@ fn checked_arms(source: &str, combined: bool) -> checked_trees::CheckedTrees {
     })
 }
 
-fn combine_value_machine_arms(syntax: &mut syntax_trees::SyntaxTrees) {
-    use syntax_trees::statement::StatementNode;
+fn combine_value_machine_arms(syntax: &mut tokens_to_syntax_trees::syntax_trees::SyntaxTrees) {
+    use tokens_to_syntax_trees::syntax_trees::statement::StatementNode;
 
     let machine = syntax
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) if machine.name.as_str() == "value" => {
+            tokens_to_syntax_trees::syntax_trees::item::Item::Machine(machine)
+                if machine.name.as_str() == "value" =>
+            {
                 Some(machine.clone())
             }
             _ => None,
@@ -580,7 +585,7 @@ fn computed_call_results_bind_guarded_callee_crash_routes() {
 
 #[test]
 fn scalar_computation_custody_mutations_reject_before_publication() {
-    use checked_trees::CheckedScalarComputationKind;
+    use typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationKind;
     let source = r#"
         machine identity(input: bool) -> bool
         requires true == true
@@ -624,7 +629,7 @@ fn scalar_computation_custody_mutations_reject_before_publication() {
                 }
                 2 => {
                     plans.nodes.get_mut(root.root).primitive_type =
-                        typed_trees::types::PrimitiveType::I32;
+                        symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::I32;
                 }
                 3..=5 => {
                     let CheckedScalarComputationKind::Call {
@@ -672,7 +677,7 @@ fn scalar_computation_custody_mutations_reject_before_publication() {
                 }
                 9 => {
                     plans.nodes.get_mut(call_handle).primitive_type =
-                        typed_trees::types::PrimitiveType::I32;
+                        symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::I32;
                 }
                 _ => unreachable!(),
             }

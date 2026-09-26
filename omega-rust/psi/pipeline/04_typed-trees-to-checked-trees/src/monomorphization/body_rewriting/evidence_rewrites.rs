@@ -7,7 +7,11 @@ use crate::monomorphization::{
 pub(crate) fn evidence_argument_rewrites(
     program: &TypedTrees,
     candidate: &Candidate,
-) -> Vec<(SymbolHandle, SymbolHandle, typed_trees::name::Identifier)> {
+) -> Vec<(
+    SymbolHandle,
+    SymbolHandle,
+    symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
+)> {
     candidate
         .template
         .evidence_parameters
@@ -24,7 +28,9 @@ pub(crate) fn evidence_argument_rewrites(
                 binder,
                 binding.symbol,
                 selected.alias.clone().unwrap_or_else(|| {
-                    typed_trees::name::Identifier::generated("<unnamed-conformance>")
+                    symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated(
+                        "<unnamed-conformance>",
+                    )
                 }),
             ))
         })
@@ -34,9 +40,10 @@ pub(crate) fn evidence_argument_rewrites(
 pub(crate) struct EvidenceRequirementRewrite {
     pub(crate) placeholder: SymbolHandle,
     pub(crate) target: SymbolHandle,
-    pub(crate) name: typed_trees::name::Identifier,
+    pub(crate) name: symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
     pub(crate) application_arguments: Box<[StaticMachineArgument]>,
-    pub(crate) dispatch: typed_trees::typed_trees::StaticRequirementDispatch,
+    pub(crate) dispatch:
+        symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::StaticRequirementDispatch,
 }
 
 pub(crate) fn evidence_requirement_rewrites(
@@ -93,7 +100,7 @@ pub(crate) fn evidence_requirement_rewrites(
             rewrites.push(EvidenceRequirementRewrite {
                 placeholder,
                 target: row.realization_state,
-                name: typed_trees::name::Identifier::generated(
+                name: symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated(
                     row.realization_name
                         .as_str()
                         .rsplit("::")
@@ -104,7 +111,7 @@ pub(crate) fn evidence_requirement_rewrites(
                     .application
                     .as_ref()
                     .map_or_else(Box::default, |application| application.arguments.clone()),
-                dispatch: typed_trees::typed_trees::StaticRequirementDispatch {
+                dispatch: symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::StaticRequirementDispatch {
                     application_report_fingerprint: application.report_fingerprint,
                     application_commitment: application.commitment,
                     declaring_trait: row.declaring_trait,
@@ -120,7 +127,7 @@ pub(crate) fn evidence_requirement_rewrites(
 
 pub(crate) fn collect_evidence_requirement_closure<'program>(
     program: &'program TypedTrees,
-    trait_definition: &'program typed_trees::trait_definition::TraitDefinition,
+    trait_definition: &'program symbol_resolved_trees_to_typed_trees::typed_trees::trait_definition::TraitDefinition,
     visited: &mut Vec<SymbolHandle>,
     output: &mut Vec<&'program StateSignature>,
 ) {

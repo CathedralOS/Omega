@@ -3,9 +3,9 @@ use super::{
     RESULT_SUBSTITUTED_GUARDED_CALL_SOURCE, checked_source,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use omega::terminal_fixed_fuel::derive_fixed_entry_fuel;
 use proof_admission::AdmissionProfile;
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
-use terminal_fixed_fuel::derive_fixed_entry_fuel;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{

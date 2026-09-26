@@ -59,7 +59,7 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         // phase selection and its `fixed_view_copy` materialization runs
         // under the routed `fixed_view` stage entrances.
         route: RewriteModuleRoute::Routed {
-            caller: "omega-rust/omega/compiler/src/native/native_pipeline/physical_pipeline/phase_selections.rs",
+            caller: "omega-rust/omega/src/compiler/native/native_pipeline/physical_pipeline/phase_selections.rs",
             evidence: "selected_allocation_recovery_rule",
         },
     },

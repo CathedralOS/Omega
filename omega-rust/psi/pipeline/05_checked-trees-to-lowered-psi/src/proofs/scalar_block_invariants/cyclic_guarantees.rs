@@ -29,9 +29,9 @@ use terminal_verifier::{ReconstructedTerminalObligationOwner, ReconstructedTermi
 
 use super::joins::{ArrivalEquations, scoped_goal, uses_header};
 use super::{header_arrival_edges, retained_evidence};
+use crate::lowered_psi::LoweredPsi;
 use crate::lowering_error::LoweringError;
 use crate::proofs::nonzero_divisor_certificate::produce_checked_canonical_integer_proof;
-use lowered_psi::LoweredPsi;
 
 /// Shared finite budget for equation transport and candidate discovery.
 const BUDGET: usize = 4096;

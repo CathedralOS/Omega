@@ -31,11 +31,11 @@ mod tests;
 
 pub(crate) fn structural_computation_argument(
     program: &TypedTrees,
-    borrow: &checked_trees::BorrowFacts,
+    borrow: &crate::checked_trees::BorrowFacts,
     machine: SymbolHandle,
-    state: &typed_trees::state::State,
-    call: &checked_trees::FlowCallFact,
-    expression: typed_trees::expression::ExpressionHandle,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    call: &crate::checked_trees::FlowCallFact,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     target: &StateParameter,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     if target.is_const {
@@ -115,7 +115,7 @@ pub(crate) fn structural_computation_argument(
             .name_path_members(name.members)
             .len()
             != 1
-        || place.root != facts::PlaceRoot::Symbol(name.symbol)
+        || place.root != crate::fact_plan::PlaceRoot::Symbol(name.symbol)
         || !place.segments.is_empty()
     {
         return None;
@@ -228,14 +228,14 @@ pub(crate) fn structural_computation_argument(
 /// rejoins this symbol to its dominating structural establishment.
 fn shared_nominal_argument(
     program: &TypedTrees,
-    borrow: &checked_trees::BorrowFacts,
+    borrow: &crate::checked_trees::BorrowFacts,
     machine: SymbolHandle,
-    state: &typed_trees::state::State,
-    call: &checked_trees::FlowCallFact,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    call: &crate::checked_trees::FlowCallFact,
     place: &crate::flow::CanonicalPlace,
     target: &StateParameter,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(symbol) = place.root else {
         return None;
     };
     // A literal subscript canonicalizes to `FixedIndex`, which names an exact
@@ -246,7 +246,8 @@ fn shared_nominal_argument(
     if !place.segments.iter().all(|segment| {
         matches!(
             segment,
-            facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
+            crate::fact_plan::PlaceSegment::Field { .. }
+                | crate::fact_plan::PlaceSegment::FixedIndex { .. }
         )
     }) {
         return None;
@@ -299,8 +300,9 @@ fn shared_nominal_argument(
         if !matches!(
             program.type_reference_table.type_reference(*referee),
             TypeReferenceNode::Named { .. }
-        ) || !validation::has_plain_owned_contents_with_numeric_constraints(program, *referee)
-        {
+        ) || !crate::validation::has_plain_owned_contents_with_numeric_constraints(
+            program, *referee,
+        ) {
             return None;
         }
         base_type_identity(program, *referee, &[])?
@@ -452,11 +454,12 @@ fn shared_nominal_argument(
         && (!matches!(
             program.type_reference_table.type_reference(reference),
             TypeReferenceNode::Named { .. } | TypeReferenceNode::FixedArray { .. }
-        ) || !validation::has_plain_owned_contents_with_numeric_constraints(program, reference)
-            || !matches!(
-                program.type_multiplicity(reference),
-                Multiplicity::Affine | Multiplicity::Unrestricted
-            ))
+        ) || !crate::validation::has_plain_owned_contents_with_numeric_constraints(
+            program, reference,
+        ) || !matches!(
+            program.type_multiplicity(reference),
+            Multiplicity::Affine | Multiplicity::Unrestricted
+        ))
     {
         return None;
     }
@@ -469,11 +472,12 @@ fn shared_nominal_argument(
     // Root membership/access and the exact authored receiver loan are retained
     // independently; this never constructs or copies the enclosing record.
     if !path.is_empty()
-        && (!validation::has_plain_owned_contents_with_numeric_constraints(program, reference)
-            || !matches!(
-                program.type_multiplicity(reference),
-                Multiplicity::Affine | Multiplicity::Unrestricted
-            ))
+        && (!crate::validation::has_plain_owned_contents_with_numeric_constraints(
+            program, reference,
+        ) || !matches!(
+            program.type_multiplicity(reference),
+            Multiplicity::Affine | Multiplicity::Unrestricted
+        ))
     {
         return None;
     }
@@ -587,16 +591,16 @@ fn shared_nominal_argument(
         // Captured self retains the machine namespace; contextual expression
         // resolution uses its actual formal. Normalize only that exact pair,
         // leaving every projected field and unrelated root unchanged.
-        if receiver.root == facts::PlaceRoot::Symbol(machine) {
-            receiver.root = facts::PlaceRoot::Symbol(
+        if receiver.root == crate::fact_plan::PlaceRoot::Symbol(machine) {
+            receiver.root = crate::fact_plan::PlaceRoot::Symbol(
                 parameters
                     .iter()
                     .find(|parameter| parameter.is_self)?
                     .symbol,
             );
         }
-        let expected_root = if place.root == facts::PlaceRoot::Symbol(machine) {
-            facts::PlaceRoot::Symbol(
+        let expected_root = if place.root == crate::fact_plan::PlaceRoot::Symbol(machine) {
+            crate::fact_plan::PlaceRoot::Symbol(
                 parameters
                     .iter()
                     .find(|parameter| parameter.is_self)?
@@ -648,10 +652,10 @@ fn shared_nominal_argument(
 /// borrowed view — while this lane names the view's established home.
 pub(crate) fn shared_slice_view_argument(
     program: &TypedTrees,
-    borrow: &checked_trees::BorrowFacts,
+    borrow: &crate::checked_trees::BorrowFacts,
     machine: SymbolHandle,
-    state: &typed_trees::state::State,
-    call: &checked_trees::FlowCallFact,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    call: &crate::checked_trees::FlowCallFact,
     place: &crate::flow::CanonicalPlace,
     symbol: SymbolHandle,
     target: &StateParameter,
@@ -728,7 +732,7 @@ pub(crate) fn shared_slice_view_argument(
 
 fn owned_array_local_argument(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
     source_symbol: SymbolHandle,
     target: &StateParameter,
@@ -755,8 +759,8 @@ fn owned_array_local_argument(
         || !program
             .expression_table
             .expression_is_valid(local.initial_value)
-        || !validation::is_closed_primitive_array_type(program, local.type_reference)
-        || !validation::is_closed_primitive_array_type(program, target.type_reference)
+        || !crate::validation::is_closed_primitive_array_type(program, local.type_reference)
+        || !crate::validation::is_closed_primitive_array_type(program, target.type_reference)
         || crate::checks::type_multiplicity(program, local.type_reference)
             != Multiplicity::Unrestricted
         || crate::checks::type_multiplicity(program, target.type_reference)
@@ -781,7 +785,7 @@ fn owned_array_local_argument(
 
 fn owned_parameter_argument(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     source_symbol: SymbolHandle,
     target: &StateParameter,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
@@ -800,7 +804,10 @@ fn owned_parameter_argument(
                     .type_reference_table
                     .type_reference(parameter.type_reference),
                 TypeReferenceNode::Named { .. }
-            ) || validation::is_closed_primitive_array_type(program, parameter.type_reference))
+            ) || crate::validation::is_closed_primitive_array_type(
+                program,
+                parameter.type_reference,
+            ))
             || program
                 .primitive_type_reference(parameter.type_reference)
                 .is_some()
@@ -808,11 +815,13 @@ fn owned_parameter_argument(
                 crate::checks::type_multiplicity(program, parameter.type_reference),
                 Multiplicity::Unrestricted | Multiplicity::Affine
             )
-            || !(validation::is_closed_primitive_array_type(program, parameter.type_reference)
-                || validation::has_plain_owned_contents_with_numeric_constraints(
-                    program,
-                    parameter.type_reference,
-                ))
+            || !(crate::validation::is_closed_primitive_array_type(
+                program,
+                parameter.type_reference,
+            ) || crate::validation::has_plain_owned_contents_with_numeric_constraints(
+                program,
+                parameter.type_reference,
+            ))
             || structural_access_for_type_reference(program, parameter.type_reference)?
                 != CheckedStructuralAccess::Owned
             || !parameter_qualifications(program, &mut shapes, parameter.type_reference, &[])?
@@ -850,10 +859,10 @@ fn owned_parameter_argument(
 /// with the existing collector so scalar reads occupy their actual positions.
 fn rejoin_computation_accesses(
     program: &TypedTrees,
-    borrow: &checked_trees::BorrowFacts,
+    borrow: &crate::checked_trees::BorrowFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
-    source: &checked_trees::FlowCallFact,
+    source: &crate::checked_trees::FlowCallFact,
 ) -> Option<()> {
     let mut states = borrow
         .states
@@ -950,14 +959,14 @@ fn plain_primitive_referent(
 
 pub(super) fn primitive_local_argument(
     program: &TypedTrees,
-    borrow: &checked_trees::BorrowFacts,
+    borrow: &crate::checked_trees::BorrowFacts,
     machine: SymbolHandle,
-    state: &typed_trees::state::State,
-    call: &checked_trees::FlowCallFact,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    call: &crate::checked_trees::FlowCallFact,
     place: &crate::flow::CanonicalPlace,
     target_type: TypeReferenceHandle,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(symbol) = place.root else {
         return None;
     };
     let local = super::super::structural_scalar_store::primitive_local_before(

@@ -74,7 +74,7 @@ fn receiver_graph_rejects_stale_receiver_transfer() {
         panic!("step returns to work");
     };
     successor.transfers[0].source =
-        checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 1 };
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 1 };
     assert!(admission::admit(&checked, &changed).is_err());
 }
 

@@ -159,7 +159,7 @@ fn nominal_float_len_field_retains_selected_ordering_without_builtin_bound_meani
         let machine = &checked.typed.machines()[0];
         let state = &checked.typed.machine_states(machine)[0];
         assert!(
-            !validation::has_builtin_bound_expression_meaning(
+            !crate::validation::has_builtin_bound_expression_meaning(
                 &checked.typed,
                 machine,
                 Some(state),

@@ -12,13 +12,15 @@
 //! constructor substitutions.
 
 use super::{MAX_ENTRY_PROVENANCE_DEPTH, PlaceSegment, entry_operand_at, member_hop_path};
-use checked_trees::CrashPredicateExpression;
+use crate::checked_trees::CrashPredicateExpression;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::machine::Machine;
-use typed_trees::state::State;
-use typed_trees::statement::StatementNode;
 
 pub(super) fn entry_value(
     program: &TypedTrees,
@@ -84,7 +86,7 @@ fn projected_entry_value(
     state: &State,
     before_statement: usize,
     expression: ExpressionHandle,
-    segments: &[facts::PlaceSegment],
+    segments: &[crate::fact_plan::PlaceSegment],
     depth: u32,
     selector: &mut impl FnMut(&State, usize, ExpressionHandle) -> Option<usize>,
 ) -> Option<CrashPredicateExpression> {
@@ -95,12 +97,16 @@ fn projected_entry_value(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Indexed(indexed) => {
-            if !validation::place_has_builtin_coordinates(program, machine, Some(state), expression)
-            {
+            if !crate::validation::place_has_builtin_coordinates(
+                program,
+                machine,
+                Some(state),
+                expression,
+            ) {
                 return None;
             }
             let element_index = selector(state, before_statement, indexed.index)?;
-            let mut projection = vec![facts::PlaceSegment::FixedIndex {
+            let mut projection = vec![crate::fact_plan::PlaceSegment::FixedIndex {
                 index: element_index,
             }];
             projection.extend_from_slice(segments);
@@ -120,13 +126,17 @@ fn projected_entry_value(
             let mut projection = hop
                 .into_iter()
                 .map(|segment| match segment {
-                    PlaceSegment::Field(symbol) => Some(facts::PlaceSegment::Field { symbol }),
-                    PlaceSegment::Case(variant) => Some(facts::PlaceSegment::Case { variant }),
+                    PlaceSegment::Field(symbol) => {
+                        Some(crate::fact_plan::PlaceSegment::Field { symbol })
+                    }
+                    PlaceSegment::Case(variant) => {
+                        Some(crate::fact_plan::PlaceSegment::Case { variant })
+                    }
                     PlaceSegment::FixedIndex(index) => {
-                        Some(facts::PlaceSegment::FixedIndex { index })
+                        Some(crate::fact_plan::PlaceSegment::FixedIndex { index })
                     }
                     PlaceSegment::FixedRange { start, end } => {
-                        Some(facts::PlaceSegment::FixedRange { start, end })
+                        Some(crate::fact_plan::PlaceSegment::FixedRange { start, end })
                     }
                     PlaceSegment::Opaque => None,
                 })
@@ -175,7 +185,7 @@ fn projected_entry_value(
                 .iter()
                 .map(|segment| super::mutable::canonical_place_segment(program, segment))
                 .collect();
-            if !validation::has_stable_observable_contents(program, local.type_reference)
+            if !crate::validation::has_stable_observable_contents(program, local.type_reference)
                 || (local.is_mutable
                     && !super::storage_holds_bound_value(
                         program,

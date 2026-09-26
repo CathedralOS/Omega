@@ -1,7 +1,7 @@
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use typed_trees::data::DataMember;
-use typed_trees::expression::ExpressionNode;
-use typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 
 fn assert_indexed_member_identities(collection: &str, receiver: &str) {
     let source = format!(
@@ -100,14 +100,17 @@ fn attached_indexed_members_bind_exact_element_field_symbols() {
     }
 }
 
-fn resolved_member_fixture() -> symbol_resolved_trees::SymbolResolvedTrees {
+fn resolved_member_fixture()
+-> syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::SymbolResolvedTrees {
     let source = "data Decoy { end: i64; }
         data Endpoint { end: i64; }
         machine read(cells: &[Endpoint; 2]) -> i64 { cells[0].end }";
     crate::front_end::resolved_program(source)
 }
 
-fn only_member_symbol(typed: &typed_trees::TypedTrees) -> symbols::SymbolHandle {
+fn only_member_symbol(
+    typed: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+) -> symbols::SymbolHandle {
     let machine = typed
         .machines()
         .iter()
@@ -131,8 +134,8 @@ fn only_member_symbol(typed: &typed_trees::TypedTrees) -> symbols::SymbolHandle 
 
 #[test]
 fn explicit_indexed_member_selections_are_not_rebound() {
-    use symbol_resolved_trees::data::DataMember as ResolvedDataMember;
-    use symbol_resolved_trees::expression::ExpressionNode as ResolvedExpression;
+    use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember as ResolvedDataMember;
+    use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::expression::ExpressionNode as ResolvedExpression;
 
     let original = resolved_member_fixture();
     let field = |owner: &str| {
@@ -178,7 +181,7 @@ fn explicit_indexed_member_selections_are_not_rebound() {
 
 #[test]
 fn missing_or_stale_collection_identity_cannot_bind_by_spelling() {
-    use symbol_resolved_trees::expression::ExpressionNode as ResolvedExpression;
+    use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::expression::ExpressionNode as ResolvedExpression;
 
     let original = resolved_member_fixture();
     let (expression, symbol) = original

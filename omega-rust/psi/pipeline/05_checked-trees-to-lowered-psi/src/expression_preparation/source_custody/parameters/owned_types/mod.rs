@@ -5,16 +5,18 @@
 //! Reconstruct those restrictions from the original type and substitutions before
 //! comparing catalogs; agreement between retained catalogs cannot replace this.
 
-use checked_trees::TypeIdentityRequest;
-use checked_trees::data::{DataDefinition, DataField, DataMember};
-use checked_trees::state::State;
-use checked_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
-use checked_trees::{
+use symbols::SymbolHandle;
+use typed_trees_to_checked_trees::checked_trees::TypeIdentityRequest;
+use typed_trees_to_checked_trees::checked_trees::data::{DataDefinition, DataField, DataMember};
+use typed_trees_to_checked_trees::checked_trees::state::State;
+use typed_trees_to_checked_trees::checked_trees::types::{
+    FixedArrayLength, TypeReferenceHandle, TypeReferenceNode,
+};
+use typed_trees_to_checked_trees::checked_trees::{
     CheckedStructuralAccess, CheckedTrees, CheckedUnitStructuralCasePlan,
     CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralTypeShape,
 };
-use symbols::SymbolHandle;
 
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;

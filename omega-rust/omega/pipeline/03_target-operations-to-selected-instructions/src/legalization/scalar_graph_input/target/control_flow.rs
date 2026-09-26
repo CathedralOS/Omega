@@ -7,7 +7,9 @@ use super::{
 };
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::target::Checker;
-use target_operations::{TargetControlGraph, TargetControlSuccessor, TargetControlTerminator};
+use abstract_operations_to_target_operations::target_operations::{
+    TargetControlGraph, TargetControlSuccessor, TargetControlTerminator,
+};
 #[cfg(test)]
 mod ieee_float_tests;
 #[cfg(test)]
@@ -216,7 +218,7 @@ pub(super) fn validate(
                         .is_ok()
                     })
                     && match source {
-                        target_operations::TargetStructuralReturnSource::Parameter(parameter) => {
+                        abstract_operations_to_target_operations::target_operations::TargetStructuralReturnSource::Parameter(parameter) => {
                             optimized.structural_parameters.iter().any(|semantic| {
                                 semantic.place == *expected_source
                             && semantic.access == terminal_psi::StructuralAccess::Owned
@@ -242,7 +244,7 @@ pub(super) fn validate(
                                     .as_ref()
                                     .is_some_and(|result| result.shape == parameter.shape)
                         }
-                        target_operations::TargetStructuralReturnSource::Home(source) => {
+                        abstract_operations_to_target_operations::target_operations::TargetStructuralReturnSource::Home(source) => {
                             super::super::aggregate_results::result_home(
                                 optimized,
                                 *expected_source,
@@ -440,7 +442,7 @@ fn successor_matches(
     block: semantic_vocabulary::BlockId,
     plan: &AbstractOperationPlan,
     target: &TargetControlSuccessor,
-    source: &abstract_operations::AbstractSuccessor,
+    source: &terminal_psi_to_abstract_operations::abstract_operations::AbstractSuccessor,
 ) -> bool {
     target.psi_edge == source.psi_edge
         && target.target == source.target

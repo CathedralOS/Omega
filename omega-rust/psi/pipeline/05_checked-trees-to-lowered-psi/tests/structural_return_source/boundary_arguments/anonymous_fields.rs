@@ -2,9 +2,9 @@ use super::{
     Terminator, assert_constructed_wrapper_execution, constructed_wrapper_source, decode_module,
     record_field_computation, unit_wrapper_artifact,
 };
-use checked_trees::CheckedScalarComputationKind;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use semantic_vocabulary::IntegerValue;
+use typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationKind;
 
 const EXACT_FIELDS: [&str; 4] = [
     "7 / 2 * 2",
@@ -137,7 +137,7 @@ fn constructed_anonymous_field_plans_cannot_change_the_authored_value() {
             .get_mut(handle)
             .kind;
         *retained = CheckedScalarComputationKind::Value(
-            checked_trees::CheckedScalarExpression::IntegerLiteral {
+            typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::IntegerLiteral {
                 literal: numerics::literals::IntegerLiteral::from_value(6).with_landing(
                     numerics::literals::IntegerLanding {
                         landed_type: numerics::literals::LandedIntegerType::I64,

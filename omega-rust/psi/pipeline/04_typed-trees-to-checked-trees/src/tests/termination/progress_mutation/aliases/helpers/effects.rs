@@ -7,7 +7,7 @@ use crate::tests::termination::progress_mutation::fixture_source;
 use crate::tests::termination::progress_mutation::fixture_with_body;
 use crate::tests::termination::symbol_of_checked;
 
-fn assert_no_checked_guarantee(program: &checked_trees::CheckedTrees) {
+fn assert_no_checked_guarantee(program: &crate::checked_trees::CheckedTrees) {
     let plan = program
         .facts
         .termination

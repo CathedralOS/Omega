@@ -7,12 +7,12 @@
 //! continuation must rebase the extension's authored selections onto its own
 //! ledger before the trees can enter it.
 
-use diagnostics::Diagnostic;
-use symbol_resolved_trees::{
+use crate::symbol_resolved_trees::{
     AuthoredDeclarationSelections, AuthoredSelectionExtensionFrontier,
     AuthoredSelectionExtensionRebaseError, SymbolResolvedTrees,
 };
-use syntax_trees::SyntaxTrees;
+use diagnostics::Diagnostic;
+use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
 
 /// Private preparation evidence for semantic initializer evaluation. The forest
 /// retains unresolved values and operator obligations; it is not a completed
@@ -27,8 +27,8 @@ impl ConstInitializerSelection {
     pub fn initializer_expression_dependencies(
         &self,
         syntax: &SyntaxTrees,
-        definition: &syntax_trees::item::ConstDefinition,
-        expression: syntax_trees::expression::ExpressionHandle,
+        definition: &tokens_to_syntax_trees::syntax_trees::item::ConstDefinition,
+        expression: tokens_to_syntax_trees::syntax_trees::expression::ExpressionHandle,
     ) -> Result<
         crate::constant::initializer_dependencies::ConstInitializerDependencies,
         Vec<Diagnostic>,
@@ -73,7 +73,7 @@ impl ConstInitializerSelection {
     pub fn initializer_dependencies(
         &self,
         _syntax: &SyntaxTrees,
-        definition: &syntax_trees::item::ConstDefinition,
+        definition: &tokens_to_syntax_trees::syntax_trees::item::ConstDefinition,
     ) -> Result<
         crate::constant::initializer_dependencies::ConstInitializerDependencies,
         Vec<Diagnostic>,
@@ -115,7 +115,7 @@ impl ConstInitializerSelection {
         syntax: &SyntaxTrees,
     ) -> Result<(), Vec<Diagnostic>> {
         for definition in syntax.root_items().filter_map(|item| match item {
-            syntax_trees::item::Item::Const(definition)
+            tokens_to_syntax_trees::syntax_trees::item::Item::Const(definition)
                 if crate::constant::requires_const_initializer_evaluation(syntax, definition) =>
             {
                 Some(definition)
@@ -142,7 +142,7 @@ impl ConstInitializerSelection {
     pub fn pending_leaves(
         &self,
         syntax: &SyntaxTrees,
-        definition: &syntax_trees::item::ConstDefinition,
+        definition: &tokens_to_syntax_trees::syntax_trees::item::ConstDefinition,
     ) -> Result<Vec<crate::constant::PendingConstInitializerLeaf>, Vec<Diagnostic>> {
         crate::constant::pending_const_initializer_leaves(syntax, definition, &self.selection)
             .map_err(|reason| {
@@ -156,9 +156,10 @@ impl ConstInitializerSelection {
     pub fn pending_value_placeholder(
         &self,
         syntax: &mut SyntaxTrees,
-        destination: syntax_trees::types::TypeReferenceHandle,
+        destination: tokens_to_syntax_trees::syntax_trees::types::TypeReferenceHandle,
         reference: source::SourceSpan,
-    ) -> Result<syntax_trees::expression::ExpressionHandle, Vec<Diagnostic>> {
+    ) -> Result<tokens_to_syntax_trees::syntax_trees::expression::ExpressionHandle, Vec<Diagnostic>>
+    {
         crate::constant::pending_aggregate_placeholder(
             syntax,
             &self.selection,
@@ -171,7 +172,7 @@ impl ConstInitializerSelection {
     pub fn canonicalize_value(
         &self,
         syntax: &SyntaxTrees,
-        definition: &syntax_trees::item::ConstDefinition,
+        definition: &tokens_to_syntax_trees::syntax_trees::item::ConstDefinition,
     ) -> Result<language_semantics::const_value::CanonicalConstValue, String> {
         crate::preparation::generic_data::canonicalize_selected_declared_const_definition(
             syntax,

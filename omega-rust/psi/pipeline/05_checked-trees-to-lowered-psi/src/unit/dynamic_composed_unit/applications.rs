@@ -9,13 +9,13 @@ use crate::unit::{
     collect_service_summary, evidence_lowering, lower_installation_machine_service_ceiling,
     unsupported,
 };
-use checked_trees::CheckedDynamicSelectionPlan;
 use language_semantics::ServiceReachSummary;
 use terminal_psi::{
     ClosedConformanceApplication, ClosedConformanceCallableResult,
     ClosedConformanceRealizationCallable, ClosedConformanceRow,
     closed_conformance_application_commitment, closed_conformance_application_report_fingerprint,
 };
+use typed_trees_to_checked_trees::checked_trees::CheckedDynamicSelectionPlan;
 
 /// A rebound descriptor whose initial selection names another conformance
 /// or row roster retains that selection's own application; every other lane
@@ -344,7 +344,7 @@ pub(crate) fn lower_exact_application(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn count_selected_family_rows(
     checked: &CheckedTrees,
-    retained_rows: &[checked_trees::DynamicConformanceRowFact],
+    retained_rows: &[typed_trees_to_checked_trees::checked_trees::DynamicConformanceRowFact],
     declaring_trait: symbols::SymbolHandle,
     requirement: symbols::SymbolHandle,
     requirement_identity: &str,
@@ -382,7 +382,7 @@ pub(crate) fn validate_empty_contract(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     report_fingerprint: u64,
-    commitment: checked_trees::MachineContractCommitment,
+    commitment: typed_trees_to_checked_trees::checked_trees::MachineContractCommitment,
 ) -> Result<(), LoweringError> {
     let contract =
         checked

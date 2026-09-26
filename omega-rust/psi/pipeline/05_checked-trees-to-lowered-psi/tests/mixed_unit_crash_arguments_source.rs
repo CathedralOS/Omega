@@ -1,13 +1,15 @@
 //! Mixed Unit signatures keep authored crash parameters distinct from ABI positions.
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralBooleanFieldValue, TerminalStructuralValue,
 };
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 const SOURCE: &str = r#"
     data Flag { enabled: bool; }
@@ -104,7 +106,9 @@ fn proposition_only_float_comparisons_compose_as_boolean_crash_operands() {
     }
 }
 
-fn roundtrip(checked: &checked_trees::CheckedTrees) -> lowered_psi::LoweredPsi {
+fn roundtrip(
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+) -> checked_trees_to_lowered_psi::lowered_psi::LoweredPsi {
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         checked,
         TerminalMachineSelection::Name("Main::main"),
@@ -122,15 +126,16 @@ fn roundtrip(checked: &checked_trees::CheckedTrees) -> lowered_psi::LoweredPsi {
         &proof_admission::AdmissionProfile::default(),
     )
     .expect("mixed Unit crash predicate verifies independently");
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        checked,
-        TerminalMachineSelection::Name("Main::main"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("mixed Unit crash predicate publishes")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            checked,
+            TerminalMachineSelection::Name("Main::main"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("mixed Unit crash predicate publishes")
+        .into_artifact();
     assert_eq!(
         terminal_codec::decode_module(artifact.semantic_bytes()).unwrap(),
         module
@@ -517,7 +522,12 @@ impl TerminalEffectHandler for Observe {
     }
 }
 
-fn execute(lowered: &lowered_psi::LoweredPsi, scalars: [bool; 2], flags: [bool; 2], reverse: bool) {
+fn execute(
+    lowered: &checked_trees_to_lowered_psi::lowered_psi::LoweredPsi,
+    scalars: [bool; 2],
+    flags: [bool; 2],
+    reverse: bool,
+) {
     let module = &lowered.semantic_module;
     let root = module
         .machines

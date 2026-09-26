@@ -19,7 +19,7 @@ fn shared_sum_call_replays_original_home_layout_and_consumed_scalar_result() {
         let field = semantic_vocabulary::StructuralFieldId::new(1).unwrap();
         let scalar = source.blocks[0].instructions[0].result.unwrap().scalar_type;
         let case = semantic_vocabulary::StructuralCaseId::new(1).unwrap();
-        let layout = calling_conventions::evaluate_conventional_sum_layout(
+        let layout = abstract_operations_to_target_operations::calling_conventions::evaluate_conventional_sum_layout(
             &[],
             &[vec![ValueShape::integer(8, 8)], Vec::new()],
         )
@@ -91,13 +91,13 @@ fn shared_sum_call_replays_original_home_layout_and_consumed_scalar_result() {
         target.destination = call.call_plan.parameters[0].clone();
         semantic.access = StructuralAccess::SharedBorrow;
         target.access = StructuralAccess::SharedBorrow;
-        target.source = target_operations::TargetStructuralArgumentSource::StructuralHome {
+        target.source = abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::StructuralHome {
             psi_operation: OperationId::new(2).unwrap(),
         };
         // The following scalar call consumes the getter result, not its input field.
         source.blocks[0].instructions[3] = fixture(native, 0).blocks[0].instructions[3].clone();
         let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
+            crate::register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -140,7 +140,7 @@ fn shared_sum_call_replays_original_home_layout_and_consumed_scalar_result() {
             match mutation {
                 0 => {
                     target.source =
-                        target_operations::TargetStructuralArgumentSource::StructuralHome {
+                        abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::StructuralHome {
                             psi_operation: OperationId::new(99).unwrap(),
                         }
                 }

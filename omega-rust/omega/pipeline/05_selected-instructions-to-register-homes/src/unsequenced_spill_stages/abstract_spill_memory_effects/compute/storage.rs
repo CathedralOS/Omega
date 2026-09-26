@@ -4,7 +4,7 @@ use crate::unsequenced_spill_stages::{
     AbstractSpillMemoryEffect, AbstractSpillMemoryEffectError, HomedSpillPseudoInstruction,
     SpillPseudoStorage,
 };
-use register_homes::LogicalSpillStorageClass;
+use selected_instructions_to_selected_instructions::register_homes::LogicalSpillStorageClass;
 
 pub(super) fn project(
     function: usize,

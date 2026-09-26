@@ -8,8 +8,8 @@ use crate::unsequenced_spill_stages::{
     RecursiveSpillInsertionPolicy, RecursiveSpillSlot, RecursiveSpillStoredValue,
     ValidatedGeneralizedSpillInsertion, ValidatedGeneralizedSpillRecoveryActions,
 };
-use register_homes::LogicalSpillStorageClass;
-use selected_instructions::LiveRangePoint;
+use selected_instructions_to_selected_instructions::register_homes::LogicalSpillStorageClass;
+use target_operations_to_selected_instructions::LiveRangePoint;
 
 const SLOT_BYTES: u64 = 8;
 
@@ -18,23 +18,23 @@ struct PendingAction {
     id: GeneralizedSpillActionId,
     source: RecursiveSpillActionSource,
     class: LogicalSpillStorageClass,
-    block: selected_instructions::SelectedBlockId,
+    block: target_operations_to_selected_instructions::SelectedBlockId,
     from: LiveRangePoint,
     through: LiveRangePoint,
-    store_instruction: selected_instructions::SelectedInstructionId,
+    store_instruction: target_operations_to_selected_instructions::SelectedInstructionId,
     before_reload: Option<GeneralizedSpillActionId>,
     stored_value: RecursiveSpillStoredValue,
-    source_view: register_model::RegisterViewId,
-    reload_instruction: selected_instructions::SelectedInstructionId,
-    destination_class: register_model::RegisterClassId,
+    source_view: target_operations_to_selected_instructions::register_model::RegisterViewId,
+    reload_instruction: target_operations_to_selected_instructions::SelectedInstructionId,
+    destination_class: target_operations_to_selected_instructions::register_model::RegisterClassId,
     rewrites: Vec<PendingRewrite>,
 }
 
 #[derive(Clone, Copy)]
 struct PendingRewrite {
-    block: selected_instructions::SelectedBlockId,
+    block: target_operations_to_selected_instructions::SelectedBlockId,
     point: LiveRangePoint,
-    instruction: selected_instructions::SelectedInstructionId,
+    instruction: target_operations_to_selected_instructions::SelectedInstructionId,
     operand: u16,
 }
 

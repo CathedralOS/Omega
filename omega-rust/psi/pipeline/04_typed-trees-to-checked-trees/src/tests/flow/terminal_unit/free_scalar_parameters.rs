@@ -1,8 +1,8 @@
 //! Free Unit signatures retain scalar parameters without a fabricated attachment.
 use super::{CheckedScalarExpression, CheckedUnitEffectOperationPlan, Multiplicity, PrimitiveType};
+use crate::checked_trees::{CheckedCallScalarArgument, CheckedTerminalSignatureEligibility};
 use crate::tests::flow::terminal_unit::checked;
 use crate::tests::flow::terminal_unit::machine_named;
-use checked_trees::{CheckedCallScalarArgument, CheckedTerminalSignatureEligibility};
 
 const SOURCE: &str = r#"
     boundary trait Host {
@@ -152,7 +152,7 @@ fn free_mixed_signature_reuses_hosted_parameter_custody_without_attachment() {
         if before.source_position == 0 && after.source_position == 2
             && before.primitive_type == PrimitiveType::Bool && after.primitive_type == PrimitiveType::Bool));
     assert!(matches!(free.structural_parameters.as_slice(), [record]
-        if record.position == 1 && !record.is_self && record.access == checked_trees::CheckedStructuralAccess::Owned
+        if record.position == 1 && !record.is_self && record.access == crate::checked_trees::CheckedStructuralAccess::Owned
             && record.multiplicity == Multiplicity::Affine && record.qualifications.is_empty()
             && record.fused_service_erasure.is_none()));
     // A primitive reference the body never observes is an ordinary structural
@@ -163,7 +163,7 @@ fn free_mixed_signature_reuses_hosted_parameter_custody_without_attachment() {
     assert!(reference_only.scalar_parameters.is_empty());
     assert!(
         matches!(reference_only.structural_parameters.as_slice(), [value]
-        if value.position == 0 && value.access == checked_trees::CheckedStructuralAccess::SharedBorrow)
+        if value.position == 0 && value.access == crate::checked_trees::CheckedStructuralAccess::SharedBorrow)
     );
     assert!(matches!(
         reference_only.operations.as_slice(),

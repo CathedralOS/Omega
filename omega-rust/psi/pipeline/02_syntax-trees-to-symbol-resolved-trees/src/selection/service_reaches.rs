@@ -5,13 +5,13 @@
 //! trait-parent edge has a symbol; published rows cannot carry an invalid
 //! member or a parallel spelling contract.
 
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
+use crate::symbol_resolved_trees::name::DiagnosticName;
 use diagnostics::Diagnostic;
 use language_semantics::{
     ServiceReachId, ServiceReachRowId, ServiceReachRowTable, ServiceReachTable,
 };
 use std::fmt;
-use symbol_resolved_trees::SymbolResolvedTrees;
-use symbol_resolved_trees::name::DiagnosticName;
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 #[derive(Debug, Clone)]
@@ -223,7 +223,7 @@ fn pending_signature_service_reach(
 fn validate_signature_service_reaches(
     program: &SymbolResolvedTrees,
     services: &ServiceReachTable,
-    signature: &symbol_resolved_trees::signature::StateSignature,
+    signature: &crate::symbol_resolved_trees::signature::StateSignature,
     pending: &PendingSignatureServiceReach,
 ) -> Result<(), Diagnostic> {
     for service in &pending.authored {
@@ -256,7 +256,7 @@ impl fmt::Display for SignatureOwnerDisplay<'_> {
 fn validate_machine_service_reaches(
     program: &SymbolResolvedTrees,
     services: &ServiceReachTable,
-    machine: &symbol_resolved_trees::machine::Machine,
+    machine: &crate::symbol_resolved_trees::machine::Machine,
     authored: &[DiagnosticName],
     is_authored: bool,
 ) -> Result<(), Diagnostic> {
@@ -290,7 +290,7 @@ fn resolve_authored_service_reach(
     keyword_source_spans: &[source::SourceSpan],
     authored: &[DiagnosticName],
     installation_bound: bool,
-) -> Result<Option<symbol_resolved_trees::signature::AuthoredServiceReachRow>, Diagnostic> {
+) -> Result<Option<crate::symbol_resolved_trees::signature::AuthoredServiceReachRow>, Diagnostic> {
     if keyword_source_spans.is_empty() {
         if authored.is_empty() {
             return Ok(None);
@@ -313,14 +313,14 @@ fn resolve_authored_service_reach(
                     "authored service-reach member `{name}` resolves outside the normalized service table"
                 ))
             })?;
-            Ok(symbol_resolved_trees::signature::AuthoredServiceReachTarget {
+            Ok(crate::symbol_resolved_trees::signature::AuthoredServiceReachTarget {
                 service: definition.symbol,
                 source_span: name.source_span(),
             })
         })
         .collect::<Result<Vec<_>, Diagnostic>>()?;
     Ok(Some(
-        symbol_resolved_trees::signature::AuthoredServiceReachRow {
+        crate::symbol_resolved_trees::signature::AuthoredServiceReachRow {
             owner,
             keyword_source_spans: keyword_source_spans.to_vec(),
             targets,
@@ -332,8 +332,8 @@ fn resolve_authored_service_reach(
 fn invoked_service_ids(
     program: &SymbolResolvedTrees,
     services: &ServiceReachTable,
-    invokes: &[symbol_resolved_trees::name::DiagnosticName],
-    parameters: &[symbol_resolved_trees::signature::StateParameter],
+    invokes: &[crate::symbol_resolved_trees::name::DiagnosticName],
+    parameters: &[crate::symbol_resolved_trees::signature::StateParameter],
 ) -> Vec<ServiceReachId> {
     let mut service_ids = Vec::new();
     for invocation in invokes {
@@ -356,9 +356,9 @@ fn invoked_service_ids(
 
 fn type_symbol(
     program: &SymbolResolvedTrees,
-    type_reference: &symbol_resolved_trees::types::TypeReference,
+    type_reference: &crate::symbol_resolved_trees::types::TypeReference,
 ) -> Option<symbols::SymbolHandle> {
-    use symbol_resolved_trees::types::TypeReference;
+    use crate::symbol_resolved_trees::types::TypeReference;
     match type_reference {
         TypeReference::Reference(reference) => {
             type_symbol(program, program.child_type_reference(reference.referee))
@@ -382,8 +382,8 @@ fn normalize_machine_parameter_rows(
     services: &ServiceReachTable,
     rows: &mut ServiceReachRowTable,
     signature_service_reaches: &[PendingSignatureServiceReach],
-) -> Result<Vec<symbol_resolved_trees::signature::AuthoredServiceReachRow>, Diagnostic> {
-    use symbol_resolved_trees::data::TypeParameterKind;
+) -> Result<Vec<crate::symbol_resolved_trees::signature::AuthoredServiceReachRow>, Diagnostic> {
+    use crate::symbol_resolved_trees::data::TypeParameterKind;
 
     let mut roots = program
         .data_definitions
@@ -481,11 +481,11 @@ fn normalize_machine_parameter_rows(
 }
 
 fn collect_parameter_spans(
-    arena: &arena::Arena<symbol_resolved_trees::data::TypeParameter>,
-    span: arena::HandleSpan<symbol_resolved_trees::data::TypeParameter>,
-    spans: &mut Vec<arena::HandleSpan<symbol_resolved_trees::data::TypeParameter>>,
+    arena: &arena::Arena<crate::symbol_resolved_trees::data::TypeParameter>,
+    span: arena::HandleSpan<crate::symbol_resolved_trees::data::TypeParameter>,
+    spans: &mut Vec<arena::HandleSpan<crate::symbol_resolved_trees::data::TypeParameter>>,
 ) {
-    use symbol_resolved_trees::data::TypeParameterKind;
+    use crate::symbol_resolved_trees::data::TypeParameterKind;
     if span.is_empty() || spans.contains(&span) {
         return;
     }

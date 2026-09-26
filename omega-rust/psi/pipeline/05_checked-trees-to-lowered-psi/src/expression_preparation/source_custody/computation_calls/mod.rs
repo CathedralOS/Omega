@@ -7,7 +7,9 @@ use super::{
     CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, PrimitiveType, StatementNode,
     authored_state, unsupported,
 };
-use checked_trees::{CheckedScalarComputationHandle, CheckedScalarComputationKind};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedScalarComputationHandle, CheckedScalarComputationKind,
+};
 
 use crate::expression_preparation::source_custody::borrow_occurrences as borrow_rows;
 mod dispatch;
@@ -127,7 +129,7 @@ pub(crate) fn validate_computation_calls(
                         statement,
                         *source,
                         plans.nodes.get(*computation).primitive_type,
-                        &checked_trees::CheckedCallScalarArgument::Computation(*computation),
+                        &typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Computation(*computation),
                     )?;
                 }
                 pending.extend(
@@ -150,7 +152,7 @@ pub(crate) fn validate_computation_calls(
                     statement,
                 )?;
                 let selected = checked.facts.operators.uses.get(*operator_use);
-                if selected.occurrence != checked_trees::CheckedOperatorOccurrence::Expression {
+                if selected.occurrence != typed_trees_to_checked_trees::checked_trees::CheckedOperatorOccurrence::Expression {
                     return unsupported("ordinary comparison substituted an implicit occurrence");
                 }
                 dispatch::source_scope(
@@ -479,11 +481,11 @@ fn select_case_arm(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
-    plans: &checked_trees::CheckedScalarComputationPlans,
+    plans: &typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationPlans,
     pending: &mut Vec<(CheckedScalarComputationHandle, bool, ExpressionHandle)>,
     case_selection_arms: &mut std::collections::HashMap<ExpressionHandle, usize>,
     source_expression: ExpressionHandle,
-    dispatch: &checked_trees::expression::TableMatchExpression,
+    dispatch: &typed_trees_to_checked_trees::checked_trees::expression::TableMatchExpression,
     condition: CheckedScalarComputationHandle,
     when_true: CheckedScalarComputationHandle,
     when_false: CheckedScalarComputationHandle,
@@ -502,11 +504,15 @@ fn select_case_arm(
         .ok_or(LoweringError::Unsupported(
             "computed selection lost its source state",
         ))?;
-    let plan =
-        validation::match_case_dispatch(&checked.typed, typed_machine, typed_state, dispatch)
-            .ok_or(LoweringError::Unsupported(
-                "computed selection lost its discriminant dispatch",
-            ))?;
+    let plan = typed_trees_to_checked_trees::validation::match_case_dispatch(
+        &checked.typed,
+        typed_machine,
+        typed_state,
+        dispatch,
+    )
+    .ok_or(LoweringError::Unsupported(
+        "computed selection lost its discriminant dispatch",
+    ))?;
     let ordinal = case_selection_arms
         .get(&source_expression)
         .copied()
@@ -665,7 +671,7 @@ fn expression_membership(
                     return unsupported("computed dispatch has a stale authored arm span");
                 }
                 for arm in arms {
-                    if let checked_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    if let typed_trees_to_checked_trees::checked_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                         children.push(pattern);
                     }
                     children.push(arm.value);
@@ -717,7 +723,9 @@ mod tests {
         CheckedScalarComputationKind, CheckedScalarExpression, CheckedTrees, ExpressionNode,
         authored_expressions, validate_computation_calls,
     };
-    use checked_trees::expression::{BinaryOperator, TableBinaryExpression};
+    use typed_trees_to_checked_trees::checked_trees::expression::{
+        BinaryOperator, TableBinaryExpression,
+    };
 
     #[test]
     fn computed_application_rejects_another_same_typed_operation_occurrence() {
@@ -874,9 +882,12 @@ mod tests {
             .scalar_computations
             .nodes
             .get_mut(root.root)
-            .kind = CheckedScalarComputationKind::Value(CheckedScalarExpression::Boolean(
-            Box::new(checked_trees::CheckedBooleanExpression::Constant(true)),
-        ));
+            .kind =
+            CheckedScalarComputationKind::Value(CheckedScalarExpression::Boolean(Box::new(
+                typed_trees_to_checked_trees::checked_trees::CheckedBooleanExpression::Constant(
+                    true,
+                ),
+            )));
         assert!(
             validate_computation_calls(
                 &checked,

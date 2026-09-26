@@ -35,8 +35,10 @@ fn scalar_match_result_casts_still_prove_domain_predicates() {
 
 #[test]
 fn indexed_cast_specializations_keep_result_and_expression_domain_ids_in_sync() {
-    use typed_trees::expression::ExpressionNode;
-    use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+        TypeConstraintNode, TypeReferenceNode,
+    };
 
     let checked = check(
         "domain<T, const U: u64> T::Quantity<U>;

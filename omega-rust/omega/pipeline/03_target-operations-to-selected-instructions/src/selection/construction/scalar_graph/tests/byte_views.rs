@@ -16,7 +16,7 @@ fn indexed_byte_read_replay_binds_dynamic_subject_and_proof() {
         target::NativeTarget::macos_arm64(),
     ] {
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let mut source = fixture(target, 0);
         source.attachment = None;
         source.blocks[0].instructions.truncate(3);
@@ -45,7 +45,7 @@ fn indexed_byte_read_replay_binds_dynamic_subject_and_proof() {
             definition_site: ValueDefinitionSite::FunctionParameter(0),
             placement: source.call_plan.parameters[0].clone(),
         }];
-        source.structural = Some(legalized_operations::LegalizedStructuralContract {
+        source.structural = Some(crate::legalized_operations::LegalizedStructuralContract {
             result: None,
             structural_types: vec![terminal_psi::StructuralTypeDeclaration {
                 id: structural_type,
@@ -57,7 +57,7 @@ fn indexed_byte_read_replay_binds_dynamic_subject_and_proof() {
                 ),
             }]
             .into(),
-            parameters: vec![legalized_operations::LegalizedCallUnitParameter {
+            parameters: vec![crate::legalized_operations::LegalizedCallUnitParameter {
                 semantic: terminal_psi::StructuralParameterDeclaration {
                     place,
                     position: 0,
@@ -68,7 +68,7 @@ fn indexed_byte_read_replay_binds_dynamic_subject_and_proof() {
                     qualifications: Vec::new(),
                     projected_qualifications: Vec::new(),
                 },
-                target: target_operations::TargetStructuralParameter {
+                target: abstract_operations_to_target_operations::target_operations::TargetStructuralParameter {
                     place,
                     structural_type,
                     multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
@@ -157,11 +157,11 @@ fn indexed_byte_read_replay_binds_dynamic_subject_and_proof() {
                 .find(|access| {
                     matches!(
                         access.role,
-                        selected_instructions::SelectedMemoryAccessRole::ReadByteSequence { .. }
+                        crate::selected_instructions::SelectedMemoryAccessRole::ReadByteSequence { .. }
                     )
                 })
                 .unwrap();
-            let selected_instructions::SelectedMemoryAccessRole::ReadByteSequence {
+            let crate::selected_instructions::SelectedMemoryAccessRole::ReadByteSequence {
                 index,
                 length,
                 obligation,
@@ -204,7 +204,7 @@ fn byte_view_length_uses_descriptor_read_and_rejects_changed_projection() {
         target::NativeTarget::macos_arm64(),
     ] {
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let mut source = fixture(target, 0);
         source.attachment = None;
         source.blocks[0].instructions.truncate(1);
@@ -230,7 +230,7 @@ fn byte_view_length_uses_descriptor_read_and_rejects_changed_projection() {
                 IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
             ),
         };
-        source.structural = Some(legalized_operations::LegalizedStructuralContract {
+        source.structural = Some(crate::legalized_operations::LegalizedStructuralContract {
             result: None,
             structural_types: vec![terminal_psi::StructuralTypeDeclaration {
                 id: structural_type,
@@ -242,7 +242,7 @@ fn byte_view_length_uses_descriptor_read_and_rejects_changed_projection() {
                 ),
             }]
             .into(),
-            parameters: vec![legalized_operations::LegalizedCallUnitParameter {
+            parameters: vec![crate::legalized_operations::LegalizedCallUnitParameter {
                 semantic: terminal_psi::StructuralParameterDeclaration {
                     place,
                     position: 0,
@@ -253,7 +253,7 @@ fn byte_view_length_uses_descriptor_read_and_rejects_changed_projection() {
                     qualifications: Vec::new(),
                     projected_qualifications: Vec::new(),
                 },
-                target: target_operations::TargetStructuralParameter {
+                target: abstract_operations_to_target_operations::target_operations::TargetStructuralParameter {
                     place,
                     structural_type,
                     multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,

@@ -27,7 +27,7 @@ fn surviving_subslice_cannot_reuse_proof_after_endpoint_drift() {
         refresh_identity(&mut changed);
         // Both replacement endpoints are dominating u64 parameters. The
         // immutable Terminal operation, not scalar typing, rejects the forgery.
-        optimization_unit_semantics::validate_psi_optimization_unit(&changed).unwrap();
+        terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&changed).unwrap();
         assert!(matches!(
             validate_transformed_psi_optimization_unit(&input, &changed),
             Err(OptimizationUnitValidationError::OperationObligationOwnerMismatch { .. })
@@ -66,7 +66,7 @@ fn subslice_requires_exact_length_result_contract_and_fuel() {
                 // stale instruction positions, is the rejected contract.
                 for (position, node) in block.nodes.iter_mut().enumerate() {
                     for definition in &mut node.definitions {
-                        definition.site = optimization_unit::ValueDefinitionSite::Node {
+                        definition.site = terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite::Node {
                             block: block.id,
                             node: position as u32,
                         };
@@ -85,12 +85,12 @@ fn subslice_requires_exact_length_result_contract_and_fuel() {
         );
         if mutation == 0 {
             assert!(matches!(
-                optimization_unit_semantics::validate_psi_optimization_unit(&changed),
+                terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&changed),
                 Err(OptimizationUnitValidationError::InvalidByteSequenceSubslice { .. })
             ));
         }
         if mutation == 8 {
-            let actual = optimization_unit_semantics::validate_psi_optimization_unit(&changed);
+            let actual = terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&changed);
             assert!(
                 matches!(
                     actual,
@@ -120,7 +120,7 @@ fn subslice_and_length_cannot_substitute_another_immutable_source() {
     };
     *source = id(2, PlaceId::new);
     refresh_identity(&mut changed);
-    optimization_unit_semantics::validate_psi_optimization_unit(&changed).unwrap();
+    terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&changed).unwrap();
     assert!(validate_transformed_psi_optimization_unit(&input, &changed).is_err());
 }
 
@@ -140,7 +140,7 @@ fn subslice_length_witness_must_dominate_even_for_the_identical_source() {
     *source = id(1, PlaceId::new);
     refresh_identity(&mut changed);
     assert!(matches!(
-        optimization_unit_semantics::validate_psi_optimization_unit(&changed),
+        terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&changed),
         Err(OptimizationUnitValidationError::UseBeforeDefinition { .. })
     ));
     assert!(validate_transformed_psi_optimization_unit(&input, &changed).is_err());
@@ -160,7 +160,7 @@ fn measured_subslice_cannot_replace_its_descriptor_with_another_valid_view() {
     refresh_identity(&mut changed);
     // The replacement has the same immutable byte-view type and is available.
     // Only the original descriptor/length join authorizes its retained equation.
-    optimization_unit_semantics::validate_psi_optimization_unit(&changed).unwrap();
+    terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&changed).unwrap();
     assert!(matches!(
         validate_transformed_psi_optimization_unit(&input, &changed),
         Err(OptimizationUnitValidationError::StructuralCatalogMismatch { .. })

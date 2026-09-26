@@ -1,12 +1,16 @@
 //! Operand helpers coexist with dynamic realizations and closed-sum payloads.
 use super::{CheckedTrees, checked_source_with_core_service, lower_machine};
-use crate::TerminalMachineSelection;
-use checked_trees::CheckedDynamicBinding::Direct;
-use checked_trees::CheckedDynamicDispatchPlan::Scalar;
-use lowered_psi::LoweredPsi;
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use checked_trees_to_lowered_psi::lowered_psi::LoweredPsi;
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::{
+    expression::ExpressionNode, statement::StatementNode,
+};
 use terminal_psi::{OperationKind, Terminator};
-use typed_trees::{expression::ExpressionNode, statement::StatementNode};
+use typed_trees_to_checked_trees::checked_trees::CheckedDynamicBinding::Direct;
+use typed_trees_to_checked_trees::checked_trees::CheckedDynamicDispatchPlan::Scalar;
 
 mod closed_sum_cleanup;
 mod dynamic_unit;
@@ -78,9 +82,10 @@ fn assert_trailing_provider_field_custody(checked: &CheckedTrees) {
         // The other fixture spelling uses statement calls.
         return;
     };
-    let field = validation::exact_self_field(program, machine, receiver)
-        .unwrap()
-        .symbol;
+    let field =
+        typed_trees_to_checked_trees::validation::exact_self_field(program, machine, receiver)
+            .unwrap()
+            .symbol;
     let other_field = program
         .data_definitions()
         .iter()
@@ -89,12 +94,12 @@ fn assert_trailing_provider_field_custody(checked: &CheckedTrees) {
                 .data_members(data)
                 .iter()
                 .find_map(|member| match member {
-                    typed_trees::data::DataMember::Field(candidate)
+                    symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(candidate)
                         if candidate.symbol != field =>
                     {
                         Some(candidate.symbol)
                     }
-                    typed_trees::data::DataMember::Variant(variant) => program
+                    symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant) => program
                         .data_payload_fields(variant)
                         .iter()
                         .find_map(|candidate| {
@@ -434,12 +439,12 @@ fn closed_sum_graph_keeps_shared_and_mutable_receiver_custody() {
     for (receiver, access, terminal_access) in [
         (
             "&self",
-            checked_trees::CheckedStructuralAccess::SharedBorrow,
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow,
             terminal_psi::StructuralAccess::SharedBorrow,
         ),
         (
             "&mut self",
-            checked_trees::CheckedStructuralAccess::MutableBorrow,
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow,
             terminal_psi::StructuralAccess::MutableBorrow,
         ),
     ] {
@@ -490,10 +495,10 @@ fn closed_sum_graph_keeps_shared_and_mutable_receiver_custody() {
                 state.structural_parameters.clear();
             } else {
                 state.structural_parameters[0].access = match access {
-                    checked_trees::CheckedStructuralAccess::SharedBorrow => {
-                        checked_trees::CheckedStructuralAccess::MutableBorrow
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow => {
+                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow
                     }
-                    _ => checked_trees::CheckedStructuralAccess::SharedBorrow,
+                    _ => typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow,
                 };
             }
             assert!(
@@ -655,7 +660,7 @@ fn closed_sum_returning_arms_discard_their_own_boundary_results() {
                         .iter()
                         .position(|operation| {
                             matches!(operation,
-                    checked_trees::CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. })
+                    typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. })
                         })
                         .map(|operation_index| (plan_index, state_index, operation_index))
                 })
@@ -663,7 +668,7 @@ fn closed_sum_returning_arms_discard_their_own_boundary_results() {
         .unwrap();
     for mutation in 0..4 {
         let mut changed = checked.clone();
-        let checked_trees::CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+        let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
             coordinate,
             result,
             discard_result_on_return,
@@ -773,7 +778,7 @@ fn closed_sum_unused_payload_keeps_source_disposal_and_marker_checks() {
         .iter_mut()
         .flat_map(|plan| &mut plan.states)
         .find_map(|state| match &mut state.terminator {
-            checked_trees::CheckedComposedUnitControlTerminatorPlan::ClosedSum {
+            typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlTerminatorPlan::ClosedSum {
                 cases, ..
             } => Some(cases),
             _ => None,
@@ -849,9 +854,9 @@ fn closed_sum_unit_closure_shares_helpers_and_preserves_payload_and_cleanup() {
             assert_eq!(lowered.semantic_module.machines.len(), 4);
             assert_closed_sum_unit_catalog(&checked, &lowered);
             assert_closed_sum_unit_source_custody(&checked);
-            let artifact = terminal_production::TerminalProductionRequest::new(
+            let artifact = lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &checked,
-                terminal_production::TerminalMachineSelection::Name("Main::main"),
+                lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name("Main::main"),
             )
             .produce(TerminalProductionCustody::artifact_only(
                 &mut TerminalProductionTimings::default(),
@@ -882,14 +887,14 @@ fn assert_closed_sum_unit_source_custody(checked: &CheckedTrees) {
                         .position(|operation| {
                             matches!(
                                 operation,
-                                checked_trees::CheckedUnitEffectOperationPlan::CallUnit { .. }
+                                typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::CallUnit { .. }
                             )
                         })
                         .map(|operation_index| (plan_index, state_index, operation_index))
                 })
         })
         .expect("closed-sum ordinary Unit operation");
-    let checked_trees::CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+    let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
         target_machine: entry_boundary,
         ..
     } = plans[plan_index].states[0].operations[0]
@@ -907,7 +912,7 @@ fn assert_closed_sum_unit_source_custody(checked: &CheckedTrees) {
     let mut changed = checked.clone();
     changed.facts.flow.terminal_unit_effects.composed_machines[plan_index].states[state_index]
         .operations[operation_index] =
-        checked_trees::CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
             statement_index: 0,
             declaration_ordinal: 0,
             type_identity: "Empty".to_owned(),
@@ -919,7 +924,7 @@ fn assert_closed_sum_unit_source_custody(checked: &CheckedTrees) {
     for (handle, root) in checked.facts.values.scalar_computations.roots.iter() {
         if !matches!(
             root.role,
-            checked_trees::CheckedScalarExpressionRole::UnitCallArgument { .. }
+            typed_trees_to_checked_trees::checked_trees::CheckedScalarExpressionRole::UnitCallArgument { .. }
         ) {
             continue;
         }
@@ -936,8 +941,10 @@ fn assert_closed_sum_unit_source_custody(checked: &CheckedTrees) {
             "operand coordinate drift rejects"
         );
     }
-    let checked_trees::CheckedUnitEffectOperationPlan::CallUnit { target_state, .. } =
-        &plans[plan_index].states[state_index].operations[operation_index]
+    let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::CallUnit {
+        target_state,
+        ..
+    } = &plans[plan_index].states[state_index].operations[operation_index]
     else {
         unreachable!();
     };

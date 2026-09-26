@@ -4,25 +4,25 @@ use crate::declarations::machines::parse_machine;
 use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
 use crate::parameters::parse_generic_parameters::parse_generic_parameters;
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::item::{ConformanceBody, ConformanceMember, Item, State};
 use arena::{Handle, HandleSpan};
-use syntax_trees::SyntaxTrees;
-use syntax_trees::item::{ConformanceBody, ConformanceMember, Item, State};
-use tokens::{KeywordKind, PunctuationKind};
+use source_files_to_tokens::tokens::{KeywordKind, PunctuationKind};
 
 pub(super) fn parse_conformance<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
-    alias: syntax_trees::identifier::Identifier,
+    alias: crate::syntax_trees::identifier::Identifier,
     rest: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, Item> {
     let (generic_parameters, rest) =
         parse_generic_parameters(syntax_trees, rest, GenericParameterSyntax::StaticBinders)?;
     let mut rest = rest.take_punctuation(PunctuationKind::Colon, ":")?;
     let subject = if rest.at_contextual("satisfies") {
-        syntax_trees::item::ConformanceSubject::Subjectless
+        crate::syntax_trees::item::ConformanceSubject::Subjectless
     } else {
         let (subject, next) = rest.take_identifier()?;
         rest = next;
-        syntax_trees::item::ConformanceSubject::Carrier(subject)
+        crate::syntax_trees::item::ConformanceSubject::Carrier(subject)
     };
     rest = rest.take_contextual("satisfies")?;
     let ((trait_name, trait_lifetime_arguments, trait_arguments), rest) =
@@ -34,7 +34,10 @@ pub(super) fn parse_conformance<'tokens, 'source>(
     )?;
     let (body, rest) = if rest.at_punctuation(PunctuationKind::LeftBrace) {
         parse_conformance_body(syntax_trees, rest)?
-    } else if matches!(subject, syntax_trees::item::ConformanceSubject::Carrier(_)) {
+    } else if matches!(
+        subject,
+        crate::syntax_trees::item::ConformanceSubject::Carrier(_)
+    ) {
         (
             ConformanceBody::AttachedRequirementMachines,
             take_optional_semicolon(rest)?,
@@ -45,7 +48,7 @@ pub(super) fn parse_conformance<'tokens, 'source>(
         ));
     };
     Ok((
-        Item::Conformance(syntax_trees::item::ConformanceItem {
+        Item::Conformance(crate::syntax_trees::item::ConformanceItem {
             is_public: false,
             lifetime_parameters: generic_parameters.lifetime_parameters,
             type_parameters: generic_parameters.type_parameters,
@@ -140,7 +143,7 @@ fn parse_conformance_body<'tokens, 'source>(
 
 fn normalize_conformance_machine_entry(
     syntax_trees: &mut SyntaxTrees,
-    machine: &mut syntax_trees::item::Machine,
+    machine: &mut crate::syntax_trees::item::Machine,
 ) {
     let requirement_name = machine.name.clone();
     let state_handles = syntax_trees.items.state_handles(machine.states).to_vec();
@@ -155,7 +158,7 @@ fn normalize_conformance_machine_entry(
     let state = syntax_trees.items.insert_state(&State {
         name: requirement_name,
         parameters: HandleSpan::empty(),
-        return_type: syntax_trees::types::TypeReferenceHandle::invalid(),
+        return_type: crate::syntax_trees::types::TypeReferenceHandle::invalid(),
         contracts: HandleSpan::empty(),
         statements: HandleSpan::empty(),
     });

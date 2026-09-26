@@ -1,11 +1,11 @@
 //! Local records stay alive until the selected transition completes its reads.
 
 use super::support;
-use checked_trees::CheckedUnitEffectOperationPlan;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{TerminalExecutionResult, TerminalScalarValue};
+use typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan;
 
 const SOURCE: &str = r#"
 data Value { value: u64; flag: bool; }
@@ -121,7 +121,7 @@ fn record_copy_replay_rejects_same_carrier_source_and_access_substitution() {
             .flat_map(|machine| checked.machine_states(machine))
             .flat_map(|state| checked.statement_table.statements(state.statement_nodes))
             .find_map(|statement| match statement {
-                checked_trees::statement::StatementNode::LocalData(local)
+                typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(local)
                     if local.name.as_str() == name =>
                 {
                     Some(local.symbol)
@@ -139,14 +139,16 @@ fn record_copy_replay_rejects_same_carrier_source_and_access_substitution() {
         .nodes
         .iter()
         .find_map(|(handle, node)| match &node.kind {
-            checked_trees::CheckedStructuralValueKind::Place(argument)
-                if argument.source == checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: first } => Some(handle),
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Place(argument)
+                if argument.source == typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: first } => Some(handle),
             _ => None,
         })
         .unwrap();
     for corruption in 0..3 {
         let mut forged = checked.clone();
-        let checked_trees::CheckedStructuralValueKind::Place(argument) = &mut forged
+        let typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Place(
+            argument,
+        ) = &mut forged
             .facts
             .values
             .structural_values
@@ -159,11 +161,11 @@ fn record_copy_replay_rejects_same_carrier_source_and_access_substitution() {
         match corruption {
             0 => {
                 argument.source =
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                         symbol: other,
                     }
             }
-            1 => argument.access = checked_trees::CheckedStructuralAccess::SharedBorrow,
+            1 => argument.access = typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow,
             _ => argument.type_identity.push_str("substituted"),
         }
         assert!(

@@ -4,10 +4,12 @@ use super::{
     CanonicalPlace, canonical_place_segments_may_overlap, frame_storage_writes,
     normalized_event_place_root,
 };
-use checked_trees::{FlowCallFact, FlowFacts, FlowStateFact};
-use facts::PlaceRoot;
-use typed_trees::types::TypeReferenceNode;
-use typed_trees::{TypedTrees, machine::Machine, statement::StatementNode};
+use crate::checked_trees::{FlowCallFact, FlowFacts, FlowStateFact};
+use crate::fact_plan::PlaceRoot;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::{
+    TypedTrees, machine::Machine, statement::StatementNode,
+};
 
 mod result_candidates;
 #[cfg(test)]
@@ -20,7 +22,7 @@ pub(crate) use result_candidates::{
 
 pub(crate) fn local_reference_storage_before_statement(
     program: &TypedTrees,
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &crate::validation::CallFrameResolver<'_>,
     machine: &Machine,
     state: &FlowStateFact,
     index: usize,
@@ -70,7 +72,7 @@ pub(crate) fn local_reference_storage_before_statement(
 
 pub(crate) fn local_reference_storage_at_call(
     program: &TypedTrees,
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &crate::validation::CallFrameResolver<'_>,
     machine: &Machine,
     flow: &FlowFacts,
     state: &FlowStateFact,
@@ -107,8 +109,8 @@ pub(crate) fn local_reference_storage_at_call(
 /// have written a candidate.
 pub(crate) fn local_reference_candidate_storages_at_call(
     program: &TypedTrees,
-    frames: &validation::CallFrameResolver<'_>,
-    borrow: &checked_trees::BorrowFacts,
+    frames: &crate::validation::CallFrameResolver<'_>,
+    borrow: &crate::checked_trees::BorrowFacts,
     machine: &Machine,
     flow: &FlowFacts,
     state: &FlowStateFact,
@@ -175,7 +177,7 @@ fn call_position_in_state(
 /// Calls are retained in execution order, not authored preorder ordinal.
 fn preserve_call_prefix_storage(
     program: &TypedTrees,
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &crate::validation::CallFrameResolver<'_>,
     machine: &Machine,
     flow: &FlowFacts,
     state: &FlowStateFact,
@@ -235,8 +237,8 @@ fn preserve_call_prefix_storage(
 /// goes through an exclusive borrow it names.
 fn preserve_candidate_call_prefix_storage(
     program: &TypedTrees,
-    frames: &validation::CallFrameResolver<'_>,
-    borrow: &checked_trees::BorrowFacts,
+    frames: &crate::validation::CallFrameResolver<'_>,
+    borrow: &crate::checked_trees::BorrowFacts,
     machine: &Machine,
     flow: &FlowFacts,
     state: &FlowStateFact,
@@ -292,8 +294,8 @@ fn preserve_frame(
     state: &FlowStateFact,
     statement_index: usize,
     places: &[CanonicalPlace],
-    frame: &facts::NormalizedWriteFrame,
-    call_frames: &validation::CallFrameResolver<'_>,
+    frame: &crate::fact_plan::NormalizedWriteFrame,
+    call_frames: &crate::validation::CallFrameResolver<'_>,
 ) -> Option<()> {
     let writes = frame_storage_writes(
         program,

@@ -3,7 +3,7 @@
 //! membership and the store's own range obligation is the whole evidence, so
 //! the store is admitted like a bracketed-range field's. Any other predicate
 //! is evidence no store retains, and the body stays unadmitted.
-use checked_trees::{CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan};
+use crate::checked_trees::{CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan};
 
 fn plan(source: &str) -> Option<CheckedUnitEffectMachinePlan> {
     let typed = crate::tests::front_end::typed_program(source);

@@ -1,20 +1,20 @@
+use crate::checked_trees::{
+    DomainFacts, FlowInvalidationFact, FlowInvalidationSource, FlowSemanticContextRef,
+};
+use crate::fact_plan::{FactPayload, FactPlace, FactPlan};
 use crate::flow::CanonicalPlace;
 use crate::flow::append_place_segments;
 use crate::flow::reference_spans;
-use checked_trees::{
-    DomainFacts, FlowInvalidationFact, FlowInvalidationSource, FlowSemanticContextRef,
-};
-use facts::{FactPayload, FactPlace, FactPlan};
 mod matching;
 
 use self::matching::matching_mutation_for_fact_place;
 
 pub(crate) fn filter_contexts_after_place_mutations(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: &FactPlan,
     domain_dependencies: &DomainFacts,
     semantic_context_refs: &mut arena::Arena<FlowSemanticContextRef>,
-    invalidation_segments: &mut arena::Arena<facts::PlaceSegment>,
+    invalidation_segments: &mut arena::Arena<crate::fact_plan::PlaceSegment>,
     invalidations: &mut arena::Arena<FlowInvalidationFact>,
     source: arena::HandleSpan<FlowSemanticContextRef>,
     mutated_places: &[CanonicalPlace],

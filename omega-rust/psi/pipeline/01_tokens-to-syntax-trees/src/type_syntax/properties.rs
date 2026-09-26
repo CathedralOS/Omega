@@ -1,6 +1,6 @@
 use crate::input::token_cursor::{Input, ParseResult};
-use syntax_trees::item::DataProperties;
-use tokens::PunctuationKind;
+use crate::syntax_trees::item::DataProperties;
+use source_files_to_tokens::tokens::PunctuationKind;
 
 pub(crate) fn parse_property_brackets<'tokens, 'source>(
     input: Input<'tokens, 'source>,

@@ -76,11 +76,11 @@ mod validation;
 use std::sync::Arc;
 
 use optimization_core::OptimizationUnitIdentity;
-use selected_instructions::{
+use semantic_vocabulary::FuelScheduleIdentity;
+use target_operations_to_selected_instructions::{
     ConstantBooleanIdentity, SelectedInstructionId, SelectedInstructionPlan,
     SelectedInstructionPlanIdentity,
 };
-use semantic_vocabulary::FuelScheduleIdentity;
 
 pub(crate) use rewrite::fold_selected_constant_boolean;
 pub(crate) use validation::{measured_steps, validate_constant_boolean_fold};

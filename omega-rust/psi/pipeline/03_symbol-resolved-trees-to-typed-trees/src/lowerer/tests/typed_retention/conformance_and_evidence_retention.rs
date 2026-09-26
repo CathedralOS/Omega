@@ -25,17 +25,17 @@ fn retains_exact_nominal_machine_parameter_identity_in_typed_trees() {
         .machine_type_parameters(machine)
         .first()
         .expect("Selected parameter");
-    let typed_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind else {
+    let crate::typed_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind else {
         panic!("Selected should be a machine parameter")
     };
-    let typed_trees::data::MachineParameterContract::Nominal {
+    let crate::typed_trees::data::MachineParameterContract::Nominal {
         trait_definition,
         requirement,
     } = contract
     else {
         panic!("Selected should retain nominal identity")
     };
-    let typed_trees::data::MachineParameterContractView::Nominal {
+    let crate::typed_trees::data::MachineParameterContractView::Nominal {
         trait_definition: definition,
         requirement: signature,
     } = typed
@@ -101,7 +101,7 @@ fn retains_typed_name_owned_conformance_telescope() {
     assert_eq!(arguments.len(), 2);
     assert!(matches!(
         typed.type_reference_table.type_reference(arguments[0]),
-        typed_trees::types::TypeReferenceNode::Named { symbol, name }
+        crate::typed_trees::types::TypeReferenceNode::Named { symbol, name }
             if *symbol == parameters[0].symbol && name.as_str() == "Source"
     ));
 }
@@ -245,7 +245,7 @@ fn retains_proof_static_evidence_projection_through_resolved_and_typed_trees() {
         .iter()
         .flat_map(|state| resolved.state_statements(resolved.machine_state(*state).statements))
         .find_map(|statement| match statement {
-            symbol_resolved_trees::statement::Statement::Call(call)
+            syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::statement::Statement::Call(call)
                 if call.target.as_str() == "consume" =>
             {
                 call.machine_arguments[0].evidence_projection.as_ref()
@@ -267,7 +267,7 @@ fn retains_proof_static_evidence_projection_through_resolved_and_typed_trees() {
         .iter()
         .flat_map(|state| typed.statement_table.statements(state.statement_nodes))
         .find_map(|statement| match statement {
-            typed_trees::statement::StatementNode::Call(call)
+            crate::typed_trees::statement::StatementNode::Call(call)
                 if call.target.as_str() == "consume" =>
             {
                 Some(call)
@@ -333,7 +333,7 @@ fn copies_exact_literal_and_case_membership_symbols_into_typed_tables() {
         .data_members(resolved.data_definitions[0].members)
         .iter()
         .find_map(|member| match member {
-            symbol_resolved_trees::data::DataMember::Variant(variant) => Some(variant.symbol),
+            syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Variant(variant) => Some(variant.symbol),
             _ => None,
         })
         .expect("Issued case");
@@ -343,7 +343,7 @@ fn copies_exact_literal_and_case_membership_symbols_into_typed_tables() {
         .expression_table
         .iter_expressions()
         .find_map(|(_, expression)| match expression {
-            typed_trees::expression::ExpressionNode::Name(path)
+            crate::typed_trees::expression::ExpressionNode::Name(path)
                 if typed.expression_table.name_path_members(path.members).len() == 3 =>
             {
                 Some(path)
@@ -361,7 +361,7 @@ fn copies_exact_literal_and_case_membership_symbols_into_typed_tables() {
         .expression_table
         .iter_expressions()
         .filter_map(|(_, expression)| match expression {
-            typed_trees::expression::ExpressionNode::StructLiteral(literal) => Some(literal),
+            crate::typed_trees::expression::ExpressionNode::StructLiteral(literal) => Some(literal),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -382,7 +382,7 @@ fn copies_exact_literal_and_case_membership_symbols_into_typed_tables() {
         .expression_table
         .iter_expressions()
         .find_map(|(_, expression)| match expression {
-            typed_trees::expression::ExpressionNode::Name(path)
+            crate::typed_trees::expression::ExpressionNode::Name(path)
                 if typed
                     .expression_table
                     .name_path_members(path.members)
@@ -415,12 +415,12 @@ fn typed_lowering_does_not_replace_the_authored_struct_selection_ledger() {
         .find_map(|(handle, expression)| {
             matches!(
                 expression,
-                symbol_resolved_trees::expression::ExpressionNode::StructLiteral(_)
+                syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::expression::ExpressionNode::StructLiteral(_)
             )
             .then_some(handle)
         })
         .expect("struct literal");
-    let symbol_resolved_trees::expression::ExpressionNode::StructLiteral(literal) =
+    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::expression::ExpressionNode::StructLiteral(literal) =
         resolved.tables.bodies.expressions.expression_mut(literal)
     else {
         unreachable!();
@@ -465,7 +465,9 @@ fn elaborates_omitted_erased_field_with_unique_nullary_constructor() {
         .data_members(evidence)
         .iter()
         .find_map(|member| match member {
-            typed_trees::data::DataMember::Variant(variant) if variant.name.as_str() == "Only" => {
+            crate::typed_trees::data::DataMember::Variant(variant)
+                if variant.name.as_str() == "Only" =>
+            {
                 Some(variant)
             }
             _ => None,
@@ -475,7 +477,7 @@ fn elaborates_omitted_erased_field_with_unique_nullary_constructor() {
         .expression_table
         .iter_expressions()
         .find_map(|(_, expression)| match expression {
-            typed_trees::expression::ExpressionNode::StructLiteral(literal)
+            crate::typed_trees::expression::ExpressionNode::StructLiteral(literal)
                 if literal.type_name.as_str() == "Certified" =>
             {
                 Some(literal)
@@ -492,7 +494,7 @@ fn elaborates_omitted_erased_field_with_unique_nullary_constructor() {
         ["value", "proof"]
     );
     let proof = &fields[1];
-    let typed_trees::expression::ExpressionNode::Name(path) =
+    let crate::typed_trees::expression::ExpressionNode::Name(path) =
         typed.expression_table.expression(proof.value)
     else {
         panic!("omitted proof should elaborate to a semantic name term");
@@ -533,15 +535,21 @@ fn preserves_field_relevance_through_resolved_and_typed_trees() {
         .next()
         .expect("resolved data");
     let resolved_members = resolved.data_members(resolved_data.members);
-    let symbol_resolved_trees::data::DataMember::Field(resolved_value) = &resolved_members[0]
+    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Field(
+        resolved_value,
+    ) = &resolved_members[0]
     else {
         panic!("resolved value field");
     };
-    let symbol_resolved_trees::data::DataMember::Field(resolved_proof) = &resolved_members[1]
+    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Field(
+        resolved_proof,
+    ) = &resolved_members[1]
     else {
         panic!("resolved proof field");
     };
-    let symbol_resolved_trees::data::DataMember::Variant(resolved_wrapped) = &resolved_members[2]
+    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Variant(
+        resolved_wrapped,
+    ) = &resolved_members[2]
     else {
         panic!("resolved wrapped case");
     };
@@ -567,13 +575,13 @@ fn preserves_field_relevance_through_resolved_and_typed_trees() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let typed_data = typed.data_definitions().first().expect("typed data");
     let typed_members = typed.data_members(typed_data);
-    let typed_trees::data::DataMember::Field(typed_value) = &typed_members[0] else {
+    let crate::typed_trees::data::DataMember::Field(typed_value) = &typed_members[0] else {
         panic!("typed value field");
     };
-    let typed_trees::data::DataMember::Field(typed_proof) = &typed_members[1] else {
+    let crate::typed_trees::data::DataMember::Field(typed_proof) = &typed_members[1] else {
         panic!("typed proof field");
     };
-    let typed_trees::data::DataMember::Variant(typed_wrapped) = &typed_members[2] else {
+    let crate::typed_trees::data::DataMember::Variant(typed_wrapped) = &typed_members[2] else {
         panic!("typed wrapped case");
     };
     let [typed_witness] = typed.data_payload_fields(typed_wrapped) else {
@@ -613,7 +621,7 @@ fn retains_subjectless_conformance_and_exact_typed_rows() {
     };
     assert!(matches!(
         conformance.subject,
-        typed_trees::trait_definition::ConformanceSubject::Subjectless
+        crate::typed_trees::trait_definition::ConformanceSubject::Subjectless
     ));
     assert!(conformance.symbol.is_valid());
     assert_eq!(

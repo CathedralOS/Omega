@@ -1,7 +1,7 @@
 use crate::lowering_error::{LoweringError, unsupported};
-use checked_trees::CheckedTrees;
-use checked_trees::types::PrimitiveType;
-use checked_trees::{
+use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
+use typed_trees_to_checked_trees::checked_trees::types::PrimitiveType;
+use typed_trees_to_checked_trees::checked_trees::{
     CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan,
 };
@@ -12,12 +12,12 @@ pub(crate) fn validate_source(
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     statement: u32,
-    expression: checked_trees::expression::ExpressionHandle,
+    expression: typed_trees_to_checked_trees::checked_trees::expression::ExpressionHandle,
     subject: &CheckedUnitStructuralArgumentPlan,
     field: symbols::SymbolHandle,
     primitive: PrimitiveType,
 ) -> Result<(), LoweringError> {
-    let source = validation::local_scalar_record_field(
+    let source = typed_trees_to_checked_trees::validation::local_scalar_record_field(
         &checked.typed,
         machine,
         state,
@@ -37,7 +37,7 @@ pub(crate) fn validate_source(
                 .path
                 .iter()
                 .cloned()
-                .map(checked_trees::CheckedUnitStructuralPathSegment::Field)
+                .map(typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field)
                 .collect::<Vec<_>>()
         || subject.type_identity
             != checked

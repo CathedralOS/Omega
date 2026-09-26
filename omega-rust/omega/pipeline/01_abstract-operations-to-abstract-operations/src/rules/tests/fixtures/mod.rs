@@ -10,8 +10,8 @@ use crate::OrderedRuleRegistry;
 use crate::rules::catalog::{
     BuiltInRuleRegistration, assemble_built_in_registry, built_in_rule_registrations,
 };
-use optimization::PsiOptimization;
-use optimization_unit::{
+use terminal_codec::optimization::PsiOptimization;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     AcceptedObligationFact, OptimizationFact, PsiOptimizationUnit, attach_accepted_obligation_facts,
 };
 

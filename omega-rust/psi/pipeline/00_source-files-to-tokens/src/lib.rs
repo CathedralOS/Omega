@@ -7,6 +7,7 @@
 //! surface handled beneath it. No syntax is recognized at this stage.
 
 pub mod lexer;
+pub mod tokens;
 
 pub use lexer::Lexer;
 pub use lexer::lex_error::LexError;

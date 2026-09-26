@@ -2,17 +2,21 @@
 //! comparisons, and scalar IEEE equality comparisons.
 use crate::values::operator_is_builtin;
 
-use checked_trees::{
+use crate::checked_trees::{
     CheckedBooleanExpression, CheckedIeeeFloatComparisonKind, CheckedOperatorFacts,
     CheckedScalarExpression, CheckedStructuralPredicatePathSegment,
 };
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::data::{DataDefinition, DataMember};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
+};
 use symbols::{BuiltinTypeAtom, SymbolKind};
-use typed_trees::TypedTrees;
-use typed_trees::data::{DataDefinition, DataMember};
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
-use typed_trees::machine::Machine;
-use typed_trees::signature::StateParameter;
-use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 #[cfg(test)]
 mod tests;
@@ -22,7 +26,7 @@ pub(crate) fn lower_machine_entry_crash_contract_expression(
     operators: &CheckedOperatorFacts,
     machine: &Machine,
     expression: ExpressionHandle,
-    _exact_integer_casts: &[validation::ExactIntegerCastFact],
+    _exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
 ) -> Option<CheckedBooleanExpression> {
     let parameters = super::entry_parameters(program, machine)?;
     let predicate = Reader {
@@ -36,7 +40,7 @@ pub(crate) fn lower_machine_entry_crash_contract_expression(
     .boolean(expression, 0)?;
     // All operands were checked in the exact entry namespace. This separate
     // selected-meaning owner prevents authored operations from becoming logic.
-    validation::has_builtin_bound_expression_meaning(
+    crate::validation::has_builtin_bound_expression_meaning(
         program,
         machine,
         program.machine_states(machine).first(),
@@ -59,7 +63,7 @@ struct Reader<'program> {
 pub(crate) fn lower_signature_crash_contract_expression(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
-    signature: &typed_trees::signature::StateSignature,
+    signature: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateSignature,
     expression: ExpressionHandle,
 ) -> Option<CheckedBooleanExpression> {
     if !signature.symbol.is_valid()
@@ -100,7 +104,7 @@ pub(crate) fn lower_signature_crash_contract_expression(
 pub(crate) fn lower_operator_crash_contract_expression(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
-    operator: &typed_trees::operator::OperatorDefinition,
+    operator: &symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition,
     expression: ExpressionHandle,
 ) -> Option<CheckedBooleanExpression> {
     if !operator.symbol.is_valid()
@@ -252,7 +256,7 @@ impl<'program> Reader<'program> {
                         binary.operator,
                         BinaryOperator::Equal | BinaryOperator::NotEqual
                     )
-                    && !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                    && !symbol_resolved_trees_to_typed_trees::typed_trees::operator::has_builtin_spelled_expression_meaning(
                         self.program,
                         self.owner,
                         expression,
@@ -463,7 +467,7 @@ impl<'program> Reader<'program> {
         if self.operators.uses.iter().any(|(_, operator)| {
             operator.expression == expression
                 && operator.status
-                    != checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+                    != crate::checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
         }) {
             return None;
         }
@@ -513,7 +517,7 @@ impl<'program> Reader<'program> {
             AuthoredDeclarationSelectionLateBinding as LateBinding,
             AuthoredDeclarationSelectionTarget as Target,
         };
-        typed_trees::operator::resolve_spelling_for_operands(
+        symbol_resolved_trees_to_typed_trees::typed_trees::operator::resolve_spelling_for_operands(
             self.program,
             spelling,
             operand_types,
@@ -521,7 +525,7 @@ impl<'program> Reader<'program> {
         )
         .iter()
         .all(|candidate| candidate.operator.is_boundary)
-            && typed_trees::operator::selected_trait_operator_meanings(
+            && symbol_resolved_trees_to_typed_trees::typed_trees::operator::selected_trait_operator_meanings(
                 self.program,
                 self.owner,
                 spelling,
@@ -629,7 +633,7 @@ impl<'program> Reader<'program> {
                 if owner.symbol != machine.attached_data_symbol {
                     return None;
                 }
-                validation::exact_self_field(self.program, machine, expression)?
+                crate::validation::exact_self_field(self.program, machine, expression)?
             } else {
                 let mut fields =
                     self.program

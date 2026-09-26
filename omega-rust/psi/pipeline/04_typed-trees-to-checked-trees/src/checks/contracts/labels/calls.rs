@@ -1,5 +1,5 @@
+use symbol_resolved_trees_to_typed_trees::typed_trees::proposition::ProofSubstitutions;
 use symbols::SymbolHandle;
-use typed_trees::proposition::ProofSubstitutions;
 
 /// The reserved binder naming a call's return value inside an `ensures` clause.
 pub(crate) const RESULT_BINDER: &str = "result";
@@ -10,24 +10,28 @@ pub(crate) const RESULT_BINDER: &str = "result";
 pub(crate) trait ContractTargetParameters {
     fn contract_parameters<'program>(
         &'program self,
-        program: &'program typed_trees::TypedTrees,
-    ) -> &'program [typed_trees::signature::StateParameter];
+        program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    ) -> &'program [symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter];
 }
 
-impl ContractTargetParameters for typed_trees::state::State {
+impl ContractTargetParameters for symbol_resolved_trees_to_typed_trees::typed_trees::state::State {
     fn contract_parameters<'program>(
         &'program self,
-        program: &'program typed_trees::TypedTrees,
-    ) -> &'program [typed_trees::signature::StateParameter] {
+        program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    ) -> &'program [symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter]
+    {
         program.state_parameters(self)
     }
 }
 
-impl ContractTargetParameters for [typed_trees::signature::StateParameter] {
+impl ContractTargetParameters
+    for [symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter]
+{
     fn contract_parameters<'program>(
         &'program self,
-        _program: &'program typed_trees::TypedTrees,
-    ) -> &'program [typed_trees::signature::StateParameter] {
+        _program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    ) -> &'program [symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter]
+    {
         self
     }
 }
@@ -38,7 +42,7 @@ impl ContractTargetParameters for [typed_trees::signature::StateParameter] {
 /// fact like `ensures result in String::Utf8` becomes a domain fact on the
 /// concrete call result at the call site.
 fn call_result_label(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     call_site: &crate::semantic::calls::CallSite<'_>,
 ) -> String {
     let argument_list = |arguments| {
@@ -54,10 +58,11 @@ fn call_result_label(
     match call_site {
         crate::semantic::calls::CallSite::Statement(call) => {
             let arguments = argument_list(call.arguments);
-            let receiver = typed_trees::expression::display_name_path(
-                program.expression_table.name_path_members(call.receiver),
-                "::",
-            );
+            let receiver =
+                symbol_resolved_trees_to_typed_trees::typed_trees::expression::display_name_path(
+                    program.expression_table.name_path_members(call.receiver),
+                    "::",
+                );
             if receiver.is_empty() {
                 format!("{}({arguments})", call.target)
             } else {
@@ -86,15 +91,15 @@ fn call_result_label(
     reason = "call-site coordinates are deliberately threaded through recursive label rendering"
 )]
 pub(crate) fn instantiate_call_contract_expression_label(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
     call_site: &crate::semantic::calls::CallSite<'_>,
     target_state: &(impl ContractTargetParameters + ?Sized),
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> String {
     match program.expression_table.expression(expression) {
-        typed_trees::expression::ExpressionNode::Match(dispatch) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Match(dispatch) => {
             let render = |value| {
                 instantiate_call_contract_expression_label(
                     program,
@@ -111,8 +116,8 @@ pub(crate) fn instantiate_call_contract_expression_label(
                 .iter()
                 .map(|arm| {
                     let pattern = match arm.pattern {
-                        typed_trees::expression::MatchPattern::Value(value) => render(value),
-                        typed_trees::expression::MatchPattern::Wildcard => "_".to_owned(),
+                        symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(value) => render(value),
+                        symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Wildcard => "_".to_owned(),
                     };
                     format!("{pattern} -> {}", render(arm.value))
                 })
@@ -120,7 +125,7 @@ pub(crate) fn instantiate_call_contract_expression_label(
                 .join(", ");
             format!("match {} {{ {arms} }}", render(dispatch.subject))
         }
-        typed_trees::expression::ExpressionNode::Atomic(atomic) => format!(
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Atomic(atomic) => format!(
             "atomic[{:?}]({})",
             atomic.ordering,
             instantiate_call_contract_expression_label(
@@ -132,7 +137,7 @@ pub(crate) fn instantiate_call_contract_expression_label(
                 atomic.value,
             )
         ),
-        typed_trees::expression::ExpressionNode::ArrayLiteral(values) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::ArrayLiteral(values) => {
             let values = program
                 .expression_table
                 .expression_handles(*values)
@@ -151,7 +156,7 @@ pub(crate) fn instantiate_call_contract_expression_label(
                 .join(", ");
             format!("[{values}]")
         }
-        typed_trees::expression::ExpressionNode::Binary(binary) => format!(
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Binary(binary) => format!(
             "{} {} {}",
             instantiate_call_contract_expression_label(
                 program,
@@ -171,8 +176,8 @@ pub(crate) fn instantiate_call_contract_expression_label(
                 binary.right,
             )
         ),
-        typed_trees::expression::ExpressionNode::Boolean(value) => value.to_string(),
-        typed_trees::expression::ExpressionNode::Cast(cast) => format!(
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Boolean(value) => value.to_string(),
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Cast(cast) => format!(
             "{} as {}",
             instantiate_call_contract_expression_label(
                 program,
@@ -182,14 +187,14 @@ pub(crate) fn instantiate_call_contract_expression_label(
                 target_state,
                 cast.value,
             ),
-            typed_trees::expression::display_name_path(
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::display_name_path(
                 program
                     .expression_table
                     .name_path_members(cast.target_label),
                 "::",
             )
         ),
-        typed_trees::expression::ExpressionNode::Call(call) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(call) => {
             let arguments = program
                 .expression_table
                 .expression_handles(call.arguments)
@@ -223,8 +228,8 @@ pub(crate) fn instantiate_call_contract_expression_label(
                 format!("{}({arguments})", call.target)
             }
         }
-        typed_trees::expression::ExpressionNode::Float(value) => value.to_string(),
-        typed_trees::expression::ExpressionNode::Indexed(indexed) => format!(
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Float(value) => value.to_string(),
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Indexed(indexed) => format!(
             "{}[{}]",
             instantiate_call_contract_expression_label(
                 program,
@@ -243,7 +248,7 @@ pub(crate) fn instantiate_call_contract_expression_label(
                 indexed.index,
             )
         ),
-        typed_trees::expression::ExpressionNode::Range(range) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Range(range) => {
             match (range.start.is_valid(), range.end.is_valid()) {
                 (true, true) => format!(
                     "{}..{}",
@@ -289,8 +294,8 @@ pub(crate) fn instantiate_call_contract_expression_label(
                 (false, false) => "..".to_owned(),
             }
         }
-        typed_trees::expression::ExpressionNode::Integer(value) => value.to_string(),
-        typed_trees::expression::ExpressionNode::Member(member) => format!(
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Integer(value) => value.to_string(),
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Member(member) => format!(
             "{}.{}",
             instantiate_call_contract_expression_label(
                 program,
@@ -302,7 +307,7 @@ pub(crate) fn instantiate_call_contract_expression_label(
             ),
             member.member
         ),
-        typed_trees::expression::ExpressionNode::Borrow(inner) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Borrow(inner) => {
             let target = instantiate_call_contract_expression_label(
                 program,
                 caller_state_symbol,
@@ -317,7 +322,7 @@ pub(crate) fn instantiate_call_contract_expression_label(
                 language_semantics::ReferenceAccess::WriteOnly => format!("write {target}"),
             }
         }
-        typed_trees::expression::ExpressionNode::Unary(unary) => format!(
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Unary(unary) => format!(
             "{}{}",
             unary.operator.display_name(),
             instantiate_call_contract_expression_label(
@@ -329,7 +334,7 @@ pub(crate) fn instantiate_call_contract_expression_label(
                 unary.operand,
             )
         ),
-        typed_trees::expression::ExpressionNode::Name(path) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
             let first_member = members.first().map(|member| member.as_str());
 
@@ -373,7 +378,7 @@ pub(crate) fn instantiate_call_contract_expression_label(
                             crate::semantic::calls::CallSite::Statement(call)
                                 if !call.receiver.is_empty() =>
                             {
-                                typed_trees::expression::display_name_path(
+                                symbol_resolved_trees_to_typed_trees::typed_trees::expression::display_name_path(
                                     program.statement_table.name_path_members(call.receiver),
                                     ".",
                                 )
@@ -399,8 +404,8 @@ pub(crate) fn instantiate_call_contract_expression_label(
                                 program.expression_table.expression(argument),
                             ) {
                                 (
-                                    typed_trees::types::TypeReferenceNode::Reference { .. },
-                                    typed_trees::expression::ExpressionNode::Borrow(borrow),
+                                    symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { .. },
+                                    symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Borrow(borrow),
                                 ) => borrow.target,
                                 _ => argument,
                             };
@@ -424,8 +429,8 @@ pub(crate) fn instantiate_call_contract_expression_label(
                 for (position, parameter) in type_parameters.iter().enumerate() {
                     let binder_matches = matches!(
                         &parameter.kind,
-                        typed_trees::data::TypeParameterKind::Const { .. }
-                            | typed_trees::data::TypeParameterKind::Value { .. }
+                        symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Const { .. }
+                            | symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Value { .. }
                     ) && (path.head_symbol == parameter.symbol
                         || path.symbol == parameter.symbol
                         || first_member == Some(parameter.name.as_str()));
@@ -437,7 +442,7 @@ pub(crate) fn instantiate_call_contract_expression_label(
 
             program.render_proof_expression(expression, ProofSubstitutions::None)
         }
-        typed_trees::expression::ExpressionNode::StructLiteral(literal) => program
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::StructLiteral(literal) => program
             .render_proof_constructor_value(literal, |value| {
                 instantiate_call_contract_expression_label(
                     program,
@@ -448,8 +453,8 @@ pub(crate) fn instantiate_call_contract_expression_label(
                     value,
                 )
             }),
-        typed_trees::expression::ExpressionNode::String(value) => format!("{value:?}"),
-        typed_trees::expression::ExpressionNode::ZeroValue(type_reference) => format!(
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::String(value) => format!("{value:?}"),
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::ZeroValue(type_reference) => format!(
             "zero_value<{}>()",
             program.display_type_reference(*type_reference)
         ),
@@ -460,7 +465,7 @@ pub(crate) fn instantiate_call_contract_expression_label(
 /// for a named transition which carries none.
 fn call_site_machine_arguments<'program>(
     call_site: &'program crate::semantic::calls::CallSite<'program>,
-) -> &'program [typed_trees::expression::StaticMachineArgument] {
+) -> &'program [symbol_resolved_trees_to_typed_trees::typed_trees::expression::StaticMachineArgument]{
     match call_site {
         crate::semantic::calls::CallSite::Statement(call) => &call.machine_arguments,
         crate::semantic::calls::CallSite::Expression { call, .. } => &call.machine_arguments,

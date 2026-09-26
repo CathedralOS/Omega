@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use semantic_vocabulary::MachineId;
 
 use crate::FixedPrecoloredSegmentHomeError;
-use register_homes::FunctionFixedPrecoloredSplitRequirements;
+use crate::register_homes::FunctionFixedPrecoloredSplitRequirements;
 
 pub(super) fn requirements(
     functions: &[FunctionFixedPrecoloredSplitRequirements],

@@ -74,7 +74,7 @@ fn higher_order_machine_schema_specializes_nested_selection_to_fixed_point() {
         .iter()
         .filter_map(
             |expression| match checked.expression_table.expression(*expression) {
-                typed_trees::expression::ExpressionNode::Call(call) => Some(call),
+                symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(call) => Some(call),
                 _ => None,
             },
         )
@@ -93,9 +93,9 @@ fn higher_order_machine_schema_specializes_nested_selection_to_fixed_point() {
         .expect("identity receipt")
         .template = forward.symbol;
     assert!(
-        validation::validate_static_machine_call_contracts(
+        crate::validation::validate_static_machine_call_contracts(
             &wrong_template,
-            &validation::infer_operational_may(&wrong_template)
+            &crate::validation::infer_operational_may(&wrong_template)
         )
         .is_err(),
         "a same-signature instance of another schema cannot replace the selected declaration"
@@ -105,9 +105,9 @@ fn higher_order_machine_schema_specializes_nested_selection_to_fixed_point() {
         .machine_specializations
         .retain(|specialization| specialization.instance != identity.symbol);
     assert!(
-        validation::validate_static_machine_call_contracts(
+        crate::validation::validate_static_machine_call_contracts(
             &missing_receipt,
-            &validation::infer_operational_may(&missing_receipt)
+            &crate::validation::infer_operational_may(&missing_receipt)
         )
         .is_err(),
         "a higher-order target needs its exact schema application receipt"
@@ -121,9 +121,9 @@ fn higher_order_machine_schema_specializes_nested_selection_to_fixed_point() {
         .clone();
     duplicate_receipt.machine_specializations.push(receipt);
     assert!(
-        validation::validate_static_machine_call_contracts(
+        crate::validation::validate_static_machine_call_contracts(
             &duplicate_receipt,
-            &validation::infer_operational_may(&duplicate_receipt)
+            &crate::validation::infer_operational_may(&duplicate_receipt)
         )
         .is_err(),
         "duplicate higher-order receipts cannot establish a unique selected schema"
@@ -195,8 +195,8 @@ fn generic_body_inherits_machine_parameter_service_ceiling() {
         .iter()
         .find(|machine| machine.name.as_str() == "apply")
         .expect("apply machine");
-    let operations = validation::infer_operational_may(&typed);
-    let service_reaches = validation::infer_service_reaches(&typed, &operations);
+    let operations = crate::validation::infer_operational_may(&typed);
+    let service_reaches = crate::validation::infer_service_reaches(&typed, &operations);
     let apply_reach = service_reaches
         .for_machine(apply.symbol)
         .expect("apply service-reach summary");
@@ -312,11 +312,9 @@ fn static_machine_argument_specializes_body_calls_to_direct_symbols() {
         .expression_table
         .iter_expressions()
         .find_map(|(_, expression)| match expression {
-            typed_trees::expression::ExpressionNode::Call(call)
-                if call.target_symbol == power_symbol =>
-            {
-                Some(call)
-            }
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(
+                call,
+            ) if call.target_symbol == power_symbol => Some(call),
             _ => None,
         })
         .expect("F(value) should become a direct Card::power call");
@@ -328,7 +326,7 @@ fn static_machine_argument_specializes_body_calls_to_direct_symbols() {
             .expression_table
             .iter_expressions()
             .filter_map(|(_, expression)| match expression {
-                typed_trees::expression::ExpressionNode::Call(call) => Some(call),
+                symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(call) => Some(call),
                 _ => None,
             })
             .all(|call| call.machine_arguments.is_empty())
@@ -372,11 +370,9 @@ fn free_static_machine_specialization_preserves_authored_target_name() {
         .expression_table
         .iter_expressions()
         .find_map(|(_, expression)| match expression {
-            typed_trees::expression::ExpressionNode::Call(call)
-                if call.target_symbol == chosen_symbol =>
-            {
-                Some(call)
-            }
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(
+                call,
+            ) if call.target_symbol == chosen_symbol => Some(call),
             _ => None,
         })
         .expect("F(value) should become a direct chosen call");
@@ -463,7 +459,7 @@ fn specialization_commitment_replays_and_rejects_compact_equal_substitution() {
     let template_report = stale_template_commitment.typed.machine_specializations[0]
         .template_contract_report_fingerprint;
     stale_template_commitment.typed.machine_specializations[0].template_contract_commitment =
-        typed_trees::typed_trees::MachineTemplateCommitment::from_digest([0xa5; 32]);
+        symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::MachineTemplateCommitment::from_digest([0xa5; 32]);
     assert_eq!(
         stale_template_commitment.typed.machine_specializations[0]
             .template_contract_report_fingerprint,
@@ -832,7 +828,10 @@ fn bounded_generic_call_specializes_to_concrete_attached_state() {
         .statements(state.statement_nodes)
         .iter()
         .find_map(|statement| {
-            let typed_trees::statement::StatementNode::Call(call) = statement else {
+            let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Call(
+                call,
+            ) = statement
+            else {
                 return None;
             };
             (call.target.as_str() == "increment").then_some(call)

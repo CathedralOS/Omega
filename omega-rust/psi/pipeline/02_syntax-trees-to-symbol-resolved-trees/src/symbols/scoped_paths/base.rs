@@ -9,7 +9,7 @@ pub(super) fn resolve_base_symbol(
     symbols: &SymbolTable,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-    member: &symbol_resolved_trees::name::DiagnosticName,
+    member: &crate::symbol_resolved_trees::name::DiagnosticName,
 ) -> SymbolHandle {
     if state_symbol.is_valid() {
         let lexical_symbol = child_symbol_by_kinds(

@@ -1,6 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use optimization::PsiOptimizationSelections;
 use optimization_core::{
     BaselineDecisionLog, BaselineDecisionLogBuilder, BaselineDecisionOutcome, ExternalDecisionLog,
 };
@@ -10,8 +9,13 @@ use optimization_core::{
     OptimizationRuleContract, OptimizationRuleSetIdentity, OptimizationSelections,
     OptimizationUnitIdentity, OptimizationWorkBudget,
 };
-use optimization_unit::{PsiOptimizationUnit, PsiTransformationLedger, PsiTransformationRecord};
-use optimization_unit_semantics::{ValidatedPsiRewrite, validate_psi_rewrite_candidate};
+use terminal_codec::optimization::PsiOptimizationSelections;
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    PsiOptimizationUnit, PsiTransformationLedger, PsiTransformationRecord,
+};
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::{
+    ValidatedPsiRewrite, validate_psi_rewrite_candidate,
+};
 
 use crate::{AnalysisManager, OrderedRuleRegistry};
 
@@ -240,8 +244,10 @@ fn run_unit_inner_with_retention(
     loop {
         charge(&mut usage.iterations, budget.iterations(), "iterations")?;
         let previous_measure = convergence_measure(&unit, registry);
-        let mut chosen: Option<(optimization_unit::PsiRewriteCandidate, ValidatedPsiRewrite)> =
-            None;
+        let mut chosen: Option<(
+            terminal_psi_to_abstract_operations::optimization_unit::PsiRewriteCandidate,
+            ValidatedPsiRewrite,
+        )> = None;
         let mut revision = analyses
             .bind_revision(&unit)
             .map_err(OptimizationRunError::Analysis)?;
@@ -425,7 +431,7 @@ fn run_unit_inner_with_retention(
 }
 
 fn validate_candidate_contract(
-    candidate: &optimization_unit::PsiRewriteCandidate,
+    candidate: &terminal_psi_to_abstract_operations::optimization_unit::PsiRewriteCandidate,
     input: OptimizationUnitIdentity,
     contract: OptimizationRuleContract,
 ) -> Result<(), OptimizationRunError> {

@@ -6,17 +6,17 @@
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
 use arena::Handle;
-use checked_trees::CheckedTrees;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use checked_trees::statement::StatementNode;
-use checked_trees::types::TypeReferenceNode;
-use checked_trees::{
+use language_semantics::ReferenceAccess;
+use symbols::SymbolHandle;
+use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
+use typed_trees_to_checked_trees::checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees_to_checked_trees::checked_trees::statement::StatementNode;
+use typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode;
+use typed_trees_to_checked_trees::checked_trees::{
     BorrowAccessKind, BorrowLoanFact, BorrowLoanLineage, CheckedParentBorrowResource,
     CheckedReborrowAccessEffect, FlowBorrowWeakeningReason, FlowConstraintKind,
     FlowInvalidationSource,
 };
-use language_semantics::ReferenceAccess;
-use symbols::SymbolHandle;
 
 mod reborrow;
 use reborrow::reborrow_resource;
@@ -171,7 +171,7 @@ pub(super) fn parameter_source(
     let projected_type = if captured.path.is_empty() {
         root_type
     } else {
-        let reference = validation::declared_place_type_raw(
+        let reference = typed_trees_to_checked_trees::validation::declared_place_type_raw(
             &checked.typed,
             authored_machine,
             Some(authored_state),
@@ -509,7 +509,7 @@ fn contains_owner(
                     return true;
                 }
                 for arm in arms {
-                    if let checked_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    if let typed_trees_to_checked_trees::checked_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                         pending.push(pattern);
                     }
                     pending.push(arm.value);

@@ -9,11 +9,11 @@ use crate::{
     apply_loop_invariant_scalar_motion, propose_loop_invariant_scalar_motion,
     validate_loop_invariant_scalar_motion,
 };
-use abstract_operations::AbstractOperation;
-use optimization_unit::{
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     ProvenanceDisposition, PsiRealizationSite, recompute_psi_optimization_unit_identity,
 };
-use optimization_unit_semantics::OptimizationUnitValidationError;
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::OptimizationUnitValidationError;
 
 use super::{
     BYPASSED_LITERAL_SOURCE, INVARIANT_LITERAL_SOURCE, MEMBER_SCALAR_ARRAY_SOURCE,
@@ -655,11 +655,11 @@ const CARRIED_BORROW_CALL_SOURCE: &str = r#"
 /// The `CallUnit` inside a member block and its block — the
 /// structural-signature counterpart of [`member_call`].
 fn member_unit_call<'function>(
-    function: &'function optimization_unit::PsiOptimizationFunction,
-    component: &optimization_unit::OptimizerCycleComponent,
+    function: &'function terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
+    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
 ) -> (
-    &'function optimization_unit::OptimizationBlock,
-    &'function optimization_unit::OptimizationNode,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationBlock,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
 ) {
     for member in &component.members {
         let block = function
@@ -2695,11 +2695,11 @@ const MUTATED_MEMBER_STRUCTURAL_CALL_SOURCE: &str = r#"
 /// Every `CallStructural` node inside `component`'s member blocks — the
 /// call counterpart of [`member_scalar_case_establishments`].
 fn member_structural_calls<'function>(
-    function: &'function optimization_unit::PsiOptimizationFunction,
-    component: &optimization_unit::OptimizerCycleComponent,
+    function: &'function terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
+    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
 ) -> Vec<(
-    &'function optimization_unit::OptimizationBlock,
-    &'function optimization_unit::OptimizationNode,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationBlock,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
 )> {
     let mut calls = Vec::new();
     for member in &component.members {

@@ -2,11 +2,13 @@
 use super::LiveDefinitions;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractFunction, AbstractOperation};
+use crate::target_operations::{TargetUnitOperation, TerminalPsiProvenance};
 use std::collections::BTreeSet;
-use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
 use terminal_psi::{
     StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralTypeShape,
+};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractFunction, AbstractOperation,
 };
 
 pub(super) fn establish(

@@ -7,14 +7,16 @@
 //! arrive as a slice and intersect.
 
 use numerics::bignum::BigInt;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode,
+};
 
 /// The closed interval a guard's conjuncts establish for the place spelled
 /// `subject_label`. `&&` intersects; a conjunct that is not a closed
 /// comparison over that exact spelling contributes nothing, so the result is
 /// only ever weaker than the guard.
 pub(super) fn guard_interval_for_label(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     guard: ExpressionHandle,
     subject_label: &str,
 ) -> Option<(BigInt, BigInt)> {
@@ -48,8 +50,8 @@ pub(super) fn guard_interval_for_label(
 /// One comparison's contribution, when exactly one side is the subject and the
 /// other is a closed integer literal.
 fn comparison_bound(
-    program: &typed_trees::TypedTrees,
-    binary: &typed_trees::expression::TableBinaryExpression,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    binary: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableBinaryExpression,
     subject_label: &str,
 ) -> Option<(BigInt, BigInt)> {
     let left_is_subject = program.expression_table.display_name(binary.left) == subject_label;
@@ -59,7 +61,7 @@ fn comparison_bound(
         (false, true) => (binary.left, false),
         _ => return None,
     };
-    let value = validation::closed_integer_range_bound(program, literal)?;
+    let value = crate::validation::closed_integer_range_bound(program, literal)?;
     Some(endpoints(binary.operator, subject_on_left, value))
 }
 
@@ -98,13 +100,13 @@ fn endpoints(operator: BinaryOperator, subject_on_left: bool, value: BigInt) -> 
 /// `+`/`-` against a literal shifts the interval. Anything else declines, so
 /// the result is only ever narrower than the truth.
 pub(super) fn expression_interval(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     guards: &[ExpressionHandle],
     expression: ExpressionHandle,
 ) -> Option<(BigInt, BigInt)> {
-    if let Some(value) = validation::closed_integer_range_bound(program, expression) {
+    if let Some(value) = crate::validation::closed_integer_range_bound(program, expression) {
         return Some((value.clone(), value));
     }
     match program.expression_table.expression(expression) {
@@ -136,7 +138,7 @@ pub(super) fn expression_interval(
             ) =>
         {
             let (low, high) = expression_interval(program, machine, state, guards, binary.left)?;
-            let shift = validation::closed_integer_range_bound(program, binary.right)?;
+            let shift = crate::validation::closed_integer_range_bound(program, binary.right)?;
             match binary.operator {
                 BinaryOperator::Add => Some((low.add(&shift), high.add(&shift))),
                 _ => Some((low.sub(&shift), high.sub(&shift))),

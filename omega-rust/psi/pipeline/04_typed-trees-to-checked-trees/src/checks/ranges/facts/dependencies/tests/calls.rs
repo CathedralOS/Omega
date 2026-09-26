@@ -5,8 +5,8 @@ use crate::checks::ranges::facts::dependencies::tests::initializer;
 use crate::checks::ranges::facts::dependencies::tests::parameter_place;
 use crate::checks::ranges::facts::dependencies::tests::selected_operator_facts;
 use crate::tests::front_end::typed_program;
-use typed_trees::machine::Machine;
-use typed_trees::state::State;
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
 
 fn window(program: &TypedTrees) -> (&Machine, &State) {
     let machine = program
@@ -43,13 +43,13 @@ fn statement_index_of(program: &TypedTrees, state: &State, name: &str) -> usize 
 fn checked_facts<'program>(
     program: &'program TypedTrees,
 ) -> (
-    checked_trees::BorrowFacts,
-    checked_trees::FlowFacts,
-    Option<validation::CallFrameResolver<'program>>,
+    crate::checked_trees::BorrowFacts,
+    crate::checked_trees::FlowFacts,
+    Option<crate::validation::CallFrameResolver<'program>>,
 ) {
     let borrows = crate::borrow::build_borrow_facts(program);
     let flow = crate::checks::ranges::cache_tests::range_flow_fixture(program, &borrows);
-    let frames = validation::CallFrameResolver::new(program);
+    let frames = crate::validation::CallFrameResolver::new(program);
     (borrows, flow, frames)
 }
 
@@ -159,7 +159,7 @@ fn a_self_receiver_callee_reads_the_callers_machine_storage() {
     // performs; the entry parameter's own root is a redundant alias for the
     // same storage and may appear alongside it.
     let machine_root = crate::flow::CanonicalPlace {
-        root: facts::PlaceRoot::Symbol(machine.symbol),
+        root: crate::fact_plan::PlaceRoot::Symbol(machine.symbol),
         segments: Vec::new(),
     };
     assert!(reads.contains(&machine_root), "{reads:?}");
@@ -415,7 +415,7 @@ fn a_type_applied_self_receiver_call_reads_the_callers_machine_storage() {
         .as_ref()
         .expect("an applied self-receiver callee footprint");
     let machine_root = crate::flow::CanonicalPlace {
-        root: facts::PlaceRoot::Symbol(machine.symbol),
+        root: crate::fact_plan::PlaceRoot::Symbol(machine.symbol),
         segments: Vec::new(),
     };
     assert!(reads.contains(&machine_root), "{reads:?}");
@@ -498,7 +498,7 @@ fn only_storage_free_static_selections_admit_the_applied_call_footprint() {
             "callable" => call.machine_arguments[0].symbol = callable,
             "nested" => {
                 call.machine_arguments[0].application =
-                    Some(Box::new(typed_trees::expression::StaticSymbolApplication {
+                    Some(Box::new(symbol_resolved_trees_to_typed_trees::typed_trees::expression::StaticSymbolApplication {
                         lifetime_arguments: Box::default(),
                         arguments: Box::default(),
                     }))
@@ -557,9 +557,11 @@ fn a_wrapped_arithmetic_selector_still_proves_its_call_operand_footprint() {
         panic!("index fixture")
     };
     let mut selected = parameter_place(&program, state, "items");
-    selected.segments.push(facts::PlaceSegment::Index {
-        expression: indexed.index,
-    });
+    selected
+        .segments
+        .push(crate::fact_plan::PlaceSegment::Index {
+            expression: indexed.index,
+        });
     assert_eq!(
         reads.as_slice(),
         [

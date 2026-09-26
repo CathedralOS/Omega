@@ -30,7 +30,7 @@ pub(super) fn registered_structural_graph_target<'facts>(
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     result: PrimitiveType,
-) -> Option<&'facts checked_trees::CheckedScalarStateGraph> {
+) -> Option<&'facts crate::checked_trees::CheckedScalarStateGraph> {
     let scalar_callees = scalar_callees?;
     let mut graphs = facts
         .flow
@@ -156,8 +156,8 @@ pub(super) struct ScalarCallSite<'a> {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
     pub operations: Vec<&'a CheckedUnitEffectOperationPlan>,
-    pub structural_parameters: &'a [checked_trees::CheckedUnitStructuralParameterPlan],
-    pub entry_claims: &'a [checked_trees::CheckedUnitEntryClaimPlan],
+    pub structural_parameters: &'a [crate::checked_trees::CheckedUnitStructuralParameterPlan],
+    pub entry_claims: &'a [crate::checked_trees::CheckedUnitEntryClaimPlan],
 }
 
 impl ScalarCallSite<'_> {
@@ -173,7 +173,7 @@ impl ScalarCallSite<'_> {
 
     pub(super) fn of_composed_state<'a>(
         machine: SymbolHandle,
-        state: &'a checked_trees::CheckedComposedUnitControlStatePlan,
+        state: &'a crate::checked_trees::CheckedComposedUnitControlStatePlan,
     ) -> ScalarCallSite<'a> {
         ScalarCallSite {
             machine,
@@ -214,7 +214,7 @@ pub(super) fn available_target(
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     candidates: &[CheckedUnitEffectMachinePlan],
-    composed_candidates: &[checked_trees::CheckedComposedUnitControlMachinePlan],
+    composed_candidates: &[crate::checked_trees::CheckedComposedUnitControlMachinePlan],
     caller: &ScalarCallSite<'_>,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Option<AvailableScalarTarget> {
@@ -252,7 +252,7 @@ pub(super) fn available_target(
         plan.machine == *target_machine
             && matches!(
                 plan.result,
-                checked_trees::CheckedControlResultPlan::Scalar { .. }
+                crate::checked_trees::CheckedControlResultPlan::Scalar { .. }
             )
     });
     let state = match (composed, program.machine_states(machine)) {
@@ -345,7 +345,8 @@ pub(super) fn available_target(
         // A state graph reaches callers through its entry state's signature,
         // exactly as its internal Unit calls do. Rebuild that signature so a
         // drifted plan cannot select this body.
-        let checked_trees::CheckedControlResultPlan::Scalar { primitive_type } = plan.result else {
+        let crate::checked_trees::CheckedControlResultPlan::Scalar { primitive_type } = plan.result
+        else {
             return None;
         };
         let entry = plan.states.first()?;
@@ -423,8 +424,11 @@ pub(super) fn available_target(
                     .type_reference_table
                     .type_reference(state.return_type),
                 TypeReferenceNode::Constrained { .. }
-            ) && !validation::is_arithmetic_policy_only_integer(program, state.return_type)
-                && validation::closed_scalar_result_range(program, state.return_type).is_none())
+            ) && !crate::validation::is_arithmetic_policy_only_integer(
+                program,
+                state.return_type,
+            ) && crate::validation::closed_scalar_result_range(program, state.return_type)
+                .is_none())
         {
             return None;
         }
@@ -538,7 +542,10 @@ pub(super) fn available_target(
             else {
                 return None;
             };
-            Some((result.clone(), facts::PlaceRoot::Symbol(local.symbol)))
+            Some((
+                result.clone(),
+                crate::fact_plan::PlaceRoot::Symbol(local.symbol),
+            ))
         })
         .collect::<Vec<_>>();
     if calls.next().is_some()
@@ -583,10 +590,10 @@ pub(super) fn available_target(
             .zip(scalar)
             .all(|(argument, parameter)| {
                 let primitive_type = match argument {
-                    checked_trees::CheckedCallScalarArgument::Pure(expression) => {
+                    crate::checked_trees::CheckedCallScalarArgument::Pure(expression) => {
                         crate::values::scalar_expression_type(expression)
                     }
-                    checked_trees::CheckedCallScalarArgument::Computation(root) => {
+                    crate::checked_trees::CheckedCallScalarArgument::Computation(root) => {
                         let computations = &facts.values.scalar_computations;
                         computations
                             .nodes

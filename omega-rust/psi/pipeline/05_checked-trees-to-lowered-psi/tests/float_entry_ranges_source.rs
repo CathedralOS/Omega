@@ -11,7 +11,7 @@ use terminal_interpreter::{
 };
 use terminal_psi::OperationKind;
 
-fn lower(source: &str, entry: &str) -> lowered_psi::LoweredPsi {
+fn lower(source: &str, entry: &str) -> checked_trees_to_lowered_psi::lowered_psi::LoweredPsi {
     checked_trees_to_lowered_psi::lower_machine(
         &crate::front_end::checked_program(source),
         TerminalMachineSelection::Name(entry),

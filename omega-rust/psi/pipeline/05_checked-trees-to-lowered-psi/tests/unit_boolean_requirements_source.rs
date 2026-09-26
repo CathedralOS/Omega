@@ -1,9 +1,11 @@
 //! Boolean preconditions retain their actual scalar identity across Unit calls.
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
 
-fn roundtrip(source: &str) -> lowered_psi::LoweredPsi {
+fn roundtrip(source: &str) -> checked_trees_to_lowered_psi::lowered_psi::LoweredPsi {
     let checked = crate::front_end::checked_program(source);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
@@ -24,15 +26,16 @@ fn roundtrip(source: &str) -> lowered_psi::LoweredPsi {
         &proof_admission::AdmissionProfile::default(),
     )
     .expect("independent Boolean call requirement verification");
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("Main::main"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("Boolean requirement source publishes Terminal")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("Main::main"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("Boolean requirement source publishes Terminal")
+        .into_artifact();
     assert_eq!(
         terminal_codec::decode_module(artifact.semantic_bytes()).unwrap(),
         module
@@ -116,7 +119,9 @@ fn write_only_forwarding_proves_the_callee_field_requirement() {
     );
 }
 
-fn assert_call_requirement_certificates(lowered: &lowered_psi::LoweredPsi) {
+fn assert_call_requirement_certificates(
+    lowered: &checked_trees_to_lowered_psi::lowered_psi::LoweredPsi,
+) {
     let root = lowered
         .semantic_module
         .machines
@@ -282,7 +287,10 @@ fn literal_true_actual_proves_boolean_requirement_without_caller_assumptions() {
     assert!(root.contract.requires.is_empty());
 }
 
-fn computed_boolean_actual(actual: &str, caller_requirement: &str) -> lowered_psi::LoweredPsi {
+fn computed_boolean_actual(
+    actual: &str,
+    caller_requirement: &str,
+) -> checked_trees_to_lowered_psi::lowered_psi::LoweredPsi {
     let source = SOURCE.replace(
         "requires flag\n    { Helper::consume(flag, metrics); }",
         &format!("{caller_requirement}\n    {{ Helper::consume({actual}, metrics); }}"),

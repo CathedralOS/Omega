@@ -1,18 +1,18 @@
+use crate::selected_instructions::SelectedInstructionPlanIdentity;
 use abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations;
 use optimization_core::{
     OptimizationIdentityBundleIdentity, OptimizationSelections, OptimizationUnitIdentity,
     OptimizationValidatorIdentity, OptimizationWorkBudget, OptimizedAbstractPlanProjectionIdentity,
     PrePhysicalOptimizationManifestIdentity,
 };
-use selected_instructions::SelectedInstructionPlanIdentity;
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use terminal_psi::TerminalPsiIdentity;
 
+use crate::register_environment::ValidatedTargetRegisterEnvironment;
 use crate::{
     LegalizationError, SelectedInstructionError, ValidatedLegalizedOperations,
     ValidatedSelectedInstructions,
 };
-use register_environment::ValidatedTargetRegisterEnvironment;
 
 /// Opt-in selected-instruction staging with complete optimized lowering and
 /// target-register custody. This grants no liveness, allocation, emission, or
@@ -77,8 +77,8 @@ pub struct StagedOptimizedSelectionCustodyReceipt {
     pub(super) manifest: PrePhysicalOptimizationManifestIdentity,
     pub(super) optimization_unit: OptimizationUnitIdentity,
     pub(super) fuel_schedule: FuelScheduleIdentity,
-    pub(super) register_environment: register_model::TargetRegisterEnvironmentIdentity,
-    pub(super) legalized: legalized_operations::LegalizedOperationPlanIdentity,
+    pub(super) register_environment: crate::register_model::TargetRegisterEnvironmentIdentity,
+    pub(super) legalized: crate::legalized_operations::LegalizedOperationPlanIdentity,
     pub(super) legalization_validator: OptimizationValidatorIdentity,
     pub(super) selected: SelectedInstructionPlanIdentity,
     pub(super) function_count: usize,
@@ -121,7 +121,7 @@ impl StagedOptimizedSelectionCustodyReceipt {
         self.selected
     }
 
-    pub const fn legalized(self) -> legalized_operations::LegalizedOperationPlanIdentity {
+    pub const fn legalized(self) -> crate::legalized_operations::LegalizedOperationPlanIdentity {
         self.legalized
     }
 
@@ -129,7 +129,9 @@ impl StagedOptimizedSelectionCustodyReceipt {
         self.legalization_validator
     }
 
-    pub const fn register_environment(self) -> register_model::TargetRegisterEnvironmentIdentity {
+    pub const fn register_environment(
+        self,
+    ) -> crate::register_model::TargetRegisterEnvironmentIdentity {
         self.register_environment
     }
 

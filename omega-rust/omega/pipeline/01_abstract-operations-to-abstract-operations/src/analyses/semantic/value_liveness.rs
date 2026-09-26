@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use abstract_operations::AbstractOperation as O;
-use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::{BlockId, MachineId, ValueId};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NodeLiveness {

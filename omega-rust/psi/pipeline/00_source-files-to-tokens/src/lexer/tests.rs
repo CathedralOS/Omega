@@ -1,5 +1,5 @@
 use super::Lexer;
-use tokens::{
+use crate::tokens::{
     CommentKind, FloatLiteralKind, IntegerLiteralKind, KeywordKind, NumericBase,
     NumericLiteralKind, PunctuationKind, TokenKind,
 };

@@ -869,7 +869,7 @@ fn transparent_returned_index_frame_accepts_a_finite_exact_call_tree() {
     "#;
 
     let typed = typed_program(source);
-    let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
     let local = typed
         .machines()
@@ -2103,7 +2103,7 @@ fn stable_alias_index_frame_accepts_a_finite_exact_call_tree() {
     "#;
 
     let typed = typed_program(source);
-    let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
     let local = typed
         .machines()

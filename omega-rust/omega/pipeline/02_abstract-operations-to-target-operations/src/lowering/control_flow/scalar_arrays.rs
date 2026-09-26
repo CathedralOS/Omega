@@ -2,13 +2,15 @@
 //! Its semantic type remains an array; byte layout adds neither a record nor a tag.
 use super::LiveDefinitions;
 use crate::LoweringError;
+use crate::calling_conventions::ValueShape;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractFunction, AbstractOperation};
-use calling_conventions::ValueShape;
+use crate::target_operations::{TargetUnitOperation, TerminalPsiProvenance};
 use semantic_vocabulary::{ScalarType, StructuralTypeId};
 use std::collections::BTreeMap;
-use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
 use terminal_psi::{StructuralTypeDeclaration, StructuralTypeShape};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractFunction, AbstractOperation,
+};
 
 pub(in crate::lowering) fn shape(
     structural_type: StructuralTypeId,

@@ -2,14 +2,14 @@
 //! each incoming actual. Reuse the exact semantic declaration rows; do not
 //! recover lost membership merely from an unchanged nominal type annotation.
 
-use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
-use diagnostics::Diagnostic;
-use facts::{
+use crate::checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
+use crate::fact_plan::{
     FactContextHandle, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceRoot, PlaceSegment,
     ProgramPoint,
 };
+use diagnostics::Diagnostic;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Owner {
@@ -104,7 +104,7 @@ pub(super) fn check(
     call: &FlowCallFact,
     requirements: &DeclaredFieldRequirements,
     contexts: &[FactContextHandle],
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(site) = crate::semantic::calls::find_call_site(
@@ -260,7 +260,7 @@ pub(super) fn check(
                     crate::labels::call_target_label(program, call.target_symbol),
                     crate::labels::machine_name(program, state.machine_symbol),
                     crate::labels::symbol_name(program, state.state_symbol),
-                    facts::canonical_place_label_from_parts(program, PlaceRoot::Symbol(parameter.symbol), segments),
+                    crate::fact_plan::canonical_place_label_from_parts(program, PlaceRoot::Symbol(parameter.symbol), segments),
                     crate::labels::symbol_name(program, *domain_symbol),
                 )));
             }
@@ -284,7 +284,7 @@ fn candidate_referents_prove_domain(
     domain_symbol: SymbolHandle,
     semantic_domain: language_semantics::SemanticDomainId,
     contexts: &[FactContextHandle],
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> bool {
     let Some(machine) = crate::lookup::machine_by_symbol(program, state.machine_symbol) else {
         return false;

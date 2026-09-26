@@ -7,7 +7,7 @@ use super::{
 };
 #[test]
 fn borrowed_scalar_store_replay_rejects_changed_footprint_source_and_fuel() {
-    use selected_instructions::SelectedMemoryAccessRole;
+    use crate::selected_instructions::SelectedMemoryAccessRole;
     use terminal_psi::{
         StructuralAccess, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
         StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
@@ -43,7 +43,8 @@ fn borrowed_scalar_store_replay_rejects_changed_footprint_source_and_fuel() {
                 .map(move |access| (primitive, access))
             }) {
                 let environment =
-                    register_environment::baseline_target_register_environment(target).unwrap();
+                    crate::register_environment::baseline_target_register_environment(target)
+                        .unwrap();
                 let mut source = fixture(target, 0);
                 let structural_type = source.attachment.unwrap();
                 if primitive {
@@ -72,7 +73,7 @@ fn borrowed_scalar_store_replay_rejects_changed_footprint_source_and_fuel() {
                     qualifications: Vec::new(),
                     projected_qualifications: Vec::new(),
                 };
-                source.structural = Some(legalized_operations::LegalizedStructuralContract {
+                source.structural = Some(crate::legalized_operations::LegalizedStructuralContract {
                     result: None,
                     structural_types: vec![StructuralTypeDeclaration {
                         id: structural_type,
@@ -91,9 +92,9 @@ fn borrowed_scalar_store_replay_rejects_changed_footprint_source_and_fuel() {
                         },
                     }]
                     .into(),
-                    parameters: vec![legalized_operations::LegalizedCallUnitParameter {
+                    parameters: vec![crate::legalized_operations::LegalizedCallUnitParameter {
                         semantic: destination.clone(),
-                        target: target_operations::TargetStructuralParameter {
+                        target: abstract_operations_to_target_operations::target_operations::TargetStructuralParameter {
                             place,
                             structural_type,
                             multiplicity: destination.multiplicity,
@@ -127,7 +128,7 @@ fn borrowed_scalar_store_replay_rejects_changed_footprint_source_and_fuel() {
                         indices: Vec::new(),
                         byte_offset: 0,
                         destination,
-                        value: abstract_operations::AbstractResult {
+                        value: terminal_psi_to_abstract_operations::abstract_operations::AbstractResult {
                             value: ValueId::new(1).unwrap(),
                             scalar_type,
                         },
@@ -139,7 +140,7 @@ fn borrowed_scalar_store_replay_rejects_changed_footprint_source_and_fuel() {
                         path: Vec::new(),
                         indices: Vec::new(),
                         field,
-                        value: abstract_operations::AbstractResult {
+                        value: terminal_psi_to_abstract_operations::abstract_operations::AbstractResult {
                             value: ValueId::new(1).unwrap(),
                             scalar_type,
                         },

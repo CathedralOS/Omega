@@ -18,9 +18,9 @@ pub(crate) use model::{
     legalization_validator_identity_v21_legacy, legalization_validator_identity_v22_legacy,
 };
 
-use abstract_operations::AbstractOperationPlan;
-use legalized_operations::{LegalizedOperationPlan, legalized_operation_plan_identity};
-use target_operations::TargetOperationPlan;
+use crate::legalized_operations::{LegalizedOperationPlan, legalized_operation_plan_identity};
+use abstract_operations_to_target_operations::target_operations::TargetOperationPlan;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan;
 
 use replay::replay_terminal_legalized_plan;
 use source::derive_source_function_rosters;

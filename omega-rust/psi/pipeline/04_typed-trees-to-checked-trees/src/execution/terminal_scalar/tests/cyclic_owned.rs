@@ -2,16 +2,16 @@ use super::super::{
     CheckedScalarBranchDestination, CheckedScalarMachineGraph, CheckedScalarStateTerminator,
     CheckedScalarSuccessor,
 };
+use crate::checked_trees::{
+    CheckedStructuralControlTransferSourcePlan, CheckedStructuralScalarArgumentSourcePlan,
+};
 use crate::execution::terminal_scalar::build_checked_scalar_graph_plans;
 use crate::execution::terminal_scalar::finalize_checked_scalar_graph_plans;
 use crate::tests::front_end::checked_program_result;
-use checked_trees::{
-    CheckedStructuralControlTransferSourcePlan, CheckedStructuralScalarArgumentSourcePlan,
-};
 use language_semantics::{
     Multiplicity, PermissionAccess, PermissionEventKind, PermissionEventSource,
 };
-use typed_trees::types::PrimitiveType;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
 
 const SOURCE: &str = r#"
 machine reset(value: &mut u64) -> u64 { value = 0; 0 }
@@ -27,11 +27,11 @@ terminates by remaining -> Nat::Descending in 0..(limits.limit % limits.divisor 
 }
 "#;
 
-fn checked(source: &str) -> checked_trees::CheckedTrees {
+fn checked(source: &str) -> crate::checked_trees::CheckedTrees {
     checked_program_result(source).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"))
 }
 
-fn machine(checked: &checked_trees::CheckedTrees) -> symbols::SymbolHandle {
+fn machine(checked: &crate::checked_trees::CheckedTrees) -> symbols::SymbolHandle {
     checked
         .machines()
         .iter()
@@ -135,7 +135,7 @@ fn owned_countdown_retains_mixed_positions_and_exact_nat_judgment() {
                 .root_at(
                     state.state,
                     1,
-                    checked_trees::CheckedScalarExpressionRole::TransitionArgument {
+                    crate::checked_trees::CheckedScalarExpressionRole::TransitionArgument {
                         argument_ordinal: 2
                     }
                 )
@@ -310,7 +310,10 @@ fn cyclic_owned_permissions_reject_missing_duplicate_or_substituted_transfer_and
                     ownership.permissions.get_mut(handle).machine_symbol =
                         symbols::SymbolHandle::invalid()
                 }
-                1 => ownership.permissions.get_mut(handle).root = facts::PlaceRoot::Unknown,
+                1 => {
+                    ownership.permissions.get_mut(handle).root =
+                        crate::fact_plan::PlaceRoot::Unknown
+                }
                 2 => {
                     ownership.permissions.get_mut(handle).source =
                         PermissionEventSource::Statement { statement_index: 2 }
@@ -436,7 +439,7 @@ fn cyclic_owned_signature_does_not_erase_mutability_linearity_or_qualifications(
                     .get(parameter_handle)
                     .type_reference;
                 let qualified = program.type_reference_table.insert(
-                    typed_trees::types::TypeReferenceNode::Constrained {
+                    symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained {
                         base_type: original,
                         constraints: arena::HandleSpan::empty(),
                     },

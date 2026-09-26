@@ -641,7 +641,7 @@ fn transparent_returned_place_accepts_finite_direct_scalar_computations() {
     "#;
 
     let typed = typed_program(source);
-    let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
     for name in [
         "Main::computed_scalar_result",
@@ -974,7 +974,7 @@ fn transparent_returned_place_accepts_finite_fixed_array_assignment_values() {
     "#;
 
     let typed = typed_program(source);
-    let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
     for (name, expected_paths) in [
         (
@@ -1360,7 +1360,7 @@ fn transparent_returned_place_composes_mixed_aggregate_assignment_values() {
     "#;
 
     let typed = typed_program(source);
-    let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
     for (name, expected_paths) in [
         (
@@ -1845,7 +1845,7 @@ fn transparent_returned_place_accepts_direct_concrete_literal_member_values() {
     "#;
 
     let typed = typed_program(source);
-    let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
     for name in [
         "Main::record_literal_member_result",

@@ -1,5 +1,5 @@
+use crate::symbol_resolved_trees::expression::{ExpressionNode, MatchPattern};
 use source_files_to_tokens::Lexer;
-use symbol_resolved_trees::expression::{ExpressionNode, MatchPattern};
 
 #[test]
 fn match_resolves_subject_patterns_and_every_arm_in_machine_scope() {

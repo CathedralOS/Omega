@@ -14,9 +14,10 @@
 use std::sync::Arc;
 
 use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use target_operations_to_selected_instructions::{
     MachineAlternative, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
     MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
@@ -24,7 +25,6 @@ use selected_instructions::{
     SelectedInstructionKind, SelectedInstructionPlan, ValidatedMachineEffectCatalog,
     VirtualRegisterId,
 };
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::{ProjectedAccessError, ProjectedAccessReceipt, ValidatedProjectedAccess};
 use crate::ValidatedSelectedAnalysis;
@@ -440,7 +440,7 @@ fn access_alternative(
 fn effect_declaration(
     catalog: &ValidatedMachineEffectCatalog,
     semantic: MachineSemanticKind,
-    constraint: register_model::RegisterConstraintKey,
+    constraint: target_operations_to_selected_instructions::register_model::RegisterConstraintKey,
 ) -> Option<&MachineEffectDeclaration> {
     let mut matches = catalog.catalog().declarations.iter().filter(|declaration| {
         declaration.semantic == semantic && declaration.constraint == constraint

@@ -52,16 +52,21 @@ fn target(hasher: &mut Sha256, target: target::NativeTarget) {
     hasher.update((target.pointer_alignment as u64).to_le_bytes());
 }
 
-fn abi_tag(abi: register_environment::FrameAbiPreservationConvention) -> u8 {
+fn abi_tag(
+    abi: target_operations_to_selected_instructions::register_environment::FrameAbiPreservationConvention,
+) -> u8 {
     match abi {
-        register_environment::FrameAbiPreservationConvention::SystemVAMD64 => 0,
-        register_environment::FrameAbiPreservationConvention::MicrosoftX64 => 1,
-        register_environment::FrameAbiPreservationConvention::Aapcs64 => 2,
-        register_environment::FrameAbiPreservationConvention::DarwinAapcs64 => 3,
+        target_operations_to_selected_instructions::register_environment::FrameAbiPreservationConvention::SystemVAMD64 => 0,
+        target_operations_to_selected_instructions::register_environment::FrameAbiPreservationConvention::MicrosoftX64 => 1,
+        target_operations_to_selected_instructions::register_environment::FrameAbiPreservationConvention::Aapcs64 => 2,
+        target_operations_to_selected_instructions::register_environment::FrameAbiPreservationConvention::DarwinAapcs64 => 3,
     }
 }
 
-fn units(hasher: &mut Sha256, values: &[register_model::RegisterUnitId]) {
+fn units(
+    hasher: &mut Sha256,
+    values: &[target_operations_to_selected_instructions::register_model::RegisterUnitId],
+) {
     length(hasher, values.len());
     for value in values {
         hasher.update(value.0.to_le_bytes());

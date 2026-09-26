@@ -3,7 +3,7 @@ use super::{
     IntegerSign, IntegerType, LegalizedScalarInstructionKind, ScalarType, SelectedFunction,
     SelectedInstructionKind, SelectedSelectionConstraints, ValueId, build, fixture_with_integer,
 };
-use legalized_operations::LegalizedExactIntegerOperator;
+use crate::legalized_operations::LegalizedExactIntegerOperator;
 use optimization_core::AcceptedObligationFactIdentity;
 use semantic_vocabulary::{ObligationId, OperationId};
 
@@ -16,7 +16,7 @@ fn exact_native_division_preserves_policy_proof_and_register_custody() {
         target::NativeTarget::macos_arm64(),
     ] {
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),

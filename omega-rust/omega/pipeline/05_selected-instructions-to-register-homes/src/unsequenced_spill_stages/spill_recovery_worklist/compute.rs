@@ -3,7 +3,7 @@
 use std::collections::BTreeSet;
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use register_model::{
+use target_operations_to_selected_instructions::register_model::{
     TargetRegisterEnvironmentConstraintKeys, ValidatedPhysicalRegisterModel,
     ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
 };
@@ -14,10 +14,10 @@ use crate::unsequenced_spill_stages::{
     SpillRecoveryWorklistError, SpillRecoveryWorklistPlan, SpillRecoveryWorklistPolicy,
     SyntheticReloadValueId, ValidatedAbstractSpillInsertion,
 };
-use selected_instructions::LiveRangePoint;
 use selected_instructions_to_selected_instructions::{
     ValidatedAllocationLegality, ValidatedLiveRanges,
 };
+use target_operations_to_selected_instructions::LiveRangePoint;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn compute(

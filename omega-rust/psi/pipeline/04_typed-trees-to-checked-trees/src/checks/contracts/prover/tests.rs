@@ -1,9 +1,13 @@
 use super::semantic_contexts_prove_contract_fact;
+use crate::fact_plan::{Fact, FactContextHandle, FactPayload, FactPlace, FactPlan, ProgramPoint};
 use crate::tests::front_end::typed_program;
-use facts::{Fact, FactContextHandle, FactPayload, FactPlace, FactPlan, ProgramPoint};
 use language_semantics::CarryPermission;
 
-fn fixture() -> (typed_trees::TypedTrees, FactPlan, [FactPlace; 2]) {
+fn fixture() -> (
+    symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    FactPlan,
+    [FactPlace; 2],
+) {
     let program = typed_program("machine inspect(first: &mut u64, second: &mut u64) {}");
     let state = &program.machine_states(&program.machines()[0])[0];
     let parameters = program.state_parameters(state);

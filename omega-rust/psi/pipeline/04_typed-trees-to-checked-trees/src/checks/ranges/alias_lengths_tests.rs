@@ -23,10 +23,10 @@ fn bounded_byte_state_alias_names_cannot_relabel_an_old_receiver_extent() {
         );
         let program = typed_program(&source);
         let borrows = crate::borrow::build_borrow_facts(&program);
-        let proof_plan = proof::obligations::build_proof_plan(&program);
+        let proof_plan = crate::proof_engine::obligations::build_proof_plan(&program);
         let values = crate::values::build_value_facts(&program, &proof_plan);
         let operators = crate::operators::build_operator_facts(&program, &values);
-        let frames = validation::CallFrameResolver::new(&program)
+        let frames = crate::validation::CallFrameResolver::new(&program)
             .expect("resolved alias fixture has call frames");
         let incoming = super::incoming_guards::IncomingGuardIndex::build(&program, Some(&frames));
         let flow = super::cache_tests::range_flow_fixture(&program, &borrows);

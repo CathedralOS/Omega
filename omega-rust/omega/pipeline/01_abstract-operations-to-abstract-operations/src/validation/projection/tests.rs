@@ -6,19 +6,19 @@ use super::{
     TransformationLedgerIdentity, ValidatedOptimizedAbstractPlanProjection,
 };
 
-use abstract_operations::{
-    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperationPlan,
-};
 use optimization_core::{
     OptimizationCandidateIdentity, OptimizationRuleIdentity, OptimizationValidatorIdentity,
 };
-use optimization_unit::{
+use semantic_vocabulary::{BlockId, EdgeId, MachineId};
+use terminal_psi::{SemanticFingerprint, VocabularyMarker};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperationPlan,
+};
+use terminal_psi_to_abstract_operations::optimization_unit::{
     FuelSettlement, NodeLocation, ProvenanceRewrite, PsiTransformationRecord,
     reconstruct_psi_optimization_unit_seed,
 };
-use semantic_vocabulary::{BlockId, EdgeId, MachineId};
-use terminal_psi::{SemanticFingerprint, VocabularyMarker};
 
 fn receipt() -> ValidatedOptimizedAbstractPlanProjection {
     ValidatedOptimizedAbstractPlanProjection {
@@ -83,7 +83,7 @@ fn custody_record(
     output: OptimizationUnitIdentity,
     disposition: ProvenanceDisposition,
     source: PsiProvenance,
-) -> optimization_unit::PsiTransformationRecord {
+) -> terminal_psi_to_abstract_operations::optimization_unit::PsiTransformationRecord {
     PsiTransformationRecord {
         rule: OptimizationRuleIdentity::from_canonical_bytes(b"custody-rule"),
         candidate: OptimizationCandidateIdentity::from_canonical_bytes(&output.bytes()),
@@ -167,7 +167,7 @@ fn source_custody_is_an_exact_final_or_unreachable_partition() {
     let source = initial.functions[0].blocks[0].nodes[0].provenance[0];
     let mut final_unit = initial.clone();
     final_unit.functions[0].blocks[0].nodes.clear();
-    final_unit.identity = optimization_unit::recompute_psi_optimization_unit_identity(&final_unit);
+    final_unit.identity = terminal_psi_to_abstract_operations::optimization_unit::recompute_psi_optimization_unit_identity(&final_unit);
     let record = custody_record(
         initial.identity,
         final_unit.identity,
@@ -216,7 +216,7 @@ fn source_custody_rejects_resurrection_after_unreachability() {
     let source = initial.functions[0].blocks[0].nodes[0].provenance[0];
     let mut final_unit = initial.clone();
     final_unit.functions[0].blocks[0].nodes.clear();
-    final_unit.identity = optimization_unit::recompute_psi_optimization_unit_identity(&final_unit);
+    final_unit.identity = terminal_psi_to_abstract_operations::optimization_unit::recompute_psi_optimization_unit_identity(&final_unit);
     let middle = OptimizationUnitIdentity::from_canonical_bytes(b"custody-middle");
     let removed = custody_record(
         initial.identity,

@@ -1,10 +1,10 @@
 use crate::CheckingRequest;
+use crate::checked_trees::{ContractProofFactKind, ContractProofFactOwner};
 use crate::tests::front_end::{
     checked_program, checked_program_result, typed_program, typed_program_result,
     typed_program_with_resolution,
 };
 use crate::tests::lower_typed_trees;
-use checked_trees::{ContractProofFactKind, ContractProofFactOwner};
 
 #[test]
 fn exact_requirement_lifetime_application_retains_raw_machine_ordinals() {
@@ -33,7 +33,7 @@ fn exact_requirement_lifetime_application_retains_raw_machine_ordinals() {
     };
     assert_eq!(realization.trait_lifetime_arguments, [1, 2]);
     assert_eq!(
-        typed_trees::machine::normalize_requirement_lifetime_partition(
+        symbol_resolved_trees_to_typed_trees::typed_trees::machine::normalize_requirement_lifetime_partition(
             &realization.trait_lifetime_arguments,
         ),
         [0, 1],
@@ -65,7 +65,7 @@ fn exact_requirement_lifetime_application_accepts_repeated_realizer_binder() {
     };
     assert_eq!(realization.trait_lifetime_arguments, [0, 0]);
     assert_eq!(
-        typed_trees::machine::normalize_requirement_lifetime_partition(
+        symbol_resolved_trees_to_typed_trees::typed_trees::machine::normalize_requirement_lifetime_partition(
             &realization.trait_lifetime_arguments,
         ),
         [0, 0],
@@ -159,7 +159,9 @@ fn machine_parameter_contract_survives_resolved_and_typed_trees() {
         .expect("typed generic machine");
     let typed_parameters = typed.machine_type_parameters(typed_machine);
     assert_eq!(typed_parameters.len(), 2);
-    let typed_trees::data::TypeParameterKind::Machine { contract } = &typed_parameters[1].kind
+    let symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Machine {
+        contract,
+    } = &typed_parameters[1].kind
     else {
         panic!("typed Key should remain a machine parameter");
     };
@@ -196,8 +198,8 @@ fn nested_structural_machine_parameter_emits_exact_checked_evidence() {
         .machine_type_parameters(outer)
         .first()
         .expect("Schema parameter");
-    let typed_trees::data::TypeParameterKind::Machine {
-        contract: typed_trees::data::MachineParameterContract::Structural(schema_signature),
+    let symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Machine {
+        contract: symbol_resolved_trees_to_typed_trees::typed_trees::data::MachineParameterContract::Structural(schema_signature),
     } = &schema.kind
     else {
         panic!("Schema should retain a structural signature")
@@ -206,8 +208,8 @@ fn nested_structural_machine_parameter_emits_exact_checked_evidence() {
         .state_signature_type_parameters(schema_signature)
         .first()
         .expect("Nested parameter");
-    let typed_trees::data::TypeParameterKind::Machine {
-        contract: typed_trees::data::MachineParameterContract::Structural(nested_signature),
+    let symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Machine {
+        contract: symbol_resolved_trees_to_typed_trees::typed_trees::data::MachineParameterContract::Structural(nested_signature),
     } = &nested.kind
     else {
         panic!("Nested should retain a structural signature")
@@ -264,8 +266,8 @@ fn nested_nominal_machine_parameter_uses_trait_evidence_without_binder_expansion
         .machine_type_parameters(outer)
         .first()
         .expect("Schema parameter");
-    let typed_trees::data::TypeParameterKind::Machine {
-        contract: typed_trees::data::MachineParameterContract::Structural(schema_signature),
+    let symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Machine {
+        contract: symbol_resolved_trees_to_typed_trees::typed_trees::data::MachineParameterContract::Structural(schema_signature),
     } = &schema.kind
     else {
         panic!("Schema should retain a structural signature")
@@ -276,8 +278,8 @@ fn nested_nominal_machine_parameter_uses_trait_evidence_without_binder_expansion
         .expect("Nested parameter");
     assert!(matches!(
         nested.kind,
-        typed_trees::data::TypeParameterKind::Machine {
-            contract: typed_trees::data::MachineParameterContract::Nominal { .. }
+        symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Machine {
+            contract: symbol_resolved_trees_to_typed_trees::typed_trees::data::MachineParameterContract::Nominal { .. }
         }
     ));
     let nested_owner = nested.symbol;
@@ -336,12 +338,15 @@ fn nominal_machine_parameter_accepts_one_explicit_exact_satisfaction_row() {
         .machine_type_parameters(register)
         .first()
         .expect("Selected parameter");
-    let typed_trees::data::TypeParameterKind::Machine { contract } = &selected.kind else {
+    let symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Machine {
+        contract,
+    } = &selected.kind
+    else {
         panic!("Selected should be a machine parameter")
     };
     assert!(matches!(
         typed.machine_parameter_contract_view(contract),
-        Some(typed_trees::data::MachineParameterContractView::Nominal {
+        Some(symbol_resolved_trees_to_typed_trees::typed_trees::data::MachineParameterContractView::Nominal {
             trait_definition,
             requirement,
         }) if trait_definition.name.as_str() == "Handler"
@@ -358,7 +363,7 @@ fn nominal_machine_parameter_accepts_one_explicit_exact_satisfaction_row() {
     let chosen_entry = typed.machine_states(chosen)[0].symbol;
     let (satisfaction_trait, satisfaction_requirement, canonical_requirement_overload) =
         match typed.machine_parameter_contract_view(contract) {
-            Some(typed_trees::data::MachineParameterContractView::Nominal {
+            Some(symbol_resolved_trees_to_typed_trees::typed_trees::data::MachineParameterContractView::Nominal {
                 trait_definition,
                 requirement,
             }) => (
@@ -474,7 +479,7 @@ fn public_installation_wrapper_keeps_upper_bound_separate_from_concrete_reach() 
         );
         assert_eq!(
             summary.unresolved_installation_reaches,
-            [flow_effects::InstallationReachRequirement {
+            [crate::flow_effects::InstallationReachRequirement {
                 requirement: requirement.symbol,
                 upper_bound: requirement.service_reach_row,
             }],
@@ -581,7 +586,7 @@ fn bounded_installation_reach_retains_exact_unresolved_requirement_through_check
 
     assert_eq!(
         reach.unresolved_installation_reaches,
-        [flow_effects::InstallationReachRequirement {
+        [crate::flow_effects::InstallationReachRequirement {
             requirement: requirement_symbol,
             upper_bound,
         }]
@@ -691,7 +696,7 @@ fn top_level_bounded_reach_is_unresolved_not_concrete() {
         .service_reaches
         .for_machine(complete_symbol)
         .expect("complete reach facts");
-    let expected = [flow_effects::InstallationReachRequirement {
+    let expected = [crate::flow_effects::InstallationReachRequirement {
         requirement: complete_symbol,
         upper_bound,
     }];
@@ -773,12 +778,12 @@ fn nominal_callback_use_retains_exact_evaluated_placement_identity() {
         .expect("Handler::call")
         .symbol;
     let expected_fingerprint = 0x2a7c_6b19_d331_85e1;
-    typed.record_boundary_calling_plan(typed_trees::typed_trees::BoundaryCallingPlanIdentity {
+    typed.record_boundary_calling_plan(symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::BoundaryCallingPlanIdentity {
         boundary_trait: handler_symbol,
         boundary_arguments: Vec::new(),
         requirement_machine: requirement_symbol,
         report_fingerprint: expected_fingerprint,
-        commitment: typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
+        commitment: symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
             [0x2a; 32],
         ),
     });
@@ -850,15 +855,15 @@ fn nominal_callback_use_retains_exact_evaluated_placement_identity() {
     );
     assert_eq!(
         resources.stack().derivation_obligation(),
-        checked_trees::CheckedResourceDerivationObligation::TerminalAndTargetStackClosure
+        crate::checked_trees::CheckedResourceDerivationObligation::TerminalAndTargetStackClosure
     );
     assert_eq!(
         resources.logical_structural_work().derivation_obligation(),
-        checked_trees::CheckedResourceDerivationObligation::TerminalControlAndFuelSchedule
+        crate::checked_trees::CheckedResourceDerivationObligation::TerminalControlAndFuelSchedule
     );
     assert_eq!(
         resources.machine_state().derivation_obligation(),
-        checked_trees::CheckedResourceDerivationObligation::SelectedInstructionMachineStateFootprint
+        crate::checked_trees::CheckedResourceDerivationObligation::SelectedInstructionMachineStateFootprint
     );
     callback_placement
         .resource_receipt
@@ -911,7 +916,7 @@ fn checked_resource_envelopes_cover_entries_in_declaration_order() {
         realized
             .resources
             .iter()
-            .map(checked_trees::CheckedEntryResourceEnvelope::entry)
+            .map(crate::checked_trees::CheckedEntryResourceEnvelope::entry)
             .collect::<Vec<_>>(),
         entries
     );
@@ -1163,11 +1168,9 @@ fn call_site_machine_argument_resolves_to_static_entry_symbol() {
         .flat_map(|machine| typed.machine_states(machine))
         .flat_map(|state| typed.statement_table.statements(state.statement_nodes))
         .find_map(|statement| match statement {
-            typed_trees::statement::StatementNode::Call(call)
-                if !call.machine_arguments.is_empty() =>
-            {
-                Some(call)
-            }
+            symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Call(
+                call,
+            ) if !call.machine_arguments.is_empty() => Some(call),
             _ => None,
         })
         .expect("call carrying a static machine argument");
@@ -1208,7 +1211,10 @@ fn generic_body_call_resolves_to_machine_parameter_contract() {
         .iter()
         .find(|parameter| parameter.name.as_str() == "F")
         .expect("machine parameter");
-    let typed_trees::data::TypeParameterKind::Machine { contract } = &machine_parameter.kind else {
+    let symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Machine {
+        contract,
+    } = &machine_parameter.kind
+    else {
         panic!("F should be a machine parameter");
     };
     let contract = typed
@@ -1227,9 +1233,9 @@ fn generic_body_call_resolves_to_machine_parameter_contract() {
         .iter()
         .flat_map(|state| typed.statement_table.statements(state.statement_nodes))
         .find_map(|statement| match statement {
-            typed_trees::statement::StatementNode::Call(call) if call.target.as_str() == "F" => {
-                Some(call)
-            }
+            symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Call(
+                call,
+            ) if call.target.as_str() == "F" => Some(call),
             _ => None,
         })
         .expect("generic body call");

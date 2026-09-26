@@ -128,7 +128,7 @@ fn aggregate_actual_reference_leaves_transport_complete_write_sets() {
         ));
     }
     let typed = typed_program(&source);
-    let resolver = validation::CallFrameResolver::new(&typed).expect("resolver");
+    let resolver = crate::validation::CallFrameResolver::new(&typed).expect("resolver");
     let mut failures = Vec::new();
     for (name, _, expected) in cases {
         let qualified = format!("Main::case_{name}");
@@ -143,7 +143,9 @@ fn aggregate_actual_reference_leaves_transport_complete_write_sets() {
             .statements(state.statement_nodes)
             .last()
             .expect("call statement");
-        let typed_trees::statement::StatementNode::Call(call) = statement else {
+        let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Call(call) =
+            statement
+        else {
             panic!("call");
         };
         let direct = resolver.may_write_paths(machine, call);

@@ -83,7 +83,7 @@ fn hex_bytes(bytes: &[u8]) -> String {
     output
 }
 
-fn lower_source(source: &str) -> lowered_psi::LoweredPsi {
+fn lower_source(source: &str) -> checked_trees_to_lowered_psi::lowered_psi::LoweredPsi {
     let checked = crate::front_end::checked_program(source);
     checked_trees_to_lowered_psi::lower_machine(
         &checked,
@@ -92,7 +92,7 @@ fn lower_source(source: &str) -> lowered_psi::LoweredPsi {
     .expect("provider-backed O0 source should lower")
 }
 
-fn lowered() -> lowered_psi::LoweredPsi {
+fn lowered() -> checked_trees_to_lowered_psi::lowered_psi::LoweredPsi {
     lower_source(SOURCE)
 }
 

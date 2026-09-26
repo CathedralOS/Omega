@@ -9,8 +9,10 @@ use crate::rules::tests::fixtures::dead_scalar_elimination::{
 };
 use crate::{RuleAnalysisView, compute_analysis};
 use optimization_core::AnalysisKind;
-use optimization_unit::{PsiRewriteCandidate, PsiRewritePatch};
-use optimization_unit_semantics::{
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    PsiRewriteCandidate, PsiRewritePatch,
+};
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_dead_scalar_node_candidate,
     validate_psi_optimization_unit,
 };

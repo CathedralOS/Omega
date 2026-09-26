@@ -18,8 +18,14 @@ fn check_nominal_self_edge(source: &str, accepted: bool) {
     check_typed_nominal_self_edge(typed, source, accepted);
 }
 
-fn check_typed_nominal_self_edge(typed: typed_trees::TypedTrees, source: &str, accepted: bool) {
-    use typed_trees::statement::{StatementNode, TransitionTargetNode};
+fn check_typed_nominal_self_edge(
+    typed: symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    source: &str,
+    accepted: bool,
+) {
+    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+        StatementNode, TransitionTargetNode,
+    };
     assert!(
         typed.machines().iter().any(|machine| {
             typed.machine_states(machine).iter().any(|state| {
@@ -122,7 +128,9 @@ fn nominal_self_edge_rechecks_raw_parameter_default_fields() {
 
 #[test]
 fn nominal_self_edge_uses_only_its_own_guard_polarity() {
-    use typed_trees::statement::{StatementNode, TransitionTargetNode};
+    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+        StatementNode, TransitionTargetNode,
+    };
     for (guard, self_arm, accepted) in [
         ("self.flag", "true", true),
         ("self.flag", "false", false),
@@ -403,8 +411,8 @@ fn constructed_values_do_not_publish_snapshots_at_mutable_indices() {
         }
     "#;
     let typed = parse_typed_trees(source);
-    let proof_plan = proof::obligations::build_proof_plan(&typed);
-    let operations = validation::infer_operational_may(&typed);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
+    let operations = crate::validation::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
@@ -418,10 +426,13 @@ fn constructed_values_do_not_publish_snapshots_at_mutable_indices() {
         &operations,
     );
     for (_, fact) in semantic.facts.iter() {
-        if !matches!(fact.payload, facts::FactPayload::AssignedValue { .. }) {
+        if !matches!(
+            fact.payload,
+            crate::fact_plan::FactPayload::AssignedValue { .. }
+        ) {
             continue;
         }
-        let facts::FactPlace::Place(place) = fact.place else {
+        let crate::fact_plan::FactPlace::Place(place) = fact.place else {
             continue;
         };
         assert!(
@@ -432,7 +443,8 @@ fn constructed_values_do_not_publish_snapshots_at_mutable_indices() {
                 .all(|segment| {
                     !matches!(
                         segment,
-                        facts::PlaceSegment::Index { .. } | facts::PlaceSegment::FixedRange { .. }
+                        crate::fact_plan::PlaceSegment::Index { .. }
+                            | crate::fact_plan::PlaceSegment::FixedRange { .. }
                     )
                 }),
             "a mutable selector cannot identify a retained constructor snapshot"

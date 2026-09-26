@@ -126,27 +126,31 @@ fn rejects_each_disposition_axis_transactionally() {
             5 => event.child_weakening = arena::Handle::invalid(),
             6 => event.parent_loan = arena::Handle::invalid(),
             7 => {
-                event.parent_resource = checked_trees::CheckedParentBorrowResource::DirectRoot {
-                    resource: arena::Handle::invalid(),
-                }
+                event.parent_resource =
+                    crate::checked_trees::CheckedParentBorrowResource::DirectRoot {
+                        resource: arena::Handle::invalid(),
+                    }
             }
             8 => {
-                event.boundary_source = checked_trees::FlowInvalidationSource::Statement {
+                event.boundary_source = crate::checked_trees::FlowInvalidationSource::Statement {
                     statement_index: usize::MAX,
                 }
             }
             9 => {
                 event.boundary_phase =
-                    checked_trees::CheckedBorrowResourceLifecyclePhase::Activation
+                    crate::checked_trees::CheckedBorrowResourceLifecyclePhase::Activation
             }
             10 => event.retired_parent_path.swap(0, 1),
             11 => {
                 event.final_target =
-                    checked_trees::CheckedBorrowResourceDispositionTarget::ParentResource(
+                    crate::checked_trees::CheckedBorrowResourceDispositionTarget::ParentResource(
                         event.parent_resource.clone(),
                     )
             }
-            12 => event.disposition = checked_trees::CheckedReborrowResourceDisposition::Reactivate,
+            12 => {
+                event.disposition =
+                    crate::checked_trees::CheckedReborrowResourceDisposition::Reactivate
+            }
             13 => event.shared_cohort.push(arena::Handle::invalid()),
             _ => unreachable!(),
         }
@@ -267,81 +271,88 @@ fn rejects_each_reborrow_resource_identity_parent_and_restoration_drift_transact
             3 => resource.owner_symbol = symbols::SymbolHandle::invalid(),
             4 => resource
                 .owner_path
-                .push(checked_trees::BorrowLoanOwnerSegment::DynamicIndex),
+                .push(crate::checked_trees::BorrowLoanOwnerSegment::DynamicIndex),
             5 => resource.captured_place.root_symbol = symbols::SymbolHandle::invalid(),
             6 => resource
                 .captured_place
                 .segments
-                .push(facts::PlaceSegment::FixedIndex { index: usize::MAX }),
+                .push(crate::fact_plan::PlaceSegment::FixedIndex { index: usize::MAX }),
             7 => {
                 resource.access = match resource.access {
-                    checked_trees::BorrowAccessKind::Read => {
-                        checked_trees::BorrowAccessKind::Mutable
+                    crate::checked_trees::BorrowAccessKind::Read => {
+                        crate::checked_trees::BorrowAccessKind::Mutable
                     }
-                    checked_trees::BorrowAccessKind::Mutable
-                    | checked_trees::BorrowAccessKind::WriteOnly => {
-                        checked_trees::BorrowAccessKind::Read
+                    crate::checked_trees::BorrowAccessKind::Mutable
+                    | crate::checked_trees::BorrowAccessKind::WriteOnly => {
+                        crate::checked_trees::BorrowAccessKind::Read
                     }
                 }
             }
             8 => {
-                resource.activation_source = checked_trees::FlowInvalidationSource::Statement {
-                    statement_index: usize::MAX,
-                }
+                resource.activation_source =
+                    crate::checked_trees::FlowInvalidationSource::Statement {
+                        statement_index: usize::MAX,
+                    }
             }
             9 => {
-                resource.weakening_source = checked_trees::FlowInvalidationSource::Statement {
-                    statement_index: usize::MAX,
-                }
+                resource.weakening_source =
+                    crate::checked_trees::FlowInvalidationSource::Statement {
+                        statement_index: usize::MAX,
+                    }
             }
             10 => resource.parent_loan = arena::Handle::invalid(),
             11 => {
                 resource.parent_resource =
-                    checked_trees::CheckedParentBorrowResource::Reborrow { resource: rows[1] }
+                    crate::checked_trees::CheckedParentBorrowResource::Reborrow {
+                        resource: rows[1],
+                    }
             }
             12 => resource.restoration.child_loan = arena::Handle::invalid(),
             13 => resource.restoration.parent_loan = arena::Handle::invalid(),
             14 => {
                 resource.restoration.parent_resource =
-                    checked_trees::CheckedParentBorrowResource::Reborrow { resource: rows[1] }
+                    crate::checked_trees::CheckedParentBorrowResource::Reborrow {
+                        resource: rows[1],
+                    }
             }
             15 => {
                 resource.restoration.child_weakening_reason =
                     match resource.restoration.child_weakening_reason {
-                        checked_trees::FlowBorrowWeakeningReason::LocalReassigned => {
-                            checked_trees::FlowBorrowWeakeningReason::StateExit
+                        crate::checked_trees::FlowBorrowWeakeningReason::LocalReassigned => {
+                            crate::checked_trees::FlowBorrowWeakeningReason::StateExit
                         }
-                        checked_trees::FlowBorrowWeakeningReason::LastUseExpired
-                        | checked_trees::FlowBorrowWeakeningReason::StateExit => {
-                            checked_trees::FlowBorrowWeakeningReason::LocalReassigned
+                        crate::checked_trees::FlowBorrowWeakeningReason::LastUseExpired
+                        | crate::checked_trees::FlowBorrowWeakeningReason::StateExit => {
+                            crate::checked_trees::FlowBorrowWeakeningReason::LocalReassigned
                         }
                     }
             }
             16 => {
                 resource.weakening_reason = match resource.weakening_reason {
-                    checked_trees::FlowBorrowWeakeningReason::LocalReassigned => {
-                        checked_trees::FlowBorrowWeakeningReason::StateExit
+                    crate::checked_trees::FlowBorrowWeakeningReason::LocalReassigned => {
+                        crate::checked_trees::FlowBorrowWeakeningReason::StateExit
                     }
-                    checked_trees::FlowBorrowWeakeningReason::LastUseExpired
-                    | checked_trees::FlowBorrowWeakeningReason::StateExit => {
-                        checked_trees::FlowBorrowWeakeningReason::LocalReassigned
+                    crate::checked_trees::FlowBorrowWeakeningReason::LastUseExpired
+                    | crate::checked_trees::FlowBorrowWeakeningReason::StateExit => {
+                        crate::checked_trees::FlowBorrowWeakeningReason::LocalReassigned
                     }
                 }
             }
             17 => {
                 resource.restoration.child_weakening_source =
-                    checked_trees::FlowInvalidationSource::Statement {
+                    crate::checked_trees::FlowInvalidationSource::Statement {
                         statement_index: usize::MAX,
                     }
             }
             18 => {
-                resource.parent_resource = checked_trees::CheckedParentBorrowResource::DirectRoot {
-                    resource: wrong_direct,
-                }
+                resource.parent_resource =
+                    crate::checked_trees::CheckedParentBorrowResource::DirectRoot {
+                        resource: wrong_direct,
+                    }
             }
             19 => {
                 resource.restoration.parent_resource =
-                    checked_trees::CheckedParentBorrowResource::DirectRoot {
+                    crate::checked_trees::CheckedParentBorrowResource::DirectRoot {
                         resource: wrong_direct,
                     }
             }
@@ -349,7 +360,7 @@ fn rejects_each_reborrow_resource_identity_parent_and_restoration_drift_transact
             21 => resource.parent_suspension.parent_loan = arena::Handle::invalid(),
             22 => {
                 resource.parent_suspension.parent_resource =
-                    checked_trees::CheckedParentBorrowResource::DirectRoot {
+                    crate::checked_trees::CheckedParentBorrowResource::DirectRoot {
                         resource: wrong_direct,
                     }
             }
@@ -357,7 +368,7 @@ fn rejects_each_reborrow_resource_identity_parent_and_restoration_drift_transact
             24 => resource.parent_suspension.parent_entry_constraint = arena::Handle::invalid(),
             25 => {
                 resource.parent_suspension.source =
-                    checked_trees::FlowInvalidationSource::Statement {
+                    crate::checked_trees::FlowInvalidationSource::Statement {
                         statement_index: usize::MAX,
                     }
             }
@@ -365,7 +376,7 @@ fn rejects_each_reborrow_resource_identity_parent_and_restoration_drift_transact
             27 => resource.parent_end_status.parent_loan = arena::Handle::invalid(),
             28 => {
                 resource.parent_end_status.parent_resource =
-                    checked_trees::CheckedParentBorrowResource::DirectRoot {
+                    crate::checked_trees::CheckedParentBorrowResource::DirectRoot {
                         resource: wrong_direct,
                     }
             }
@@ -373,11 +384,12 @@ fn rejects_each_reborrow_resource_identity_parent_and_restoration_drift_transact
             30 => resource.parent_end_status.parent_weakening = arena::Handle::invalid(),
             31 => {
                 resource.parent_end_status.status =
-                    checked_trees::ParentLexicalStatusAtChildEnd::LivePastChild
+                    crate::checked_trees::ParentLexicalStatusAtChildEnd::LivePastChild
             }
-            32 => resource.parent_access = checked_trees::BorrowAccessKind::Read,
+            32 => resource.parent_access = crate::checked_trees::BorrowAccessKind::Read,
             33 => {
-                resource.access_effect = checked_trees::CheckedReborrowAccessEffect::SharedRelease
+                resource.access_effect =
+                    crate::checked_trees::CheckedReborrowAccessEffect::SharedRelease
             }
             _ => unreachable!(),
         }
@@ -522,7 +534,7 @@ fn rejects_missing_duplicate_and_moved_parent_entry_constraints_transactionally(
                         && state.state_symbol == child.state_symbol
                 })
                 .expect("child flow state");
-            let checked_trees::FlowInvalidationSource::Statement { statement_index } =
+            let crate::checked_trees::FlowInvalidationSource::Statement { statement_index } =
                 child.activation_source
             else {
                 panic!("child activation must be state-local")
@@ -556,7 +568,7 @@ fn rejects_missing_duplicate_and_moved_parent_entry_constraints_transactionally(
                     .contexts
                     .constraint_refs
                     .get_mut(child.parent_suspension.parent_entry_constraint)
-                    .kind = checked_trees::FlowConstraintKind::Unknown;
+                    .kind = crate::checked_trees::FlowConstraintKind::Unknown;
             }
             1 => {
                 checked
@@ -565,7 +577,7 @@ fn rejects_missing_duplicate_and_moved_parent_entry_constraints_transactionally(
                     .contexts
                     .constraint_refs
                     .get_mut(alternate)
-                    .kind = checked_trees::FlowConstraintKind::BorrowLoan {
+                    .kind = crate::checked_trees::FlowConstraintKind::BorrowLoan {
                     loan: child.parent_loan,
                 };
             }
@@ -576,14 +588,14 @@ fn rejects_missing_duplicate_and_moved_parent_entry_constraints_transactionally(
                     .contexts
                     .constraint_refs
                     .get_mut(child.parent_suspension.parent_entry_constraint)
-                    .kind = checked_trees::FlowConstraintKind::Unknown;
+                    .kind = crate::checked_trees::FlowConstraintKind::Unknown;
                 checked
                     .facts
                     .flow
                     .contexts
                     .constraint_refs
                     .get_mut(alternate)
-                    .kind = checked_trees::FlowConstraintKind::BorrowLoan {
+                    .kind = crate::checked_trees::FlowConstraintKind::BorrowLoan {
                     loan: child.parent_loan,
                 };
             }
@@ -679,10 +691,10 @@ fn reborrow_compatibility_certificate_requires_its_checked_resource() {
         .find(|row| {
             matches!(
                 checked.facts.borrow.loans.get(row.forming_loan).lineage,
-                checked_trees::BorrowLoanLineage::Reborrow { .. }
+                crate::checked_trees::BorrowLoanLineage::Reborrow { .. }
             ) || matches!(
                 checked.facts.borrow.loans.get(row.active_loan).lineage,
-                checked_trees::BorrowLoanLineage::Reborrow { .. }
+                crate::checked_trees::BorrowLoanLineage::Reborrow { .. }
             )
         })
         .expect("source-backed compatibility certificate involving a reborrow");
@@ -751,39 +763,39 @@ fn rejects_parent_substitution_and_lineage_tag_drift() {
         match axis {
             0 => {
                 checked.facts.borrow.loans.get_mut(child).lineage =
-                    checked_trees::BorrowLoanLineage::Reborrow {
+                    crate::checked_trees::BorrowLoanLineage::Reborrow {
                         parent_loan: arena::Handle::invalid(),
                     }
             }
             1 => {
                 checked.facts.borrow.loans.get_mut(child).lineage =
-                    checked_trees::BorrowLoanLineage::Reborrow { parent_loan: child }
+                    crate::checked_trees::BorrowLoanLineage::Reborrow { parent_loan: child }
             }
             2 => {
                 checked.facts.borrow.loans.get_mut(child).lineage =
-                    checked_trees::BorrowLoanLineage::Reborrow {
+                    crate::checked_trees::BorrowLoanLineage::Reborrow {
                         parent_loan: main_loans[3],
                     }
             }
             3 => {
                 checked.facts.borrow.loans.get_mut(child).lineage =
-                    checked_trees::BorrowLoanLineage::Reborrow {
+                    crate::checked_trees::BorrowLoanLineage::Reborrow {
                         parent_loan: sibling_loan,
                     }
             }
             4 => {
                 checked.facts.borrow.loans.get_mut(child).lineage =
-                    checked_trees::BorrowLoanLineage::Reborrow {
+                    crate::checked_trees::BorrowLoanLineage::Reborrow {
                         parent_loan: main_loans[0],
                     }
             }
             5 => {
                 checked.facts.borrow.loans.get_mut(child).lineage =
-                    checked_trees::BorrowLoanLineage::DirectRoot
+                    crate::checked_trees::BorrowLoanLineage::DirectRoot
             }
             6 => {
                 checked.facts.borrow.loans.get_mut(child).lineage =
-                    checked_trees::BorrowLoanLineage::UnretainedDerived
+                    crate::checked_trees::BorrowLoanLineage::UnretainedDerived
             }
             7 => {
                 checked
@@ -834,11 +846,9 @@ fn keeps_distinct_prior_alias_origins_and_derived_transfers_unretained() {
         .map(|(_, loan)| loan)
         .collect::<Vec<_>>();
     assert_eq!(child_loans.len(), 2);
-    assert!(
-        child_loans
-            .iter()
-            .all(|loan| { loan.lineage == checked_trees::BorrowLoanLineage::UnretainedDerived })
-    );
+    assert!(child_loans.iter().all(|loan| {
+        loan.lineage == crate::checked_trees::BorrowLoanLineage::UnretainedDerived
+    }));
     assert_ne!(child_loans[0].root_symbol, child_loans[1].root_symbol);
     assert!(ambiguous.facts.borrow.reborrow_loan_resources.is_empty());
     assert!(
@@ -874,11 +884,9 @@ fn keeps_distinct_prior_alias_origins_and_derived_transfers_unretained() {
         .map(|(_, loan)| loan)
         .collect::<Vec<_>>();
     assert!(derived_rows.len() >= 2);
-    assert!(
-        derived_rows
-            .iter()
-            .all(|loan| { loan.lineage == checked_trees::BorrowLoanLineage::UnretainedDerived })
-    );
+    assert!(derived_rows.iter().all(|loan| {
+        loan.lineage == crate::checked_trees::BorrowLoanLineage::UnretainedDerived
+    }));
     assert!(derived.facts.borrow.reborrow_loan_resources.is_empty());
     assert!(derived.facts.borrow.reborrow_disposition_events.is_empty());
 }
@@ -908,11 +916,9 @@ fn keeps_explicit_reborrow_of_an_unretained_helper_parent_outside_the_resource_a
         .map(|(_, loan)| loan)
         .collect::<Vec<_>>();
     assert!(derived.len() >= 2);
-    assert!(
-        derived
-            .iter()
-            .all(|loan| { loan.lineage == checked_trees::BorrowLoanLineage::UnretainedDerived })
-    );
+    assert!(derived.iter().all(|loan| {
+        loan.lineage == crate::checked_trees::BorrowLoanLineage::UnretainedDerived
+    }));
     assert!(checked.facts.borrow.reborrow_loan_resources.is_empty());
     assert!(checked.facts.borrow.reborrow_disposition_events.is_empty());
 }
@@ -954,25 +960,27 @@ fn rejects_each_direct_resource_identity_and_restoration_drift() {
             2 => resource.owner_symbol = symbols::SymbolHandle::invalid(),
             3 => resource
                 .owner_path
-                .push(checked_trees::BorrowLoanOwnerSegment::DynamicIndex),
+                .push(crate::checked_trees::BorrowLoanOwnerSegment::DynamicIndex),
             4 => resource.captured_place.root_symbol = symbols::SymbolHandle::invalid(),
             5 => resource.captured_place.segments.clear(),
-            6 => resource.access = checked_trees::BorrowAccessKind::Read,
+            6 => resource.access = crate::checked_trees::BorrowAccessKind::Read,
             7 => {
-                resource.activation_source = checked_trees::FlowInvalidationSource::Statement {
-                    statement_index: usize::MAX,
-                }
+                resource.activation_source =
+                    crate::checked_trees::FlowInvalidationSource::Statement {
+                        statement_index: usize::MAX,
+                    }
             }
             8 => {
-                resource.weakening_source = checked_trees::FlowInvalidationSource::Statement {
-                    statement_index: usize::MAX,
-                }
+                resource.weakening_source =
+                    crate::checked_trees::FlowInvalidationSource::Statement {
+                        statement_index: usize::MAX,
+                    }
             }
             9 => resource.parent_lifetime.root_symbol = symbols::SymbolHandle::invalid(),
             10 => resource.restoration.parent.root_symbol = symbols::SymbolHandle::invalid(),
             11 => {
                 resource.restoration.weakening_reason =
-                    checked_trees::FlowBorrowWeakeningReason::LocalReassigned
+                    crate::checked_trees::FlowBorrowWeakeningReason::LocalReassigned
             }
             _ => unreachable!(),
         }

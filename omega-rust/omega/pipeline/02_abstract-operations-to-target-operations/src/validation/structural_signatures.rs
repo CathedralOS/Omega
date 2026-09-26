@@ -2,16 +2,20 @@
 //! Executable bodies remain the responsibility of common graph replay.
 
 use super::structural_shapes;
-use abstract_operations::{AbstractFunction, AbstractFunctionResult, AbstractOperation};
-use calling_conventions::{CallPlan, CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
-use semantic_vocabulary::{IntegerCarrier, IntegerType, ScalarType};
-use target::NativeTarget;
-use target_operations::{
+use crate::calling_conventions::{
+    CallPlan, CallSignature, CallingPolicy, ValueShape, evaluate_call_plan,
+};
+use crate::target_operations::{
     MixedStructuralScalarFunctionAbi, ScalarAbiValue, ScalarFunctionAbi,
     TargetDynamicDescriptorParameterAbi, TargetFunction, TargetStructuralParameter,
 };
+use semantic_vocabulary::{IntegerCarrier, IntegerType, ScalarType};
+use target::NativeTarget;
 use terminal_psi::{
     StructuralAccess, StructuralTypeDeclaration, TerminalDynamicDescriptorParameter,
+};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractFunction, AbstractFunctionResult, AbstractOperation,
 };
 
 pub(super) fn validate(

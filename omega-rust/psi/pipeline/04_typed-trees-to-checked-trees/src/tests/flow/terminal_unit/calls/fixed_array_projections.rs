@@ -750,7 +750,7 @@ fn presents_projected_owned_byte_carrier_at_a_borrowed_boundary_view() {
             .expect("borrowed byte-sequence shape")
             .shape,
         CheckedUnitStructuralTypeShape::ByteSequence(
-            checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
+            crate::checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
         )
     ));
     let root = plans
@@ -775,7 +775,7 @@ fn presents_projected_owned_byte_carrier_at_a_borrowed_boundary_view() {
                     [CheckedUnitStructuralPathSegment::Field(field)] if field.ends_with("line")
                 )
                 && argument.type_identity == view_identity
-                && argument.access == checked_trees::CheckedStructuralAccess::MutableBorrow
+                && argument.access == crate::checked_trees::CheckedStructuralAccess::MutableBorrow
     ));
 }
 

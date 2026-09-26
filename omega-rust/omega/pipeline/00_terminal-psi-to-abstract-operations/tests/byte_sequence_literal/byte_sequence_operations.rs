@@ -268,7 +268,7 @@ fn validate_retained_subslice(semantic: &[u8], proof: &[u8]) {
     .unwrap();
     let verified =
         build_verified_psi_optimization_unit(input, FuelScheduleIdentity::new(1).unwrap()).unwrap();
-    optimization_unit_semantics::validate_psi_optimization_unit(verified.unit()).unwrap();
+    terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(verified.unit()).unwrap();
     let plan = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: semantic,
@@ -328,7 +328,9 @@ fn validate_retained_subslice(semantic: &[u8], proof: &[u8]) {
     assert_eq!(node.fuel[0].units, 1);
     assert_eq!(
         node.fuel[0].site,
-        optimization_unit::PsiProvenance::Operation(operation_id(3))
+        terminal_psi_to_abstract_operations::optimization_unit::PsiProvenance::Operation(
+            operation_id(3)
+        )
     );
     let [fact] = verified.unit().accepted_obligation_facts.as_slice() else {
         panic!("subslice retains one two-leg obligation")
@@ -368,8 +370,8 @@ fn validate_retained_subslice(semantic: &[u8], proof: &[u8]) {
             admit_provider_installation(&changed, semantic, proof, &profile, &[]),
             Err(ProviderInstallationError::PlanReplayMismatch)
         ));
-        let seed = |plan: &abstract_operations::AbstractOperationPlan| {
-            optimization_unit::reconstruct_psi_optimization_unit_seed(
+        let seed = |plan: &terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan| {
+            terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
                 plan,
                 FuelScheduleIdentity::new(1).unwrap(),
             )
@@ -404,7 +406,7 @@ fn validate_retained_read(semantic: &[u8], proof: &[u8]) {
         semantic_vocabulary::FuelScheduleIdentity::new(1).unwrap(),
     )
     .unwrap();
-    optimization_unit_semantics::validate_psi_optimization_unit(verified.unit()).unwrap();
+    terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(verified.unit()).unwrap();
     let plan = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: semantic,
@@ -420,13 +422,17 @@ fn validate_retained_read(semantic: &[u8], proof: &[u8]) {
         .iter()
         .position(|operation| matches!(operation, AbstractOperation::ByteSequenceRead { .. }))
         .unwrap();
-    let expected_result = abstract_operations::AbstractResult {
-        value: semantic_vocabulary::ValueId::new(4).unwrap(),
-        scalar_type: semantic_vocabulary::ScalarType::Integer(
-            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
+    let expected_result =
+        terminal_psi_to_abstract_operations::abstract_operations::AbstractResult {
+            value: semantic_vocabulary::ValueId::new(4).unwrap(),
+            scalar_type: semantic_vocabulary::ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    8,
+                )
                 .unwrap(),
-        ),
-    };
+            ),
+        };
     assert_eq!(
         plan.functions[0].operations[read_position],
         AbstractOperation::ByteSequenceRead {
@@ -473,12 +479,12 @@ fn validate_retained_read(semantic: &[u8], proof: &[u8]) {
             admit_provider_installation(&changed, semantic, proof, &profile, &[]),
             Err(ProviderInstallationError::PlanReplayMismatch)
         ));
-        let original_seed = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        let original_seed = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
             &plan,
             semantic_vocabulary::FuelScheduleIdentity::new(1).unwrap(),
         )
         .unwrap();
-        let changed_seed = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        let changed_seed = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
             &changed,
             semantic_vocabulary::FuelScheduleIdentity::new(1).unwrap(),
         )

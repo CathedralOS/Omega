@@ -15,8 +15,8 @@ use super::{
 pub(super) fn account(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     operations: &[CheckedUnitEffectOperationPlan],
     terminator: &CheckedComposedUnitControlTerminatorPlan,
     disposable_locals: &[symbols::SymbolHandle],
@@ -38,7 +38,7 @@ pub(super) fn account(
             _ => continue,
         };
         let transferred = |edge: &CheckedStructuralControlSuccessorPlan| {
-            edge.transfers.iter().filter(|transfer| matches!(transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal)).count() == 1
+            edge.transfers.iter().filter(|transfer| matches!(transfer.source, crate::checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal)).count() == 1
         };
         // An owned selection moved each candidate source's custody into
         // the join's residual parameters, which die at the same authored
@@ -130,7 +130,7 @@ pub(super) fn account(
                         disposable_locals,
                     )
                     || matches!(return_arm,
-                    checked_trees::CheckedConditionalReturnArm::Structural(operation)
+                    crate::checked_trees::CheckedConditionalReturnArm::Structural(operation)
                         if operation.with_value_calls().skip(1).any(|operation| {
                             terminator_call_consumes_result(operation, result.binding_ordinal)
                         }))
@@ -228,7 +228,7 @@ pub(super) fn account(
             .filter(|discard| {
                 matches!(
                     discard.source,
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         binding_ordinal
                     } if binding_ordinal == result.binding_ordinal
                 )

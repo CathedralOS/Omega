@@ -26,8 +26,14 @@ const EQUALITY: &str = r#"
 #[test]
 fn float_pattern_arms_select_exact_equality_overloads() {
     for (format, primitive) in [
-        ("f32", typed_trees::types::PrimitiveType::F32),
-        ("f64", typed_trees::types::PrimitiveType::F64),
+        (
+            "f32",
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::F32,
+        ),
+        (
+            "f64",
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::F64,
+        ),
     ] {
         let checked = check(&source(format, EQUALITY, "identity(first)"))
             .expect("each float arm uses the exact selected equality");
@@ -43,7 +49,7 @@ fn float_pattern_arms_select_exact_equality_overloads() {
         for operator_use in uses {
             assert_eq!(
                 operator_use.status,
-                checked_trees::CheckedOperatorResolutionStatus::Resolved
+                crate::checked_trees::CheckedOperatorResolutionStatus::Resolved
             );
             let operator = checked
                 .typed
@@ -148,7 +154,7 @@ fn implicit_equality_keeps_arm_identity_and_never_becomes_an_expression_operator
         .filter(|operator_use| {
             matches!(
                 operator_use.occurrence,
-                checked_trees::CheckedOperatorOccurrence::MatchEquality { .. }
+                crate::checked_trees::CheckedOperatorOccurrence::MatchEquality { .. }
             )
         })
         .collect::<Vec<_>>();
@@ -185,7 +191,7 @@ fn implicit_equality_keeps_arm_identity_and_never_becomes_an_expression_operator
             "a pattern call is not its owning Match"
         );
         substituted = *operator_use;
-        substituted.occurrence = checked_trees::CheckedOperatorOccurrence::MatchEquality {
+        substituted.occurrence = crate::checked_trees::CheckedOperatorOccurrence::MatchEquality {
             source_arm: arena::Handle::from_arena_index(u32::MAX),
         };
         assert!(
@@ -238,7 +244,7 @@ fn selected_pattern_expression_and_implicit_comparison_have_separate_uses() {
         .unwrap();
     assert_eq!(
         addition.occurrence,
-        checked_trees::CheckedOperatorOccurrence::Expression
+        crate::checked_trees::CheckedOperatorOccurrence::Expression
     );
     assert!(
         checked
@@ -259,7 +265,10 @@ fn selected_float_equality_does_not_publish_builtin_match_propositions() {
             .semantic
             .facts
             .iter()
-            .any(|(_, fact)| matches!(fact.payload, facts::FactPayload::MatchPattern { .. })),
+            .any(|(_, fact)| matches!(
+                fact.payload,
+                crate::fact_plan::FactPayload::MatchPattern { .. }
+            )),
         "a selected equality contract is not builtin mathematical equality"
     );
     let integers = check(
@@ -272,7 +281,10 @@ fn selected_float_equality_does_not_publish_builtin_match_propositions() {
             .semantic
             .facts
             .iter()
-            .any(|(_, fact)| matches!(fact.payload, facts::FactPayload::MatchPattern { .. })),
+            .any(|(_, fact)| matches!(
+                fact.payload,
+                crate::fact_plan::FactPayload::MatchPattern { .. }
+            )),
         "builtin scalar comparisons still contribute branch observations"
     );
 }

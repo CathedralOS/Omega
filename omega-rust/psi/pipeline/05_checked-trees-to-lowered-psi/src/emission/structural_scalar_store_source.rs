@@ -4,8 +4,8 @@ use super::{
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, LoweringError,
     terminal_scalar_type, unsupported,
 };
-use checked_trees::expression::ExpressionNode;
-use checked_trees::statement::StatementNode;
+use typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode;
+use typed_trees_to_checked_trees::checked_trees::statement::StatementNode;
 
 pub(crate) fn validate(
     checked: &CheckedTrees,
@@ -68,7 +68,10 @@ pub(crate) fn validate(
             });
             if atomic_events != 1
                 || other_stores
-                || validation::atomic_assignment_carrier(checked, assignment).is_none()
+                || typed_trees_to_checked_trees::validation::atomic_assignment_carrier(
+                    checked, assignment,
+                )
+                .is_none()
             {
                 return unsupported("atomic carrier assignment has conflicting store custody");
             }
@@ -256,7 +259,7 @@ pub(crate) fn validate(
             value,
         } = operation
         {
-            if let checked_trees::CheckedPrimitiveStoreDestination::Local { symbol } = destination {
+            if let typed_trees_to_checked_trees::checked_trees::CheckedPrimitiveStoreDestination::Local { symbol } = destination {
                 crate::unit::attached_unit::primitive_locals::source(
                     checked,
                     plan,
@@ -273,7 +276,7 @@ pub(crate) fn validate(
                 )?;
                 continue;
             }
-            let checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index } =
+            let typed_trees_to_checked_trees::checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index } =
                 destination
             else {
                 return unsupported("primitive store has no destination");
@@ -376,7 +379,7 @@ fn construction_assignment_owner(
     plan: &CheckedUnitEffectMachinePlan,
     statements: &[StatementNode],
     statement_index: u32,
-    assignment: &checked_trees::statement::TableAssignment,
+    assignment: &typed_trees_to_checked_trees::checked_trees::statement::TableAssignment,
 ) -> Option<()> {
     let ExpressionNode::Indexed(target) = checked.expression_table.expression(assignment.target)
     else {
@@ -412,14 +415,18 @@ fn construction_assignment_owner(
             }
             _ => None,
         })?;
-    let checked_trees::types::TypeReferenceNode::FixedArray { element_type, .. } = checked
+    let typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::FixedArray {
+        element_type,
+        ..
+    } = checked
         .type_reference_table
         .type_reference(local.type_reference)
     else {
         return None;
     };
-    let checked_trees::types::TypeReferenceNode::Named { symbol, .. } =
-        checked.type_reference_table.type_reference(*element_type)
+    let typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Named {
+        symbol, ..
+    } = checked.type_reference_table.type_reference(*element_type)
     else {
         return None;
     };
@@ -473,8 +480,8 @@ pub(crate) fn validate_assignment_stores(
     machine: symbols::SymbolHandle,
     state_symbol: symbols::SymbolHandle,
     statement_index: u32,
-    assignment: &checked_trees::statement::TableAssignment,
-    stores: &[&checked_trees::CheckedStructuralScalarFieldStorePlan],
+    assignment: &typed_trees_to_checked_trees::checked_trees::statement::TableAssignment,
+    stores: &[&typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarFieldStorePlan],
 ) -> Result<(), LoweringError> {
     match stores {
         [] => unsupported("structural scalar store roster omits an authored assignment"),
@@ -502,8 +509,8 @@ pub(crate) fn validate_assignment(
     machine: symbols::SymbolHandle,
     state_symbol: symbols::SymbolHandle,
     statement_index: u32,
-    assignment: &checked_trees::statement::TableAssignment,
-    store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
+    assignment: &typed_trees_to_checked_trees::checked_trees::statement::TableAssignment,
+    store: &typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarFieldStorePlan,
 ) -> Result<(), LoweringError> {
     let (owner, state) =
         crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
@@ -518,7 +525,7 @@ pub(crate) fn validate_assignment(
         assignment.target,
     )?;
     let destination = match store.destination {
-        checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter { position } => {
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter { position } => {
             checked
                 .state_parameters(state)
                 .get(position as usize)
@@ -527,7 +534,7 @@ pub(crate) fn validate_assignment(
                 ))?
                 .symbol
         }
-        checked_trees::CheckedStructuralScalarFieldStoreDestination::Local { symbol } => {
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarFieldStoreDestination::Local { symbol } => {
             local_destination(checked, state, statement_index, symbol)?;
             symbol
         }
@@ -560,7 +567,7 @@ pub(crate) fn validate_assignment(
     // here would mean the checked stage chose a different source.
     if matches!(
         store.value,
-        checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { .. }
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { .. }
     ) {
         if !expressions.is_empty() {
             return unsupported("structural scalar store replaced a selected RHS with a result");
@@ -624,8 +631,8 @@ fn validate_record_stores(
     machine: symbols::SymbolHandle,
     state_symbol: symbols::SymbolHandle,
     statement_index: u32,
-    assignment: &checked_trees::statement::TableAssignment,
-    stores: &[&&checked_trees::CheckedStructuralScalarFieldStorePlan],
+    assignment: &typed_trees_to_checked_trees::checked_trees::statement::TableAssignment,
+    stores: &[&&typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarFieldStorePlan],
 ) -> Result<(), LoweringError> {
     let (owner, state) =
         crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
@@ -654,7 +661,7 @@ fn validate_record_stores(
         return unsupported("record store literal has different custody");
     }
     let node = checked.facts.values.structural_values.nodes.get(root.root);
-    let checked_trees::CheckedStructuralValueKind::Record {
+    let typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Record {
         data_symbol: record_symbol,
         fields: record_fields,
     } = &node.kind
@@ -693,7 +700,7 @@ fn validate_record_stores(
             return unsupported("record store reordered or substituted a field");
         }
         let destination = match store.destination {
-            checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter { position } => {
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter { position } => {
                 checked
                     .state_parameters(state)
                     .get(position as usize)
@@ -702,7 +709,7 @@ fn validate_record_stores(
                     ))?
                     .symbol
             }
-            checked_trees::CheckedStructuralScalarFieldStoreDestination::Local { symbol } => {
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarFieldStoreDestination::Local { symbol } => {
                 local_destination(checked, state, statement_index, symbol)?;
                 symbol
             }
@@ -719,11 +726,9 @@ fn validate_record_stores(
                     .data_members(data)
                     .iter()
                     .find_map(|member| match member {
-                        checked_trees::data::DataMember::Field(declaration)
-                            if declaration.symbol == field.field =>
-                        {
-                            Some(declaration)
-                        }
+                        typed_trees_to_checked_trees::checked_trees::data::DataMember::Field(
+                            declaration,
+                        ) if declaration.symbol == field.field => Some(declaration),
                         _ => None,
                     })
             })
@@ -734,7 +739,10 @@ fn validate_record_stores(
         if store.field_identity != identity {
             return unsupported("record store field drifted from its literal ordinal");
         }
-        let checked_trees::CheckedStructuralRecordFieldValue::Scalar(expected) = field.value else {
+        let typed_trees_to_checked_trees::checked_trees::CheckedStructuralRecordFieldValue::Scalar(
+            expected,
+        ) = field.value
+        else {
             return unsupported("record store field has no scalar computation");
         };
         let Some((handle, role)) = computation_root(checked, machine, state_symbol, store)? else {
@@ -759,10 +767,11 @@ fn validate_record_stores(
 /// Source mutability gates whole-local rebinding, not field writes.
 pub(crate) fn local_destination<'a>(
     checked: &'a CheckedTrees,
-    state: &checked_trees::state::State,
+    state: &typed_trees_to_checked_trees::checked_trees::state::State,
     statement: u32,
     symbol: symbols::SymbolHandle,
-) -> Result<&'a checked_trees::statement::TableLocalData, LoweringError> {
+) -> Result<&'a typed_trees_to_checked_trees::checked_trees::statement::TableLocalData, LoweringError>
+{
     let statements = checked.statement_table.statements(state.statement_nodes);
     let mut locals =
         statements
@@ -778,7 +787,7 @@ pub(crate) fn local_destination<'a>(
     if !symbol.is_valid()
         || locals.next().is_some()
         || ordinal >= statement as usize
-        || !validation::has_plain_owned_contents_with_numeric_constraints(
+        || !typed_trees_to_checked_trees::validation::has_plain_owned_contents_with_numeric_constraints(
             &checked.typed,
             local.type_reference,
         )
@@ -799,10 +808,10 @@ pub(crate) fn computation_root(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
-    store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
+    store: &typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarFieldStorePlan,
 ) -> Result<
     Option<(
-        checked_trees::CheckedScalarComputationHandle,
+        typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationHandle,
         CheckedScalarExpressionRole,
     )>,
     LoweringError,
@@ -816,7 +825,7 @@ pub(crate) fn computation_root(
     if roots.next().is_some() {
         return unsupported("field assignment has duplicate computation roots");
     }
-    let checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(handle) = store.value
+    let typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(handle) = store.value
     else {
         return if root.is_none() {
             Ok(None)
@@ -873,9 +882,9 @@ pub(crate) fn computation_root(
                     .data_members(data)
                     .iter()
                     .find_map(|member| match member {
-                        checked_trees::data::DataMember::Field(declaration)
-                            if declaration.symbol == field.field_symbol =>
-                        {
+                        typed_trees_to_checked_trees::checked_trees::data::DataMember::Field(
+                            declaration,
+                        ) if declaration.symbol == field.field_symbol => {
                             Some(declaration.path_identity())
                         }
                         _ => None,

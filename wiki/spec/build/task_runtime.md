@@ -184,5 +184,5 @@ not a task-runtime mode. Pooling guarded native stacks can spare no-block worker
 but cannot prove completion, cancellation, or shutdown. Post-return storage
 moves into a linear protocol claim; pre-return storage may be borrowed.
 
-The [task-plans implementation note](../../../omega-rust/omega/representations/task-plans/README.md)
+The [task-plans implementation note](../../../omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/task_plans.md)
 records current static binding/accounting support and missing execution joins.

@@ -34,7 +34,7 @@ pub(super) use operators::{insert_domain_symbol_children, insert_operator_symbol
 pub(super) use propositions::insert_proposition_symbol_children;
 pub(super) use traits::insert_trait_symbol_children;
 
-use symbol_resolved_trees::SymbolResolvedTrees;
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTableAppender, SymbolTableBuilder};
 
 use super::names::symbol_seed;
@@ -42,7 +42,7 @@ use super::names::symbol_seed;
 pub(super) fn insert_measure_symbol_children(
     builder: &mut impl SymbolTableAppender,
     measure_symbol: SymbolHandle,
-    measure: &symbol_resolved_trees::measure::MeasureDefinition,
+    measure: &crate::symbol_resolved_trees::measure::MeasureDefinition,
     has_sources: bool,
 ) {
     builder.insert_children(
@@ -62,7 +62,7 @@ fn insert_machine_parameter_signature_children(
     builder: &mut impl SymbolTableAppender,
     program: &SymbolResolvedTrees,
     owner_symbol: SymbolHandle,
-    signature: &symbol_resolved_trees::signature::StateSignature,
+    signature: &crate::symbol_resolved_trees::signature::StateSignature,
     has_sources: bool,
 ) {
     let children = builder.insert_children(
@@ -72,7 +72,7 @@ fn insert_machine_parameter_signature_children(
             .iter()
             .map(|parameter| {
                 let kind = match parameter.kind {
-                    symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
+                    crate::symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
                         SymbolKind::MachineParameter
                     }
                     _ => SymbolKind::TypeParameter,
@@ -94,7 +94,7 @@ fn insert_machine_parameter_signature_children(
         let parameter_symbol = children.next();
         if let (
             Some(parameter_symbol),
-            symbol_resolved_trees::data::TypeParameterKind::Machine { contract },
+            crate::symbol_resolved_trees::data::TypeParameterKind::Machine { contract },
         ) = (parameter_symbol, &parameter.kind)
             && let Some(contract) = contract.structural()
         {
@@ -113,7 +113,7 @@ pub(in crate::symbols::symbol_table) fn insert_conformance_symbol_children(
     builder: &mut impl SymbolTableAppender,
     program: &SymbolResolvedTrees,
     conformance_symbol: SymbolHandle,
-    conformance: &symbol_resolved_trees::trait_definition::Conformance,
+    conformance: &crate::symbol_resolved_trees::trait_definition::Conformance,
     has_sources: bool,
 ) {
     let children = builder.insert_children(
@@ -123,12 +123,12 @@ pub(in crate::symbols::symbol_table) fn insert_conformance_symbol_children(
             .iter()
             .map(|parameter| {
                 let kind = match parameter.kind {
-                    symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
+                    crate::symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
                         SymbolKind::MachineParameter
                     }
-                    symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => {
-                        SymbolKind::PropositionParameter
-                    }
+                    crate::symbol_resolved_trees::data::TypeParameterKind::Proposition {
+                        ..
+                    } => SymbolKind::PropositionParameter,
                     _ => SymbolKind::TypeParameter,
                 };
                 symbol_seed(kind, &parameter.name, has_sources)
@@ -141,7 +141,7 @@ pub(in crate::symbols::symbol_table) fn insert_conformance_symbol_children(
             break;
         };
         match &parameter.kind {
-            symbol_resolved_trees::data::TypeParameterKind::Machine { contract } => {
+            crate::symbol_resolved_trees::data::TypeParameterKind::Machine { contract } => {
                 if let Some(contract) = contract.structural() {
                     insert_machine_parameter_signature_children(
                         builder,
@@ -152,7 +152,7 @@ pub(in crate::symbols::symbol_table) fn insert_conformance_symbol_children(
                     );
                 }
             }
-            symbol_resolved_trees::data::TypeParameterKind::Proposition { contract } => {
+            crate::symbol_resolved_trees::data::TypeParameterKind::Proposition { contract } => {
                 builder.insert_children(
                     parameter_symbol,
                     program

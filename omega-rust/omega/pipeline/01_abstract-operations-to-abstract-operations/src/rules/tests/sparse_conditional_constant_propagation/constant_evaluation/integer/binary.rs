@@ -18,11 +18,11 @@ use crate::rules::tests::fixtures::sparse_conditional_constant_propagation::{
     bitwise_unit, exact_divide_unit, policy_add_unit, shift_unit, wrapping_add_unit,
 };
 use crate::{PsiOptimizationRule, RuleAnalysisView, compute_analysis};
-use abstract_operations::AbstractOperation;
 use optimization_core::{AnalysisKind, OptimizationSafetyClass};
-use optimization_unit::IntegerEvaluationWitness;
-use optimization_unit_semantics::validate_integer_evaluation_candidate;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
+use terminal_psi_to_abstract_operations::optimization_unit::IntegerEvaluationWitness;
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_integer_evaluation_candidate;
 
 struct BinarySuccessCase {
     kind: BinaryConstantFixtureKind,

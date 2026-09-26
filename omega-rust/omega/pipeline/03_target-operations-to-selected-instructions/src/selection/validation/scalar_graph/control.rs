@@ -5,22 +5,22 @@ use super::{
     SelectedInstructionProvenance, VirtualRegisterOrigin,
 };
 use crate::SelectedInstructionError;
-use crate::selection::validation::scalar_graph::Replay;
-use crate::selection::validation::scalar_graph::row;
-use calling_conventions::ValueLocation;
-use legalized_operations::{
+use crate::legalized_operations::{
     LegalizedScalarBlock, LegalizedScalarComparison as Comparison, LegalizedScalarReturnValue,
     LegalizedScalarSuccessor, LegalizedScalarTerminator,
 };
-use register_model::ValidatedRegisterConstraintCatalog;
-use selected_instructions::SelectedValueTransport;
-use selected_instructions::{SelectedSuccessor, SelectedTerminator};
+use crate::register_model::ValidatedRegisterConstraintCatalog;
+use crate::selected_instructions::SelectedValueTransport;
+use crate::selected_instructions::{SelectedSuccessor, SelectedTerminator};
+use crate::selection::validation::scalar_graph::Replay;
+use crate::selection::validation::scalar_graph::row;
+use abstract_operations_to_target_operations::calling_conventions::ValueLocation;
 
 pub(super) fn validate(
     source: &LegalizedScalarFunction,
     block: &LegalizedScalarBlock,
     replay: &mut Replay<'_>,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &crate::register_environment::ValidatedTargetRegisterEnvironment,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
     if matches!(
@@ -424,7 +424,7 @@ fn check_successor(
         .blocks
         .iter()
         .filter(|block| {
-            block.origin == selected_instructions::SelectedBlockOrigin::Source(source.target)
+            block.origin == crate::selected_instructions::SelectedBlockOrigin::Source(source.target)
         })
         .collect::<Vec<_>>();
     let [block] = matches.as_slice() else {
@@ -448,7 +448,8 @@ fn check_successor(
             && crate::structural_inputs::unobserved_owned_input::accepts(function)
         {
             if actual.semantic != *semantic
-                || actual.transport != selected_instructions::SelectedStructuralTransport::Unused
+                || actual.transport
+                    != crate::selected_instructions::SelectedStructuralTransport::Unused
             {
                 return Err(SelectedInstructionError::custody());
             }
@@ -478,10 +479,11 @@ fn check_successor(
             .find(|(place, _)| *place == semantic.argument.place)
             .map(|(_, pointer)| *pointer)
             .ok_or(SelectedInstructionError::custody())?;
-        let destination = selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
-            block: source.target,
-            place: semantic.parameter,
-        };
+        let destination =
+            crate::selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
+                block: source.target,
+                place: semantic.parameter,
+            };
         let expected = if semantic.argument.access == terminal_psi::StructuralAccess::Owned {
             let parameter = function
                 .blocks
@@ -496,14 +498,14 @@ fn check_successor(
                 function, parameter,
             )
             .ok_or(SelectedInstructionError::custody())?;
-            selected_instructions::SelectedStructuralTransport::WholeValue {
+            crate::selected_instructions::SelectedStructuralTransport::WholeValue {
                 argument: pointer,
                 destination,
                 byte_size: shape.byte_size,
                 alignment: shape.alignment,
             }
         } else {
-            selected_instructions::SelectedStructuralTransport::Descriptor {
+            crate::selected_instructions::SelectedStructuralTransport::Descriptor {
                 argument: pointer,
                 destination,
             }
@@ -561,7 +563,9 @@ pub(super) fn block_order(
             return Err(invalid);
         }
         if actual.origin
-            != selected_instructions::SelectedBlockOrigin::Source(source.blocks[order[position]].id)
+            != crate::selected_instructions::SelectedBlockOrigin::Source(
+                source.blocks[order[position]].id,
+            )
         {
             return Err(invalid);
         }
@@ -569,14 +573,16 @@ pub(super) fn block_order(
     let mut extra = source.blocks.len();
     for source_position in order {
         let block = &source.blocks[source_position];
-        if let legalized_operations::LegalizedScalarTerminator::StructuralCase { cases, .. } =
-            &block.terminator
+        if let crate::legalized_operations::LegalizedScalarTerminator::StructuralCase {
+            cases,
+            ..
+        } = &block.terminator
         {
             for ordinal in 1..cases.len().saturating_sub(1) {
                 let actual = selected.blocks.get(extra).ok_or(invalid.clone())?;
                 if actual.id.0 as usize != extra
                     || actual.origin
-                        != (selected_instructions::SelectedBlockOrigin::CaseDispatch {
+                        != (crate::selected_instructions::SelectedBlockOrigin::CaseDispatch {
                             source: block.id,
                             case_ordinal: ordinal.try_into().map_err(|_| invalid.clone())?,
                         })
@@ -595,7 +601,7 @@ pub(super) fn block_order(
 
 pub(super) fn branch_suffix(
     source: &LegalizedScalarFunction,
-    block: &legalized_operations::LegalizedScalarBlock,
+    block: &crate::legalized_operations::LegalizedScalarBlock,
     index: usize,
 ) -> bool {
     let Some(result) = block.instructions.get(index).and_then(|row| row.result) else {
@@ -630,7 +636,7 @@ pub(super) fn branch_suffix(
                 }
             }
             if owner.id == block.id && position + 1 == block.instructions.len() {
-                let legalized_operations::LegalizedScalarTerminator::Conditional {
+                let crate::legalized_operations::LegalizedScalarTerminator::Conditional {
                     condition,
                     when_true,
                     when_false,
@@ -652,6 +658,6 @@ pub(super) fn branch_suffix(
             }
         }
     }
-    matches!(block.terminator, legalized_operations::LegalizedScalarTerminator::Conditional {condition,..}
+    matches!(block.terminator, crate::legalized_operations::LegalizedScalarTerminator::Conditional {condition,..}
         if condition == value)
 }

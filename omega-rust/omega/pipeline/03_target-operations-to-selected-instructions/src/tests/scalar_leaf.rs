@@ -3,19 +3,19 @@
 mod attachments;
 mod expression_custody;
 
+use crate::legalized_operations::{LegalizedScalarInstructionKind, LegalizedScalarReturnValue};
 use crate::{
     legalize_target_operations, select_instructions, selection_constraints,
     validate_legalized_operations, validate_selected_instructions,
 };
-use abstract_operations::{
-    AbstractFunctionResult, AbstractOperation, AbstractOperationPlan, AbstractParameter,
-    AbstractResult,
-};
-use legalized_operations::{LegalizedScalarInstructionKind, LegalizedScalarReturnValue};
+use abstract_operations_to_target_operations::target_operations::TargetOperationPlan;
 use semantic_vocabulary::{
     EdgeId, IntegerSign, IntegerType, IntegerValue, OperationId, ScalarType, ValueId,
 };
-use target_operations::TargetOperationPlan;
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractFunctionResult, AbstractOperation, AbstractOperationPlan, AbstractParameter,
+    AbstractResult,
+};
 
 fn fixture(
     immediate: Option<u64>,
@@ -23,7 +23,7 @@ fn fixture(
 ) -> (
     AbstractOperationPlan,
     TargetOperationPlan,
-    optimization_unit::PsiOptimizationUnit,
+    terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
 ) {
     let (mut abstracted, _, previous_unit) = super::fixtures::plain_unit::plain_unit_fixture();
     let function = &mut abstracted.functions[0];
@@ -61,7 +61,7 @@ fn fixture(
         abstract_operations_to_target_operations::TargetLoweringRequest::new(native_target),
     )
     .unwrap();
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &abstracted,
         previous_unit.fuel_schedule,
     )
@@ -136,7 +136,7 @@ fn scalar_graph_preserves_unused_stack_parameters_without_loading_them() {
                 abstract_operations_to_target_operations::TargetLoweringRequest::new(native_target),
             )
             .unwrap();
-            let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
                 &abstracted,
                 previous_unit.fuel_schedule,
             )
@@ -159,7 +159,8 @@ fn scalar_graph_preserves_unused_stack_parameters_without_loading_them() {
                 returned_parameter == Some(0)
             );
             let environment =
-                register_environment::baseline_target_register_environment(native_target).unwrap();
+                crate::register_environment::baseline_target_register_environment(native_target)
+                    .unwrap();
             let constraints = selection_constraints(&legalized, &environment);
             let selected = select_instructions(
                 &legalized,
@@ -182,8 +183,8 @@ fn scalar_graph_preserves_unused_stack_parameters_without_loading_them() {
                     .iter()
                     .filter(|instruction| matches!(
                         instruction.kind,
-                        selected_instructions::SelectedInstructionKind::FrameAddress {
-                            slot: selected_instructions::FrameStorageSlotId::Incoming {
+                        crate::selected_instructions::SelectedInstructionKind::FrameAddress {
+                            slot: crate::selected_instructions::FrameStorageSlotId::Incoming {
                                 parameter_index: 8,
                                 ..
                             },
@@ -198,7 +199,7 @@ fn scalar_graph_preserves_unused_stack_parameters_without_loading_them() {
                     .iter()
                     .filter(|instruction| matches!(
                         instruction.kind,
-                        selected_instructions::SelectedInstructionKind::Load64 { .. }
+                        crate::selected_instructions::SelectedInstructionKind::Load64 { .. }
                     ))
                     .count(),
                 usize::from(returned_parameter == Some(8))
@@ -240,7 +241,8 @@ fn scalar_leaf_constants_and_parameters_select_without_fabricated_control() {
                 usize::from(immediate.is_some())
             );
             let environment =
-                register_environment::baseline_target_register_environment(native_target).unwrap();
+                crate::register_environment::baseline_target_register_environment(native_target)
+                    .unwrap();
             let constraints = selection_constraints(&legalized, &environment);
             let selected = select_instructions(
                 &legalized,
@@ -258,7 +260,7 @@ fn scalar_leaf_constants_and_parameters_select_without_fabricated_control() {
             if immediate.is_none() {
                 assert_eq!(
                     selected.plan().functions[0].blocks[0].instructions[0].kind,
-                    selected_instructions::SelectedInstructionKind::CopyI64
+                    crate::selected_instructions::SelectedInstructionKind::CopyI64
                 );
                 assert!(
                     selected.plan().functions[0].virtual_registers[1]
@@ -302,7 +304,7 @@ fn scalar_leaf_legalization_rejects_changed_literal_abi_and_return_register() {
                 *value = IntegerValue::Unsigned(9);
             }
             1 => {
-                let legalized_operations::LegalizedScalarTerminator::Return(returned) =
+                let crate::legalized_operations::LegalizedScalarTerminator::Return(returned) =
                     &mut graph.blocks[0].terminator
                 else {
                     panic!("scalar return");
@@ -315,18 +317,18 @@ fn scalar_leaf_legalization_rejects_changed_literal_abi_and_return_register() {
                 }
             }
             2 => {
-                let calling_conventions::ValueLocation::Register { register, .. } =
+                let abstract_operations_to_target_operations::calling_conventions::ValueLocation::Register { register, .. } =
                     &mut graph.call_plan.result.as_mut().unwrap().locations[0]
                 else {
                     unreachable!()
                 };
-                *register = target_operations::MachineRegister::X86Rcx;
+                *register = abstract_operations_to_target_operations::target_operations::MachineRegister::X86Rcx;
             }
             _ => graph.provenance.operations.clear(),
         }
         assert_ne!(
             original_identity,
-            legalized_operations::legalized_operation_plan_identity(&proposed)
+            crate::legalized_operations::legalized_operation_plan_identity(&proposed)
         );
         assert!(validate_legalized_operations(&target, &abstracted, &unit, proposed).is_err());
     }
@@ -334,7 +336,7 @@ fn scalar_leaf_legalization_rejects_changed_literal_abi_and_return_register() {
         let mut corrupted_target = target.clone();
         let graph = &mut corrupted_target.functions[0].graph;
         if corruption != 1 {
-            let target_operations::TargetUnitOperation::IntegerConstant { value, .. } =
+            let abstract_operations_to_target_operations::target_operations::TargetUnitOperation::IntegerConstant { value, .. } =
                 &mut graph.blocks[0].operations[0]
             else {
                 panic!("integer constant");
@@ -342,11 +344,11 @@ fn scalar_leaf_legalization_rejects_changed_literal_abi_and_return_register() {
             *value = IntegerValue::Unsigned(8);
         }
         if corruption != 0 {
-            let target_operations::TargetControlTerminator::ReturnScalar {
+            let abstract_operations_to_target_operations::target_operations::TargetControlTerminator::ReturnScalar {
                 expression:
-                    target_operations::TargetScalarExpression::Integer {
+                    abstract_operations_to_target_operations::target_operations::TargetScalarExpression::Integer {
                         expression:
-                            target_operations::TargetIntegerExpression::Immediate { value, .. },
+                            abstract_operations_to_target_operations::target_operations::TargetIntegerExpression::Immediate { value, .. },
                         ..
                     },
                 ..
@@ -377,12 +379,15 @@ fn scalar_leaf_legalization_rejects_changed_literal_abi_and_return_register() {
     );
     let mut corrupted_target = target.clone();
     let abi = corrupted_target.functions[0].scalar_abi.as_mut().unwrap();
-    let calling_conventions::ValueLocation::Register { register, .. } =
-        &mut abi.result.placement.locations[0]
+    let abstract_operations_to_target_operations::calling_conventions::ValueLocation::Register {
+        register,
+        ..
+    } = &mut abi.result.placement.locations[0]
     else {
         unreachable!()
     };
-    *register = target_operations::MachineRegister::X86Rcx;
+    *register =
+        abstract_operations_to_target_operations::target_operations::MachineRegister::X86Rcx;
     // Even changing both ABI copies cannot authorize a noncanonical result register.
     abi.call_plan.result = Some(abi.result.placement.clone());
     assert!(legalize_target_operations(&corrupted_target, &abstracted, &unit).is_err());
@@ -407,14 +412,14 @@ fn scalar_leaf_parameter_replay_binds_index_and_incoming_register() {
         let parameter = &mut graph.parameters[0];
         if change_index {
             parameter.definition_site =
-                optimization_unit::ValueDefinitionSite::FunctionParameter(1);
+                terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite::FunctionParameter(1);
         } else {
-            let calling_conventions::ValueLocation::Register { register, .. } =
+            let abstract_operations_to_target_operations::calling_conventions::ValueLocation::Register { register, .. } =
                 &mut parameter.placement.locations[0]
             else {
                 unreachable!()
             };
-            *register = target_operations::MachineRegister::X86Rdx;
+            *register = abstract_operations_to_target_operations::target_operations::MachineRegister::X86Rdx;
         }
         assert!(validate_legalized_operations(&target, &abstracted, &unit, proposed).is_err());
     }
@@ -426,7 +431,8 @@ fn scalar_leaf_selected_replay_rejects_literal_precolor_and_return_changes() {
         let (abstracted, target, unit) = fixture(immediate, target::NativeTarget::windows_x64());
         let legalized = legalize_target_operations(&target, &abstracted, &unit).unwrap();
         let environment =
-            register_environment::baseline_target_register_environment(target.target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target.target)
+                .unwrap();
         let constraints = selection_constraints(&legalized, &environment);
         let selected = select_instructions(
             &legalized,
@@ -440,15 +446,17 @@ fn scalar_leaf_selected_replay_rejects_literal_precolor_and_return_changes() {
                 let mut proposed = selected.plan().clone();
                 if corrupt_copy {
                     proposed.functions[0].blocks[0].instructions[0].operands[1].virtual_register =
-                        selected_instructions::VirtualRegisterId(0);
+                        crate::selected_instructions::VirtualRegisterId(0);
                 } else {
-                    let selected_instructions::SelectedTerminator::Return { instruction, .. } =
-                        &mut proposed.functions[0].blocks[0].terminator
+                    let crate::selected_instructions::SelectedTerminator::Return {
+                        instruction,
+                        ..
+                    } = &mut proposed.functions[0].blocks[0].terminator
                     else {
                         unreachable!()
                     };
                     instruction.operands[0].virtual_register =
-                        selected_instructions::VirtualRegisterId(0);
+                        crate::selected_instructions::VirtualRegisterId(0);
                 }
                 assert!(
                     validate_selected_instructions(
@@ -465,7 +473,7 @@ fn scalar_leaf_selected_replay_rejects_literal_precolor_and_return_changes() {
         let mut proposed = selected.plan().clone();
         if immediate.is_some() {
             proposed.functions[0].blocks[0].instructions[0].kind =
-                selected_instructions::SelectedInstructionKind::MaterializeI64 {
+                crate::selected_instructions::SelectedInstructionKind::MaterializeI64 {
                     value: IntegerValue::Unsigned(8),
                 };
         } else {
@@ -482,13 +490,14 @@ fn scalar_leaf_selected_replay_rejects_literal_precolor_and_return_changes() {
             .is_err()
         );
         let mut proposed = selected.plan().clone();
-        let selected_instructions::SelectedTerminator::Return { instruction, .. } =
+        let crate::selected_instructions::SelectedTerminator::Return { instruction, .. } =
             &mut proposed.functions[0].blocks[0].terminator
         else {
             unreachable!()
         };
-        instruction.operands[0].fixed_view =
-            environment.fixed_register_view(target_operations::MachineRegister::X86Rcx);
+        instruction.operands[0].fixed_view = environment.fixed_register_view(
+            abstract_operations_to_target_operations::target_operations::MachineRegister::X86Rcx,
+        );
         assert!(
             validate_selected_instructions(
                 &legalized,
@@ -533,11 +542,13 @@ fn boolean_return_follows_entry_jumps_and_exact_bound_carrier() {
             AbstractOperation::Jump {
                 psi_edge: EdgeId::new(1).unwrap(),
                 target: destination,
-                bindings: vec![abstract_operations::ValueBinding {
-                    parameter: arrival,
-                    argument: parameter,
-                    scalar_type: ScalarType::Boolean,
-                }],
+                bindings: vec![
+                    terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
+                        parameter: arrival,
+                        argument: parameter,
+                        scalar_type: ScalarType::Boolean,
+                    },
+                ],
                 structural_bindings: Vec::new(),
                 trivial_affine_discards: Vec::new(),
                 residual_affine_discards: Vec::new(),
@@ -560,7 +571,7 @@ fn boolean_return_follows_entry_jumps_and_exact_bound_carrier() {
             abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
         )
         .unwrap();
-        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             previous.fuel_schedule,
         )
@@ -568,7 +579,7 @@ fn boolean_return_follows_entry_jumps_and_exact_bound_carrier() {
         let legal = legalize_target_operations(&target, &source, &unit).unwrap();
         validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
         let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
+            crate::register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = selection_constraints(&legal, &environment);
         let selected = select_instructions(
             &legal,
@@ -591,7 +602,7 @@ fn boolean_return_follows_entry_jumps_and_exact_bound_carrier() {
             .iter_mut()
             .find(|block| block.id == destination)
             .unwrap();
-        let legalized_operations::LegalizedScalarTerminator::Return(returned) =
+        let crate::legalized_operations::LegalizedScalarTerminator::Return(returned) =
             &mut returned.terminator
         else {
             panic!("return")

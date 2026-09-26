@@ -1,7 +1,7 @@
 use crate::parse_syntax_trees;
+use crate::syntax_trees::item::Item;
+use crate::syntax_trees::statement::StatementNode;
 use source_files_to_tokens::Lexer;
-use syntax_trees::item::Item;
-use syntax_trees::statement::StatementNode;
 
 #[test]
 fn entry_and_state_bodies_preserve_expanded_statement_order_and_boundaries() {

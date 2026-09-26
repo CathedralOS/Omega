@@ -1,12 +1,12 @@
 //! Actual local storage survives borrowed scalar-result helper calls.
 
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
-};
-use terminal_production::{
-    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
 
 const SOURCE: &str = include_str!(concat!(
@@ -44,32 +44,32 @@ fn local_receiver_scalar_and_fresh_case_keep_argument_identity_and_once_only_eff
         (payload, vec![1, 4, 3, 5, 10, 4, 2]),
     ] {
         let checked = crate::front_end::checked_program(&source);
-        let artifact = terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("Main::main"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("mixed call establishes its fresh case before borrowing the local receiver")
-        .into_artifact();
+        let artifact =
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("Main::main"),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .expect("mixed call establishes its fresh case before borrowing the local receiver")
+            .into_artifact();
         let owner = checked
             .data_definitions()
             .iter()
             .find(|owner| owner.name.as_str() == "Mode")
             .unwrap();
-        let other_case = checked
-            .data_members(owner)
-            .iter()
-            .find_map(|member| match member {
-                checked_trees::data::DataMember::Variant(case)
-                    if case.name.as_str() == "Narrow" =>
-                {
-                    Some(case.symbol)
-                }
-                _ => None,
-            })
-            .unwrap();
+        let other_case =
+            checked
+                .data_members(owner)
+                .iter()
+                .find_map(|member| match member {
+                    typed_trees_to_checked_trees::checked_trees::data::DataMember::Variant(
+                        case,
+                    ) if case.name.as_str() == "Narrow" => Some(case.symbol),
+                    _ => None,
+                })
+                .unwrap();
         let mut changed = checked.clone();
         let subject_handle = changed
             .facts
@@ -78,11 +78,11 @@ fn local_receiver_scalar_and_fresh_case_keep_argument_identity_and_once_only_eff
             .structural_arguments
             .iter()
             .find_map(|(handle, argument)| match argument {
-                checked_trees::CheckedScalarComputationStructuralArgument::Case(_) => Some(handle),
+                typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationStructuralArgument::Case(_) => Some(handle),
                 _ => None,
             })
             .expect("retained fresh case argument");
-        let checked_trees::CheckedScalarComputationStructuralArgument::Case(subject) = changed
+        let typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationStructuralArgument::Case(subject) = changed
             .facts
             .values
             .scalar_computations
@@ -93,7 +93,7 @@ fn local_receiver_scalar_and_fresh_case_keep_argument_identity_and_once_only_eff
         };
         subject.case = other_case;
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &changed,
                 TerminalMachineSelection::Name("Main::main")
             )
@@ -220,15 +220,16 @@ fn scalar_return_helper_reads_its_established_local_record_across_fuel() {
             .map(|plan| plan.machine)
             .collect::<Vec<_>>()
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("sum_local"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("scalar-result helper retains its local receiver storage")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("sum_local"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("scalar-result helper retains its local receiver storage")
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     terminal_verifier::validate_module(&module).unwrap();
     for initial_fuel in 0..32 {
@@ -274,15 +275,16 @@ fn owned_record_children_reuse_parameter_and_local_places() {
     ] {
         let source = format!("data Inner {{ value: u64; }} data Outer {{ child: Inner; }} {body}");
         let checked = crate::front_end::checked_program(&source);
-        let artifact = terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("wrap"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .unwrap_or_else(|error| panic!("{body}: {error:?}"))
-        .into_artifact();
+        let artifact =
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("wrap"),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .unwrap_or_else(|error| panic!("{body}: {error:?}"))
+            .into_artifact();
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
         terminal_verifier::verify_module(

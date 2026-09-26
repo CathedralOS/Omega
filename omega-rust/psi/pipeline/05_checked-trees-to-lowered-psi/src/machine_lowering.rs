@@ -22,8 +22,10 @@ pub(crate) mod specialization_commitments;
 
 pub use bounded_callbacks::callback_lowering_receipt;
 
-use checked_trees::{CheckedTerminalSignatureEligibility, CheckedTrees};
-use lowered_psi::LoweredPsi;
+use crate::lowered_psi::LoweredPsi;
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedTerminalSignatureEligibility, CheckedTrees,
+};
 
 use crate::lowering_error::{LoweringError, unsupported};
 use crate::machine_lowering::conformance_publication::publish_selected_conformance_applications;
@@ -97,7 +99,7 @@ pub(crate) fn reject_conditional_claim_joins(
 
 fn lower_terminal_selection(
     checked: &CheckedTrees,
-    selection: &checked_trees::CheckedTerminalMachineSelection,
+    selection: &typed_trees_to_checked_trees::checked_trees::CheckedTerminalMachineSelection,
 ) -> Result<LoweredPsi, LoweringError> {
     admit_mathematical_declarations(checked)?;
     reject_conditional_claim_joins(checked, &[selection.machine])?;
@@ -128,7 +130,7 @@ fn lower_terminal_selection(
     )?;
     let projection_sources =
         source_mapping.projection_sources(&lowered, selection.machine, &source_machines)?;
-    validation::validate_checked_machine_specialization_commitments(
+    typed_trees_to_checked_trees::validation::validate_checked_machine_specialization_commitments(
         checked,
         &selected_closure_specializations(checked, &source_machines, &lowered),
     )

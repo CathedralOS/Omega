@@ -20,7 +20,7 @@ const SOURCE: &str = "data Context { counter: u64; }
         0
     }";
 
-fn typed(source: &str) -> typed_trees::TypedTrees {
+fn typed(source: &str) -> symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees {
     let mut program = typed_program(source);
     crate::lookup::resolve_projected_receiver_calls(&mut program)
         .expect("projected receivers resolve");
@@ -58,12 +58,12 @@ fn a_replayed_call_site_resolves_the_same_projected_receiver_place() {
         canonical_receiver_place_for_call_site(&program, machine.symbol, state.symbol, &site, 0)
             .expect("projected receiver place");
     assert!(
-        matches!(projected.root, facts::PlaceRoot::Symbol(root) if root == carrier),
+        matches!(projected.root, crate::fact_plan::PlaceRoot::Symbol(root) if root == carrier),
         "the projected receiver keeps the parameter root: {projected:?}"
     );
     assert_eq!(
         projected.segments.as_slice(),
-        [facts::PlaceSegment::Field {
+        [crate::fact_plan::PlaceSegment::Field {
             symbol: call.receiver_symbol
         }],
         "the projected receiver keeps the exact field segment"

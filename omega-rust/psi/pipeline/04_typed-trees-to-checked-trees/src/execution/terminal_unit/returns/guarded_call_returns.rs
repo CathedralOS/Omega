@@ -26,7 +26,7 @@ pub(crate) fn build_payloadless_guarded_call_return_machine(
     program: &TypedTrees,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
 ) -> Option<CheckedPayloadlessGuardedCallReturnMachinePlan> {
     let (state, tail_state) = match program.machine_states(machine) {
         [state] => (state, None),
@@ -226,7 +226,8 @@ pub(crate) fn build_payloadless_guarded_call_return_machine(
             expression,
         )
         .is_some_and(|place| {
-            place.root == facts::PlaceRoot::Symbol(saved.symbol) && place.segments.is_empty()
+            place.root == crate::fact_plan::PlaceRoot::Symbol(saved.symbol)
+                && place.segments.is_empty()
         })
     };
     if let Some(tail_state) = tail_state {
@@ -252,7 +253,8 @@ pub(crate) fn build_payloadless_guarded_call_return_machine(
             *returned,
         )
         .is_some_and(|place| {
-            place.root == facts::PlaceRoot::Symbol(parameter.symbol) && place.segments.is_empty()
+            place.root == crate::fact_plan::PlaceRoot::Symbol(parameter.symbol)
+                && place.segments.is_empty()
         });
         if parameter.is_const
             || parameter.is_mutable

@@ -5,8 +5,8 @@
 //! seed/fact projection, and surviving frontier custody. The only policy
 //! difference is whether the initial revision identity is required.
 
-use optimization_unit::PsiOptimizationUnit;
-use optimization_unit_semantics::{
+use terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit;
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_psi_optimization_unit_with_admitted_cycle_machines,
 };
 
@@ -58,7 +58,7 @@ pub fn validate_transformed_psi_cycle_components(
 pub fn validate_psi_cycle_component_snapshot(
     input: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
     unit: &PsiOptimizationUnit,
-    candidate: &optimization_unit::OptimizerCycleComponentSnapshot,
+    candidate: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponentSnapshot,
 ) -> Result<ranked_cycles::ValidatedOptimizerCycleComponents, OptimizationUnitValidationError> {
     let validated = validate_psi_optimization_unit_with_context(input, unit, false)?;
     if candidate != validated.snapshot() {

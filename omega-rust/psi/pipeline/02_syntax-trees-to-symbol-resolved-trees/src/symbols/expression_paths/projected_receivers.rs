@@ -1,14 +1,14 @@
 //! Projected method candidates follow exact indexed and case-payload declarations.
 //! Bounds, case reachability, effects, and access remain later-stage obligations.
 
-use arena::Arena;
-use symbol_resolved_trees::data::DataMember;
-use symbol_resolved_trees::expression::{
+use crate::symbol_resolved_trees::data::DataMember;
+use crate::symbol_resolved_trees::expression::{
     ExpressionHandle, ExpressionNode, ExpressionTable, TableCallExpression,
 };
-use symbol_resolved_trees::signature::StateParameter;
-use symbol_resolved_trees::statement::Statement;
-use symbol_resolved_trees::types::TypeReference;
+use crate::symbol_resolved_trees::signature::StateParameter;
+use crate::symbol_resolved_trees::statement::Statement;
+use crate::symbol_resolved_trees::types::TypeReference;
+use arena::Arena;
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use super::super::scope::MachineScope;
@@ -81,7 +81,7 @@ thread_local! {
     > = const { std::cell::RefCell::new(None) };
     static DATA_DEFINITION_POSITIONS: std::cell::RefCell<
         Option<(
-            *const arena::OrderedRootArena<symbol_resolved_trees::data::DataDefinition>,
+            *const arena::OrderedRootArena<crate::symbol_resolved_trees::data::DataDefinition>,
             usize,
             usize,
             symbols::SymbolKeyMap<SymbolHandle, u32>,
@@ -184,7 +184,7 @@ pub(in crate::symbols) fn parameter_position(
 }
 
 pub(in crate::symbols) fn data_definition_position(
-    definitions: &arena::OrderedRootArena<symbol_resolved_trees::data::DataDefinition>,
+    definitions: &arena::OrderedRootArena<crate::symbol_resolved_trees::data::DataDefinition>,
     symbol: SymbolHandle,
 ) -> Option<u32> {
     DATA_DEFINITION_POSITIONS.with(|cell| {

@@ -15,13 +15,13 @@
 // re-export, not `crate::`: in the lib test target `crate` is the test
 // instance of this crate while `terminal_production` holds the library
 // instance, and the two types never unify.
-use terminal_production::{
+use lowered_psi_to_terminal_psi::terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
 
 fn produce(source: &str, machine: &str) -> Result<(), String> {
     let checked = crate::front_end::checked_program(source);
-    match terminal_production::TerminalProductionRequest::new(
+    match lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name(machine),
     )

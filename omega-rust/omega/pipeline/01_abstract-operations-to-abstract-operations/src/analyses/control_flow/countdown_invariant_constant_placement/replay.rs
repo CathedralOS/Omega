@@ -142,7 +142,7 @@ pub(super) fn reconstruct(
 
 fn reconstruct_destination(
     function: &PsiOptimizationFunction,
-    component: &optimization_unit::OptimizerCycleComponent,
+    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
     counted: &UnsignedCountdownLoopSummary,
 ) -> Result<CountdownInvariantConstantDestination, CountdownInvariantConstantPlacementAnalysisError>
 {
@@ -304,7 +304,7 @@ fn reconstruct_constant(
 
 fn validate_constant_locations(
     function: &PsiOptimizationFunction,
-    component: &optimization_unit::OptimizerCycleComponent,
+    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
     certificate: &OptimizerUnsignedCountdownRankingCertificate,
     constants: &[CountdownInvariantIntegerConstant; 2],
 ) -> Result<(), CountdownInvariantConstantPlacementAnalysisError> {
@@ -378,7 +378,7 @@ fn validate_constant_locations(
 
 fn reconstruct_consumer(
     function: &PsiOptimizationFunction,
-    component: &optimization_unit::OptimizerCycleComponent,
+    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
     certificate: &OptimizerUnsignedCountdownRankingCertificate,
     constant: &CountdownInvariantIntegerConstant,
 ) -> Result<CountdownInvariantConstantConsumer, CountdownInvariantConstantPlacementAnalysisError> {

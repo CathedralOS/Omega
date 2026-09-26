@@ -8,11 +8,13 @@ mod tests;
 
 use language_semantics::RankingViewId;
 use language_semantics::declaration_selection::CollectionMeasure;
-use typed_trees::data::DataMember;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::measure::MeasureDefinition;
+use symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::measure::MeasureDefinition;
 
-use validation::{
+use crate::validation::{
     MeasureBodyShape, ProjectionStep, declared_scalar_view, find_declared_measure,
     identity_subject_matches, measure_body_shape, measure_constraints_cover_subject,
     unwrap_constraint_shells,
@@ -66,14 +68,14 @@ pub(super) enum RankingOrder {
     CustomStructView {
         measure: symbols::SymbolHandle,
         path: Vec<ProjectionStep>,
-        field: typed_trees::name::Identifier,
-        field_type: typed_trees::types::TypeReferenceHandle,
+        field: symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
+        field_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
         field_symbol: symbols::SymbolHandle,
         owner: symbols::SymbolHandle,
     },
     /// A declared lexicographic `measure`; the stored field names are the ordered
     /// projection components compared left-to-right.
-    Lexicographic(Vec<typed_trees::name::Identifier>),
+    Lexicographic(Vec<symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier>),
 }
 
 /// The result of resolving the ordering for a `terminates by` clause: either a
@@ -135,8 +137,8 @@ impl RankingOrder {
     /// parameters, and the view is inferred when omitted because it is the
     /// only builtin two-subject ranking.
     pub(super) fn resolve(
-        program: &typed_trees::TypedTrees,
-        state: &typed_trees::state::State,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
         subjects: &[ExpressionHandle],
         order: &[&str],
         view_arguments: &[ExpressionHandle],
@@ -195,8 +197,8 @@ impl RankingOrder {
     }
 
     fn from_path(
-        program: &typed_trees::TypedTrees,
-        state: &typed_trees::state::State,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
         decreases: ExpressionHandle,
         order: &[&str],
     ) -> Option<Self> {
@@ -274,13 +276,13 @@ impl RankingOrder {
                 })?;
                 let root = path.first().map_or(owner, |step| step.owner);
                 let mut reference = unwrap_constraint_shells(program, subject.type_reference);
-                if let typed_trees::types::TypeReferenceNode::Reference { referee, .. } =
+                if let symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { referee, .. } =
                     program.type_reference_table.type_reference(reference)
                 {
                     reference = unwrap_constraint_shells(program, *referee);
                 }
                 if !matches!(program.type_reference_table.type_reference(reference),
-                    typed_trees::types::TypeReferenceNode::Named { symbol, .. } if *symbol == root)
+                    symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named { symbol, .. } if *symbol == root)
                 {
                     return None;
                 }
@@ -316,8 +318,8 @@ impl RankingOrder {
 /// implicitly — only true builtins infer — but matching measures are carried
 /// along as suggestions for the diagnostic.
 fn infer_default_order(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     decreases: ExpressionHandle,
 ) -> OrderResolution {
     match program.expression_table.expression(decreases) {
@@ -345,8 +347,8 @@ fn infer_default_order(
 /// reason the value's type has no default order, and any declared measures the
 /// user could select explicitly.
 fn describe_ambiguity(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     decreases: ExpressionHandle,
 ) -> AmbiguousDefault {
     let clause = decreasing_value_text(program, decreases);
@@ -372,10 +374,12 @@ fn describe_ambiguity(
 /// Render the decreasing value as source-like text for diagnostics. Falls back
 /// to the generic word `value` for shapes the renderer does not understand.
 pub(super) fn decreasing_value_text(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> String {
-    typed_trees::ranking::witness_expression_text(program, expression)
+    symbol_resolved_trees_to_typed_trees::typed_trees::ranking::witness_expression_text(
+        program, expression,
+    )
 }
 
 /// A type whose `value - 1` step is not well-founded without a positivity
@@ -389,7 +393,10 @@ fn is_signed_integer_type(name: &str) -> bool {
 /// has the value's type; a lexicographic measure applies when its owner (the
 /// first path segment) is the value's type. These are diagnostic suggestions
 /// only — plain `terminates by value` never selects a declared measure implicitly.
-fn declared_measures_for_type(program: &typed_trees::TypedTrees, type_name: &str) -> Vec<String> {
+fn declared_measures_for_type(
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    type_name: &str,
+) -> Vec<String> {
     program
         .measures()
         .iter()
@@ -427,8 +434,8 @@ enum DecreasingValueKind {
 }
 
 fn decreasing_value_kind(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     decreases: ExpressionHandle,
 ) -> Option<DecreasingValueKind> {
     // `value.len` (or any member spelled `len`) is a nat-like scalar.
@@ -466,10 +473,11 @@ fn is_nat_like_type(name: &str) -> bool {
 }
 
 fn state_parameter_of_expression<'program>(
-    program: &'program typed_trees::TypedTrees,
-    state: &'program typed_trees::state::State,
+    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &'program symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     expression: ExpressionHandle,
-) -> Option<&'program typed_trees::signature::StateParameter> {
+) -> Option<&'program symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter>
+{
     let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
         return None;
     };
@@ -486,9 +494,9 @@ fn state_parameter_of_expression<'program>(
 }
 
 fn lexicographic_component_fields(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     measure: &MeasureDefinition,
-) -> Option<Vec<typed_trees::name::Identifier>> {
+) -> Option<Vec<symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier>> {
     let body = program.expression_table.expression_handles(measure.body);
     if body.is_empty() {
         return None;
@@ -512,8 +520,8 @@ fn lexicographic_component_fields(
 }
 
 fn expression_type_name(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     expression: ExpressionHandle,
 ) -> Option<String> {
     match program.expression_table.expression(expression) {
@@ -553,7 +561,7 @@ fn expression_type_name(
         ExpressionNode::Binary(binary)
             if matches!(
                 binary.operator,
-                typed_trees::expression::BinaryOperator::Subtract
+                symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Subtract
             ) =>
         {
             Some("u64".to_string())
@@ -563,8 +571,8 @@ fn expression_type_name(
 }
 
 fn state_parameter_type_name(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     symbol: symbols::SymbolHandle,
     fallback_name: Option<&str>,
 ) -> Option<String> {
@@ -592,7 +600,7 @@ fn state_parameter_type_name(
 /// bodyless lookalike outside the sealed source, so this consult closes the
 /// bodied and boundary spellings of the same path.
 fn catalog_declaration_is_authentic(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     view: RankingViewId,
 ) -> bool {
     let Some(row) = view.catalog_declaration() else {

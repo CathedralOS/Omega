@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use isa_x86_64::{
+use target_operations_to_selected_instructions::isa_x86_64::{
     encode_x86_64_selected_i64_less_than_branch_form, encode_x86_64_selected_nonzero_branch_form,
     encode_x86_64_selected_short_nonzero_branch_form,
     encode_x86_64_selected_u64_less_than_branch_form,
@@ -11,10 +11,12 @@ use isa_x86_64::{
     validate_x86_64_selected_short_nonzero_branch_form,
     validate_x86_64_selected_u64_less_than_branch_form,
 };
-use register_model::ValidatedPhysicalRegisterModel;
-use selected_instructions::{SelectedBlockId, SelectedInstructionId};
+use target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel;
+use target_operations_to_selected_instructions::{SelectedBlockId, SelectedInstructionId};
 
-use machine_code::{ResolvedConditionalBranchPredicate, ResolvedSelectedFunctionLayout};
+use post_allocation_machine_to_selected_form_encoding::machine_code::{
+    ResolvedConditionalBranchPredicate, ResolvedSelectedFunctionLayout,
+};
 
 use super::super::error::OptimizedX86BranchRelaxationError;
 use super::work::checked_delta;
@@ -31,8 +33,8 @@ pub(super) fn reflow_production_functions(
                     continue;
                 };
                 let branch = match branch {
-                    machine_code::ResolvedBranchEvidence::Conditional(branch) => branch,
-                    machine_code::ResolvedBranchEvidence::Jump(jump) => {
+                    post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedBranchEvidence::Conditional(branch) => branch,
+                    post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedBranchEvidence::Jump(jump) => {
                         let target = *offsets.get(&jump.target_block).ok_or(
                             OptimizedX86BranchRelaxationError::MissingTargetBlock(
                                 jump.target_block,
@@ -43,7 +45,7 @@ pub(super) fn reflow_production_functions(
                             .checked_add(5)
                             .ok_or(OptimizedX86BranchRelaxationError::OffsetOverflow)?;
                         let displacement = checked_delta(target, end)?;
-                        let encoded = isa_x86_64::encode_x86_64_selected_jump_form(
+                        let encoded = target_operations_to_selected_instructions::isa_x86_64::encode_x86_64_selected_jump_form(
                             physical,
                             row.alternative,
                             displacement,
@@ -152,8 +154,8 @@ pub(super) fn reflow_replay_functions(
                     continue;
                 };
                 let branch = match branch {
-                    machine_code::ResolvedBranchEvidence::Conditional(branch) => branch,
-                    machine_code::ResolvedBranchEvidence::Jump(jump) => {
+                    post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedBranchEvidence::Conditional(branch) => branch,
+                    post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedBranchEvidence::Jump(jump) => {
                         let target = *offsets.get(&jump.target_block).ok_or(
                             OptimizedX86BranchRelaxationError::MissingTargetBlock(
                                 jump.target_block,
@@ -174,7 +176,7 @@ pub(super) fn reflow_replay_functions(
                                 })?
                                 .to_le_bytes(),
                         );
-                        let encoded = isa_x86_64::validate_x86_64_selected_jump_form(
+                        let encoded = target_operations_to_selected_instructions::isa_x86_64::validate_x86_64_selected_jump_form(
                             physical,
                             row.alternative,
                             displacement,
@@ -264,7 +266,7 @@ fn assign_dense_offsets(
 }
 
 fn rewrite_branch_offsets(
-    branch: &mut machine_code::ResolvedConditionalBranchEvidence,
+    branch: &mut post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedConditionalBranchEvidence,
     instruction_offset: u64,
     instruction_size: usize,
     offsets: &BTreeMap<SelectedBlockId, u64>,
@@ -294,12 +296,15 @@ fn rewrite_branch_offsets(
 fn replay_branch_bytes(
     physical: &ValidatedPhysicalRegisterModel,
     predicate: ResolvedConditionalBranchPredicate,
-    alternative: selected_instructions::MachineAlternativeKey,
+    alternative: target_operations_to_selected_instructions::MachineAlternativeKey,
     displacement: i64,
     encoded_len: usize,
     instruction: SelectedInstructionId,
 ) -> Result<
-    (Vec<u8>, isa_x86_64::ValidatedX86_64SelectedFormEncoding),
+    (
+        Vec<u8>,
+        target_operations_to_selected_instructions::isa_x86_64::ValidatedX86_64SelectedFormEncoding,
+    ),
     OptimizedX86BranchRelaxationError,
 > {
     let bytes = match (predicate, encoded_len) {

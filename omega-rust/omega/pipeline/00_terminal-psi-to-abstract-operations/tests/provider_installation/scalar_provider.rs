@@ -1,10 +1,10 @@
 use super::builders::{artifact, provider_module, selected};
 use super::ids::{machine_id, operation_id};
-use abstract_operations::AbstractOperation;
 use installation_evidence::ProviderInstallationEvidence;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType, ValueId};
 use terminal_psi::{Operation, OperationKind, OperationResult, TerminalModule, ValueDeclaration};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
 use terminal_psi_to_abstract_operations::{
     ProviderInstallationError, admit_provider_installation, lower_artifact,
 };
@@ -202,7 +202,7 @@ fn scalar_provider_module() -> TerminalModule {
 }
 
 fn scalar_call_arguments_mut(
-    plan: &mut abstract_operations::AbstractOperationPlan,
+    plan: &mut terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan,
 ) -> &mut Vec<ValueId> {
     plan.functions[0]
         .operations

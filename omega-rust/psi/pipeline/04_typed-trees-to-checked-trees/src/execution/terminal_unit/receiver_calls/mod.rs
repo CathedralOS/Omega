@@ -27,7 +27,7 @@ pub(super) fn reconcile(
     shapes: &mut ShapeCollector<'_>,
     candidates: &mut Vec<CheckedUnitEffectMachinePlan>,
     composed: &mut Vec<CheckedComposedUnitControlMachinePlan>,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) {
     // Receiver retention grows along the already-checked call graph. Rebuild
     // a caller with the ordinary planner rather than shifting its parameter
@@ -425,7 +425,7 @@ fn result_receiver_argument(
     place: &crate::flow::CanonicalPlace,
     target: &CheckedUnitStructuralParameterPlan,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(symbol) = place.root else {
         return None;
     };
     if !matches!(
@@ -452,7 +452,7 @@ fn result_receiver_argument(
     let (result, local) = matching.next()?;
     if matching.next().is_some()
         || !local.initial_value.is_valid()
-        || !validation::has_plain_owned_contents_with_numeric_constraints(
+        || !crate::validation::has_plain_owned_contents_with_numeric_constraints(
             program,
             local.type_reference,
         )
@@ -582,7 +582,7 @@ fn is_self_root(
     crate::semantic::calls::find_state(program, state).is_some_and(|state| {
         program.state_parameters(state).iter().any(|parameter| {
             parameter.is_self
-                && matches!(place.root, facts::PlaceRoot::Symbol(root)
+                && matches!(place.root, crate::fact_plan::PlaceRoot::Symbol(root)
                 if root == machine || root == parameter.symbol)
         })
     })
@@ -598,7 +598,7 @@ fn receiver_argument(
     place: &crate::flow::CanonicalPlace,
     target: &CheckedUnitStructuralParameterPlan,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
-    let facts::PlaceRoot::Symbol(root) = place.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(root) = place.root else {
         return None;
     };
     let source = program.state_parameters(crate::semantic::calls::find_state(program, state)?);
@@ -647,18 +647,18 @@ fn receiver_argument(
         ) || parameter.multiplicity != Multiplicity::Unrestricted
             || !parameter.qualifications.is_empty()
             || !place.segments.iter().all(|segment| {
-                matches!(segment, facts::PlaceSegment::Field { .. })
+                matches!(segment, crate::fact_plan::PlaceSegment::Field { .. })
                     || (matches!(
                         target.access,
                         SharedBorrow | MutableBorrow | WriteOnlyBorrow
-                    ) && matches!(segment, facts::PlaceSegment::FixedIndex { .. }))
+                    ) && matches!(segment, crate::fact_plan::PlaceSegment::FixedIndex { .. }))
                     // A runtime index may borrow one shared element: the
                     // checked `RuntimeIndex` segment retains the scalar
                     // selector and the inclusive bounds its retained integer
                     // entry range publishes, and terminal verification
                     // replays both rather than trusting this admission.
                     || (target.access == SharedBorrow
-                        && matches!(segment, facts::PlaceSegment::Index { .. }))
+                        && matches!(segment, crate::fact_plan::PlaceSegment::Index { .. }))
             })
         {
             return None;

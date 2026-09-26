@@ -1,7 +1,9 @@
 use diagnostics::Diagnostic;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
-use typed_trees::machine::Machine;
-use typed_trees::state::State;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
 
 mod validation;
 pub(in crate::checks) use validation::ranges_seam_owns;
@@ -11,10 +13,10 @@ pub(super) use self::validation::is_builtin_scalar_index;
 use super::facts::RangeFacts;
 
 pub(super) fn check_expression<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &'program Machine,
     state: &State,
-    call_frames: Option<&::validation::CallFrameResolver<'program>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'program>>,
     facts: &mut RangeFacts<'_>,
     expression: ExpressionHandle,
     diagnostics: &mut Vec<Diagnostic>,
@@ -35,7 +37,7 @@ pub(super) fn check_expression<'program>(
                 diagnostics,
             );
             for arm in program.expression_table.match_arms(dispatch.arms) {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                     check_expression(
                         program,
                         machine,
@@ -56,7 +58,7 @@ pub(super) fn check_expression<'program>(
                     arm.value,
                     diagnostics,
                 );
-                if matches!(arm.pattern, typed_trees::expression::MatchPattern::Wildcard) {
+                if matches!(arm.pattern, symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Wildcard) {
                     break;
                 }
             }

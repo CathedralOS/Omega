@@ -2,6 +2,11 @@
 //! state-entry contexts, rebases them (`entry_origins`), runs each statement
 //! (`statements`), drops loans expired at state exit, records the exit facts of a
 //! body that ends without a transition (`exits`), and appends the state row.
+use crate::checked_trees::{
+    BorrowFacts, DomainFacts, FlowBorrowWeakeningReason, FlowConstraintKind, FlowStateFact,
+    ProofFacts,
+};
+use crate::fact_plan::{FactPlan, ProgramPoint};
 use crate::flow::FlowBuildContext;
 use crate::flow::append_constraint_ref;
 use crate::flow::append_contiguous_borrow_root_constraints;
@@ -15,22 +20,17 @@ use crate::flow::filter_expired_borrow_loans;
 use crate::flow::project_constraint_refs_to_active_contexts;
 use crate::flow::retained_constraint_refs;
 use crate::flow::retained_flow_contexts;
-use checked_trees::{
-    BorrowFacts, DomainFacts, FlowBorrowWeakeningReason, FlowConstraintKind, FlowStateFact,
-    ProofFacts,
-};
-use facts::{FactPlan, ProgramPoint};
 
 pub(super) fn build_state_flow_fact<'plans>(
-    program: &'plans typed_trees::TypedTrees,
+    program: &'plans symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     proof: &ProofFacts,
     semantic: &mut FactPlan,
     domains: &DomainFacts,
     build: &mut FlowBuildContext<'plans>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    declaration_groups: [facts::FactContextGroup; 2],
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    declaration_groups: [crate::fact_plan::FactContextGroup; 2],
 ) {
     let Some((borrow_state_handle, borrow_state)) =
         borrow_state_fact(borrow, machine.symbol, state.symbol)

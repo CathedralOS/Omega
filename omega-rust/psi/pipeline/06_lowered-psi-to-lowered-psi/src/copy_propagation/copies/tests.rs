@@ -4,7 +4,7 @@
 //! express: cycles, ranking evidence, positional case payloads, retained
 //! proof values, and declaration mismatches.
 use super::{BTreeSet, BlockId, TerminalMachine, Terminator, ValueId, propagate};
-use lowered_psi::LoweredSourceCallOccurrence;
+use checked_trees_to_lowered_psi::lowered_psi::LoweredSourceCallOccurrence;
 use semantic_vocabulary::{
     ContractId, EdgeId, MachineId, ObligationId, OperationId, PlaceId, Proposition,
     ScalarQualificationSetId, ScalarTerm, ScalarType, StructuralCaseId, StructuralFieldId,

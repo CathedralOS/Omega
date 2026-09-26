@@ -9,8 +9,8 @@
 
 use std::collections::BTreeSet;
 
+use crate::target_operations::{NativeCallOrigin, TargetOperationPlan, TargetUnitOperation};
 use installation_evidence::ProviderInstallationEvidence;
-use target_operations::{NativeCallOrigin, TargetOperationPlan, TargetUnitOperation};
 use terminal_psi::OperationResult;
 
 use crate::LoweringError;
@@ -78,21 +78,22 @@ pub(crate) fn validate(
             let result_matches = match (operation, &call.result) {
                 (
                     TargetUnitOperation::Call {
-                        result: target_operations::TargetCallResult::Unit,
+                        result: crate::target_operations::TargetCallResult::Unit,
                         ..
                     },
                     OperationResult::Unit,
                 ) => true,
                 (
                     TargetUnitOperation::Call {
-                        result: target_operations::TargetCallResult::Structural { result, .. },
+                        result:
+                            crate::target_operations::TargetCallResult::Structural { result, .. },
                         ..
                     },
                     OperationResult::Structural(expected),
                 ) => result == expected,
                 (
                     TargetUnitOperation::Call {
-                        result: target_operations::TargetCallResult::Scalar(result),
+                        result: crate::target_operations::TargetCallResult::Scalar(result),
                         ..
                     },
                     OperationResult::Scalar(expected),

@@ -11,7 +11,6 @@ use crate::proofs::content_conservation::{
     lower_content_partition_compositions,
 };
 use crate::proofs::crash_routes::lower_checked_crash_frontier;
-use checked_trees::{ContentIdentityReshuffleFact, ContentPartitionCompositionFact};
 use language_semantics::content::{
     ContentCaseSegment, ContentConservationEquation, ContentConservationOwnerKind,
     ContentConservationPlan, conservation_report_fingerprint,
@@ -21,6 +20,9 @@ use semantic_vocabulary::{
     ContentTerm, PlaceId, Proposition, StructuralPlaceKind,
 };
 use terminal_psi::StructuralPlaceDeclaration;
+use typed_trees_to_checked_trees::checked_trees::{
+    ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
+};
 
 fn source_plan_with_domain(semantic_domain: SemanticDomainId) -> ContentConservationPlan {
     let entry = source_projection(
@@ -222,16 +224,20 @@ fn partition_composition_fact() -> ContentPartitionCompositionFact {
         statement_index: 4,
         call_ordinal: 2,
         input_claim_identities: vec![claim_identity],
-        input_claim_bindings: vec![checked_trees::ContentPartitionInputClaimBinding {
-            claim_identity,
-            entry_place,
-        }],
+        input_claim_bindings: vec![
+            typed_trees_to_checked_trees::checked_trees::ContentPartitionInputClaimBinding {
+                claim_identity,
+                entry_place,
+            },
+        ],
         result_rewrites: Vec::new(),
         substitutions: places
             .into_iter()
-            .map(|place| checked_trees::ContentPartitionPlaceSubstitution {
-                source: place.clone(),
-                target: place,
+            .map(|place| {
+                typed_trees_to_checked_trees::checked_trees::ContentPartitionPlaceSubstitution {
+                    source: place.clone(),
+                    target: place,
+                }
             })
             .collect(),
         plan,
@@ -381,13 +387,13 @@ fn checked_partition_composition_lowers_with_exact_source_and_dense_claims() {
     let mut staged = fact.clone();
     let source = staged.substitutions[0].source.clone();
     let target = staged.substitutions[0].target.clone();
-    staged
-        .result_rewrites
-        .push(checked_trees::ContentPartitionResultRewrite {
+    staged.result_rewrites.push(
+        typed_trees_to_checked_trees::checked_trees::ContentPartitionResultRewrite {
             claim_identity: identity_fact(SemanticDomainId(9), "left", 2).claim_identity,
             source,
             target,
-        });
+        },
+    );
     let identities_before_error = identities.clone();
     assert_eq!(
         lower_content_partition_compositions(&[staged], &mut identities),

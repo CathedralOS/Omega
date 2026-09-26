@@ -1,23 +1,23 @@
 use super::super::super::super::super::{analyze_live_ranges, analyze_liveness};
-use register_homes::{
+use crate::register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FunctionAllocationLegality,
     RecoveryClassificationIdentity, SpillChoiceIdentity, VirtualPointLegality,
     VirtualRegisterAllocationLegality,
 };
-use selected_instructions::{LiveRangeIdentity, LiveRangePoint};
+use target_operations_to_selected_instructions::{LiveRangeIdentity, LiveRangePoint};
 
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
-use register_model::{
+use semantic_vocabulary::ValueId;
+use target_operations_to_selected_instructions::register_model::{
     PhysicalRegisterModel, RegisterClass, RegisterClassId, RegisterUnit, RegisterUnitId,
     RegisterUnitKind, RegisterView, RegisterViewId, RegisterWriteSemantics,
     TargetRegisterEnvironmentIdentity, validate_physical_register_model,
 };
-use selected_instructions::{
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use target_operations_to_selected_instructions::{
     SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, SelectedTerminator,
     VirtualRegisterId,
 };
-use semantic_vocabulary::ValueId;
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::super::compute::build_functions;
 use super::super::{
@@ -35,8 +35,8 @@ fn active_resident_is_split_once_before_a_multiple_use_suffix_and_reanalyzes() {
 pub fn exercise_multiple_use_rematerialization(
     check_assignment: impl FnOnce(
         &FunctionAllocationLegality,
-        &selected_instructions::FunctionLiveRanges,
-        &register_model::ValidatedPhysicalRegisterModel,
+        &target_operations_to_selected_instructions::FunctionLiveRanges,
+        &target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel,
     ),
 ) {
     let (selected, ranges, recovery, row) = multiple_future_fixture();

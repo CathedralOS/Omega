@@ -1,9 +1,9 @@
 use crate::input::token_cursor::{Input, ParseResult};
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::item::{GenericConformanceBound, SatisfiesClause};
 use crate::type_syntax::parse_type::parse_type_reference_handle;
 use arena::{Handle, HandleSpan};
-use syntax_trees::SyntaxTrees;
-use syntax_trees::item::{GenericConformanceBound, SatisfiesClause};
-use tokens::{KeywordKind, PunctuationKind};
+use source_files_to_tokens::tokens::{KeywordKind, PunctuationKind};
 
 pub(crate) fn parse_satisfies_traits<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
@@ -51,7 +51,7 @@ pub(crate) fn parse_satisfies_traits<'tokens, 'source>(
         // its segregated parser until source migration is complete; it must
         // never be confused with an evaluated locator value.
         let mut via = None;
-        let mut via_expression = syntax_trees::expression::ExpressionHandle::invalid();
+        let mut via_expression = crate::syntax_trees::expression::ExpressionHandle::invalid();
         let mut via_keyword_source_span = None;
         if rest.at_contextual("via") {
             via_keyword_source_span = Some(rest.current_source_span());
@@ -114,7 +114,7 @@ pub(crate) fn parse_optional_satisfies_type_arguments<'tokens, 'source>(
     mut input: Input<'tokens, 'source>,
 ) -> Result<
     (
-        HandleSpan<syntax_trees::types::TypeReferenceHandle>,
+        HandleSpan<crate::syntax_trees::types::TypeReferenceHandle>,
         Input<'tokens, 'source>,
     ),
     crate::diagnostics::parse_error::ParseError,
@@ -148,7 +148,7 @@ pub(crate) fn parse_optional_satisfies_type_arguments<'tokens, 'source>(
 pub(crate) fn parse_satisfies_type_argument<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, syntax_trees::types::TypeReferenceHandle> {
+) -> ParseResult<'tokens, 'source, crate::syntax_trees::types::TypeReferenceHandle> {
     if input
         .tokens
         .first()
@@ -180,9 +180,9 @@ pub(crate) fn parse_conformance_trait_application<'tokens, 'source>(
     'tokens,
     'source,
     (
-        syntax_trees::identifier::Identifier,
-        Vec<syntax_trees::identifier::Identifier>,
-        HandleSpan<syntax_trees::types::TypeReferenceHandle>,
+        crate::syntax_trees::identifier::Identifier,
+        Vec<crate::syntax_trees::identifier::Identifier>,
+        HandleSpan<crate::syntax_trees::types::TypeReferenceHandle>,
     ),
 > {
     let (trait_name, mut rest) = input.take_identifier()?;
@@ -268,8 +268,8 @@ pub(crate) fn parse_generic_conformance_bound<'tokens, 'source>(
         } else {
             None
         };
-        Some(syntax_trees::expression::StaticMachineArgument {
-            type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
+        Some(crate::syntax_trees::expression::StaticMachineArgument {
+            type_reference: crate::syntax_trees::types::TypeReferenceHandle::invalid(),
             path: vec![name].into_boxed_slice(),
             application,
             const_literal: None,

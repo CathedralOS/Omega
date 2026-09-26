@@ -43,8 +43,8 @@ mod operators;
 mod propositions;
 mod traits;
 
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
 use arena::Arena;
-use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{
     SymbolHandle, SymbolKind, SymbolTable, builtin_function_symbols, builtin_type_symbols,
 };
@@ -110,7 +110,7 @@ fn attach_conformance_parameter_scopes(program: &mut SymbolResolvedTrees) {
         .conformances
         .iter()
         .filter_map(|conformance| {
-            let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed {
+            let crate::symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed {
                 rows,
             } = &conformance.implementation
             else {
@@ -121,8 +121,8 @@ fn attach_conformance_parameter_scopes(program: &mut SymbolResolvedTrees) {
                     .filter(|row| {
                         matches!(
                             row.source,
-                            symbol_resolved_trees::trait_definition::ConformanceRowSource::Inline
-                                | symbol_resolved_trees::trait_definition::ConformanceRowSource::TraitDefault
+                            crate::symbol_resolved_trees::trait_definition::ConformanceRowSource::Inline
+                                | crate::symbol_resolved_trees::trait_definition::ConformanceRowSource::TraitDefault
                         )
                     })
                     .filter_map(|row| row.provisional_realization_ordinal)
@@ -159,10 +159,10 @@ fn assign_conformance_parameter_symbols(program: &mut SymbolResolvedTrees, symbo
             .flatten();
         for parameter in data_type_parameters.span_mut_or_empty(conformance.type_parameters) {
             let kind = match parameter.kind {
-                symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
+                crate::symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
                     SymbolKind::MachineParameter
                 }
-                symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => {
+                crate::symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => {
                     SymbolKind::PropositionParameter
                 }
                 _ => SymbolKind::TypeParameter,
@@ -180,7 +180,7 @@ fn assign_conformance_parameter_symbols(program: &mut SymbolResolvedTrees, symbo
                 (parameter.symbol, parameter.kind.clone())
             };
             let resolved_kind = match kind {
-                symbol_resolved_trees::data::TypeParameterKind::Machine { mut contract } => {
+                crate::symbol_resolved_trees::data::TypeParameterKind::Machine { mut contract } => {
                     if let Some(signature) = contract.structural_mut() {
                         assign_machine_parameter_signature_symbols(
                             symbols,
@@ -194,9 +194,11 @@ fn assign_conformance_parameter_symbols(program: &mut SymbolResolvedTrees, symbo
                             conformance.symbol,
                         );
                     }
-                    symbol_resolved_trees::data::TypeParameterKind::Machine { contract }
+                    crate::symbol_resolved_trees::data::TypeParameterKind::Machine { contract }
                 }
-                symbol_resolved_trees::data::TypeParameterKind::Proposition { mut contract } => {
+                crate::symbol_resolved_trees::data::TypeParameterKind::Proposition {
+                    mut contract,
+                } => {
                     assign_proposition_parameter_signature_symbols(
                         symbols,
                         state_parameters,
@@ -207,7 +209,7 @@ fn assign_conformance_parameter_symbols(program: &mut SymbolResolvedTrees, symbo
                         &local_type_parameters,
                         conformance.symbol,
                     );
-                    symbol_resolved_trees::data::TypeParameterKind::Proposition { contract }
+                    crate::symbol_resolved_trees::data::TypeParameterKind::Proposition { contract }
                 }
                 other => other,
             };
@@ -236,16 +238,16 @@ pub(super) fn next_child_of_kind(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn assign_machine_parameter_signature_symbols(
     symbols: &SymbolTable,
-    data_type_parameters: &mut Arena<symbol_resolved_trees::data::TypeParameter>,
-    state_parameters: &mut Arena<symbol_resolved_trees::signature::StateParameter>,
-    child_type_references: &mut Arena<symbol_resolved_trees::types::TypeReference>,
-    type_constraints: &Arena<symbol_resolved_trees::types::TypeConstraint>,
-    contract: &mut symbol_resolved_trees::signature::StateSignature,
+    data_type_parameters: &mut Arena<crate::symbol_resolved_trees::data::TypeParameter>,
+    state_parameters: &mut Arena<crate::symbol_resolved_trees::signature::StateParameter>,
+    child_type_references: &mut Arena<crate::symbol_resolved_trees::types::TypeReference>,
+    type_constraints: &Arena<crate::symbol_resolved_trees::types::TypeConstraint>,
+    contract: &mut crate::symbol_resolved_trees::signature::StateSignature,
     owner_symbol: SymbolHandle,
-    inherited_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
+    inherited_type_parameters: &[crate::symbol_resolved_trees::data::TypeParameter],
     self_symbol: SymbolHandle,
 ) {
-    use symbol_resolved_trees::data::TypeParameterKind;
+    use crate::symbol_resolved_trees::data::TypeParameterKind;
 
     contract.symbol = owner_symbol;
     let mut children = symbols.child_handles(owner_symbol).into_iter().flatten();
@@ -357,12 +359,12 @@ pub(super) fn assign_machine_parameter_signature_symbols(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn assign_proposition_parameter_signature_symbols(
     symbols: &SymbolTable,
-    state_parameters: &mut Arena<symbol_resolved_trees::signature::StateParameter>,
-    child_type_references: &mut Arena<symbol_resolved_trees::types::TypeReference>,
-    type_constraints: &Arena<symbol_resolved_trees::types::TypeConstraint>,
-    contract: &mut symbol_resolved_trees::data::PropositionParameterSignature,
+    state_parameters: &mut Arena<crate::symbol_resolved_trees::signature::StateParameter>,
+    child_type_references: &mut Arena<crate::symbol_resolved_trees::types::TypeReference>,
+    type_constraints: &Arena<crate::symbol_resolved_trees::types::TypeConstraint>,
+    contract: &mut crate::symbol_resolved_trees::data::PropositionParameterSignature,
     owner_symbol: SymbolHandle,
-    inherited_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
+    inherited_type_parameters: &[crate::symbol_resolved_trees::data::TypeParameter],
     self_symbol: SymbolHandle,
 ) {
     let mut children = symbols.child_handles(owner_symbol).into_iter().flatten();

@@ -1,7 +1,7 @@
 use crate::input::token_cursor::{Input, ParseResult};
-use syntax_trees::SyntaxTrees;
-use syntax_trees::item::{ModuleDeclaration, PackageDeclaration};
-use tokens::PunctuationKind;
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::item::{ModuleDeclaration, PackageDeclaration};
+use source_files_to_tokens::tokens::PunctuationKind;
 
 pub(super) fn parse_module_declaration<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
@@ -30,9 +30,9 @@ pub(super) fn parse_package_declaration<'tokens, 'source>(
 fn parse_dot_or_colon_path<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     mut append_member: impl FnMut(
-        syntax_trees::identifier::Identifier,
-    ) -> arena::Handle<syntax_trees::identifier::Identifier>,
-) -> ParseResult<'tokens, 'source, arena::HandleSpan<syntax_trees::identifier::Identifier>> {
+        crate::syntax_trees::identifier::Identifier,
+    ) -> arena::Handle<crate::syntax_trees::identifier::Identifier>,
+) -> ParseResult<'tokens, 'source, arena::HandleSpan<crate::syntax_trees::identifier::Identifier>> {
     let (first, mut rest) = input.take_identifier()?;
     let start = append_member(first);
     let mut count = 1u32;

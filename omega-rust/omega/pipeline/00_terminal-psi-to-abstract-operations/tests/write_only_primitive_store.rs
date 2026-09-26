@@ -1,4 +1,3 @@
-use abstract_operations::AbstractOperation;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{
@@ -9,6 +8,7 @@ use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{encode_module, encode_proof_section};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
 use terminal_psi_to_abstract_operations::lower_artifact;
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::CheckingRequest;
@@ -425,7 +425,7 @@ fn verified_fixed_integer_parameter_store_retains_exact_runtime_source() {
 pub(super) fn verified_plan(
     source: &str,
     machine: &str,
-) -> abstract_operations::AbstractOperationPlan {
+) -> terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan {
     let tokens = Lexer::new(source).tokenize().expect("tokenize source");
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");

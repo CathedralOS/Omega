@@ -184,7 +184,7 @@ impl MachineEmission<'_> {
         )?;
         self.scalar_result_values.truncate(leaf_start);
         self.structural_result_places.push((declaration, false));
-        if *source == checked_trees::CheckedArrayConstructionSource::Statement {
+        if *source == typed_trees_to_checked_trees::checked_trees::CheckedArrayConstructionSource::Statement {
             structural_values::bind_local(
                 checked,
                 plan.state,

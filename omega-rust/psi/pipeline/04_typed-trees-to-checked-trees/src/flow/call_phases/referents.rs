@@ -10,27 +10,27 @@
 //! one exact place, and the untouched remainder of a conservative frame, keep
 //! whatever coverage survived invalidation.
 
+use crate::checked_trees::expression::ExpressionHandle;
+use crate::checked_trees::{BorrowCallFact, FlowConstraintKind, FlowSemanticContextRef};
+use crate::fact_plan::{
+    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceRoot, PlaceSegment, ProgramPoint,
+    QualificationEvidence,
+};
 use crate::flow::CallFlowContexts;
 use crate::flow::FlowBuildContext;
 use crate::flow::append_constraint_ref;
 use crate::flow::reference_spans;
 use arena::HandleSpan;
-use checked_trees::expression::ExpressionHandle;
-use checked_trees::{BorrowCallFact, FlowConstraintKind, FlowSemanticContextRef};
-use facts::{
-    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceRoot, PlaceSegment, ProgramPoint,
-    QualificationEvidence,
-};
 use symbols::SymbolHandle;
 
 /// Re-seed the declared field facts of every readable `&mut` referent the
 /// call hands back, on the referent's exact storage place.
 pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
-    program: &'plans typed_trees::TypedTrees,
+    program: &'plans symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext<'plans>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     borrow_call: &BorrowCallFact,
     pre_contexts: HandleSpan<FlowSemanticContextRef>,
     exit: &mut CallFlowContexts,
@@ -241,7 +241,10 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     );
     // One context per exact place, so a later write to one field retires
     // only that field's row (flow/transfers keeps the same granularity).
-    let mut contexts: Vec<(crate::flow::CanonicalPlace, HandleSpan<facts::FactRef>)> = Vec::new();
+    let mut contexts: Vec<(
+        crate::flow::CanonicalPlace,
+        HandleSpan<crate::fact_plan::FactRef>,
+    )> = Vec::new();
     for (storage, path, domain_symbol) in rows {
         let mut place = storage.clone();
         place.extend_segments(&path);
@@ -291,7 +294,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
 /// Whether `storage + path in domain` was live in the contexts active before
 /// the call.
 fn row_was_live(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     build: &FlowBuildContext,
     pre_contexts: HandleSpan<FlowSemanticContextRef>,

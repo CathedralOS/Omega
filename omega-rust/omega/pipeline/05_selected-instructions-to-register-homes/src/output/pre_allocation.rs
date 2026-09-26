@@ -24,7 +24,7 @@ impl ProjectAllocation for StagedOptimizedRegisterHomesAfterPreAllocation {
     fn project_allocation(&self) -> AllocationOutput<'_> {
         let program = self.selected();
         AllocationOutput {
-            program: register_homes::AllocatedProgramRef {
+            program: selected_instructions_to_selected_instructions::register_homes::AllocatedProgramRef {
                 selected: program.plan(),
                 homes: self.homes().plan(),
             },

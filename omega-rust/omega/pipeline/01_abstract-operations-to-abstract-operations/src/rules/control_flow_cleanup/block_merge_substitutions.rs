@@ -1,8 +1,10 @@
 //! Exact block-parameter substitution reconstruction shared by both merge rules.
 
-use abstract_operations::ValueBinding;
-use optimization_unit::{OptimizationBlock, ScalarSubstitution};
 use semantic_vocabulary::{BlockId, MachineId};
+use terminal_psi_to_abstract_operations::abstract_operations::ValueBinding;
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    OptimizationBlock, ScalarSubstitution,
+};
 
 use crate::UseDefinitionAnalysis;
 use crate::rules::support::replacement_dominates_parameter_uses;

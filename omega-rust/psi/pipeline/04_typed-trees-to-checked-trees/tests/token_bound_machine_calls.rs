@@ -7,9 +7,12 @@
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
 };
-use typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
 
-fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
+fn check(
+    source: &str,
+) -> Result<typed_trees_to_checked_trees::checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>>
+{
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
         .unwrap();
@@ -71,7 +74,7 @@ fn binary_token_use_becomes_an_ordinary_call_on_the_declaration_entry() {
         .iter_expressions()
         .filter(|(_, expression)| {
             matches!(expression, ExpressionNode::Binary(binary)
-                if binary.operator == typed_trees::expression::BinaryOperator::Add)
+                if binary.operator == symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Add)
         })
         .count();
     assert_eq!(
@@ -172,7 +175,10 @@ const ADDITIVE_QUANTITY: &str = "data Quantity { value: i32; }
         Quantity { value: ((left.value as i32 in Wrapping) + (right.value as i32 in Wrapping)) as i32 }
     }";
 
-fn calls_targeting(checked: &checked_trees::CheckedTrees, machine_name: &str) -> usize {
+fn calls_targeting(
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+    machine_name: &str,
+) -> usize {
     let machine = checked
         .machines()
         .iter()

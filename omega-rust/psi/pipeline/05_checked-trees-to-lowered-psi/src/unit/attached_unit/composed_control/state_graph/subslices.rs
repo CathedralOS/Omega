@@ -12,8 +12,10 @@ use super::CheckedComposedUnitControlStatePlan;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::view_subslice::ViewFamily;
 use crate::expression_preparation::bindings::view_locals::{self, ViewLocalBinding};
-use checked_trees::expression::ExpressionHandle;
-use checked_trees::{CheckedStorageRoot, CheckedStructuralControlTransferSourcePlan};
+use typed_trees_to_checked_trees::checked_trees::expression::ExpressionHandle;
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedStorageRoot, CheckedStructuralControlTransferSourcePlan,
+};
 
 /// The root, family and authored range of a subslice transfer.
 pub(super) fn transfer_range(
@@ -95,7 +97,7 @@ pub(super) fn emit(
         ViewRangeSite {
             state: state.state,
             statement: statement_ordinal,
-            site: checked_trees::CheckedSubsliceSite::TransitionArgument { argument_ordinal },
+            site: typed_trees_to_checked_trees::checked_trees::CheckedSubsliceSite::TransitionArgument { argument_ordinal },
             expression,
             retained: None,
         },

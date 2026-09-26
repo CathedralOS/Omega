@@ -8,7 +8,7 @@ impl Builder<'_, '_> {
     pub(super) fn record_call_arguments(
         &mut self,
         pure: &CheckedScalarExpressionPlans,
-        values: &mut checked_trees::CheckedStructuralValuePlans,
+        values: &mut crate::checked_trees::CheckedStructuralValuePlans,
         statement: u32,
         call_ordinal: u32,
         target: SymbolHandle,
@@ -53,19 +53,19 @@ impl Builder<'_, '_> {
                 // its value node; the sequence consumes it before the call.
                 if !parameter.is_self
                     && !parameter.is_const
-                    && (validation::scalar_case_constructor(self.program, *argument).is_some_and(
-                        |constructor| {
+                    && (crate::validation::scalar_case_constructor(self.program, *argument)
+                        .is_some_and(|constructor| {
                             self.program
                                 .normalized_type_identity(constructor.type_reference)
                                 == self
                                     .program
                                     .normalized_type_identity(parameter.type_reference)
-                        },
-                    ) || super::structural_values::is_record_value(
-                        self.program,
-                        *argument,
-                        parameter.type_reference,
-                    ))
+                        })
+                        || super::structural_values::is_record_value(
+                            self.program,
+                            *argument,
+                            parameter.type_reference,
+                        ))
                     && values
                         .root_for_expression(self.state, statement, *argument)
                         .is_none()
@@ -74,7 +74,7 @@ impl Builder<'_, '_> {
                 {
                     values
                         .roots
-                        .append(checked_trees::CheckedStructuralValueRoot {
+                        .append(crate::checked_trees::CheckedStructuralValueRoot {
                             machine: self.machine,
                             state: self.state,
                             statement_ordinal: statement,

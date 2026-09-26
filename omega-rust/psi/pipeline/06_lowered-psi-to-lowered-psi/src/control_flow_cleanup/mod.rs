@@ -37,7 +37,7 @@ mod cleanup;
 mod machines;
 
 use crate::PsiOptimizationStageError;
-use lowered_psi::LoweredPsi;
+use checked_trees_to_lowered_psi::lowered_psi::LoweredPsi;
 use std::collections::BTreeSet;
 use terminal_psi::{DebugSubject, OperationResult};
 use terminal_verifier::{

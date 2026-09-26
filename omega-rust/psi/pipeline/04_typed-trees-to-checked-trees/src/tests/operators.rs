@@ -18,12 +18,15 @@ use crate::tests::{
     HandleSpan, Identifier, StateParameter, StatementNode, SymbolHandle, TypeReferenceNode,
 };
 use language_core::operator_spelling::OperatorSpelling;
-use typed_trees::operator::OperatorDefinition;
-use typed_trees::types::TypeReferenceHandle;
+use symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle;
 
 fn indexed_selection_fixture(
     source: &str,
-) -> (typed_trees::TypedTrees, checked_trees::CheckedOperatorFacts) {
+) -> (
+    symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    crate::checked_trees::CheckedOperatorFacts,
+) {
     let program = typed_program(source);
     let mut roots = arena::Arena::default();
     for machine in program.machines() {
@@ -37,13 +40,13 @@ fn indexed_selection_fixture(
                 let StatementNode::LocalData(local) = statement else {
                     continue;
                 };
-                roots.append(checked_trees::CheckedValueFact {
+                roots.append(crate::checked_trees::CheckedValueFact {
                     expression: local.initial_value,
-                    origin: checked_trees::CheckedValueOrigin::StateStatement {
+                    origin: crate::checked_trees::CheckedValueOrigin::StateStatement {
                         machine_symbol: machine.symbol,
                         state_symbol: state.symbol,
                         statement_index,
-                        role: checked_trees::CheckedValueStatementRole::Expression,
+                        role: crate::checked_trees::CheckedValueStatementRole::Expression,
                     },
                     ..Default::default()
                 });
@@ -52,12 +55,12 @@ fn indexed_selection_fixture(
     }
     let facts = build_operator_facts(
         &program,
-        &checked_trees::CheckedValueFacts::with_roots(roots),
+        &crate::checked_trees::CheckedValueFacts::with_roots(roots),
     );
     (program, facts)
 }
 
-fn has_selected_domain_add(checked: &checked_trees::CheckedTrees) -> bool {
+fn has_selected_domain_add(checked: &crate::checked_trees::CheckedTrees) -> bool {
     checked.facts.operators.resolved_uses().any(|operator_use| {
         operator_use.spelling == OperatorSpelling::Add
             && checked
@@ -69,27 +72,32 @@ fn has_selected_domain_add(checked: &checked_trees::CheckedTrees) -> bool {
 }
 
 fn checked_values_for(
-    expressions: impl IntoIterator<Item = typed_trees::expression::ExpressionHandle>,
-) -> checked_trees::CheckedValueFacts {
+    expressions: impl IntoIterator<
+        Item = symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    >,
+) -> crate::checked_trees::CheckedValueFacts {
     let mut value_roots = arena::Arena::default();
     for expression in expressions {
-        value_roots.append(checked_trees::CheckedValueFact {
+        value_roots.append(crate::checked_trees::CheckedValueFact {
             expression,
             // These synthetic operands are statement roots. NestedExpression
             // denotes a child already traversed from such an enclosing root.
-            origin: checked_trees::CheckedValueOrigin::StateStatement {
+            origin: crate::checked_trees::CheckedValueOrigin::StateStatement {
                 machine_symbol: SymbolHandle::from_arena_index(1),
                 state_symbol: SymbolHandle::from_arena_index(2),
                 statement_index: 0,
-                role: checked_trees::CheckedValueStatementRole::Expression,
+                role: crate::checked_trees::CheckedValueStatementRole::Expression,
             },
             ..Default::default()
         });
     }
-    checked_trees::CheckedValueFacts::with_roots(value_roots)
+    crate::checked_trees::CheckedValueFacts::with_roots(value_roots)
 }
 
-fn named_type(program: &mut typed_trees::TypedTrees, name: &str) -> TypeReferenceHandle {
+fn named_type(
+    program: &mut symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    name: &str,
+) -> TypeReferenceHandle {
     program
         .type_reference_table
         .insert(TypeReferenceNode::Named {
@@ -107,7 +115,8 @@ fn operator_with_spelling(symbol: SymbolHandle, spelling: OperatorSpelling) -> O
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),
         parameters: HandleSpan::empty(),
-        return_type: typed_trees::types::TypeReferenceHandle::invalid(),
+        return_type:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
         contracts: HandleSpan::empty(),
         spelling: Some(spelling),
         token_count: 0,
@@ -116,7 +125,7 @@ fn operator_with_spelling(symbol: SymbolHandle, spelling: OperatorSpelling) -> O
 }
 
 fn operator_with_placeholder_operands(
-    program: &mut typed_trees::TypedTrees,
+    program: &mut symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     symbol: SymbolHandle,
     spelling: OperatorSpelling,
 ) -> OperatorDefinition {

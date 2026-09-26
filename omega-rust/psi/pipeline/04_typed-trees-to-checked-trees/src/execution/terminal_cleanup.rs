@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use checked_trees::{
+use crate::checked_trees::{
     CheckFacts, CheckedStructuralControlCleanupPlans, CheckedStructuralControlEdgeCleanupPlan,
     CheckedStructuralControlProjectedEdgeCleanupPlan,
     CheckedStructuralControlProjectedTransferPlan, CheckedStructuralControlStateCleanupPlan,
@@ -10,7 +10,7 @@ use language_semantics::{
     MachineSupplyMode, Multiplicity, PermissionAccess, PermissionClaimIdentity,
     PermissionEventKind, PermissionEventSource, PermissionProvenance,
 };
-use typed_trees::{
+use symbol_resolved_trees_to_typed_trees::typed_trees::{
     TypedTrees,
     expression::{BinaryOperator, ExpressionHandle, ExpressionNode},
     statement::{StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode},
@@ -50,8 +50,8 @@ pub(crate) fn build_checked_structural_control_cleanup_plans(
 fn build_projected_edge_plan(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
 ) -> Option<CheckedStructuralControlProjectedEdgeCleanupPlan> {
     let states = program.machine_states(machine);
     if machine.supply_mode != MachineSupplyMode::CheckedBody
@@ -98,7 +98,7 @@ fn build_projected_edge_plan(
                     || !program
                         .expression_table
                         .expression_is_valid(local.initial_value)
-                    || !validation::has_plain_owned_contents_with_numeric_constraints(
+                    || !crate::validation::has_plain_owned_contents_with_numeric_constraints(
                         program,
                         local.type_reference,
                     )
@@ -113,8 +113,8 @@ fn build_projected_edge_plan(
                     .type_reference_table
                     .type_reference(local.type_reference)
                 {
-                    typed_trees::types::TypeReferenceNode::Named { symbol, .. }
-                    | typed_trees::types::TypeReferenceNode::Generic {
+                    symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named { symbol, .. }
+                    | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Generic {
                         base_symbol: symbol,
                         ..
                     } => {
@@ -129,7 +129,7 @@ fn build_projected_edge_plan(
                             return None;
                         }
                     }
-                    typed_trees::types::TypeReferenceNode::FixedArray { .. } => {}
+                    symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::FixedArray { .. } => {}
                     _ => return None,
                 }
                 locals.push((local.symbol, local.type_reference, index));
@@ -138,7 +138,7 @@ fn build_projected_edge_plan(
             StatementNode::Expression(expression)
                 if matches!(
                     program.expression_table.expression(*expression),
-                    typed_trees::expression::ExpressionNode::Call(_)
+                    symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(_)
                 ) => {}
             _ => return None,
         }
@@ -175,7 +175,7 @@ fn build_projected_edge_plan(
         transition_ordinal,
         *argument,
     )?;
-    let facts::PlaceRoot::Symbol(argument_root) = argument_place.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(argument_root) = argument_place.root else {
         return None;
     };
     if argument_root != source_parameter.symbol {
@@ -237,7 +237,7 @@ fn build_projected_edge_plan(
         )
     };
     for event in &moves {
-        let facts::PlaceRoot::Symbol(root) = event.root else {
+        let crate::fact_plan::PlaceRoot::Symbol(root) = event.root else {
             return None;
         };
         if root == source_parameter.symbol {
@@ -265,7 +265,7 @@ fn build_projected_edge_plan(
     let [edge_move] = edge_moves.as_slice() else {
         return None;
     };
-    if edge_move.root != facts::PlaceRoot::Symbol(source_parameter.symbol)
+    if edge_move.root != crate::fact_plan::PlaceRoot::Symbol(source_parameter.symbol)
         || segments.span_or_empty(edge_move.segments) != argument_place.segments
     {
         return None;
@@ -295,7 +295,7 @@ fn build_projected_edge_plan(
             .filter(|(_, event)| {
                 event.machine_symbol == machine.symbol
                     && event.state_symbol == state.symbol
-                    && event.root == facts::PlaceRoot::Symbol(*symbol)
+                    && event.root == crate::fact_plan::PlaceRoot::Symbol(*symbol)
             })
         {
             let exact = event.access == PermissionAccess::Owned
@@ -362,7 +362,7 @@ fn build_projected_edge_plan(
             return None;
         };
         let place = crate::flow::CanonicalPlace {
-            root: facts::PlaceRoot::Symbol(*symbol),
+            root: crate::fact_plan::PlaceRoot::Symbol(*symbol),
             segments: moved_segments.clone(),
         };
         let (moved_type, moved_path) = super::terminal_unit::calls::projected_argument_path(
@@ -375,7 +375,7 @@ fn build_projected_edge_plan(
         // leaf's own identity stands in as the transfer target shape.
         let (_, mut residuals) = super::terminal_unit::types::projected_move_residuals(
             program,
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+            crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                 symbol: *symbol,
             },
             *type_reference,
@@ -391,7 +391,7 @@ fn build_projected_edge_plan(
     // exact paths and roots rely on the shared residual complement instead.
     let narrow = match argument_place.segments.as_slice() {
         [
-            facts::PlaceSegment::Field {
+            crate::fact_plan::PlaceSegment::Field {
                 symbol: moved_field,
             },
         ] => super::terminal_unit::exact_two_field_record_projection(
@@ -406,7 +406,7 @@ fn build_projected_edge_plan(
         Some((_, moved_type_identity, residual_field_identity, residual_type_identity)) => (
             moved_type_identity,
             vec![CheckedUnitPartialAffineDiscardPlan {
-                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                source: crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                     parameter_index: 0,
                 },
                 path: vec![CheckedUnitStructuralPathSegment::Field(
@@ -423,8 +423,8 @@ fn build_projected_edge_plan(
                 .type_reference_table
                 .type_reference(source_parameter.type_reference)
             {
-                typed_trees::types::TypeReferenceNode::Named { symbol, .. }
-                | typed_trees::types::TypeReferenceNode::Generic {
+                symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named { symbol, .. }
+                | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Generic {
                     base_symbol: symbol,
                     ..
                 } => {
@@ -439,7 +439,7 @@ fn build_projected_edge_plan(
                         return None;
                     }
                 }
-                typed_trees::types::TypeReferenceNode::FixedArray { .. } => {}
+                symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::FixedArray { .. } => {}
                 _ => return None,
             }
             if super::terminal_unit::types::type_graph_requires_nominal_drop(
@@ -450,7 +450,7 @@ fn build_projected_edge_plan(
             }
             super::terminal_unit::types::projected_move_residuals(
                 program,
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                     parameter_index: 0,
                 },
                 source_parameter.type_reference,
@@ -482,8 +482,8 @@ fn build_projected_edge_plan(
 fn build_state_plan(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
 ) -> Option<CheckedStructuralControlStateCleanupPlan> {
     let parameters = program.state_parameters(state);
     let result_locals = state_exit_result_locals(program, facts, machine, state)?;
@@ -575,7 +575,7 @@ fn build_state_plan(
                 } if source_index == statement_index && target_symbol == path.symbol
             )
         }) {
-            let facts::PlaceRoot::Symbol(root) = event.root else {
+            let crate::fact_plan::PlaceRoot::Symbol(root) = event.root else {
                 continue;
             };
             let Some((_, position)) = discard_parameters
@@ -663,7 +663,7 @@ fn case_test_subject_root(
                 program.data_members(definition).iter().any(|member| {
                     matches!(
                         member,
-                        typed_trees::data::DataMember::Variant(variant)
+                        symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant)
                             if variant.symbol == path.symbol
                     )
                 })
@@ -694,7 +694,7 @@ pub(super) fn checked_whole_affine_discard_parameters(
     program: &TypedTrees,
     facts: &CheckFacts,
     machine: symbols::SymbolHandle,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
 ) -> Option<Vec<(symbols::SymbolHandle, u32)>> {
     checked_whole_affine_discard_parameters_excluding_results(program, facts, machine, state, &[])
 }
@@ -703,7 +703,7 @@ fn checked_whole_affine_discard_parameters_excluding_results(
     program: &TypedTrees,
     facts: &CheckFacts,
     machine: symbols::SymbolHandle,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     result_locals: &[symbols::SymbolHandle],
 ) -> Option<Vec<(symbols::SymbolHandle, u32)>> {
     let parameters = program.state_parameters(state);
@@ -736,7 +736,7 @@ fn checked_whole_affine_discard_parameters_excluding_results(
                 .selection_sources
                 .span_or_empty(receipt.sources)
                 .iter()
-                .map(|source| facts::PlaceRoot::Symbol(source.symbol))
+                .map(|source| crate::fact_plan::PlaceRoot::Symbol(source.symbol))
                 .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
@@ -748,8 +748,10 @@ fn checked_whole_affine_discard_parameters_excluding_results(
             if parameter.is_self
                 || crate::checks::type_multiplicity(program, parameter.type_reference)
                     != Multiplicity::Affine
-                || entry_claim_roots.contains(&facts::PlaceRoot::Symbol(parameter.symbol))
-                || selection_source_roots.contains(&facts::PlaceRoot::Symbol(parameter.symbol))
+                || entry_claim_roots
+                    .contains(&crate::fact_plan::PlaceRoot::Symbol(parameter.symbol))
+                || selection_source_roots
+                    .contains(&crate::fact_plan::PlaceRoot::Symbol(parameter.symbol))
             {
                 return None;
             }
@@ -769,7 +771,7 @@ fn checked_whole_affine_discard_parameters_excluding_results(
                 && event.kind == PermissionEventKind::AffineDrop
         })
     {
-        if matches!(event.root, facts::PlaceRoot::Symbol(symbol) if result_locals.contains(&symbol))
+        if matches!(event.root, crate::fact_plan::PlaceRoot::Symbol(symbol) if result_locals.contains(&symbol))
         {
             continue;
         }
@@ -787,7 +789,7 @@ fn checked_whole_affine_discard_parameters_excluding_results(
         {
             return None;
         }
-        let facts::PlaceRoot::Symbol(root) = event.root else {
+        let crate::fact_plan::PlaceRoot::Symbol(root) = event.root else {
             return None;
         };
         let position = parameters.iter().position(|parameter| {
@@ -815,8 +817,8 @@ fn checked_whole_affine_discard_parameters_excluding_results(
 pub(super) fn state_exit_result_locals(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
 ) -> Option<Vec<symbols::SymbolHandle>> {
     let parameters = program.state_parameters(state);
     let statements = program.statement_table.statements(state.statement_nodes);
@@ -828,7 +830,7 @@ pub(super) fn state_exit_result_locals(
             && event.source == PermissionEventSource::StateExit
             && event.kind == PermissionEventKind::AffineDrop
     }) {
-        let facts::PlaceRoot::Symbol(symbol) = drop.root else {
+        let crate::fact_plan::PlaceRoot::Symbol(symbol) = drop.root else {
             return None;
         };
         if parameters
@@ -886,7 +888,7 @@ pub(super) fn state_exit_result_locals(
             || !program
                 .expression_table
                 .expression_is_valid(local.initial_value)
-            || !validation::has_plain_owned_contents_with_numeric_constraints(
+            || !crate::validation::has_plain_owned_contents_with_numeric_constraints(
                 program,
                 local.type_reference,
             )
@@ -897,7 +899,7 @@ pub(super) fn state_exit_result_locals(
         {
             return None;
         }
-        let exact = |event: &checked_trees::FlowPermissionEventFact| {
+        let exact = |event: &crate::checked_trees::FlowPermissionEventFact| {
             event.machine_symbol == machine.symbol
                 && event.state_symbol == state.symbol
                 && event.root == drop.root
@@ -933,7 +935,7 @@ pub(super) fn state_exit_result_locals(
         let mut transfer_count = 0;
         for (ordinal, statement) in statements.iter().enumerate().skip(statement_index + 1) {
             let StatementNode::Transition(transition) = statement else {
-                if matches!(statement, StatementNode::Expression(expression) if !matches!(program.expression_table.expression(*expression), typed_trees::expression::ExpressionNode::Call(_)))
+                if matches!(statement, StatementNode::Expression(expression) if !matches!(program.expression_table.expression(*expression), symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(_)))
                 {
                     return None;
                 }
@@ -966,7 +968,7 @@ pub(super) fn state_exit_result_locals(
                 .iter()
                 .zip(target_parameters)
                 .filter(|(argument, _)| {
-                    let typed_trees::expression::ExpressionNode::Name(name) =
+                    let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Name(name) =
                         program.expression_table.expression(**argument)
                     else {
                         return false;
@@ -1030,7 +1032,7 @@ pub(super) fn state_exit_result_locals(
             program
                 .type_reference_table
                 .type_reference(state.return_type),
-            typed_trees::types::TypeReferenceNode::Unit
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Unit
         ) && !statements
             .iter()
             .any(|statement| matches!(statement, StatementNode::Transition(_)));

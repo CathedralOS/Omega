@@ -2,12 +2,16 @@ use super::{
     entry_operand, entry_operand_projected, formal_member_projection,
     has_stable_observable_contents, operand_entry_provenance,
 };
+use crate::checked_trees::CrashPredicateExpression;
 use crate::tests::front_end::{checked_program_result, typed_program};
-use checked_trees::CrashPredicateExpression;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+    StatementNode, TransitionTargetNode,
+};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::statement::{StatementNode, TransitionTargetNode};
 
 fn named_state(
     program: &TypedTrees,
@@ -140,7 +144,7 @@ fn targeted_call_argument(
         .iter()
         .enumerate()
     {
-        let call_arguments = |call: &typed_trees::expression::TableCallExpression| {
+        let call_arguments = |call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression| {
             (call.target.as_str() == target)
                 .then(|| {
                     program

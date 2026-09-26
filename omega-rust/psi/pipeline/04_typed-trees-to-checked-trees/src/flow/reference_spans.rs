@@ -5,9 +5,9 @@
 //! place and copies only when another append has moved the tail, so the
 //! rules for growing and narrowing one of these lists live here instead of
 //! being restated at each producing site.
+use crate::checked_trees::{FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef};
+use crate::fact_plan::{FactPlan, ProgramPoint};
 use arena::Handle;
-use checked_trees::{FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef};
-use facts::{FactPlan, ProgramPoint};
 
 #[cfg(test)]
 mod tests;
@@ -65,9 +65,9 @@ pub(crate) fn appended_span_since<T: Clone + Default + PartialEq + Eq>(
 }
 
 pub(crate) fn append_place_segments(
-    segments_arena: &mut arena::Arena<facts::PlaceSegment>,
-    segments: &[facts::PlaceSegment],
-) -> arena::HandleSpan<facts::PlaceSegment> {
+    segments_arena: &mut arena::Arena<crate::fact_plan::PlaceSegment>,
+    segments: &[crate::fact_plan::PlaceSegment],
+) -> arena::HandleSpan<crate::fact_plan::PlaceSegment> {
     let start_len = segments_arena.len();
     for segment in segments {
         segments_arena.append(*segment);
@@ -95,7 +95,7 @@ pub(crate) fn append_flow_contexts_for_points(
 }
 
 pub(crate) fn append_flow_contexts(
-    contexts: impl Iterator<Item = facts::FactContextHandle>,
+    contexts: impl Iterator<Item = crate::fact_plan::FactContextHandle>,
     semantic_context_refs: &mut arena::Arena<FlowSemanticContextRef>,
     refs: &mut arena::HandleSpan<FlowSemanticContextRef>,
     constraint_refs: &mut arena::Arena<FlowConstraintRef>,

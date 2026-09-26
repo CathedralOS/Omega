@@ -2,7 +2,7 @@ use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::front_end::typed_program_result;
 
-fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
+fn check(source: &str) -> Result<crate::checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     lower_typed_trees(typed_program_result(source)?, &CheckingRequest::settled())
 }
 
@@ -170,23 +170,26 @@ fn proof_integer_classification_uses_builtin_identity_not_type_spelling() {
         .symbols
         .builtin_type_symbol(symbols::BuiltinType::Int)
         .expect("compiler-installed proof integer");
-    let integer =
-        program
-            .type_reference_table
-            .insert(typed_trees::types::TypeReferenceNode::Named {
-                symbol: builtin,
-                name: typed_trees::name::Identifier::generated("Int"),
-            });
+    let integer = program.type_reference_table.insert(
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named {
+            symbol: builtin,
+            name: symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated(
+                "Int",
+            ),
+        },
+    );
     // Retaining the same diagnostic spelling with an authored symbol must not
     // acquire the builtin's classification or allow proof-only consumption.
-    let same_spelling =
-        program
-            .type_reference_table
-            .insert(typed_trees::types::TypeReferenceNode::Named {
-                symbol: authored,
-                name: typed_trees::name::Identifier::generated("Int"),
-            });
-    let classification = typed_trees::proof_only::classify(&program);
+    let same_spelling = program.type_reference_table.insert(
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named {
+            symbol: authored,
+            name: symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated(
+                "Int",
+            ),
+        },
+    );
+    let classification =
+        symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::classify(&program);
     assert!(classification.is_proof_only(builtin));
     assert!(!classification.is_proof_only(authored));
     assert!(
@@ -219,7 +222,8 @@ fn proof_integer_inline_containment_propagates_but_erasure_and_indirection_do_no
     "#,
     )
     .expect("type classification fixture");
-    let classification = typed_trees::proof_only::classify(&program);
+    let classification =
+        symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::classify(&program);
     for definition in program.data_definitions() {
         let expected = matches!(
             definition.name.as_str(),
@@ -240,7 +244,8 @@ fn proof_integer_inline_containment_propagates_but_erasure_and_indirection_do_no
             .iter()
             .find(|definition| definition.name.as_str() == name)
             .expect("holder");
-        let typed_trees::data::DataMember::Field(field) = &program.data_members(definition)[0]
+        let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) =
+            &program.data_members(definition)[0]
         else {
             panic!("holder field")
         };

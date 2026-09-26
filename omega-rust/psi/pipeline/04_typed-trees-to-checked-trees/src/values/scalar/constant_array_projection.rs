@@ -5,12 +5,16 @@
 //! evaluation of an effectful or failing sibling constructor expression.
 
 use super::structural_fields;
-use checked_trees::CheckedOperatorFacts;
+use crate::checked_trees::CheckedOperatorFacts;
 use numerics::arithmetic::ArithmeticDomain;
-use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::signature::StateParameter;
-use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    FixedArrayLength, TypeReferenceHandle, TypeReferenceNode,
+};
 
 pub(super) fn selected_leaf(
     program: &TypedTrees,
@@ -27,7 +31,7 @@ pub(super) fn selected_leaf(
     if projections.is_empty() {
         return None;
     }
-    let mut reference = validation::declared_constant_array_type(program, root)?;
+    let mut reference = crate::validation::declared_constant_array_type(program, root)?;
     if !closed_literal_array(program, root, reference) {
         return None;
     }
@@ -77,7 +81,7 @@ fn closed_literal_array(
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
 ) -> bool {
-    validation::closed_literal_array_elements(program, expression, reference).is_some()
+    crate::validation::closed_literal_array_elements(program, expression, reference).is_some()
 }
 
 #[cfg(test)]
@@ -97,7 +101,8 @@ mod tests {
             .expression_table
             .expression_entries()
             .find_map(|(expression, _)| {
-                validation::declared_constant_array_type(&program, expression).map(|_| expression)
+                crate::validation::declared_constant_array_type(&program, expression)
+                    .map(|_| expression)
             })
             .expect("retained array constant root");
         (program, root)
@@ -112,7 +117,10 @@ mod tests {
             .expression_table
             .insert(ExpressionNode::Integer(IntegerLiteral::from_value(index)));
         program.expression_table.insert(ExpressionNode::Indexed(
-            typed_trees::expression::TableIndexedExpression { collection, index },
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableIndexedExpression {
+                collection,
+                index,
+            },
         ))
     }
 
@@ -133,7 +141,8 @@ mod tests {
             &[],
         )
         .expect("fixed integer projection lowers");
-        let checked_trees::CheckedScalarExpression::IntegerLiteral { literal } = lowered else {
+        let crate::checked_trees::CheckedScalarExpression::IntegerLiteral { literal } = lowered
+        else {
             panic!("integer leaf");
         };
         assert_eq!(literal.value_u64(), Some(9));
@@ -157,7 +166,9 @@ mod tests {
                 &[],
                 &[],
             ),
-            Some(checked_trees::CheckedBooleanExpression::Constant(true))
+            Some(crate::checked_trees::CheckedBooleanExpression::Constant(
+                true
+            ))
         ));
     }
 
@@ -201,10 +212,10 @@ mod tests {
         assert!(selected_leaf(&program, &CheckedOperatorFacts::default(), &[], outer).is_some());
         for expression in [inner, outer] {
             let mut uses = arena::Arena::new();
-            uses.append(checked_trees::CheckedOperatorUseFact {
+            uses.append(crate::checked_trees::CheckedOperatorUseFact {
                 expression,
                 spelling: language_core::OperatorSpelling::Index,
-                status: checked_trees::CheckedOperatorResolutionStatus::Resolved,
+                status: crate::checked_trees::CheckedOperatorResolutionStatus::Resolved,
                 selected_operator_symbol: symbols::SymbolHandle::from_parts(1, 1),
                 ..Default::default()
             });

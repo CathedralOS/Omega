@@ -2,7 +2,7 @@ use crate::tests::front_end::checked_program_result;
 
 fn checked_source(
     source: &str,
-) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
+) -> Result<crate::checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     checked_program_result(source)
 }
 

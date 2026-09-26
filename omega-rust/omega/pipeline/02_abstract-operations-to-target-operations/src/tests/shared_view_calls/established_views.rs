@@ -105,19 +105,19 @@ fn unit_calls_retain_once_only_length_and_subslice_establishment() {
     let operations = &graph.blocks[0].operations;
     assert!(matches!(
         operations[0],
-        target_operations::TargetUnitOperation::ScalarDefinition { .. }
+        crate::target_operations::TargetUnitOperation::ScalarDefinition { .. }
     ));
     assert!(matches!(
         operations[1],
-        target_operations::TargetUnitOperation::ByteSequenceSubslice { .. }
+        crate::target_operations::TargetUnitOperation::ByteSequenceSubslice { .. }
     ));
     for call in &operations[2..] {
-        let target_operations::TargetUnitOperation::Call { arguments, .. } = call else {
+        let crate::target_operations::TargetUnitOperation::Call { arguments, .. } = call else {
             panic!("Unit call");
         };
         assert_eq!(
             arguments[0].source,
-            target_operations::TargetStructuralArgumentSource::EstablishedByteView {
+            crate::target_operations::TargetStructuralArgumentSource::EstablishedByteView {
                 psi_operation: OperationId::new(21).unwrap(),
             }
         );
@@ -147,12 +147,14 @@ fn unit_calls_reject_future_duplicate_and_sibling_view_producers() {
                     value: condition,
                     scalar_type: ScalarType::Boolean,
                 });
-                let successor = |edge, block| abstract_operations::AbstractSuccessor {
-                    structural_bindings: Vec::new(),
-                    psi_edge: EdgeId::new(edge).unwrap(),
-                    target: BlockId::new(block).unwrap(),
-                    bindings: Vec::new(),
-                    trivial_affine_discards: Vec::new(),
+                let successor = |edge, block| {
+                    terminal_psi_to_abstract_operations::abstract_operations::AbstractSuccessor {
+                        structural_bindings: Vec::new(),
+                        psi_edge: EdgeId::new(edge).unwrap(),
+                        target: BlockId::new(block).unwrap(),
+                        bindings: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                    }
                 };
                 caller.operations.insert(
                     1,

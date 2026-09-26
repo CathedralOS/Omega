@@ -2,9 +2,9 @@
 //! sequencing: the local carries the borrowed-view shape, the call forwards
 //! that view whole, and the callee's own `&[T]` formal carries the same shape.
 use super::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralTypeShape};
+use crate::checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralArgumentSourcePlan};
 use crate::tests::flow::terminal_unit::checked;
 use crate::tests::flow::terminal_unit::machine_named;
-use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralArgumentSourcePlan};
 
 const SOURCE: &str = r#"
     data Holder {
@@ -55,7 +55,9 @@ fn view_local_carries_a_runtime_length_shape_over_its_scalar_element() {
         .expect("the view's element keeps its own retained shape");
     assert!(matches!(
         element.shape,
-        CheckedUnitStructuralTypeShape::PrimitiveScalar(typed_trees::types::PrimitiveType::I32)
+        CheckedUnitStructuralTypeShape::PrimitiveScalar(
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::I32
+        )
     ));
 }
 
@@ -144,7 +146,7 @@ fn a_scalar_computation_call_loans_the_view_local_whole() {
         .nodes
         .iter()
         .filter_map(|(_, node)| match &node.kind {
-            checked_trees::CheckedScalarComputationKind::Call {
+            crate::checked_trees::CheckedScalarComputationKind::Call {
                 structural_arguments,
                 ..
             } => Some(
@@ -161,7 +163,7 @@ fn a_scalar_computation_call_loans_the_view_local_whole() {
     let view_argument = arguments
         .iter()
         .find_map(|argument| match argument {
-            checked_trees::CheckedScalarComputationStructuralArgument::Place(plan)
+            crate::checked_trees::CheckedScalarComputationStructuralArgument::Place(plan)
                 if plan.type_identity == VIEW_IDENTITY =>
             {
                 Some(plan)
@@ -184,7 +186,7 @@ fn a_scalar_computation_call_loans_the_view_local_whole() {
         .statements(state.statement_nodes)
         .iter()
         .find_map(|statement| match statement {
-            typed_trees::statement::StatementNode::LocalData(local)
+            symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local)
                 if local.name.as_str() == "view" =>
             {
                 Some(local.symbol)
@@ -232,7 +234,7 @@ fn a_view_of_another_element_type_is_not_admitted() {
 
 /// The `let` symbol of the local named `name` in `machine`'s entry state.
 fn local_symbol(
-    checked: &checked_trees::CheckedTrees,
+    checked: &crate::checked_trees::CheckedTrees,
     machine: &str,
     name: &str,
 ) -> (symbols::SymbolHandle, symbols::SymbolHandle) {
@@ -250,7 +252,7 @@ fn local_symbol(
         .statements(state.statement_nodes)
         .iter()
         .find_map(|statement| match statement {
-            typed_trees::statement::StatementNode::LocalData(local)
+            symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local)
                 if local.name.as_str() == name =>
             {
                 Some(local.symbol)
@@ -328,7 +330,7 @@ fn a_view_local_is_narrowed_by_the_argument_range_builder() {
     };
     assert_eq!(
         *root,
-        checked_trees::CheckedStorageRoot::ViewLocal {
+        crate::checked_trees::CheckedStorageRoot::ViewLocal {
             symbol: view_symbol
         }
     );
@@ -340,8 +342,8 @@ fn a_view_local_is_narrowed_by_the_argument_range_builder() {
         .bound_expression_at(
             state,
             1,
-            checked_trees::CheckedScalarExpressionRole::SubsliceStart {
-                site: checked_trees::CheckedSubsliceSite::LocalBinding,
+            crate::checked_trees::CheckedScalarExpressionRole::SubsliceStart {
+                site: crate::checked_trees::CheckedSubsliceSite::LocalBinding,
             },
         )
         .expect("the start endpoint is source-bound at the binding site");
@@ -392,26 +394,26 @@ fn view_local_lengths_and_reads_root_at_the_local() {
                     && expression.statement_ordinal == statement
                     && matches!(
                         expression.role,
-                        checked_trees::CheckedScalarExpressionRole::BoundaryCallArgument { .. }
+                        crate::checked_trees::CheckedScalarExpressionRole::BoundaryCallArgument { .. }
                     )
             })
             .map(|expression| expression.expression.clone())
             .expect("the boundary operand has a pure scalar plan")
     };
-    let root = checked_trees::CheckedStorageRoot::ViewLocal { symbol: tail };
+    let root = crate::checked_trees::CheckedStorageRoot::ViewLocal { symbol: tail };
     assert_eq!(
         observed(2),
-        checked_trees::CheckedScalarExpression::StructuralParameterByteLength {
+        crate::checked_trees::CheckedScalarExpression::StructuralParameterByteLength {
             root,
             path: Vec::new(),
         }
     );
     assert!(matches!(
         observed(3),
-        checked_trees::CheckedScalarExpression::StructuralParameterIndexedRead {
+        crate::checked_trees::CheckedScalarExpression::StructuralParameterIndexedRead {
             root: read_root,
             ref path,
-            primitive_type: typed_trees::types::PrimitiveType::U64,
+            primitive_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U64,
             ..
         } if read_root == root && path.is_empty()
     ));
@@ -459,12 +461,10 @@ fn a_field_range_local_narrows_the_whole_field_view() {
     assert_eq!(source.access, CheckedStructuralAccess::SharedBorrow);
     assert_eq!(
         source.path,
-        vec![checked_trees::CheckedUnitStructuralPathSegment::Field(
-            "values".to_owned()
-        )]
+        vec![crate::checked_trees::CheckedUnitStructuralPathSegment::Field("values".to_owned())]
     );
     let CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
-        root: checked_trees::CheckedStorageRoot::Parameter { .. },
+        root: crate::checked_trees::CheckedStorageRoot::Parameter { .. },
         start: Some(_),
         end: Some(_),
         ..
@@ -513,16 +513,16 @@ fn a_record_element_field_read_carries_its_element_path() {
                 && expression.statement_ordinal == 2
                 && matches!(
                     expression.role,
-                    checked_trees::CheckedScalarExpressionRole::BoundaryCallArgument { .. }
+                    crate::checked_trees::CheckedScalarExpressionRole::BoundaryCallArgument { .. }
                 )
         })
         .map(|expression| expression.expression.clone())
         .expect("the boundary operand has a pure scalar plan");
-    let checked_trees::CheckedScalarExpression::StructuralParameterIndexedRead {
-        root: checked_trees::CheckedStorageRoot::ViewLocal { symbol },
+    let crate::checked_trees::CheckedScalarExpression::StructuralParameterIndexedRead {
+        root: crate::checked_trees::CheckedStorageRoot::ViewLocal { symbol },
         path,
         element_path,
-        primitive_type: typed_trees::types::PrimitiveType::I32,
+        primitive_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::I32,
         ..
     } = observed
     else {
@@ -532,8 +532,8 @@ fn a_record_element_field_read_carries_its_element_path() {
     assert!(path.is_empty());
     assert_eq!(
         element_path,
-        vec![checked_trees::CheckedStructuralPredicatePathSegment::Field(
-            "value".to_owned()
-        )]
+        vec![
+            crate::checked_trees::CheckedStructuralPredicatePathSegment::Field("value".to_owned())
+        ]
     );
 }

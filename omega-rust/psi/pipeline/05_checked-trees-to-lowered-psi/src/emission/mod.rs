@@ -4,12 +4,6 @@
 //! emission, byte-sequence writes, and the call-operand source custody those
 //! emitters replay.
 
-use checked_trees::types::PrimitiveType;
-use checked_trees::{
-    CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees,
-    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
-};
 use language_semantics::Multiplicity;
 use semantic_vocabulary::{
     PlaceId, ScalarType, StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
@@ -18,6 +12,12 @@ use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralAccess, StructuralFieldType,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
     StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape, ValueDeclaration,
+};
+use typed_trees_to_checked_trees::checked_trees::types::PrimitiveType;
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees,
+    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
 };
 
 use crate::emission::expression_validation::{
@@ -83,18 +83,18 @@ pub(crate) fn byte_store_scalar_value(
     checked: &CheckedTrees,
     state: symbols::SymbolHandle,
     statement_index: u32,
-    value: &checked_trees::CheckedByteSequenceStoreValue,
+    value: &typed_trees_to_checked_trees::checked_trees::CheckedByteSequenceStoreValue,
     values: &[ValueDeclaration],
 ) -> Result<crate::emission::operation_emission::expressions::LoweredDirectExpression, LoweringError>
 {
     match value {
-        checked_trees::CheckedByteSequenceStoreValue::Pure(_) => bindings.expression_at(
+        typed_trees_to_checked_trees::checked_trees::CheckedByteSequenceStoreValue::Pure(_) => bindings.expression_at(
             checked,
             state,
             statement_index,
             CheckedScalarExpressionRole::AssignmentValue,
         ),
-        checked_trees::CheckedByteSequenceStoreValue::ScalarResult { position } => {
+        typed_trees_to_checked_trees::checked_trees::CheckedByteSequenceStoreValue::ScalarResult { position } => {
             let position = usize::try_from(*position).map_err(|_| {
                 LoweringError::Unsupported("byte store call-result position exceeds usize")
             })?;

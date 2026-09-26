@@ -1,14 +1,14 @@
 //! Computed call operands retain primitive borrows and actual evaluation order.
 
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralPrimitiveValue, TerminalStructuralValue,
-};
-use terminal_production::{
-    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
 
 fn unsigned(value: u128) -> TerminalScalarValue {
@@ -29,15 +29,16 @@ fn execute_with_arguments(
     expected_borrow_calls: u64,
 ) {
     let checked = crate::front_end::checked_program(source);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("enter"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("nested primitive borrow reaches the existing Terminal call closure")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("enter"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("nested primitive borrow reaches the existing Terminal call closure")
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let caller = module
         .machines
@@ -312,13 +313,14 @@ fn folded_prefix_preserves_a_nested_mutable_condition() {
         .find(|root| {
             matches!(
                 plans.nodes.get(root.root).kind,
-                checked_trees::CheckedScalarComputationKind::Select { .. }
+                typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationKind::Select { .. }
             )
         })
         .unwrap();
     let node = plans.nodes.get(root.root);
-    let checked_trees::CheckedScalarComputationKind::Select {
-        source_expression, ..
+    let typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationKind::Select {
+        source_expression,
+        ..
     } = node.kind
     else {
         panic!("retained inner selection");
@@ -330,12 +332,13 @@ fn folded_prefix_preserves_a_nested_mutable_condition() {
     );
     assert_ne!(source_expression, node.authored_root);
     for replacement in [
-        checked_trees::expression::ExpressionHandle::invalid(),
+        typed_trees_to_checked_trees::checked_trees::expression::ExpressionHandle::invalid(),
         node.authored_root,
     ] {
         let mut changed = original.clone();
-        let checked_trees::CheckedScalarComputationKind::Select {
-            source_expression, ..
+        let typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationKind::Select {
+            source_expression,
+            ..
         } = &mut changed
             .facts
             .values
@@ -348,7 +351,7 @@ fn folded_prefix_preserves_a_nested_mutable_condition() {
         };
         *source_expression = replacement;
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &changed,
                 TerminalMachineSelection::Name("enter")
             )
@@ -374,15 +377,16 @@ fn comparison_operand_cannot_substitute_a_different_mutable_read() {
         }
     "#,
     );
-    let _artifact = terminal_production::TerminalProductionRequest::new(
-        &original,
-        TerminalMachineSelection::Name("enter"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap()
-    .into_artifact();
+    let _artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &original,
+            TerminalMachineSelection::Name("enter"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap()
+        .into_artifact();
     let caller = original
         .machines()
         .iter()
@@ -394,15 +398,17 @@ fn comparison_operand_cannot_substitute_a_different_mutable_read() {
         .statements(state.statement_nodes)
         .iter()
         .filter_map(|statement| match statement {
-            checked_trees::statement::StatementNode::LocalData(local) => Some(local.symbol),
+            typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(
+                local,
+            ) => Some(local.symbol),
             _ => None,
         })
         .collect::<Vec<_>>();
     let mut changed = original.clone();
     let mut mutations = 0;
     for (handle, node) in original.facts.values.scalar_computations.nodes.iter() {
-        if let checked_trees::CheckedScalarComputationKind::Value(
-            checked_trees::CheckedScalarExpression::StorageRead {
+        if let typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationKind::Value(
+            typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::StorageRead {
                 symbol,
                 primitive_type,
             },
@@ -415,8 +421,8 @@ fn comparison_operand_cannot_substitute_a_different_mutable_read() {
                 .scalar_computations
                 .nodes
                 .get_mut(handle)
-                .kind = checked_trees::CheckedScalarComputationKind::Value(
-                checked_trees::CheckedScalarExpression::StorageRead {
+                .kind = typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationKind::Value(
+                typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::StorageRead {
                     symbol: locals[1],
                     primitive_type: *primitive_type,
                 },
@@ -426,7 +432,7 @@ fn comparison_operand_cannot_substitute_a_different_mutable_read() {
     }
     assert!(mutations > 0);
     assert!(
-        terminal_production::TerminalProductionRequest::new(
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
             &changed,
             TerminalMachineSelection::Name("enter")
         )

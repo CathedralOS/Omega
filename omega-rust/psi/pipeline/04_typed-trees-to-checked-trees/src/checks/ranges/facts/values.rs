@@ -1,5 +1,5 @@
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
 use symbols::SymbolHandle;
-use typed_trees::expression::ExpressionHandle;
 
 use super::RangeFacts;
 

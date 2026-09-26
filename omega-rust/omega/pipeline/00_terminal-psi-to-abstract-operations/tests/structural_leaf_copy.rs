@@ -8,7 +8,6 @@
 //! optimization-unit construction and semantic validation accept it as a
 //! structural state event rather than a scalar or pure operation.
 
-use abstract_operations::AbstractOperation;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, MachineId, OperationId, PlaceId, PsiSemanticId, StructuralFieldId,
@@ -23,6 +22,7 @@ use terminal_psi::{
     StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
     VocabularyMarker,
 };
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
 use terminal_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact};
 use terminal_verifier::{ModuleError, ProofBundle};
 
@@ -226,7 +226,10 @@ fn copy_module(access: StructuralAccess) -> TerminalModule {
 
 fn lower(
     module: &TerminalModule,
-) -> Result<abstract_operations::AbstractOperationPlan, ArtifactLoweringError> {
+) -> Result<
+    terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan,
+    ArtifactLoweringError,
+> {
     let semantic = encode_module(module).expect("semantic module encodes");
     let proof = encode_proof_section(module, &ProofBundle::default()).expect("empty proof encodes");
     lower_artifact(
@@ -299,7 +302,7 @@ fn leaf_copy_builds_and_validates_its_optimization_unit() {
     )
     .expect("leaf copy constructs a verified unit");
     let unit = verified.unit();
-    optimization_unit_semantics::validate_psi_optimization_unit(unit)
+    terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(unit)
         .expect("leaf copy unit validates");
     // Provenance keeps the Terminal operation identity through unit
     // construction for the copy.
@@ -307,7 +310,7 @@ fn leaf_copy_builds_and_validates_its_optimization_unit() {
     assert!(
         nodes[0].provenance.iter().any(|row| matches!(
             row,
-            optimization_unit::PsiProvenance::Operation(operation)
+            terminal_psi_to_abstract_operations::optimization_unit::PsiProvenance::Operation(operation)
                 if *operation == id::<OperationId>(1)
         )),
         "node lost its Terminal operation provenance"
@@ -323,7 +326,7 @@ fn leaf_copy_builds_and_validates_its_optimization_unit() {
         _ => unreachable!(),
     }
     assert_ne!(
-        optimization_unit::recompute_psi_optimization_unit_identity(&changed),
+        terminal_psi_to_abstract_operations::optimization_unit::recompute_psi_optimization_unit_identity(&changed),
         unit.identity,
         "path rename must change the canonical unit identity"
     );

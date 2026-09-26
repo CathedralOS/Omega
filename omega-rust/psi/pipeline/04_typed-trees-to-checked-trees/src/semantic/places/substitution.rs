@@ -1,22 +1,22 @@
+use crate::checked_trees::ContractCallFact;
+use crate::fact_plan::FactPlan;
 use crate::labels::symbol_name;
-use checked_trees::ContractCallFact;
-use facts::FactPlan;
 use language_core::is_self_receiver;
 
 #[derive(Debug, Clone)]
 pub(crate) struct ContractPlaceSubstitution {
-    pub(crate) root: facts::PlaceRoot,
-    pub(crate) segments: Vec<facts::PlaceSegment>,
+    pub(crate) root: crate::fact_plan::PlaceRoot,
+    pub(crate) segments: Vec<crate::fact_plan::PlaceSegment>,
 }
 
 pub(crate) fn call_contract_place_substitution(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &mut FactPlan,
     call: &ContractCallFact,
-    original_place_handle: facts::PlaceHandle,
+    original_place_handle: crate::fact_plan::PlaceHandle,
 ) -> Option<ContractPlaceSubstitution> {
     let original_place = *facts.places.get(original_place_handle);
-    let facts::PlaceRoot::Symbol(parameter_symbol) = original_place.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(parameter_symbol) = original_place.root else {
         return None;
     };
     let call_site = super::find_call_site(

@@ -1,6 +1,6 @@
 //! Exact captured expression-call occurrences shared by result and Unit tails.
 use super::{CheckedTrees, LoweringError, unsupported};
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees_to_checked_trees::checked_trees::expression::{ExpressionHandle, ExpressionNode};
 
 /// Callers establish the authored destination and signature independently.
 /// This join retains the captured outer occurrence without walking operands
@@ -9,7 +9,7 @@ pub(crate) fn validate(
     checked: &CheckedTrees,
     caller_machine: symbols::SymbolHandle,
     caller_state: symbols::SymbolHandle,
-    coordinate: checked_trees::CheckedUnitCallCoordinate,
+    coordinate: typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate,
     expression: ExpressionHandle,
 ) -> Result<(), LoweringError> {
     if !checked.expression_table.expression_is_valid(expression) {

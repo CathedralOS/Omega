@@ -4,22 +4,22 @@
 use crate::checks::multiplicity::linear_obligations::LinearPlace;
 use crate::checks::multiplicity::linear_validation::linear_claim_frontier;
 use language_semantics::Multiplicity;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle;
 use symbols::SymbolHandle;
-use typed_trees::types::TypeReferenceHandle;
 
 pub(crate) fn type_carries_linear_obligation(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     !linear_claim_frontier(program, type_reference).is_empty()
 }
 
 pub(crate) fn expression_establishes_obligation(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    expression: typed_trees::expression::ExpressionHandle,
-    relative_path: &[facts::PlaceSegment],
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    relative_path: &[crate::fact_plan::PlaceSegment],
     places: &[LinearPlace],
 ) -> bool {
     if let Some(source) = crate::flow::canonical_place_from_expression_in_state(
@@ -27,7 +27,7 @@ pub(crate) fn expression_establishes_obligation(
         state_symbol,
         statement_index,
         expression,
-    ) && let facts::PlaceRoot::Symbol(symbol) = source.root
+    ) && let crate::fact_plan::PlaceRoot::Symbol(symbol) = source.root
     {
         let mut source_path = source.segments;
         source_path.extend_from_slice(relative_path);
@@ -39,9 +39,9 @@ pub(crate) fn expression_establishes_obligation(
         }
     }
 
-    if let typed_trees::expression::ExpressionNode::ArrayLiteral(values) =
+    if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::ArrayLiteral(values) =
         program.expression_table.expression(expression)
-        && let Some(facts::PlaceSegment::FixedIndex { index }) = relative_path.first()
+        && let Some(crate::fact_plan::PlaceSegment::FixedIndex { index }) = relative_path.first()
     {
         return program
             .expression_table
@@ -59,12 +59,12 @@ pub(crate) fn expression_establishes_obligation(
             });
     }
 
-    if let typed_trees::expression::ExpressionNode::StructLiteral(literal) =
+    if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::StructLiteral(literal) =
         program.expression_table.expression(expression)
     {
         let mut remaining = relative_path;
         if literal.case_name.is_some() {
-            let Some(facts::PlaceSegment::Case { variant }) = remaining.first() else {
+            let Some(crate::fact_plan::PlaceSegment::Case { variant }) = remaining.first() else {
                 return remaining.is_empty();
             };
             if literal_variant(program, literal).map(|candidate| candidate.symbol) != Some(*variant)
@@ -73,7 +73,7 @@ pub(crate) fn expression_establishes_obligation(
             }
             remaining = &remaining[1..];
         }
-        if let Some(facts::PlaceSegment::Field { symbol }) = remaining.first() {
+        if let Some(crate::fact_plan::PlaceSegment::Field { symbol }) = remaining.first() {
             let Some(field_name) = data_field_name(program, *symbol) else {
                 return false;
             };
@@ -99,12 +99,12 @@ pub(crate) fn expression_establishes_obligation(
 
     if matches!(
         program.expression_table.expression(expression),
-        typed_trees::expression::ExpressionNode::Name(path)
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Name(path)
             if program.data_definitions().iter().any(|definition| {
                 program.data_members(definition).iter().any(|member| {
                     matches!(
                         member,
-                        typed_trees::data::DataMember::Variant(variant)
+                        symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant)
                             if variant.symbol == path.symbol
                     )
                 })
@@ -124,33 +124,35 @@ pub(crate) fn expression_establishes_obligation(
 }
 
 pub(crate) fn type_multiplicity(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Multiplicity {
     program.type_multiplicity(type_reference)
 }
 
 pub(crate) fn find_data_definition<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     symbol: SymbolHandle,
     name: &str,
-) -> Option<&'program typed_trees::data::DataDefinition> {
+) -> Option<&'program symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition> {
     program.data_definitions().iter().find(|definition| {
         (symbol.is_valid() && definition.symbol == symbol) || definition.name.as_str() == name
     })
 }
 
 pub(crate) fn literal_variant<'program>(
-    program: &'program typed_trees::TypedTrees,
-    literal: &typed_trees::expression::TableStructLiteral,
-) -> Option<&'program typed_trees::data::DataVariant> {
+    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    literal: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableStructLiteral,
+) -> Option<&'program symbol_resolved_trees_to_typed_trees::typed_trees::data::DataVariant> {
     let case_name = literal.case_name.as_ref()?;
     let definition = program
         .data_definitions()
         .iter()
         .find(|definition| definition.name == literal.type_name)?;
     program.data_members(definition).iter().find_map(|member| {
-        let typed_trees::data::DataMember::Variant(variant) = member else {
+        let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant) =
+            member
+        else {
             return None;
         };
         (variant.name == *case_name).then_some(variant)
@@ -158,7 +160,7 @@ pub(crate) fn literal_variant<'program>(
 }
 
 pub(crate) fn data_field_name(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     field_symbol: SymbolHandle,
 ) -> Option<&str> {
     program.data_definitions().iter().find_map(|definition| {
@@ -166,10 +168,12 @@ pub(crate) fn data_field_name(
             .data_members(definition)
             .iter()
             .find_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) => {
-                    (field.symbol == field_symbol).then_some(field.name.as_str())
-                }
-                typed_trees::data::DataMember::Variant(variant) => program
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                    field,
+                ) => (field.symbol == field_symbol).then_some(field.name.as_str()),
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
+                    variant,
+                ) => program
                     .data_payload_fields(variant)
                     .iter()
                     .find_map(|field| {

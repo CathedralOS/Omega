@@ -1,8 +1,8 @@
 use crate::CheckingRequest;
+use crate::fact_plan::{FactOrigin, FactPayload};
 use crate::flow::check_against_whole_pass as lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
 use crate::tests::front_end::typed_program_with_core_service;
-use facts::{FactOrigin, FactPayload};
 use language_semantics::{DomainEstablishmentRoute, QualificationEvidenceOrigin};
 
 /// `Binding<R>` carrier fixtures check against the toolchain declaration with
@@ -11,7 +11,7 @@ use language_semantics::{DomainEstablishmentRoute, QualificationEvidenceOrigin};
 /// machine's unit plan fails closed.
 fn check_service_source(
     source: &str,
-) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
+) -> Result<crate::checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     let mut typed = typed_program_with_core_service(source);
     crate::tests::bind_fixture_fused_service_erasures(&mut typed);
     lower_typed_trees(typed, &CheckingRequest::settled())

@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use crate::FixedPrecoloredSplitRequirementError;
-use register_homes::{FunctionAllocationLegality, FunctionFixedPrecoloredIntervals};
+use crate::register_homes::{FunctionAllocationLegality, FunctionFixedPrecoloredIntervals};
 
 pub(super) fn legality(
     functions: &[FunctionAllocationLegality],

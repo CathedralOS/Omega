@@ -4,9 +4,9 @@
 //! to its hermetic declaration identities; disagreeing custody for one
 //! coordinate fails closed rather than being overwritten.
 
-use checked_trees::{CheckedPlacedViewInput, CheckedTrees};
 use semantic_vocabulary::MachineId;
 use terminal_psi::{StructuralAccess, TerminalModule, TerminalPlacedViewInput};
+use typed_trees_to_checked_trees::checked_trees::{CheckedPlacedViewInput, CheckedTrees};
 
 use crate::lowering_error::{LoweringError, unsupported};
 

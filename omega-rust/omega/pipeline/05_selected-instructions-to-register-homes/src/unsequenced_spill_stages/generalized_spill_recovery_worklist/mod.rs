@@ -17,12 +17,16 @@ use crate::unsequenced_spill_stages::{
 };
 pub use identity::generalized_spill_recovery_worklist_identity;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
-use register_homes::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity};
-use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
-use selected_instructions::{
-    LiveRangeIdentity, LiveRangePoint, SelectedBlockId, SelectedInstructionPlanIdentity,
+use selected_instructions_to_selected_instructions::register_homes::{
+    AllocationLegalityIdentity, AllocatorAvailabilityIdentity,
 };
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
+use target_operations_to_selected_instructions::register_model::{
+    RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity,
+};
+use target_operations_to_selected_instructions::{
+    LiveRangeIdentity, LiveRangePoint, SelectedBlockId, SelectedInstructionPlanIdentity,
+};
 pub use validate::validate_generalized_spill_recovery_worklist;
 
 pub fn seed_generalized_spill_recovery_worklist(

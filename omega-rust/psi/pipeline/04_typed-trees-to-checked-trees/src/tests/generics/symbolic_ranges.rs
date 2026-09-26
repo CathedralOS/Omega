@@ -1,7 +1,7 @@
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::front_end::typed_program_result;
-use typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 
 #[test]
 fn discarded_calls_in_open_templates_validate_inferred_const_bounds() {

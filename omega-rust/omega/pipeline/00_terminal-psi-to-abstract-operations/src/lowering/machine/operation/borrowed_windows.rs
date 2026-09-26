@@ -13,7 +13,7 @@
 //! physical ABI shape. The dynamic debt itself needs no replay here: the
 //! spelled pairs reach Omega only through a verified module.
 
-use abstract_operations::AbstractOperation;
+use crate::abstract_operations::AbstractOperation;
 use semantic_vocabulary::{PlaceId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId};
 use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralAccess, StructuralArgument,

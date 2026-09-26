@@ -33,11 +33,11 @@ fn checked_call_scalar_arguments_require_unique_bound_rows() {
         for mutation in 0..5 {
             let mut facts = CheckFacts::default();
             let plans = &mut facts.values.scalar_expressions;
-            let binding = checked_trees::CheckedScalarExpressionBindings {
+            let binding = crate::checked_trees::CheckedScalarExpressionBindings {
                 state,
                 statement_ordinal: 2,
                 role,
-                expression: typed_trees::expression::ExpressionHandle::from_arena_index(5),
+                expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::from_arena_index(5),
                 ..Default::default()
             };
             if mutation != 1 {
@@ -48,7 +48,7 @@ fn checked_call_scalar_arguments_require_unique_bound_rows() {
             }
             plans
                 .expressions
-                .push(checked_trees::CheckedLocatedScalarExpression {
+                .push(crate::checked_trees::CheckedLocatedScalarExpression {
                     state,
                     statement_ordinal: 2,
                     role,

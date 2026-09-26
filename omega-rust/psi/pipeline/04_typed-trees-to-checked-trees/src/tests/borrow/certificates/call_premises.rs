@@ -42,7 +42,7 @@ fn returned_guarantee_certifies_disjoint_window_write_and_call() {
             .mutation_certificates
             .iter()
             .any(|(_, certificate)| certificate.derivation
-                == checked_trees::BorrowCompatibilityDerivation::Premised)
+                == crate::checked_trees::BorrowCompatibilityDerivation::Premised)
     );
     assert!(
         checked
@@ -51,7 +51,7 @@ fn returned_guarantee_certifies_disjoint_window_write_and_call() {
             .call_compatibility_certificates
             .iter()
             .any(|(_, certificate)| certificate.derivation
-                == checked_trees::BorrowCompatibilityDerivation::Premised)
+                == crate::checked_trees::BorrowCompatibilityDerivation::Premised)
     );
     crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
         .expect("call-established borrow evidence replays");
@@ -71,7 +71,7 @@ fn returned_guarantee_separates_loans_without_duplicating_authority() {
             .compatibility_certificates
             .iter()
             .any(|(_, certificate)| certificate.derivation
-                == checked_trees::BorrowCompatibilityDerivation::Premised
+                == crate::checked_trees::BorrowCompatibilityDerivation::Premised
                 && certificate.conclusion.disjoint)
     );
     crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
@@ -134,7 +134,7 @@ fn mutable_result_binding_retains_call_establishment_while_pinned() {
             .mutation_certificates
             .iter()
             .any(|(_, certificate)| certificate.derivation
-                == checked_trees::BorrowCompatibilityDerivation::Premised)
+                == crate::checked_trees::BorrowCompatibilityDerivation::Premised)
     );
     assert!(
         checked
@@ -143,7 +143,7 @@ fn mutable_result_binding_retains_call_establishment_while_pinned() {
             .call_compatibility_certificates
             .iter()
             .any(|(_, certificate)| certificate.derivation
-                == checked_trees::BorrowCompatibilityDerivation::Premised)
+                == crate::checked_trees::BorrowCompatibilityDerivation::Premised)
     );
     crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
         .expect("mutable result binding replays its established premise");
@@ -169,7 +169,7 @@ fn premise_evidence_cannot_retarget_to_a_mutable_binding_without_pinned_occurren
     let mut flipped = false;
     for span in spans {
         for statement in checked.typed.statement_table.statements_mut(span) {
-            if let typed_trees::statement::StatementNode::LocalData(local) = statement
+            if let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) = statement
                 && local.name.as_str() == "split_point"
             {
                 local.is_mutable = true;
@@ -184,20 +184,20 @@ fn premise_evidence_cannot_retarget_to_a_mutable_binding_without_pinned_occurren
         .facts
         .iter()
         .filter_map(|(handle, fact)| {
-            matches!(fact.payload, facts::FactPayload::AssignedValue { value }
+            matches!(fact.payload, crate::fact_plan::FactPayload::AssignedValue { value }
                 if matches!(checked.typed.expression_table.expression(value),
-                    typed_trees::expression::ExpressionNode::Call(_)))
+                    symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(_)))
             .then_some(handle)
         })
         .collect();
     assert!(!assignments.is_empty(), "pinned call assignment");
     for handle in assignments {
-        let facts::FactPayload::AssignedValue { value } =
+        let crate::fact_plan::FactPayload::AssignedValue { value } =
             &mut checked.facts.semantic.facts.get_mut(handle).payload
         else {
             unreachable!();
         };
-        *value = typed_trees::expression::ExpressionHandle::invalid();
+        *value = symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid();
     }
     assert_replay_rejects(&mut checked);
 }
@@ -213,7 +213,7 @@ fn assert_conflict(source: &str) {
     );
 }
 
-fn assert_replay_rejects(checked: &mut checked_trees::CheckedTrees) {
+fn assert_replay_rejects(checked: &mut crate::checked_trees::CheckedTrees) {
     let diagnostics =
         crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
             .expect_err("changed call-established evidence must reject");
@@ -244,7 +244,7 @@ fn call_premise_tokens_reject_changed_coordinates_result_or_predicate() {
         if change == 0 {
             certificate.premises.clear();
         } else {
-            let checked_trees::BorrowCompatibilityPremiseSource::CallEnsures {
+            let crate::checked_trees::BorrowCompatibilityPremiseSource::CallEnsures {
                 fact,
                 statement_index,
                 call_ordinal,
@@ -271,11 +271,11 @@ fn call_guarantee_source_and_captured_assignment_must_remain_live() {
         let mut checked = checked_program(RETURNED_WINDOW);
         let handles: Vec<_> = checked.facts.semantic.facts.iter().filter_map(|(handle, fact)| {
             (if remove_assignment {
-                matches!(fact.payload, facts::FactPayload::AssignedValue { value }
-                    if matches!(checked.typed.expression_table.expression(value), typed_trees::expression::ExpressionNode::Call(_)))
+                matches!(fact.payload, crate::fact_plan::FactPayload::AssignedValue { value }
+                    if matches!(checked.typed.expression_table.expression(value), symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(_)))
             } else {
-                matches!(fact.payload, facts::FactPayload::ContractBooleanExpression {
-                    kind: facts::ContractFactKind::Ensures, ..
+                matches!(fact.payload, crate::fact_plan::FactPayload::ContractBooleanExpression {
+                    kind: crate::fact_plan::ContractFactKind::Ensures, ..
                 })
             }).then_some(handle)
         }).collect();
@@ -283,12 +283,14 @@ fn call_guarantee_source_and_captured_assignment_must_remain_live() {
         for handle in handles {
             let fact = checked.facts.semantic.facts.get_mut(handle);
             if remove_assignment {
-                let facts::FactPayload::AssignedValue { value } = &mut fact.payload else {
+                let crate::fact_plan::FactPayload::AssignedValue { value } = &mut fact.payload
+                else {
                     unreachable!();
                 };
-                *value = typed_trees::expression::ExpressionHandle::invalid();
+                *value = symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid();
             } else {
-                let facts::FactPayload::ContractBooleanExpression { fact, .. } = &mut fact.payload
+                let crate::fact_plan::FactPayload::ContractBooleanExpression { fact, .. } =
+                    &mut fact.payload
                 else {
                     unreachable!();
                 };
@@ -317,11 +319,15 @@ fn future_establishment_and_changed_selected_meaning_cannot_replay() {
                 .facts
                 .iter()
                 .filter_map(|(handle, fact)| {
-                    matches!(fact.point, facts::ProgramPoint::CallEnsures { .. }).then_some(handle)
+                    matches!(
+                        fact.point,
+                        crate::fact_plan::ProgramPoint::CallEnsures { .. }
+                    )
+                    .then_some(handle)
                 })
                 .collect();
             for handle in handles {
-                if let facts::ProgramPoint::CallEnsures {
+                if let crate::fact_plan::ProgramPoint::CallEnsures {
                     statement_index, ..
                 } = &mut checked.facts.semantic.facts.get_mut(handle).point
                 {
@@ -351,13 +357,14 @@ fn foreign_valid_guarantees_and_other_call_results_cannot_replace_the_capture() 
             .machine_contracts(sibling)
             .iter()
             .find(|contract| {
-                contract.kind == typed_trees::signature::SignatureContractKind::Ensures
+                contract.kind == symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Ensures
             })
             .expect("sibling ensures")
             .facts
             .start();
-        let typed_trees::domain::ProofFact::Expression(foreign_expression) =
-            *checked.typed.proof_facts.get(foreign)
+        let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
+            foreign_expression,
+        ) = *checked.typed.proof_facts.get(foreign)
         else {
             panic!("sibling predicate");
         };
@@ -368,7 +375,7 @@ fn foreign_valid_guarantees_and_other_call_results_cannot_replace_the_capture() 
                 .expression_table
                 .iter_expressions()
                 .find_map(|(handle, node)| {
-                    matches!(node, typed_trees::expression::ExpressionNode::Call(call)
+                    matches!(node, symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(call)
                 if call.target_symbol == sibling.symbol || call.target_symbol == entry_symbol)
                     .then_some(handle)
                 });
@@ -380,8 +387,8 @@ fn foreign_valid_guarantees_and_other_call_results_cannot_replace_the_capture() 
             .filter_map(|(handle, fact)| {
                 matches!(
                     fact.payload,
-                    facts::FactPayload::ContractBooleanExpression {
-                        kind: facts::ContractFactKind::Ensures,
+                    crate::fact_plan::FactPayload::ContractBooleanExpression {
+                        kind: crate::fact_plan::ContractFactKind::Ensures,
                         ..
                     }
                 )
@@ -390,8 +397,10 @@ fn foreign_valid_guarantees_and_other_call_results_cannot_replace_the_capture() 
             .collect();
         if change < 2 {
             for handle in handles {
-                if let facts::FactPayload::ContractBooleanExpression {
-                    fact, expression, ..
+                if let crate::fact_plan::FactPayload::ContractBooleanExpression {
+                    fact,
+                    expression,
+                    ..
                 } = &mut checked.facts.semantic.facts.get_mut(handle).payload
                 {
                     *fact = foreign;
@@ -403,11 +412,11 @@ fn foreign_valid_guarantees_and_other_call_results_cannot_replace_the_capture() 
         } else {
             let other_call = other_call.expect("different valid call");
             let handles: Vec<_> = checked.facts.semantic.facts.iter()
-                .filter_map(|(handle, fact)| matches!(fact.payload, facts::FactPayload::AssignedValue { value }
-                    if matches!(checked.typed.expression_table.expression(value), typed_trees::expression::ExpressionNode::Call(_)))
+                .filter_map(|(handle, fact)| matches!(fact.payload, crate::fact_plan::FactPayload::AssignedValue { value }
+                    if matches!(checked.typed.expression_table.expression(value), symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(_)))
                     .then_some(handle)).collect();
             for handle in handles {
-                if let facts::FactPayload::AssignedValue { value } =
+                if let crate::fact_plan::FactPayload::AssignedValue { value } =
                     &mut checked.facts.semantic.facts.get_mut(handle).payload
                 {
                     *value = other_call;
@@ -469,7 +478,7 @@ fn statement_call_guarantee_certifies_disjoint_window_write() {
         .expect("one mutation certificate");
     assert_eq!(
         certificate.derivation,
-        checked_trees::BorrowCompatibilityDerivation::Premised
+        crate::checked_trees::BorrowCompatibilityDerivation::Premised
     );
     crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
         .expect("statement-established certificate replays its exact tokens");
@@ -518,7 +527,7 @@ fn statement_call_premise_tokens_reject_changed_coordinates() {
         if change == 0 {
             certificate.premises.clear();
         } else {
-            let checked_trees::BorrowCompatibilityPremiseSource::CallEnsures {
+            let crate::checked_trees::BorrowCompatibilityPremiseSource::CallEnsures {
                 fact,
                 statement_index,
                 call_ordinal,
@@ -586,12 +595,12 @@ fn statement_call_member_actual_certifies_disjoint_window_write() {
         .expect("one mutation certificate");
     assert_eq!(
         certificate.derivation,
-        checked_trees::BorrowCompatibilityDerivation::Premised
+        crate::checked_trees::BorrowCompatibilityDerivation::Premised
     );
     assert!(
         certificate.premises.iter().any(|premise| matches!(
             premise.right,
-            checked_trees::BorrowCompatibilitySelectorValue::Segmented { .. }
+            crate::checked_trees::BorrowCompatibilitySelectorValue::Segmented { .. }
         )),
         "the member-actual premise records a segmented bound: {:?}",
         certificate.premises
@@ -631,7 +640,7 @@ fn statement_call_member_actual_tokens_reject_changed_coordinates() {
         if change == 0 {
             certificate.premises.clear();
         } else {
-            let checked_trees::BorrowCompatibilityPremiseSource::CallEnsures {
+            let crate::checked_trees::BorrowCompatibilityPremiseSource::CallEnsures {
                 fact,
                 statement_index,
                 call_ordinal,
@@ -680,12 +689,12 @@ fn statement_call_indexed_actual_certifies_disjoint_window_write() {
         .expect("one mutation certificate");
     assert_eq!(
         certificate.derivation,
-        checked_trees::BorrowCompatibilityDerivation::Premised
+        crate::checked_trees::BorrowCompatibilityDerivation::Premised
     );
     assert!(
         certificate.premises.iter().any(|premise| matches!(
             premise.right,
-            checked_trees::BorrowCompatibilitySelectorValue::Segmented { .. }
+            crate::checked_trees::BorrowCompatibilitySelectorValue::Segmented { .. }
         )),
         "the indexed-actual premise records a segmented bound: {:?}",
         certificate.premises
@@ -736,7 +745,7 @@ fn statement_call_indexed_actual_tokens_reject_changed_coordinates() {
         if change == 0 {
             certificate.premises.clear();
         } else {
-            let checked_trees::BorrowCompatibilityPremiseSource::CallEnsures {
+            let crate::checked_trees::BorrowCompatibilityPremiseSource::CallEnsures {
                 fact,
                 statement_index,
                 call_ordinal,
@@ -781,18 +790,18 @@ fn statement_call_member_indexed_actual_certifies_disjoint_window_write() {
         .expect("one mutation certificate");
     assert_eq!(
         certificate.derivation,
-        checked_trees::BorrowCompatibilityDerivation::Premised
+        crate::checked_trees::BorrowCompatibilityDerivation::Premised
     );
     // `&mut self.pivot[2]` mints the multi-segment `Field + FixedIndex` path.
     assert!(
         certificate.premises.iter().any(|premise| matches!(
             &premise.right,
-            checked_trees::BorrowCompatibilitySelectorValue::Segmented { segments, .. }
+            crate::checked_trees::BorrowCompatibilitySelectorValue::Segmented { segments, .. }
                 if matches!(
                     segments.as_slice(),
                     [
-                        facts::PlaceSegment::Field { .. },
-                        facts::PlaceSegment::FixedIndex { index: 2 },
+                        crate::fact_plan::PlaceSegment::Field { .. },
+                        crate::fact_plan::PlaceSegment::FixedIndex { index: 2 },
                     ]
                 )
         )),
@@ -851,15 +860,17 @@ fn statement_call_member_indexed_actual_tokens_reject_changed_coordinates() {
         match change {
             0 => certificate.premises.clear(),
             4 => {
-                let checked_trees::BorrowCompatibilitySelectorValue::Segmented { segments, .. } =
-                    &mut certificate.premises[0].right
+                let crate::checked_trees::BorrowCompatibilitySelectorValue::Segmented {
+                    segments,
+                    ..
+                } = &mut certificate.premises[0].right
                 else {
                     panic!("member-indexed premise records a segmented bound");
                 };
-                segments[1] = facts::PlaceSegment::FixedIndex { index: 1 };
+                segments[1] = crate::fact_plan::PlaceSegment::FixedIndex { index: 1 };
             }
             _ => {
-                let checked_trees::BorrowCompatibilityPremiseSource::CallEnsures {
+                let crate::checked_trees::BorrowCompatibilityPremiseSource::CallEnsures {
                     fact,
                     statement_index,
                     call_ordinal,
@@ -893,14 +904,14 @@ fn projected_result_guarantee_certifies_disjoint_window_write() {
         .expect("one mutation certificate");
     assert_eq!(
         certificate.derivation,
-        checked_trees::BorrowCompatibilityDerivation::Premised
+        crate::checked_trees::BorrowCompatibilityDerivation::Premised
     );
     // The retained premise keeps the projection's symbol+segment identity:
     // `result.first` binds the pinned binding's `pair.first` place.
     assert!(
         certificate.premises.iter().any(|premise| matches!(
             premise.right,
-            checked_trees::BorrowCompatibilitySelectorValue::Segmented { .. }
+            crate::checked_trees::BorrowCompatibilitySelectorValue::Segmented { .. }
         )),
         "the projected-result premise records a segmented bound: {:?}",
         certificate.premises
@@ -939,7 +950,7 @@ fn nested_call_establishment_certifies_disjoint_window_write() {
         .expect("one mutation certificate");
     assert_eq!(
         certificate.derivation,
-        checked_trees::BorrowCompatibilityDerivation::Premised
+        crate::checked_trees::BorrowCompatibilityDerivation::Premised
     );
     crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
         .expect("nested-call-established certificate replays its exact tokens");
@@ -999,14 +1010,14 @@ fn nested_call_projected_establishment_certifies_disjoint_window_write() {
         .expect("one mutation certificate");
     assert_eq!(
         certificate.derivation,
-        checked_trees::BorrowCompatibilityDerivation::Premised
+        crate::checked_trees::BorrowCompatibilityDerivation::Premised
     );
     // The retained premise keeps the call occurrence's projected identity:
     // `result.first` binds `choose(seed)` + the `first` segment.
     assert!(
         certificate.premises.iter().any(|premise| matches!(
             premise.right,
-            checked_trees::BorrowCompatibilitySelectorValue::CallResult {
+            crate::checked_trees::BorrowCompatibilitySelectorValue::CallResult {
                 ref segments,
                 ..
             } if !segments.is_empty()

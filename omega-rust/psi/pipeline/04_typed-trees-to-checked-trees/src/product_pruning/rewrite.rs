@@ -2,10 +2,10 @@
 
 use std::collections::HashSet;
 
-use checked_trees::CheckedTrees;
+use crate::checked_trees::CheckedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::machine::Machine;
 
 use super::CheckedTreeProductRoots;
 use super::dependencies::{MachineIndex, collect_machine_edges};
@@ -166,11 +166,11 @@ fn apply_fact_pruning(
         .nominal_machine_uses
         .uses
         .retain(|row| match row.site {
-            checked_trees::NominalMachineUseSite::Statement(statement) => index
+            crate::checked_trees::NominalMachineUseSite::Statement(statement) => index
                 .statement_machine
                 .get(&statement)
                 .is_some_and(|owner| retained.contains(owner)),
-            checked_trees::NominalMachineUseSite::Expression(_) => true,
+            crate::checked_trees::NominalMachineUseSite::Expression(_) => true,
         });
 
     // Contract evidence rows keyed by an owner machine.
@@ -199,7 +199,7 @@ fn apply_fact_pruning(
     // rows are unreachable through the pruned declaration surface and
     // compacting them would invalidate live inbound references.
     {
-        let kept: Vec<checked_trees::FlowStateFact> = facts
+        let kept: Vec<crate::checked_trees::FlowStateFact> = facts
             .flow
             .control
             .states
@@ -213,7 +213,7 @@ fn apply_fact_pruning(
         facts.flow.control.states = states;
     }
     {
-        let kept: Vec<checked_trees::MachineServiceReachRows> = facts
+        let kept: Vec<crate::checked_trees::MachineServiceReachRows> = facts
             .service_reaches
             .machines
             .iter()
@@ -226,7 +226,7 @@ fn apply_fact_pruning(
         facts.service_reaches.machines = machines;
     }
     {
-        let kept: Vec<checked_trees::MachineCarryTopologyFact> = facts
+        let kept: Vec<crate::checked_trees::MachineCarryTopologyFact> = facts
             .carry
             .machine_topologies
             .iter()
@@ -364,12 +364,12 @@ fn apply_fact_pruning(
 /// retained; non-machine owners (trait/operator machinery) are always
 /// retained.
 fn contract_owner_retained(
-    owner: checked_trees::ContractProofFactOwner,
+    owner: crate::checked_trees::ContractProofFactOwner,
     pruned: &HashSet<SymbolHandle>,
 ) -> bool {
     match owner {
-        checked_trees::ContractProofFactOwner::Machine { machine_symbol }
-        | checked_trees::ContractProofFactOwner::MachineState { machine_symbol, .. } => {
+        crate::checked_trees::ContractProofFactOwner::Machine { machine_symbol }
+        | crate::checked_trees::ContractProofFactOwner::MachineState { machine_symbol, .. } => {
             !pruned.contains(&machine_symbol)
         }
         _ => true,

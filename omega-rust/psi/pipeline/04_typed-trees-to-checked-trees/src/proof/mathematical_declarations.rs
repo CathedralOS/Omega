@@ -1,7 +1,7 @@
 //! Checked mathematical declarations: the proof-surface records a top-level
 //! `let`/`boundary let` elaborates into (PROOF-CONTRACT-MIGRATION).
 //!
-//! The typed mirror (`typed_trees::mathematical`) preserves the authored
+//! The typed mirror (`symbol_resolved_trees_to_typed_trees::typed_trees::mathematical`) preserves the authored
 //! declaration-local grammar; this module interprets it into
 //! [`CheckedMathematicalDeclaration`], the checked shape mirroring the proof
 //! kernel's `Declaration` (`mathematical_core::signature`):
@@ -27,17 +27,21 @@
 //! references. Kernel-term elaboration and checking a definition body
 //! against its declared result remain later legs.
 
-use checked_trees::{
+use crate::checked_trees::{
     CheckedMathematicalBinder, CheckedMathematicalBinderKind, CheckedMathematicalBody,
     CheckedMathematicalDeclaration, CheckedMathematicalParameter,
 };
-use typed_trees::TypedTrees;
-use typed_trees::data::{DataProperties, TypeParameter, TypeParameterKind};
-use typed_trees::mathematical::{
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::data::{
+    DataProperties, TypeParameter, TypeParameterKind,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::mathematical::{
     MathematicalBody, MathematicalDefinition, MathematicalType, MathematicalTypeHandle,
 };
-use typed_trees::proposition::ProofSubstitutions;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use symbol_resolved_trees_to_typed_trees::typed_trees::proposition::ProofSubstitutions;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    TypeReferenceHandle, TypeReferenceNode,
+};
 
 /// Build the checked mathematical-declaration surface for a typed program.
 ///

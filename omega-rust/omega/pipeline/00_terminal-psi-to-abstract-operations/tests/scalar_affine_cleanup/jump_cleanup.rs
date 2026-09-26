@@ -1,6 +1,5 @@
 //! Verified jump affine cleanup is retained without synthesizing an operation.
 
-use abstract_operations::AbstractOperation;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{ScalarType, StructuralPlaceKind};
 use terminal_codec::{encode_module, encode_proof_section};
@@ -10,6 +9,7 @@ use terminal_psi::{
     StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
     ValueDeclaration, VocabularyMarker,
 };
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
 use terminal_psi_to_abstract_operations::{build_verified_psi_optimization_unit, lower_artifact};
 use terminal_verifier::ProofBundle;
 

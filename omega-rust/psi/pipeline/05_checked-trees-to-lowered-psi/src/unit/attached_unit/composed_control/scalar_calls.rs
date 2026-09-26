@@ -2,7 +2,7 @@
 use super::super::super::CheckedComposedUnitControlTerminatorPlan;
 use super::super::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, unsupported};
 use super::{CheckedTrees, LoweringError};
-use checked_trees::CheckedCallScalarArgument;
+use typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument;
 
 pub(crate) use crate::scalar_graph::scalar_call_closure::embedded::EmbeddedScalarCalls as ComposedScalarCalls;
 
@@ -11,7 +11,7 @@ pub(crate) use crate::scalar_graph::scalar_call_closure::embedded::EmbeddedScala
 pub(super) fn prepare(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
-    states: &[checked_trees::CheckedComposedUnitControlStatePlan],
+    states: &[typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlStatePlan],
 ) -> Result<ComposedScalarCalls, LoweringError> {
     let targets = selected_targets(checked, machine, states)?;
     ComposedScalarCalls::prepare_targets(checked, &targets, &[machine], 1)
@@ -20,15 +20,18 @@ pub(super) fn prepare(
 fn selected_roots(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
-    states: &[checked_trees::CheckedComposedUnitControlStatePlan],
-) -> Result<Vec<checked_trees::CheckedScalarComputationHandle>, LoweringError> {
+    states: &[typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlStatePlan],
+) -> Result<
+    Vec<typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationHandle>,
+    LoweringError,
+> {
     let mut pending = Vec::new();
     for state in states {
         for edge in super::state_graph::successors(state) {
             for argument in &edge.scalar_arguments {
                 if matches!(
                     argument.source,
-                    checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
                 ) && let CheckedCallScalarArgument::Computation(root) =
                     super::state_graph::scalars::successor_value(checked, state, edge, argument)?
                 {
@@ -205,7 +208,7 @@ fn selected_roots(
 pub(super) fn selected_targets(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
-    states: &[checked_trees::CheckedComposedUnitControlStatePlan],
+    states: &[typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlStatePlan],
 ) -> Result<Vec<symbols::SymbolHandle>, LoweringError> {
     let roots = selected_roots(checked, machine, states)?;
     let mut targets =

@@ -1,8 +1,8 @@
 use crate::input::token_cursor::{Input, ParseResult};
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::item::{CapabilityContract, CapabilityContractKind};
 use arena::{Handle, HandleSpan};
-use syntax_trees::SyntaxTrees;
-use syntax_trees::item::{CapabilityContract, CapabilityContractKind};
-use tokens::PunctuationKind;
+use source_files_to_tokens::tokens::PunctuationKind;
 
 /// Parse a state's explicit arrival contract. Unlike a machine signature, a
 /// state has no exit contract or behavior surface: `requires` is the induction

@@ -16,16 +16,16 @@ use crate::unit::{
     lower_installation_machine_service_ceiling, machine_id, place_id, terminal_scalar_type,
     unsupported, value_id,
 };
-use checked_trees::types::TypeReferenceNode;
-use checked_trees::{
-    CheckedDynamicRealizationBodyPlan, CheckedDynamicRealizationCallablePlan,
-    CheckedStructuralAccess,
-};
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{
     Block, ClosedConformanceCallableResult, StructuralAccess, StructuralParameterDeclaration,
     StructuralPlaceDeclaration, TerminalMachine, TerminalMachineResult, Terminator,
     ValueDeclaration,
+};
+use typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode;
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedDynamicRealizationBodyPlan, CheckedDynamicRealizationCallablePlan,
+    CheckedStructuralAccess,
 };
 
 pub(crate) fn collect_dynamic_realizations(

@@ -8,19 +8,19 @@ mod source_exit;
 use std::collections::BTreeSet;
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use register_model::{
+use semantic_vocabulary::{IntegerSign, ScalarType};
+use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
+use target_operations_to_selected_instructions::register_model::{
     RegisterInstructionConstraint, RegisterOperandAccess, TargetRegisterEnvironmentConstraintKeys,
     TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
     ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
     target_register_environment_identity,
 };
-use selected_instructions::{
+use target_operations_to_selected_instructions::{
     SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionProvenance, SelectedOperand, SelectedTerminator, VirtualRegister,
     VirtualRegisterId, VirtualRegisterOrigin,
 };
-use semantic_vocabulary::{IntegerSign, ScalarType};
-use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 
 use crate::{
     FixedViewCopy, FixedViewCopyDestination, FixedViewCopyError, FixedViewCopyPlan,
@@ -28,7 +28,7 @@ use crate::{
     ValidatedFixedPrecoloredIntervals, ValidatedFixedPrecoloredSegmentHomes,
     ValidatedFixedPrecoloredSplitRequirements, ValidatedLiveRanges,
 };
-use selected_instructions::VirtualFixedConstraintSite;
+use target_operations_to_selected_instructions::VirtualFixedConstraintSite;
 
 use preflight::{copy_row, next_instruction_id, next_register_id, validate_roots, work_usage};
 use site::build_site_copies;

@@ -32,11 +32,11 @@ use crate::expressions::equatable::{
     value_type_base_name, written_equals_state_symbol,
 };
 use crate::lowerer::name::lower_name;
+use crate::typed_trees as typed;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use resolved::data::{DataDefinition, DataField, DataMember, DataVariant};
-use symbol_resolved_trees as resolved;
-use typed_trees as typed;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees as resolved;
 
 /// One `==` operand, classified for expansion. A PLACE is lowered once and
 /// its handle shared by every synthesized member read; a LITERAL is never

@@ -2,7 +2,7 @@ use optimization_core::OptimizationRuleContract;
 use optimization_core::{
     ExternalCandidateFeatures, ExternalDecisionSchemaError, ValidatedCandidateSummary,
 };
-use optimization_unit::PsiRewriteCandidate;
+use terminal_psi_to_abstract_operations::optimization_unit::PsiRewriteCandidate;
 
 /// Project the exact policy-visible row only after the ordinary candidate
 /// validator has admitted the candidate. Analysis features come from the

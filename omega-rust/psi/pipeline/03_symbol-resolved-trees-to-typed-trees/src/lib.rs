@@ -37,6 +37,9 @@
 //! append-only, and fails the transaction rather than mutating a base that has
 //! drifted.
 
+// The produced IR.
+pub mod typed_trees;
+
 // The entrance and the shared lowering state it owns.
 mod lowerer;
 

@@ -18,7 +18,7 @@ fn fixture_source(access: &str, body: &str, extra: &str) -> String {
     )
 }
 
-fn assert_input_subject(program: &checked_trees::CheckedTrees) {
+fn assert_input_subject(program: &crate::checked_trees::CheckedTrees) {
     let machine = program
         .machines()
         .iter()

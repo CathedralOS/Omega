@@ -4,9 +4,9 @@ use super::{
     CheckFacts, CheckedComposedUnitControlMachinePlan, CheckedUnitEffectMachinePlan,
     CheckedUnitEffectOperationPlan, SymbolHandle, TypedTrees,
 };
+use crate::checked_trees::{CheckedUnitPlanOmission, CheckedUnitPlanOmissionStage};
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::scalar_targets;
-use checked_trees::{CheckedUnitPlanOmission, CheckedUnitPlanOmissionStage};
 
 #[cfg(test)]
 mod tests;

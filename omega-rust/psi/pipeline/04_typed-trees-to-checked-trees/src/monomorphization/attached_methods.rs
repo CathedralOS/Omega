@@ -9,9 +9,11 @@
 use std::collections::HashSet;
 
 use diagnostics::Diagnostic;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::{
+    TypedTrees, expression::ExpressionNode, statement::StatementNode,
+};
 use symbols::SymbolHandle;
-use typed_trees::types::TypeReferenceNode;
-use typed_trees::{TypedTrees, expression::ExpressionNode, statement::StatementNode};
 
 pub(crate) fn validate_selected_attached_method_bounds(
     program: &TypedTrees,
@@ -97,7 +99,7 @@ pub(crate) fn validate_selected_attached_method_bounds(
         }
     }
     let mut diagnostics = Vec::new();
-    let symbols = validation::TopLevelSymbols::build(program, &mut diagnostics);
+    let symbols = crate::validation::TopLevelSymbols::build(program, &mut diagnostics);
     for machine in program.machines().iter().filter(|machine| {
         machine.generic_data_template.is_valid() && method_is_selected(program, machine, &selected)
     }) {
@@ -152,7 +154,7 @@ pub(crate) fn validate_selected_attached_method_bounds(
             continue;
         }
         for parameter in program.machine_type_parameters(template) {
-            let requirements = validation::declared_property_requirements(&parameter.bounds);
+            let requirements = crate::validation::declared_property_requirements(&parameter.bounds);
             if requirements.is_empty() {
                 continue;
             }
@@ -166,7 +168,7 @@ pub(crate) fn validate_selected_attached_method_bounds(
                 });
             if !argument.is_some_and(|argument| {
                 requirements.iter().all(|requirement| {
-                    validation::type_satisfies_declared_property(
+                    crate::validation::type_satisfies_declared_property(
                         program,
                         &symbols,
                         &[],
@@ -191,7 +193,7 @@ pub(crate) fn validate_selected_attached_method_bounds(
 
 fn method_is_selected(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     selected: &HashSet<SymbolHandle>,
 ) -> bool {
     selected.contains(&machine.symbol)
@@ -203,7 +205,7 @@ fn method_is_selected(
 
 fn collect_expression_selections(
     program: &TypedTrees,
-    expressions: &[typed_trees::expression::ExpressionHandle],
+    expressions: &[symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle],
     selected: &mut HashSet<SymbolHandle>,
 ) {
     for expression in expressions {
@@ -215,7 +217,7 @@ fn collect_expression_selections(
 }
 
 fn collect_static_selections(
-    arguments: &[typed_trees::expression::StaticMachineArgument],
+    arguments: &[symbol_resolved_trees_to_typed_trees::typed_trees::expression::StaticMachineArgument],
     selected: &mut HashSet<SymbolHandle>,
 ) {
     for argument in arguments {

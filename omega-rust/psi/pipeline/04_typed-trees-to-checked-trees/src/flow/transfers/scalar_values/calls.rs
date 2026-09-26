@@ -1,4 +1,8 @@
 use super::{CapturedValue, CheckedScalarExpressionRole};
+use crate::checked_trees::expression::ExpressionNode;
+use crate::checked_trees::statement::StatementNode;
+use crate::checked_trees::{BorrowFacts, FlowSemanticContextRef};
+use crate::fact_plan::FactPlan;
 use crate::flow::FlowBuildContext;
 use crate::flow::canonical_place_from_expression_in_state;
 use crate::flow::fact_rows::with_borrow_state_index;
@@ -6,24 +10,20 @@ use crate::flow::transfers::scalar_values::CallValues;
 use crate::flow::transfers::scalar_values::LiveValues;
 use crate::flow::transfers::scalar_values::retains_values_across_unit_call;
 use arena::HandleSpan;
-use checked_trees::expression::ExpressionNode;
-use checked_trees::statement::StatementNode;
-use checked_trees::{BorrowFacts, FlowSemanticContextRef};
-use facts::FactPlan;
 use symbols::SymbolHandle;
 
 // Evaluate selected scalar locals and local stores followed by one return.
 // Intervening Unit calls preserve these normal-return facts only when their
 // complete storage footprint is empty. This never proves that a call returns.
 pub(super) fn capture_call<Value: CapturedValue>(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     semantic: &FactPlan,
     context: &mut FlowBuildContext,
     caller_state: SymbolHandle,
     statement_index: usize,
-    source: typed_trees::expression::ExpressionHandle,
-    call: &typed_trees::expression::TableCallExpression,
+    source: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
     active: HandleSpan<FlowSemanticContextRef>,
 ) -> Option<Value> {
     if !call.machine_arguments.is_empty() || !call.selects_only_nominal_route() {
@@ -48,13 +48,13 @@ pub(super) fn capture_call<Value: CapturedValue>(
             statement_index,
             call.receiver,
         )?;
-        if !matches!(place.root, facts::PlaceRoot::Symbol(symbol) if symbol.is_valid())
+        if !matches!(place.root, crate::fact_plan::PlaceRoot::Symbol(symbol) if symbol.is_valid())
             || !place.segments.iter().all(|segment| {
                 matches!(
                     segment,
-                    facts::PlaceSegment::Field { .. }
-                        | facts::PlaceSegment::Case { .. }
-                        | facts::PlaceSegment::FixedIndex { .. }
+                    crate::fact_plan::PlaceSegment::Field { .. }
+                        | crate::fact_plan::PlaceSegment::Case { .. }
+                        | crate::fact_plan::PlaceSegment::FixedIndex { .. }
                 )
             })
         {
@@ -73,7 +73,7 @@ pub(super) fn capture_call<Value: CapturedValue>(
         source,
         call,
         receiver_place.as_ref().and_then(|place| match place.root {
-            facts::PlaceRoot::Symbol(symbol) => Some(symbol),
+            crate::fact_plan::PlaceRoot::Symbol(symbol) => Some(symbol),
             _ => None,
         }),
     )?;
@@ -226,9 +226,9 @@ pub(super) fn capture_call<Value: CapturedValue>(
             ) && place.segments.iter().all(|segment| {
                 matches!(
                     segment,
-                    facts::PlaceSegment::Field { .. }
-                        | facts::PlaceSegment::Case { .. }
-                        | facts::PlaceSegment::FixedIndex { .. }
+                    crate::fact_plan::PlaceSegment::Field { .. }
+                        | crate::fact_plan::PlaceSegment::Case { .. }
+                        | crate::fact_plan::PlaceSegment::FixedIndex { .. }
                 )
             }) && let Some(value) = Value::at_place(&place, &live)
             {
@@ -271,7 +271,8 @@ pub(super) fn capture_call<Value: CapturedValue>(
         // Every self-field read retained by the callee's selected plan
         // resolves against the receiver place in the caller: a live snapshot
         // first, then the levels `field_fallback` can still vouch for.
-        let mut paths: Vec<Vec<checked_trees::CheckedStructuralPredicatePathSegment>> = Vec::new();
+        let mut paths: Vec<Vec<crate::checked_trees::CheckedStructuralPredicatePathSegment>> =
+            Vec::new();
         for statement_ordinal in 0..statements.len() as u32 {
             for row in context.scalar_expression_rows_at(state.symbol, statement_ordinal) {
                 collect_self_field_paths(
@@ -428,15 +429,15 @@ pub(super) fn capture_call<Value: CapturedValue>(
 /// this authored call expression: the ordinal is the occurrence key, not a
 /// trusted field on the row.
 fn exact_call_occurrence<'facts>(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     borrow: &'facts BorrowFacts,
     context: &mut FlowBuildContext,
     caller_state: SymbolHandle,
     statement_index: usize,
-    source: typed_trees::expression::ExpressionHandle,
-    call: &typed_trees::expression::TableCallExpression,
+    source: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
     receiver_root: Option<SymbolHandle>,
-) -> Option<&'facts checked_trees::BorrowCallFact> {
+) -> Option<&'facts crate::checked_trees::BorrowCallFact> {
     let (machine_index, caller_state_index) = context.state_location(program, caller_state)?;
     let owner = &program.machines()[machine_index];
     let caller = &program.machine_states(owner)[caller_state_index];
@@ -479,11 +480,11 @@ fn exact_call_occurrence<'facts>(
 /// Collect the self-parameter field paths retained in the callee's selected
 /// scalar plan so each can be resolved against the caller's receiver once.
 fn collect_self_field_paths(
-    expression: &checked_trees::CheckedScalarExpression,
+    expression: &crate::checked_trees::CheckedScalarExpression,
     self_position: u32,
-    paths: &mut Vec<Vec<checked_trees::CheckedStructuralPredicatePathSegment>>,
+    paths: &mut Vec<Vec<crate::checked_trees::CheckedStructuralPredicatePathSegment>>,
 ) {
-    use checked_trees::CheckedScalarExpression as Expression;
+    use crate::checked_trees::CheckedScalarExpression as Expression;
     match expression {
         Expression::StructuralParameterField {
             parameter_position,
@@ -517,12 +518,12 @@ fn collect_self_field_paths(
 }
 
 fn collect_self_field_paths_boolean(
-    expression: &checked_trees::CheckedBooleanExpression,
+    expression: &crate::checked_trees::CheckedBooleanExpression,
     self_position: u32,
-    paths: &mut Vec<Vec<checked_trees::CheckedStructuralPredicatePathSegment>>,
+    paths: &mut Vec<Vec<crate::checked_trees::CheckedStructuralPredicatePathSegment>>,
 ) {
-    use checked_trees::CheckedBooleanExpression as Expression;
-    let mut push = |field: &checked_trees::CheckedStructuralParameterField| {
+    use crate::checked_trees::CheckedBooleanExpression as Expression;
+    let mut push = |field: &crate::checked_trees::CheckedStructuralParameterField| {
         if field.parameter_position == self_position && !paths.contains(&field.path) {
             paths.push(field.path.clone());
         }

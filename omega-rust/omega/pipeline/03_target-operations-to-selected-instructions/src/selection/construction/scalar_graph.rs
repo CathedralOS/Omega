@@ -1,24 +1,26 @@
 //! Optimizer module role: executable entrance.
 //! Scalar instructions share one selection path regardless of the caller's result.
 
-use crate::selection::constraints::{fixed_input_constraint, instruction, row};
-use crate::selection::model::SelectedInstructionError;
-use calling_conventions::ValueLocation;
-use legalized_operations::{
+use crate::legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstructionKind, SaturatingCarrier, TrappingForm,
     TrappingOperation,
 };
-use optimization_unit::ValueDefinitionSite;
 #[cfg(test)]
-use register_model::ValidatedPhysicalRegisterModel;
-use register_model::{RegisterClassId, RegisterConstraintKey, ValidatedRegisterConstraintCatalog};
-use selected_instructions::{
+use crate::register_model::ValidatedPhysicalRegisterModel;
+use crate::register_model::{
+    RegisterClassId, RegisterConstraintKey, ValidatedRegisterConstraintCatalog,
+};
+use crate::selected_instructions::{
     MachineSemanticKind, SelectedBlock, SelectedBlockId, SelectedConstraintKeys, SelectedFunction,
     SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionProvenance, SelectedSelectionConstraints, VirtualRegister,
     VirtualRegisterId, VirtualRegisterOrigin,
 };
+use crate::selection::constraints::{fixed_input_constraint, instruction, row};
+use crate::selection::model::SelectedInstructionError;
+use abstract_operations_to_target_operations::calling_conventions::ValueLocation;
 use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType, ValueId};
+use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
 mod aggregate_argument;
 mod aggregate_memory;
@@ -65,7 +67,7 @@ pub(super) fn build_with_environment(
     function: usize,
     source: &LegalizedScalarFunction,
     constraints: &SelectedSelectionConstraints,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &crate::register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<SelectedFunction, SelectedInstructionError> {
     let mut current_operation = None;
     select_function(
@@ -82,7 +84,7 @@ fn select_function(
     function: usize,
     source: &LegalizedScalarFunction,
     constraints: &SelectedSelectionConstraints,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &crate::register_environment::ValidatedTargetRegisterEnvironment,
     current_operation: &mut Option<semantic_vocabulary::OperationId>,
 ) -> Result<SelectedFunction, SelectedInstructionError> {
     let invalid = || SelectedInstructionError::unsupported_shape(function);
@@ -440,7 +442,7 @@ fn select_function(
         );
         blocks.push(SelectedBlock {
             id: block_id,
-            origin: selected_instructions::SelectedBlockOrigin::Source(block.id),
+            origin: crate::selected_instructions::SelectedBlockOrigin::Source(block.id),
             instructions: builder.instructions[start..body_end].to_vec(),
             terminator,
         });

@@ -9,10 +9,10 @@ use super::{
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::emit_direct_expression;
-use checked_trees::CheckedStructuralPredicatePathSegment;
-use checked_trees::types::PrimitiveType;
 use terminal_psi::OperationKind;
 use terminal_psi::{BindingRelevance, StructuralFieldDeclaration};
+use typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment;
+use typed_trees_to_checked_trees::checked_trees::types::PrimitiveType;
 
 fn bindings(access: StructuralAccess, relevance: BindingRelevance) -> ScalarBindings {
     let scalar_type = terminal_scalar_type(PrimitiveType::U64).unwrap();

@@ -1,0 +1,73 @@
+use crate::package_evidence::encoding::PackageReviewEncodingError;
+use crate::package_manager::declarations::PackageKey;
+use crate::package_manager::lock::PackageOccurrenceRosterError;
+use crate::package_manager::resolution::graph::CanonicalSourceClosureSubjectError;
+use std::fmt;
+
+#[derive(Debug)]
+pub enum PackagePolicyChangeError {
+    TargetMismatch,
+    CandidateReview {
+        package: Option<Box<PackageKey>>,
+        reason: &'static str,
+    },
+    SourceSubject(CanonicalSourceClosureSubjectError),
+    Projection {
+        package: Box<PackageKey>,
+        error: PackageReviewEncodingError,
+    },
+    InvalidSourcePath {
+        package: Box<PackageKey>,
+    },
+    OccurrenceRoster,
+    LimitExceeded {
+        resource: &'static str,
+        maximum: usize,
+    },
+    AllocationFailed,
+}
+impl fmt::Display for PackagePolicyChangeError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::TargetMismatch => {
+                formatter.write_str("normalized policy comparison requires one exact target")
+            }
+            Self::CandidateReview { package, reason } => write!(
+                formatter,
+                "invalid fresh candidate review {package:?}: {reason}"
+            ),
+            Self::SourceSubject(error) => {
+                write!(formatter, "invalid candidate source subject: {error}")
+            }
+            Self::Projection { package, error } => write!(
+                formatter,
+                "cannot project normalized policy rows for {package:?}: {error}"
+            ),
+            Self::InvalidSourcePath { package } => write!(
+                formatter,
+                "source subject has no bounded path to {package:?}"
+            ),
+            Self::OccurrenceRoster => {
+                formatter.write_str("source subject does not yield a complete occurrence roster")
+            }
+            Self::LimitExceeded { resource, maximum } => write!(
+                formatter,
+                "normalized policy comparison exceeds {resource} limit {maximum}"
+            ),
+            Self::AllocationFailed => {
+                formatter.write_str("normalized policy comparison allocation failed")
+            }
+        }
+    }
+}
+impl std::error::Error for PackagePolicyChangeError {}
+
+impl From<PackageOccurrenceRosterError> for PackagePolicyChangeError {
+    fn from(error: PackageOccurrenceRosterError) -> Self {
+        match error {
+            PackageOccurrenceRosterError::AllocationFailed => Self::AllocationFailed,
+            PackageOccurrenceRosterError::UnknownPackage
+            | PackageOccurrenceRosterError::UnreachablePackage => Self::OccurrenceRoster,
+        }
+    }
+}

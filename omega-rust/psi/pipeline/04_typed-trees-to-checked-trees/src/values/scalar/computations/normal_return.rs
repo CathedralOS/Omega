@@ -10,7 +10,7 @@ use super::{
     CheckedBooleanExpression, CheckedScalarComputationHandle, CheckedScalarComputationKind,
     CheckedScalarComputationPlans, CheckedScalarExpression,
 };
-use facts::ScalarValue;
+use crate::fact_plan::ScalarValue;
 
 pub(super) fn boolean_result(
     plans: &CheckedScalarComputationPlans,

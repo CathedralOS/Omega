@@ -1,0 +1,886 @@
+use crate::checked_interpreter::interpreter::evaluator::{
+    ArithmeticDomain, Cell, EvalResult, Evaluator, ExpressionHandle, ExpressionNode, Frame,
+    FrameLocal, Halt, Machine, MutableScalarRecast, State, StatementNode, SymbolHandle, TableCall,
+    TableTransition, TransitionDecision, TransitionGuardNode, TransitionTargetNode,
+    TypeReferenceNode, Value, trap,
+};
+use language_core::is_self_receiver;
+use language_semantics::declaration_selection::BuildOperation;
+
+/// Whether a call target is a build declaration the build-config pass
+/// harvests statically, which evaluation serves as a no-op so the build
+/// machine runs through it: the CH10 root grant marker
+/// (`b.accept_boundary<path>();` desugars to `accept_boundary#<path>`),
+/// representation selection, and the wire-compatibility request marker.
+/// Provider selections and behavior exclusions are not among them: those
+/// are evaluated selections which record only when the call actually runs.
+pub(in crate::checked_interpreter::interpreter::evaluator) fn is_statically_harvested_build_declaration(
+    call_target: &str,
+) -> bool {
+    matches!(
+        BuildOperation::from_call_target(call_target),
+        Some(
+            BuildOperation::BoundaryAcceptance
+                | BuildOperation::RepresentationSelection
+                | BuildOperation::WireCompatibilityRequest
+        )
+    )
+}
+
+impl<'program> Evaluator<'program> {
+    pub(in crate::checked_interpreter::interpreter::evaluator) fn exec_statement(
+        &mut self,
+        statement: &StatementNode,
+        frame: &mut Frame,
+    ) -> EvalResult<()> {
+        self.tick()?;
+        match statement {
+            // Assembly facts are compile-time assertions and have no runtime
+            // evaluation in either interpreter or native execution.
+            StatementNode::AssemblyFact(_) => Ok(()),
+            StatementNode::RootBinding(_) => Err(Halt::Trap(
+                "root binding requires its executed statement identity".to_owned(),
+            )),
+            StatementNode::Assignment(assignment) => {
+                if self.assign_array_window(assignment.target, assignment.value, frame)? {
+                    return Ok(());
+                }
+                // Atomic RMW source syntax is carried as an opaque expression so
+                // native instruction selection can replace the whole assignment
+                // with one instruction. The interpreter executes serially, but it
+                // must preserve the same observable contract: the result local is
+                // the value observed by that RMW, not a separate earlier read.
+                // Seed the compiler-authored result place from the target before
+                // evaluating the arithmetic-shaped single-threaded model.
+                if let ExpressionNode::Atomic(atomic) = self
+                    .program
+                    .expression_table
+                    .expression(assignment.value)
+                    .clone()
+                    && matches!(
+                        atomic.ordering,
+                        language_core::AtomicOrderingPlan::ReadModifyWrite(_)
+                            | language_core::AtomicOrderingPlan::Swap(_)
+                            | language_core::AtomicOrderingPlan::CompareExchange { .. }
+                    )
+                {
+                    if !atomic.result.is_valid() {
+                        return Err(Halt::Trap(
+                            "atomic RMW carrier lost its result place".to_owned(),
+                        ));
+                    }
+                    let target = self.resolve_place(assignment.target, frame)?;
+                    let target = self.deref_cell(target);
+                    let prior = target.borrow().clone();
+                    let result = self.resolve_place(atomic.result, frame)?;
+                    let result = self.deref_cell(result);
+                    *result.borrow_mut() = prior;
+                }
+                // A STRUCT, or a whole owned ARRAY, assignment is a VALUE copy: deep-clone so
+                // mutating the destination later does not alias the source (`self.f =
+                // self.arr[1]; self.f.x = 50` must not touch arr[1]; `self.b = self.a;
+                // self.b[0] = 9` must not touch a). A `Value::Array` is deep-cloned ONLY when the
+                // TARGET's declared type is an owned `[T; N]` (FixedArray) -- a slice `&[T]`
+                // target is a shared view whose writes MUST alias the backing array, so it stays
+                // shared. `Ref` is likewise left shared for `&mut` write-through.
+                let destination = self
+                    .expression_type_reference(assignment.target, frame)
+                    .map(|mut target| {
+                        // Assignment through a reference requests the referee's
+                        // value type; it does not replace the reference itself.
+                        while let TypeReferenceNode::Reference { referee: base, .. }
+                        | TypeReferenceNode::Constrained {
+                            base_type: base, ..
+                        } = self.program.type_reference_table.type_reference(target)
+                        {
+                            target = *base;
+                        }
+                        target
+                    })
+                    .unwrap_or_default();
+                let value = self.eval_expression_at_type(assignment.value, destination, frame)?;
+                let copy_array = matches!(value, Value::Array(_))
+                    && self
+                        .assignment_target_type_reference(assignment.target, frame)
+                        .map(|target| self.declared_type_is_fixed_array(target))
+                        .unwrap_or(false);
+                let value = if matches!(value, Value::Struct { .. }) || copy_array {
+                    value.deep_clone_with(&|value| self.allocate_cell(value))?
+                } else {
+                    value
+                };
+                // Apply the target field's declared width AND arithmetic domain
+                // (decision 17), matching the native store: Exact/Wrapping truncate
+                // to the field's low bytes (a u16 field assigned 70000 reads back
+                // 4464), Saturating clamps to the type range (a u8 Saturating field
+                // assigned a folded 10000 reads back 255, not the wrapped 16), and
+                // Trapping halts on overflow. Mirrors the LocalData store below.
+                // Coerce the stored SCALAR to the target's declared width +
+                // arithmetic domain, matching the native store -- for a FIELD from
+                // its type, for an ARRAY ELEMENT `arr[i]` from the element width +
+                // the array's domain (`[u8;N]` given `a+b`=300 reads 44,
+                // `[u8;N] in Saturating` clamps to 255). Integers truncate/clamp/
+                // trap (decision 17); an f32 target rounds to f32 (native keeps f32
+                // in the slot). Mirrors the LocalData store below.
+                if self.write_mutable_record_recast_target(
+                    assignment.target,
+                    frame,
+                    value.clone(),
+                )? {
+                    return Ok(());
+                }
+                let value = if let Some(recast) =
+                    self.mutable_scalar_recast_target(assignment.target, frame)
+                {
+                    // The write is stated in the VIEW type, then lands in the
+                    // backing scalar cell or byte region as the identical bit
+                    // pattern. Validation proves the complete footprint.
+                    let target = recast.target().ok_or_else(|| {
+                        Halt::Trap("record recast reached the scalar write seam".to_owned())
+                    })?;
+                    let value = self.coerce_scalar_with(value, target, ArithmeticDomain::Exact)?;
+                    match recast {
+                        MutableScalarRecast::Direct { source, .. } => {
+                            self.eval_recast(value, Some(source))?
+                        }
+                        MutableScalarRecast::ByteRegion {
+                            cells,
+                            offset,
+                            target,
+                        } => {
+                            self.write_scalar_byte_region(&cells, offset, target, value)?;
+                            return Ok(());
+                        }
+                        MutableScalarRecast::AggregateByteRegion { .. }
+                        | MutableScalarRecast::AggregateTyped { .. } => {
+                            return trap("aggregate recast reached the scalar write seam");
+                        }
+                    }
+                } else {
+                    match self.assignment_target_coercion(assignment.target, frame) {
+                        Some((primitive, domain)) => {
+                            self.coerce_scalar_with(value, primitive, domain)?
+                        }
+                        None => value,
+                    }
+                };
+                // Carrier byte WRITE: `out[i] = ch` where `out` is text (`Value::Str`, packed
+                // BYTES). The byte has no per-element cell, so write it straight into the vec
+                // rather than resolving an element place (element_cell only handles Array). The
+                // value is the byte (an Int); a range index is not a scalar write.
+                let target = if let ExpressionNode::Indexed(indexed) = self
+                    .program
+                    .expression_table
+                    .expression(assignment.target)
+                    .clone()
+                    && !matches!(
+                        self.program.expression_table.expression(indexed.index),
+                        ExpressionNode::Range(_)
+                    ) {
+                    let collection_cell = self.resolve_place(indexed.collection, frame)?;
+                    let collection_cell = self.deref_cell(collection_cell);
+                    let index = self.eval_index(indexed.index, frame)?;
+                    if matches!(&*collection_cell.borrow(), Value::Str(_)) {
+                        let byte = value.as_int().ok_or_else(|| {
+                            Halt::Trap("carrier byte write value is not an integer".to_owned())
+                        })? as u8;
+                        if let Value::Str(text) = &*collection_cell.borrow()
+                            && let Err(len) = text.write_byte(index, byte)
+                        {
+                            return Err(Halt::Trap(format!(
+                                "carrier byte write index {index} out of bounds (len {len})"
+                            )));
+                        }
+                        return Ok(());
+                    }
+                    self.element_cell(&collection_cell, index)?
+                } else {
+                    self.resolve_place(assignment.target, frame)?
+                };
+                // Assigning to a `&mut` place writes THROUGH the reference into the aliased
+                // cell (so assigning through a mutable text-carrier parameter mutates the
+                // caller's carrier), rather than rebinding the local to a non-reference value.
+                let target = self.deref_cell(target);
+                *target.borrow_mut() = value;
+                Ok(())
+            }
+            StatementNode::LocalData(local) => {
+                // A mutable scalar recast is an ALIAS, not a snapshot. Preserve
+                // the source cell and remember the two scalar interpretations;
+                // eval_name performs source -> view reads, while assignment
+                // performs view -> source writes before touching the cell.
+                if local.initial_value.is_valid()
+                    && let Some((source, recast)) =
+                        self.mutable_scalar_recast_initializer(local.initial_value, frame)?
+                {
+                    frame.bind(FrameLocal {
+                        symbol: local.symbol,
+                        cell: self.allocate_cell(Value::Ref(source))?,
+                        type_reference: local.type_reference,
+                        scalar: None,
+                        mutable_recast: Some(recast),
+                    });
+                    return Ok(());
+                }
+                // A `let v = <struct>` or `let v = <owned array>` is a VALUE copy: deep-clone so
+                // a later mutation of `v` does not alias the initializer's source. A
+                // `Value::Array` is deep-cloned ONLY when the local's declared type is an owned
+                // `[T; N]` (FixedArray); a slice `let s = arr[1..3]` (a `&[T]` local) is a shared
+                // view and must keep sharing the array's cells. A `Ref` keeps aliasing the
+                // referent.
+                let value = if local.initial_value.is_valid() {
+                    let value = self.eval_expression_at_type(
+                        local.initial_value,
+                        local.type_reference,
+                        frame,
+                    )?;
+                    let copy_array = matches!(value, Value::Array(_))
+                        && self.declared_type_is_fixed_array(local.type_reference);
+                    if matches!(value, Value::Struct { .. }) || copy_array {
+                        value.deep_clone_with(&|value| self.allocate_cell(value))?
+                    } else {
+                        value
+                    }
+                } else {
+                    self.default_value_for_type(local.type_reference)?
+                };
+                // Coerce to the local's declared width + arithmetic domain
+                // (decision 17): Wrapping/Exact truncate like the native store,
+                // Saturating clamps, Trapping traps, an f32 local rounds to f32.
+                let value = self.coerce_scalar_value(value, local.type_reference)?;
+                // A `let` introduces a fresh local cell bound by its symbol. A
+                // scalar local also RECORDS its declared (primitive, domain) so
+                // later arithmetic on the name applies the domain at the
+                // operation node.
+                let scalar = self
+                    .program
+                    .primitive_type_reference(local.type_reference)
+                    .map(|primitive| {
+                        (
+                            primitive,
+                            self.program
+                                .arithmetic_domain_for_type_reference(local.type_reference),
+                        )
+                    });
+                frame.bind(FrameLocal {
+                    symbol: local.symbol,
+                    cell: self.allocate_cell(value)?,
+                    type_reference: local.type_reference,
+                    scalar,
+                    mutable_recast: None,
+                });
+                Ok(())
+            }
+            // Executed in run_state_collect_inner, where the statement handle
+            // is known — an executed exclusion call records its coordinate.
+            StatementNode::Call(_) => Err(Halt::Trap(
+                "call statement requires its executed statement identity".to_owned(),
+            )),
+            StatementNode::Expression(expression) => {
+                let _ = self.eval_expression(*expression, frame)?;
+                Ok(())
+            }
+            StatementNode::Transition(_) => {
+                // Handled in run_state_collect.
+                Ok(())
+            }
+        }
+    }
+
+    // ---- transitions --------------------------------------------------------
+
+    pub(in crate::checked_interpreter::interpreter::evaluator) fn eval_transition(
+        &mut self,
+        transition: &TableTransition,
+        frame: &mut Frame,
+    ) -> EvalResult<Option<TransitionDecision<'program>>> {
+        let holds = match transition.guard {
+            TransitionGuardNode::Always => true,
+            TransitionGuardNode::When(expression) => {
+                self.guard_depth += 1;
+                let value = self.eval_expression(expression, frame);
+                self.guard_depth -= 1;
+                let value = value?;
+                value
+                    .as_bool()
+                    .ok_or_else(|| Halt::Trap("transition guard is not boolean".to_owned()))?
+            }
+        };
+        if !holds {
+            return Ok(None);
+        }
+
+        let target = self
+            .program
+            .statement_table
+            .transition_target(transition.target)
+            .clone();
+        let decision = self.resolve_transition_target(&target, frame)?;
+        Ok(Some(decision))
+    }
+
+    fn resolve_transition_target(
+        &mut self,
+        target: &TransitionTargetNode,
+        frame: &mut Frame,
+    ) -> EvalResult<TransitionDecision<'program>> {
+        match target {
+            TransitionTargetNode::Terminal => Ok(TransitionDecision::Terminal),
+            TransitionTargetNode::SelfTarget => Ok(TransitionDecision::SelfTarget),
+            TransitionTargetNode::Value(expression) => {
+                let value = self.eval_expression_at_type(*expression, frame.return_type, frame)?;
+                Ok(TransitionDecision::Value(value))
+            }
+            TransitionTargetNode::Named {
+                path, arguments, ..
+            } => {
+                let members = self.program.statement_table.name_path_members(path.members);
+                let state_name = members
+                    .last()
+                    .map(|name| name.as_str())
+                    .ok_or_else(|| Halt::Unsupported("empty named transition".to_owned()))?;
+
+                // Same-machine sibling state on the current `self`, or a FREE
+                // machine's self-recursion (`-> count(...)` inside top-level
+                // `machine count` names the MACHINE, whose body state is the
+                // generated `entry`).
+                let (machine, state) = match self
+                    .machine_of_state_named(state_name, frame)
+                    .and_then(|machine| {
+                        self.find_state(machine, state_name)
+                            .map(|state| (machine, state))
+                    }) {
+                    Some(resolved) => resolved,
+                    None => self
+                        .free_machine_self_recursion_target(state_name, frame)
+                        .ok_or_else(|| {
+                            Halt::Unsupported(format!(
+                                "transition target `{state_name}` not found in current machine"
+                            ))
+                        })?,
+                };
+
+                let arguments = self.eval_state_arguments(
+                    state,
+                    self.program.statement_table.expression_handles(*arguments),
+                    frame,
+                )?;
+
+                Ok(TransitionDecision::Named {
+                    state,
+                    machine,
+                    instance: frame.self_cell.clone(),
+                    arguments,
+                })
+            }
+        }
+    }
+
+    /// A FREE machine's self-recursive transition target: the named target is the
+    /// CURRENT machine's own (leaf) name and the machine has no attached data, so
+    /// the recursion re-enters the machine's entry state (the generated `entry`)
+    /// with the transition's arguments.
+    fn free_machine_self_recursion_target(
+        &self,
+        state_name: &str,
+        frame: &Frame,
+    ) -> Option<(&'program Machine, &'program State)> {
+        let machine = self.current_machine(frame)?;
+        let leaf = machine.name.as_str().rsplit("::").next().unwrap_or("");
+        if machine.attached_data.is_some() || leaf != state_name {
+            return None;
+        }
+        let entry = self.machine_entry_state(machine)?;
+        Some((machine, entry))
+    }
+
+    /// Find the machine that owns a sibling state of `self` by state name. The entry and
+    /// its sub-states all live in the same machine group; a named transition stays within
+    /// the current machine.
+    fn machine_of_state_named(&self, state_name: &str, frame: &Frame) -> Option<&'program Machine> {
+        // A named transition target is a SIBLING state of the machine currently executing, so
+        // resolve within the CURRENT machine FIRST. Otherwise a state name shared across machines
+        // -- e.g. `Picker::pick` and `Main::read_at` BOTH having a `try1` sub-state -- collides on
+        // the type/global fallbacks below and runs the WRONG machine's body (the read_at `try1`
+        // transition would run pick's `try1`, returning pick's value).
+        if let Some(machine) = self.current_machine(frame)
+            && self.find_state(machine, state_name).is_some()
+        {
+            return Some(machine);
+        }
+        let type_symbol = match &*frame.self_cell.borrow() {
+            Value::Struct { type_symbol, .. } => *type_symbol,
+            _ => SymbolHandle::invalid(),
+        };
+        // First, the machine whose symbol matches the instance and has the state.
+        for machine in self.program.machines() {
+            if machine.symbol == type_symbol && self.find_state(machine, state_name).is_some() {
+                return Some(machine);
+            }
+        }
+        // Fall back: any machine that defines a state of that name (single-machine
+        // programs share one instance shape).
+        self.program
+            .machines()
+            .iter()
+            .find(|machine| self.find_state(machine, state_name).is_some())
+    }
+
+    // ---- calls --------------------------------------------------------------
+
+    pub(in crate::checked_interpreter::interpreter::evaluator) fn eval_call_statement(
+        &mut self,
+        statement: symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementHandle,
+        call: &TableCall,
+        frame: &mut Frame,
+    ) -> EvalResult<Value> {
+        if let Some(dispatch) = self.selected_boundary_adapter(
+            call.receiver_symbol,
+            call.target_symbol,
+            &call.machine_arguments,
+        ) {
+            let receiver = if dispatch.forward_receiver {
+                Some(self.eval_boundary_receiver_path(call, frame)?)
+            } else {
+                None
+            };
+            return self.run_boundary_adapter(
+                dispatch,
+                receiver,
+                self.program
+                    .statement_table
+                    .expression_handles(call.arguments),
+                frame,
+            );
+        }
+
+        // Asm intrinsic statement (`asm { hlt }`): the tree-walker cannot model
+        // halting the CPU, but `hlt` in an idle loop is observably a no-op step
+        // (the loop simply proceeds), so evaluate it as unit. Memory fences,
+        // serialization barriers and scheduling hints are also no-ops in the
+        // single-threaded tree walker: its evaluation order is already total.
+        // CLI/STI cannot change an interrupt source
+        // the interpreter does not model, so they are unit steps as well;
+        // `wbinvd`/`invd`/`wbnoinvd` act on caches the tree-walker's
+        // single-threaded memory model does not distinguish, so they are unit
+        // steps too.
+        // Port I/O (`asm#port_out`) has real device effects the interpreter
+        // cannot reproduce and stays unsupported.
+        if call.target.as_str() == "asm#hlt"
+            || call.target.as_str() == "asm#popfq"
+            || language_core::inline_assembly::AsmFenceKind::from_intrinsic_name(
+                call.target.as_str(),
+            )
+            .is_some()
+            || language_core::inline_assembly::AsmInterruptControlKind::from_intrinsic_name(
+                call.target.as_str(),
+            )
+            .is_some()
+            || language_core::inline_assembly::AsmInstructionSerializationKind::from_intrinsic_name(
+                call.target.as_str(),
+            )
+            .is_some()
+            || language_core::inline_assembly::AsmSchedulingHintKind::from_intrinsic_name(
+                call.target.as_str(),
+            )
+            .is_some()
+            || language_core::inline_assembly::AsmCacheOperationKind::from_intrinsic_name(
+                call.target.as_str(),
+            )
+            .is_some()
+        {
+            return Ok(Value::Unit);
+        }
+        // CH10 root grant (GR3) and its statically harvested siblings.
+        if is_statically_harvested_build_declaration(call.target.as_str()) {
+            return Ok(Value::Unit);
+        }
+        if let Some(value) = self.try_provider_selection_statement(statement, call, frame)? {
+            return Ok(value);
+        }
+        // Build behavior exclusions are EVALUATED selections: the executed
+        // call against the activation's root Build records the selection;
+        // a spelled call that never runs is not a selection.
+        if let Some(value) = self.try_behavior_exclusion_statement(statement, call, frame)? {
+            return Ok(value);
+        }
+        if self
+            .try_build_facet_filesystem_statement(call, frame)?
+            .is_some()
+        {
+            return Ok(Value::Unit);
+        }
+        if self.try_build_output_include_source_statement(call, frame)? {
+            return Ok(Value::Unit);
+        }
+        if self.try_build_log_write_line_statement(call, frame)? {
+            return Ok(Value::Unit);
+        }
+        if self.try_build_product_entry_statement(call, frame)? {
+            return Ok(Value::Unit);
+        }
+        if self.try_build_product_schema_statement(call, frame)? {
+            return Ok(Value::Unit);
+        }
+        if self.try_build_product_provider_statement(call, frame)? {
+            return Ok(Value::Unit);
+        }
+        if self.try_build_output_obligation_statement(call, frame)? {
+            return Ok(Value::Unit);
+        }
+        if self.try_required_output_path_statement(call, frame)? {
+            return Ok(Value::Unit);
+        }
+        if self.try_product_type_schema_path_statement(call, frame)? {
+            return Ok(Value::Unit);
+        }
+        if self.try_product_provider_ref_path_statement(call, frame)? {
+            return Ok(Value::Unit);
+        }
+
+        // Host boundary call? (e.g. self.console.exit_process(70))
+        if let Some(value) = self.try_host_call(call, frame)? {
+            return Ok(value);
+        }
+
+        // The synthesized wire encoder (chapter 20, wire stage 2a)?
+        if let Some(value) = self.try_wire_encode_call(call, frame)? {
+            return Ok(value);
+        }
+
+        // The synthesized wire decoder (chapter 20, wire stage 2b)?
+        if let Some(value) = self.try_wire_decode_call(call, frame)? {
+            return Ok(value);
+        }
+
+        let (machine, state, instance) = if call.receiver.is_empty() {
+            self.resolve_entry_state_symbol(call.target_symbol, frame)
+                .map_or_else(|| self.resolve_state_call(call, frame), Ok)?
+        } else {
+            self.resolve_state_call(call, frame)?
+        };
+
+        let arguments = self.eval_state_arguments(
+            state,
+            self.program
+                .statement_table
+                .expression_handles(call.arguments),
+            frame,
+        )?;
+
+        self.run_state_collect(machine, state, instance, arguments)
+            .map(|value| value.unwrap_or(Value::Unit))
+    }
+
+    /// Resolve a receiverless direct call through its exact entry-state
+    /// symbol. Selected checked adapters and static-machine specialization
+    /// retain this identity specifically so attached/plural realizations do
+    /// not fall back to ambiguous display-name lookup.
+    pub(in crate::checked_interpreter::interpreter::evaluator) fn resolve_entry_state_symbol(
+        &self,
+        target_symbol: SymbolHandle,
+        frame: &Frame,
+    ) -> Option<(&'program Machine, &'program State, Cell)> {
+        if !target_symbol.is_valid() {
+            return None;
+        }
+        self.program.machines().iter().find_map(|machine| {
+            self.program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == target_symbol)
+                .map(|state| (machine, state, frame.self_cell.clone()))
+        })
+    }
+
+    /// Resolve a call target -- a state name with an optional receiver path -- to the
+    /// (machine, state, instance) it runs against. Priority:
+    /// 1. An explicit receiver path naming a CONTAINED sub-machine instance field whose
+    ///    type defines the target state (`self.dungeon.foo()`): run on that sub-instance.
+    ///    A resolved `target_symbol` (specialization rewrite or checked selection) picks
+    ///    the exact entry state on that instance before any name matching.
+    /// 2. A SIBLING state of the current machine (`self.foo()` where `foo` is a state of
+    ///    the machine currently executing): run that state on the same `self`.
+    /// 3. A free helper machine named `<group>::<target>` or any machine with that state:
+    ///    run its entry state on the current `self`.
+    fn resolve_state_call(
+        &self,
+        call: &TableCall,
+        frame: &Frame,
+    ) -> EvalResult<(&'program Machine, &'program State, Cell)> {
+        let target = call.target.as_str();
+        // (1) Explicit receiver path to a contained sub-machine instance.
+        if let Some(resolved) = self.resolve_receiver_state_call(call, frame)? {
+            return Ok(resolved);
+        }
+
+        // (2) Sibling state of the current machine.
+        if let Some(machine) = self.current_machine(frame)
+            && let Some(state) = self.find_state(machine, target)
+        {
+            return Ok((machine, state, frame.self_cell.clone()));
+        }
+
+        // (3) A free helper machine.
+        let machine = self
+            .find_machine_for_call(target, frame)
+            .ok_or_else(|| Halt::Unsupported(format!("unknown call target `{target}`")))?;
+        let entry_state = self
+            .machine_entry_state(machine)
+            .ok_or_else(|| Halt::Unsupported(format!("call target `{target}` has no state")))?;
+        Ok((machine, entry_state, frame.self_cell.clone()))
+    }
+
+    /// If the call has a receiver path that resolves (relative to `self`) to a CONTAINED
+    /// sub-machine instance whose machine defines the target state, return that instance and
+    /// machine. The receiver path's leaf is the field; the head may be `self`.
+    fn resolve_receiver_state_call(
+        &self,
+        call: &TableCall,
+        frame: &Frame,
+    ) -> EvalResult<Option<(&'program Machine, &'program State, Cell)>> {
+        let target = call.target.as_str();
+        let target_symbol = call.target_symbol;
+        let members: Vec<String> = self
+            .program
+            .statement_table
+            .name_path_members(call.receiver)
+            .iter()
+            .map(|name| name.as_str().to_owned())
+            .collect();
+        if members.is_empty() {
+            return Ok(None);
+        }
+
+        // Walk the receiver path to a cell, starting at `self` (an implicit-self leaf like
+        // `console` is a single-member path; `self.dungeon` is `[self, dungeon]`).
+        let mut cell = frame.self_cell.clone();
+        let mut start = 0;
+        if is_self_receiver(&members[0]) {
+            start = 1;
+        } else if let Some(local) = frame.local_cell(call.receiver_root_symbol) {
+            cell = local;
+            start = 1;
+        }
+        for member in &members[start..] {
+            cell = self.deref_cell(cell);
+            match self.field_cell(&cell, member) {
+                Ok(next) => cell = next,
+                Err(_) => return Ok(None),
+            }
+        }
+        cell = self.deref_cell(cell);
+
+        // A resolved target symbol (checked selection or a specialization
+        // rewrite such as `self.put<n>(v)` targeting the `put$specialized`
+        // entry) selects the exact state; the receiver cell supplies the
+        // instance. Mirrors the expression-call path in
+        // `resolve_value_call_target`, which prefers the symbol over name
+        // matching for any resolvable receiver including bare `self`.
+        if let Some((machine, state, _)) = self.resolve_entry_state_symbol(target_symbol, frame) {
+            return Ok(Some((machine, state, cell)));
+        }
+
+        // Only treat this as a sub-machine call if the receiver is NOT just `self` (a bare
+        // self receiver is handled by the sibling-state path).
+        let bare_self = members.len() == 1 && is_self_receiver(&members[0]);
+        if bare_self {
+            return Ok(None);
+        }
+        Ok(self
+            .machine_for_instance_state(&cell, target)
+            .and_then(|machine| {
+                self.find_state(machine, target)
+                    .map(|state| (machine, state, cell))
+            }))
+    }
+
+    /// Find the machine that operates on `instance` and defines `target` as a state. The
+    /// instance is a `Struct` whose `type_name` is the data/machine type (e.g. `Circle`); a
+    /// free machine `Circle::code` lives in that type's group. Matches by machine symbol, by
+    /// attached-data name, or by the `<type>::<target>` group-qualified machine name.
+    pub(in crate::checked_interpreter::interpreter::evaluator) fn machine_for_instance_state(
+        &self,
+        instance: &Cell,
+        target: &str,
+    ) -> Option<&'program Machine> {
+        let (type_symbol, type_name) = match &*instance.borrow() {
+            Value::Struct {
+                type_symbol,
+                type_name,
+                ..
+            } => (*type_symbol, type_name.clone()),
+            // An ENUM receiver (`self.s.go_value()` where `s: Signal`): the
+            // enum-attached machine group is the declaring data type, whose
+            // NAME resolves from the value's type_symbol. Without this arm the
+            // method call silently failed to find its machine and returned ZII.
+            Value::Enum { type_symbol, .. } => {
+                let name = self
+                    .program
+                    .data_definitions()
+                    .iter()
+                    .find(|data| type_symbol.is_valid() && data.symbol == *type_symbol)
+                    .map(|data| data.name.as_str().to_owned())?;
+                (*type_symbol, name)
+            }
+            _ => return None,
+        };
+        // The group is the leading segment of the type name (e.g. `Circle` from `Circle`).
+        let group = type_name
+            .split("::")
+            .next()
+            .unwrap_or(&type_name)
+            .to_owned();
+        for machine in self.program.machines() {
+            if self.find_state(machine, target).is_none() {
+                continue;
+            }
+            let machine_group = machine
+                .name
+                .as_str()
+                .split("::")
+                .next()
+                .unwrap_or("")
+                .to_owned();
+            let by_symbol = type_symbol.is_valid() && machine.symbol == type_symbol;
+            let by_attached = machine
+                .attached_data
+                .as_ref()
+                .is_some_and(|data| data.as_str() == group);
+            let by_group = machine_group == group;
+            if by_symbol || by_attached || by_group {
+                return Some(machine);
+            }
+        }
+        None
+    }
+
+    pub(in crate::checked_interpreter::interpreter::evaluator) fn current_machine(
+        &self,
+        frame: &Frame,
+    ) -> Option<&'program Machine> {
+        if !frame.machine_symbol.is_valid() {
+            return None;
+        }
+        self.program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == frame.machine_symbol)
+    }
+
+    /// Find the machine invoked by a call whose `target` is a state name. A free helper
+    /// machine is named `<group>::<target>` (e.g. `Main::bump`); resolve by that name, or
+    /// by any machine that contains a state of that name and shares the receiver group.
+    pub(in crate::checked_interpreter::interpreter::evaluator) fn find_machine_for_call(
+        &self,
+        target: &str,
+        frame: &Frame,
+    ) -> Option<&'program Machine> {
+        // The receiver's machine-group prefix (e.g. "Main" from "Main::main").
+        let group = {
+            let self_name = match &*frame.self_cell.borrow() {
+                Value::Struct { type_name, .. } => type_name.clone(),
+                _ => String::new(),
+            };
+            self_name
+                .split("::")
+                .next()
+                .map(|prefix| prefix.to_owned())
+                .unwrap_or_default()
+        };
+
+        let qualified = format!("{group}::{target}");
+        if let Some(machine) = self.find_machine_by_name(&qualified) {
+            return Some(machine);
+        }
+        // A FREE top-level machine named exactly `target` (`machine pick(x: i32)
+        // -> i32`): its body state is the generated `entry`, so the state-name
+        // scan below would miss it.
+        if let Some(machine) = self.find_machine_by_name(target)
+            && machine.attached_data.is_none()
+        {
+            return Some(machine);
+        }
+        // Otherwise a machine that simply has a state named `target` -- but only when that
+        // is UNAMBIGUOUS. With several candidates (e.g. two impls of the same trait
+        // machine), guessing the first would silently dispatch to the wrong type; decline
+        // instead so the caller reports unsupported (dispatch by the RECEIVER's runtime
+        // type is handled earlier, in `machine_for_instance_state`).
+        let mut candidates = self
+            .program
+            .machines()
+            .iter()
+            .filter(|machine| self.find_state(machine, target).is_some());
+        let first = candidates.next();
+        if candidates.next().is_some() {
+            return None;
+        }
+        first
+    }
+
+    pub(in crate::checked_interpreter::interpreter::evaluator) fn machine_entry_state(
+        &self,
+        machine: &Machine,
+    ) -> Option<&'program State> {
+        // A free helper machine `Main::bump` exposes its body as a state. Prefer a state
+        // whose name matches the machine's leaf (`bump`); else the first state.
+        let leaf = machine.name.as_str().rsplit("::").next().unwrap_or("");
+        if let Some(state) = self.find_state(machine, leaf) {
+            return Some(state);
+        }
+        self.program.machine_states(machine).first()
+    }
+
+    /// Evaluate an argument. A `Mutable(place)` or a direct place under a `&mut` param
+    /// yields a `Ref` that ALIASES the original cell; a value argument yields a fresh
+    /// cell holding a copy.
+    pub(in crate::checked_interpreter::interpreter::evaluator) fn eval_argument(
+        &mut self,
+        argument: ExpressionHandle,
+        frame: &mut Frame,
+    ) -> EvalResult<Cell> {
+        match self.program.expression_table.expression(argument) {
+            ExpressionNode::Indexed(indexed)
+                if matches!(
+                    self.program.expression_table.expression(indexed.index),
+                    ExpressionNode::Range(_)
+                ) =>
+            {
+                // A view is already the argument value. Probing its place and
+                // then evaluating it again would replay effectful selectors.
+                let value = self.eval_expression(argument, frame)?;
+                self.allocate_cell(value)
+            }
+            ExpressionNode::Borrow(inner) => {
+                // &mut place -> a Ref to the SAME cell (the whole point of the oracle). The
+                // param binding holds a `Ref`, so a later forward of that param (as a bare
+                // name) can detect it is a reference and keep aliasing -- otherwise a
+                // mutable text carrier passed down a call chain detaches after the first hop.
+                let cell = self.resolve_place(inner.target, frame)?;
+                // A RE-BORROW (`&mut t` where `t` is itself a `&mut` param)
+                // aliases the SAME target: forward the inner Ref instead of
+                // nesting Ref-to-Ref, which downstream single-level derefs
+                // (receiver method resolution) cannot see through -- the
+                // param-forwarding chain declined with "unknown value-call
+                // target" while the native build served it (2026-07-11l).
+                let target = match &*cell.borrow() {
+                    Value::Ref(target) => target.clone(),
+                    _ => cell.clone(),
+                };
+                self.allocate_cell(Value::Ref(target))
+            }
+            ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+                // Select once: a speculative place lookup followed by value
+                // evaluation would replay effectful indices. Retain any Ref
+                // wrapper so forwarding aliases the original referent.
+                let cell = self.eval_read_cell(argument, frame)?;
+                let value = cell.borrow().clone();
+                self.allocate_cell(value)
+            }
+            _ => {
+                let value = self.eval_expression(argument, frame)?;
+                self.allocate_cell(value)
+            }
+        }
+    }
+}

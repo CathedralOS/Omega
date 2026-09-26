@@ -406,20 +406,20 @@ fn resolves_generic_calls_inside_machine_contracts() {
         .machine_contracts(witness)
         .iter()
         .find(|contract| {
-            contract.kind == symbol_resolved_trees::signature::SignatureContractKind::Ensures
+            contract.kind == crate::symbol_resolved_trees::signature::SignatureContractKind::Ensures
         })
         .expect("witness ensures");
-    let [symbol_resolved_trees::domain::ProofFact::Expression(expression)] =
+    let [crate::symbol_resolved_trees::domain::ProofFact::Expression(expression)] =
         program.proof_facts(ensures.facts)
     else {
         panic!("one expression fact")
     };
-    let symbol_resolved_trees::expression::ExpressionNode::Binary(binary) =
+    let crate::symbol_resolved_trees::expression::ExpressionNode::Binary(binary) =
         program.tables.bodies.expressions.expression(*expression)
     else {
         panic!("equality expression")
     };
-    let symbol_resolved_trees::expression::ExpressionNode::Call(call) =
+    let crate::symbol_resolved_trees::expression::ExpressionNode::Call(call) =
         program.tables.bodies.expressions.expression(binary.left)
     else {
         panic!("generic call on equality left")
@@ -483,12 +483,13 @@ fn transition_target_prefers_state_over_same_named_attached_field() {
     let states = program.machine_state_handles(machine.states);
     let entry = program.machine_state(states[0]);
     let next = program.machine_state(states[1]);
-    let symbol_resolved_trees::statement::Statement::Transition(transition) =
+    let crate::symbol_resolved_trees::statement::Statement::Transition(transition) =
         &program.state_statements(entry.statements)[0]
     else {
         panic!("main should transition to next");
     };
-    let symbol_resolved_trees::statement::TransitionTarget::Named(target) = &transition.target
+    let crate::symbol_resolved_trees::statement::TransitionTarget::Named(target) =
+        &transition.target
     else {
         panic!("next should remain a named transition target");
     };
@@ -539,14 +540,15 @@ fn resolves_qualified_attached_machine_tail_transition() {
         .first()
         .map(|state| program.machine_state(*state))
         .expect("issue state");
-    let symbol_resolved_trees::statement::Statement::Transition(transition) = program
+    let crate::symbol_resolved_trees::statement::Statement::Transition(transition) = program
         .state_statements(issue_state.statements)
         .last()
         .expect("terminal transition")
     else {
         panic!("issue should end in a transition");
     };
-    let symbol_resolved_trees::statement::TransitionTarget::Named(target) = &transition.target
+    let crate::symbol_resolved_trees::statement::TransitionTarget::Named(target) =
+        &transition.target
     else {
         panic!("qualified tail call should remain a named transition");
     };
@@ -625,7 +627,7 @@ fn attached_calls_and_qualified_transitions_obey_resolution_strata() {
         .expressions
         .iter_expressions()
         .filter_map(|(_, expression)| match expression {
-            symbol_resolved_trees::expression::ExpressionNode::Call(call) => Some(call),
+            crate::symbol_resolved_trees::expression::ExpressionNode::Call(call) => Some(call),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -665,14 +667,15 @@ fn attached_calls_and_qualified_transitions_obey_resolution_strata() {
         .expect("authored transition machine");
     let transition_state =
         program.machine_state(program.machine_state_handles(transition_machine.states)[0]);
-    let symbol_resolved_trees::statement::Statement::Transition(transition) = program
+    let crate::symbol_resolved_trees::statement::Statement::Transition(transition) = program
         .state_statements(transition_state.statements)
         .last()
         .expect("terminal transition")
     else {
         panic!("authored transition remains terminal")
     };
-    let symbol_resolved_trees::statement::TransitionTarget::Named(target) = &transition.target
+    let crate::symbol_resolved_trees::statement::TransitionTarget::Named(target) =
+        &transition.target
     else {
         panic!("authored qualified transition remains named")
     };
@@ -706,12 +709,12 @@ fn resolves_self_parameter_type_to_machine_symbol() {
         .first()
         .expect("self parameter");
 
-    let symbol_resolved_trees::types::TypeReference::Reference(reference) =
+    let crate::symbol_resolved_trees::types::TypeReference::Reference(reference) =
         &parameter.type_reference
     else {
         panic!("self parameter should retain its authored reference shell");
     };
-    let symbol_resolved_trees::types::TypeReference::SelfType { symbol } =
+    let crate::symbol_resolved_trees::types::TypeReference::SelfType { symbol } =
         program.child_type_reference(reference.referee)
     else {
         panic!("self parameter referee should stay explicit");
@@ -839,7 +842,7 @@ fn authored_base_paths_and_receiverless_calls_ignore_extension_first_declaration
         .state_parameters(entry.parameters)
         .first()
         .expect("Choice parameter");
-    let symbol_resolved_trees::types::TypeReference::Named { symbol, .. } =
+    let crate::symbol_resolved_trees::types::TypeReference::Named { symbol, .. } =
         &parameter.type_reference
     else {
         panic!("Choice parameter remains nominal")
@@ -858,7 +861,7 @@ fn authored_base_paths_and_receiverless_calls_ignore_extension_first_declaration
         .expressions
         .iter_expressions()
         .find_map(|(_, expression)| match expression {
-            symbol_resolved_trees::expression::ExpressionNode::Call(call)
+            crate::symbol_resolved_trees::expression::ExpressionNode::Call(call)
                 if call.target.as_str() == "generated_pick" =>
             {
                 Some(call.target_symbol)
@@ -873,7 +876,7 @@ fn authored_base_paths_and_receiverless_calls_ignore_extension_first_declaration
         .expressions
         .iter_expressions()
         .find_map(|(_, expression)| match expression {
-            symbol_resolved_trees::expression::ExpressionNode::Call(call)
+            crate::symbol_resolved_trees::expression::ExpressionNode::Call(call)
                 if call.target.as_str() == "pick" =>
             {
                 Some(call.target_symbol)
@@ -894,12 +897,12 @@ fn authored_base_paths_and_receiverless_calls_ignore_extension_first_declaration
         .iter()
         .find(|proposition| proposition.name.as_str() == "authored")
         .expect("authored proposition");
-    let symbol_resolved_trees::proposition::PropositionBody::Transparent { proposition } =
+    let crate::symbol_resolved_trees::proposition::PropositionBody::Transparent { proposition } =
         authored_proposition.body
     else {
         panic!("authored proposition stays transparent")
     };
-    let symbol_resolved_trees::expression::ExpressionNode::Call(call) =
+    let crate::symbol_resolved_trees::expression::ExpressionNode::Call(call) =
         program.tables.bodies.expressions.expression(proposition)
     else {
         panic!("authored proposition body stays a call")
@@ -917,12 +920,12 @@ fn authored_base_paths_and_receiverless_calls_ignore_extension_first_declaration
         .iter()
         .find(|proposition| proposition.name.as_str() == "authored_missing")
         .expect("authored missing proposition");
-    let symbol_resolved_trees::proposition::PropositionBody::Transparent { proposition } =
+    let crate::symbol_resolved_trees::proposition::PropositionBody::Transparent { proposition } =
         authored_missing_proposition.body
     else {
         panic!("authored missing proposition stays transparent")
     };
-    let symbol_resolved_trees::expression::ExpressionNode::Call(call) =
+    let crate::symbol_resolved_trees::expression::ExpressionNode::Call(call) =
         program.tables.bodies.expressions.expression(proposition)
     else {
         panic!("authored missing proposition body stays a call")

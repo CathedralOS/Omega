@@ -9,9 +9,9 @@ use language_semantics::{
 pub(super) fn validate(
     checked: &CheckedTrees,
     caller: &CallerView<'_>,
-    producer: checked_trees::CheckedUnitCallCoordinate,
-    consumer: checked_trees::CheckedUnitCallCoordinate,
-    expression: checked_trees::expression::ExpressionHandle,
+    producer: typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate,
+    consumer: typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate,
+    expression: typed_trees_to_checked_trees::checked_trees::expression::ExpressionHandle,
 ) -> Result<(), LoweringError> {
     let (_, state) =
         crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
@@ -64,28 +64,29 @@ pub(super) fn validate(
     {
         return unsupported("anonymous shared result has additional captured calls");
     }
-    let call_source = |coordinate: checked_trees::CheckedUnitCallCoordinate| {
-        let authored = crate::emission::call_source_custody::authored::locate_source(
-            checked,
-            caller.state,
-            coordinate,
-        )?;
-        let mut matching = calls.iter().filter(|call| {
-            call.statement_index == coordinate.statement_index as usize
-                && call.call_ordinal == coordinate.call_ordinal as usize
-        });
-        let call = matching.next().ok_or(LoweringError::Unsupported(
-            "anonymous shared result has no captured call",
-        ))?;
-        if matching.next().is_some() || call.target_symbol != authored.source_target {
-            return unsupported("anonymous shared result call identity drifted");
-        }
-        Ok(PermissionEventSource::Call {
-            statement_index: call.statement_index,
-            call_ordinal: call.call_ordinal,
-            target_symbol: call.target_symbol,
-        })
-    };
+    let call_source =
+        |coordinate: typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate| {
+            let authored = crate::emission::call_source_custody::authored::locate_source(
+                checked,
+                caller.state,
+                coordinate,
+            )?;
+            let mut matching = calls.iter().filter(|call| {
+                call.statement_index == coordinate.statement_index as usize
+                    && call.call_ordinal == coordinate.call_ordinal as usize
+            });
+            let call = matching.next().ok_or(LoweringError::Unsupported(
+                "anonymous shared result has no captured call",
+            ))?;
+            if matching.next().is_some() || call.target_symbol != authored.source_target {
+                return unsupported("anonymous shared result call identity drifted");
+            }
+            Ok(PermissionEventSource::Call {
+                statement_index: call.statement_index,
+                call_ordinal: call.call_ordinal,
+                target_symbol: call.target_symbol,
+            })
+        };
     let producer_source = call_source(producer)?;
     let consumer_source = call_source(consumer)?;
     let provenance = PermissionProvenance::Established {
@@ -102,7 +103,8 @@ pub(super) fn validate(
         .filter(|(_, event)| {
             event.machine_symbol == caller.machine
                 && event.state_symbol == caller.state
-                && event.root == facts::PlaceRoot::Expression(expression)
+                && event.root
+                    == typed_trees_to_checked_trees::fact_plan::PlaceRoot::Expression(expression)
         });
     for (kind, source, access, multiplicity) in [
         (

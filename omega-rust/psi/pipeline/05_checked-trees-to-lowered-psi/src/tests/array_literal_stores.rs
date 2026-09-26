@@ -3,9 +3,9 @@
 //! its complete, ordered element roster.
 
 use super::lower_machine;
-use crate::TerminalMachineSelection;
-use checked_trees::{CheckedTrees, CheckedUnitEffectOperationPlan};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_psi::OperationKind;
+use typed_trees_to_checked_trees::checked_trees::{CheckedTrees, CheckedUnitEffectOperationPlan};
 
 const SOURCE: &str = r#"
     data Board { cells: [u16; 3]; }

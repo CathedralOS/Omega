@@ -7,18 +7,18 @@
 
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::lowering_error::{LoweringError, unsupported};
-use checked_trees::types::PrimitiveType;
-use checked_trees::{
-    CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
-    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedScalarSuccessor, CheckedTrees,
-    CheckedUnitStructuralPathSegment,
-};
 use language_semantics::Multiplicity;
 use numerics::arithmetic::ArithmeticDomain;
 use semantic_vocabulary::{PlaceId, ScalarType, StructuralFieldId, StructuralTypeId};
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralFieldType, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
+};
+use typed_trees_to_checked_trees::checked_trees::types::PrimitiveType;
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedScalarSuccessor, CheckedTrees,
+    CheckedUnitStructuralPathSegment,
 };
 
 pub(crate) mod bindings;

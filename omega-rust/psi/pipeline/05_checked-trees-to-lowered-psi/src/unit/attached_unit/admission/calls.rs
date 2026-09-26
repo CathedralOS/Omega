@@ -33,12 +33,12 @@ use super::super::{
     retain_exact_unit_boundary, scalar_structural_calls, structural_calls, unique_unit_boundary,
 };
 use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
-use checked_trees::{
+use symbols::SymbolHandle;
+use typed_trees_to_checked_trees::checked_trees::{
     CheckedBoundaryMachinePlan, CheckedComposedUnitControlStatePlan,
     CheckedComposedUnitControlTerminatorPlan, CheckedTrivialAffineStructuralLocalPlan,
     CheckedUnitEntryClaimPlan, CheckedUnitStructuralParameterPlan, CheckedUnitStructuralReturnPlan,
 };
-use symbols::SymbolHandle;
 
 /// The calling body a call's admission rejoins against.
 #[derive(Clone, Copy)]

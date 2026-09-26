@@ -4,7 +4,7 @@
 use super::{
     CheckFacts, CheckedScalarExpressionRole, SymbolHandle, TypeReferenceHandle, TypedTrees,
 };
-use typed_trees::expression::ExpressionHandle;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
 
 pub(in crate::execution::terminal_unit) fn elements(
     program: &TypedTrees,
@@ -12,11 +12,11 @@ pub(in crate::execution::terminal_unit) fn elements(
     machine: SymbolHandle,
     state: SymbolHandle,
     statement_ordinal: u32,
-    source: checked_trees::CheckedArrayConstructionSource,
+    source: crate::checked_trees::CheckedArrayConstructionSource,
     expression: ExpressionHandle,
     expected: TypeReferenceHandle,
-) -> Option<Vec<checked_trees::CheckedCallScalarArgument>> {
-    let leaves = validation::scalar_array_elements(program, machine, expression, expected)?;
+) -> Option<Vec<crate::checked_trees::CheckedCallScalarArgument>> {
+    let leaves = crate::validation::scalar_array_elements(program, machine, expression, expected)?;
     for projection in leaves.projections {
         if let Some(selected) = facts.operators.expression_use(projection)
             && (selected.spelling != language_core::OperatorSpelling::Index
@@ -24,8 +24,8 @@ pub(in crate::execution::terminal_unit) fn elements(
                 || selected.candidate_count != 0
                 || !matches!(
                     selected.status,
-                    checked_trees::CheckedOperatorResolutionStatus::Missing
-                        | checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+                    crate::checked_trees::CheckedOperatorResolutionStatus::Missing
+                        | crate::checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
                 ))
         {
             return None;
@@ -69,9 +69,9 @@ pub(in crate::execution::terminal_unit) fn elements(
                 {
                     return None;
                 }
-                return Some(checked_trees::CheckedCallScalarArgument::Computation(
-                    root.root,
-                ));
+                return Some(
+                    crate::checked_trees::CheckedCallScalarArgument::Computation(root.root),
+                );
             }
             if !roots.is_empty() {
                 return None;
@@ -86,7 +86,7 @@ pub(in crate::execution::terminal_unit) fn elements(
             {
                 return None;
             }
-            Some(checked_trees::CheckedCallScalarArgument::Pure(
+            Some(crate::checked_trees::CheckedCallScalarArgument::Pure(
                 value.clone(),
             ))
         })

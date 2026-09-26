@@ -6,7 +6,7 @@ use diagnostics::Diagnostic;
 /// structured atoms instead require the original constructor expression, even
 /// when a malformed input clears its handle.
 pub(crate) fn normalization_requires_expression(
-    normalization: &syntax_trees::types::ConstArgumentNormalization,
+    normalization: &tokens_to_syntax_trees::syntax_trees::types::ConstArgumentNormalization,
 ) -> bool {
     use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
     normalization.authored_expression.is_valid()
@@ -23,8 +23,8 @@ pub(crate) fn normalization_requires_expression(
 }
 
 pub(crate) fn validate_normalized_expression(
-    syntax: &syntax_trees::SyntaxTrees,
-    normalization: &syntax_trees::types::ConstArgumentNormalization,
+    syntax: &tokens_to_syntax_trees::syntax_trees::SyntaxTrees,
+    normalization: &tokens_to_syntax_trees::syntax_trees::types::ConstArgumentNormalization,
 ) -> Result<(), Diagnostic> {
     if normalization_requires_expression(normalization)
         && (!syntax
@@ -46,31 +46,32 @@ pub(crate) fn validate_normalized_expression(
 /// Check the rewritten payload against its captured canonical value before
 /// binding the selected declaration to a final symbol.
 pub(crate) fn validate_normalized_const_argument(
-    argument: &syntax_trees::types::TypeReferenceNode,
-    normalization: &syntax_trees::types::ConstArgumentNormalization,
+    argument: &tokens_to_syntax_trees::syntax_trees::types::TypeReferenceNode,
+    normalization: &tokens_to_syntax_trees::syntax_trees::types::ConstArgumentNormalization,
 ) -> Result<(), Diagnostic> {
     use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
     let encoded = CanonicalConstValue::new("", &normalization.canonical_result_encoding, "");
     let matches = match (argument, encoded.decode_encoding()) {
         (
-            syntax_trees::types::TypeReferenceNode::Named(name),
+            tokens_to_syntax_trees::syntax_trees::types::TypeReferenceNode::Named(name),
             Some(DecodedCanonicalConstValue::Integer { value, .. }),
         ) => name.as_str() == value.to_string(),
-        (syntax_trees::types::TypeReferenceNode::Named(name), Some(decoded)) => {
-            CanonicalConstValue::from_atom(name.as_str()).is_some_and(|value| {
-                let carrier = match &decoded {
-                    DecodedCanonicalConstValue::Float { .. } => return false,
-                    DecodedCanonicalConstValue::Boolean(_) => "bool",
-                    DecodedCanonicalConstValue::Array { type_name, .. }
-                    | DecodedCanonicalConstValue::Record { type_name, .. }
-                    | DecodedCanonicalConstValue::Variant { type_name, .. }
-                    | DecodedCanonicalConstValue::Integer { type_name, .. } => type_name.as_str(),
-                };
-                value.encoding == normalization.canonical_result_encoding
-                    && value.type_name == carrier
-                    && value.decode_encoding() == Some(decoded)
-            })
-        }
+        (
+            tokens_to_syntax_trees::syntax_trees::types::TypeReferenceNode::Named(name),
+            Some(decoded),
+        ) => CanonicalConstValue::from_atom(name.as_str()).is_some_and(|value| {
+            let carrier = match &decoded {
+                DecodedCanonicalConstValue::Float { .. } => return false,
+                DecodedCanonicalConstValue::Boolean(_) => "bool",
+                DecodedCanonicalConstValue::Array { type_name, .. }
+                | DecodedCanonicalConstValue::Record { type_name, .. }
+                | DecodedCanonicalConstValue::Variant { type_name, .. }
+                | DecodedCanonicalConstValue::Integer { type_name, .. } => type_name.as_str(),
+            };
+            value.encoding == normalization.canonical_result_encoding
+                && value.type_name == carrier
+                && value.decode_encoding() == Some(decoded)
+        }),
         _ => false,
     };
     if matches {

@@ -1,12 +1,14 @@
 //! Exact scalar or member-chain inputs of an independently formed endpoint.
 
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::data::DataField;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode, TableStructLiteral,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
+use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::data::DataField;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
-use typed_trees::signature::StateParameter;
-use typed_trees::state::State;
-use typed_trees::types::TypeReferenceNode;
 
 pub(super) struct EndpointInput<'program> {
     pub argument_position: usize,
@@ -102,7 +104,7 @@ impl<'program> EndpointInput<'program> {
                 .data_definitions()
                 .iter()
                 .find(|declaration| owner.is_valid() && declaration.symbol == *owner)?;
-            let field = validation::exact_data_member_field(
+            let field = crate::validation::exact_data_member_field(
                 program,
                 declaration,
                 member.member_symbol,
@@ -126,7 +128,7 @@ impl<'program> EndpointInput<'program> {
     ) -> Option<(i64, i64)> {
         let input = Self::resolve(program, state, expression)?;
         let (leaf, _) = input.chain.last()?;
-        validation::enforced_integer_type_bounds(program, leaf.type_reference)
+        crate::validation::enforced_integer_type_bounds(program, leaf.type_reference)
     }
 
     pub fn path(&self) -> String {

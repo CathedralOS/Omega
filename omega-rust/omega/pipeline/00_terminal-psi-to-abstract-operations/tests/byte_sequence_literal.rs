@@ -1,4 +1,3 @@
-use abstract_operations::AbstractOperation;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, OperationId, PlaceId,
@@ -12,6 +11,7 @@ use terminal_psi::{
     StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
     VocabularyMarker,
 };
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
 use terminal_psi_to_abstract_operations::lower_artifact;
 use terminal_verifier::ProofBundle;
 
@@ -136,12 +136,12 @@ fn byte_sequence_length_retains_exact_source_result_type_and_rejects_drift() {
     )
     .unwrap();
 
-    let optimization = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let optimization = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &plan,
         semantic_vocabulary::FuelScheduleIdentity::new(1).unwrap(),
     )
     .unwrap();
-    optimization_unit_semantics::validate_psi_optimization_unit(&optimization).unwrap();
+    terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&optimization).unwrap();
 
     for mutation in 0..5 {
         let mut drifted = plan.clone();
@@ -178,22 +178,22 @@ fn byte_sequence_length_retains_exact_source_result_type_and_rejects_drift() {
             ),
             Err(terminal_psi_to_abstract_operations::ProviderInstallationError::PlanReplayMismatch)
         ));
-        let changed = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        let changed = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
             &drifted,
             semantic_vocabulary::FuelScheduleIdentity::new(1).unwrap(),
         )
         .unwrap();
         assert_ne!(optimization.identity, changed.identity);
         if mutation == 1 || mutation == 3 {
-            assert!(optimization_unit_semantics::validate_psi_optimization_unit(&changed).is_err());
+            assert!(terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&changed).is_err());
         }
     }
 
     let mut unavailable = optimization.clone();
     unavailable.functions[0].blocks[0].nodes.swap(0, 1);
     unavailable.identity =
-        optimization_unit::recompute_psi_optimization_unit_identity(&unavailable);
-    assert!(optimization_unit_semantics::validate_psi_optimization_unit(&unavailable).is_err());
+        terminal_psi_to_abstract_operations::optimization_unit::recompute_psi_optimization_unit_identity(&unavailable);
+    assert!(terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&unavailable).is_err());
 }
 
 #[test]

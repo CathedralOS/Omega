@@ -41,8 +41,8 @@ fn source_subslice_crosses_helpers_and_preserves_original_view_and_continuation(
             b"last".to_vec()
         ]
     );
-    let selections = optimization::PsiOptimizationSelections::new([
-        optimization::PsiOptimization::DeadPureScalarElimination,
+    let selections = terminal_codec::optimization::PsiOptimizationSelections::new([
+        terminal_codec::optimization::PsiOptimization::DeadPureScalarElimination,
     ])
     .unwrap();
     let optimized = lowered_psi_to_lowered_psi::run_psi_optimization(lowered, selections).unwrap();
@@ -58,7 +58,7 @@ fn source_subslice_crosses_helpers_and_preserves_original_view_and_continuation(
     );
 }
 
-fn execute(lowered: &lowered_psi::LoweredPsi) -> Vec<Vec<u8>> {
+fn execute(lowered: &checked_trees_to_lowered_psi::lowered_psi::LoweredPsi) -> Vec<Vec<u8>> {
     let result = interpret_terminal_artifact_measured(
         &encode_module(&lowered.semantic_module).unwrap(),
         &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
@@ -196,7 +196,9 @@ fn byte_subslice_is_evaluated_between_surrounding_scalar_calls() {
 
 #[test]
 fn changed_subslice_source_range_or_custody_rejects() {
-    use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan};
+    use typed_trees_to_checked_trees::checked_trees::{
+        CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan,
+    };
     let checked = crate::front_end::checked_program(SOURCE);
     let plan_index = checked
         .facts
@@ -227,7 +229,7 @@ fn changed_subslice_source_range_or_custody_rejects() {
         let argument = &mut structural_arguments[0];
         let CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
             root:
-                checked_trees::CheckedStorageRoot::Parameter {
+                typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::Parameter {
                     index: parameter_index,
                 },
             expression,
@@ -239,27 +241,26 @@ fn changed_subslice_source_range_or_custody_rejects() {
         match mutation {
             0 => *parameter_index += 1,
             1 => *expression = arena::Handle::invalid(),
-            2 => argument.access = checked_trees::CheckedStructuralAccess::MutableBorrow,
+            2 => argument.access =
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow,
             3 => coordinate.call_ordinal += 1,
             6 => {
-                changed
-                    .facts
-                    .operators
-                    .uses
-                    .append(checked_trees::CheckedOperatorUseFact {
+                changed.facts.operators.uses.append(
+                    typed_trees_to_checked_trees::checked_trees::CheckedOperatorUseFact {
                         expression: *expression,
                         selected_operator_symbol: plan.machine,
                         ..Default::default()
-                    });
+                    },
+                );
             }
             4 | 5 => {
-                let typed_trees::expression::ExpressionNode::Indexed(indexed) =
+                let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Indexed(indexed) =
                     changed.typed.expression_table.expression(*expression)
                 else {
                     panic!("indexed range");
                 };
                 let range_handle = indexed.index;
-                let typed_trees::expression::ExpressionNode::Range(range) =
+                let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Range(range) =
                     changed.typed.expression_table.expression_mut(range_handle)
                 else {
                     panic!("range");

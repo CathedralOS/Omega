@@ -103,7 +103,7 @@ fn locate(
 
 fn validate_locations(
     function: &PsiOptimizationFunction,
-    component: &optimization_unit::OptimizerCycleComponent,
+    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
     certificate: &OptimizerUnsignedCountdownRankingCertificate,
     constants: &[CountdownInvariantIntegerConstant; 2],
 ) -> Result<(), CountdownInvariantConstantAnalysisError> {
@@ -180,7 +180,7 @@ fn row(
     machine: MachineId,
     block: BlockId,
     node_index: usize,
-    node: &optimization_unit::OptimizationNode,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
     role: CountdownInvariantConstantRole,
     expected_operation: OperationId,
     expected_result: ValueId,

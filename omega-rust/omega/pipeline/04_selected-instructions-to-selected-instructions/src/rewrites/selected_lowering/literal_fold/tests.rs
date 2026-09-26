@@ -40,6 +40,14 @@ use staged_memory_inputs::{
 };
 
 use crate::analyses::validated_machine_effect_catalog;
+use crate::register_homes::{
+    AllocationLegalityIdentity, AllocationLegalityPlan, AllocatorAvailabilityIdentity,
+    AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy, FunctionAllocationLegality,
+    FunctionRecoveryClassification, FunctionSpillChoices, PressureRecoveryClassification,
+    RecoveryClassification, RecoveryClassificationIdentity, RecoveryClassificationPlan,
+    RecoveryClassificationPolicy, RecoveryFutureUse, RecoveryVictimRole, SpillChoice,
+    SpillChoiceIdentity, SpillChoicePlan, SpillChoicePolicy,
+};
 use crate::rewrites::{fold_selected_incoming_literal, validate_literal_fold};
 use crate::{
     AllocationLegalityValidationReceipt, AllocatorAvailabilityValidationReceipt,
@@ -52,20 +60,18 @@ use crate::{
     classify_pressure_recovery, materialize_allocator_availability,
 };
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
-use optimization_unit::{FuelSettlement, PsiProvenance, ValueDefinitionSite};
-use register_environment::{
+use semantic_vocabulary::{
+    BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
+    OperationId, ScalarType, ValueId,
+};
+use std::sync::Arc;
+use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::{
     ValidatedTargetRegisterEnvironment, baseline_target_register_environment,
 };
-use register_homes::{
-    AllocationLegalityIdentity, AllocationLegalityPlan, AllocatorAvailabilityIdentity,
-    AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy, FunctionAllocationLegality,
-    FunctionRecoveryClassification, FunctionSpillChoices, PressureRecoveryClassification,
-    RecoveryClassification, RecoveryClassificationIdentity, RecoveryClassificationPlan,
-    RecoveryClassificationPolicy, RecoveryFutureUse, RecoveryVictimRole, SpillChoice,
-    SpillChoiceIdentity, SpillChoicePlan, SpillChoicePolicy,
-};
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use target_operations_to_selected_instructions::{
     BlockPointDomain, FunctionLiveRanges, LiveRangeFragment, LiveRangePlan, LiveRangePoint,
     LivenessPosition, SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction,
     SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
@@ -73,15 +79,11 @@ use selected_instructions::{
     SelectedTerminator, VirtualLiveRange, VirtualOccurrence, VirtualRegister, VirtualRegisterId,
     VirtualRegisterOrigin,
 };
-use selected_instructions::{LiveRangeIdentity, LivenessIdentity};
-use semantic_vocabulary::{
-    BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
-    OperationId, ScalarType, ValueId,
-};
-use std::sync::Arc;
-use target::NativeTarget;
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use target_operations_to_selected_instructions::{LiveRangeIdentity, LivenessIdentity};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    FuelSettlement, PsiProvenance, ValueDefinitionSite,
+};
 
 fn budget() -> OptimizationWorkBudget {
     OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()

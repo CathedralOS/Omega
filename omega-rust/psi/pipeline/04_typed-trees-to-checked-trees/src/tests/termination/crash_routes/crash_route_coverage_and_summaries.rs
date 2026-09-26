@@ -67,7 +67,7 @@ fn private_explicit_crash_ceiling_must_cover_every_direct_site() {
             .expect("covered private contract")
             .crash
             .interface(),
-        checked_trees::CrashInterface::PublishedCeiling,
+        crate::checked_trees::CrashInterface::PublishedCeiling,
     );
     assert_eq!(
         checked
@@ -77,7 +77,7 @@ fn private_explicit_crash_ceiling_must_cover_every_direct_site() {
             .expect("inferred private contract")
             .crash
             .interface(),
-        checked_trees::CrashInterface::InternalInferred,
+        crate::checked_trees::CrashInterface::InternalInferred,
     );
 }
 
@@ -109,7 +109,7 @@ fn checked_crash_calls_select_acyclic_private_body_summaries() {
 
     assert_eq!(
         plan("inferred_abort").crash.interface(),
-        checked_trees::CrashInterface::InternalInferred
+        crate::checked_trees::CrashInterface::InternalInferred
     );
     let [abort_call] = plan("call_abort").crash.checked_calls() else {
         panic!("a call to a private crashing leaf should retain one selected body summary")
@@ -118,7 +118,10 @@ fn checked_crash_calls_select_acyclic_private_body_summaries() {
         panic!("the private leaf's explicit crash should survive as one inferred bucket")
     };
     assert!(abort_bucket.is_unconditional());
-    assert_eq!(abort_bucket.cause(), checked_trees::CrashCause::Abort);
+    assert_eq!(
+        abort_bucket.cause(),
+        crate::checked_trees::CrashCause::Abort
+    );
 
     let [safe_call] = plan("call_safe").crash.checked_calls() else {
         panic!("a call to a private crash-free leaf should retain positive empty evidence")
@@ -133,7 +136,10 @@ fn checked_crash_calls_select_acyclic_private_body_summaries() {
         panic!("the nested abort should propagate through the private wrapper")
     };
     assert!(nonleaf_bucket.is_unconditional());
-    assert_eq!(nonleaf_bucket.cause(), checked_trees::CrashCause::Abort);
+    assert_eq!(
+        nonleaf_bucket.cause(),
+        crate::checked_trees::CrashCause::Abort
+    );
 }
 
 #[test]
@@ -170,7 +176,7 @@ fn private_crash_summaries_compose_guarded_routes_across_nonleaf_calls() {
     let [outer_bucket] = outer_to_inner.surviving_buckets() else {
         panic!("the inner summary should retain its guarded route")
     };
-    let [checked_trees::CrashRouteGuard::Predicate(outer_route)] =
+    let [crate::checked_trees::CrashRouteGuard::Predicate(outer_route)] =
         outer_bucket.alternative_guards()
     else {
         panic!("the private nonleaf route should remain guarded")
@@ -182,12 +188,12 @@ fn private_crash_summaries_compose_guarded_routes_across_nonleaf_calls() {
     let [covered_bucket] = covered_call.surviving_buckets() else {
         panic!("covered should retain the composed route")
     };
-    let [checked_trees::CrashRouteGuard::Predicate(covered_route)] =
+    let [crate::checked_trees::CrashRouteGuard::Predicate(covered_route)] =
         covered_bucket.alternative_guards()
     else {
         panic!("the composed route should remain guarded")
     };
-    let [checked_trees::CrashRouteGuard::Predicate(published_route)] =
+    let [crate::checked_trees::CrashRouteGuard::Predicate(published_route)] =
         plan("covered").crash.published()[0].alternative_guards()
     else {
         panic!("covered should publish one guarded route")
@@ -196,7 +202,7 @@ fn private_crash_summaries_compose_guarded_routes_across_nonleaf_calls() {
     assert_eq!(covered_route, published_route);
     assert_eq!(
         covered_route.scalar_expression(),
-        Some(&checked_trees::CheckedBooleanExpression::Parameter { position: 0 }),
+        Some(&crate::checked_trees::CheckedBooleanExpression::Parameter { position: 0 }),
         "acyclic private-summary substitution must preserve terminal-lowerable scalar meaning",
     );
 
@@ -249,9 +255,9 @@ fn checked_crash_calls_select_machine_requirement_capsules() {
     let [bucket] = call.surviving_buckets() else {
         panic!("the unknown flag should retain the guarded Abort bucket");
     };
-    assert_eq!(bucket.cause(), checked_trees::CrashCause::Abort);
+    assert_eq!(bucket.cause(), crate::checked_trees::CrashCause::Abort);
     assert!(matches!(
         bucket.alternative_guards(),
-        [checked_trees::CrashRouteGuard::Predicate(_)]
+        [crate::checked_trees::CrashRouteGuard::Predicate(_)]
     ));
 }

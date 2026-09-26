@@ -1,10 +1,10 @@
 use abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations;
 
+use crate::register_environment::ValidatedTargetRegisterEnvironment;
 use crate::{
     ValidatedLegalizedOperations, ValidatedSelectedInstructions, legalize_target_operations,
     select_instructions,
 };
-use register_environment::ValidatedTargetRegisterEnvironment;
 
 use super::constraints::selection_constraints;
 use super::model::OptimizedSelectionPipelineError;

@@ -5,7 +5,7 @@ use super::{
     IntegerSign, IntegerType, LegalizedScalarInstructionKind, ScalarType, SelectedFunction,
     SelectedInstructionKind, SelectedSelectionConstraints, ValueId, build, fixture_with_integer,
 };
-use legalized_operations::SaturatingCarrier;
+use crate::legalized_operations::SaturatingCarrier;
 use semantic_vocabulary::OperationId;
 
 #[test]
@@ -17,7 +17,7 @@ fn saturating_multiply_selects_the_carrier_form_and_rejects_drift() {
         target::NativeTarget::macos_arm64(),
     ] {
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),

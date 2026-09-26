@@ -350,8 +350,8 @@ fn unconditional_windows_preserve_omitted_endpoints_and_empty_views() {
 #[test]
 fn endpoint_bindings_cannot_move_between_state_edges() {
     let checked = crate::front_end::checked_program(SOURCE);
-    let role = checked_trees::CheckedScalarExpressionRole::SubsliceStart {
-        site: checked_trees::CheckedSubsliceSite::TransitionArgument {
+    let role = typed_trees_to_checked_trees::checked_trees::CheckedScalarExpressionRole::SubsliceStart {
+        site: typed_trees_to_checked_trees::checked_trees::CheckedSubsliceSite::TransitionArgument {
             argument_ordinal: 0,
         },
     };
@@ -399,13 +399,13 @@ fn tail_transfer_cannot_be_replaced_with_an_unchanged_parameter() {
         .iter_mut()
         .find(|plan| plan.states.len() == 4)
         .expect("relay graph");
-    let checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, .. } =
+    let typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, .. } =
         &mut plan.states[0].terminator
     else {
         panic!("guarded entry");
     };
     when_true.transfers[0].source =
-        checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 };
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 };
     checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),

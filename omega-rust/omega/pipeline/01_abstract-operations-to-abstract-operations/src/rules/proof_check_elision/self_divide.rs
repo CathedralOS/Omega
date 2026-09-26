@@ -1,15 +1,15 @@
 //! Proof-certified self division.
 
-use abstract_operations::AbstractOperation as O;
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
-use optimization_unit::{
+use semantic_vocabulary::{IntegerCarrier, IntegerSign};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     IntegerConstantRewrite, NodeLocation, ProvenanceDisposition, ProvenanceRewrite,
     PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
 };
-use semantic_vocabulary::{IntegerCarrier, IntegerSign};
 
 use crate::rules::PROOF_CHECK_ELISION_PASS_NAME;
 use crate::rules::proof_check_elision::identity_rewrite::integer_one;

@@ -70,7 +70,7 @@ fn static_named_witness_requirement_call_accepts_exact_bool_result() {
         checked
             .typed
             .primitive_type_reference(target_state.return_type),
-        Some(typed_trees::types::PrimitiveType::Bool)
+        Some(symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::Bool)
     );
     assert!(invocation.runtime_call.is_some());
     assert_eq!(invocation.outputs.len(), 1);
@@ -116,7 +116,7 @@ fn static_named_witness_bool_result_accepts_one_exact_trait_default() {
         .iter()
         .filter_map(|conformance| typed.closed_conformance_rows(conformance))
         .flatten()
-        .find(|row| row.source == typed_trees::trait_definition::ConformanceRowSource::TraitDefault)
+        .find(|row| row.source == symbol_resolved_trees_to_typed_trees::typed_trees::trait_definition::ConformanceRowSource::TraitDefault)
         .expect("one selected bool trait-default row")
         .realization_state;
     let checked = lower_typed_trees(typed, &CheckingRequest::settled())
@@ -230,11 +230,11 @@ fn static_named_witness_requirement_call_accepts_one_exact_trait_default() {
         .iter()
         .filter_map(|conformance| typed.closed_conformance_rows(conformance))
         .flatten()
-        .find(|row| row.source == typed_trees::trait_definition::ConformanceRowSource::TraitDefault)
+        .find(|row| row.source == symbol_resolved_trees_to_typed_trees::typed_trees::trait_definition::ConformanceRowSource::TraitDefault)
         .expect("one selected trait-default row");
     assert_eq!(
         default_row.source,
-        typed_trees::trait_definition::ConformanceRowSource::TraitDefault
+        symbol_resolved_trees_to_typed_trees::typed_trees::trait_definition::ConformanceRowSource::TraitDefault
     );
     let default_realization = default_row.realization_state;
 
@@ -401,7 +401,7 @@ fn static_named_witness_inline_override_wins_over_trait_default() {
         .expect("one selected override row");
     assert_eq!(
         override_row.source,
-        typed_trees::trait_definition::ConformanceRowSource::Inline
+        symbol_resolved_trees_to_typed_trees::typed_trees::trait_definition::ConformanceRowSource::Inline
     );
     assert!(override_row.realization_state.is_valid());
 }

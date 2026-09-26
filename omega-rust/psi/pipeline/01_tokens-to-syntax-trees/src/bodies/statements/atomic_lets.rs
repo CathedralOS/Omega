@@ -2,15 +2,17 @@
 
 use crate::bodies::statements::statement_tables::copy_expression_as_place;
 use crate::expressions::parse_postfix::memory_ordering_from_expression;
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableAtomicExpression, TableBinaryExpression,
+};
+use crate::syntax_trees::identifier::Identifier;
+use crate::syntax_trees::statement::{
+    StatementHandle, StatementNode, TableAssignment, TableLocalData,
+};
 use arena::HandleSpan;
 use language_core::atomic::AtomicOrderingPlan;
 use numerics::literals::IntegerLiteral;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableAtomicExpression, TableBinaryExpression,
-};
-use syntax_trees::identifier::Identifier;
-use syntax_trees::statement::{StatementHandle, StatementNode, TableAssignment, TableLocalData};
 
 enum AtomicUpdate {
     Fetch {

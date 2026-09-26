@@ -1,12 +1,12 @@
 //! Structural multiplicities and structural types of dynamic sources.
 
 use crate::unit::{CheckedTrees, LoweringError, attached_unit, unsupported};
-use checked_trees::{
+use language_semantics::Multiplicity;
+use terminal_psi::StructuralMultiplicity;
+use typed_trees_to_checked_trees::checked_trees::{
     CheckedUnitStructuralFieldType, CheckedUnitStructuralPathSegment,
     CheckedUnitStructuralTypeShape,
 };
-use language_semantics::Multiplicity;
-use terminal_psi::StructuralMultiplicity;
 
 pub(crate) fn terminal_structural_multiplicity(
     multiplicity: Multiplicity,

@@ -4,10 +4,12 @@
 //! compiler-intrinsic plan row before lowering accepts it.
 
 use crate::LoweringError;
-use abstract_operations::{AbstractOperation, AbstractOperationPlan};
 use semantic_vocabulary::IeeeFloatFormat;
 use std::collections::{BTreeMap, BTreeSet};
 use target::{Architecture, NativeTarget};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractOperation, AbstractOperationPlan,
+};
 
 pub(super) fn validate_ieee_float_fma_settlements(
     plan: &AbstractOperationPlan,
@@ -56,7 +58,7 @@ pub(super) fn validate_ieee_float_fma_settlements(
             || !matches!(plan.rows.as_slice(), [row]
                 if row.requirement_identity == expected_selected_requirement
                     && matches!(row.binding,
-                        effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }))
+                        crate::effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }))
         {
             return Err(LoweringError::InvalidIeeeFloatFmaSettlement(
                 settlement.terminal_operation,

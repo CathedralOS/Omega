@@ -17,10 +17,10 @@ use crate::unsequenced_spill_stages::{
     ValidatedReloadValueHomes,
 };
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use register_homes::LogicalReloadValueId;
-use register_model::{RegisterClassId, RegisterViewId};
-use selected_instructions::{LiveRangePoint, SelectedBlockId};
+use selected_instructions_to_selected_instructions::register_homes::LogicalReloadValueId;
 use semantic_vocabulary::MachineId;
+use target_operations_to_selected_instructions::register_model::{RegisterClassId, RegisterViewId};
+use target_operations_to_selected_instructions::{LiveRangePoint, SelectedBlockId};
 
 pub fn bind_synthetic_reload_values(
     insertion: &ValidatedAbstractSpillInsertion,

@@ -5,13 +5,17 @@ use super::{
     STORED_DYNAMIC_SOURCE, assert_dynamic_unit_artifact_executes,
     assert_stored_dynamic_scalar_artifact_executes, unsupported_message,
 };
-use crate::TerminalMachineSelection;
 use crate::tests::{checked_source_with_core_service, lower_machine};
-use checked_trees::CheckedDynamicBinding::{Direct, Joined, Rebound, Stored};
-use checked_trees::CheckedDynamicDispatchPlan::Scalar;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{Operation, OperationKind, Terminator};
+use typed_trees_to_checked_trees::checked_trees::CheckedDynamicBinding::{
+    Direct, Joined, Rebound, Stored,
+};
+use typed_trees_to_checked_trees::checked_trees::CheckedDynamicDispatchPlan::Scalar;
 
 #[test]
 fn lowers_stored_dynamic_descriptor_as_verified_terminal_storage_and_reload() {
@@ -64,15 +68,18 @@ fn lowers_stored_dynamic_descriptor_as_verified_terminal_storage_and_reload() {
             ..
         }
     ));
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("Main::run"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("stored dynamic module has canonical source-free encoding")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                "Main::run",
+            ),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("stored dynamic module has canonical source-free encoding")
+        .into_artifact();
     assert_eq!(
         terminal_codec::decode_module(artifact.semantic_bytes())
             .expect("decode stored dynamic module"),
@@ -143,15 +150,18 @@ fn lowers_stored_dynamic_result_into_console_effect_control() {
         caller.blocks[0].terminator,
         Terminator::Conditional { .. }
     ));
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("Main::run"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("stored dynamic result control has canonical source-free encoding")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                "Main::run",
+            ),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("stored dynamic result control has canonical source-free encoding")
+        .into_artifact();
     assert_eq!(
         terminal_codec::decode_module(artifact.semantic_bytes())
             .expect("decode stored dynamic control module"),
@@ -204,7 +214,7 @@ fn stored_dynamic_cleanup_requires_exact_affine_establishment_and_disposal() {
         .filter(|(_, event)| {
             event.machine_symbol == call.caller_machine
                 && event.state_symbol == call.caller_state
-                && event.root == facts::PlaceRoot::Symbol(local)
+                && event.root == typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(local)
         })
         .collect::<Vec<_>>();
     assert_eq!(events.len(), 2, "local establishment and disposal");
@@ -236,7 +246,9 @@ fn stored_dynamic_cleanup_requires_exact_affine_establishment_and_disposal() {
     );
     for (handle, event) in events {
         assert_eq!(event.provenance, provenance);
-        let mutations: &[fn(&mut checked_trees::FlowPermissionEventFact)] = &[
+        let mutations: &[fn(
+            &mut typed_trees_to_checked_trees::checked_trees::FlowPermissionEventFact,
+        )] = &[
             |event| event.provenance = PermissionProvenance::Unknown,
             |event| {
                 event.provenance = PermissionProvenance::Established {
@@ -251,7 +263,11 @@ fn stored_dynamic_cleanup_requires_exact_affine_establishment_and_disposal() {
             |event| event.kind = PermissionEventKind::Transfer,
             |event| event.source = PermissionEventSource::StateEntry,
             |event| event.state_symbol = symbols::SymbolHandle::default(),
-            |event| event.root = facts::PlaceRoot::Symbol(symbols::SymbolHandle::default()),
+            |event| {
+                event.root = typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(
+                    symbols::SymbolHandle::default(),
+                )
+            },
             |event| {
                 event.claim_identity = language_semantics::PermissionClaimIdentity::Established {
                     machine_symbol: event.machine_symbol,
@@ -336,15 +352,18 @@ fn lowers_rebound_dynamic_custody_as_verified_indirect_terminal_dispatch() {
             ..
         }
     ));
-    let _artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("Main::run"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("rebound dynamic module has canonical source-free encoding")
-    .into_artifact();
+    let _artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                "Main::run",
+            ),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("rebound dynamic module has canonical source-free encoding")
+        .into_artifact();
 
     checked
         .facts
@@ -405,7 +424,7 @@ fn composes_one_transparent_dynamic_forwarder_without_losing_descriptor_custody(
     let [Scalar(Rebound { latest, .. })] = catalog.calls.as_slice() else {
         panic!("one forwarded rebound dynamic plan expected, got {catalog:#?}")
     };
-    let checked_trees::CheckedDynamicScalarCallOrigin::Forwarded {
+    let typed_trees_to_checked_trees::checked_trees::CheckedDynamicScalarCallOrigin::Forwarded {
         machine,
         state,
         coordinate,
@@ -468,8 +487,10 @@ fn composes_one_transparent_dynamic_forwarder_without_losing_descriptor_custody(
     else {
         unreachable!("checked above")
     };
-    let checked_trees::CheckedDynamicScalarCallOrigin::Forwarded { coordinate, .. } =
-        &mut latest.origin
+    let typed_trees_to_checked_trees::checked_trees::CheckedDynamicScalarCallOrigin::Forwarded {
+        coordinate,
+        ..
+    } = &mut latest.origin
     else {
         unreachable!("checked above")
     };
@@ -568,15 +589,18 @@ fn composes_one_direct_dynamic_scalar_forwarder_without_fabricating_a_rebound() 
         terminal_psi::TerminalDynamicDescriptorSource::Selection { ordinal: 1 };
     assert!(terminal_verifier::validate_module(&lowered.semantic_module).is_err());
 
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("Main::run"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("forwarded direct scalar module should encode")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                "Main::run",
+            ),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("forwarded direct scalar module should encode")
+        .into_artifact();
     let decoded = terminal_codec::decode_module(artifact.semantic_bytes())
         .expect("forwarded direct scalar module should decode");
     assert_eq!(
@@ -652,15 +676,18 @@ fn lowers_two_dynamic_predecessors_into_one_terminal_parameter() {
         )
     }));
 
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("Main::run"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("joined dynamic module should encode canonically")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                "Main::run",
+            ),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("joined dynamic module should encode canonically")
+        .into_artifact();
     assert_eq!(
         terminal_codec::decode_module(artifact.semantic_bytes())
             .expect("joined dynamic module should decode"),
@@ -911,15 +938,18 @@ fn lower_joined_guard_caller(source: &str) -> terminal_psi::TerminalMachine {
         .expect("joined dynamic control lowers");
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("joined dynamic module verifies");
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("Main::run"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("joined dynamic module encodes canonically")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                "Main::run",
+            ),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("joined dynamic module encodes canonically")
+        .into_artifact();
     assert_eq!(
         terminal_codec::decode_module(artifact.semantic_bytes())
             .expect("joined dynamic module decodes"),

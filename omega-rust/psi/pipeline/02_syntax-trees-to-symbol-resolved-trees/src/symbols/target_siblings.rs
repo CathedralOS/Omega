@@ -7,8 +7,8 @@
 //! target's body instead of its own target's.
 
 use crate::selection::body_calls::{CallSite, retarget_machine_calls};
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
 use crate::symbols::lookup::child_symbol_by_kinds;
-use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 struct Sibling {

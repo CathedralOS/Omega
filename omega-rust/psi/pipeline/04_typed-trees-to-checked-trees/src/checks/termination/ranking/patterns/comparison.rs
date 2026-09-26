@@ -1,10 +1,12 @@
 use super::GuardFact;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator,
+};
 
 /// Preserve an exact edge's polarity while removing Boolean wrappers. Callers
 /// establish selected builtin meaning before using the resulting integer order.
 pub(in crate::checks::termination::ranking) fn comparison(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     fact: GuardFact,
 ) -> Option<(ExpressionHandle, BinaryOperator, ExpressionHandle)> {
     let mut expression = fact.expression;

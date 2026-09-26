@@ -47,7 +47,7 @@ fn source(body: &str) -> String {
     )
 }
 
-fn lower(body: &str) -> lowered_psi::LoweredPsi {
+fn lower(body: &str) -> checked_trees_to_lowered_psi::lowered_psi::LoweredPsi {
     let checked = crate::front_end::checked_program(&source(body));
     checked_trees_to_lowered_psi::lower_machine(
         &checked,
@@ -398,7 +398,7 @@ fn verification_rejects_substituted_atomic_evidence() {
 /// prior's binding statement refuses instead of emitting a different event.
 #[test]
 fn lowering_rejects_a_plan_that_drifts_from_its_authored_carrier() {
-    use checked_trees::{
+    use typed_trees_to_checked_trees::checked_trees::{
         CheckedAtomicEvent, CheckedAtomicReadModifyWrite, CheckedUnitEffectOperationPlan,
     };
     let body = "self.counter.store(10, Publish);
@@ -448,8 +448,8 @@ fn lowering_rejects_a_plan_that_drifts_from_its_authored_carrier() {
             if let CheckedUnitEffectOperationPlan::AtomicAccess(access) = operation
                 && let CheckedAtomicEvent::Store { value, .. } = &mut access.event
             {
-                *value = checked_trees::CheckedCallScalarArgument::Pure(
-                    checked_trees::CheckedScalarExpression::IntegerLiteral {
+                *value = typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(
+                    typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::IntegerLiteral {
                         literal: numerics::literals::IntegerLiteral::zero(),
                     },
                 );

@@ -12,20 +12,26 @@ mod structural_sources;
 
 pub(crate) use partitioned_results::check_boundary_partition_results;
 
-use checked_trees::{CheckFacts, RetainedBorrowCustodyFact};
+use crate::checked_trees::{CheckFacts, RetainedBorrowCustodyFact};
 use diagnostics::Diagnostic;
 use language_semantics::content::{
     ContentConservationTerm, ContentPlaceRoot, ContentPlaceVersion, ContentProjectionPlan,
     ContentStructuralPlace,
 };
 use language_semantics::{Multiplicity, ReferenceAccess, SemanticDomainId};
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier;
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::{
+    SignatureContract, SignatureContractKind, StateParameter,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::domain::ProofFact;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::name::Identifier;
-use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
-use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn check_callable(

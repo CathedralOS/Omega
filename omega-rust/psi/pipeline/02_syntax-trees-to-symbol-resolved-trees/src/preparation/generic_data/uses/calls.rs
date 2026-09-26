@@ -246,7 +246,7 @@ pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_ca
                         if !target.is_valid() {
                             continue;
                         }
-                        if let syntax_trees::statement::TransitionTargetNode::Value(value) =
+                        if let tokens_to_syntax_trees::syntax_trees::statement::TransitionTargetNode::Value(value) =
                             syntax.tables.statements.transition_target(target)
                         {
                             relabel_data_literal_for_expected_type(

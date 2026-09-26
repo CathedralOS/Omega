@@ -17,7 +17,7 @@ use crate::monomorphization::{
 
 pub(crate) struct SelectedProviderTemplates {
     authored: TypedTrees,
-    service_reaches: flow_effects::ServiceReachInferencePlan,
+    service_reaches: crate::flow_effects::ServiceReachInferencePlan,
 }
 
 impl SelectedProviderTemplates {
@@ -32,8 +32,8 @@ impl SelectedProviderTemplates {
         tests::record_preparation();
         // Infer against the complete authored graph before saved-call replay
         // can redirect a call to an instance owned only by the live program.
-        let operational = validation::infer_operational_may(program);
-        let service_reaches = validation::infer_service_reaches(program, &operational);
+        let operational = crate::validation::infer_operational_may(program);
+        let service_reaches = crate::validation::infer_service_reaches(program, &operational);
         let mut authored = program.clone();
         materialize_static_argument_types(&mut authored);
         Some(Self {
@@ -70,8 +70,11 @@ pub(crate) fn specialize_selected_generic_operator_providers(
         };
         let template_machine = templates.machines()[machine_index].clone();
         let Some(operator) =
-            typed_trees::operator::declaration_by_symbol(templates, request.requirement_operator)
-                .cloned()
+            symbol_resolved_trees_to_typed_trees::typed_trees::operator::declaration_by_symbol(
+                templates,
+                request.requirement_operator,
+            )
+            .cloned()
         else {
             diagnostics.push(Diagnostic::error(
                 "selected generic operator provider names no operator requirement",
@@ -84,7 +87,7 @@ pub(crate) fn specialize_selected_generic_operator_providers(
             ));
             continue;
         };
-        if typed_trees::operator::resolve_satisfied_checked_operator(
+        if symbol_resolved_trees_to_typed_trees::typed_trees::operator::resolve_satisfied_checked_operator(
             templates,
             &template_machine,
             namespace.as_str(),
@@ -100,8 +103,11 @@ pub(crate) fn specialize_selected_generic_operator_providers(
         }
 
         let current_operator =
-            typed_trees::operator::declaration_by_symbol(program, request.requirement_operator)
-                .expect("selected provider requirement survives specialization");
+            symbol_resolved_trees_to_typed_trees::typed_trees::operator::declaration_by_symbol(
+                program,
+                request.requirement_operator,
+            )
+            .expect("selected provider requirement survives specialization");
         let applications = match selected_operator_applications(program, current_operator) {
             Ok(applications) => applications,
             Err(mut errors) => {
@@ -265,12 +271,12 @@ pub(crate) fn specialize_selected_generic_operator_providers(
 fn materialized_application(
     program: &TypedTrees,
     templates: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     template: &Candidate,
     requirement: SymbolHandle,
-    application: &[typed_trees::operator::ClosedOperatorApplicationArgument],
+    application: &[symbol_resolved_trees_to_typed_trees::typed_trees::operator::ClosedOperatorApplicationArgument],
 ) -> bool {
-    use typed_trees::operator::ClosedOperatorApplicationArgument;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::operator::ClosedOperatorApplicationArgument;
     let parameters = templates.machine_type_parameters(machine);
     if parameters.len() != application.len()
         || !template.template.machine_parameters.is_empty()
@@ -316,23 +322,25 @@ mod tests;
 fn copy_application_types(
     program: &TypedTrees,
     source: &mut TypedTrees,
-    application: &[typed_trees::operator::ClosedOperatorApplicationArgument],
-) -> Vec<typed_trees::operator::ClosedOperatorApplicationArgument> {
+    application: &[symbol_resolved_trees_to_typed_trees::typed_trees::operator::ClosedOperatorApplicationArgument],
+) -> Vec<
+    symbol_resolved_trees_to_typed_trees::typed_trees::operator::ClosedOperatorApplicationArgument,
+> {
     application
         .iter()
         .map(|argument| match argument {
-            typed_trees::operator::ClosedOperatorApplicationArgument::Type {
+            symbol_resolved_trees_to_typed_trees::typed_trees::operator::ClosedOperatorApplicationArgument::Type {
                 binder_symbol,
                 type_reference,
-            } => typed_trees::operator::ClosedOperatorApplicationArgument::Type {
+            } => symbol_resolved_trees_to_typed_trees::typed_trees::operator::ClosedOperatorApplicationArgument::Type {
                 binder_symbol: *binder_symbol,
                 type_reference: copy_type_reference(Some(program), source, *type_reference, &[]),
             },
-            typed_trees::operator::ClosedOperatorApplicationArgument::Const {
+            symbol_resolved_trees_to_typed_trees::typed_trees::operator::ClosedOperatorApplicationArgument::Const {
                 binder_symbol,
                 declared_carrier,
                 value,
-            } => typed_trees::operator::ClosedOperatorApplicationArgument::Const {
+            } => symbol_resolved_trees_to_typed_trees::typed_trees::operator::ClosedOperatorApplicationArgument::Const {
                 binder_symbol: *binder_symbol,
                 declared_carrier: copy_type_reference(
                     Some(program),
@@ -371,8 +379,8 @@ fn has_materialized_specialization(
 fn selected_operator_candidate_for_application<'template>(
     program: &TypedTrees,
     template: &'template Candidate<'_>,
-    machine: &typed_trees::machine::Machine,
-    application: &[typed_trees::operator::ClosedOperatorApplicationArgument],
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    application: &[symbol_resolved_trees_to_typed_trees::typed_trees::operator::ClosedOperatorApplicationArgument],
 ) -> Result<Candidate<'template>, Diagnostic> {
     let machine_parameters = program.machine_type_parameters(machine);
     if machine_parameters.len() != application.len()
@@ -389,7 +397,7 @@ fn selected_operator_candidate_for_application<'template>(
         match (&parameter.kind, argument) {
             (
                 TypeParameterKind::Type,
-                typed_trees::operator::ClosedOperatorApplicationArgument::Type {
+                symbol_resolved_trees_to_typed_trees::typed_trees::operator::ClosedOperatorApplicationArgument::Type {
                     type_reference,
                     ..
                 },
@@ -404,7 +412,7 @@ fn selected_operator_candidate_for_application<'template>(
             }
             (
                 TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. },
-                typed_trees::operator::ClosedOperatorApplicationArgument::Const { value, .. },
+                symbol_resolved_trees_to_typed_trees::typed_trees::operator::ClosedOperatorApplicationArgument::Const { value, .. },
             ) => {
                 let Some(binding) = const_identity_type_reference(program, value) else {
                     return Err(Diagnostic::error(format!(
@@ -450,10 +458,10 @@ fn const_identity_type_reference(
 
 fn selected_operator_applications(
     program: &TypedTrees,
-    operator: &typed_trees::operator::OperatorDefinition,
-) -> Result<Vec<Vec<typed_trees::operator::ClosedOperatorApplicationArgument>>, Vec<Diagnostic>> {
+    operator: &symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition,
+) -> Result<Vec<Vec<symbol_resolved_trees_to_typed_trees::typed_trees::operator::ClosedOperatorApplicationArgument>>, Vec<Diagnostic>>{
     let mut symbol_diagnostics = Vec::new();
-    let symbols = validation::TopLevelSymbols::build(program, &mut symbol_diagnostics);
+    let symbols = crate::validation::TopLevelSymbols::build(program, &mut symbol_diagnostics);
     if symbol_diagnostics.iter().any(Diagnostic::is_error) {
         return Err(symbol_diagnostics);
     }
@@ -503,7 +511,7 @@ fn selected_operator_applications(
 pub(super) fn executable_statement_expression_roots(
     program: &TypedTrees,
     statement: &StatementNode,
-) -> Vec<typed_trees::expression::ExpressionHandle> {
+) -> Vec<symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle> {
     let mut roots = Vec::new();
     match statement {
         StatementNode::Assignment(assignment) => {
@@ -515,18 +523,18 @@ pub(super) fn executable_statement_expression_roots(
         StatementNode::Expression(expression) => roots.push(*expression),
         StatementNode::LocalData(local) => roots.push(local.initial_value),
         StatementNode::Transition(transition) => {
-            if let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
+            if let symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
                 roots.push(guard);
             }
             for target in [transition.target, transition.continuation] {
                 match program.statement_table.transition_target(target) {
-                    typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => roots
+                    symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => roots
                         .extend_from_slice(program.statement_table.expression_handles(*arguments)),
-                    typed_trees::statement::TransitionTargetNode::Value(expression) => {
+                    symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Value(expression) => {
                         roots.push(*expression)
                     }
-                    typed_trees::statement::TransitionTargetNode::SelfTarget
-                    | typed_trees::statement::TransitionTargetNode::Terminal => {}
+                    symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::SelfTarget
+                    | symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Terminal => {}
                 }
             }
         }
@@ -541,51 +549,53 @@ pub(super) fn executable_statement_expression_roots(
 
 fn selected_operator_application_at_expression(
     program: &TypedTrees,
-    symbols: &validation::TopLevelSymbols<'_>,
-    operator: &typed_trees::operator::OperatorDefinition,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    symbols: &crate::validation::TopLevelSymbols<'_>,
+    operator: &symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Result<Option<Vec<typed_trees::operator::ClosedOperatorApplicationArgument>>, Diagnostic> {
-    let (operands, explicit_static_arguments) =
-        match program.expression_table.expression(expression) {
-            ExpressionNode::Call(call) => {
-                if typed_trees::operator::resolve_named_expression_call(program, call)
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+) -> Result<Option<Vec<symbol_resolved_trees_to_typed_trees::typed_trees::operator::ClosedOperatorApplicationArgument>>, Diagnostic>{
+    let (operands, explicit_static_arguments) = match program
+        .expression_table
+        .expression(expression)
+    {
+        ExpressionNode::Call(call) => {
+            if symbol_resolved_trees_to_typed_trees::typed_trees::operator::resolve_named_expression_call(program, call)
                     .is_none_or(|resolved| resolved.symbol != operator.symbol)
                 {
                     return Ok(None);
                 }
-                let explicit = program.expression_table.expression_handles(call.arguments);
-                let parameters = program.operator_parameters(operator);
-                let mut operands = Vec::with_capacity(explicit.len() + 1);
-                if call.receiver.is_valid() && parameters.len() == explicit.len() + 1 {
-                    operands.push(call.receiver);
-                }
-                operands.extend_from_slice(explicit);
-                (operands, Some(call.machine_arguments.as_ref()))
+            let explicit = program.expression_table.expression_handles(call.arguments);
+            let parameters = program.operator_parameters(operator);
+            let mut operands = Vec::with_capacity(explicit.len() + 1);
+            if call.receiver.is_valid() && parameters.len() == explicit.len() + 1 {
+                operands.push(call.receiver);
             }
-            ExpressionNode::Binary(binary) => {
-                let Some(spelling) = binary_operator_spelling(binary.operator) else {
-                    return Ok(None);
-                };
-                if operator.spelling != Some(spelling) {
-                    return Ok(None);
-                }
-                (vec![binary.left, binary.right], None)
+            operands.extend_from_slice(explicit);
+            (operands, Some(call.machine_arguments.as_ref()))
+        }
+        ExpressionNode::Binary(binary) => {
+            let Some(spelling) = binary_operator_spelling(binary.operator) else {
+                return Ok(None);
+            };
+            if operator.spelling != Some(spelling) {
+                return Ok(None);
             }
-            ExpressionNode::Indexed(indexed)
-                if !matches!(
-                    program.expression_table.expression(indexed.index),
-                    ExpressionNode::Range(_)
-                ) && operator.spelling
-                    == Some(language_core::operator_spelling::OperatorSpelling::Index) =>
-            {
-                (vec![indexed.collection, indexed.index], None)
-            }
-            _ => return Ok(None),
-        };
-    let origin = checked_trees::CheckedValueOrigin::StateStatement {
+            (vec![binary.left, binary.right], None)
+        }
+        ExpressionNode::Indexed(indexed)
+            if !matches!(
+                program.expression_table.expression(indexed.index),
+                ExpressionNode::Range(_)
+            ) && operator.spelling
+                == Some(language_core::operator_spelling::OperatorSpelling::Index) =>
+        {
+            (vec![indexed.collection, indexed.index], None)
+        }
+        _ => return Ok(None),
+    };
+    let origin = crate::checked_trees::CheckedValueOrigin::StateStatement {
         machine_symbol: machine.symbol,
         state_symbol: state.symbol,
         statement_index,
@@ -596,14 +606,21 @@ fn selected_operator_application_at_expression(
         .map(|operand| {
             crate::operators::expression_type_reference_for_origin(program, *operand, origin)
                 .or_else(|| {
-                    validation::declared_place_type_raw(program, machine, Some(state), *operand)
+                    crate::validation::declared_place_type_raw(
+                        program,
+                        machine,
+                        Some(state),
+                        *operand,
+                    )
                 })
-                .or_else(|| validation::landed_integer_literal_type_reference(program, *operand))
+                .or_else(|| {
+                    crate::validation::landed_integer_literal_type_reference(program, *operand)
+                })
         })
         .collect::<Vec<_>>();
 
     if let Some(explicit_static_arguments) = explicit_static_arguments {
-        return match validation::validate_named_operator_application(
+        return match crate::validation::validate_named_operator_application(
             program,
             symbols,
             operator,
@@ -621,7 +638,7 @@ fn selected_operator_application_at_expression(
     let Some(spelling) = operator.spelling else {
         return Ok(None);
     };
-    if !typed_trees::operator::resolve_spelling_for_operands(
+    if !symbol_resolved_trees_to_typed_trees::typed_trees::operator::resolve_spelling_for_operands(
         program,
         spelling,
         &operand_types,
@@ -632,7 +649,7 @@ fn selected_operator_application_at_expression(
     {
         return Ok(None);
     }
-    let Some(application) = typed_trees::operator::closed_operator_application_for_operands(
+    let Some(application) = symbol_resolved_trees_to_typed_trees::typed_trees::operator::closed_operator_application_for_operands(
         program,
         operator,
         &operand_types,
@@ -642,15 +659,20 @@ fn selected_operator_application_at_expression(
         // demand, not a concrete specialization request.
         return Ok(None);
     };
-    validation::validate_closed_operator_application(program, symbols, operator, &application)?;
+    crate::validation::validate_closed_operator_application(
+        program,
+        symbols,
+        operator,
+        &application,
+    )?;
     Ok(Some(application))
 }
 
 fn binary_operator_spelling(
-    operator: typed_trees::expression::BinaryOperator,
+    operator: symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator,
 ) -> Option<language_core::operator_spelling::OperatorSpelling> {
     use language_core::operator_spelling::OperatorSpelling;
-    use typed_trees::expression::BinaryOperator;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator;
 
     Some(match operator {
         BinaryOperator::Add => OperatorSpelling::Add,

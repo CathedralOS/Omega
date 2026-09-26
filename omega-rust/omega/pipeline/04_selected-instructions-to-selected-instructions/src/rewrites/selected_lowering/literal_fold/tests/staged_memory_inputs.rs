@@ -2,6 +2,14 @@
 
 use super::{Inputs, budget, successor, usage};
 use crate::analyses::validated_machine_effect_catalog;
+use crate::register_homes::{
+    AllocationLegalityIdentity, AllocationLegalityPlan, AllocatorAvailabilityIdentity,
+    AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy, FunctionAllocationLegality,
+    FunctionRecoveryClassification, FunctionSpillChoices, PressureRecoveryClassification,
+    RecoveryClassification, RecoveryClassificationIdentity, RecoveryClassificationPlan,
+    RecoveryClassificationPolicy, RecoveryFutureUse, RecoveryVictimRole, SpillChoice,
+    SpillChoiceIdentity, SpillChoicePlan, SpillChoicePolicy,
+};
 use crate::{
     AllocationLegalityValidationReceipt, AllocatorAvailabilityValidationReceipt,
     FunctionLiteralFold, LiteralFoldIdentity, LiteralFoldPlan, LiteralFoldPolicy,
@@ -11,33 +19,27 @@ use crate::{
     ValidatedLiveRanges, ValidatedRecoveryClassifications, ValidatedSpillChoices,
 };
 use optimization_core::OptimizationUnitIdentity;
-use optimization_unit::{FuelSettlement, PsiProvenance, ValueDefinitionSite};
-use register_environment::baseline_target_register_environment;
-use register_homes::{
-    AllocationLegalityIdentity, AllocationLegalityPlan, AllocatorAvailabilityIdentity,
-    AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy, FunctionAllocationLegality,
-    FunctionRecoveryClassification, FunctionSpillChoices, PressureRecoveryClassification,
-    RecoveryClassification, RecoveryClassificationIdentity, RecoveryClassificationPlan,
-    RecoveryClassificationPolicy, RecoveryFutureUse, RecoveryVictimRole, SpillChoice,
-    SpillChoiceIdentity, SpillChoicePlan, SpillChoicePolicy,
-};
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
-    BlockPointDomain, FunctionLiveRanges, LiveRangeFragment, LiveRangePlan, LiveRangePoint,
-    LivenessPosition, SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction,
-    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
-    SelectedInstructionProvenance, SelectedOperand, SelectedTerminator, VirtualLiveRange,
-    VirtualOccurrence, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
-};
-use selected_instructions::{LiveRangeIdentity, LivenessIdentity};
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
     OperationId, ScalarType, ValueId,
 };
 use std::sync::Arc;
 use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use target_operations_to_selected_instructions::{
+    BlockPointDomain, FunctionLiveRanges, LiveRangeFragment, LiveRangePlan, LiveRangePoint,
+    LivenessPosition, SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction,
+    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
+    SelectedInstructionProvenance, SelectedOperand, SelectedTerminator, VirtualLiveRange,
+    VirtualOccurrence, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+};
+use target_operations_to_selected_instructions::{LiveRangeIdentity, LivenessIdentity};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    FuelSettlement, PsiProvenance, ValueDefinitionSite,
+};
 
 /// A `MaterializeI64` victim feeding the sole `Use` operand of a unary
 /// extension consumer whose `Def` result carries `result_scalar`, with the

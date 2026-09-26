@@ -7,10 +7,10 @@
 //! of a callee's identity — and refuses closures whose owners are ambiguous
 //! or do not resolve to one unique emitted machine.
 
-use checked_trees::CheckedTrees;
 use semantic_vocabulary::MachineId;
 use symbols::SymbolHandle;
 use terminal_psi::TerminalModule;
+use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
 
 use crate::lowering_error::{LoweringError, unsupported};
 use crate::retention::reborrow_root_handoff;

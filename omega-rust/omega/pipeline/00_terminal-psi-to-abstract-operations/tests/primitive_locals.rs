@@ -98,15 +98,15 @@ fn borrowed_primitive_local_survives_every_abstract_entrance() {
             .flat_map(|function| &function.operations)
             .collect::<Vec<_>>();
         assert!(operations.iter().any(|operation| matches!(operation,
-            abstract_operations::AbstractOperation::EstablishPrimitiveLocal { psi_operation, .. }
+            terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::EstablishPrimitiveLocal { psi_operation, .. }
             if *psi_operation == establishment)));
         assert!(operations.iter().any(|operation| matches!(
             operation,
-            abstract_operations::AbstractOperation::PrimitiveScalarRead { .. }
+            terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::PrimitiveScalarRead { .. }
         )));
         assert!(operations.iter().any(|operation| matches!(
             operation,
-            abstract_operations::AbstractOperation::CallStructuralScalar { .. }
+            terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::CallStructuralScalar { .. }
         )));
     }
 }

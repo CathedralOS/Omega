@@ -1,19 +1,19 @@
 use arena::{Handle, HandleSpan};
-use checked_trees::{
-    BorrowAccessKind, CheckedBorrowResourceDispositionTarget, CheckedBorrowResourceLifecyclePhase,
-    CheckedParentBorrowResource, CheckedReborrowAccessEffect, CheckedReborrowContainmentKind,
-    CheckedReborrowResourceDisposition, FlowBorrowWeakeningReason, FlowConstraintKind,
-};
 use semantic_vocabulary::MachineId;
 use terminal_psi::{
     TerminalReborrowRestorationClass, TerminalReborrowRestoredCallUse,
     TerminalReborrowSharedCohortMember,
 };
+use typed_trees_to_checked_trees::checked_trees::{
+    BorrowAccessKind, CheckedBorrowResourceDispositionTarget, CheckedBorrowResourceLifecyclePhase,
+    CheckedParentBorrowResource, CheckedReborrowAccessEffect, CheckedReborrowContainmentKind,
+    CheckedReborrowResourceDisposition, FlowBorrowWeakeningReason, FlowConstraintKind,
+};
 
+use crate::lowered_psi::LoweredSourceCallOccurrence;
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
-use checked_trees::CheckedTrees;
-use lowered_psi::LoweredSourceCallOccurrence;
+use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
 
 use crate::retention::reborrow_root_handoff::{
     access, boundary, identity, owner_path, place, place_segments,
@@ -229,7 +229,7 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
                     && member.access == BorrowAccessKind::Read
                     && member.access_effect == CheckedReborrowAccessEffect::SharedFreeze
                     && member.parent_end_status.status
-                        == checked_trees::ParentLexicalStatusAtChildEnd::LivePastChild
+                        == typed_trees_to_checked_trees::checked_trees::ParentLexicalStatusAtChildEnd::LivePastChild
                     && member.weakening_reason == FlowBorrowWeakeningReason::LastUseExpired
                     && member.weakening_source == child.weakening_source
                     && member.loan == member_activation.loan
@@ -324,7 +324,7 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
             && child.parent_end_status.parent_loan == parent.loan
             && child.parent_end_status.parent_resource == child.parent_resource
             && child.parent_end_status.status
-                == checked_trees::ParentLexicalStatusAtChildEnd::LivePastChild
+                == typed_trees_to_checked_trees::checked_trees::ParentLexicalStatusAtChildEnd::LivePastChild
             && parent_weakening.loan == parent.loan
             && child.restoration.child_weakening_source == child.weakening_source
             && child.restoration.child_weakening_reason == child.weakening_reason
@@ -402,7 +402,7 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
             && call.accesses == borrow_call.accesses
             && matches!(
                 child.weakening_source,
-                checked_trees::FlowInvalidationSource::Statement { statement_index }
+                typed_trees_to_checked_trees::checked_trees::FlowInvalidationSource::Statement { statement_index }
                     if statement_index == call.statement_index
             )
             && call.accesses.start() == certificate.call_access
@@ -546,9 +546,12 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
 }
 
 fn child_parent_weakening_handle(
-    borrow: &checked_trees::BorrowFacts,
-    certificate: &checked_trees::CheckedReborrowRestoredCallUseCertificate,
-) -> Result<Handle<checked_trees::FlowBorrowWeakeningFact>, LoweringError> {
+    borrow: &typed_trees_to_checked_trees::checked_trees::BorrowFacts,
+    certificate: &typed_trees_to_checked_trees::checked_trees::CheckedReborrowRestoredCallUseCertificate,
+) -> Result<
+    Handle<typed_trees_to_checked_trees::checked_trees::FlowBorrowWeakeningFact>,
+    LoweringError,
+> {
     if !borrow
         .reborrow_loan_resources
         .is_valid(certificate.child_resource)

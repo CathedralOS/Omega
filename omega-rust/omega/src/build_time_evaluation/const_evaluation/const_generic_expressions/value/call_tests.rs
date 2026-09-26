@@ -1,0 +1,541 @@
+use super::{
+    CanonicalConstIdentity, CanonicalConstValue, ConstantCalls, Diagnostic, ExpressionHandle,
+    ExpressionNode, LandedIntegerType, Machine, PrimitiveType, Shape, State, TypedTrees,
+    call_value, evaluate, validate,
+};
+use std::cell::Cell;
+
+fn program(body: &str, destination: PrimitiveType) -> (TypedTrees, ExpressionHandle) {
+    let source = format!(
+        "machine choose() -> {} {{ {body} }}
+         machine number(value: u8) -> u8 {{ value }}
+         machine truth(value: bool) -> bool {{ value }}
+         machine never(value: u8) -> u8 {{ value }}
+         machine wrapping_seed() -> u8 in Wrapping {{ 255 }}
+         machine saturating_seed() -> u8 in Saturating {{ 255 }}",
+        destination.name(),
+    );
+    let program = crate::build_time_evaluation::front_end::typed_program(&source);
+    let state = &program.machine_states(&program.machines()[0])[0];
+    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
+    let expression = match program.statement_table.statements(state.statement_nodes) {
+        [StatementNode::Expression(expression)] => *expression,
+        // A direct returned call is normalized into a saved local. This unit
+        // harness exercises the authored scalar call, not machine-local reads.
+        [
+            StatementNode::LocalData(local),
+            StatementNode::Expression(expression),
+        ] if matches!(program.expression_table.expression(*expression), ExpressionNode::Name(path) if path.symbol == local.symbol) => {
+            local.initial_value
+        }
+        statements => panic!("one source expression for {body}: {statements:?}"),
+    };
+    (program, expression)
+}
+
+struct Calls<'program> {
+    program: &'program TypedTrees,
+    executed: Cell<usize>,
+}
+
+impl Calls<'_> {
+    fn target(&self, target: symbols::SymbolHandle) -> Result<(&Machine, &State), String> {
+        let mut selected = self.program.machines().iter().filter_map(|machine| {
+            let states = self.program.machine_states(machine);
+            let state = if machine.symbol == target {
+                states.first()
+            } else {
+                states.iter().find(|state| state.symbol == target)
+            }?;
+            Some((machine, state))
+        });
+        let target = selected.next().ok_or("selected callee")?;
+        if selected.next().is_some() {
+            return Err("ambiguous callee".into());
+        }
+        Ok(target)
+    }
+}
+
+impl ConstantCalls for Calls<'_> {
+    fn result_type(
+        &self,
+        expression: ExpressionHandle,
+    ) -> symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle {
+        let ExpressionNode::Call(call) = self.program.expression_table.expression(expression)
+        else {
+            return symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid();
+        };
+        self.target(call.target_symbol).map_or(
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(
+            ),
+            |(_, entry)| entry.return_type,
+        )
+    }
+
+    fn validate_call(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Result<(PrimitiveType, Vec<Diagnostic>), String> {
+        let ExpressionNode::Call(call) = self.program.expression_table.expression(expression)
+        else {
+            return Err("expected call".into());
+        };
+        let (_, entry) = self.target(call.target_symbol)?;
+        let parameters = self.program.state_parameters(entry);
+        let arguments = self
+            .program
+            .expression_table
+            .expression_handles(call.arguments);
+        if arguments.len() != parameters.len() {
+            return Err("call arity".into());
+        }
+        let caller = &self.program.machines()[0];
+        let state = &self.program.machine_states(caller)[0];
+        let mut warnings = Vec::new();
+        for (argument, parameter) in arguments.iter().zip(parameters) {
+            let primitive = self
+                .program
+                .primitive_type_reference(parameter.type_reference)
+                .ok_or("primitive parameter")?;
+            warnings.extend(validate(
+                self.program,
+                caller,
+                state,
+                *argument,
+                primitive,
+                Some(self),
+            )?);
+        }
+        Ok((
+            self.program
+                .primitive_type_reference(entry.return_type)
+                .ok_or("primitive result")?,
+            warnings,
+        ))
+    }
+
+    fn evaluate_call(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
+        self.executed.set(self.executed.get() + 1);
+        let ExpressionNode::Call(call) = self.program.expression_table.expression(expression)
+        else {
+            return Err("expected call".into());
+        };
+        let forbidden = self
+            .program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "never")
+            .expect("forbidden callee");
+        let (callee, entry) = self.target(call.target_symbol)?;
+        if callee.symbol == forbidden.symbol {
+            return Err("skipped call executed".into());
+        }
+        if matches!(callee.name.as_str(), "wrapping_seed" | "saturating_seed") {
+            let identity = CanonicalConstIdentity::integer("u8", 255);
+            return Ok((
+                CanonicalConstValue::new(identity.type_name, identity.encoding, "255"),
+                Vec::new(),
+            ));
+        }
+        let [parameter] = self.program.state_parameters(entry) else {
+            return Err("identity call requires one parameter".into());
+        };
+        let [argument] = self
+            .program
+            .expression_table
+            .expression_handles(call.arguments)
+        else {
+            return Err("identity call requires one argument".into());
+        };
+        let caller = &self.program.machines()[0];
+        evaluate(
+            self.program,
+            caller,
+            &self.program.machine_states(caller)[0],
+            *argument,
+            self.program
+                .primitive_type_reference(parameter.type_reference)
+                .ok_or("primitive parameter")?,
+            Some(self),
+        )
+    }
+}
+
+#[test]
+fn scalar_calls_compose_with_arithmetic_boolean_logic_and_match() {
+    for (body, destination, expected, executions) in [
+        (
+            "number(number(7)) / number(2) * 2",
+            PrimitiveType::U8,
+            "6",
+            3,
+        ),
+        (
+            "truth(true) && truth(false)",
+            PrimitiveType::Bool,
+            "false",
+            2,
+        ),
+        (
+            "false && (never(1u8 / 0) == 0u8)",
+            PrimitiveType::Bool,
+            "false",
+            0,
+        ),
+        ("true || (never(1) == 0u8)", PrimitiveType::Bool, "true", 0),
+        (
+            "match truth(true) { true -> number(7), false -> never(0) }",
+            PrimitiveType::U8,
+            "7",
+            2,
+        ),
+        (
+            "(match truth(false) { true -> 7 / 2, false -> 9 / 2 }) * 2",
+            PrimitiveType::U8,
+            "9",
+            1,
+        ),
+    ] {
+        let (program, expression) = program(body, destination);
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let calls = Calls {
+            program: &program,
+            executed: Cell::new(0),
+        };
+        validate(
+            &program,
+            machine,
+            state,
+            expression,
+            destination,
+            Some(&calls),
+        )
+        .expect("static call shapes");
+        assert_eq!(calls.executed.get(), 0, "static pass does not invoke calls");
+        let (value, _) = evaluate(
+            &program,
+            machine,
+            state,
+            expression,
+            destination,
+            Some(&calls),
+        )
+        .unwrap_or_else(|error| panic!("{body}: {error}"));
+        assert_eq!(value.display, expected, "{body}");
+        assert_eq!(calls.executed.get(), executions, "{body}");
+        assert!(
+            evaluate(&program, machine, state, expression, destination, None).is_err(),
+            "call-free API cannot acquire invocation authority"
+        );
+    }
+}
+
+#[test]
+fn skipped_calls_still_validate_argument_carriers_and_anonymous_landings() {
+    for body in [
+        "false && (never(1u64) == 0u8)",
+        "false && (never(256) == 0u8)",
+        "false && (never(1 / 2) == 0u8)",
+        "false && (never(1 / 0) == 0u8)",
+    ] {
+        let (program, expression) = program(body, PrimitiveType::Bool);
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let calls = Calls {
+            program: &program,
+            executed: Cell::new(0),
+        };
+        assert!(
+            evaluate(
+                &program,
+                machine,
+                state,
+                expression,
+                PrimitiveType::Bool,
+                Some(&calls)
+            )
+            .is_err(),
+            "{body}"
+        );
+        assert_eq!(calls.executed.get(), 0, "{body}");
+    }
+}
+
+#[test]
+fn call_graph_rejects_stale_argument_spans_and_cycles_before_callbacks() {
+    let (original, root) = program("number(7) + 0u8", PrimitiveType::U8);
+    let ExpressionNode::Binary(binary) = original.expression_table.expression(root) else {
+        panic!("source arithmetic");
+    };
+    let expression = binary.left;
+    let ExpressionNode::Call(call) = original.expression_table.expression(expression) else {
+        panic!("call");
+    };
+    let arguments = call.arguments;
+    for replacement in [expression, ExpressionHandle::invalid()] {
+        let mut program = original.clone();
+        program
+            .expression_table
+            .set_expression_handle_at_offset(arguments, 0, replacement);
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let calls = Calls {
+            program: &program,
+            executed: Cell::new(0),
+        };
+        let error = evaluate(
+            &program,
+            machine,
+            state,
+            expression,
+            PrimitiveType::U8,
+            Some(&calls),
+        )
+        .expect_err("malformed argument graph");
+        assert!(error.contains("invalid or cyclic"), "{error}");
+    }
+    let mut program = original.clone();
+    let ExpressionNode::Call(call) = program.expression_table.expression_mut(expression) else {
+        panic!("call");
+    };
+    call.arguments = arena::HandleSpan::from_parts(
+        arena::Handle::from_parts(
+            arguments.start().arena_index(),
+            arguments.start().generation() + 1,
+        ),
+        arguments.count(),
+    );
+    let machine = &program.machines()[0];
+    let calls = Calls {
+        program: &program,
+        executed: Cell::new(0),
+    };
+    let error = validate(
+        &program,
+        machine,
+        &program.machine_states(machine)[0],
+        expression,
+        PrimitiveType::U8,
+        Some(&calls),
+    )
+    .expect_err("stale argument span");
+    assert!(error.contains("argument span"), "{error}");
+}
+
+#[test]
+fn call_result_cannot_change_its_validated_carrier_or_encoding() {
+    let identity = CanonicalConstIdentity::integer("u64", 7);
+    let value = CanonicalConstValue::new(identity.type_name, identity.encoding, "7");
+    assert!(
+        call_value(
+            &value,
+            Shape::Integer(
+                LandedIntegerType::U8,
+                symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
+                numerics::arithmetic::ArithmeticDomain::Exact
+            )
+        )
+        .is_err()
+    );
+    let identity = CanonicalConstIdentity::integer("u8", 256);
+    let value = CanonicalConstValue::new(identity.type_name, identity.encoding, "256");
+    assert!(
+        call_value(
+            &value,
+            Shape::Integer(
+                LandedIntegerType::U8,
+                symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
+                numerics::arithmetic::ArithmeticDomain::Exact
+            )
+        )
+        .is_err()
+    );
+    assert!(
+        call_value(
+            &CanonicalConstValue::boolean(true),
+            Shape::Integer(
+                LandedIntegerType::U8,
+                symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
+                numerics::arithmetic::ArithmeticDomain::Exact
+            )
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn casts_retain_signedness_and_exact_full_width_values() {
+    for (source, destination, expected) in [
+        ("7u8 as i64", PrimitiveType::I64, 7),
+        ("-7i8 as i64", PrimitiveType::I64, -7),
+        (
+            "18446744073709551615u64 as u64",
+            PrimitiveType::U64,
+            18446744073709551615,
+        ),
+    ] {
+        let (program, expression) = program(source, destination);
+        let machine = &program.machines()[0];
+        let (actual, _) = evaluate(
+            &program,
+            machine,
+            &program.machine_states(machine)[0],
+            expression,
+            destination,
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            actual.identity(),
+            CanonicalConstIdentity::integer(destination.name(), expected)
+        );
+    }
+}
+
+#[test]
+fn cast_graphs_reject_stale_and_cyclic_operands_before_type_queries() {
+    let (original, expression) = program("7u8 as u64", PrimitiveType::U64);
+    for operand in [expression, ExpressionHandle::invalid()] {
+        let mut program = original.clone();
+        let ExpressionNode::Cast(cast) = program.expression_table.expression_mut(expression) else {
+            panic!("cast fixture");
+        };
+        cast.value = operand;
+        let machine = &program.machines()[0];
+        let error = evaluate(
+            &program,
+            machine,
+            &program.machine_states(machine)[0],
+            expression,
+            PrimitiveType::U64,
+            None,
+        )
+        .expect_err("malformed cast graph");
+        assert!(error.contains("invalid or cyclic"), "{error}");
+    }
+}
+
+#[test]
+fn policy_calls_reduce_each_node_before_explicit_erasure() {
+    for (source, expected) in [
+        ("(wrapping_seed() + 2) as u8", 1),
+        ("((wrapping_seed() + 2) * 3) as u8", 3),
+        ("(saturating_seed() + 2) as u8", 255),
+        ("((saturating_seed() + 2) - 1) as u8", 254),
+        ("(1 + wrapping_seed()) as u8", 0),
+        ("(wrapping_seed() << 9u64) as u8", 254),
+        ("((255u8 as u8 in Wrapping) + 2) as u8", 1),
+        ("((255u8 as u8 in Saturating) + 2) as u8", 255),
+    ] {
+        let (program, expression) = program(source, PrimitiveType::U8);
+        let calls = Calls {
+            program: &program,
+            executed: Cell::new(0),
+        };
+        let (value, _) =
+            super::evaluate_closed_scalar(&program, expression, PrimitiveType::U8, &calls)
+                .unwrap_or_else(|reason| panic!("{source}: {reason}"));
+        assert_eq!(
+            value.identity(),
+            CanonicalConstIdentity::integer("u8", expected),
+            "{source}"
+        );
+    }
+}
+
+#[test]
+fn policy_destinations_keep_landing_and_all_arm_compatibility() {
+    use numerics::arithmetic::ArithmeticDomain::{Exact, Saturating, Wrapping};
+    for (source, policy, expected) in [
+        ("wrapping_seed() + 2", Wrapping, Some(1)),
+        ("saturating_seed() + 2", Saturating, Some(255)),
+        (
+            "(match false { true -> wrapping_seed(), false -> 7 })",
+            Wrapping,
+            Some(7),
+        ),
+        ("255", Wrapping, Some(255)),
+        ("256", Wrapping, None),
+        ("1 / 2", Saturating, None),
+        ("255u8", Wrapping, None),
+        ("wrapping_seed()", Exact, None),
+        ("wrapping_seed()", Saturating, None),
+        ("wrapping_seed() + 1u8", Wrapping, None),
+        (
+            "(match true { true -> wrapping_seed(), false -> saturating_seed() })",
+            Wrapping,
+            None,
+        ),
+        (
+            "(match false { true -> wrapping_seed(), false -> 7u8 })",
+            Exact,
+            None,
+        ),
+    ] {
+        let (program, expression) = program(source, PrimitiveType::U8);
+        let calls = Calls {
+            program: &program,
+            executed: Cell::new(0),
+        };
+        let validated = super::validate_closed_scalar_with_policy(
+            &program,
+            expression,
+            PrimitiveType::U8,
+            policy,
+            &calls,
+        );
+        assert_eq!(
+            calls.executed.get(),
+            0,
+            "validation executed a call: {source}"
+        );
+        if let Some(expected) = expected {
+            validated.unwrap_or_else(|reason| panic!("{source}: {reason}"));
+            let (value, _) = super::evaluate_closed_scalar_with_policy(
+                &program,
+                expression,
+                PrimitiveType::U8,
+                policy,
+                &calls,
+            )
+            .unwrap_or_else(|reason| panic!("{source}: {reason}"));
+            assert_eq!(
+                value.identity(),
+                CanonicalConstIdentity::integer("u8", expected)
+            );
+        } else {
+            assert!(validated.is_err(), "policy was erased: {source}");
+        }
+    }
+}
+
+#[test]
+fn endpoint_literal_retains_call_result_policy() {
+    for (source, policy, expected) in [
+        (
+            "wrapping_seed() + 2",
+            numerics::arithmetic::ArithmeticDomain::Wrapping,
+            1,
+        ),
+        (
+            "saturating_seed() + 2",
+            numerics::arithmetic::ArithmeticDomain::Saturating,
+            255,
+        ),
+    ] {
+        let (program, expression) = program(source, PrimitiveType::U8);
+        let calls = Calls {
+            program: &program,
+            executed: Cell::new(0),
+        };
+        let (literal, _) = super::evaluate_integer_endpoint(&program, expression, &calls)
+            .unwrap_or_else(|reason| panic!("{source}: {reason}"));
+        assert_eq!(literal.value_u64(), Some(expected));
+        assert_eq!(literal.landing().unwrap().domain, policy);
+    }
+}

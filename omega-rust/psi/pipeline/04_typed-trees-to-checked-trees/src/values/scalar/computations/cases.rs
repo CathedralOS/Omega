@@ -5,7 +5,7 @@ use super::{
     Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind, ExpressionHandle,
     ExpressionNode, PrimitiveType, StatementNode,
 };
-use checked_trees::{
+use crate::checked_trees::{
     CheckedScalarCaseComputationField, CheckedScalarCaseConstruction,
     CheckedScalarComputationStructuralArgument,
 };
@@ -25,7 +25,7 @@ impl Builder<'_, '_> {
             .machine_states(machine)
             .iter()
             .find(|state| state.symbol == self.state)?;
-        if !validation::has_exact_case_membership_meaning(
+        if !crate::validation::has_exact_case_membership_meaning(
             self.program,
             machine,
             Some(state),
@@ -59,7 +59,7 @@ impl Builder<'_, '_> {
                     .name_path_members(name.members)
                     .len()
                     != 1
-                || !validation::has_plain_owned_contents_with_numeric_constraints(
+                || !crate::validation::has_plain_owned_contents_with_numeric_constraints(
                     self.program,
                     local.type_reference,
                 )
@@ -68,11 +68,11 @@ impl Builder<'_, '_> {
             }
             return Some(self.insert(PrimitiveType::Bool, CheckedScalarComputationKind::CaseMembership {
                 source_expression: expression,
-                subject: CheckedScalarComputationStructuralArgument::Place(checked_trees::CheckedUnitStructuralArgumentPlan {
-                    source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: local.symbol },
+                subject: CheckedScalarComputationStructuralArgument::Place(crate::checked_trees::CheckedUnitStructuralArgumentPlan {
+                    source: crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: local.symbol },
                     path: Vec::new(),
                     type_identity: self.program.normalized_type_identity(local.type_reference).as_str().to_owned(),
-                    access: checked_trees::CheckedStructuralAccess::SharedBorrow,
+                    access: crate::checked_trees::CheckedStructuralAccess::SharedBorrow,
                 }),
                 case,
             }));
@@ -93,7 +93,7 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
     ) -> Option<CheckedScalarCaseConstruction> {
-        let constructor = validation::scalar_case_constructor(self.program, expression)?;
+        let constructor = crate::validation::scalar_case_constructor(self.program, expression)?;
         let mut fields = Vec::with_capacity(constructor.fields.len());
         for (symbol, source, primitive) in constructor.fields {
             let value = self.expression(source, primitive)?;

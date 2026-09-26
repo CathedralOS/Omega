@@ -22,13 +22,16 @@ use crate::expression_preparation::source_custody::case_sources as source;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
 };
-use checked_trees::data::DataMember;
-use checked_trees::{CheckedScalarCaseConstruction, CheckedScalarComputationStructuralArgument};
 use semantic_vocabulary::{StructuralCaseId, StructuralFieldId};
+use typed_trees_to_checked_trees::checked_trees::data::DataMember;
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedScalarCaseConstruction, CheckedScalarComputationStructuralArgument,
+};
 
 #[derive(Clone)]
 pub(crate) struct Slot {
-    pub(super) expression: checked_trees::expression::ExpressionHandle,
+    pub(super) expression:
+        typed_trees_to_checked_trees::checked_trees::expression::ExpressionHandle,
     pub(super) place: PlaceId,
     pub(super) structural_type: StructuralTypeId,
     pub(super) multiplicity: StructuralMultiplicity,
@@ -97,10 +100,13 @@ pub(crate) fn prepare(
             {
                 continue;
             }
-            let source = validation::scalar_case_constructor(&checked.typed, subject.expression)
-                .ok_or(LoweringError::Unsupported(
-                    "computed case lost its constructor",
-                ))?;
+            let source = typed_trees_to_checked_trees::validation::scalar_case_constructor(
+                &checked.typed,
+                subject.expression,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "computed case lost its constructor",
+            ))?;
             slots.push(reserve(
                 checked,
                 subject.expression,
@@ -117,8 +123,8 @@ pub(crate) fn prepare(
 /// The caller owns allocation and the result's lifetime.
 pub(crate) fn reserve(
     checked: &CheckedTrees,
-    expression: checked_trees::expression::ExpressionHandle,
-    source: &validation::ScalarCaseConstructor,
+    expression: typed_trees_to_checked_trees::checked_trees::expression::ExpressionHandle,
+    source: &typed_trees_to_checked_trees::validation::ScalarCaseConstructor,
     types: &[StructuralTypeDeclaration],
     place: PlaceId,
 ) -> Result<Slot, LoweringError> {
@@ -132,7 +138,9 @@ pub(crate) fn reserve(
     let StructuralTypeShape::Sum { cases } = &declaration.shape else {
         return unsupported("computed case requires a plain sum");
     };
-    let checked_trees::types::TypeReferenceNode::Named { symbol, .. } = checked
+    let typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Named {
+        symbol, ..
+    } = checked
         .type_reference_table
         .type_reference(source.type_reference)
     else {
@@ -330,7 +338,7 @@ impl Expansion<'_> {
             CheckedScalarComputationStructuralArgument::Case(subject) => subject,
             CheckedScalarComputationStructuralArgument::Place(argument) => {
                 let (place, path, case) = match argument.source {
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                         ..
                     } => {
                         let identity = structural_case_identity(self.checked, observed_case)?;

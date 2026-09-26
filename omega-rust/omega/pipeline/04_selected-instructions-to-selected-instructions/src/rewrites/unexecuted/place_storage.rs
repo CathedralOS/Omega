@@ -12,14 +12,16 @@
 //! (`local_store_shape`, `place_store_row_shape`, `packed_store_row_shape`)
 //! admit the store instruction's operand surface once; each rewrite
 //! composes its own custody policy on the admitted row.
-use register_environment::ValidatedTargetRegisterEnvironment;
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
-use selected_instructions::{
+use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
+use target_operations_to_selected_instructions::register_model::{
+    RegisterInstructionConstraint, RegisterOperandAccess,
+};
+use target_operations_to_selected_instructions::{
     LocalStorageSlotId, OutgoingArgumentSlotId, SelectedCasePayloadTransport, SelectedFunction,
     SelectedInstruction, SelectedMemoryAccess, SelectedMemoryAccessRole, SelectedValueTransport,
     VirtualRegisterId, VirtualRegisterOrigin,
 };
-use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 use terminal_psi::StructuralPlaceDeclaration;
 
 use crate::rewrites::block_edges::terminator_successors;

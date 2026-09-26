@@ -1,14 +1,14 @@
 //! Rejoin no-code disposal eligibility before constructing path-specific cleanup.
 
-use checked_trees::{
-    CheckedSemanticDependencyKind, CheckedStructuralAccess, CheckedTrees,
-    CheckedUnitStructuralParameterPlan,
-};
 use language_semantics::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
     PermissionEventSource, PermissionProvenance,
 };
 use symbols::SymbolHandle;
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedSemanticDependencyKind, CheckedStructuralAccess, CheckedTrees,
+    CheckedUnitStructuralParameterPlan,
+};
 
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
@@ -16,7 +16,7 @@ use crate::lowering_error::unsupported;
 pub(super) fn validate(
     checked: &CheckedTrees,
     machine: SymbolHandle,
-    state: &checked_trees::state::State,
+    state: &typed_trees_to_checked_trees::checked_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
 ) -> Result<(), LoweringError> {
     if !parameters
@@ -42,21 +42,22 @@ pub(super) fn validate(
     }
     let ownership = &checked.facts.flow.ownership;
     let statements = checked.statement_table.statements(state.statement_nodes);
-    let prefix_end = statements
-        .iter()
-        .position(|statement| {
-            matches!(
+    let prefix_end =
+        statements
+            .iter()
+            .position(|statement| {
+                matches!(
                 statement,
-                checked_trees::statement::StatementNode::Transition(_)
+                typed_trees_to_checked_trees::checked_trees::statement::StatementNode::Transition(_)
             )
-        })
-        .unwrap_or(statements.len());
+            })
+            .unwrap_or(statements.len());
     let mut expected = Vec::new();
     for parameter in checked.state_parameters(state).iter().rev() {
         if checked.type_multiplicity(parameter.type_reference) != Multiplicity::Affine {
             continue;
         }
-        let root = facts::PlaceRoot::Symbol(parameter.symbol);
+        let root = typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(parameter.symbol);
         let transferred_in_prefix = ownership.permissions.iter().any(|(_, event)| {
             event.machine_symbol == machine
                 && event.state_symbol == state.symbol
@@ -86,7 +87,7 @@ pub(super) fn validate(
         })
     {
         for operation in &retained.unit_operations {
-            let checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+            let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
                 result,
                 ..
             } = operation
@@ -99,12 +100,17 @@ pub(super) fn validate(
                 state.symbol,
                 operation,
             )?;
-            let Some(checked_trees::statement::StatementNode::LocalData(local)) =
-                statements.get(result.statement_index as usize)
+            let Some(
+                typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(
+                    local,
+                ),
+            ) = statements.get(result.statement_index as usize)
             else {
                 return unsupported("owned scalar graph local lost its authored declaration");
             };
-            local_roots.push(facts::PlaceRoot::Symbol(local.symbol));
+            local_roots.push(typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(
+                local.symbol,
+            ));
         }
     }
     for (_, event) in ownership.permissions.iter().filter(|(_, event)| {

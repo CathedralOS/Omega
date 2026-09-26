@@ -13,9 +13,9 @@
 use std::collections::BTreeSet;
 
 use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use register_model::RegisterInstructionConstraint;
-use selected_instructions::{
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
+use target_operations_to_selected_instructions::register_model::RegisterInstructionConstraint;
+use target_operations_to_selected_instructions::{
     MachineEffectDeclaration, MachineSemanticKind, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionKind, SelectedInstructionProvenance, SelectedSuccessor, SelectedTerminator,
     ValidatedMachineEffectCatalog,
@@ -329,7 +329,7 @@ pub(super) fn rewritten(admitted: &AdmittedPair<'_>) -> SelectedTerminator {
 fn effect_declaration(
     catalog: &ValidatedMachineEffectCatalog,
     semantic: MachineSemanticKind,
-    constraint: register_model::RegisterConstraintKey,
+    constraint: target_operations_to_selected_instructions::register_model::RegisterConstraintKey,
 ) -> Option<&MachineEffectDeclaration> {
     let mut matches = catalog.catalog().declarations.iter().filter(|declaration| {
         declaration.semantic == semantic && declaration.constraint == constraint

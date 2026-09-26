@@ -5,13 +5,15 @@
 //! literal extent may copy it into an ordinary array value, and that copy is
 //! exact-width: neither truncation nor zero padding is language semantics.
 
+use crate::typed_trees::TypedTrees;
+use crate::typed_trees::data::DataMember;
+use crate::typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use crate::typed_trees::statement::{StatementNode, TransitionTargetNode};
+use crate::typed_trees::types::{
+    FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
+};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::data::DataMember;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::statement::{StatementNode, TransitionTargetNode};
-use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn land_exact_fixed_byte_array_literals(
     program: &mut TypedTrees,
@@ -32,7 +34,7 @@ pub(crate) fn land_exact_fixed_byte_array_literals_from(
     // Call-argument destinations resolve their callee state by symbol; one
     // index over the frozen machine/state table replaces a per-call scan.
     let mut state_targets =
-        symbols::SymbolKeyMap::<SymbolHandle, &typed_trees::state::State>::default();
+        symbols::SymbolKeyMap::<SymbolHandle, &crate::typed_trees::state::State>::default();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             state_targets.entry(state.symbol).or_insert(state);
@@ -155,7 +157,7 @@ pub(crate) fn land_exact_fixed_byte_array_literals_from(
 
 fn collect_call_destinations(
     program: &TypedTrees,
-    state_targets: &symbols::SymbolKeyMap<SymbolHandle, &typed_trees::state::State>,
+    state_targets: &symbols::SymbolKeyMap<SymbolHandle, &crate::typed_trees::state::State>,
     target_symbol: SymbolHandle,
     arguments: &[ExpressionHandle],
     destinations: &mut Vec<(ExpressionHandle, TypeReferenceHandle)>,
@@ -179,13 +181,13 @@ fn collect_call_destinations(
 
 fn construction_field_type(
     program: &TypedTrees,
-    definition: &typed_trees::data::DataDefinition,
+    definition: &crate::typed_trees::data::DataDefinition,
     case_symbol: Option<SymbolHandle>,
     case_name: Option<&str>,
     field_symbol: SymbolHandle,
     field_name: &str,
 ) -> Option<TypeReferenceHandle> {
-    let matches_field = |field: &typed_trees::data::DataField| {
+    let matches_field = |field: &crate::typed_trees::data::DataField| {
         if field_symbol.is_valid() {
             field.symbol == field_symbol
         } else {

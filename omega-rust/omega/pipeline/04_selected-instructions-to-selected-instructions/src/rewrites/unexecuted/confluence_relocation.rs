@@ -109,8 +109,10 @@ mod validation;
 use std::sync::Arc;
 
 use optimization_core::OptimizationUnitIdentity;
-use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::FuelScheduleIdentity;
+use target_operations_to_selected_instructions::{
+    SelectedInstructionPlan, SelectedInstructionPlanIdentity,
+};
 
 pub use rewrite::relocate_selected_members_into_confluence;
 pub use validation::validate_confluence_relocation;

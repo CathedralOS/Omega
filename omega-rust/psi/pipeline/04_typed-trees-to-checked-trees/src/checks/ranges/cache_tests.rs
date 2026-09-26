@@ -1,7 +1,7 @@
+use crate::checked_trees::{BorrowFacts, CheckedOperatorFacts};
 use crate::tests::front_end::typed_program;
-use checked_trees::{BorrowFacts, CheckedOperatorFacts};
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 
 use crate::flow::StateMutationSummaryCache;
 
@@ -9,7 +9,7 @@ struct RangeCheckFixture {
     program: TypedTrees,
     borrows: BorrowFacts,
     operators: CheckedOperatorFacts,
-    flow: checked_trees::FlowFacts,
+    flow: crate::checked_trees::FlowFacts,
 }
 
 impl RangeCheckFixture {
@@ -56,7 +56,7 @@ impl RangeCheckFixture {
         }
         let program = typed_program(&source);
         let borrows = crate::borrow::build_borrow_facts(&program);
-        let proof_plan = proof::obligations::build_proof_plan(&program);
+        let proof_plan = crate::proof_engine::obligations::build_proof_plan(&program);
         let values = crate::values::build_value_facts(&program, &proof_plan);
         let operators = crate::operators::build_operator_facts(&program, &values);
         let flow = range_flow_fixture(&program, &borrows);
@@ -69,7 +69,7 @@ impl RangeCheckFixture {
     }
 
     fn check(&self) -> (Result<(), Vec<Diagnostic>>, usize) {
-        let frames = validation::CallFrameResolver::new(&self.program)
+        let frames = crate::validation::CallFrameResolver::new(&self.program)
             .expect("fixture has complete symbol resolution");
         let incoming =
             super::incoming_guards::IncomingGuardIndex::build(&self.program, Some(&frames));
@@ -93,12 +93,12 @@ impl RangeCheckFixture {
 pub(super) fn range_flow_fixture(
     program: &TypedTrees,
     borrows: &BorrowFacts,
-) -> checked_trees::FlowFacts {
-    let plan = proof::obligations::build_proof_plan(program);
+) -> crate::checked_trees::FlowFacts {
+    let plan = crate::proof_engine::obligations::build_proof_plan(program);
     let proof = crate::proof::build_proof_facts(program, &plan, borrows);
     let mut semantic = crate::semantic::facts::build_semantic_facts(program, &proof);
     let domains = crate::flow::build_domain_facts(program, &semantic);
-    let operational = validation::infer_operational_may(program);
+    let operational = crate::validation::infer_operational_may(program);
     let mut flow = crate::flow::build_flow_facts(
         program,
         borrows,

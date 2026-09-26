@@ -1,7 +1,7 @@
 //! Proof-certified cross-block elimination from dominating leaders.
 
 use optimization_core::{AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass};
-use optimization_unit::{
+use terminal_psi_to_abstract_operations::optimization_unit::{
     DominatingScalarCommonSubexpressionRewrite, NodeLocation, PsiOptimizationUnit,
     PsiRewriteCandidate,
 };
@@ -155,10 +155,10 @@ impl PsiOptimizationRule for DominatorProofCertifiedScalarGvnRule {
                 let Some((_, leader, leader_operation, leader_result, _, _)) = leader else {
                     continue;
                 };
-                let replacement_definition = optimization_unit::ValueDefinition {
+                let replacement_definition = terminal_psi_to_abstract_operations::optimization_unit::ValueDefinition {
                     value: *leader_result,
                     scalar_type: *scalar_type,
-                    site: optimization_unit::ValueDefinitionSite::Node {
+                    site: terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite::Node {
                         block: leader.block,
                         node: leader.node,
                     },
@@ -170,12 +170,12 @@ impl PsiOptimizationRule for DominatorProofCertifiedScalarGvnRule {
                         *machine == function.machine && use_site.value == *redundant_result
                     })
                     .all(|(_, use_site)| match replacement_definition.site {
-                        optimization_unit::ValueDefinitionSite::Node { block, node }
+                        terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite::Node { block, node }
                             if block == use_site.block =>
                         {
                             node < use_site.node
                         }
-                        optimization_unit::ValueDefinitionSite::Node { block, .. } => {
+                        terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite::Node { block, .. } => {
                             block_dominates(machine_dominators, block, use_site.block)
                         }
                         _ => false,

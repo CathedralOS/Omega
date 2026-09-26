@@ -1,5 +1,5 @@
 use crate::LoweringError;
-use calling_conventions::ValueShape;
+use crate::calling_conventions::ValueShape;
 use semantic_vocabulary::IeeeFloatFormat;
 use semantic_vocabulary::{ScalarType, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -207,7 +207,7 @@ pub(super) fn structural_sum_layout(
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
-) -> Result<calling_conventions::ConventionalSumLayout, LoweringError> {
+) -> Result<crate::calling_conventions::ConventionalSumLayout, LoweringError> {
     let declaration = declarations
         .get(&structural_type)
         .copied()
@@ -240,7 +240,7 @@ fn conventional_sum_layout_from_parts(
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
-) -> Result<calling_conventions::ConventionalSumLayout, LoweringError> {
+) -> Result<crate::calling_conventions::ConventionalSumLayout, LoweringError> {
     if cases.is_empty() {
         return Err(LoweringError::EmptyStructuralType(structural_type));
     }
@@ -275,7 +275,7 @@ fn conventional_sum_layout_from_parts(
                 .collect::<Result<Vec<_>, _>>()
         })
         .collect::<Result<Vec<_>, _>>()?;
-    calling_conventions::evaluate_conventional_sum_layout(&common, &payloads)
+    crate::calling_conventions::evaluate_conventional_sum_layout(&common, &payloads)
         .map_err(|_| LoweringError::StructuralTypeTooLarge(structural_type))
 }
 
@@ -682,7 +682,7 @@ pub(super) fn checked_align_up_u32(value: u32, alignment: u32) -> Option<u32> {
 #[cfg(test)]
 mod tests {
     use super::structural_shape;
-    use calling_conventions::ValueShape;
+    use crate::calling_conventions::ValueShape;
     use semantic_vocabulary::{ScalarType, StructuralFieldId, StructuralTypeId};
     use std::collections::{BTreeMap, BTreeSet};
     use terminal_psi::{StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape};

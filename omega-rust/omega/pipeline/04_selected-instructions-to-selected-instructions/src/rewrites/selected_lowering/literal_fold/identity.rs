@@ -1,4 +1,4 @@
-use selected_instructions::LiteralFoldIdentity;
+use target_operations_to_selected_instructions::LiteralFoldIdentity;
 
 use crate::LiteralFoldPlan;
 
@@ -46,11 +46,11 @@ pub(crate) fn encode_terminal_literal_fold_content(plan: &LiteralFoldPlan) -> Ve
                 }
                 bytes.extend_from_slice(&action.immediate.to_le_bytes());
                 bytes.push(match action.immediate_constraint.family {
-                    register_model::RegisterConstraintFamily::Call => 0,
-                    register_model::RegisterConstraintFamily::Return => 1,
-                    register_model::RegisterConstraintFamily::SystemCall => 2,
-                    register_model::RegisterConstraintFamily::InlineAssembly => 3,
-                    register_model::RegisterConstraintFamily::Instruction => 4,
+                    target_operations_to_selected_instructions::register_model::RegisterConstraintFamily::Call => 0,
+                    target_operations_to_selected_instructions::register_model::RegisterConstraintFamily::Return => 1,
+                    target_operations_to_selected_instructions::register_model::RegisterConstraintFamily::SystemCall => 2,
+                    target_operations_to_selected_instructions::register_model::RegisterConstraintFamily::InlineAssembly => 3,
+                    target_operations_to_selected_instructions::register_model::RegisterConstraintFamily::Instruction => 4,
                 });
                 bytes.extend_from_slice(&action.immediate_constraint.variant.to_le_bytes());
             }
@@ -73,23 +73,23 @@ mod tests {
     use optimization_core::{
         OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage,
     };
-    use register_model::{
+    use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
+    use target_operations_to_selected_instructions::register_model::{
         RegisterConstraintFamily, RegisterConstraintKey, TargetRegisterEnvironmentIdentity,
     };
-    use selected_instructions::{
+    use target_operations_to_selected_instructions::{
         MachineEffectCatalogIdentity, SelectedBlockId, SelectedInstructionId,
         SelectedInstructionPlanIdentity, VirtualRegisterId,
     };
-    use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 
     use super::super::LiteralFoldDecodeError;
-    use crate::rewrites::literal_fold_identity;
-    use crate::{FunctionLiteralFold, LiteralFoldAction, LiteralFoldPlan, LiteralFoldPolicy};
-    use register_homes::{
+    use crate::register_homes::{
         AllocationLegalityIdentity, AllocatorAvailabilityIdentity, RecoveryClassificationIdentity,
         SpillChoiceIdentity,
     };
-    use selected_instructions::{LiveRangeIdentity, LiveRangePoint};
+    use crate::rewrites::literal_fold_identity;
+    use crate::{FunctionLiteralFold, LiteralFoldAction, LiteralFoldPlan, LiteralFoldPolicy};
+    use target_operations_to_selected_instructions::{LiveRangeIdentity, LiveRangePoint};
 
     fn plan() -> LiteralFoldPlan {
         LiteralFoldPlan {

@@ -208,7 +208,7 @@ fn named_transition_evidence_forwards_across_state_arrivals() {
         term.name == "first_evidence"
             && matches!(
                 term.owner,
-                checked_trees::ContractProofFactOwner::MachineState { .. }
+                crate::checked_trees::ContractProofFactOwner::MachineState { .. }
             )
     }));
 }
@@ -342,7 +342,7 @@ fn concrete_trait_named_witness_lanes_bind_inherited_facts_to_satisfier_terms() 
         .iter()
         .filter_map(|(_, fact)| {
             (fact.owner
-                == checked_trees::ContractProofFactOwner::MachineState {
+                == crate::checked_trees::ContractProofFactOwner::MachineState {
                     machine_symbol: machine.symbol,
                     state_symbol: state.symbol,
                 })
@@ -366,18 +366,22 @@ fn concrete_trait_named_witness_lanes_bind_inherited_facts_to_satisfier_terms() 
             .collect::<Vec<_>>(),
         vec![
             (
-                checked_trees::ContractProofFactKind::Requires,
+                crate::checked_trees::ContractProofFactKind::Requires,
                 0,
                 "local_left",
             ),
             (
-                checked_trees::ContractProofFactKind::Requires,
+                crate::checked_trees::ContractProofFactKind::Requires,
                 1,
                 "local_right",
             ),
-            (checked_trees::ContractProofFactKind::Ensures, 0, "left_out",),
             (
-                checked_trees::ContractProofFactKind::Ensures,
+                crate::checked_trees::ContractProofFactKind::Ensures,
+                0,
+                "left_out",
+            ),
+            (
+                crate::checked_trees::ContractProofFactKind::Ensures,
                 1,
                 "right_out",
             ),

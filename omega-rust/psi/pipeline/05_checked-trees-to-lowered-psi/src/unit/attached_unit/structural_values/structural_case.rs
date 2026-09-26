@@ -12,7 +12,7 @@ use crate::emission::operation_emission::buffer::OperationBuffer;
 impl emission::Emission<'_, '_, '_> {
     pub(super) fn structural_case(
         &mut self,
-        value: checked_trees::CheckedStructuralValueHandle,
+        value: typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueHandle,
     ) -> Result<PlaceId, LoweringError> {
         let node = self
             .checked
@@ -22,7 +22,7 @@ impl emission::Emission<'_, '_, '_> {
             .nodes
             .get(value)
             .clone();
-        let checked_trees::CheckedStructuralValueKind::StructuralCase {
+        let typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::StructuralCase {
             data_symbol,
             case: case_symbol,
             fields,
@@ -56,7 +56,9 @@ impl emission::Emission<'_, '_, '_> {
         let cases = cases.clone();
         let mut selected = None;
         for member in self.checked.data_members(owner) {
-            let checked_trees::data::DataMember::Variant(variant) = member else {
+            let typed_trees_to_checked_trees::checked_trees::data::DataMember::Variant(variant) =
+                member
+            else {
                 continue;
             };
             let identity = variant.path_identity();
@@ -93,7 +95,7 @@ impl emission::Emission<'_, '_, '_> {
                 return unsupported("erased case member has no runtime initializer");
             }
             let value = match field.value {
-                checked_trees::CheckedStructuralRecordFieldValue::Scalar(value) => {
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralRecordFieldValue::Scalar(value) => {
                     let evaluated = self.scalar(
                         CheckedScalarExpressionRole::StructuralValueField {
                             expression: node.expression,
@@ -133,7 +135,7 @@ impl emission::Emission<'_, '_, '_> {
                         range_obligation,
                     }
                 }
-                checked_trees::CheckedStructuralRecordFieldValue::Structural(value) => {
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralRecordFieldValue::Structural(value) => {
                     let StructuralFieldType::Structural(child_type) = target.field_type else {
                         return unsupported("nested case operand has a scalar destination");
                     };
@@ -150,7 +152,7 @@ impl emission::Emission<'_, '_, '_> {
                     let parent_multiplicity = self.multiplicity;
                     self.structural_type = child_type;
                     self.multiplicity =
-                        match validation::reference_result_custody::result_multiplicity(
+                        match typed_trees_to_checked_trees::validation::reference_result_custody::result_multiplicity(
                             &self.checked.typed,
                             field.type_reference,
                         ) {

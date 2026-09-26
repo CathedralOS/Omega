@@ -1,13 +1,15 @@
 //! Call-bearing receiver assignments through source-produced Terminal artifacts.
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue, TerminalStructuralValue,
 };
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 fn unsigned(value: u128) -> TerminalScalarValue {
     TerminalScalarValue::Integer {
@@ -95,15 +97,16 @@ fn execute(
     expected_stores: u64,
 ) {
     let checked = crate::front_end::checked_program(source);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("Main::main"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("field RHS computations publish")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("Main::main"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("field RHS computations publish")
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     let profile = proof_admission::AdmissionProfile::default();
@@ -336,7 +339,7 @@ fn selected_crashing_rhs_never_commits_its_field_store() {
 
 #[test]
 fn field_rhs_computation_custody_rejects_destination_root_and_call_substitution() {
-    use checked_trees::{
+    use typed_trees_to_checked_trees::checked_trees::{
         CheckedScalarComputationKind, CheckedScalarExpressionRole,
         CheckedStructuralScalarFieldStoreValue, CheckedUnitEffectOperationPlan,
     };

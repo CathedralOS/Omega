@@ -18,19 +18,19 @@
 //! - `derives`  — a narrower capability is produced from an existing capability
 //!   passed into the boundary call.
 
-use arena::Arena;
-use checked_trees::FlowFacts;
-use flow_effects::{
+use crate::checked_trees::FlowFacts;
+use crate::flow_effects::{
     CapabilityFlowFact, CapabilityFlowKind, CapabilityFlowPlan, ServiceReachInferencePlan,
 };
+use arena::Arena;
 use language_core::is_self_receiver;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateSignature;
+use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::expression::ExpressionNode;
-use typed_trees::machine::Machine;
-use typed_trees::signature::StateSignature;
-use typed_trees::state::State;
-use typed_trees::statement::StatementNode;
 
 /// Provenance of a boundary call's receiver: where the capability came from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -410,7 +410,7 @@ fn call_receiver_provenance(
 /// expression (`self.x = receiver.call()` / `let y = receiver.call()`).
 fn expression_receiver_head(
     program: &TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> Option<String> {
     if !expression.is_valid() {
         return None;
@@ -425,7 +425,7 @@ fn expression_receiver_head(
 
 fn expression_path_head(
     program: &TypedTrees,
-    receiver: typed_trees::expression::ExpressionHandle,
+    receiver: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> Option<String> {
     if !receiver.is_valid() {
         return None;
@@ -490,7 +490,7 @@ fn call_stored_into_field(program: &TypedTrees, state: &State, statement_index: 
 
 fn assignment_target_is_field(
     program: &TypedTrees,
-    target: typed_trees::expression::ExpressionHandle,
+    target: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> bool {
     if !target.is_valid() {
         return false;
@@ -526,7 +526,7 @@ fn passes_capability_argument(program: &TypedTrees, signature: &StateSignature) 
 /// types are never capabilities.
 fn is_capability_type(
     program: &TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     if !type_reference.is_valid() {
         return false;

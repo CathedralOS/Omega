@@ -19,6 +19,10 @@ mod content_paths;
 mod partition_wrappers;
 mod retained_custody;
 
+use crate::checked_trees::{
+    CheckFacts, ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
+    FlowClaimOutcomeSource,
+};
 use crate::checks::content::content_paths::{
     applicable_projection_plans, content_path, projection_term, unique_entry_claim_identity,
 };
@@ -27,17 +31,13 @@ use crate::checks::content::partition_wrappers::{
     returned_partition_invocations,
 };
 use crate::checks::content::retained_custody::{check_boundary_partition_results, check_callable};
-use checked_trees::{
-    CheckFacts, ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
-    FlowClaimOutcomeSource,
-};
 use diagnostics::Diagnostic;
 use language_semantics::content::{
     ContentConservationEquation, ContentConservationOwnerKind, ContentConservationPlan,
     ContentPlaceRoot, ContentPlaceVersion, ContentStructuralPlace, conservation_report_fingerprint,
     content_conservation_plan_bytes,
 };
-use typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 
 /// Derive the content equality attached to every exact input-relative claim
 /// outcome. These are deliberately individual rewrite rows: distinct linear

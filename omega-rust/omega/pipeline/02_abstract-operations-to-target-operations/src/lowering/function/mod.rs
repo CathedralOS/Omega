@@ -2,12 +2,12 @@
 
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::AbstractFunction;
+use crate::target_operations::{BoundarySettlementBinding, ScalarFunctionAbi, TargetFunction};
 use installation_evidence::InstalledProviderCallEvidence;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
 use std::collections::BTreeMap;
 use target::NativeTarget;
-use target_operations::{BoundarySettlementBinding, ScalarFunctionAbi, TargetFunction};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractFunction;
 
 mod native_boundaries;
 
@@ -23,7 +23,10 @@ pub(super) fn lower_function(
         (MachineId, OperationId, BoundaryMachineId),
         InstalledProviderCallEvidence,
     >,
-    native_callbacks: &BTreeMap<OperationId, target_operations::TargetNativeCallbackArgument>,
+    native_callbacks: &BTreeMap<
+        OperationId,
+        crate::target_operations::TargetNativeCallbackArgument,
+    >,
 ) -> Result<TargetFunction, LoweringError> {
     if let Some((operation, boundary)) =
         native_boundaries::unsupported_scalar_call(function, settlements, installed_calls)

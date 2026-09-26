@@ -11,21 +11,21 @@ use crate::rules::CaseMembershipSpecializationRule;
 use crate::{
     OptimizationRun, PsiOptimizationCommit, VerifiedPsiOptimizationSession, run_psi_pipeline,
 };
-use abstract_operations::AbstractOperation;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use optimization_core::{
     Optimization, OptimizationSelections, OptimizationUnitIdentity, OptimizationWorkBudget,
 };
-use optimization_unit::{
+use semantic_vocabulary::{MachineId, PlaceId, StructuralPlaceKind};
+use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     CaseMembershipSpecializationRewrite, NodeLocation, ProvenanceDisposition, PsiOptimizationUnit,
     PsiProvenance, PsiRealizationSite, PsiRewriteCandidate, PsiRewriteCandidateError,
     PsiRewritePatch, recompute_psi_optimization_unit_identity,
 };
-use optimization_unit_semantics::{
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_case_membership_specialization_candidate,
 };
-use semantic_vocabulary::{MachineId, PlaceId, StructuralPlaceKind};
-use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit;
 
 /// A scalar machine establishes `Choice::Some` once and observes membership
 /// in that same case: the observation folds to `true`.
@@ -265,10 +265,12 @@ fn established_case_membership_folds_to_proven_verdict() {
     );
     assert_eq!(
         folded.fuel,
-        vec![optimization_unit::FuelSettlement {
-            site: PsiProvenance::Operation(membership.0),
-            units: 1,
-        }]
+        vec![
+            terminal_psi_to_abstract_operations::optimization_unit::FuelSettlement {
+                site: PsiProvenance::Operation(membership.0),
+                units: 1,
+            }
+        ]
     );
     let input_node = &input
         .functions
@@ -295,15 +297,19 @@ fn established_case_membership_folds_to_proven_verdict() {
     assert_eq!(record.provenance, commit.provenance);
     assert_eq!(
         record.provenance,
-        vec![optimization_unit::ProvenanceRewrite {
-            input: PsiRealizationSite::Node(site),
-            disposition: ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(site)),
-            sources: vec![PsiProvenance::Operation(membership.0)],
-            fuel: vec![optimization_unit::FuelSettlement {
-                site: PsiProvenance::Operation(membership.0),
-                units: 1,
-            }],
-        }]
+        vec![
+            terminal_psi_to_abstract_operations::optimization_unit::ProvenanceRewrite {
+                input: PsiRealizationSite::Node(site),
+                disposition: ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(site)),
+                sources: vec![PsiProvenance::Operation(membership.0)],
+                fuel: vec![
+                    terminal_psi_to_abstract_operations::optimization_unit::FuelSettlement {
+                        site: PsiProvenance::Operation(membership.0),
+                        units: 1,
+                    }
+                ],
+            }
+        ]
     );
 
     // The single commit is the pass's fixed point: no membership on the

@@ -16,17 +16,17 @@ use language_semantics::declaration_selection::BuildOperation;
 
 pub(super) fn assign_statement_symbols(
     machine: &MachineScope<'_>,
-    parameters: &[symbol_resolved_trees::signature::StateParameter],
+    parameters: &[crate::symbol_resolved_trees::signature::StateParameter],
     state_symbol: SymbolHandle,
-    expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
-    child_type_references: &mut arena::Arena<symbol_resolved_trees::types::TypeReference>,
-    type_constraints: &arena::Arena<symbol_resolved_trees::types::TypeConstraint>,
-    statement_path_members: &mut Arena<symbol_resolved_trees::name::DiagnosticName>,
-    statement: &mut symbol_resolved_trees::statement::Statement,
+    expression_table: &mut crate::symbol_resolved_trees::expression::ExpressionTable,
+    child_type_references: &mut arena::Arena<crate::symbol_resolved_trees::types::TypeReference>,
+    type_constraints: &arena::Arena<crate::symbol_resolved_trees::types::TypeConstraint>,
+    statement_path_members: &mut Arena<crate::symbol_resolved_trees::name::DiagnosticName>,
+    statement: &mut crate::symbol_resolved_trees::statement::Statement,
     symbols: &SymbolTable,
 ) {
     match statement {
-        symbol_resolved_trees::statement::Statement::RootBinding(binding) => {
+        crate::symbol_resolved_trees::statement::Statement::RootBinding(binding) => {
             assign_statement_expression_symbols(
                 symbols,
                 machine,
@@ -51,21 +51,23 @@ pub(super) fn assign_statement_symbols(
                 // Any declaration resolution (machine, module, data, const)
                 // falls back to the lexical product path in `implementation`.
                 let described = match expression_table.expression(binding.implementation_operand) {
-                    symbol_resolved_trees::expression::ExpressionNode::Name(path) => matches!(
-                        symbols.get(path.symbol).kind,
-                        SymbolKind::Local | SymbolKind::Parameter | SymbolKind::Field
-                    ),
+                    crate::symbol_resolved_trees::expression::ExpressionNode::Name(path) => {
+                        matches!(
+                            symbols.get(path.symbol).kind,
+                            SymbolKind::Local | SymbolKind::Parameter | SymbolKind::Field
+                        )
+                    }
                     // Computed operands resolve in the ordinary build context;
                     // only a name can denote the static product-path channel.
                     _ => true,
                 };
                 if !described {
                     binding.implementation_operand =
-                        symbol_resolved_trees::expression::ExpressionHandle::invalid();
+                        crate::symbol_resolved_trees::expression::ExpressionHandle::invalid();
                 }
             }
         }
-        symbol_resolved_trees::statement::Statement::AssemblyFact(fact) => {
+        crate::symbol_resolved_trees::statement::Statement::AssemblyFact(fact) => {
             assign_statement_expression_symbols(
                 symbols,
                 machine,
@@ -76,7 +78,7 @@ pub(super) fn assign_statement_symbols(
                 fact.expression,
             );
         }
-        symbol_resolved_trees::statement::Statement::Assignment(assignment) => {
+        crate::symbol_resolved_trees::statement::Statement::Assignment(assignment) => {
             assign_statement_expression_symbols(
                 symbols,
                 machine,
@@ -96,7 +98,7 @@ pub(super) fn assign_statement_symbols(
                 assignment.value,
             );
         }
-        symbol_resolved_trees::statement::Statement::Call(call) => {
+        crate::symbol_resolved_trees::statement::Statement::Call(call) => {
             assign_expression_span_symbols(
                 symbols,
                 machine,
@@ -172,7 +174,9 @@ pub(super) fn assign_statement_symbols(
                 }
             }
         }
-        symbol_resolved_trees::statement::Statement::ProofOutputBindingStatement(binding) => {
+        crate::symbol_resolved_trees::statement::Statement::ProofOutputBindingStatement(
+            binding,
+        ) => {
             binding.machine_symbol = machine.symbol;
             binding.state_symbol = state_symbol;
             assign_statement_expression_symbols(
@@ -185,7 +189,7 @@ pub(super) fn assign_statement_symbols(
                 binding.call,
             );
         }
-        symbol_resolved_trees::statement::Statement::Expression(expression) => {
+        crate::symbol_resolved_trees::statement::Statement::Expression(expression) => {
             assign_statement_expression_symbols(
                 symbols,
                 machine,
@@ -196,7 +200,7 @@ pub(super) fn assign_statement_symbols(
                 *expression,
             );
         }
-        symbol_resolved_trees::statement::Statement::LocalData(local_data) => {
+        crate::symbol_resolved_trees::statement::Statement::LocalData(local_data) => {
             assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
                 symbols,
                 child_type_references,
@@ -226,8 +230,8 @@ pub(super) fn assign_statement_symbols(
                 );
             }
         }
-        symbol_resolved_trees::statement::Statement::Transition(transition) => {
-            if let symbol_resolved_trees::statement::TransitionGuard::When(expression) =
+        crate::symbol_resolved_trees::statement::Statement::Transition(transition) => {
+            if let crate::symbol_resolved_trees::statement::TransitionGuard::When(expression) =
                 &mut transition.guard
             {
                 assign_statement_expression_symbols(

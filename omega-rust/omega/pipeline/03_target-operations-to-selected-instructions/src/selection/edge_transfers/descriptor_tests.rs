@@ -3,22 +3,22 @@ use super::{
     SelectedBlockOrigin, SelectedFunction, SelectedSuccessor, SelectedSuccessorRole,
     SelectedTerminator, SelectedValueTransport, VirtualRegisterId, project,
 };
-use crate::selection::edge_transfers::prepare;
-use optimization_unit::ValueDefinitionSite;
-use optimization_unit::{FuelSettlement, PsiProvenance};
-use register_model::ValidatedRegisterConstraintCatalog;
-use selected_instructions::{
+use crate::register_model::ValidatedRegisterConstraintCatalog;
+use crate::selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedLocalStorageSlot, SelectedMemoryAccess,
     SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedStructuralBinding,
     SelectedStructuralTransport, SelectedValueBinding,
 };
-use selected_instructions::{
+use crate::selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionProvenance, SelectedSelectionConstraints, VirtualRegister,
     VirtualRegisterOrigin,
 };
+use crate::selection::edge_transfers::prepare;
 use semantic_vocabulary::{BlockId, EdgeId, IntegerType, MachineId, PlaceId};
 use semantic_vocabulary::{IntegerSign, ScalarType, ValueId};
+use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
+use terminal_psi_to_abstract_operations::optimization_unit::{FuelSettlement, PsiProvenance};
 
 #[test]
 fn scalar_and_descriptor_swaps_snapshot_all_inputs_before_reentry_replacement() {
@@ -29,7 +29,7 @@ fn scalar_and_descriptor_swaps_snapshot_all_inputs_before_reentry_replacement() 
         target::NativeTarget::macos_arm64(),
     ] {
         let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
+            crate::register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -220,7 +220,7 @@ pub(super) fn swapped_function(
     }
     let bindings = (0..2)
         .map(|position| SelectedValueBinding {
-            semantic: abstract_operations::ValueBinding {
+            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                 parameter: ValueId::new(u64::from(position) + 1).unwrap(),
                 argument: ValueId::new(u64::from(1 - position) + 1).unwrap(),
                 scalar_type,
@@ -233,7 +233,7 @@ pub(super) fn swapped_function(
         .collect();
     let structural_bindings = (0..2)
         .map(|position| SelectedStructuralBinding {
-            semantic: abstract_operations::AbstractStructuralBinding {
+            semantic: terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding {
                 parameter: places[position],
                 argument: terminal_psi::StructuralArgument {
                     place: places[1 - position],
@@ -259,10 +259,11 @@ pub(super) fn swapped_function(
     SelectedFunction {
         machine: MachineId::new(1).unwrap(),
         attachment: None,
-        provenance: target_operations::TerminalPsiProvenance {
-            operations: Vec::new(),
-            edges: vec![edge],
-        },
+        provenance:
+            abstract_operations_to_target_operations::target_operations::TerminalPsiProvenance {
+                operations: Vec::new(),
+                edges: vec![edge],
+            },
         structural: None,
         local_storage_slots: slots
             .map(|id| SelectedLocalStorageSlot {

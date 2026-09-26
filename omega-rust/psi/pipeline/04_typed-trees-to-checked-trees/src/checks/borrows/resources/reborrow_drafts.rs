@@ -1,8 +1,7 @@
 //! Draft rows for reborrow loan resources, disposition events, containment
 //! certificates and restored call uses.
 
-use crate::checks::borrows::resources::retained_validation::reborrow_resource_drift;
-use checked_trees::{
+use crate::checked_trees::{
     BorrowFacts, BorrowLoanFact, BorrowLoanLineage, CheckedBorrowResourceDispositionTarget,
     CheckedBorrowResourceLifecyclePhase, CheckedDirectBorrowLoanResource,
     CheckedParentBorrowResource, CheckedReborrowAccessEffect,
@@ -13,6 +12,7 @@ use checked_trees::{
     CheckedReborrowRestoredCallUseCertificate, CheckedRetiredParentResourceDispositionStep,
     FlowInvalidationSource, ParentLexicalStatusAtChildEnd,
 };
+use crate::checks::borrows::resources::retained_validation::reborrow_resource_drift;
 use diagnostics::Diagnostic;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -21,19 +21,19 @@ pub(crate) struct CheckedReborrowLoanResourceDraft {
     pub(crate) machine_symbol: symbols::SymbolHandle,
     pub(crate) state_symbol: symbols::SymbolHandle,
     pub(crate) owner_symbol: symbols::SymbolHandle,
-    pub(crate) owner_path: Vec<checked_trees::BorrowLoanOwnerSegment>,
-    pub(crate) captured_place: checked_trees::CapturedPlace,
-    pub(crate) access: checked_trees::BorrowAccessKind,
-    pub(crate) parent_access: checked_trees::BorrowAccessKind,
+    pub(crate) owner_path: Vec<crate::checked_trees::BorrowLoanOwnerSegment>,
+    pub(crate) captured_place: crate::checked_trees::CapturedPlace,
+    pub(crate) access: crate::checked_trees::BorrowAccessKind,
+    pub(crate) parent_access: crate::checked_trees::BorrowAccessKind,
     pub(crate) access_effect: CheckedReborrowAccessEffect,
-    pub(crate) activation_source: checked_trees::FlowInvalidationSource,
-    pub(crate) weakening_source: checked_trees::FlowInvalidationSource,
-    pub(crate) weakening_reason: checked_trees::FlowBorrowWeakeningReason,
+    pub(crate) activation_source: crate::checked_trees::FlowInvalidationSource,
+    pub(crate) weakening_source: crate::checked_trees::FlowInvalidationSource,
+    pub(crate) weakening_reason: crate::checked_trees::FlowBorrowWeakeningReason,
     pub(crate) parent_loan: arena::Handle<BorrowLoanFact>,
-    pub(crate) child_activation: arena::Handle<checked_trees::FlowBorrowActivationFact>,
-    pub(crate) parent_entry_constraint: arena::Handle<checked_trees::FlowConstraintRef>,
-    pub(crate) child_weakening: arena::Handle<checked_trees::FlowBorrowWeakeningFact>,
-    pub(crate) parent_weakening: arena::Handle<checked_trees::FlowBorrowWeakeningFact>,
+    pub(crate) child_activation: arena::Handle<crate::checked_trees::FlowBorrowActivationFact>,
+    pub(crate) parent_entry_constraint: arena::Handle<crate::checked_trees::FlowConstraintRef>,
+    pub(crate) child_weakening: arena::Handle<crate::checked_trees::FlowBorrowWeakeningFact>,
+    pub(crate) parent_weakening: arena::Handle<crate::checked_trees::FlowBorrowWeakeningFact>,
     pub(crate) parent_lexical_status: ParentLexicalStatusAtChildEnd,
 }
 
@@ -154,8 +154,8 @@ pub(crate) struct CheckedReborrowDispositionEventDraft {
     pub(crate) state_symbol: symbols::SymbolHandle,
     pub(crate) child_loan: arena::Handle<BorrowLoanFact>,
     pub(crate) child_resource: usize,
-    pub(crate) child_activation: arena::Handle<checked_trees::FlowBorrowActivationFact>,
-    pub(crate) child_weakening: arena::Handle<checked_trees::FlowBorrowWeakeningFact>,
+    pub(crate) child_activation: arena::Handle<crate::checked_trees::FlowBorrowActivationFact>,
+    pub(crate) child_weakening: arena::Handle<crate::checked_trees::FlowBorrowWeakeningFact>,
     pub(crate) parent_loan: arena::Handle<BorrowLoanFact>,
     pub(crate) parent_resource: ParentResourceIndex,
     pub(crate) boundary_source: FlowInvalidationSource,
@@ -163,7 +163,7 @@ pub(crate) struct CheckedReborrowDispositionEventDraft {
     pub(crate) shared_cohort: Vec<usize>,
     pub(crate) retired_parent_path: Vec<(
         ParentResourceIndex,
-        arena::Handle<checked_trees::FlowBorrowWeakeningFact>,
+        arena::Handle<crate::checked_trees::FlowBorrowWeakeningFact>,
     )>,
     pub(crate) final_target: DispositionTargetIndex,
     pub(crate) disposition: CheckedReborrowResourceDisposition,
@@ -247,19 +247,19 @@ pub(crate) struct CheckedReborrowContainmentCertificateDraft {
     pub(crate) child_resource: usize,
     pub(crate) parent_loan: arena::Handle<BorrowLoanFact>,
     pub(crate) parent_resource: ParentResourceIndex,
-    pub(crate) parent_access: checked_trees::BorrowAccessKind,
-    pub(crate) child_access: checked_trees::BorrowAccessKind,
+    pub(crate) parent_access: crate::checked_trees::BorrowAccessKind,
+    pub(crate) child_access: crate::checked_trees::BorrowAccessKind,
     pub(crate) access_effect: CheckedReborrowAccessEffect,
-    pub(crate) child_activation: arena::Handle<checked_trees::FlowBorrowActivationFact>,
-    pub(crate) parent_entry_constraint: arena::Handle<checked_trees::FlowConstraintRef>,
+    pub(crate) child_activation: arena::Handle<crate::checked_trees::FlowBorrowActivationFact>,
+    pub(crate) parent_entry_constraint: arena::Handle<crate::checked_trees::FlowConstraintRef>,
     pub(crate) formation_source: FlowInvalidationSource,
-    pub(crate) child_weakening: arena::Handle<checked_trees::FlowBorrowWeakeningFact>,
-    pub(crate) parent_weakening: arena::Handle<checked_trees::FlowBorrowWeakeningFact>,
+    pub(crate) child_weakening: arena::Handle<crate::checked_trees::FlowBorrowWeakeningFact>,
+    pub(crate) parent_weakening: arena::Handle<crate::checked_trees::FlowBorrowWeakeningFact>,
     pub(crate) child_weakening_source: FlowInvalidationSource,
-    pub(crate) child_weakening_reason: checked_trees::FlowBorrowWeakeningReason,
-    pub(crate) parent_place: checked_trees::CapturedPlace,
-    pub(crate) child_place: checked_trees::CapturedPlace,
-    pub(crate) projection_remainder: Vec<facts::PlaceSegment>,
+    pub(crate) child_weakening_reason: crate::checked_trees::FlowBorrowWeakeningReason,
+    pub(crate) parent_place: crate::checked_trees::CapturedPlace,
+    pub(crate) child_place: crate::checked_trees::CapturedPlace,
+    pub(crate) projection_remainder: Vec<crate::fact_plan::PlaceSegment>,
     pub(crate) containment: CheckedReborrowContainmentKind,
 }
 
@@ -300,14 +300,14 @@ pub(crate) struct CheckedReborrowRestoredCallUseCertificateDraft {
     pub(crate) parent_resource: usize,
     pub(crate) disposition: usize,
     pub(crate) containment: usize,
-    pub(crate) child_weakening: arena::Handle<checked_trees::FlowBorrowWeakeningFact>,
-    pub(crate) call: arena::Handle<checked_trees::FlowCallFact>,
-    pub(crate) borrow_call: arena::Handle<checked_trees::BorrowCallFact>,
-    pub(crate) call_access: arena::Handle<checked_trees::BorrowArgumentAccessFact>,
-    pub(crate) parent_entry_constraint: arena::Handle<checked_trees::FlowConstraintRef>,
-    pub(crate) carrier_place: checked_trees::CapturedPlace,
-    pub(crate) restored_place: checked_trees::CapturedPlace,
-    pub(crate) access: checked_trees::BorrowAccessKind,
+    pub(crate) child_weakening: arena::Handle<crate::checked_trees::FlowBorrowWeakeningFact>,
+    pub(crate) call: arena::Handle<crate::checked_trees::FlowCallFact>,
+    pub(crate) borrow_call: arena::Handle<crate::checked_trees::BorrowCallFact>,
+    pub(crate) call_access: arena::Handle<crate::checked_trees::BorrowArgumentAccessFact>,
+    pub(crate) parent_entry_constraint: arena::Handle<crate::checked_trees::FlowConstraintRef>,
+    pub(crate) carrier_place: crate::checked_trees::CapturedPlace,
+    pub(crate) restored_place: crate::checked_trees::CapturedPlace,
+    pub(crate) access: crate::checked_trees::BorrowAccessKind,
     pub(crate) target_symbol: symbols::SymbolHandle,
 }
 

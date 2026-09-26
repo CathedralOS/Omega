@@ -1,10 +1,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use register_model::{RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel};
+use target_operations_to_selected_instructions::register_model::{
+    RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel,
+};
 
 use crate::FixedPrecoloredSegmentHomeError;
-use register_homes::FixedPrecoloredHomeDomainId;
-use selected_instructions::{FunctionLiveRanges, VirtualInterference};
+use crate::register_homes::FixedPrecoloredHomeDomainId;
+use target_operations_to_selected_instructions::{FunctionLiveRanges, VirtualInterference};
 
 use super::{domains::Domain, work::Work};
 

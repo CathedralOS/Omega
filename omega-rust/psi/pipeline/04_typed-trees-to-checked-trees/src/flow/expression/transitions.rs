@@ -1,9 +1,9 @@
 use super::super::state_values::qualifications;
 use super::{TableTransition, TransitionTargetHandle, TransitionTargetNode};
+use crate::checked_trees::{FlowConstraintRef, FlowSemanticContextRef};
 use crate::flow::expression::Execution;
 use crate::flow::expression::InvocationSite;
 use arena::HandleSpan;
-use checked_trees::{FlowConstraintRef, FlowSemanticContextRef};
 
 impl Execution<'_, '_, '_> {
     /// Evaluate one selected arm's operands with the ordinary expression

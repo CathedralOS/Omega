@@ -11,21 +11,21 @@ use super::{
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::test_support::{budget, instruction, measured_step_budget};
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
-use optimization_unit::ValueDefinitionSite;
-use register_environment::baseline_target_register_environment;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
-    SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedSuccessor,
-    SelectedTerminator, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
-};
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, OperationId,
     PlaceId, ScalarType, ValueId,
 };
 use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use target_operations_to_selected_instructions::{
+    SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
+    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedSuccessor,
+    SelectedTerminator, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
 const ADDRESS: SelectedInstructionId = SelectedInstructionId(2);
 const CONSUMER: SelectedInstructionId = SelectedInstructionId(3);
@@ -38,7 +38,7 @@ const SPARE: VirtualRegisterId = VirtualRegisterId(4);
 fn register(
     id: VirtualRegisterId,
     scalar_type: ScalarType,
-    class: register_model::RegisterClassId,
+    class: target_operations_to_selected_instructions::register_model::RegisterClassId,
     origin: VirtualRegisterOrigin,
 ) -> VirtualRegister {
     VirtualRegister {
@@ -58,7 +58,7 @@ fn fixture(
     target: NativeTarget,
     producer_offset: u32,
     consumer_kind: SelectedInstructionKind,
-    consumer_key: register_model::RegisterConstraintKey,
+    consumer_key: target_operations_to_selected_instructions::register_model::RegisterConstraintKey,
     consumer_registers: &[VirtualRegisterId],
 ) -> ValidatedAddressFold {
     let environment = baseline_target_register_environment(target).unwrap();
@@ -181,8 +181,8 @@ fn fixture(
 }
 
 fn keys(
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
-) -> selected_instructions::SelectedConstraintKeys {
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
+) -> target_operations_to_selected_instructions::SelectedConstraintKeys {
     environment.selected_keys()
 }
 
@@ -190,7 +190,7 @@ fn load_fixture(
     target: NativeTarget,
     producer_offset: u32,
     consumer_kind: SelectedInstructionKind,
-    consumer_key: register_model::RegisterConstraintKey,
+    consumer_key: target_operations_to_selected_instructions::register_model::RegisterConstraintKey,
     consumer_offset: u32,
 ) -> ValidatedAddressFold {
     fixture(
@@ -404,7 +404,7 @@ fn consumer_own_definitions_are_safe() {
 /// through `i32::MAX`. Each case lists `(aarch64, x86_64)` expectations.
 #[test]
 fn combined_offset_admission_table() {
-    let load64 = |environment: &register_environment::ValidatedTargetRegisterEnvironment| {
+    let load64 = |environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment| {
         keys(environment).load64.unwrap()
     };
     type Expected = (Result<u32, AddressFoldError>, Result<u32, AddressFoldError>);
@@ -413,8 +413,8 @@ fn combined_offset_admission_table() {
         u32,
         SelectedInstructionKind,
         fn(
-            &register_environment::ValidatedTargetRegisterEnvironment,
-        ) -> register_model::RegisterConstraintKey,
+            &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
+        ) -> target_operations_to_selected_instructions::register_model::RegisterConstraintKey,
         Expected,
     )] = &[
         // Load64 admits combined <= 32760 in multiples of eight on AArch64;
@@ -754,10 +754,26 @@ fn producer_admission_table() {
                 0 => producer.operands.push(producer.operands[0]),
                 1 => producer.operands[1].access = RegisterOperandAccess::UseDef,
                 2 => {
-                    producer.operands[0].fixed_view = Some(register_model::RegisterViewId(0));
+                    producer.operands[0].fixed_view = Some(
+                        target_operations_to_selected_instructions::register_model::RegisterViewId(
+                            0,
+                        ),
+                    );
                 }
-                3 => producer.implicit_uses = vec![register_model::RegisterUnitId(0)],
-                _ => producer.clobbers = vec![register_model::RegisterUnitId(0)],
+                3 => {
+                    producer.implicit_uses = vec![
+                        target_operations_to_selected_instructions::register_model::RegisterUnitId(
+                            0,
+                        ),
+                    ]
+                }
+                _ => {
+                    producer.clobbers = vec![
+                        target_operations_to_selected_instructions::register_model::RegisterUnitId(
+                            0,
+                        ),
+                    ]
+                }
             }
         });
         assert_eq!(
@@ -786,7 +802,8 @@ fn producer_admission_table() {
         AddressFoldError::UnsupportedUse
     );
     let wrong_class = mutated(target, |function, _| {
-        function.virtual_registers[0].class = register_model::RegisterClassId(u16::MAX);
+        function.virtual_registers[0].class =
+            target_operations_to_selected_instructions::register_model::RegisterClassId(u16::MAX);
     });
     assert_eq!(
         fold(&wrong_class, &environment).unwrap_err(),
@@ -853,7 +870,7 @@ fn unsupported_consumer_kinds_reject() {
     use SelectedInstructionKind::*;
     let cases: &[(
         SelectedInstructionKind,
-        register_model::RegisterConstraintKey,
+        target_operations_to_selected_instructions::register_model::RegisterConstraintKey,
         &[VirtualRegisterId],
     )] = &[
         (
@@ -865,8 +882,10 @@ fn unsupported_consumer_kinds_reject() {
         (CompareI64, keys.compare_i64, &[POINTER, ROOT]),
         (
             Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(
-                    selected_instructions::LocalStorageSlotId::Spill { register: SPARE },
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(
+                    target_operations_to_selected_instructions::LocalStorageSlotId::Spill {
+                        register: SPARE,
+                    },
                 ),
                 byte_offset: 0,
             },
@@ -875,8 +894,10 @@ fn unsupported_consumer_kinds_reject() {
         ),
         (
             FrameAddress {
-                slot: selected_instructions::FrameStorageSlotId::Local(
-                    selected_instructions::LocalStorageSlotId::Spill { register: SPARE },
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(
+                    target_operations_to_selected_instructions::LocalStorageSlotId::Spill {
+                        register: SPARE,
+                    },
                 ),
                 byte_offset: 0,
             },
@@ -889,7 +910,7 @@ fn unsupported_consumer_kinds_reject() {
         (
             LoadPacked {
                 byte_offset: 0,
-                width: selected_instructions::PackedByteWidth::Five,
+                width: target_operations_to_selected_instructions::PackedByteWidth::Five,
             },
             keys.load_packed.unwrap(),
             &[POINTER, OUTPUT, SPARE],
@@ -897,7 +918,7 @@ fn unsupported_consumer_kinds_reject() {
         (
             StorePacked {
                 byte_offset: 0,
-                width: selected_instructions::PackedByteWidth::Five,
+                width: target_operations_to_selected_instructions::PackedByteWidth::Five,
             },
             keys.store_packed.unwrap(),
             &[POINTER, VALUE, SPARE],
@@ -928,13 +949,29 @@ fn malformed_consumer_shapes_reject() {
                 1 => consumer.operands[0].access = RegisterOperandAccess::UseDef,
                 // Operand constraints cannot ride into the rebound operand.
                 2 => {
-                    consumer.operands[0].fixed_view = Some(register_model::RegisterViewId(0));
+                    consumer.operands[0].fixed_view = Some(
+                        target_operations_to_selected_instructions::register_model::RegisterViewId(
+                            0,
+                        ),
+                    );
                 }
                 3 => consumer.operands[1].tied_to = Some(0),
                 4 => consumer.operands[1].early_clobber = true,
                 // Implicit unit traffic has no place on these canonical forms.
-                5 => consumer.implicit_uses = vec![register_model::RegisterUnitId(0)],
-                6 => consumer.implicit_defs = vec![register_model::RegisterUnitId(0)],
+                5 => {
+                    consumer.implicit_uses = vec![
+                        target_operations_to_selected_instructions::register_model::RegisterUnitId(
+                            0,
+                        ),
+                    ]
+                }
+                6 => {
+                    consumer.implicit_defs = vec![
+                        target_operations_to_selected_instructions::register_model::RegisterUnitId(
+                            0,
+                        ),
+                    ]
+                }
                 _ => consumer.operands.push(consumer.operands[0]),
             }
         });
@@ -946,7 +983,8 @@ fn malformed_consumer_shapes_reject() {
     }
     // A clobber the canonical form does not declare rejects as well.
     let clobber = mutated(target, |function, _| {
-        function.blocks[0].instructions[1].clobbers = vec![register_model::RegisterUnitId(0)];
+        function.blocks[0].instructions[1].clobbers =
+            vec![target_operations_to_selected_instructions::register_model::RegisterUnitId(0)];
     });
     assert_eq!(
         fold(&clobber, &environment).unwrap_err(),
@@ -980,7 +1018,8 @@ fn constraint_and_effect_surfaces_reject() {
     );
     // The pointer's roster class must match the operand and row classes.
     let wrong_pointer_class = mutated(target, |function, _| {
-        function.virtual_registers[1].class = register_model::RegisterClassId(u16::MAX);
+        function.virtual_registers[1].class =
+            target_operations_to_selected_instructions::register_model::RegisterClassId(u16::MAX);
     });
     assert_eq!(
         fold(&wrong_pointer_class, &environment).unwrap_err(),
@@ -1325,15 +1364,15 @@ fn replay_rejects_anything_but_the_exact_form() {
             9 => {
                 function
                     .memory_accesses
-                    .push(selected_instructions::SelectedMemoryAccess {
+                    .push(target_operations_to_selected_instructions::SelectedMemoryAccess {
                         instruction: CONSUMER,
-                        origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(
+                        origin: target_operations_to_selected_instructions::SelectedMemoryAccessOrigin::Operation(
                             OperationId::new(4).unwrap(),
                         ),
                         place: PlaceId::new(1).unwrap(),
                         byte_offset: 0,
                         byte_count: 8,
-                        role: selected_instructions::SelectedMemoryAccessRole::ReadPlace,
+                        role: target_operations_to_selected_instructions::SelectedMemoryAccessRole::ReadPlace,
                     });
             }
             _ => unreachable!(),
@@ -1401,7 +1440,8 @@ fn replay_rejects_drift_outside_the_rewritten_block() {
                     &[],
                 ),
                 successor: SelectedSuccessor {
-                    role: selected_instructions::SelectedSuccessorRole::Semantic,
+                    role:
+                        target_operations_to_selected_instructions::SelectedSuccessorRole::Semantic,
                     structural_case: None,
                     structural_bindings: Vec::new(),
                     psi_edge: EdgeId::new(2).unwrap(),
@@ -1483,7 +1523,7 @@ fn replay_rejects_drift_outside_the_rewritten_block() {
 /// the mutated plan is a well-formed analysis source.
 fn mutated(
     target: NativeTarget,
-    edit: impl FnOnce(&mut SelectedFunction, &register_environment::ValidatedTargetRegisterEnvironment),
+    edit: impl FnOnce(&mut SelectedFunction, &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment),
 ) -> ValidatedAddressFold {
     let environment = baseline_target_register_environment(target).unwrap();
     let mut source = load_fixture(
@@ -1505,7 +1545,7 @@ fn mutated(
 
 fn fold(
     source: &ValidatedAddressFold,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<ValidatedAddressFold, AddressFoldError> {
     fold_selected_address(source, 0, CONSUMER, environment, budget())
 }
@@ -1815,7 +1855,7 @@ mod independence_tests {
         let source = mutated(target, |function, environment| {
             let _ = environment;
             function.blocks[0].instructions[1].operands[0].fixed_view =
-                Some(register_model::RegisterViewId(0));
+                Some(target_operations_to_selected_instructions::register_model::RegisterViewId(0));
         });
         assert_eq!(
             validate_address_fold(

@@ -12,16 +12,17 @@ use crate::symbols::scoped_paths::resolve_state_scoped_members;
 
 pub(in crate::symbols) fn assign_transition_target_symbols(
     machine: &MachineScope<'_>,
-    parameters: &[symbol_resolved_trees::signature::StateParameter],
+    parameters: &[crate::symbol_resolved_trees::signature::StateParameter],
     state_symbol: SymbolHandle,
-    expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
-    child_type_references: &mut arena::Arena<symbol_resolved_trees::types::TypeReference>,
-    statement_path_members: &mut Arena<symbol_resolved_trees::name::DiagnosticName>,
-    target: &mut symbol_resolved_trees::statement::TransitionTarget,
+    expression_table: &mut crate::symbol_resolved_trees::expression::ExpressionTable,
+    child_type_references: &mut arena::Arena<crate::symbol_resolved_trees::types::TypeReference>,
+    statement_path_members: &mut Arena<crate::symbol_resolved_trees::name::DiagnosticName>,
+    target: &mut crate::symbol_resolved_trees::statement::TransitionTarget,
     symbols: &SymbolTable,
 ) {
-    let symbol_resolved_trees::statement::TransitionTarget::Named(named) = target else {
-        if let symbol_resolved_trees::statement::TransitionTarget::Value(expression) = target {
+    let crate::symbol_resolved_trees::statement::TransitionTarget::Named(named) = target else {
+        if let crate::symbol_resolved_trees::statement::TransitionTarget::Value(expression) = target
+        {
             // The parser leaves a parenthesized lone call (`-> (count(n))`)
             // as a value expression -- only here, where the machine's states
             // are known, can it be told apart from a state transition. A call
@@ -35,8 +36,9 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
                 *expression,
                 symbols,
             ) {
-                *target = symbol_resolved_trees::statement::TransitionTarget::Named(named);
-                let symbol_resolved_trees::statement::TransitionTarget::Named(named) = target
+                *target = crate::symbol_resolved_trees::statement::TransitionTarget::Named(named);
+                let crate::symbol_resolved_trees::statement::TransitionTarget::Named(named) =
+                    target
                 else {
                     unreachable!("transition target was just reclassified as named");
                 };
@@ -209,12 +211,12 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
 /// wrapped in arithmetic.
 fn reclassify_state_call_value_target(
     machine: &MachineScope<'_>,
-    expression_table: &symbol_resolved_trees::expression::ExpressionTable,
-    statement_path_members: &mut Arena<symbol_resolved_trees::name::DiagnosticName>,
-    expression: symbol_resolved_trees::expression::ExpressionHandle,
+    expression_table: &crate::symbol_resolved_trees::expression::ExpressionTable,
+    statement_path_members: &mut Arena<crate::symbol_resolved_trees::name::DiagnosticName>,
+    expression: crate::symbol_resolved_trees::expression::ExpressionHandle,
     symbols: &SymbolTable,
-) -> Option<symbol_resolved_trees::statement::NamedTransitionTarget> {
-    let symbol_resolved_trees::expression::ExpressionNode::Call(call) =
+) -> Option<crate::symbol_resolved_trees::statement::NamedTransitionTarget> {
+    let crate::symbol_resolved_trees::expression::ExpressionNode::Call(call) =
         expression_table.expression(expression)
     else {
         return None;
@@ -251,16 +253,18 @@ fn reclassify_state_call_value_target(
     let mut path = HandleSpan::empty();
     statement_path_members.append_to_span(&mut path, call.target.clone());
 
-    Some(symbol_resolved_trees::statement::NamedTransitionTarget {
-        head_symbol: target_symbol,
-        symbol: target_symbol,
-        storage: symbol_resolved_trees::statement::NamedTransitionTargetStorage {
-            path,
-            path_starts_at_self: false,
-            arguments: call.arguments,
-            evidence_arguments: call.evidence_arguments.clone(),
-            source_span: call.target.source_span(),
-            authored_call_selection: None,
+    Some(
+        crate::symbol_resolved_trees::statement::NamedTransitionTarget {
+            head_symbol: target_symbol,
+            symbol: target_symbol,
+            storage: crate::symbol_resolved_trees::statement::NamedTransitionTargetStorage {
+                path,
+                path_starts_at_self: false,
+                arguments: call.arguments,
+                evidence_arguments: call.evidence_arguments.clone(),
+                source_span: call.target.source_span(),
+                authored_call_selection: None,
+            },
         },
-    })
+    )
 }

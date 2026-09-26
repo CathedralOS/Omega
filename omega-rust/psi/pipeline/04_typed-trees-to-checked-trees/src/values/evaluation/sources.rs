@@ -1,4 +1,4 @@
-use facts::ScalarValue;
+use crate::fact_plan::ScalarValue;
 use symbols::SymbolHandle;
 
 pub(crate) trait ScalarValueSource {
@@ -12,7 +12,7 @@ pub(crate) trait ScalarValueSource {
     fn structural_field(
         &mut self,
         _parameter_position: u32,
-        _path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+        _path: &[crate::checked_trees::CheckedStructuralPredicatePathSegment],
     ) -> Option<ScalarValue> {
         None
     }

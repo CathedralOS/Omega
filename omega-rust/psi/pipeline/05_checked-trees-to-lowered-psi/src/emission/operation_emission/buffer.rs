@@ -1,8 +1,8 @@
 //! Invocation-owned operation identities and exact source-occurrence companions.
 
+use crate::lowered_psi::LoweredSourceCallOccurrence;
 use crate::lowering_error::LoweringError;
 use crate::terminal_identities::operation_id;
-use lowered_psi::LoweredSourceCallOccurrence;
 use semantic_vocabulary::{OperationId, PlaceId, StructuralFieldId, ValueId};
 use terminal_psi::{Operation, ValueDeclaration};
 
@@ -21,9 +21,9 @@ pub(crate) struct OperationBuffer {
     /// a call operation. Keep those places in the same state-local namespace.
     pub(crate) structural_values: Vec<(u32, terminal_psi::StructuralOperationResult)>,
     pub(crate) selected_ieee_float_comparisons:
-        Vec<lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence>,
+        Vec<crate::lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence>,
     pub(crate) selected_integer_comparisons:
-        Vec<lowered_psi::LoweredSelectedIntegerComparisonOccurrence>,
+        Vec<crate::lowered_psi::LoweredSelectedIntegerComparisonOccurrence>,
     pub(crate) next_identity: u64,
     pub(crate) operations: Vec<Operation>,
     /// Temporary observations available on the current emission path only.
@@ -83,7 +83,7 @@ impl OperationBuffer {
     pub(crate) fn record_source_call(
         &mut self,
         coordinate: SourceCallCoordinate,
-        source_site: Option<checked_trees::NominalMachineUseSite>,
+        source_site: Option<typed_trees_to_checked_trees::checked_trees::NominalMachineUseSite>,
         operation: OperationId,
         target: symbols::SymbolHandle,
     ) -> Result<(), LoweringError> {
@@ -93,7 +93,7 @@ impl OperationBuffer {
     pub(crate) fn record_source_call_with_values(
         &mut self,
         coordinate: SourceCallCoordinate,
-        source_site: Option<checked_trees::NominalMachineUseSite>,
+        source_site: Option<typed_trees_to_checked_trees::checked_trees::NominalMachineUseSite>,
         operation: OperationId,
         target: symbols::SymbolHandle,
         source_values_before_call: &[ValueDeclaration],

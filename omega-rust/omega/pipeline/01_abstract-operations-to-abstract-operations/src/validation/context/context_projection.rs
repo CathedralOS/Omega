@@ -1,11 +1,11 @@
 //! Independent proof-question and ownership-frontier context projection.
 
-use optimization_unit::{
+use semantic_vocabulary::MachineId;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     OwnershipFrontierFact, OwnershipFrontierLiveClaim, OwnershipFrontierOwnedPlace,
     OwnershipFrontierPartialCustody, OwnershipFrontierSite, OwnershipFrontierSnapshot,
     ProofQuestion, ProofQuestionAdmissionKind, ProofQuestionClass, ProofQuestionOwner,
 };
-use semantic_vocabulary::MachineId;
 
 use super::{OptimizationUnitValidationError, PsiOptimizationUnit};
 pub(super) struct ContextProjection {

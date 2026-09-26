@@ -1,8 +1,8 @@
 use crate::borrow::accesses::BorrowAccessPlace;
-use checked_trees::{BorrowAccessKind, BorrowArgumentAccessFact};
+use crate::checked_trees::{BorrowAccessKind, BorrowArgumentAccessFact};
 
 pub(super) fn append_argument_access(
-    access_segments: &mut arena::Arena<facts::PlaceSegment>,
+    access_segments: &mut arena::Arena<crate::fact_plan::PlaceSegment>,
     argument_accesses: &mut arena::Arena<BorrowArgumentAccessFact>,
     accesses: &mut arena::HandleSpan<BorrowArgumentAccessFact>,
     access_place: BorrowAccessPlace,

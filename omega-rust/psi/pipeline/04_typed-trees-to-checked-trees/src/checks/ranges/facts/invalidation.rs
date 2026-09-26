@@ -1,7 +1,9 @@
 use super::RangeFacts;
 use crate::flow::CanonicalPlace;
 use language_core::{is_self_receiver, receiver_place_field};
-use typed_trees::{TypedTrees, machine::Machine, state::State, statement::StatementNode};
+use symbol_resolved_trees_to_typed_trees::typed_trees::{
+    TypedTrees, machine::Machine, state::State, statement::StatementNode,
+};
 
 impl RangeFacts<'_> {
     /// Shared direct-assignment transfer for the checking and incoming-edge
@@ -84,9 +86,11 @@ impl RangeFacts<'_> {
         program: &TypedTrees,
         machine: &Machine,
         state: &State,
-        target: typed_trees::expression::ExpressionHandle,
+        target: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     ) -> Option<(String, Option<i64>, Option<i64>)> {
-        use typed_trees::{expression::ExpressionNode, types::TypeReferenceNode};
+        use symbol_resolved_trees_to_typed_trees::typed_trees::{
+            expression::ExpressionNode, types::TypeReferenceNode,
+        };
         if !crate::checks::ranges::indexes::is_builtin_scalar_index(
             program, machine, state, self, target,
         ) {
@@ -119,7 +123,7 @@ impl RangeFacts<'_> {
             return None;
         };
         if program.primitive_type_reference(*element_type)
-            != Some(typed_trees::types::PrimitiveType::U8)
+            != Some(symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U8)
         {
             return None;
         }
@@ -171,7 +175,7 @@ impl RangeFacts<'_> {
                         machine.symbol,
                         state.symbol,
                         self.statement_index,
-                        &facts::NormalizedWriteFrame::complete(paths.to_vec()),
+                        &crate::fact_plan::NormalizedWriteFrame::complete(paths.to_vec()),
                         shared_frames,
                     )
                 })
@@ -348,9 +352,9 @@ fn write_affects_bound(name: &str, path: &str) -> bool {
             && part
                 .chars()
                 .all(|character| character.is_alphanumeric() || character == '_')
-    }) || validation::frame_paths_overlap(name, path)
+    }) || crate::validation::frame_paths_overlap(name, path)
         || receiver_place_field(path)
-            .is_some_and(|path| validation::frame_paths_overlap(name, path))
+            .is_some_and(|path| crate::validation::frame_paths_overlap(name, path))
         || (is_self_receiver(path) && !name.contains('.'))
 }
 

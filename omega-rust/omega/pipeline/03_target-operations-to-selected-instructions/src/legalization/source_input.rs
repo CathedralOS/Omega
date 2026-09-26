@@ -1,7 +1,7 @@
 //! Borrow the existing verifier context rather than asserting cyclic authority.
 use abstract_operations_to_abstract_operations::ValidatedOptimizedAbstractPlan;
-use optimization_unit::PsiOptimizationUnit;
 use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput;
+use terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit;
 
 /// Source custody for the single legalization path. Raw units retain their
 /// existing standalone checks; natural cycles additionally require the verified

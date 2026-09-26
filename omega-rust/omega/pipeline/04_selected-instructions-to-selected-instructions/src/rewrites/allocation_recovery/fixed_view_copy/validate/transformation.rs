@@ -2,8 +2,10 @@ use super::leaf_destination::terminator;
 use super::site::replay_site_copies;
 use super::source_exit::replay_source_exit_copies;
 
-use register_model::{RegisterInstructionConstraint, TargetRegisterEnvironmentConstraintKeys};
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
+use target_operations_to_selected_instructions::register_model::{
+    RegisterInstructionConstraint, TargetRegisterEnvironmentConstraintKeys,
+};
 
 use crate::{FixedViewCopy, FixedViewCopyError, FixedViewCopyPolicy};
 
@@ -16,7 +18,7 @@ pub(super) fn replay_transformation(
 ) -> Result<
     (
         Vec<FixedViewCopy>,
-        selected_instructions::SelectedInstructionPlan,
+        target_operations_to_selected_instructions::SelectedInstructionPlan,
     ),
     FixedViewCopyError,
 > {

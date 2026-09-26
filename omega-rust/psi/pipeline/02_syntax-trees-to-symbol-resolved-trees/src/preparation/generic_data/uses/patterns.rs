@@ -13,7 +13,7 @@ use crate::preparation::generic_data::Instantiation;
 
 use crate::preparation::generic_data::constant_selection;
 
-use syntax_trees::expression::ExpressionHandle;
+use tokens_to_syntax_trees::syntax_trees::expression::ExpressionHandle;
 
 /// Destructure syntax lowers to `subject in Base::Case` before this pass. When
 /// the subject is a state parameter or local with an exact synthesized type,
@@ -140,10 +140,12 @@ pub(in crate::preparation::generic_data) fn relabel_closed_sum_memberships_from_
             let domain = closed_sum_path(syntax, closed, carrier_span, case);
             syntax.expressions.replace_expression(
                 handle,
-                ExpressionNode::Membership(syntax_trees::expression::TableMembershipExpression {
-                    value,
-                    domain,
-                }),
+                ExpressionNode::Membership(
+                    tokens_to_syntax_trees::syntax_trees::expression::TableMembershipExpression {
+                        value,
+                        domain,
+                    },
+                ),
             );
         }
     }
@@ -245,7 +247,7 @@ pub(in crate::preparation::generic_data) fn relabel_unique_closed_sum_paths(
                         ExpressionNode::Name(closed_sum_path(syntax, closed, carrier_span, case))
                     }
                     SumPathExpressionKind::Membership(value) => ExpressionNode::Membership(
-                        syntax_trees::expression::TableMembershipExpression {
+                        tokens_to_syntax_trees::syntax_trees::expression::TableMembershipExpression {
                             value,
                             domain: closed_sum_path(syntax, closed, carrier_span, case),
                         },
@@ -405,5 +407,5 @@ mod tests {
 pub(in crate::preparation::generic_data) enum SumPathExpressionKind {
     Name,
     Membership(ExpressionHandle),
-    StructLiteral(syntax_trees::expression::TableStructLiteral),
+    StructLiteral(tokens_to_syntax_trees::syntax_trees::expression::TableStructLiteral),
 }

@@ -12,14 +12,16 @@
 
 use std::collections::BTreeMap;
 
-use abstract_operations::{AbstractBoundaryResult, AbstractFunction, AbstractOperation};
-use calling_conventions::ValuePlacement;
-use semantic_vocabulary::{BlockId, OperationId, PlaceId};
-use target_operations::{
+use crate::calling_conventions::ValuePlacement;
+use crate::target_operations::{
     TargetFunction, TargetStructuralArgument, TargetStructuralArgumentSource,
     TargetStructuralHomeRequirement, TargetUnitOperation,
 };
+use semantic_vocabulary::{BlockId, OperationId, PlaceId};
 use terminal_psi::StructuralOperationResult;
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractBoundaryResult, AbstractFunction, AbstractOperation,
+};
 
 /// The caller-side storage one argument place is required to name. Only the
 /// producing relationships the lowering pipeline can actually form are
@@ -84,7 +86,7 @@ pub(super) fn validate(
                 ..
             } => {
                 target_calls.insert(*psi_operation, arguments.as_slice());
-                if let target_operations::TargetCallResult::Structural {
+                if let crate::target_operations::TargetCallResult::Structural {
                     result,
                     result_home,
                     ..

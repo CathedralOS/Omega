@@ -1,26 +1,26 @@
 use super::contextual::contextual_canonical_place_from_expression;
 use super::resolution::effective_member_symbol;
+use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use crate::fact_plan::FactPlan;
 use crate::flow::CanonicalPlace;
 use crate::lookup::first_valid_name_path_symbol;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use facts::FactPlan;
 use symbols::SymbolHandle;
 
 pub(crate) fn index_place_segment(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
-) -> facts::PlaceSegment {
+) -> crate::fact_plan::PlaceSegment {
     if let ExpressionNode::Range(range) = program.expression_table.expression(expression)
         && let Some((start, end)) = fixed_half_open_range(program, range)
     {
-        return facts::PlaceSegment::FixedRange { start, end };
+        return crate::fact_plan::PlaceSegment::FixedRange { start, end };
     }
     program
         .expression_table
         .constant_integer_value(expression)
         .and_then(|value| usize::try_from(value).ok())
-        .map(|index| facts::PlaceSegment::FixedIndex { index })
-        .unwrap_or(facts::PlaceSegment::Index { expression })
+        .map(|index| crate::fact_plan::PlaceSegment::FixedIndex { index })
+        .unwrap_or(crate::fact_plan::PlaceSegment::Index { expression })
 }
 
 /// Normalize an expression-only range when its half-open bounds do not need
@@ -29,8 +29,8 @@ pub(crate) fn index_place_segment(
 /// not by the place algebra. Inclusive syntax is normalized once by advancing
 /// its last included ordinal.
 fn fixed_half_open_range(
-    program: &typed_trees::TypedTrees,
-    range: &typed_trees::expression::TableRangeExpression,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    range: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableRangeExpression,
 ) -> Option<(usize, usize)> {
     let start = if range.start.is_valid() {
         usize::try_from(
@@ -55,18 +55,18 @@ fn fixed_half_open_range(
 }
 
 pub(crate) fn push_field_place_segments(
-    program: &typed_trees::TypedTrees,
-    segments: &mut Vec<facts::PlaceSegment>,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    segments: &mut Vec<crate::fact_plan::PlaceSegment>,
     symbol: SymbolHandle,
 ) {
-    if let Some(variant) = facts::payload_variant_for_field(program, symbol) {
-        segments.push(facts::PlaceSegment::Case { variant });
+    if let Some(variant) = crate::fact_plan::payload_variant_for_field(program, symbol) {
+        segments.push(crate::fact_plan::PlaceSegment::Case { variant });
     }
-    segments.push(facts::PlaceSegment::Field { symbol });
+    segments.push(crate::fact_plan::PlaceSegment::Field { symbol });
 }
 
 pub(crate) fn canonical_place_from_expression(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<CanonicalPlace> {
     if !expression.is_valid() {
@@ -88,7 +88,7 @@ pub(crate) fn canonical_place_from_expression(
                 push_field_place_segments(program, &mut segments, symbol);
             }
             Some(CanonicalPlace {
-                root: facts::PlaceRoot::Symbol(root_symbol),
+                root: crate::fact_plan::PlaceRoot::Symbol(root_symbol),
                 segments,
             })
         }
@@ -106,14 +106,14 @@ pub(crate) fn canonical_place_from_expression(
             Some(place)
         }
         _ => Some(CanonicalPlace {
-            root: facts::PlaceRoot::Expression(expression),
+            root: crate::fact_plan::PlaceRoot::Expression(expression),
             segments: Vec::new(),
         }),
     }
 }
 
 pub(crate) fn canonical_place_from_expression_in_state(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
@@ -124,19 +124,19 @@ pub(crate) fn canonical_place_from_expression_in_state(
 
 pub(crate) fn canonical_place_from_symbol(symbol: SymbolHandle) -> Option<CanonicalPlace> {
     symbol.is_valid().then_some(CanonicalPlace {
-        root: facts::PlaceRoot::Symbol(symbol),
+        root: crate::fact_plan::PlaceRoot::Symbol(symbol),
         segments: Vec::new(),
     })
 }
 
 /// Rejoin an inherited attached-field root with its exact receiver storage.
 pub(crate) fn normalize_attached_place_root(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     place: &mut CanonicalPlace,
 ) {
-    if let facts::PlaceRoot::Symbol(root) = place.root
+    if let crate::fact_plan::PlaceRoot::Symbol(root) = place.root
         && let Some(state) = crate::semantic::calls::find_state(program, state_symbol)
         && program
             .state_parameters(state)
@@ -149,13 +149,17 @@ pub(crate) fn normalize_attached_place_root(
                     .iter()
                     .any(|state| state.symbol == state_symbol)
         })
-        && let Some(field) =
-            validation::exact_attached_field(program, machine, root, program.symbols.name(root))
+        && let Some(field) = crate::validation::exact_attached_field(
+            program,
+            machine,
+            root,
+            program.symbols.name(root),
+        )
     {
-        place.root = facts::PlaceRoot::Symbol(machine_symbol);
+        place.root = crate::fact_plan::PlaceRoot::Symbol(machine_symbol);
         place.segments.insert(
             0,
-            facts::PlaceSegment::Field {
+            crate::fact_plan::PlaceSegment::Field {
                 symbol: field.symbol,
             },
         );
@@ -163,18 +167,18 @@ pub(crate) fn normalize_attached_place_root(
 }
 
 pub(crate) fn canonical_place_from_semantic_place(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: &FactPlan,
-    place: &facts::Place,
+    place: &crate::fact_plan::Place,
 ) -> Option<CanonicalPlace> {
     let mut canonical = match place.root {
-        facts::PlaceRoot::Unknown => return None,
-        facts::PlaceRoot::Symbol(symbol) => canonical_place_from_symbol(symbol)?,
-        facts::PlaceRoot::Expression(expression) => {
+        crate::fact_plan::PlaceRoot::Unknown => return None,
+        crate::fact_plan::PlaceRoot::Symbol(symbol) => canonical_place_from_symbol(symbol)?,
+        crate::fact_plan::PlaceRoot::Expression(expression) => {
             canonical_place_from_expression(program, expression)?
         }
-        facts::PlaceRoot::TypeReference(type_reference) => CanonicalPlace {
-            root: facts::PlaceRoot::TypeReference(type_reference),
+        crate::fact_plan::PlaceRoot::TypeReference(type_reference) => CanonicalPlace {
+            root: crate::fact_plan::PlaceRoot::TypeReference(type_reference),
             segments: Vec::new(),
         },
     };

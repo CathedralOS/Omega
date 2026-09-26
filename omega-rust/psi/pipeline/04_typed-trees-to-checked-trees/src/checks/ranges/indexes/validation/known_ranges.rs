@@ -8,7 +8,7 @@ use crate::checks::ranges::indexes::validation::expression_integer_value;
 /// Prove the upper bound and ordering only. The caller independently requires
 /// nonnegative endpoints through `lower_bounds::prove` before admitting a window.
 pub(super) fn prove(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
     facts: &RangeFacts<'_>,
@@ -75,7 +75,7 @@ pub(super) fn prove(
 }
 
 fn at_most_constant(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
     facts: &RangeFacts<'_>,

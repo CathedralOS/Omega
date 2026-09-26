@@ -1,7 +1,7 @@
-use crate::tests::front_end::checked_program;
-use checked_trees::{
+use crate::checked_trees::{
     CheckedSemanticDependencyExposure as Exposure, CheckedSemanticDependencyKind as Kind,
 };
+use crate::tests::front_end::checked_program;
 
 #[test]
 fn retains_nominal_semantics_carried_through_a_nested_call_result() {

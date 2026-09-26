@@ -4,14 +4,14 @@ pub mod publication;
 
 mod build_directory;
 
-use crate::temporary_directory::TemporaryDirectory;
-use artifacts::compile_timings::{CompileTimings, StageMeta, TimingCategory};
-use compiler::{
+use crate::artifacts::compile_timings::{CompileTimings, StageMeta, TimingCategory};
+use crate::compiler::{
     CompileOptions, CompileReport, CompileRequest, OptimizationRollback, RequestedCompileProduct,
     TrustAdmissionSettlement, compile,
 };
+use crate::package_manager::operations as packages;
+use crate::temporary_directory::TemporaryDirectory;
 use diagnostics::Diagnostic;
-use package_manager::operations as packages;
 use std::path::PathBuf;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -33,7 +33,7 @@ pub struct CompileProjectRequest {
     pub require_package_project: bool,
     pub optimization_rollback: OptimizationRollback,
     /// Caller-selected root inputs and required outputs, relative to the source root.
-    pub build_snapshot: Option<compiler::BuildSnapshotRequest>,
+    pub build_snapshot: Option<crate::compiler::BuildSnapshotRequest>,
 }
 
 impl CompileProjectRequest {
@@ -121,7 +121,7 @@ pub fn compile_project_for_targets(
     request: CompileProjectRequest,
     target_names: &[String],
 ) -> Result<Vec<TargetProjectOutcome>, CompileProjectError> {
-    let targets = compiler::ExplicitTargetSet::from_caller_names(target_names)
+    let targets = crate::compiler::ExplicitTargetSet::from_caller_names(target_names)
         .map_err(CompileProjectError::Diagnostics)?;
     let base_build_dir = request.options.build_dir();
     Ok(targets
@@ -220,7 +220,7 @@ pub fn compile_project(
             "compilation requires a package project with a sibling build.omg".to_owned(),
         )]));
     }
-    let admissions = trust_ledger::read_trust_admissions(&policy_root_path)
+    let admissions = crate::trust_ledger::read_trust_admissions(&policy_root_path)
         .map_err(CompileProjectError::Diagnostics)?;
     let report = timings.record_result(
         StageMeta::new(
@@ -288,7 +288,7 @@ pub fn compile_project(
                         None => request,
                     };
                     compile(request)
-                        .and_then(compiler::CompileOutcomes::into_single_report)
+                        .and_then(crate::compiler::CompileOutcomes::into_single_report)
                         .map_err(CompileProjectError::Diagnostics)?
                 }
             })
@@ -296,7 +296,7 @@ pub fn compile_project(
     )?;
     let settlement = report.trust_admission_settlement();
     if accept_admissions {
-        trust_ledger::accept_trust_admissions(&policy_root_path, settlement.required())
+        crate::trust_ledger::accept_trust_admissions(&policy_root_path, settlement.required())
             .map_err(CompileProjectError::Diagnostics)?;
     } else if !settlement.is_exactly_admitted() {
         return Err(CompileProjectError::UnsettledAdmissions(settlement.clone()));

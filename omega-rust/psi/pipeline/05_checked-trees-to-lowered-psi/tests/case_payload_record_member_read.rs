@@ -7,7 +7,7 @@
 //! parameters, a structural member must first be copied out of the sum
 //! before its leaf field can be observed.
 
-use terminal_production::{
+use lowered_psi_to_terminal_psi::terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
 
@@ -27,16 +27,19 @@ const SOURCE: &str = r#"
     }
 "#;
 
-fn produce(checked: &checked_trees::CheckedTrees) -> terminal_psi::TerminalModule {
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        checked,
-        TerminalMachineSelection::Name("apply"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("record-payload member read lowers")
-    .into_artifact();
+fn produce(
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+) -> terminal_psi::TerminalModule {
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            checked,
+            TerminalMachineSelection::Name("apply"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("record-payload member read lowers")
+        .into_artifact();
     terminal_codec::decode_module(artifact.semantic_bytes()).unwrap()
 }
 

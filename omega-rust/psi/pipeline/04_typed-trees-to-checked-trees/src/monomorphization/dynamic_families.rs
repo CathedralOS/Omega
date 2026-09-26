@@ -27,10 +27,12 @@ use super::identities::{
 use super::normalized_machine_identity;
 use super::selection::{approved_type_bounds, validate_candidate_conformance_bounds};
 use diagnostics::Diagnostic;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::finite_family::{FamilyProbe, FamilyTuple};
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    TypeReferenceHandle, TypeReferenceNode,
+};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::finite_family::{FamilyProbe, FamilyTuple};
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// Generate every missing tuple specialization demanded by the program's
 /// dynamic conformance selections and by each selected boundary adapter row
@@ -100,8 +102,8 @@ pub(crate) fn generate_dynamic_family_specializations(
             .filter(|parameter| {
                 matches!(
                     parameter.kind,
-                    typed_trees::data::TypeParameterKind::Const { .. }
-                        | typed_trees::data::TypeParameterKind::Value { .. }
+                    symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Const { .. }
+                        | symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Value { .. }
                 )
             })
             .count();
@@ -118,7 +120,7 @@ pub(crate) fn generate_dynamic_family_specializations(
     // A failed dynamic-selection collection defers that generation to
     // `validate_typed_program`'s authoritative diagnostics, as documented
     // above; boundary demands collected already still apply.
-    if let Ok(selections) = validation::collect_dynamic_conformance_selections(program)
+    if let Ok(selections) = crate::validation::collect_dynamic_conformance_selections(program)
         && !selections.is_empty()
     {
         collect_selection_demands(program, &selections, &mut demands, &mut diagnostics);
@@ -130,8 +132,8 @@ pub(crate) fn generate_dynamic_family_specializations(
         return Ok(0);
     }
 
-    let operational = validation::infer_operational_may(program);
-    let service_reaches = validation::infer_service_reaches(program, &operational);
+    let operational = crate::validation::infer_operational_may(program);
+    let service_reaches = crate::validation::infer_service_reaches(program, &operational);
     let mut generated = 0;
     for (template_symbol, tuples) in demands {
         let Some(machine_index) = program
@@ -183,11 +185,11 @@ fn queue_family_demand(
 /// dynamic conformance selections and descriptor storages.
 fn collect_selection_demands(
     program: &TypedTrees,
-    selections: &[validation::DynamicConformanceSelection],
+    selections: &[crate::validation::DynamicConformanceSelection],
     demands: &mut Vec<(SymbolHandle, Vec<FamilyTuple>)>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let storages = validation::collect_dynamic_descriptor_storages(program, selections);
+    let storages = crate::validation::collect_dynamic_descriptor_storages(program, selections);
     let mut seen_conformances: Vec<SymbolHandle> = Vec::new();
     let all_selections = selections
         .iter()
@@ -243,8 +245,8 @@ fn collect_selection_demands(
                 .filter(|parameter| {
                     matches!(
                         parameter.kind,
-                        typed_trees::data::TypeParameterKind::Const { .. }
-                            | typed_trees::data::TypeParameterKind::Value { .. }
+                        symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Const { .. }
+                            | symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Value { .. }
                     )
                 })
                 .count();
@@ -293,7 +295,7 @@ fn generate_tuple_specialization(
     program: &mut TypedTrees,
     machine_index: usize,
     tuple: &FamilyTuple,
-    service_reaches: &flow_effects::ServiceReachInferencePlan,
+    service_reaches: &crate::flow_effects::ServiceReachInferencePlan,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut candidate = candidate::from_machine(program, machine_index);
     if !candidate.template.machine_parameters.is_empty()
@@ -382,7 +384,10 @@ fn const_identity_type_reference(
             .type_reference_table
             .insert(TypeReferenceNode::Named {
                 symbol: SymbolHandle::invalid(),
-                name: typed_trees::name::Identifier::generated(spelling),
+                name:
+                    symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated(
+                        spelling,
+                    ),
             }),
     )
 }
@@ -439,8 +444,10 @@ fn unescape_identity_component(component: &str) -> String {
 /// sole nominal closed conformance for the source's data and the target trait.
 fn selected_data_conformance<'program>(
     program: &'program TypedTrees,
-    selection: &validation::DynamicConformanceSelection,
-) -> Option<&'program typed_trees::trait_definition::Conformance> {
+    selection: &crate::validation::DynamicConformanceSelection,
+) -> Option<
+    &'program symbol_resolved_trees_to_typed_trees::typed_trees::trait_definition::Conformance,
+> {
     if let Some(symbol) = selection.conformance {
         return program
             .conformances()

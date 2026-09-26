@@ -37,7 +37,7 @@ pub(crate) fn build_trait_operator_scalar_return_machine(
     program: &TypedTrees,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
 ) -> Option<CheckedTraitOperatorScalarReturnMachinePlan> {
     let [state] = program.machine_states(machine) else {
         return None;
@@ -219,7 +219,7 @@ pub(crate) fn build_structural_scalar_return_machine(
     facts: &CheckFacts,
     unit_effects: Option<&CheckedUnitEffectPlans>,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<CheckedStructuralScalarReturnMachinePlan> {
     let [state] = program.machine_states(machine) else {
@@ -354,7 +354,7 @@ pub(crate) fn build_structural_scalar_return_machine(
                     ));
             (branch_free || short_circuit_boolean).then_some((
                 CheckedScalarBinding {
-                    destination: checked_trees::CheckedScalarBindingDestination::Immutable,
+                    destination: crate::checked_trees::CheckedScalarBindingDestination::Immutable,
                     statement_ordinal,
                     primitive_type,
                     value: CheckedScalarBindingValue::Expression,
@@ -499,7 +499,7 @@ pub(crate) fn build_structural_scalar_return_machine(
                         return_expression,
                         CheckedScalarExpression::Boolean(expression)
                             if matches!(expression.as_ref(),
-                                checked_trees::CheckedBooleanExpression::Local { position }
+                                crate::checked_trees::CheckedBooleanExpression::Local { position }
                                     if *position
                                         == scalar_parameters.len() + binding_count - 1)
                     )

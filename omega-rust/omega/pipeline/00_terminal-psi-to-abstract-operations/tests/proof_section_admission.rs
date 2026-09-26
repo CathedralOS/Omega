@@ -18,7 +18,7 @@ const SOURCE: &str = r#"
     }
 "#;
 
-fn checked_source() -> checked_trees::CheckedTrees {
+fn checked_source() -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
     let tokens = source_files_to_tokens::Lexer::new(SOURCE)
         .tokenize()
         .expect("tokenize");

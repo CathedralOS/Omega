@@ -17,11 +17,11 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use target_operations_to_selected_instructions::{
     SelectedBlockOrigin, SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
 };
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::{MemberRunRelocationError, MemberRunRelocationReceipt, ValidatedMemberRunRelocation};
 use crate::ValidatedSelectedAnalysis;

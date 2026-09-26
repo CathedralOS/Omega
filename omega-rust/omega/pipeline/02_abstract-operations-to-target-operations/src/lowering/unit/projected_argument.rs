@@ -2,11 +2,11 @@
 
 use super::super::structural_layout::{resolve_structural_field_path, structural_parameter_shape};
 use crate::LoweringError;
+use crate::calling_conventions::{ValuePlacement, ValueShape};
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use calling_conventions::{ValuePlacement, ValueShape};
+use crate::target_operations::{TargetStructuralArgument, TargetStructuralParameter};
 use semantic_vocabulary::{MachineId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
-use target_operations::{TargetStructuralArgument, TargetStructuralParameter};
 use terminal_psi::StructuralPathSegment;
 use terminal_psi::{StructuralArgument, StructuralParameterDeclaration};
 

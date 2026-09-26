@@ -61,7 +61,8 @@ pub(super) fn continues(operations: &[CheckedUnitEffectOperationPlan], index: us
     moved.statement_index == *statement_index
         && source == destination
         && value.path.is_empty()
-        && value.access == checked_trees::CheckedStructuralAccess::Owned
+        && value.access
+            == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
         && value.source_structural_result_binding_ordinal() == Some(produced.binding_ordinal)
         && moved.type_identity == produced.type_identity
         && moved.multiplicity == produced.multiplicity
@@ -103,7 +104,7 @@ pub(super) fn continues_with_cleanup(
         if discard.path.is_empty()
             && discard.type_identity == moved.type_identity
             && discard.source
-                == checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                == typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                     binding_ordinal: moved.binding_ordinal,
                 })
 }

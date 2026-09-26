@@ -47,7 +47,7 @@ sibling board items, or when a later sweep supersedes it.
   the file had no `mod native` declaration and could not compile if wired.
 
 - **F2 — `terminal-production` hosts a substantive derivation.**
-  `psi/compiler/terminal-production/src/terminal_production/receiver_eligibility.rs`
+  `psi/pipeline/07_lowered-psi-to-terminal-psi/src/terminal_production/terminal_production/receiver_eligibility.rs`
   (1,158 lines — larger than the 673-line coordinator root) derives
   `CheckedProgramEntryReceiverEligibility` from checked trees, replaying
   understood value constraints per record field. That is a semantics-stage

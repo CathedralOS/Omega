@@ -3,11 +3,11 @@
 use std::collections::BTreeMap;
 use std::ops::Deref;
 
-use abstract_operations::StructuralTypeCatalog;
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
     StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
+use terminal_psi_to_abstract_operations::abstract_operations::StructuralTypeCatalog;
 
 pub(crate) struct StructuralTypeLookup<'a> {
     declarations: BTreeMap<StructuralTypeId, &'a StructuralTypeDeclaration>,

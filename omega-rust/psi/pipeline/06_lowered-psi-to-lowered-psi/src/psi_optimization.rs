@@ -6,9 +6,11 @@ use crate::{
     control_flow_cleanup, copy_propagation, dead_scalar_elimination, global_value_numbering,
     proof_check_elision, sparse_conditional_constant_propagation,
 };
-use lowered_psi::LoweredPsi;
-use optimization::{PRETERMINAL_PSI_PASS_CATALOG, PsiOptimization, PsiOptimizationSelections};
+use checked_trees_to_lowered_psi::lowered_psi::LoweredPsi;
 use terminal_codec::PsiOptimizationExecutionRecord;
+use terminal_codec::optimization::{
+    PRETERMINAL_PSI_PASS_CATALOG, PsiOptimization, PsiOptimizationSelections,
+};
 use terminal_codec::{
     ProofBundleFingerprint, proof_bundle_fingerprint, terminal_psi_identity, validate_debug_map,
 };

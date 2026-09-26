@@ -9,18 +9,20 @@
 use super::super::scalar_abi::fixed_native_integer_shape;
 use super::scalar_call::KnownUnitInteger;
 use crate::LoweringError;
+use crate::calling_conventions::ValueShape;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractFunction, AbstractOperation};
-use calling_conventions::ValueShape;
-use semantic_vocabulary::IeeeFloatValue;
-use semantic_vocabulary::{IeeeFloatFormat, OperationId, PlaceId, ScalarType, ValueId};
-use std::collections::{BTreeMap, BTreeSet};
-use target_operations::TargetUnitWriteOnlyPrimitiveStoreSource;
-use target_operations::{
+use crate::target_operations::TargetUnitWriteOnlyPrimitiveStoreSource;
+use crate::target_operations::{
     TargetStructuralParameter, TargetUnitOperation, TargetUnitScalarHomeRequirement,
     TerminalPsiProvenance,
 };
+use semantic_vocabulary::IeeeFloatValue;
+use semantic_vocabulary::{IeeeFloatFormat, OperationId, PlaceId, ScalarType, ValueId};
+use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractFunction, AbstractOperation,
+};
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::lowering) fn lower_write_only_primitive_store(
@@ -32,7 +34,7 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
     boolean_constants: &BTreeMap<ValueId, (OperationId, bool)>,
     ieee_float_constants: &BTreeMap<ValueId, (OperationId, IeeeFloatValue)>,
     scalar_homes: &BTreeMap<ValueId, TargetUnitScalarHomeRequirement>,
-    block_value: Option<target_operations::TargetScalarBlockValue>,
+    block_value: Option<crate::target_operations::TargetScalarBlockValue>,
     scalar_sources: &crate::lowering::control_flow::scalar_sources::ScalarSources<'_>,
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
@@ -138,7 +140,7 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
                             return Err(invalid());
                         }
                         TargetUnitWriteOnlyPrimitiveStoreSource::BlockParameter(
-                            target_operations::TargetScalarBlockValue {
+                            crate::target_operations::TargetScalarBlockValue {
                                 block,
                                 value: source_value,
                                 scalar_type: ScalarType::Integer(scalar_type),

@@ -1,8 +1,8 @@
 //! Reconstruct exact row-major primitive leaves independently of legalized layout.
-use calling_conventions::ValueShape;
-use legalized_operations::{
+use crate::legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
 };
+use abstract_operations_to_target_operations::calling_conventions::ValueShape;
 use semantic_vocabulary::{ScalarType, StructuralTypeId};
 
 /// Reconstruct constructor stores from the semantic type and exact operands.

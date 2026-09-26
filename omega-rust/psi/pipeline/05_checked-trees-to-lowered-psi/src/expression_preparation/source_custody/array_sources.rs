@@ -1,6 +1,8 @@
-use checked_trees::CheckedTrees;
-use checked_trees::statement::StatementNode;
-use checked_trees::{CheckedArrayConstructionSource, CheckedUnitCallCoordinate};
+use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
+use typed_trees_to_checked_trees::checked_trees::statement::StatementNode;
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedArrayConstructionSource, CheckedUnitCallCoordinate,
+};
 
 /// Reconstruct the constructor's expression and declared type from its owner.
 /// Formal positions, rather than filtered array positions, distinguish equal
@@ -12,8 +14,8 @@ pub(crate) fn construction_expression(
     statement_index: u32,
     source: CheckedArrayConstructionSource,
 ) -> Option<(
-    checked_trees::expression::ExpressionHandle,
-    checked_trees::types::TypeReferenceHandle,
+    typed_trees_to_checked_trees::checked_trees::expression::ExpressionHandle,
+    typed_trees_to_checked_trees::checked_trees::types::TypeReferenceHandle,
 )> {
     let (owner, state) =
         crate::expression_preparation::source_custody::authored_state(checked, state).ok()?;
@@ -37,14 +39,21 @@ pub(crate) fn construction_expression(
                 }
                 // A whole array-literal replacement: the literal lands at its
                 // target place's declared type.
-                StatementNode::Assignment(assignment) => validation::declared_place_type_raw(
-                    &checked.typed,
-                    owner,
-                    Some(state),
-                    assignment.target,
-                )
-                .and_then(|declared| validation::closed_array_store_type(&checked.typed, declared))
-                .map(|reference| (assignment.value, reference)),
+                StatementNode::Assignment(assignment) => {
+                    typed_trees_to_checked_trees::validation::declared_place_type_raw(
+                        &checked.typed,
+                        owner,
+                        Some(state),
+                        assignment.target,
+                    )
+                    .and_then(|declared| {
+                        typed_trees_to_checked_trees::validation::closed_array_store_type(
+                            &checked.typed,
+                            declared,
+                        )
+                    })
+                    .map(|reference| (assignment.value, reference))
+                }
                 _ => None,
             }
         }
@@ -74,7 +83,7 @@ pub(crate) fn construction_expression(
             if parameter.is_self
                 || parameter.is_mutable
                 || parameter.is_const
-                || !validation::is_closed_primitive_array_type(
+                || !typed_trees_to_checked_trees::validation::is_closed_primitive_array_type(
                     &checked.typed,
                     parameter.type_reference,
                 )
@@ -89,7 +98,7 @@ pub(crate) fn construction_expression(
             if actuals.next().is_some() {
                 return None;
             }
-            validation::scalar_array_elements(
+            typed_trees_to_checked_trees::validation::scalar_array_elements(
                 &checked.typed,
                 machine,
                 *expression,

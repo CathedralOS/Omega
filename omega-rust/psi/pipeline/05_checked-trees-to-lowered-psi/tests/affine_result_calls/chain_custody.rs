@@ -2,9 +2,9 @@ use super::{
     AdmissionProfile, CheckedUnitEffectOperationPlan, OperationKind, OperationResult, Terminator,
     checked, lower_machine,
 };
-use checked_trees::CheckedUnitStructuralArgumentSourcePlan as ArgumentSource;
 use checked_trees_to_lowered_psi::LoweringError;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan as ArgumentSource;
 
 const CHAIN_WITH_SPARE: &str = "data Value { number: u64; }
     machine forward(value: Value) -> Value { value }

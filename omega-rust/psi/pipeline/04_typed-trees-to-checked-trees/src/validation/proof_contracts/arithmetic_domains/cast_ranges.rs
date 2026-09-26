@@ -1,0 +1,312 @@
+//! Cast representability and target predicates are obligations, never source
+//! interval premises.
+//! Policy qualification cannot repair failed initial membership. Inspect every
+//! authored range shell; unsupported bounds must not disappear through an
+//! optional interval query that also represents absence of a range.
+
+use super::{Interval, ValueEnvironment};
+use crate::validation::proof_contracts::arithmetic_domains::integer_ranges::{
+    known_u64_value, primitive_range,
+};
+use diagnostics::Diagnostic;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode, TableCastExpression,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    PrimitiveType, TypeConstraintNode, TypeReferenceNode,
+};
+
+/// Record a successfully checked literal store at its statement point. Cast
+/// predicates read this live fact; searching declarations later would ignore
+/// intervening writes and permit forward-reference or cross-state assumptions.
+pub(crate) fn record_float_literal_assignment(
+    program: &TypedTrees,
+    environment: &mut ValueEnvironment,
+    path: Option<String>,
+    destination: Option<PrimitiveType>,
+    value: ExpressionHandle,
+) {
+    let Some(path) = path else {
+        return;
+    };
+    let Some(destination @ (PrimitiveType::F32 | PrimitiveType::F64)) = destination else {
+        return;
+    };
+    let ExpressionNode::Float(literal) = program.expression_table.expression(value) else {
+        return;
+    };
+    let format = match destination {
+        PrimitiveType::F32 => numerics::literals::FloatFormat::F32,
+        _ => numerics::literals::FloatFormat::F64,
+    };
+    if literal.landing().is_some_and(|retained| retained != format) {
+        return;
+    }
+    let value = literal.with_landing(format).landed_f64();
+    if value.is_finite() {
+        environment.narrow_float(
+            path.clone(),
+            crate::validation::proof_contracts::arithmetic_domains::value_environment::FloatInterval {
+                low: Some(value),
+                high: Some(value),
+            },
+        );
+        environment.mark_non_nan(path);
+    }
+}
+
+/// The expression scanner owns selected reachability and calls this only for
+/// an executing cast. Arithmetic analysis owns the proof from the current live
+/// environment; a target annotation never substitutes for that analysis.
+pub(crate) fn validate_range_cast_at_use(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    environment: &ValueEnvironment,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let ExpressionNode::Cast(cast) = program.expression_table.expression(expression) else {
+        return;
+    };
+    if cast.form.is_recast() {
+        return;
+    }
+    let mut reference = cast.target_type;
+    let mut visited = Vec::new();
+    let mut has_range = false;
+    while program
+        .type_reference_table
+        .contains_type_reference(reference)
+        && !visited.contains(&reference)
+    {
+        visited.push(reference);
+        let TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } = program.type_reference_table.type_reference(reference)
+        else {
+            break;
+        };
+        has_range |= program
+            .type_reference_table
+            .constraints(*constraints)
+            .iter()
+            .any(|constraint| matches!(constraint, TypeConstraintNode::Range { .. }));
+        reference = *base_type;
+    }
+    // A bare integer target still demands an exact fit. In call arguments the
+    // expression scanner is the validation owner; collecting successful cast
+    // facts afterward cannot diagnose missing evidence. Reuse the same live
+    // arithmetic judgment as ranged casts rather than deferring rejection to
+    // the Unit planner. Address interpretation is a separate conversion rule.
+    let exact_integer_target = cast.domain == numerics::arithmetic::ArithmeticDomain::Exact
+        && program
+            .primitive_type_reference(cast.target_type)
+            .is_some_and(|primitive| {
+                primitive != PrimitiveType::Addr && primitive_range(primitive).is_some()
+            });
+    if !has_range && !exact_integer_target {
+        return;
+    }
+    let owner = format!(
+        "machine `{}` state `{}` cast expression",
+        machine.name, state.name
+    );
+    let mut found = Vec::new();
+    super::validate_arithmetic_domains(
+        program,
+        machine,
+        Some(state),
+        expression,
+        environment,
+        None,
+        numerics::arithmetic::ArithmeticDomain::Exact,
+        &owner,
+        &mut found,
+    );
+    for diagnostic in found {
+        let duplicate = diagnostics.iter().any(|existing| {
+            existing.source_span == diagnostic.source_span
+                && (existing.message == diagnostic.message
+                    // Root and nested scans describe different enclosing
+                    // owners, but this is the same source membership failure.
+                    || (existing.message.starts_with("cast target range in ")
+                        && diagnostic.message.starts_with("cast target range in ")))
+        });
+        if !duplicate {
+            diagnostics.push(diagnostic);
+        }
+    }
+}
+
+pub(super) fn validate_target_ranges(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    cast: &TableCastExpression,
+    source_interval: Interval,
+    source_primitive: Option<PrimitiveType>,
+    environment: &ValueEnvironment,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let source_bounds = source_primitive.and_then(|primitive| {
+        let carrier = primitive_range(primitive)?;
+        if let Some(value) = known_u64_value(program, environment, cast.value) {
+            let value = i128::from(value);
+            return Some((value, value));
+        }
+        Some((
+            i128::from(source_interval.low.or(carrier.low)?),
+            source_interval
+                .high
+                .or(carrier.high)
+                .map(i128::from)
+                .or_else(|| {
+                    matches!(primitive, PrimitiveType::U64 | PrimitiveType::Addr)
+                        .then_some(i128::from(u64::MAX))
+                })?,
+        ))
+    });
+    let mut reference = cast.target_type;
+    let mut visited = Vec::new();
+    while program
+        .type_reference_table
+        .contains_type_reference(reference)
+        && !visited.contains(&reference)
+    {
+        visited.push(reference);
+        let TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } = program.type_reference_table.type_reference(reference)
+        else {
+            break;
+        };
+        for constraint in program.type_reference_table.constraints(*constraints) {
+            let TypeConstraintNode::Range {
+                minimum,
+                maximum,
+                end_inclusive,
+            } = constraint
+            else {
+                continue;
+            };
+            let integer_proven = source_primitive.and_then(primitive_range).is_some()
+                && program
+                    .primitive_type_reference(cast.target_type)
+                    .and_then(primitive_range)
+                    .is_some()
+                && integer_bound(program, *minimum)
+                    .zip(
+                        crate::validation::closed_integer_range_maximum(
+                            program,
+                            *maximum,
+                            *end_inclusive,
+                        )
+                        .and_then(|value| {
+                            value
+                                .to_i64()
+                                .map(i128::from)
+                                .or_else(|| value.to_u64().map(i128::from))
+                        }),
+                    )
+                    .is_some_and(|(minimum, maximum)| {
+                        minimum <= maximum
+                            && source_bounds.is_some_and(|(low, high)| {
+                                minimum <= low && low <= high && high <= maximum
+                            })
+                    });
+            let float_proven = float_membership(
+                program,
+                machine,
+                state,
+                cast,
+                environment,
+                *minimum,
+                *maximum,
+                *end_inclusive,
+            );
+            if !integer_proven && !float_proven {
+                let span = Some(program.expression_table.source_span(cast.value));
+                if diagnostics.iter().any(|existing| {
+                    existing.source_span == span
+                        && existing.message.starts_with("cast target range in ")
+                }) {
+                    continue;
+                }
+                diagnostics.push(Diagnostic::error(format!(
+                    "cast target range in {owner} is not proven from the source value; all target predicates must hold before policy qualification (unknown numeric bounds or unsupported non-integer membership require an explicit proof)"
+                )).with_source_span(program.expression_table.source_span(cast.value)));
+            }
+        }
+        reference = *base_type;
+    }
+}
+
+fn float_membership(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    cast: &TableCastExpression,
+    environment: &ValueEnvironment,
+    minimum: ExpressionHandle,
+    maximum: ExpressionHandle,
+    end_inclusive: bool,
+) -> bool {
+    let Some(target @ (PrimitiveType::F32 | PrimitiveType::F64)) =
+        program.primitive_type_reference(cast.target_type)
+    else {
+        return false;
+    };
+    let source = match program.expression_table.expression(cast.value) {
+        ExpressionNode::Float(literal) => match literal.landing() {
+            Some(numerics::literals::FloatFormat::F32) => Some(PrimitiveType::F32),
+            Some(numerics::literals::FloatFormat::F64) | None => Some(PrimitiveType::F64),
+        },
+        _ => super::declared_place_type_raw(program, machine, state, cast.value)
+            .and_then(|reference| program.primitive_type_reference(reference)),
+    };
+    if source != Some(target) {
+        return false;
+    }
+    let bounds = |expression| {
+        if let Some(value) =
+            crate::validation::proof_contracts::arithmetic_domains::float_arithmetic::float_literal_value(
+                program, expression,
+            )
+        {
+            return value.is_finite().then_some((value, value));
+        }
+        let path = super::place_path(program, expression)?;
+        let (interval, non_nan) = environment.float_fact(&path);
+        let (low, high) = (interval.low?, interval.high?);
+        (non_nan && low.is_finite() && high.is_finite() && low <= high).then_some((low, high))
+    };
+    match (bounds(cast.value), bounds(minimum), bounds(maximum)) {
+        (Some((source_low, source_high)), Some((_, minimum_high)), Some((maximum_low, _))) => {
+            minimum_high <= source_low
+                && if end_inclusive {
+                    source_high <= maximum_low
+                } else {
+                    source_high < maximum_low
+                }
+        }
+        _ => false,
+    }
+}
+
+fn integer_bound(
+    program: &TypedTrees,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+) -> Option<i128> {
+    let value = crate::validation::closed_integer_range_bound(program, expression)?;
+    value
+        .to_i64()
+        .map(i128::from)
+        .or_else(|| value.to_u64().map(i128::from))
+}

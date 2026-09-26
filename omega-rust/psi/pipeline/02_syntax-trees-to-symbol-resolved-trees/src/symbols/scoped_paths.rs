@@ -9,8 +9,8 @@ pub(super) fn resolve_state_scoped_table_path(
     symbols: &SymbolTable,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-    expression_table: &symbol_resolved_trees::expression::ExpressionTable,
-    path: &symbol_resolved_trees::expression::TableNamePath,
+    expression_table: &crate::symbol_resolved_trees::expression::ExpressionTable,
+    path: &crate::symbol_resolved_trees::expression::TableNamePath,
 ) -> (SymbolHandle, SymbolHandle) {
     let members = expression_table.name_path_members(path.members);
     resolve_state_scoped_table_members(
@@ -30,8 +30,8 @@ pub(super) fn resolve_state_scoped_table_path_member_symbols(
     symbols: &SymbolTable,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-    expression_table: &symbol_resolved_trees::expression::ExpressionTable,
-    path: &symbol_resolved_trees::expression::TableNamePath,
+    expression_table: &crate::symbol_resolved_trees::expression::ExpressionTable,
+    path: &crate::symbol_resolved_trees::expression::TableNamePath,
 ) -> Vec<SymbolHandle> {
     let members = expression_table.name_path_members(path.members);
     if members.is_empty() {
@@ -87,7 +87,7 @@ pub(super) fn resolve_state_scoped_table_path_member_symbols(
 pub(super) fn resolve_path_members_from_head(
     symbols: &SymbolTable,
     head: SymbolHandle,
-    suffix: &[symbol_resolved_trees::name::DiagnosticName],
+    suffix: &[crate::symbol_resolved_trees::name::DiagnosticName],
 ) -> Vec<SymbolHandle> {
     let mut current = head;
     let mut resolved = vec![head];
@@ -116,8 +116,8 @@ pub(super) fn resolve_state_scoped_table_path_with_indexed_last_member(
     symbols: &SymbolTable,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-    expression_table: &symbol_resolved_trees::expression::ExpressionTable,
-    path: &symbol_resolved_trees::expression::TableNamePath,
+    expression_table: &crate::symbol_resolved_trees::expression::ExpressionTable,
+    path: &crate::symbol_resolved_trees::expression::TableNamePath,
     index: i64,
 ) -> (SymbolHandle, SymbolHandle) {
     let members = expression_table.name_path_members(path.members);
@@ -135,7 +135,7 @@ pub(super) fn resolve_state_scoped_members(
     symbols: &SymbolTable,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-    members: &[symbol_resolved_trees::name::DiagnosticName],
+    members: &[crate::symbol_resolved_trees::name::DiagnosticName],
     starts_at_self: bool,
 ) -> (SymbolHandle, SymbolHandle) {
     if members.is_empty() {
@@ -204,7 +204,7 @@ fn resolve_state_scoped_table_members(
     symbols: &SymbolTable,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-    members: &[symbol_resolved_trees::name::DiagnosticName],
+    members: &[crate::symbol_resolved_trees::name::DiagnosticName],
     starts_at_self: bool,
     indexed_last_member: Option<i64>,
 ) -> (SymbolHandle, SymbolHandle) {

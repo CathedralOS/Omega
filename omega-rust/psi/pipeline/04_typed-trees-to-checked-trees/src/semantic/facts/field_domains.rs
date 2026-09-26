@@ -24,16 +24,18 @@
 //! elementwise claim, so it rides the obligation origin and every caller owes
 //! the whole extent.
 
-use facts::{
+use crate::fact_plan::{
     Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceSegment, ProgramPoint,
     QualificationEvidence,
 };
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    TypeReferenceHandle, TypeReferenceNode,
+};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::data::DataMember;
-use typed_trees::expression::ExpressionNode;
-use typed_trees::statement::StatementNode;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use crate::facts::field_domain::{
     readable_fixed_array_elements, readable_nominal_definition, readable_type_reference,
@@ -155,10 +157,10 @@ fn append_data_field_domain_facts(
     point: ProgramPoint,
     origin: FactOrigin,
     evidence: QualificationEvidence,
-    data: &typed_trees::data::DataDefinition,
+    data: &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition,
     prefix: &[PlaceSegment],
     visited: &[&str],
-    refs: &mut arena::HandleSpan<facts::FactRef>,
+    refs: &mut arena::HandleSpan<crate::fact_plan::FactRef>,
 ) {
     for member in program.data_members(data) {
         let DataMember::Field(field) = member else {
@@ -194,7 +196,7 @@ fn append_data_field_domain_facts(
                 origin,
                 evidence,
                 payload: FactPayload::DomainMembership {
-                    value: typed_trees::expression::ExpressionHandle::invalid(),
+                    value: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid(),
                     domain: arena::HandleSpan::empty(),
                     domain_symbol,
                     semantic_domain: language_semantics::SemanticDomainId::NULL,
@@ -323,7 +325,6 @@ fn append_data_field_domain_facts(
 /// `requires <place> in D` obligation at a nested `&write` subloan discharges
 /// against them.
 pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &mut FactPlan) {
-    let mut field_domain_walks = std::collections::HashMap::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             let mut refs = arena::HandleSpan::empty();
@@ -345,15 +346,16 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
                 let lent = lent_type_reference(program, parameter.type_reference);
                 if let Some(data) = lent.and_then(|lent| readable_nominal_definition(program, lent))
                 {
-                    let rows = data_field_domain_rows(program, data, &mut field_domain_walks);
                     append_state_parameter_data_field_domain_facts(
+                        program,
                         facts,
                         machine.symbol,
                         state.symbol,
                         parameter.symbol,
                         obligation_origin,
-                        &[],
-                        &rows,
+                        data,
+                        &mut Vec::new(),
+                        &mut vec![data.symbol],
                         &mut refs,
                     );
                 }
@@ -369,27 +371,34 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
                     lent.and_then(|lent| readable_fixed_array_elements(program, lent))
                     && let Some(data) = readable_nominal_definition(program, element_type)
                 {
-                    let rows = data_field_domain_rows(program, data, &mut field_domain_walks);
+                    let mut path = Vec::new();
+                    let mut visited = vec![data.symbol];
                     for index in 0..length {
+                        path.clear();
+                        path.push(PlaceSegment::FixedIndex { index });
                         append_state_parameter_data_field_domain_facts(
+                            program,
                             facts,
                             machine.symbol,
                             state.symbol,
                             parameter.symbol,
                             obligation_origin,
-                            &[PlaceSegment::FixedIndex { index }],
-                            &rows,
+                            data,
+                            &mut path,
+                            &mut visited,
                             &mut refs,
                         );
                     }
                     append_state_parameter_data_field_domain_facts(
+                        program,
                         facts,
                         machine.symbol,
                         state.symbol,
                         parameter.symbol,
                         FactOrigin::StatementTransfer,
-                        &[WHOLE_ELEMENT_EXTENT],
-                        &rows,
+                        data,
+                        &mut vec![WHOLE_ELEMENT_EXTENT],
+                        &mut vec![data.symbol],
                         &mut refs,
                     );
                 }
@@ -402,15 +411,16 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
                     lent.and_then(|lent| readable_slice_element(program, lent))
                     && let Some(data) = readable_nominal_definition(program, element_type)
                 {
-                    let rows = data_field_domain_rows(program, data, &mut field_domain_walks);
                     append_state_parameter_data_field_domain_facts(
+                        program,
                         facts,
                         machine.symbol,
                         state.symbol,
                         parameter.symbol,
                         obligation_origin,
-                        &[WHOLE_ELEMENT_EXTENT],
-                        &rows,
+                        data,
+                        &mut vec![WHOLE_ELEMENT_EXTENT],
+                        &mut vec![data.symbol],
                         &mut refs,
                     );
                 }
@@ -482,11 +492,11 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
 fn append_independent_place_contexts(
     facts: &mut FactPlan,
     point: ProgramPoint,
-    refs: arena::HandleSpan<facts::FactRef>,
+    refs: arena::HandleSpan<crate::fact_plan::FactRef>,
 ) {
     // Invalidating one storage coordinate must not discard independent
     // parameter or machine-field facts. Facts over the same place stay coupled.
-    let mut groups: Vec<(FactPlace, Vec<facts::FactRef>)> = Vec::new();
+    let mut groups: Vec<(FactPlace, Vec<crate::fact_plan::FactRef>)> = Vec::new();
     for reference in facts.refs.span_or_empty(refs) {
         let place = facts.facts.get(reference.fact).place;
         if let Some((_, group)) =
@@ -515,7 +525,7 @@ fn append_independent_place_contexts(
 
 fn state_parameter_domain_is_resource_claim(
     program: &TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
     domain_symbol: SymbolHandle,
 ) -> bool {
     crate::checks::type_multiplicity(program, type_reference)
@@ -534,7 +544,7 @@ fn append_state_parameter_carry_origin(
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     parameter_symbol: SymbolHandle,
-    refs: &mut arena::HandleSpan<facts::FactRef>,
+    refs: &mut arena::HandleSpan<crate::fact_plan::FactRef>,
 ) {
     let place = facts.append_symbol_place(parameter_symbol);
     let fact = facts.append_fact(Fact {
@@ -552,7 +562,7 @@ fn append_state_parameter_carry_origin(
             state_symbol,
         ),
         payload: FactPayload::CarryOrigin {
-            value: typed_trees::expression::ExpressionHandle::invalid(),
+            value: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid(),
         },
     });
     facts.append_ref(refs, fact);
@@ -560,18 +570,18 @@ fn append_state_parameter_carry_origin(
 
 fn carry_constraint_permissions(
     program: &TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
 ) -> Vec<language_semantics::CarryPermission> {
     match program.type_reference_table.type_reference(type_reference) {
-        typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
             carry_constraint_permissions(program, *referee)
         }
-        typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } => program
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } => program
             .type_reference_table
             .constraints(*constraints)
             .iter()
             .filter_map(|constraint| match constraint {
-                typed_trees::types::TypeConstraintNode::Domain(domain) => {
+                symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode::Domain(domain) => {
                     language_semantics::CarryPermission::from_name(domain.name.as_str())
                 }
                 _ => None,
@@ -587,7 +597,7 @@ fn append_state_parameter_carry_fact(
     state_symbol: SymbolHandle,
     parameter_symbol: SymbolHandle,
     permission: language_semantics::CarryPermission,
-    refs: &mut arena::HandleSpan<facts::FactRef>,
+    refs: &mut arena::HandleSpan<crate::fact_plan::FactRef>,
 ) {
     let place = facts.append_symbol_place(parameter_symbol);
     let fact = facts.append_fact(Fact {
@@ -605,7 +615,7 @@ fn append_state_parameter_carry_fact(
             state_symbol,
         ),
         payload: FactPayload::CarryPermission {
-            value: typed_trees::expression::ExpressionHandle::invalid(),
+            value: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid(),
             permission,
         },
     });
@@ -617,13 +627,17 @@ fn append_state_parameter_carry_fact(
 /// returns, so a parameter whose type nests many fields does not copy its
 /// prefix for every field.
 #[allow(clippy::too_many_arguments)]
-fn collect_data_field_domain_rows(
+fn append_state_parameter_data_field_domain_facts(
     program: &TypedTrees,
-    transfer: bool,
-    data: &typed_trees::data::DataDefinition,
+    facts: &mut FactPlan,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    parameter_symbol: SymbolHandle,
+    origin: FactOrigin,
+    data: &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition,
     path: &mut Vec<PlaceSegment>,
     visited: &mut Vec<SymbolHandle>,
-    rows: &mut Vec<FieldDomainRow>,
+    refs: &mut arena::HandleSpan<crate::fact_plan::FactRef>,
 ) {
     for field in program
         .data_members(data)
@@ -641,18 +655,34 @@ fn collect_data_field_domain_rows(
         for (domain_symbol, semantic_domain) in
             crate::facts::field_domain::domain_constraint_identities(program, field.type_reference)
         {
-            rows.push(FieldDomainRow {
-                path: path.clone(),
+            append_state_parameter_domain_fact(
+                facts,
+                machine_symbol,
+                state_symbol,
+                parameter_symbol,
+                origin,
+                path,
                 domain_symbol,
                 semantic_domain,
-                transfer,
-            });
+                refs,
+            );
         }
         if let Some(nested) = readable_nominal_definition(program, field.type_reference)
             && !visited.contains(&nested.symbol)
         {
             visited.push(nested.symbol);
-            collect_data_field_domain_rows(program, transfer, nested, path, visited, rows);
+            append_state_parameter_data_field_domain_facts(
+                program,
+                facts,
+                machine_symbol,
+                state_symbol,
+                parameter_symbol,
+                origin,
+                nested,
+                path,
+                visited,
+                refs,
+            );
             visited.pop();
         }
         // A slice-typed field's elements carry their declared fields through
@@ -664,7 +694,18 @@ fn collect_data_field_domain_rows(
         {
             visited.push(nested.symbol);
             path.push(WHOLE_ELEMENT_EXTENT);
-            collect_data_field_domain_rows(program, transfer, nested, path, visited, rows);
+            append_state_parameter_data_field_domain_facts(
+                program,
+                facts,
+                machine_symbol,
+                state_symbol,
+                parameter_symbol,
+                origin,
+                nested,
+                path,
+                visited,
+                refs,
+            );
             path.pop();
             visited.pop();
         }
@@ -683,83 +724,37 @@ fn collect_data_field_domain_rows(
             visited.push(nested.symbol);
             for index in 0..length {
                 path.push(PlaceSegment::FixedIndex { index });
-                collect_data_field_domain_rows(program, transfer, nested, path, visited, rows);
+                append_state_parameter_data_field_domain_facts(
+                    program,
+                    facts,
+                    machine_symbol,
+                    state_symbol,
+                    parameter_symbol,
+                    origin,
+                    nested,
+                    path,
+                    visited,
+                    refs,
+                );
                 path.pop();
             }
             path.push(WHOLE_ELEMENT_EXTENT);
-            collect_data_field_domain_rows(program, true, nested, path, visited, rows);
+            append_state_parameter_data_field_domain_facts(
+                program,
+                facts,
+                machine_symbol,
+                state_symbol,
+                parameter_symbol,
+                FactOrigin::StatementTransfer,
+                nested,
+                path,
+                visited,
+                refs,
+            );
             path.pop();
             visited.pop();
         }
         path.truncate(prefix_length);
-    }
-}
-
-/// One declared field domain beneath a parameter's nominal type: the field
-/// path from the value, its domain, and whether a whole-element extent on the
-/// way makes the row evidence (`StatementTransfer`) rather than an obligation.
-/// The rows depend only on the data definition, so every state parameter of
-/// that type replays one walk.
-struct FieldDomainRow {
-    path: Vec<PlaceSegment>,
-    domain_symbol: SymbolHandle,
-    semantic_domain: language_semantics::SemanticDomainId,
-    transfer: bool,
-}
-
-fn data_field_domain_rows(
-    program: &TypedTrees,
-    data: &typed_trees::data::DataDefinition,
-    walks: &mut std::collections::HashMap<SymbolHandle, std::rc::Rc<[FieldDomainRow]>>,
-) -> std::rc::Rc<[FieldDomainRow]> {
-    walks
-        .entry(data.symbol)
-        .or_insert_with(|| {
-            let mut rows = Vec::new();
-            collect_data_field_domain_rows(
-                program,
-                false,
-                data,
-                &mut Vec::new(),
-                &mut vec![data.symbol],
-                &mut rows,
-            );
-            rows.into()
-        })
-        .clone()
-}
-
-#[allow(clippy::too_many_arguments)]
-fn append_state_parameter_data_field_domain_facts(
-    facts: &mut FactPlan,
-    machine_symbol: SymbolHandle,
-    state_symbol: SymbolHandle,
-    parameter_symbol: SymbolHandle,
-    origin: FactOrigin,
-    prefix: &[PlaceSegment],
-    rows: &[FieldDomainRow],
-    refs: &mut arena::HandleSpan<facts::FactRef>,
-) {
-    let mut path = Vec::new();
-    for row in rows {
-        path.clear();
-        path.extend_from_slice(prefix);
-        path.extend_from_slice(&row.path);
-        append_state_parameter_domain_fact(
-            facts,
-            machine_symbol,
-            state_symbol,
-            parameter_symbol,
-            if row.transfer {
-                FactOrigin::StatementTransfer
-            } else {
-                origin
-            },
-            &path,
-            row.domain_symbol,
-            row.semantic_domain,
-            refs,
-        );
     }
 }
 
@@ -773,7 +768,7 @@ fn append_state_parameter_domain_fact(
     path: &[PlaceSegment],
     domain_symbol: SymbolHandle,
     semantic_domain: language_semantics::SemanticDomainId,
-    refs: &mut arena::HandleSpan<facts::FactRef>,
+    refs: &mut arena::HandleSpan<crate::fact_plan::FactRef>,
 ) {
     let place = facts.append_symbol_place(parameter_symbol);
     for segment in path {
@@ -791,7 +786,7 @@ fn append_state_parameter_domain_fact(
             state_symbol,
         ),
         payload: FactPayload::DomainMembership {
-            value: typed_trees::expression::ExpressionHandle::invalid(),
+            value: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid(),
             domain: arena::HandleSpan::empty(),
             domain_symbol,
             semantic_domain,
@@ -893,7 +888,7 @@ pub(super) fn append_local_case_payload_domain_facts(program: &TypedTrees, facts
                                 state.symbol,
                             ),
                             payload: FactPayload::DomainMembership {
-                                value: typed_trees::expression::ExpressionHandle::invalid(),
+                                value: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid(),
                                 domain: arena::HandleSpan::empty(),
                                 domain_symbol,
                                 semantic_domain: language_semantics::SemanticDomainId::NULL,
@@ -977,7 +972,7 @@ pub(super) fn append_local_zii_field_domain_facts(program: &TypedTrees, facts: &
                         origin,
                         evidence,
                         payload: FactPayload::DomainMembership {
-                            value: typed_trees::expression::ExpressionHandle::invalid(),
+                            value: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid(),
                             domain: arena::HandleSpan::empty(),
                             domain_symbol,
                             semantic_domain,
@@ -1026,7 +1021,7 @@ pub(super) fn append_local_zii_field_domain_facts(program: &TypedTrees, facts: &
 /// regardless of which state's receiver symbol is used).
 fn machine_self_parameter_symbol(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
 ) -> Option<SymbolHandle> {
     program.machine_states(machine).iter().find_map(|state| {
         program
@@ -1058,7 +1053,9 @@ fn readable_slice_element(
         .type_reference_table
         .type_reference(readable_type_reference(program, type_reference)?)
     {
-        typed_trees::types::TypeReferenceNode::Slice { element_type } => Some(*element_type),
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Slice {
+            element_type,
+        } => Some(*element_type),
         _ => None,
     }
 }

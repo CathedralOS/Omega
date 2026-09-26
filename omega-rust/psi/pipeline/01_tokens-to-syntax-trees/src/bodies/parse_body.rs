@@ -1,12 +1,12 @@
 use super::sequence::{BodyKind, parse_statements};
 use crate::bodies::states::parse_state;
 use crate::input::token_cursor::{Input, ParseResult};
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::identifier::Identifier;
+use crate::syntax_trees::item::{State, StateHandle, StateParameterHandle};
+use crate::syntax_trees::types::TypeReferenceHandle;
 use arena::{Handle, HandleSpan};
-use syntax_trees::SyntaxTrees;
-use syntax_trees::identifier::Identifier;
-use syntax_trees::item::{State, StateHandle, StateParameterHandle};
-use syntax_trees::types::TypeReferenceHandle;
-use tokens::{KeywordKind, PunctuationKind};
+use source_files_to_tokens::tokens::{KeywordKind, PunctuationKind};
 
 pub(crate) fn parse_body<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,

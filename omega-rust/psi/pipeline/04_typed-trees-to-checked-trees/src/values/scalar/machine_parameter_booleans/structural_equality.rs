@@ -8,18 +8,22 @@
 use super::structural_paths::{
     path_type_reference, payloadless_sum_cases, structural_record_fields,
 };
-use crate::values::scalar::expression_facts::is_integer;
-use crate::values::scalar::structural_fields::{structural_data, structural_parameter_field_path};
-use checked_trees::{
+use crate::checked_trees::{
     CheckedBooleanExpression, CheckedIeeeFloatComparisonKind, CheckedIntegerComparisonKind,
     CheckedScalarExpression, CheckedStructuralParameterField,
     CheckedStructuralPredicatePathSegment,
 };
-use typed_trees::TypedTrees;
-use typed_trees::data::{DataDefinition, DataField, DataMember, DataShapeKind};
-use typed_trees::expression::ExpressionHandle;
-use typed_trees::signature::StateParameter;
-use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
+use crate::values::scalar::expression_facts::is_integer;
+use crate::values::scalar::structural_fields::{structural_data, structural_parameter_field_path};
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::data::{
+    DataDefinition, DataField, DataMember, DataShapeKind,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    PrimitiveType, TypeReferenceHandle,
+};
 
 /// `left == right` over two structural parameter places of one data type, or
 /// `None` when either side is not such a place or the type cannot decompose.

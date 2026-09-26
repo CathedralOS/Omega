@@ -1,22 +1,22 @@
 //! Public legalization and independent replay custody for whole primitive stores.
-use abstract_operations::{
-    AbstractOperation, AbstractOperationPlan, AbstractParameter, AbstractResult,
+use crate::legalized_operations::{LegalizedOperationPlan, LegalizedScalarInstructionKind};
+use abstract_operations_to_target_operations::target_operations::{
+    TargetOperationPlan, TargetUnitOperation, TargetUnitWriteOnlyPrimitiveStoreSource,
 };
-use legalized_operations::{LegalizedOperationPlan, LegalizedScalarInstructionKind};
-use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::{
     FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, OperationId, PlaceId, ScalarType,
     StructuralFieldId, StructuralTypeId, ValueId,
 };
 use target::NativeTarget;
-use target_operations::{
-    TargetOperationPlan, TargetUnitOperation, TargetUnitWriteOnlyPrimitiveStoreSource,
-};
 use terminal_psi::{
     BindingRelevance, StructuralAccess, StructuralFieldDeclaration, StructuralFieldType,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeDeclaration,
     StructuralTypeShape,
 };
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractOperation, AbstractOperationPlan, AbstractParameter, AbstractResult,
+};
+use terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit;
 
 use crate::{legalize_target_operations, validate_legalized_operations};
 
@@ -121,7 +121,7 @@ fn indexed_primitive_storage_retains_root_path_footprint_and_access() {
                     value: ValueId::new(8).unwrap(),
                     scalar_type: scalar,
                 };
-                function.result = abstract_operations::AbstractFunctionResult::Scalar(result);
+                function.result = terminal_psi_to_abstract_operations::abstract_operations::AbstractFunctionResult::Scalar(result);
                 function.operations = vec![
                     function.operations[0].clone(),
                     store,
@@ -144,7 +144,7 @@ fn indexed_primitive_storage_retains_root_path_footprint_and_access() {
                     abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
                 )
                 .unwrap();
-                let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+                let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
                     &source,
                     FuelScheduleIdentity::new(1).unwrap(),
                 )
@@ -168,7 +168,8 @@ fn indexed_primitive_storage_retains_root_path_footprint_and_access() {
                     width * 7
                 );
                 let environment =
-                    register_environment::baseline_target_register_environment(native).unwrap();
+                    crate::register_environment::baseline_target_register_environment(native)
+                        .unwrap();
                 let constraints = crate::selection_constraints(&legalized, &environment);
                 let selected = crate::select_instructions(
                     &legalized,
@@ -247,12 +248,14 @@ fn indexed_primitive_storage_retains_root_path_footprint_and_access() {
                     .find(|row| {
                         matches!(
                             row.kind,
-                            selected_instructions::SelectedInstructionKind::Store { .. }
+                            crate::selected_instructions::SelectedInstructionKind::Store { .. }
                         )
                     })
                     .unwrap();
-                let selected_instructions::SelectedInstructionKind::Store { byte_offset, .. } =
-                    &mut instruction.kind
+                let crate::selected_instructions::SelectedInstructionKind::Store {
+                    byte_offset,
+                    ..
+                } = &mut instruction.kind
                 else {
                     unreachable!()
                 };
@@ -369,7 +372,7 @@ fn multiple_record_inputs_keep_exact_field_store_destination_through_replay() {
             abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
         )
         .unwrap();
-        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             FuelScheduleIdentity::new(1).unwrap(),
         )
@@ -501,7 +504,7 @@ fn fixture(
         abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
     )
     .unwrap();
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),
     )
@@ -525,7 +528,7 @@ fn target_store(target: &mut TargetOperationPlan) -> &mut TargetUnitOperation {
 
 fn legalized_store(
     plan: &mut LegalizedOperationPlan,
-) -> &mut legalized_operations::LegalizedScalarInstruction {
+) -> &mut crate::legalized_operations::LegalizedScalarInstruction {
     plan.scalar_functions[0].blocks[0]
         .instructions
         .iter_mut()

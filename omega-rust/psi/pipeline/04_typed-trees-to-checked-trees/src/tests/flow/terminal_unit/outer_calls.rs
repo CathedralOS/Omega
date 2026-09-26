@@ -2,10 +2,10 @@
 //! initializer holding a call node) still owns the structural calls nested
 //! inside its own argument expressions: the outer-call roster unions those
 //! operand calls instead of reporting them unconsumed.
-use crate::tests::flow::terminal_unit::{checked, machine_named};
-use checked_trees::{
+use crate::checked_trees::{
     CheckedStructuralAccess, CheckedUnitEffectOperationPlan, CheckedUnitPlanOmissionStage,
 };
+use crate::tests::flow::terminal_unit::{checked, machine_named};
 
 const SOURCE: &str = r#"
     data Fmt { v: u64 }
@@ -29,7 +29,7 @@ const SOURCE: &str = r#"
     }
 "#;
 
-fn omission(checked: &checked_trees::CheckedTrees, name: &str) -> &'static str {
+fn omission(checked: &crate::checked_trees::CheckedTrees, name: &str) -> &'static str {
     let row = checked
         .facts
         .flow
@@ -208,7 +208,7 @@ fn transition_arm_call_arguments_establish_nested_calls() {
         .filter(|operation| {
             matches!(
                 operation,
-                checked_trees::CheckedUnitEffectOperationPlan::StructuralCall { .. }
+                crate::checked_trees::CheckedUnitEffectOperationPlan::StructuralCall { .. }
             )
         })
         .count();
@@ -216,15 +216,18 @@ fn transition_arm_call_arguments_establish_nested_calls() {
         established, 2,
         "each arm's `Dtr::default` operand is one established structural call"
     );
-    let checked_trees::CheckedComposedUnitControlTerminatorPlan::Guarded { return_values, .. } =
-        &state.terminator
+    let crate::checked_trees::CheckedComposedUnitControlTerminatorPlan::Guarded {
+        return_values,
+        ..
+    } = &state.terminator
     else {
         panic!("both `(value)` arms check as a guarded return terminator");
     };
     assert_eq!(return_values.len(), 2);
     for operation in return_values {
-        let checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-            calls, ..
+        let crate::checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+            calls,
+            ..
         } = operation
         else {
             panic!("arm values lower through their structural value producers");
@@ -327,10 +330,12 @@ fn case_field_member_store_carries_the_member_read() {
         .unwrap_or_else(|| panic!("member-read case field store: {operations:#?}"));
     assert!(matches!(
         store.value.source,
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 1 }
+        crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            parameter_index: 1
+        }
     ));
     assert!(matches!(store.value.path.as_slice(),
-        [checked_trees::CheckedUnitStructuralPathSegment::Field(identity)]
+        [crate::checked_trees::CheckedUnitStructuralPathSegment::Field(identity)]
             if identity == "fmt"));
     assert_eq!(store.value.access, CheckedStructuralAccess::SharedBorrow);
 }
@@ -415,7 +420,7 @@ fn conditional_tail_calls_compose_their_literal_arguments() {
         .filter(|(_, node)| {
             matches!(
                 &node.kind,
-                checked_trees::CheckedScalarComputationKind::Call { target_machine, .. }
+                crate::checked_trees::CheckedScalarComputationKind::Call { target_machine, .. }
                     if *target_machine == matches
             )
         })

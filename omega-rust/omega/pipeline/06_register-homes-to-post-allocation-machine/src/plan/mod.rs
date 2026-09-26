@@ -1,15 +1,19 @@
 //! Optimizer module role: executable entrance. Deterministic post-allocation machine-plan construction and replay.
 
 mod compute;
+#[cfg(any(test, feature = "test-support"))]
+mod test_support;
 mod validate;
 
+use crate::physical_instructions::{PostAllocationMachineIdentity, PostAllocationMachinePlan};
 use optimization_core::PostAllocationOptimizationManifestIdentity;
-use physical_instructions::{PostAllocationMachineIdentity, PostAllocationMachinePlan};
-use register_model::TargetRegisterEnvironmentIdentity;
-use selected_instructions::PreAllocationMachineEffectIdentity;
-use selected_instructions::SelectedInstructionPlanIdentity;
 use selected_instructions_to_register_homes::RegisterHomeIdentity;
 use std::sync::Arc;
+use target_operations_to_selected_instructions::PreAllocationMachineEffectIdentity;
+use target_operations_to_selected_instructions::SelectedInstructionPlanIdentity;
+use target_operations_to_selected_instructions::register_model::TargetRegisterEnvironmentIdentity;
+#[cfg(any(test, feature = "test-support"))]
+pub use test_support::PostAllocationMachinePlanReceiptFieldForTest;
 pub use validate::validate_post_allocation_machine_plan;
 
 /// Join one validated selected CFG, its pre-allocation machine effects, and
@@ -25,9 +29,9 @@ pub fn analyze_post_allocation_machine_plan<
     legality: &selected_instructions_to_register_homes::ValidatedAllocationLegality,
     homes: &selected_instructions_to_register_homes::ValidatedRegisterHomes,
     manifest: &selected_instructions_to_register_homes::ValidatedPostAllocationOptimizationManifest,
-    register_environment: register_model::TargetRegisterEnvironmentIdentity,
-    physical: &register_model::ValidatedPhysicalRegisterModel,
-    constraints: &register_model::ValidatedRegisterConstraintCatalog,
+    register_environment: target_operations_to_selected_instructions::register_model::TargetRegisterEnvironmentIdentity,
+    physical: &target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel,
+    constraints: &target_operations_to_selected_instructions::register_model::ValidatedRegisterConstraintCatalog,
 ) -> Result<ValidatedPostAllocationMachinePlan, PostAllocationMachineError> {
     let plan = compute::compute_terminal_post_allocation_machine_plan(
         selected,

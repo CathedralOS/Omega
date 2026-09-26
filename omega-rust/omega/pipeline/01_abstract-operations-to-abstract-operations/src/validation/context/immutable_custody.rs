@@ -2,13 +2,15 @@
 
 use super::super::{BTreeMap, BTreeSet};
 use super::{OptimizationUnitValidationError, PsiOptimizationUnit};
-use optimization_unit::structural_domain_catalog_identity;
+use terminal_psi_to_abstract_operations::optimization_unit::structural_domain_catalog_identity;
 pub(super) fn attach_verified_structural_context(
     unit: &mut PsiOptimizationUnit,
     module: &terminal_psi::TerminalModule,
 ) -> Result<(), OptimizationUnitValidationError> {
-    optimization_unit::attach_verified_module_context(unit, module)
-        .map_err(|_| OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch)
+    terminal_psi_to_abstract_operations::optimization_unit::attach_verified_module_context(
+        unit, module,
+    )
+    .map_err(|_| OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch)
 }
 
 pub(super) fn same_immutable_signature_custody(

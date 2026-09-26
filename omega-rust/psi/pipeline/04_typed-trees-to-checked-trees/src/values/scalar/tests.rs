@@ -1,20 +1,20 @@
 //! Tests for scalar expression plans.
+use crate::checked_trees::CheckedBooleanExpression;
+use crate::checked_trees::CheckedOperatorFacts;
+use crate::checked_trees::CheckedOperatorResolutionStatus;
+use crate::checked_trees::CheckedScalarExpression;
+use crate::validation::integer_widen_is_total;
 use crate::values::scalar::boolean_lowering::lower_boolean_guard;
 use crate::values::scalar::scalar_lowering::retag_exact_integer_literal;
 use crate::values::scalar_expression_type;
 use arena::Arena;
-use checked_trees::CheckedBooleanExpression;
-use checked_trees::CheckedOperatorFacts;
-use checked_trees::CheckedOperatorResolutionStatus;
-use checked_trees::CheckedScalarExpression;
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::literals::IntegerLanding;
 use numerics::literals::LandedIntegerType;
-use typed_trees::TypedTrees;
-use typed_trees::expression::BinaryOperator;
-use typed_trees::expression::ExpressionNode;
-use typed_trees::types::PrimitiveType;
-use validation::integer_widen_is_total;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
 
 #[test]
 fn landed_literal_guards_fold_both_polarities_only_with_builtin_meaning() {
@@ -30,7 +30,7 @@ fn landed_literal_guards_fold_both_polarities_only_with_builtin_meaning() {
             numerics::literals::IntegerLiteral::from_value(right_value),
         ));
         let expression = program.expression_table.insert(ExpressionNode::Binary(
-            typed_trees::expression::TableBinaryExpression {
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableBinaryExpression {
                 left,
                 operator: BinaryOperator::Equal,
                 right,
@@ -43,7 +43,7 @@ fn landed_literal_guards_fold_both_polarities_only_with_builtin_meaning() {
             CheckedOperatorResolutionStatus::Ambiguous,
         ] {
             let mut uses = Arena::new();
-            uses.append(checked_trees::CheckedOperatorUseFact {
+            uses.append(crate::checked_trees::CheckedOperatorUseFact {
                 expression,
                 status,
                 ..Default::default()
@@ -76,7 +76,7 @@ fn boolean_guard_selection_preserves_both_polarities_and_operator_meaning() {
             .expression_table
             .insert(ExpressionNode::Boolean(value));
         let expression = program.expression_table.insert(ExpressionNode::Binary(
-            typed_trees::expression::TableBinaryExpression {
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableBinaryExpression {
                 left,
                 operator: BinaryOperator::Equal,
                 right,
@@ -89,7 +89,7 @@ fn boolean_guard_selection_preserves_both_polarities_and_operator_meaning() {
             (CheckedOperatorResolutionStatus::Ambiguous, false),
         ] {
             let mut uses = Arena::new();
-            uses.append(checked_trees::CheckedOperatorUseFact {
+            uses.append(crate::checked_trees::CheckedOperatorUseFact {
                 expression,
                 status,
                 ..Default::default()

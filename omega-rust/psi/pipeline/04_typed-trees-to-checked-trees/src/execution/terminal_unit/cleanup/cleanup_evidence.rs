@@ -61,8 +61,8 @@ pub(crate) fn service_reach_plan_is_empty(
 
 pub(crate) fn has_exact_root_affine_discard(
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     parameter: &StateParameter,
 ) -> bool {
     has_exact_symbol_affine_discard(
@@ -76,8 +76,8 @@ pub(crate) fn has_exact_root_affine_discard(
 
 pub(crate) fn has_exact_symbol_affine_discard(
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     symbol: SymbolHandle,
     provenance: language_semantics::PermissionProvenance,
 ) -> bool {
@@ -96,7 +96,7 @@ pub(crate) fn has_exact_symbol_affine_discard(
                 && event.claim_identity == PermissionClaimIdentity::Unknown
                 && event.provenance == provenance
                 && !event.obligation_live
-                && event.root == facts::PlaceRoot::Symbol(symbol)
+                && event.root == crate::fact_plan::PlaceRoot::Symbol(symbol)
         })
         .map(|(_, event)| event)
         .collect::<Vec<_>>();

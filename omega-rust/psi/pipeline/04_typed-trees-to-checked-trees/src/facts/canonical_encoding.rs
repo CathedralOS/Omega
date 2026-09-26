@@ -1,9 +1,9 @@
 //! Canonical encodings of contract sets, facts, types and expressions.
 
 use crate::facts::crash_plan_facts::{encode_signature_contract_kind, is_true_crash_route};
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionLabels;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::proposition::PropositionLabels;
 
 /// Encode contracts as semantic sets. Crash clauses are first merged by cause:
 /// their facts are alternative routes, duplicate routes are irrelevant, and
@@ -12,9 +12,9 @@ use typed_trees::proposition::PropositionLabels;
 /// preserving the bucket itself as identity-bearing material.
 pub(crate) fn encode_contract_set_canonical(
     program: &TypedTrees,
-    contracts: &[typed_trees::signature::SignatureContract],
+    contracts: &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContract],
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
+    content_conservation: &[crate::validation::ContentConservationSourcePlan],
     entry_prefix: &[u8],
     canonicalize_membership_value: bool,
     include_crashes: bool,
@@ -35,7 +35,7 @@ pub(crate) fn encode_contract_set_canonical(
         let facts = program.proof_facts.span_or_empty(contract.facts);
         let is_crash = matches!(
             contract.kind,
-            typed_trees::signature::SignatureContractKind::Crashes { .. }
+            symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Crashes { .. }
         );
         if is_crash && !include_crashes {
             continue;
@@ -97,14 +97,16 @@ pub(crate) fn encode_contract_set_canonical(
 
 pub(crate) fn encode_contract_fact_canonical(
     program: &TypedTrees,
-    fact: &typed_trees::domain::ProofFact,
+    fact: &symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact,
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
+    content_conservation: &[crate::validation::ContentConservationSourcePlan],
     canonicalize_membership_value: bool,
     output: &mut Vec<u8>,
 ) {
     match fact {
-        typed_trees::domain::ProofFact::Expression(expression) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
+            expression,
+        ) => {
             output.push(1);
             encode_contract_expression_canonical(
                 program,
@@ -114,7 +116,9 @@ pub(crate) fn encode_contract_fact_canonical(
                 output,
             );
         }
-        typed_trees::domain::ProofFact::Membership(membership) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(
+            membership,
+        ) => {
             output.push(2);
             if canonicalize_membership_value {
                 encode_expression_canonical(program, membership.value, parameter_names, output);
@@ -154,7 +158,9 @@ pub(crate) fn encode_contract_fact_canonical(
                 output.push(b'>');
             }
         }
-        typed_trees::domain::ProofFact::Proposition(application) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(
+            application,
+        ) => {
             output.push(3);
             encode_proposition_application_canonical(program, application, parameter_names, output);
         }
@@ -224,11 +230,11 @@ pub(crate) fn domain_is_vacuous(
 /// programs for the same declared clause.
 fn encode_expression_canonical(
     program: &TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     parameter_names: &[String],
     out: &mut Vec<u8>,
 ) {
-    use typed_trees::expression::ExpressionNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
     if !expression.is_valid() {
         out.push(0);
         return;
@@ -333,7 +339,7 @@ fn encode_expression_canonical(
 
 fn encode_proposition_application_canonical(
     program: &TypedTrees,
-    application: &typed_trees::proposition::PropositionApplication,
+    application: &symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionApplication,
     parameter_names: &[String],
     out: &mut Vec<u8>,
 ) {
@@ -373,9 +379,9 @@ fn encode_proposition_application_canonical(
 
 pub(crate) fn encode_contract_expression_canonical(
     program: &TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
+    content_conservation: &[crate::validation::ContentConservationSourcePlan],
     out: &mut Vec<u8>,
 ) {
     if let Some(conservation) = content_conservation

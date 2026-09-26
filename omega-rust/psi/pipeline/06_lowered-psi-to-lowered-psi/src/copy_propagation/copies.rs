@@ -15,7 +15,7 @@ use terminal_psi::{TerminalMachine, Terminator, ValueDeclaration};
 
 pub(super) fn propagate(
     machine: &mut TerminalMachine,
-    source_calls: &[lowered_psi::LoweredSourceCallOccurrence],
+    source_calls: &[checked_trees_to_lowered_psi::lowered_psi::LoweredSourceCallOccurrence],
     retained_values: &mut BTreeSet<ValueId>,
 ) {
     // Ranking evidence names exact parameters and edge-argument positions

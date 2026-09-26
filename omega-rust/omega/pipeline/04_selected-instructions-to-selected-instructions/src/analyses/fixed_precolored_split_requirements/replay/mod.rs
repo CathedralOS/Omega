@@ -9,15 +9,15 @@ mod work;
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
+use crate::register_homes::{
+    FixedPrecoloredSplitRequirementPolicy, FunctionAllocationLegality,
+    FunctionFixedPrecoloredIntervals, FunctionFixedPrecoloredSplitRequirements,
+};
 use crate::{
     FixedPrecoloredSplitRequirementError, ValidatedAllocationLegality,
     ValidatedFixedPrecoloredIntervals, ValidatedLiveRanges,
 };
-use register_homes::{
-    FixedPrecoloredSplitRequirementPolicy, FunctionAllocationLegality,
-    FunctionFixedPrecoloredIntervals, FunctionFixedPrecoloredSplitRequirements,
-};
-use selected_instructions::FunctionLiveRanges;
+use target_operations_to_selected_instructions::FunctionLiveRanges;
 
 pub(super) struct ReplayedSplitRequirements {
     pub(super) functions: Vec<FunctionFixedPrecoloredSplitRequirements>,

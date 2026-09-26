@@ -8,18 +8,18 @@ use crate::rules::tests::fixtures::proof_check_elision::{
     exact_add_unit, live_divide_by_one_unit, live_exact_multiply_by_zero_unit,
     live_proof_binary_identity_unit,
 };
-use abstract_operations::AbstractOperation as O;
 use optimization_core::{OptimizationValidatorIdentity, ScalarConstantFactIdentity};
-use optimization_unit::{
+use semantic_vocabulary::{
+    IntegerSign, IntegerType, IntegerValue, ObligationId, OperationId, ValueId,
+};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     OptimizationFact, ProofCertifiedScalarIdentityKind, ProofCertifiedScalarIdentityRewrite,
     PsiRewriteCandidate, PsiRewritePatch, recompute_psi_optimization_unit_identity,
 };
-use optimization_unit_semantics::{
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_proof_certified_scalar_identity_candidate,
     validate_psi_optimization_unit,
-};
-use semantic_vocabulary::{
-    IntegerSign, IntegerType, IntegerValue, ObligationId, OperationId, ValueId,
 };
 
 #[test]

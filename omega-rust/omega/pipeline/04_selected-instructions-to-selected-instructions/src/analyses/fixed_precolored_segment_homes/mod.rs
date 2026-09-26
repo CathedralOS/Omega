@@ -9,24 +9,24 @@ mod error;
 mod replay;
 mod validation;
 
+use crate::register_homes::FixedPrecoloredSegmentHomePolicy;
 pub use error::FixedPrecoloredSegmentHomeError;
-use register_homes::FixedPrecoloredSegmentHomePolicy;
 pub use validation::validate_fixed_precolored_segment_homes;
 
-use optimization_core::{OptimizationUnitIdentity, OptimizationWorkUsage};
-use register_homes::{
+use crate::register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FixedPrecoloredIntervalPlanIdentity,
     FixedPrecoloredSegmentHomePlan, FixedPrecoloredSegmentHomePlanIdentity,
     FixedPrecoloredSplitRequirementPlanIdentity,
 };
-use register_model::{
+use optimization_core::{OptimizationUnitIdentity, OptimizationWorkUsage};
+use semantic_vocabulary::FuelScheduleIdentity;
+use target::NativeTarget;
+use target_operations_to_selected_instructions::LiveRangeIdentity;
+use target_operations_to_selected_instructions::register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile,
 };
-use selected_instructions::LiveRangeIdentity;
-use semantic_vocabulary::FuelScheduleIdentity;
-use target::NativeTarget;
 
 #[allow(clippy::too_many_arguments)]
 pub fn assign_fixed_precolored_segment_homes(

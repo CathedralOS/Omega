@@ -1,7 +1,7 @@
 //! Retain primitive storage identity separately from scalar observations.
 use std::collections::BTreeMap;
 
-use abstract_operations::{AbstractOperation, AbstractResult};
+use crate::abstract_operations::{AbstractOperation, AbstractResult};
 use semantic_vocabulary::{PlaceId, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId};
 use terminal_psi::{
     Operation, OperationKind, StructuralAccess, StructuralMultiplicity, StructuralOperationResult,

@@ -1,5 +1,8 @@
 //! A returned reference retains its caller's referent across call completion.
 
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_fuel::{FuelChargeSite, TerminalFuelMeter};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
@@ -7,14 +10,11 @@ use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralPrimitiveValue, TerminalStructuralValue,
 };
-use terminal_production::{
-    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
-};
 use terminal_psi::{OperationKind, Terminator};
 
 fn artifact(prefix: &str) -> terminal_codec::CanonicalTerminalArtifact {
     let checked = checked(prefix);
-    terminal_production::TerminalProductionRequest::new(
+    lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("exercise"),
     )
@@ -25,7 +25,7 @@ fn artifact(prefix: &str) -> terminal_codec::CanonicalTerminalArtifact {
     .into_artifact()
 }
 
-fn checked(prefix: &str) -> checked_trees::CheckedTrees {
+fn checked(prefix: &str) -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
     let source = format!(
         "machine notify() {{}}
          machine mark(value: &mut i32) {{ value = 11; }}
@@ -57,7 +57,7 @@ fn reference_result_composes_with_an_ordinary_call_before_return() {
     execute(&artifact("mark(value);"), 2, 1);
 }
 
-fn local_record_checked(prefix: &str) -> checked_trees::CheckedTrees {
+fn local_record_checked(prefix: &str) -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
     let source = format!(
         "data View {{ body: &mut i32; }}
         machine replace(value: &mut i32) {{ value = 29; }}
@@ -74,15 +74,16 @@ fn local_record_checked(prefix: &str) -> checked_trees::CheckedTrees {
 #[test]
 fn local_reference_record_preserves_original_storage() {
     let checked = local_record_checked("");
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("exercise"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("local reference record has exact leaf custody")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("exercise"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("local reference record has exact leaf custody")
+        .into_artifact();
     execute(&artifact, 1, 0);
 }
 
@@ -120,7 +121,7 @@ fn local_reference_record_rejects_changed_source_custody() {
                     .borrow_lifetimes
                     .weakenings
                     .get_mut(handle)
-                    .reason = checked_trees::FlowBorrowWeakeningReason::LocalReassigned;
+                    .reason = typed_trees_to_checked_trees::checked_trees::FlowBorrowWeakeningReason::LocalReassigned;
             }
             3 => {
                 let machine = original
@@ -160,7 +161,7 @@ fn local_reference_record_rejects_changed_source_custody() {
                     .span(entry.entry_constraints)
                     .unwrap();
                 let retained = constraints.iter().copied().filter(|constraint|
-                    !matches!(constraint.kind, checked_trees::FlowConstraintKind::BorrowLoan { loan: active } if active == loan))
+                    !matches!(constraint.kind, typed_trees_to_checked_trees::checked_trees::FlowConstraintKind::BorrowLoan { loan: active } if active == loan))
                     .collect::<Vec<_>>();
                 assert_eq!(
                     constraints.len(),
@@ -181,7 +182,7 @@ fn local_reference_record_rejects_changed_source_custody() {
                     .get_mut(handle)
                     .entry_constraints = replacement;
                 assert!(
-                    validation::reference_result_custody::local_record_loans(
+                    typed_trees_to_checked_trees::validation::reference_result_custody::local_record_loans(
                         &original.typed,
                         &changed.facts,
                         machine.symbol,
@@ -191,8 +192,9 @@ fn local_reference_record_rejects_changed_source_custody() {
                     .is_some(),
                     "formation and weakening remain valid"
                 );
-                let checked_trees::statement::StatementNode::Call(call) =
-                    &original.statement_table.statements(state.statement_nodes)[1]
+                let typed_trees_to_checked_trees::checked_trees::statement::StatementNode::Call(
+                    call,
+                ) = &original.statement_table.statements(state.statement_nodes)[1]
                 else {
                     unreachable!()
                 };
@@ -200,11 +202,11 @@ fn local_reference_record_rejects_changed_source_custody() {
                 let binding = original.facts.flow.terminal_unit_effects.machines.iter()
                     .find(|plan| plan.state == state.symbol).unwrap().operations.iter()
                     .find_map(|operation| match operation {
-                        checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => Some(result),
+                        typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => Some(result),
                         _ => None,
                     }).unwrap();
                 assert!(
-                    validation::reference_result_custody::record_argument(
+                    typed_trees_to_checked_trees::validation::reference_result_custody::record_argument(
                         &original.typed,
                         &changed.facts,
                         machine.symbol,
@@ -228,12 +230,12 @@ fn local_reference_record_rejects_changed_source_custody() {
                     .find_map(|(handle, node)| {
                         matches!(
                             node.kind,
-                            checked_trees::CheckedStructuralValueKind::Reference { .. }
+                            typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Reference { .. }
                         )
                         .then_some(handle)
                     })
                     .unwrap();
-                let checked_trees::CheckedStructuralValueKind::Reference { source } = &mut changed
+                let typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Reference { source } = &mut changed
                     .facts
                     .values
                     .structural_values
@@ -243,7 +245,7 @@ fn local_reference_record_rejects_changed_source_custody() {
                 else {
                     unreachable!()
                 };
-                source.source = checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                source.source = typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                     parameter_index: 1,
                 };
             }
@@ -266,7 +268,7 @@ fn local_reference_record_rejects_changed_source_custody() {
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &changed,
                 TerminalMachineSelection::Name("exercise")
             )
@@ -314,15 +316,16 @@ const OWNED_REFERENCE_RECORD_SOURCE: &str = "data View { body: &mut i32; }
 #[test]
 fn owned_reference_record_argument_preserves_original_storage() {
     let checked = crate::front_end::checked_program(OWNED_REFERENCE_RECORD_SOURCE);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("exercise"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("owned reference record arguments preserve complete leaf custody")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("exercise"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("owned reference record arguments preserve complete leaf custody")
+        .into_artifact();
     execute(&artifact, 1, 1);
 }
 
@@ -335,24 +338,26 @@ fn owned_reference_record_argument_rejects_changed_prior_custody() {
         .find(|machine| machine.name.as_str() == "exercise")
         .unwrap();
     let state = &original.machine_states(machine)[0];
-    let prior = validation::reference_result_custody::local_record_loans(
-        &original.typed,
-        &original.facts,
-        machine.symbol,
-        state,
-        0,
-    )
-    .unwrap()[0]
-        .1;
-    let returned = validation::reference_result_custody::local_record_loans(
-        &original.typed,
-        &original.facts,
-        machine.symbol,
-        state,
-        1,
-    )
-    .unwrap()[0]
-        .1;
+    let prior =
+        typed_trees_to_checked_trees::validation::reference_result_custody::local_record_loans(
+            &original.typed,
+            &original.facts,
+            machine.symbol,
+            state,
+            0,
+        )
+        .unwrap()[0]
+            .1;
+    let returned =
+        typed_trees_to_checked_trees::validation::reference_result_custody::local_record_loans(
+            &original.typed,
+            &original.facts,
+            machine.symbol,
+            state,
+            1,
+        )
+        .unwrap()[0]
+            .1;
     for mutation in 0..4 {
         let mut changed = original.clone();
         match mutation {
@@ -387,7 +392,7 @@ fn owned_reference_record_argument_rejects_changed_prior_custody() {
         }
         if mutation < 3 {
             assert!(
-                validation::reference_result_custody::local_record_loans(
+                typed_trees_to_checked_trees::validation::reference_result_custody::local_record_loans(
                     &changed.typed,
                     &changed.facts,
                     machine.symbol,
@@ -399,7 +404,7 @@ fn owned_reference_record_argument_rejects_changed_prior_custody() {
             );
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &changed,
                 TerminalMachineSelection::Name("exercise")
             )
@@ -433,27 +438,30 @@ fn reference_record_origin_roster_rejects_exponential_type_dags() {
         .find(|machine| machine.name.as_str() == "forward")
         .unwrap();
     let state = &program.machine_states(machine)[0];
-    assert!(!validation::reference_result_custody::is_reference_record(
-        &program,
-        state.return_type
-    ));
     assert!(
-        validation::reference_result_custody::returned_record_sources(&program, state).is_none()
+        !typed_trees_to_checked_trees::validation::reference_result_custody::is_reference_record(
+            &program,
+            state.return_type
+        )
+    );
+    assert!(
+        typed_trees_to_checked_trees::validation::reference_result_custody::returned_record_sources(&program, state).is_none()
     );
 }
 
 #[test]
 fn stored_reference_result_preserves_original_storage() {
     let checked = crate::front_end::checked_program(STORED_REFERENCE_SOURCE);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("exercise"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("stored result carries exact returned leaf origins")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("exercise"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("stored result carries exact returned leaf origins")
+        .into_artifact();
     execute(&artifact, 1, 1);
 }
 
@@ -468,21 +476,22 @@ fn stored_reference_result_rejoins_full_formal_positions() {
             value
         }";
     let checked = crate::front_end::checked_program(source);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("exercise"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("structural ordinal rejoins its full authored argument position")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("exercise"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("structural ordinal rejoins its full authored argument position")
+        .into_artifact();
     execute(&artifact, 1, 1);
 }
 
 #[test]
 fn stored_reference_result_rejects_changed_return_and_actual_origins() {
-    use checked_trees::{
+    use typed_trees_to_checked_trees::checked_trees::{
         CheckedStructuralValueKind as Value, CheckedUnitEffectOperationPlan as Operation,
         CheckedUnitStructuralArgumentSourcePlan as Source,
     };
@@ -491,7 +500,7 @@ fn stored_reference_result_rejects_changed_return_and_actual_origins() {
         machine alternate(value: &mut i32) -> View {{ View {{ body: value }} }}"
     );
     let original = crate::front_end::checked_program(&source);
-    let _ = terminal_production::TerminalProductionRequest::new(
+    let _ = lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
         &original,
         TerminalMachineSelection::Name("exercise"),
     )
@@ -523,8 +532,9 @@ fn stored_reference_result_rejects_changed_return_and_actual_origins() {
     let Value::Record { fields, .. } = values.nodes.get(root.root).kind else {
         unreachable!()
     };
-    let checked_trees::CheckedStructuralRecordFieldValue::Structural(leaf) =
-        values.record_fields.span(fields).unwrap()[0].value
+    let typed_trees_to_checked_trees::checked_trees::CheckedStructuralRecordFieldValue::Structural(
+        leaf,
+    ) = values.record_fields.span(fields).unwrap()[0].value
     else {
         unreachable!()
     };
@@ -599,7 +609,7 @@ fn stored_reference_result_rejects_changed_return_and_actual_origins() {
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &changed,
                 TerminalMachineSelection::Name("exercise")
             )
@@ -616,15 +626,16 @@ fn stored_reference_result_rejects_changed_return_and_actual_origins() {
 fn reference_release_processing_preserves_empty_helpers() {
     let checked =
         crate::front_end::checked_program("machine empty() {} machine exercise() { empty(); }");
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("exercise"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("empty helper has no last-statement release boundary")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("exercise"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("empty helper has no last-statement release boundary")
+        .into_artifact();
     drop(checked);
     let mut execution = TerminalExecution::start_artifact(
         artifact.semantic_bytes(),
@@ -663,12 +674,12 @@ fn reference_result_rejects_conflicting_access_before_last_use() {
 
 #[test]
 fn reference_result_rejects_changed_source_loan_and_weakening() {
-    use checked_trees::{
+    use typed_trees_to_checked_trees::checked_trees::{
         CheckedUnitEffectOperationPlan as Operation,
         CheckedUnitStructuralArgumentSourcePlan as Source,
     };
     let original = checked("");
-    let _ = terminal_production::TerminalProductionRequest::new(
+    let _ = lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
         &original,
         TerminalMachineSelection::Name("exercise"),
     )
@@ -773,7 +784,7 @@ fn reference_result_rejects_changed_source_loan_and_weakening() {
                     .borrow_lifetimes
                     .weakenings
                     .get_mut(weakening)
-                    .reason = checked_trees::FlowBorrowWeakeningReason::LocalReassigned;
+                    .reason = typed_trees_to_checked_trees::checked_trees::FlowBorrowWeakeningReason::LocalReassigned;
             }
             6 => {
                 let machine = plans
@@ -795,7 +806,7 @@ fn reference_result_rejects_changed_source_loan_and_weakening() {
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &changed,
                 TerminalMachineSelection::Name("exercise")
             )
@@ -994,26 +1005,27 @@ const PROJECTED_REFERENCE_RESULT_SOURCE: &str = "data View { body: &mut i32; }
 #[test]
 fn projected_reference_result_preserves_original_storage() {
     let checked = crate::front_end::checked_program(PROJECTED_REFERENCE_RESULT_SOURCE);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("exercise"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("a projected leaf return keeps exact ingress custody")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("exercise"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("a projected leaf return keeps exact ingress custody")
+        .into_artifact();
     execute(&artifact, 1, 1);
 }
 
 #[test]
 fn projected_reference_result_rejects_changed_leaf_custody() {
-    use checked_trees::{
+    use typed_trees_to_checked_trees::checked_trees::{
         CheckedUnitEffectOperationPlan as Operation,
         CheckedUnitStructuralArgumentSourcePlan as Source,
     };
     let original = crate::front_end::checked_program(PROJECTED_REFERENCE_RESULT_SOURCE);
-    let _ = terminal_production::TerminalProductionRequest::new(
+    let _ = lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
         &original,
         TerminalMachineSelection::Name("exercise"),
     )
@@ -1069,7 +1081,7 @@ fn projected_reference_result_rejects_changed_leaf_custody() {
                 else {
                     unreachable!()
                 };
-                source.access = checked_trees::CheckedStructuralAccess::SharedBorrow;
+                source.access = typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow;
             }
             // The declared result source must retain the same leaf path.
             3 => {
@@ -1106,7 +1118,7 @@ fn projected_reference_result_rejects_changed_leaf_custody() {
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &changed,
                 TerminalMachineSelection::Name("exercise")
             )
@@ -1134,12 +1146,12 @@ fn projected_reference_result_rejects_sibling_leaf_rosters() {
 
 #[test]
 fn nested_call_record_argument_rejects_changed_leaf_custody() {
-    use checked_trees::{
+    use typed_trees_to_checked_trees::checked_trees::{
         CheckedUnitEffectOperationPlan as Operation,
         CheckedUnitStructuralArgumentSourcePlan as Source,
     };
     let original = crate::front_end::checked_program(NESTED_CALL_RECORD_ARGUMENT_SOURCE);
-    let _ = terminal_production::TerminalProductionRequest::new(
+    let _ = lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
         &original,
         TerminalMachineSelection::Name("exercise"),
     )
@@ -1206,7 +1218,7 @@ fn nested_call_record_argument_rejects_changed_leaf_custody() {
                     unreachable!()
                 };
                 structural_arguments[0].access =
-                    checked_trees::CheckedStructuralAccess::SharedBorrow;
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow;
             }
             // The consumer's returned leaf must keep its exact loan.
             3 => {
@@ -1257,13 +1269,13 @@ fn nested_call_record_argument_rejects_changed_leaf_custody() {
                     unreachable!()
                 };
                 structural_arguments[0].path.push(
-                    checked_trees::CheckedUnitStructuralPathSegment::Field("inner".to_owned()),
+                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field("inner".to_owned()),
                 );
             }
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &changed,
                 TerminalMachineSelection::Name("exercise")
             )
@@ -1293,15 +1305,16 @@ fn nested_call_record_argument_preserves_original_storage() {
     // The projected operand roots at `forward_outer`'s anonymous owned result;
     // `select`'s returned leaf still replays the exact loan `outer` captured.
     let checked = crate::front_end::checked_program(NESTED_CALL_RECORD_ARGUMENT_SOURCE);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("exercise"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("nested operand terminal production")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("exercise"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("nested operand terminal production")
+        .into_artifact();
     // `forward_outer` returns `Outer` and `select` returns `&mut i32`.
     execute(&artifact, 1, 2);
 }
@@ -1320,26 +1333,27 @@ const PROJECTED_RECORD_ARGUMENT_SOURCE: &str = "data View { body: &mut i32; }
 #[test]
 fn projected_record_argument_preserves_original_storage() {
     let checked = crate::front_end::checked_program(PROJECTED_RECORD_ARGUMENT_SOURCE);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("exercise"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("a projected record operand keeps exact ingress custody")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("exercise"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("a projected record operand keeps exact ingress custody")
+        .into_artifact();
     execute(&artifact, 1, 1);
 }
 
 #[test]
 fn projected_record_argument_rejects_changed_leaf_custody() {
-    use checked_trees::{
+    use typed_trees_to_checked_trees::checked_trees::{
         CheckedUnitEffectOperationPlan as Operation,
         CheckedUnitStructuralArgumentSourcePlan as Source,
     };
     let original = crate::front_end::checked_program(PROJECTED_RECORD_ARGUMENT_SOURCE);
-    let _ = terminal_production::TerminalProductionRequest::new(
+    let _ = lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
         &original,
         TerminalMachineSelection::Name("exercise"),
     )
@@ -1405,7 +1419,7 @@ fn projected_record_argument_rejects_changed_leaf_custody() {
                     unreachable!()
                 };
                 structural_arguments[0].access =
-                    checked_trees::CheckedStructuralAccess::SharedBorrow;
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow;
             }
             // The result loan must keep its exact leaf provenance.
             3 => {
@@ -1425,7 +1439,7 @@ fn projected_record_argument_rejects_changed_leaf_custody() {
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &changed,
                 TerminalMachineSelection::Name("exercise")
             )

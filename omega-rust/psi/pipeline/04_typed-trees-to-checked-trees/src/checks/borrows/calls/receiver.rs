@@ -1,15 +1,17 @@
 //! An implicit receiver participates in the same loan compatibility checks as
 //! explicit operands, including shared receivers beside exclusive arguments.
 
-use checked_trees::{BorrowAccessKind, BorrowCallFact, CapturedPlace, CheckFacts, FlowStateFact};
+use crate::checked_trees::{
+    BorrowAccessKind, BorrowCallFact, CapturedPlace, CheckFacts, FlowStateFact,
+};
 use diagnostics::Diagnostic;
 use language_semantics::ReferenceAccess;
-use typed_trees::TypedTrees;
-use typed_trees::types::TypeReferenceNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
 
 use super::super::overlap::{StatedOrderingPremise, captured_place_compatibility};
 use super::evidence::CallCompatibility;
-use checked_trees::{BorrowCallCompatibilityOperand, BorrowCallCompatibilitySubject};
+use crate::checked_trees::{BorrowCallCompatibilityOperand, BorrowCallCompatibilitySubject};
 
 mod aliases;
 mod returned;
@@ -21,13 +23,13 @@ pub(in crate::checks::borrows) fn check_exclusive_place_use<'p>(
     program: &'p TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
-    statement: &checked_trees::FlowStatementFact,
-    expression: typed_trees::expression::ExpressionHandle,
-    later_operand: typed_trees::expression::ExpressionHandle,
+    statement: &crate::checked_trees::FlowStatementFact,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    later_operand: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     stated_premises: &[StatedOrderingPremise],
     diagnostics: &mut Vec<Diagnostic>,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
+    bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
 ) {
     let Some(receiver) = returned::resolve(
         program,
@@ -89,14 +91,16 @@ pub(in crate::checks::borrows) fn check_exclusive_place_use<'p>(
     if later_operand.is_valid()
         && (matches!(
             program.expression_table.expression(expression),
-            typed_trees::expression::ExpressionNode::Borrow(_)
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Borrow(
+                _
+            )
         ) || crate::flow::canonical_place_from_expression_in_state(
             program,
             state_flow.state_symbol,
             statement.statement_index,
             expression,
         )
-        .is_none_or(|place| !matches!(place.root, facts::PlaceRoot::Symbol(_))))
+        .is_none_or(|place| !matches!(place.root, crate::fact_plan::PlaceRoot::Symbol(_))))
     {
         let mut segments = arena::Arena::new();
         let mut accesses = arena::Arena::new();
@@ -150,12 +154,12 @@ pub(super) fn check_receiver_conflicts<'p>(
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     call: &BorrowCallFact,
-    entry_constraints: arena::HandleSpan<checked_trees::FlowConstraintRef>,
+    entry_constraints: arena::HandleSpan<crate::checked_trees::FlowConstraintRef>,
     target_name: &str,
     stated_premises: &[StatedOrderingPremise],
     diagnostics: &mut Vec<Diagnostic>,
     recording: &mut CallCompatibility<'_>,
-    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
+    bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
 ) {
     if !call.has_receiver {
         return;
@@ -215,7 +219,7 @@ pub(super) fn check_receiver_conflicts<'p>(
         )
     });
     let Some(crate::flow::CanonicalPlace {
-        root: facts::PlaceRoot::Symbol(root_symbol),
+        root: crate::fact_plan::PlaceRoot::Symbol(root_symbol),
         segments,
     }) = receiver
     else {
@@ -352,19 +356,22 @@ fn receiver_is_writable(
     program: &TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
-    entry_constraints: arena::HandleSpan<checked_trees::FlowConstraintRef>,
+    entry_constraints: arena::HandleSpan<crate::checked_trees::FlowConstraintRef>,
     receiver: &CapturedPlace,
 ) -> bool {
     let Some(state) = crate::semantic::calls::find_state(program, state_flow.state_symbol) else {
         return false;
     };
     if receiver.root_symbol == state_flow.machine_symbol {
-        return validation::receiver_allows_mutation(program, program.state_parameters(state));
+        return crate::validation::receiver_allows_mutation(
+            program,
+            program.state_parameters(state),
+        );
     }
     // Writable-root facts retain local bindings; the declared reference access
     // still decides whether the referent can be exclusively borrowed.
     for statement in program.statement_table.statements(state.statement_nodes) {
-        if let typed_trees::statement::StatementNode::LocalData(local) = statement
+        if let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) = statement
             && local.symbol == receiver.root_symbol
         {
             return match program
@@ -387,7 +394,7 @@ fn receiver_is_writable(
 /// a same-named field under another owner must not become an alias.
 fn attached_place(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     mut place: CapturedPlace,
 ) -> CapturedPlace {
     if program.machine_states(machine).iter().any(|state| {
@@ -397,7 +404,7 @@ fn attached_place(
             .any(|parameter| parameter.is_self && parameter.symbol == place.root_symbol)
     }) {
         place.root_symbol = machine.symbol;
-    } else if let Some(field) = validation::exact_attached_field(
+    } else if let Some(field) = crate::validation::exact_attached_field(
         program,
         machine,
         place.root_symbol,
@@ -406,7 +413,7 @@ fn attached_place(
         place.root_symbol = machine.symbol;
         place.segments.insert(
             0,
-            facts::PlaceSegment::Field {
+            crate::fact_plan::PlaceSegment::Field {
                 symbol: field.symbol,
             },
         );

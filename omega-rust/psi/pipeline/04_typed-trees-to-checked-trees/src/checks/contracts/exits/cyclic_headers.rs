@@ -46,24 +46,28 @@
 //! only between bare binders and literals. `Saturating` and `Trapping`
 //! stay outside the language.
 
-use arena::Handle;
-use checked_trees::{CheckFacts, ContractProofFactKind, FlowExitFact, FlowStateFact};
-use facts::{ContractFactKind, FactOrigin, FactPayload};
-use language_core::OperatorSpelling;
-use numerics::arithmetic::ArithmeticDomain;
-use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::domain::ProofFact;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
-use typed_trees::machine::Machine;
-use typed_trees::state::State;
-use typed_trees::statement::TransitionTargetHandle;
-use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
-use validation::{
+use crate::checked_trees::{CheckFacts, ContractProofFactKind, FlowExitFact, FlowStateFact};
+use crate::fact_plan::{ContractFactKind, FactOrigin, FactPayload};
+use crate::validation::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
     ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
     scoped_arithmetic_implication,
 };
+use arena::Handle;
+use language_core::OperatorSpelling;
+use numerics::arithmetic::ArithmeticDomain;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetHandle;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    PrimitiveType, TypeReferenceHandle,
+};
+use symbols::SymbolHandle;
 
 use super::super::prover::has_builtin_operators;
 use super::super::return_values::{exit_return_expression, is_result_reference};
@@ -99,7 +103,7 @@ impl CyclicHeaderInvariants {
         program: &TypedTrees,
         facts: &CheckFacts,
         exit: &FlowExitFact,
-        requirement: &facts::Fact,
+        requirement: &crate::fact_plan::Fact,
     ) -> bool {
         let FactPayload::ContractBooleanExpression { fact: contract, .. } = requirement.payload
         else {
@@ -285,7 +289,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
             .machine_contracts(machine)
             .iter()
             .filter(|contract| {
-                contract.kind == typed_trees::signature::SignatureContractKind::Requires
+                contract.kind == symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Requires
             })
             .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
             .filter_map(|fact| match fact {
@@ -594,7 +598,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
     /// own requirements and this iteration's guard values. Imported call
     /// contracts are not this machine's facts, and a prefix fact from an
     /// earlier iteration never survives the state's arrival contract.
-    fn arm_fact(&self, fact: &facts::Fact) -> Option<(ExpressionHandle, bool)> {
+    fn arm_fact(&self, fact: &crate::fact_plan::Fact) -> Option<(ExpressionHandle, bool)> {
         if matches!(
             fact.origin,
             FactOrigin::CallRequires | FactOrigin::CallEnsures
@@ -956,7 +960,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
         right: Option<TypeReferenceHandle>,
     ) -> bool {
         has_builtin_operators(self.program, &self.facts.operators, expression)
-            && typed_trees::operator::has_builtin_spelled_expression_meaning(
+            && symbol_resolved_trees_to_typed_trees::typed_trees::operator::has_builtin_spelled_expression_meaning(
                 self.program,
                 self.machine.symbol,
                 expression,
@@ -1012,7 +1016,9 @@ mod tests {
     use crate::CheckingRequest;
     use crate::lower_typed_trees;
 
-    fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
+    fn check(
+        source: &str,
+    ) -> Result<crate::checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
         lower_typed_trees(
             crate::tests::front_end::typed_program_with_core_service(&format!(
                 "boundary trait MachineControl {{}}\nboundary trait PortIo {{}}\n{source}"

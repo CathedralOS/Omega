@@ -4,7 +4,7 @@ use crate::execution::terminal_unit::returns::build_checked_primitive_store_scal
 use crate::execution::terminal_unit::returns::primitive_effects::is_primitive_reference_plan;
 use crate::tests::front_end::checked_program;
 
-fn checked(source: &str) -> checked_trees::CheckedTrees {
+fn checked(source: &str) -> crate::checked_trees::CheckedTrees {
     checked_program(source)
 }
 

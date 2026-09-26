@@ -1,0 +1,105 @@
+use super::super::compile_resolved_package_candidate_for_check;
+use super::{Project, TARGET, assert_empty_directory};
+use crate::package_compilation::AcceptedSemanticBindingRole;
+
+#[test]
+fn retained_check_root_uses_final_consumer_bindings_and_requested_entry() {
+    let project = Project::new();
+    project.write(
+        "console/build.omg",
+        "machine build(builder: &mut Build) { builder.package(\"ordinary_console\"); }\n",
+    );
+    project.write(
+        "console/main.omg",
+        r#"
+pub boundary trait Console {
+    machine exit_process(return_code: i32)
+    reaches Console;
+}
+pub data ConsoleNativeProvider {}
+windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process
+    via ForeignBinding::CompilerIntrinsic;
+"#,
+    );
+    project.write(
+        "application/build.omg",
+        r#"
+machine build(builder: &mut Build) {
+    builder.application("console_consumer");
+    builder.depend_as("ordinary_console", Source::Path { location: "../console" });
+    builder.select_provider<ordinary_console::Console, ordinary_console::ConsoleNativeProvider>();
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+}
+"#,
+    );
+    project.write(
+        "application/main.omg",
+        "the unselected source must not enter either pass\n",
+    );
+    project.write(
+        "application/entry.omg",
+        r#"
+use ordinary_console::main;
+use crate::language::core::binding;
+data Main { console: Binding<Console>; }
+machine Main::main(&mut self) reaches Console { self.console.exit_process(70); }
+"#,
+    );
+    let expected_file_bytes = ["application/build.omg", "application/entry.omg"]
+        .map(|path| {
+            std::fs::read(project.0.join(path))
+                .expect("read authored source fixture")
+                .len() as u64
+        })
+        .into_iter()
+        .sum::<u64>();
+    let (entry, closure, _) = project.prepare("application/entry.omg").into_review_parts();
+    let snapshot = crate::build_evaluation::BuildSnapshotRequest::scoped(
+        std::iter::empty(),
+        crate::package_compilation::BuildSourceCaptureRequest::new(["build.omg", "entry.omg"].map(
+            |path| {
+                (
+                    path.as_bytes().to_vec(),
+                    crate::package_compilation::BuildSourceCaptureObligation::Required,
+                )
+            },
+        ))
+        .expect("declare only the selected root sources"),
+    );
+    let (checked, _reviews) = compile_resolved_package_candidate_for_check(
+        &closure.for_exact_target(TARGET),
+        &project.0.join("checked"),
+        &entry,
+        Some(&snapshot),
+        false,
+    )
+    .expect("retain the final binding pass at the requested entry");
+    let bindings = checked.resolved_semantic_bindings().collect::<Vec<_>>();
+    assert_eq!(
+        bindings.len(),
+        1,
+        "the preliminary pass has no consumed bindings"
+    );
+    assert_eq!(
+        bindings[0].role(),
+        AcceptedSemanticBindingRole::ConsoleExitProcessI32
+    );
+    assert_eq!(checked.selected_target_profile(), Some(TARGET));
+    let inventory = checked
+        .build_observation_summary()
+        .unwrap()
+        .captured_source_inventory()
+        .unwrap();
+    assert_eq!(
+        inventory.entry_count(),
+        3,
+        "the final binding pass retains the narrowed root inventory; dependency builds have no entry.omg and must keep their own inventories",
+    );
+    assert_eq!(
+        inventory.file_bytes(),
+        expected_file_bytes,
+        "retained input bytes contain exactly authored build.omg and entry.omg"
+    );
+    assert_empty_directory(&project.0.join("checked"));
+}

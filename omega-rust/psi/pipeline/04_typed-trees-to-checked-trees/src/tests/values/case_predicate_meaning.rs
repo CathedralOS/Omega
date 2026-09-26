@@ -1,6 +1,6 @@
 use super::StatementNode;
+use crate::checked_trees::CheckedOperatorFacts;
 use crate::tests::front_end::typed_program;
-use checked_trees::CheckedOperatorFacts;
 
 #[test]
 fn generated_case_equality_checks_single_tag_and_payload_expansions() {
@@ -96,10 +96,10 @@ fn case_tag_predicates_preserve_value_equality_and_membership_meaning() {
 // A value equality that now lowers successfully must still compare the common
 // or payload value. Accepting only its tag would weaken the original predicate.
 fn contains_field_equality(
-    predicate: &checked_trees::CheckedBooleanExpression,
+    predicate: &crate::checked_trees::CheckedBooleanExpression,
     field: &str,
 ) -> bool {
-    use checked_trees::{
+    use crate::checked_trees::{
         CheckedBooleanExpression, CheckedScalarExpression, CheckedStructuralPredicatePathSegment,
     };
     match predicate {

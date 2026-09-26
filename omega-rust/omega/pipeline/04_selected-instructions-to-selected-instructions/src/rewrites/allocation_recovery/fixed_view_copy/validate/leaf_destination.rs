@@ -1,17 +1,19 @@
-use register_model::RegisterOperandAccess;
-use selected_instructions::{SelectedInstructionId, SelectedTerminator, VirtualRegisterId};
 use semantic_vocabulary::{IntegerSign, ScalarType};
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::{
+    SelectedInstructionId, SelectedTerminator, VirtualRegisterId,
+};
 
 use crate::FixedViewCopyError;
 
 pub(super) fn replay_leaf_block(
     function_index: usize,
-    function: &selected_instructions::SelectedFunction,
+    function: &target_operations_to_selected_instructions::SelectedFunction,
     instruction: SelectedInstructionId,
     operand: u16,
     source: VirtualRegisterId,
-    view: register_model::RegisterViewId,
-) -> Result<selected_instructions::SelectedBlockId, FixedViewCopyError> {
+    view: target_operations_to_selected_instructions::register_model::RegisterViewId,
+) -> Result<target_operations_to_selected_instructions::SelectedBlockId, FixedViewCopyError> {
     let block = function
         .blocks
         .iter()
@@ -51,12 +53,12 @@ pub(super) fn replay_leaf_block(
 /// `source` under `view`.
 pub(super) fn replay_site_block(
     function_index: usize,
-    function: &selected_instructions::SelectedFunction,
+    function: &target_operations_to_selected_instructions::SelectedFunction,
     instruction: SelectedInstructionId,
     operand: u16,
     source: VirtualRegisterId,
-    view: register_model::RegisterViewId,
-) -> Result<selected_instructions::SelectedBlockId, FixedViewCopyError> {
+    view: target_operations_to_selected_instructions::register_model::RegisterViewId,
+) -> Result<target_operations_to_selected_instructions::SelectedBlockId, FixedViewCopyError> {
     let block = function
         .blocks
         .iter()
@@ -89,7 +91,7 @@ pub(super) fn replay_site_block(
 
 pub(super) fn terminator(
     terminator: &SelectedTerminator,
-) -> &selected_instructions::SelectedInstruction {
+) -> &target_operations_to_selected_instructions::SelectedInstruction {
     match terminator {
         SelectedTerminator::ConditionalBranch { instruction, .. }
         | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }

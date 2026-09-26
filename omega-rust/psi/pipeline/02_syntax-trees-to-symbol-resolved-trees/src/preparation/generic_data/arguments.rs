@@ -8,18 +8,18 @@ use crate::preparation::type_equations::{EquationTemplate, complete_equation_arg
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use std::collections::HashMap;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::identifier::Identifier;
-use syntax_trees::item::DomainDefinition;
-use syntax_trees::item::Item;
-use syntax_trees::item::ItemHandle;
-use syntax_trees::item::TypeParameter;
-use syntax_trees::item::TypeParameterKind;
-use syntax_trees::types::DomainConstraint;
-use syntax_trees::types::FixedArrayLength;
-use syntax_trees::types::TypeConstraintNode;
-use syntax_trees::types::TypeReferenceHandle;
-use syntax_trees::types::TypeReferenceNode;
+use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
+use tokens_to_syntax_trees::syntax_trees::identifier::Identifier;
+use tokens_to_syntax_trees::syntax_trees::item::DomainDefinition;
+use tokens_to_syntax_trees::syntax_trees::item::Item;
+use tokens_to_syntax_trees::syntax_trees::item::ItemHandle;
+use tokens_to_syntax_trees::syntax_trees::item::TypeParameter;
+use tokens_to_syntax_trees::syntax_trees::item::TypeParameterKind;
+use tokens_to_syntax_trees::syntax_trees::types::DomainConstraint;
+use tokens_to_syntax_trees::syntax_trees::types::FixedArrayLength;
+use tokens_to_syntax_trees::syntax_trees::types::TypeConstraintNode;
+use tokens_to_syntax_trees::syntax_trees::types::TypeReferenceHandle;
+use tokens_to_syntax_trees::syntax_trees::types::TypeReferenceNode;
 
 /// Recover every omitted trailing binder of `base_info` from its type
 /// equations and verify the equations against the supplied prefix. The
@@ -34,7 +34,9 @@ pub(super) fn complete_argument_tuple(
     selection: Option<&constant_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Vec<TypeReferenceHandle>, Diagnostic> {
-    let syntax_trees::item::Item::Data(definition) = syntax.root_item(base_info.declaration) else {
+    let tokens_to_syntax_trees::syntax_trees::item::Item::Data(definition) =
+        syntax.root_item(base_info.declaration)
+    else {
         return Err(Diagnostic::error(
             "structural data equation lost its declaration",
         ));
@@ -497,7 +499,7 @@ pub(crate) fn closed_argument_identity(
                         )?
                     }
                     TypeConstraintNode::Named(name)
-                    | TypeConstraintNode::Domain(syntax_trees::types::DomainConstraint {
+                    | TypeConstraintNode::Domain(tokens_to_syntax_trees::syntax_trees::types::DomainConstraint {
                         name,
                         arguments: _,
                     }) => {

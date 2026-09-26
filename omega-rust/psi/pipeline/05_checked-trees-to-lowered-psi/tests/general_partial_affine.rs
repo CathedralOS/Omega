@@ -44,7 +44,7 @@ fn assert_source(
     source: &str,
     moved: &[Vec<StructuralPathSegment>],
     residuals: &[Vec<StructuralPathSegment>],
-) -> lowered_psi::LoweredPsi {
+) -> checked_trees_to_lowered_psi::lowered_psi::LoweredPsi {
     let lowered = lower_machine(
         &crate::front_end::checked_program(source),
         TerminalMachineSelection::Name("Root::enter"),
@@ -107,8 +107,8 @@ fn assert_source(
     )
     .unwrap();
     let certificate =
-        terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, module.entry).unwrap();
-    terminal_fixed_fuel::validate_fixed_entry_fuel(&verified, &certificate).unwrap();
+        omega::terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, module.entry).unwrap();
+    omega::terminal_fixed_fuel::validate_fixed_entry_fuel(&verified, &certificate).unwrap();
     let fuel = 2 * moved.len() as u64 + 1;
     assert_eq!(certificate.ceiling_units(), fuel);
     let input = TerminalStructuralValue {
@@ -273,7 +273,7 @@ fn assert_partial_exit(
     residual_parameter: usize,
     residuals: &[Vec<StructuralPathSegment>],
     trivial_parameters: &[usize],
-) -> lowered_psi::LoweredPsi {
+) -> checked_trees_to_lowered_psi::lowered_psi::LoweredPsi {
     let lowered = lower_machine(
         &crate::front_end::checked_program(source),
         TerminalMachineSelection::Name("Root::enter"),
@@ -332,8 +332,8 @@ fn assert_partial_exit(
     )
     .unwrap();
     let certificate =
-        terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, module.entry).unwrap();
-    terminal_fixed_fuel::validate_fixed_entry_fuel(&verified, &certificate).unwrap();
+        omega::terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, module.entry).unwrap();
+    omega::terminal_fixed_fuel::validate_fixed_entry_fuel(&verified, &certificate).unwrap();
     let inputs = parameters
         .iter()
         .enumerate()
@@ -561,7 +561,7 @@ fn lowering_independently_reconstructs_the_checked_residual_complement() {
                     .iter_mut()
                     .find(|declaration| &declaration.identity == root_identity)
                     .unwrap();
-                let checked_trees::CheckedUnitStructuralTypeShape::FixedArray { length, .. } =
+                let typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypeShape::FixedArray { length, .. } =
                     &mut declaration.shape
                 else {
                     unreachable!()

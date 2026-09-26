@@ -38,8 +38,8 @@ setup are not additional public program stages.
 | Post-allocation machine → selected-form encoding | [post-allocation-machine-to-selected-form-encoding](omega/pipeline/07_post-allocation-machine-to-selected-form-encoding/src/lib.rs) |
 | Selected-form encoding → resolved layout | [selected-form-encoding-to-resolved-layout](omega/pipeline/08_selected-form-encoding-to-resolved-layout/src/lib.rs) |
 | Resolved → resolved layout | [resolved-layout-to-resolved-layout](omega/pipeline/09_resolved-layout-to-resolved-layout/src/lib.rs) |
-| Resolved program → machine bytes | [machine-emission](omega/backend/machine-emission/README.md) |
-| Machine bytes → object/image evidence | [image-emission](omega/backend/images/image-emission/src/lib.rs) |
+| Resolved program → machine bytes | [machine-emission](omega/pipeline/09_resolved-layout-to-resolved-layout/machine_emission.md) |
+| Machine bytes → object/image evidence | [image-emission](omega/pipeline/09_resolved-layout-to-resolved-layout/src/image_emission/mod.rs) |
 
 ## One driver, one pass, per-target realization
 
@@ -63,9 +63,9 @@ Terminal Psi:
 
 | Input → output | Owner |
 | --- | --- |
-| Source files → assembled syntax | [source-files-to-assembled-syntax](omega/build/build-evaluation/src/sources/source_assembly.rs) |
-| Assembled syntax → checked compilation | [assembled-syntax-to-checked-compilation](omega/compiler/src/checked/checking.rs) |
-| Checked compilation → Terminal artifact | [checked-compilation-to-terminal-artifact](omega/compiler/src/terminal/terminal_artifact.rs) |
+| Source files → assembled syntax | [source-files-to-assembled-syntax](omega/src/compiler/sources/source_assembly.rs) |
+| Assembled syntax → checked compilation | [assembled-syntax-to-checked-compilation](omega/src/compiler/checked/checking.rs) |
+| Checked compilation → Terminal artifact | [checked-compilation-to-terminal-artifact](omega/src/compiler/terminal/terminal_artifact.rs) |
 
 The [pipeline route items](../TASKS.md#pipeline-route) dissolve them: source
 loading becomes stage 00 input preparation, the Psi-owned work between stages
@@ -77,20 +77,26 @@ compiler that schedules them.
 
 | Responsibility | Owner |
 | --- | --- |
-| Durable current program, identities, raw evidence and codecs | `representations/` |
-| Language meaning and independently reusable validity/proof | `semantics/` |
+| Durable current program, identities, raw evidence and codecs | producing `pipeline/X-to-Y` stage; a top-level `psi/` crate only for vocabularies shared across the firewall |
+| Language meaning and independently reusable validity/proof | the stage's checker module; a top-level `psi/` crate when stages on both sides judge it |
 | Transformation, rewrite, private scratch and analyses | Owning `pipeline/X-to-Y` or `X-to-X` |
-| ISA, ABI, runtime carriers, object/relocation/image mechanics | Omega `backend/` |
+| ISA, ABI, runtime carriers, object/relocation/image mechanics | the realizing `pipeline/` stage or the `omega` binary's custody modules |
 | Shared target-neutral source/arena/numeric primitives | Psi `foundation/` |
-| Product sequencing, requested outputs and composition policy | Compiler/build owners |
+| Product sequencing, requested outputs and composition policy | the `omega` binary's internal modules |
 
-Omega has no second general foundation bucket: dependency-light native identities
-and carriers belong in its representations; target/runtime primitives belong in
-its backend. Psi must not depend on Omega. A coordinator forwards complete typed
-results rather than owning package loading, build evaluation, stage algorithms,
-artifact formatting, or a generic orchestration subsystem. Allocation counters
-and phase-report deltas belong to [artifacts](omega/tooling/artifacts/src/compile_timings/mod.rs),
-not program representations or a dependency-floor core.
+Nothing survives outside `pipeline/` except universal substrate (`psi/foundation/`),
+the `omega` binary crate, and the flat `psi/` boundary layer: crates whose types
+are consumed by stages on both sides of the Psi/Omega firewall or by
+orchestration at several pipeline depths (`terminal-psi`, `terminal-semantics`,
+`proof-admission`, `terminal-codec`, `terminal-verifier`,
+`terminal-interpreter`, `terminal-fuel`, `target`, `optimization-core`,
+`installation-evidence`). A boundary crate may never depend on a pipeline stage
+or the binary; a stage may never depend on the binary; Psi must not depend on
+Omega. A coordinator forwards complete typed results rather than owning package
+loading, build evaluation, stage algorithms, artifact formatting, or a generic
+orchestration subsystem. Allocation counters and phase-report deltas belong to
+[artifacts](omega/src/artifacts/compile_timings/mod.rs), not program
+representations or a dependency-floor core.
 
 Keep `X-to-Y`, `Y-to-Y`, `Y-to-Z` followable on disk and in the executable route.
 A named calculation or a crate name containing `to` does not establish a reusable
@@ -125,7 +131,7 @@ current crate placement nor target independence alone establishes ownership.
 One named root beside `lib.rs` defines each current representation and leads into
 its actual concepts. Shared vocabulary need not invent an aggregate program.
 Keep producer history in explicit replay evidence, not the path ordinary consumers
-walk to obtain current data. See [native representation ownership](omega/representations/README.md).
+walk to obtain current data.
 Arena handles and spans are the default for durable repeated children; source
 text is diagnostic/debug payload after resolution, user literals remain program
 payload, and linker/display names are edge metadata. Scoped symbol-tree lookup
@@ -150,7 +156,7 @@ semantic axes.
 ## Projections and replacement work
 
 Package admission is a checked observation, not a new `Chi` stage. Its
-[projection owner](omega/packages/review/evidence/README.md) reads each fact at the
+[projection owner](omega/docs/package-evidence/README.md) reads each fact at the
 earliest representation where it is semantically complete and joins whatever
 later checked evidence it needs. Unresolved syntax and diagnostic strings are
 not admission evidence. The canonical package projection is the boundary, not
@@ -171,7 +177,7 @@ Producer and checker may share small predicates and primitives, not the
 output-producing decision procedure the checker is meant to validate. Remaining
 convergence and behavior work belongs to execution boards; this map is not a
 second migration ledger. [Optimization](optimization.md) owns its implementation
-contracts, while [compiler coordination](omega/compiler/README.md) owns
+contracts, while [compiler coordination](omega/docs/compiler/README.md) owns
 operational reports and product stopping boundaries.
 
 ## Psi implementation and deferred human audit
@@ -200,7 +206,6 @@ the workspace; use descriptive ownership names rather than duplicate generic
 names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
 
 - `foundation/` — shared vocabulary, arenas, symbols, diagnostics.
-- `representations/` — durable IR structs.
 - `pipeline/` — transforms only; crate names read literally as `X-to-Y`
   (`source-files-to-tokens` → `tokens-to-syntax-trees` →
   `syntax-trees-to-symbol-resolved-trees` →
@@ -217,8 +222,11 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
   the same representation; do not invent a `PreOptimized`/`PostOptimized` pair.
   The folders must expose the connected `X-to-Y`, `Y-to-Y`, `Y-to-Z` sequence,
   not merely name individually plausible calculations. See [optimization phases](../wiki/spec/build/optimizations.md#phase-and-product-boundaries).
-- `semantics/` — language meaning, validation, proof, interpreters.
-- `backend/` — target, ABI, layout, object, linker, image.
+- `psi/` top level — boundary vocabularies shared across the firewall
+  (`terminal-psi` is the lone portable representation crate; judges, codecs,
+  interpreters, engines and target vocabulary live beside it).
+- `omega/` — the binary crate: compilation orchestration, build, packages,
+  tooling, custody and artifact machinery as internal modules.
 
 Concepts stay visible across stages without being forced into one mega-IR: each
 stage uses the form matching its resolution level while keeping stable links
@@ -244,7 +252,7 @@ and result/error handling. `lib.rs` wiring, re-exports, and a prose file map do
 not substitute for that orchestration.
 
 Use [main.rs](omega/src/main.rs) and
-[compiler.rs](omega/compiler/src/compiler.rs) as the gold
+[compiler.rs](omega/src/compiler/compiler.rs) as the gold
 standard: the former shows startup and typed invocation dispatch; the latter
 shows shared preparation, product selection, per-target realization, and outcomes.
 Copy their visible orchestration principle, not their filenames or line counts.

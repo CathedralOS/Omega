@@ -19,8 +19,8 @@ use crate::execution::terminal_unit::{
 fn boundary_scalar_contracts_supported(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
 ) -> bool {
     let Some(checked_contract) = facts.contract_plans.for_machine(machine.symbol) else {
@@ -70,7 +70,7 @@ fn boundary_scalar_contracts_supported(
     requirements.len() == expected_ranges.len()
         && requirements.zip(&expected_ranges).all(|(retained, expected)| {
             matches!((retained, expected),
-                (Some(checked_trees::ClosedScalarContractValue::Predicate(retained)), Some(expected))
+                (Some(crate::checked_trees::ClosedScalarContractValue::Predicate(retained)), Some(expected))
                     if retained == expected)
         })
         && program.state_contracts(state).iter().all(|contract| {
@@ -93,7 +93,7 @@ pub(crate) fn build_boundary_scalar_return_machine(
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     boundaries: &[CheckedBoundaryMachinePlan],
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
 ) -> Option<CheckedBoundaryScalarReturnMachinePlan> {
     let [state] = program.machine_states(machine) else {
         return None;
@@ -218,7 +218,7 @@ pub(crate) fn build_boundary_scalar_return_machine(
             result_type == PrimitiveType::Bool
                 && matches!(
                     expression.as_ref(),
-                    checked_trees::CheckedBooleanExpression::Local { position }
+                    crate::checked_trees::CheckedBooleanExpression::Local { position }
                         if *position == result_position
                 )
         }

@@ -13,7 +13,7 @@ mod validate;
 pub use identity::spill_recovery_worklist_identity;
 pub use validate::validate_spill_recovery_worklist;
 
-use register_model::{
+use target_operations_to_selected_instructions::register_model::{
     TargetRegisterEnvironmentConstraintKeys, ValidatedPhysicalRegisterModel,
     ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
 };
@@ -24,16 +24,20 @@ use crate::unsequenced_spill_stages::{
     SyntheticReloadValueId, ValidatedAbstractSpillInsertion,
 };
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
-use register_homes::{
+use selected_instructions_to_selected_instructions::register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, LogicalReloadValueId,
     LogicalSpillOperationIdentity,
 };
-use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
-use selected_instructions::{LiveRangeIdentity, LiveRangePoint, SelectedBlockId};
 use selected_instructions_to_selected_instructions::{
     ValidatedAllocationLegality, ValidatedLiveRanges,
 };
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
+use target_operations_to_selected_instructions::register_model::{
+    RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity,
+};
+use target_operations_to_selected_instructions::{
+    LiveRangeIdentity, LiveRangePoint, SelectedBlockId,
+};
 
 #[allow(clippy::too_many_arguments)]
 pub fn seed_spill_recovery_worklist(

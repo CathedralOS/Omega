@@ -99,7 +99,7 @@ fn an_implicit_mutable_reference_receiver_preserves_a_disjoint_subject() {
 // Exercise the prefix query before that fence; an implicit receiver at the
 // reference leaf borrows its referent, whereas an ancestor exposes the slot.
 fn assert_receiver_origin(access: &str, operation: &str, helper: &str, exact: bool) {
-    use typed_trees::statement::StatementNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 
     let source = fixture_source(
         &format!(
@@ -130,7 +130,7 @@ fn assert_receiver_origin(access: &str, operation: &str, helper: &str, exact: bo
         })
         .unwrap();
     let context = program.state_parameters(state)[0].symbol;
-    let origin = validation::CallFrameResolver::new(&program)
+    let origin = crate::validation::CallFrameResolver::new(&program)
         .unwrap()
         .local_reference_origin_before_statement(machine, statements.last().unwrap(), borrowed);
     assert_eq!(origin, exact.then_some((context, vec![])), "{operation}");

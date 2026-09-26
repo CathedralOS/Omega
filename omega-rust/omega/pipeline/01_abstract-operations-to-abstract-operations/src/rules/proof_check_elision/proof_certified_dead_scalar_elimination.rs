@@ -1,13 +1,15 @@
 //! Exact proof-certified unused scalar elimination: the rule and its closed
 //! proof-bearing operation admission.
 
-use abstract_operations::AbstractOperation as O;
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
-use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 use semantic_vocabulary::ScalarType;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    PsiOptimizationUnit, PsiRewriteCandidate,
+};
 
 use crate::rules::PROOF_CHECK_ELISION_PASS_NAME;
 use crate::rules::support::{DeadScalarShape, propose_proof_certified_dead_scalar_nodes};

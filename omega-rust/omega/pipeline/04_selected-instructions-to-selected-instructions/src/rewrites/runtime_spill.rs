@@ -160,13 +160,15 @@ mod validation;
 use std::sync::Arc;
 
 use optimization_core::OptimizationUnitIdentity;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use register_model::{RegisterClassId, RegisterInstructionConstraint, RegisterUnitId};
-use selected_instructions::{
+use semantic_vocabulary::{EdgeId, FuelScheduleIdentity, PlaceId, ValueId};
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
+use target_operations_to_selected_instructions::register_model::{
+    RegisterClassId, RegisterInstructionConstraint, RegisterUnitId,
+};
+use target_operations_to_selected_instructions::{
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
     SelectedInstructionPlanIdentity, SelectedStructuralTransport, VirtualRegisterId,
 };
-use semantic_vocabulary::{EdgeId, FuelScheduleIdentity, PlaceId, ValueId};
 
 pub use rewrite::{spill_selected_runtime_value, spill_selected_runtime_value_with_span_policy};
 pub use validation::{validate_runtime_spill, validate_runtime_spill_with_span_policy};
@@ -408,12 +410,12 @@ pub(crate) fn surviving_home_exists(
 /// instruction operands. Both can keep a virtual value live across blocks.
 /// Shared with the runtime-rematerialization recovery rewrite.
 pub(crate) fn control(
-    terminator: &selected_instructions::SelectedTerminator,
+    terminator: &target_operations_to_selected_instructions::SelectedTerminator,
 ) -> (
-    &selected_instructions::SelectedInstruction,
-    [Option<&selected_instructions::SelectedSuccessor>; 2],
+    &target_operations_to_selected_instructions::SelectedInstruction,
+    [Option<&target_operations_to_selected_instructions::SelectedSuccessor>; 2],
 ) {
-    use selected_instructions::SelectedTerminator;
+    use target_operations_to_selected_instructions::SelectedTerminator;
     match terminator {
         SelectedTerminator::Return { instruction, .. }
         | SelectedTerminator::Crash { instruction, .. }
@@ -444,9 +446,9 @@ pub(crate) fn control(
 /// transports stay untouched; only the instruction's operand registers change.
 /// Shared with the runtime-rematerialization recovery rewrite.
 pub(crate) fn control_mut(
-    terminator: &mut selected_instructions::SelectedTerminator,
-) -> &mut selected_instructions::SelectedInstruction {
-    use selected_instructions::SelectedTerminator;
+    terminator: &mut target_operations_to_selected_instructions::SelectedTerminator,
+) -> &mut target_operations_to_selected_instructions::SelectedInstruction {
+    use target_operations_to_selected_instructions::SelectedTerminator;
     match terminator {
         SelectedTerminator::Return { instruction, .. }
         | SelectedTerminator::Crash { instruction, .. }
@@ -462,9 +464,9 @@ pub(crate) fn control_mut(
 /// untouched; only the outgoing successors' value bindings can move to fresh
 /// reload registers. Order matches `control`: polarity zero before one.
 pub(crate) fn control_successors_mut(
-    terminator: &mut selected_instructions::SelectedTerminator,
-) -> [Option<&mut selected_instructions::SelectedSuccessor>; 2] {
-    use selected_instructions::SelectedTerminator;
+    terminator: &mut target_operations_to_selected_instructions::SelectedTerminator,
+) -> [Option<&mut target_operations_to_selected_instructions::SelectedSuccessor>; 2] {
+    use target_operations_to_selected_instructions::SelectedTerminator;
     match terminator {
         SelectedTerminator::Return { .. }
         | SelectedTerminator::Crash { .. }
@@ -493,7 +495,7 @@ pub(crate) fn control_successors_mut(
 /// that the block vector is topological or that a use is an edge-copy idiom.
 /// Shared with the runtime-rematerialization recovery rewrite.
 pub(crate) fn require_dominated_uses(
-    function: &selected_instructions::SelectedFunction,
+    function: &target_operations_to_selected_instructions::SelectedFunction,
     anchor: usize,
     use_blocks: &[usize],
 ) -> Result<(), RuntimeSpillError> {

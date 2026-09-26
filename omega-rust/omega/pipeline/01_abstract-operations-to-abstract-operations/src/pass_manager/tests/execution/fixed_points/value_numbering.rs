@@ -356,7 +356,7 @@ fn scalar_cse_rules_are_runtime_disabled_deterministic_budgeted_and_idempotent()
         if let Some(operation) = redundant_operation {
             let operation = semantic_vocabulary::OperationId::new(operation).unwrap();
             assert!(output.functions[0].facts.iter().all(|fact| {
-                !matches!(fact, optimization_unit::OptimizationFact::OperationObligationReference { support, .. }
+                !matches!(fact, terminal_psi_to_abstract_operations::optimization_unit::OptimizationFact::OperationObligationReference { support, .. }
                     if *support == operation)
             }));
         }

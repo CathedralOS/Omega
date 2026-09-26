@@ -1,8 +1,8 @@
 use super::expression;
+use crate::checked_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use crate::lookup::statement_call_can_dispatch_to_machine;
 use crate::semantic::calls::CallSite;
 use crate::semantic::calls::CallSiteTraversal;
-use checked_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use expression::find_call_site_in_expression;
 
 pub(crate) fn find_call_site_in_statement<'program>(
@@ -87,7 +87,7 @@ pub(crate) fn find_call_site_in_statement<'program>(
 
 fn find_call_site_in_transition_target<'program>(
     traversal: &mut CallSiteTraversal<'program, '_>,
-    target: typed_trees::statement::TransitionTargetHandle,
+    target: symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetHandle,
 ) -> Option<CallSite<'program>> {
     match traversal.program.statement_table.transition_target(target) {
         TransitionTargetNode::Named {
@@ -128,8 +128,8 @@ fn find_call_site_in_transition_target<'program>(
 
 pub(crate) fn transition_call_target(
     traversal: &mut CallSiteTraversal<'_, '_>,
-    transition: &typed_trees::statement::TableTransition,
-) -> Option<typed_trees::statement::TransitionTargetHandle> {
+    transition: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableTransition,
+) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetHandle> {
     if let TransitionGuardNode::When(expression) = transition.guard
         && find_call_site_in_expression(traversal, expression).is_some()
     {

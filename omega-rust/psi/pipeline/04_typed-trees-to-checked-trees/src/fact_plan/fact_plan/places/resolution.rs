@@ -1,0 +1,475 @@
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode, TableMemberExpression,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    TypeReferenceHandle, TypeReferenceNode,
+};
+use symbols::SymbolHandle;
+
+use crate::fact_plan::{FactPlan, Place, PlaceHandle, PlaceRoot, PlaceSegment};
+
+pub fn payload_variant_for_field(
+    program: &TypedTrees,
+    field_symbol: SymbolHandle,
+) -> Option<SymbolHandle> {
+    if !field_symbol.is_valid() {
+        return None;
+    }
+    // Payload field symbols are declared as children of their variant member
+    // (ordinary fields parent to the data definition), so the parent's kind
+    // names the owning variant without a definitions-by-members-by-fields scan.
+    let parent = program.symbols.get(field_symbol).parent;
+    (parent.is_valid() && program.symbols.get(parent).kind == symbols::SymbolKind::Variant)
+        .then_some(parent)
+}
+
+/// Resolve the retained member identity without establishing any semantic fact.
+pub fn effective_member_symbol(
+    program: &TypedTrees,
+    receiver: ExpressionHandle,
+    member: &TableMemberExpression,
+) -> SymbolHandle {
+    if let Some(symbol) =
+        resolve_member_symbol_from_receiver(program, receiver, member.member.as_str())
+    {
+        return symbol;
+    }
+
+    if member.member_symbol.is_valid() {
+        return member.member_symbol;
+    }
+
+    SymbolHandle::invalid()
+}
+
+fn resolve_member_symbol_from_receiver(
+    program: &TypedTrees,
+    receiver: ExpressionHandle,
+    member_name: &str,
+) -> Option<SymbolHandle> {
+    let type_symbol = expression_type_symbol(program, receiver)?;
+
+    if let Some(data) = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == type_symbol)
+        && let Some(symbol) = data_member_symbol_by_name(program, data, member_name)
+    {
+        return Some(symbol);
+    }
+
+    if let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == type_symbol)
+    {
+        if let Some(data) = program.attached_data_definition(machine)
+            && let Some(symbol) = data_member_symbol_by_name(program, data, member_name)
+        {
+            return Some(symbol);
+        }
+        for owned in program.machine_owned_data(machine) {
+            if owned.name.as_str() == member_name {
+                return Some(owned.symbol);
+            }
+        }
+    }
+
+    None
+}
+
+/// The canonical label of a place: the text diagnostics quote for it and the
+/// key `FactPlan::places_match` compares when two places are spelled from
+/// different roots. Symbols render as their declared name (`self`, `count`,
+/// `Succ`), a field as `.name`, a case as `::Variant`, a fixed element as
+/// `[3]`, a window as `[0..4]`, and a runtime index as the rendered index
+/// expression in brackets. The member separator is the one
+/// `language_core::receiver_binding` builds and takes apart receiver-rooted
+/// labels with, so `self.field` here is the same text there.
+pub fn canonical_place_label_from_parts(
+    program: &TypedTrees,
+    root: PlaceRoot,
+    segments: &[PlaceSegment],
+) -> String {
+    let mut label = match root {
+        PlaceRoot::Unknown => "unknown".to_owned(),
+        PlaceRoot::Symbol(symbol) => symbol_label(program, symbol),
+        PlaceRoot::Expression(expression) => program.expression_table.display_name(expression),
+        PlaceRoot::TypeReference(type_reference) => program.display_type_reference(type_reference),
+    };
+
+    for segment in segments {
+        match segment {
+            PlaceSegment::Field { symbol } => {
+                label.push(language_core::PLACE_MEMBER_SEPARATOR);
+                label.push_str(&symbol_label(program, *symbol));
+            }
+            PlaceSegment::Case { variant } => {
+                label.push_str("::");
+                label.push_str(&symbol_label(program, *variant));
+            }
+            PlaceSegment::FixedIndex { index } => {
+                label.push('[');
+                label.push_str(&index.to_string());
+                label.push(']');
+            }
+            PlaceSegment::FixedRange { start, end } => {
+                label.push('[');
+                label.push_str(&start.to_string());
+                label.push_str("..");
+                label.push_str(&end.to_string());
+                label.push(']');
+            }
+            PlaceSegment::Index { expression } => {
+                label.push('[');
+                label.push_str(&program.expression_table.display_name(*expression));
+                label.push(']');
+            }
+        }
+    }
+
+    label
+}
+
+/// A symbol's declared spelling, which the symbol table retains for every
+/// declaration, parameter and local; only an invalid handle has none.
+fn symbol_label(program: &TypedTrees, symbol: SymbolHandle) -> String {
+    if !symbol.is_valid() {
+        return "unknown".to_owned();
+    }
+    program.symbols.name(symbol).to_owned()
+}
+
+fn expression_type_symbol(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<SymbolHandle> {
+    if !expression.is_valid() {
+        return None;
+    }
+
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Borrow(inner) => expression_type_symbol(program, inner.target),
+        ExpressionNode::Name(path) => {
+            let symbol = if path.head_symbol.is_valid() {
+                path.head_symbol
+            } else {
+                path.symbol
+            };
+            symbol_type_symbol(program, symbol)
+        }
+        ExpressionNode::Member(member) => {
+            let symbol = effective_member_symbol(program, member.receiver, member);
+            symbol_type_symbol(program, symbol)
+        }
+        ExpressionNode::Indexed(_) => expression_type_reference(program, expression)
+            .map(|reference| type_reference_base_symbol(program, reference)),
+        _ => None,
+    }
+}
+
+fn symbol_type_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<SymbolHandle> {
+    if !symbol.is_valid() {
+        return None;
+    }
+
+    if program.symbols.get(symbol).kind == symbols::SymbolKind::Machine {
+        for machine in program.machines() {
+            if machine.symbol == symbol
+                && let Some(data) = program.attached_data_definition(machine)
+            {
+                return Some(data.symbol);
+            }
+        }
+        return None;
+    }
+    symbol_type_reference(program, symbol)
+        .map(|reference| type_reference_base_symbol(program, reference))
+}
+
+fn symbol_type_reference(
+    program: &TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<TypeReferenceHandle> {
+    if !symbol.is_valid() {
+        return None;
+    }
+    // The retained parent names the declaring container, so the type lookup
+    // walks straight to the owning state/data/machine instead of scanning the
+    // whole program. Only machine-state parameters, machine-state locals,
+    // machine-owned data, and data members carry a resolvable reference — the
+    // same set the old whole-program scan could reach.
+    let declaration = program.symbols.get(symbol);
+    match declaration.kind {
+        symbols::SymbolKind::Parameter | symbols::SymbolKind::Local => {
+            let state_symbol = declaration.parent;
+            let machine_symbol = program.symbols.get(state_symbol).parent;
+            if program.symbols.get(machine_symbol).kind != symbols::SymbolKind::Machine {
+                return None;
+            }
+            let machine = program
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == machine_symbol)?;
+            let state = program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == state_symbol)?;
+            if declaration.kind == symbols::SymbolKind::Parameter {
+                program
+                    .state_parameters(state)
+                    .iter()
+                    .find(|parameter| parameter.symbol == symbol)
+                    .map(|parameter| parameter.type_reference)
+            } else {
+                program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .iter()
+                    .find_map(|statement| {
+                        if let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) = statement
+                            && local.symbol == symbol
+                            && program.symbols.name(symbol) == local.name.as_str()
+                        {
+                            Some(local.type_reference)
+                        } else {
+                            None
+                        }
+                    })
+            }
+        }
+        symbols::SymbolKind::Field => match program.symbols.get(declaration.parent).kind {
+            symbols::SymbolKind::Machine => {
+                let machine = program
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.symbol == declaration.parent)?;
+                program
+                    .machine_owned_data(machine)
+                    .iter()
+                    .find(|owned| owned.symbol == symbol)
+                    .map(|owned| owned.type_reference)
+            }
+            symbols::SymbolKind::Variant => {
+                let data_symbol = program.symbols.get(declaration.parent).parent;
+                let data = program
+                    .data_definitions()
+                    .iter()
+                    .find(|data| data.symbol == data_symbol)?;
+                let variant =
+                    program
+                        .data_members(data)
+                        .iter()
+                        .find_map(|member| match member {
+                            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant)
+                                if variant.symbol == declaration.parent =>
+                            {
+                                Some(variant)
+                            }
+                            _ => None,
+                        })?;
+                program
+                    .data_payload_fields(variant)
+                    .iter()
+                    .find(|field| field.symbol == symbol)
+                    .map(|field| field.type_reference)
+            }
+            symbols::SymbolKind::Data => {
+                let data = program
+                    .data_definitions()
+                    .iter()
+                    .find(|data| data.symbol == declaration.parent)?;
+                program
+                    .data_members(data)
+                    .iter()
+                    .find_map(|member| match member {
+                        symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
+                            Some(field.type_reference)
+                        }
+                        _ => None,
+                    })
+            }
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn expression_type_reference(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Borrow(borrow) => expression_type_reference(program, borrow.target),
+        ExpressionNode::Name(name) => symbol_type_reference(
+            program,
+            if name.head_symbol.is_valid() {
+                name.head_symbol
+            } else {
+                name.symbol
+            },
+        ),
+        ExpressionNode::Member(member) => symbol_type_reference(
+            program,
+            effective_member_symbol(program, member.receiver, member),
+        ),
+        ExpressionNode::Indexed(indexed)
+            if !matches!(
+                program.expression_table.expression(indexed.index),
+                ExpressionNode::Range(_)
+            ) =>
+        {
+            collection_element_type(
+                program,
+                expression_type_reference(program, indexed.collection)?,
+            )
+        }
+        _ => None,
+    }
+}
+
+fn collection_element_type(
+    program: &TypedTrees,
+    mut reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    loop {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            TypeReferenceNode::Reference { referee, .. } => reference = *referee,
+            TypeReferenceNode::FixedArray { element_type, .. }
+            | TypeReferenceNode::Slice { element_type } => return Some(*element_type),
+            _ => return None,
+        }
+    }
+}
+
+fn type_reference_base_symbol(
+    program: &TypedTrees,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+) -> SymbolHandle {
+    match program.type_reference_table.type_reference(type_reference) {
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+            type_reference_base_symbol(program, *referee)
+        }
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            type_reference_base_symbol(program, *base_type)
+        }
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. }
+        | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::DynamicTrait {
+            symbol: base_symbol,
+            ..
+        }
+        | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named {
+            symbol: base_symbol,
+            ..
+        } => *base_symbol,
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::FixedArray { .. }
+        | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Slice { .. }
+        | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::ConstExpression(_)
+        | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Unit => SymbolHandle::invalid(),
+    }
+}
+
+/// Look up a member of the stored place; this does not introduce a qualification.
+pub fn resolve_place_member_symbol(
+    program: &TypedTrees,
+    facts: &FactPlan,
+    place: PlaceHandle,
+    member_name: &str,
+) -> Option<SymbolHandle> {
+    let place = facts.places.get(place);
+    let base_symbol = fact_place_type_symbol(program, facts, place)?;
+
+    if let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == base_symbol)
+        && let Some(data) = program.attached_data_definition(machine)
+        && let Some(symbol) = data_member_symbol_by_name(program, data, member_name)
+    {
+        return Some(symbol);
+    }
+
+    if let Some(data) = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == base_symbol)
+        && let Some(symbol) = data_member_symbol_by_name(program, data, member_name)
+    {
+        return Some(symbol);
+    }
+
+    None
+}
+
+fn data_member_symbol_by_name(
+    program: &TypedTrees,
+    data: &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition,
+    member_name: &str,
+) -> Option<SymbolHandle> {
+    program
+        .data_members(data)
+        .iter()
+        .find_map(|member| match member {
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) => {
+                (field.name.as_str() == member_name).then_some(field.symbol)
+            }
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
+                variant,
+            ) => (variant.name.as_str() == member_name)
+                .then_some(variant.symbol)
+                .or_else(|| {
+                    program
+                        .data_payload_fields(variant)
+                        .iter()
+                        .find_map(|field| {
+                            (field.name.as_str() == member_name).then_some(field.symbol)
+                        })
+                }),
+        })
+}
+
+fn fact_place_type_symbol(
+    program: &TypedTrees,
+    facts: &FactPlan,
+    place: &Place,
+) -> Option<SymbolHandle> {
+    let (mut current, mut reference) = match place.root {
+        PlaceRoot::Symbol(symbol) => (
+            symbol_type_symbol(program, symbol)?,
+            symbol_type_reference(program, symbol).unwrap_or_default(),
+        ),
+        PlaceRoot::Expression(expression) => (
+            expression_type_symbol(program, expression)?,
+            expression_type_reference(program, expression).unwrap_or_default(),
+        ),
+        PlaceRoot::Unknown | PlaceRoot::TypeReference(_) => return None,
+    };
+
+    for segment in facts.place_segments.span_or_empty(place.segments) {
+        match segment {
+            PlaceSegment::Field { symbol } => {
+                reference = symbol_type_reference(program, *symbol)?;
+                current = type_reference_base_symbol(program, reference);
+            }
+            PlaceSegment::Case { .. } => {}
+            PlaceSegment::Index { expression }
+                if matches!(
+                    program.expression_table.expression(*expression),
+                    ExpressionNode::Range(_)
+                ) =>
+            {
+                return None;
+            }
+            PlaceSegment::FixedIndex { .. } | PlaceSegment::Index { .. } => {
+                reference = collection_element_type(program, reference)?;
+                current = type_reference_base_symbol(program, reference);
+            }
+            // A window remains a collection, not an element receiver.
+            PlaceSegment::FixedRange { .. } => return None,
+        }
+    }
+
+    Some(current)
+}

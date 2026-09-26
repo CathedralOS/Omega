@@ -5,8 +5,8 @@ use super::super::super::super::{
     IntegerLessThanRangeConstantRule, IntegerLessThanRangeRangeRule, SCCP_PASS_NAME,
 };
 use crate::rules::catalog::registry_for_optimization;
-use optimization::PsiOptimization;
 use optimization_core::OptimizationPassIdentity;
+use terminal_codec::optimization::PsiOptimization;
 
 #[test]
 fn sccp_registry_appends_range_pair_comparisons_after_literal_range_rules() {

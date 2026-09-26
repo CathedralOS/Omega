@@ -1,10 +1,10 @@
 //! Replay of direct reborrow lineages and their expected parents.
 
-use checked_trees::{BorrowFacts, BorrowLoanFact, BorrowLoanLineage};
+use crate::checked_trees::{BorrowFacts, BorrowLoanFact, BorrowLoanLineage};
 use diagnostics::Diagnostic;
 
 pub(crate) fn replay_checked_direct_reborrow_lineage(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     borrow: &BorrowFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     for (_, state) in borrow.states.iter() {
@@ -35,10 +35,10 @@ pub(crate) fn replay_checked_direct_reborrow_lineage(
 }
 
 fn expected_loan_lineage(
-    program: &typed_trees::TypedTrees,
-    typed_state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    typed_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     borrow: &BorrowFacts,
-    state: &checked_trees::StateBorrowFact,
+    state: &crate::checked_trees::StateBorrowFact,
     loan_handle: arena::Handle<BorrowLoanFact>,
     loan: &BorrowLoanFact,
 ) -> BorrowLoanLineage {
@@ -53,10 +53,10 @@ fn expected_loan_lineage(
             BorrowLoanLineage::DirectRoot
         };
     };
-    let checked_trees::statement::StatementNode::LocalData(local) = statement else {
-        if let checked_trees::statement::StatementNode::Assignment(assignment) = statement {
+    let crate::checked_trees::statement::StatementNode::LocalData(local) = statement else {
+        if let crate::checked_trees::statement::StatementNode::Assignment(assignment) = statement {
             match program.expression_table.expression(assignment.value) {
-                checked_trees::expression::ExpressionNode::Call(call) => {
+                crate::checked_trees::expression::ExpressionNode::Call(call) => {
                     let target_is_reference = crate::flow::expression_type_reference_in_state(
                         program,
                         typed_state.symbol,
@@ -75,9 +75,9 @@ fn expected_loan_lineage(
                         loan,
                     );
                 }
-                checked_trees::expression::ExpressionNode::Cast(_)
-                | checked_trees::expression::ExpressionNode::ArrayLiteral(_)
-                | checked_trees::expression::ExpressionNode::StructLiteral(_) => {
+                crate::checked_trees::expression::ExpressionNode::Cast(_)
+                | crate::checked_trees::expression::ExpressionNode::ArrayLiteral(_)
+                | crate::checked_trees::expression::ExpressionNode::StructLiteral(_) => {
                     return BorrowLoanLineage::UnretainedDerived;
                 }
                 _ => {}
@@ -94,7 +94,7 @@ fn expected_loan_lineage(
     }
 
     match program.expression_table.expression(local.initial_value) {
-        checked_trees::expression::ExpressionNode::Borrow(reborrow) => {
+        crate::checked_trees::expression::ExpressionNode::Borrow(reborrow) => {
             expected_explicit_reborrow_parent(
                 program,
                 typed_state,
@@ -113,17 +113,19 @@ fn expected_loan_lineage(
                 }
             })
         }
-        checked_trees::expression::ExpressionNode::Call(call) => expected_call_result_lineage(
-            program,
-            typed_state,
-            state.machine_symbol,
-            crate::borrow::view_link::is_reference_type(program, local.type_reference),
-            call,
-            loan,
-        ),
-        checked_trees::expression::ExpressionNode::Cast(_)
-        | checked_trees::expression::ExpressionNode::ArrayLiteral(_)
-        | checked_trees::expression::ExpressionNode::StructLiteral(_) => {
+        crate::checked_trees::expression::ExpressionNode::Call(call) => {
+            expected_call_result_lineage(
+                program,
+                typed_state,
+                state.machine_symbol,
+                crate::borrow::view_link::is_reference_type(program, local.type_reference),
+                call,
+                loan,
+            )
+        }
+        crate::checked_trees::expression::ExpressionNode::Cast(_)
+        | crate::checked_trees::expression::ExpressionNode::ArrayLiteral(_)
+        | crate::checked_trees::expression::ExpressionNode::StructLiteral(_) => {
             BorrowLoanLineage::UnretainedDerived
         }
         _ if loan.source_owner_symbol.is_valid() => BorrowLoanLineage::UnretainedDerived,
@@ -141,11 +143,11 @@ fn expected_loan_lineage(
 /// view-free signatures, and any source rebased through a live local loan
 /// all stay deliberately `UnretainedDerived`.
 fn expected_call_result_lineage(
-    program: &typed_trees::TypedTrees,
-    typed_state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    typed_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     machine_symbol: symbols::SymbolHandle,
     target_is_reference: bool,
-    call: &checked_trees::expression::TableCallExpression,
+    call: &crate::checked_trees::expression::TableCallExpression,
     loan: &BorrowLoanFact,
 ) -> BorrowLoanLineage {
     if target_is_reference
@@ -168,13 +170,13 @@ fn expected_call_result_lineage(
 
 #[allow(clippy::too_many_arguments)]
 fn expected_explicit_reborrow_parent(
-    program: &typed_trees::TypedTrees,
-    typed_state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    typed_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     borrow: &BorrowFacts,
-    state: &checked_trees::StateBorrowFact,
+    state: &crate::checked_trees::StateBorrowFact,
     child_handle: arena::Handle<BorrowLoanFact>,
     child: &BorrowLoanFact,
-    source_expression: checked_trees::expression::ExpressionHandle,
+    source_expression: crate::checked_trees::expression::ExpressionHandle,
 ) -> Option<arena::Handle<BorrowLoanFact>> {
     let source = crate::flow::canonical_place_from_expression_in_state(
         program,
@@ -182,7 +184,7 @@ fn expected_explicit_reborrow_parent(
         child.statement_index,
         source_expression,
     )?;
-    let facts::PlaceRoot::Symbol(source_root) = source.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(source_root) = source.root else {
         return None;
     };
     let mut candidates = borrow.loans.iter().filter(|(parent_handle, parent)| {
@@ -214,8 +216,8 @@ fn expected_explicit_reborrow_parent(
 /// `UnretainedDerived` during formation, so any retained loan reaching this
 /// check through a call-valued statement is exactly a promoted call root.
 fn loan_is_call_result_root(
-    program: &typed_trees::TypedTrees,
-    typed_state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    typed_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     loan: &BorrowLoanFact,
 ) -> bool {
     let Some(statement) = program
@@ -226,16 +228,16 @@ fn loan_is_call_result_root(
         return false;
     };
     match statement {
-        checked_trees::statement::StatementNode::LocalData(local) => {
+        crate::checked_trees::statement::StatementNode::LocalData(local) => {
             local.symbol == loan.owner_symbol
                 && matches!(
                     program.expression_table.expression(local.initial_value),
-                    checked_trees::expression::ExpressionNode::Call(_)
+                    crate::checked_trees::expression::ExpressionNode::Call(_)
                 )
         }
-        checked_trees::statement::StatementNode::Assignment(assignment) => matches!(
+        crate::checked_trees::statement::StatementNode::Assignment(assignment) => matches!(
             program.expression_table.expression(assignment.value),
-            checked_trees::expression::ExpressionNode::Call(_)
+            crate::checked_trees::expression::ExpressionNode::Call(_)
         ),
         _ => false,
     }
@@ -244,7 +246,7 @@ fn loan_is_call_result_root(
 fn child_place_replays_from_parent(
     borrow: &BorrowFacts,
     parent: &BorrowLoanFact,
-    source_segments: &[facts::PlaceSegment],
+    source_segments: &[crate::fact_plan::PlaceSegment],
     child: &BorrowLoanFact,
 ) -> bool {
     let parent_owner_path = borrow.loan_owner_path(parent);
@@ -260,9 +262,9 @@ fn child_place_replays_from_parent(
 }
 
 fn owner_path_matches_source(
-    program: &typed_trees::TypedTrees,
-    owner_path: &[checked_trees::BorrowLoanOwnerSegment],
-    source_segments: &[facts::PlaceSegment],
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    owner_path: &[crate::checked_trees::BorrowLoanOwnerSegment],
+    source_segments: &[crate::fact_plan::PlaceSegment],
 ) -> bool {
     owner_path.len() <= source_segments.len()
         && owner_path
@@ -270,36 +272,36 @@ fn owner_path_matches_source(
             .zip(source_segments)
             .all(|(owner, source)| match (owner, source) {
                 (
-                    checked_trees::BorrowLoanOwnerSegment::Field(owner_symbol),
-                    facts::PlaceSegment::Field {
+                    crate::checked_trees::BorrowLoanOwnerSegment::Field(owner_symbol),
+                    crate::fact_plan::PlaceSegment::Field {
                         symbol: source_symbol,
                     },
                 ) => !source_symbol.is_valid() || owner_symbol == source_symbol,
                 (
-                    checked_trees::BorrowLoanOwnerSegment::Case(owner_variant),
-                    facts::PlaceSegment::Case {
+                    crate::checked_trees::BorrowLoanOwnerSegment::Case(owner_variant),
+                    crate::fact_plan::PlaceSegment::Case {
                         variant: source_variant,
                     },
                 ) => owner_variant == source_variant,
                 (
-                    checked_trees::BorrowLoanOwnerSegment::FixedIndex(owner_index),
-                    facts::PlaceSegment::FixedIndex {
+                    crate::checked_trees::BorrowLoanOwnerSegment::FixedIndex(owner_index),
+                    crate::fact_plan::PlaceSegment::FixedIndex {
                         index: source_index,
                     },
                 ) => owner_index == source_index,
                 (
-                    checked_trees::BorrowLoanOwnerSegment::FixedIndex(owner_index),
-                    facts::PlaceSegment::Index { expression },
+                    crate::checked_trees::BorrowLoanOwnerSegment::FixedIndex(owner_index),
+                    crate::fact_plan::PlaceSegment::Index { expression },
                 ) => program
                     .expression_table
                     .constant_integer_value(*expression)
                     .and_then(|value| usize::try_from(value).ok())
                     .is_none_or(|source_index| *owner_index == source_index),
                 (
-                    checked_trees::BorrowLoanOwnerSegment::DynamicIndex,
-                    facts::PlaceSegment::FixedIndex { .. }
-                    | facts::PlaceSegment::FixedRange { .. }
-                    | facts::PlaceSegment::Index { .. },
+                    crate::checked_trees::BorrowLoanOwnerSegment::DynamicIndex,
+                    crate::fact_plan::PlaceSegment::FixedIndex { .. }
+                    | crate::fact_plan::PlaceSegment::FixedRange { .. }
+                    | crate::fact_plan::PlaceSegment::Index { .. },
                 ) => true,
                 _ => false,
             })

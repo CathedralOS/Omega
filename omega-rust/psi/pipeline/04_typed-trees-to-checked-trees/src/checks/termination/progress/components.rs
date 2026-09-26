@@ -1,23 +1,23 @@
 //! Close private progress assumptions only within a validated recursive component.
 
 use super::CheckedProgressSummary;
+use crate::checked_trees::FlowFacts;
 use crate::checks::termination::progress::machine_summaries::{
     derive_machine_summary, no_guarantee,
 };
-use checked_trees::FlowFacts;
 use language_semantics::TerminationGuarantee;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 
 mod projections;
 
 pub(super) fn derive_summaries(
     program: &TypedTrees,
     flow: &FlowFacts,
-    semantic: &facts::FactPlan,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    semantic: &crate::fact_plan::FactPlan,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Vec<CheckedProgressSummary> {
-    let components = validation::validated_runtime_recursive_components(program);
+    let components = crate::validation::validated_runtime_recursive_components(program);
     let mut summaries = program
         .machines()
         .iter()
@@ -61,10 +61,10 @@ pub(super) fn derive_summaries(
 fn derive_component(
     program: &TypedTrees,
     flow: &FlowFacts,
-    semantic: &facts::FactPlan,
+    semantic: &crate::fact_plan::FactPlan,
     component: &[SymbolHandle],
     external: &[CheckedProgressSummary],
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Vec<CheckedProgressSummary> {
     let mut summaries = external.to_vec();
     let mut unavailable = vec![false; summaries.len()];

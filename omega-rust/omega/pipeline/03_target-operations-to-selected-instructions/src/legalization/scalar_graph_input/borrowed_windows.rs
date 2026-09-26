@@ -15,7 +15,7 @@
 use super::{AbstractOperationPlan, PsiOptimizationFunction};
 use crate::LegalizationError;
 use crate::structural_inputs::structural_reference_input;
-use calling_conventions::ValueShape;
+use abstract_operations_to_target_operations::calling_conventions::ValueShape;
 use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};
 use terminal_psi::{
     StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralOperationResult,

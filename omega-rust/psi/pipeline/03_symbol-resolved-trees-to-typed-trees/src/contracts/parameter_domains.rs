@@ -1,5 +1,5 @@
 use crate::lowerer::Lowerer;
-use typed_trees as typed;
+use crate::typed_trees as typed;
 
 /// Every normalized declared domain on a parameter type, looking through a
 /// leading reference. Arithmetic policy is represented by a distinct

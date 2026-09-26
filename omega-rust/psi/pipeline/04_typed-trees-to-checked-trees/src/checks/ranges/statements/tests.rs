@@ -2,7 +2,9 @@ use crate::tests::front_end::typed_program;
 use std::cell::Cell;
 
 use super::super::facts::{CloneWork, RangeFacts};
-use typed_trees::statement::{StatementNode, TransitionGuardNode};
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+    StatementNode, TransitionGuardNode,
+};
 
 #[test]
 fn transition_snapshots_follow_authored_targets_and_preserve_fallthrough() {
@@ -33,8 +35,9 @@ fn transition_snapshots_follow_authored_targets_and_preserve_fallthrough() {
                 _ => None,
             })
             .expect("authored transition");
-        let frames = validation::CallFrameResolver::new(&program).expect("resolved branch frames");
-        let proof_plan = proof::obligations::build_proof_plan(&program);
+        let frames =
+            crate::validation::CallFrameResolver::new(&program).expect("resolved branch frames");
+        let proof_plan = crate::proof_engine::obligations::build_proof_plan(&program);
         let values = crate::values::build_value_facts(&program, &proof_plan);
         let operators = crate::operators::build_operator_facts(&program, &values);
 

@@ -57,7 +57,7 @@ fn policy_only_integer_array_shapes_preserve_complete_array_identity() {
 #[test]
 fn policy_element_requires_live_exact_builtin_carrier_and_complete_singleton_constraint() {
     use numerics::arithmetic::ArithmeticDomain;
-    use typed_trees::types::TypeConstraintNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode;
     let (program, array) = field_program("[u64 in Wrapping; 16]");
     let TypeReferenceNode::FixedArray {
         element_type: element,
@@ -143,17 +143,18 @@ fn policy_element_requires_live_exact_builtin_carrier_and_complete_singleton_con
                     base,
                     TypeReferenceNode::Named {
                         symbol,
-                        name: typed_trees::name::Identifier::generated("f64"),
+                        name: symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated("f64"),
                     },
                 );
             }
             6 => {
-                let named =
-                    changed
-                        .type_reference_table
-                        .insert_constraints([TypeConstraintNode::Named(
-                            typed_trees::name::Identifier::generated("Tag"),
-                        )]);
+                let named = changed
+                    .type_reference_table
+                    .insert_constraints([TypeConstraintNode::Named(
+                    symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated(
+                        "Tag",
+                    ),
+                )]);
                 changed.type_reference_table.substitute_node(
                     element,
                     TypeReferenceNode::Constrained {

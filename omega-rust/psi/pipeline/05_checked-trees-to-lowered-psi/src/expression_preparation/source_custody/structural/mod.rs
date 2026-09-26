@@ -10,15 +10,17 @@
 
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
-use checked_trees::CheckedStructuralValueHandle;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode, MatchPattern};
-use checked_trees::statement::StatementNode;
-use checked_trees::types::{PrimitiveType, TypeReferenceHandle};
-use checked_trees::{
+use symbols::SymbolHandle;
+use typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueHandle;
+use typed_trees_to_checked_trees::checked_trees::expression::{
+    ExpressionHandle, ExpressionNode, MatchPattern,
+};
+use typed_trees_to_checked_trees::checked_trees::statement::StatementNode;
+use typed_trees_to_checked_trees::checked_trees::types::{PrimitiveType, TypeReferenceHandle};
+use typed_trees_to_checked_trees::checked_trees::{
     CheckedScalarComputationHandle, CheckedScalarDispatchPattern, CheckedScalarExpressionRole,
     CheckedStructuralValueKind, CheckedTrees, CheckedUnitEffectOperationPlan,
 };
-use symbols::SymbolHandle;
 
 mod borrowed_slice_view;
 mod dispatch;
@@ -35,7 +37,8 @@ mod tests;
 
 /// The arm of an enclosing structural selection a value sits under;
 /// invalid outside every selection.
-type SourceArm = arena::Handle<checked_trees::expression::TableMatchArm>;
+type SourceArm =
+    arena::Handle<typed_trees_to_checked_trees::checked_trees::expression::TableMatchArm>;
 
 /// One retained value node awaiting replay: the node, its authored
 /// occurrence and destination type, the selection arm it sits under, and the
@@ -95,26 +98,26 @@ pub(crate) fn validate(
         // declared type, reconstructed here rather than read from the root.
         Some(StatementNode::Assignment(assignment)) => (
             assignment.value,
-            validation::declared_place_type_raw(
+            typed_trees_to_checked_trees::validation::declared_place_type_raw(
                 &checked.typed,
                 owner,
                 Some(source),
                 assignment.target,
             )
-            .and_then(|reference| validation::unwrapped_type_reference(&checked.typed, reference))
+            .and_then(|reference| typed_trees_to_checked_trees::validation::unwrapped_type_reference(&checked.typed, reference))
             .ok_or(LoweringError::Unsupported(
                 "structural construction lost its authored destination",
             ))?,
         ),
         Some(StatementNode::Transition(transition))
-            if transition.exit == checked_trees::statement::TransitionExit::Ordinary =>
+            if transition.exit == typed_trees_to_checked_trees::checked_trees::statement::TransitionExit::Ordinary =>
         {
             let mut selected = [transition.target, transition.continuation]
                 .into_iter()
                 .filter(|target| target.is_valid())
                 .filter_map(
                     |target| match checked.statement_table.transition_target(target) {
-                        checked_trees::statement::TransitionTargetNode::Value(expression)
+                        typed_trees_to_checked_trees::checked_trees::statement::TransitionTargetNode::Value(expression)
                             if *expression == retained_expression =>
                         {
                             Some(*expression)
@@ -134,7 +137,7 @@ pub(crate) fn validate(
             // A construction nested in the statement's call is an argument
             // operand: its authored destination is the argument expression at
             // the recorded formal position, not the whole call.
-            let Some(checked_trees::CheckedArrayConstructionSource::CallArgument {
+            let Some(typed_trees_to_checked_trees::checked_trees::CheckedArrayConstructionSource::CallArgument {
                 parameter_position,
                 ..
             }) = operand_position
@@ -235,10 +238,10 @@ pub(crate) fn validate(
         || root.root != *value
         || checked.normalized_type_identity(carrier).as_str() != result.type_identity
         || checked.type_multiplicity(reference) != result.multiplicity
-        || !(validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, carrier)
-            || validation::has_cleanup_owned_contents(&checked.typed, carrier)
-            || validation::reference_result_custody::is_reference_record(&checked.typed, reference)
-            || validation::has_owned_or_shared_view_fields(&checked.typed, carrier)
+        || !(typed_trees_to_checked_trees::validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, carrier)
+            || typed_trees_to_checked_trees::validation::has_cleanup_owned_contents(&checked.typed, carrier)
+            || typed_trees_to_checked_trees::validation::reference_result_custody::is_reference_record(&checked.typed, reference)
+            || typed_trees_to_checked_trees::validation::has_owned_or_shared_view_fields(&checked.typed, carrier)
             || view_carrier.is_some()
             // A `&[T]` view's carrier is the borrowed slice itself: a member
             // projection copies the stored view whole while the elements'
@@ -248,7 +251,7 @@ pub(crate) fn validate(
                 checked
                     .type_reference_table
                     .type_reference(carrier),
-                checked_trees::types::TypeReferenceNode::Slice { .. }
+                typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Slice { .. }
             ))
     {
         return unsupported("structural construction substituted its owner or result type");
@@ -267,11 +270,11 @@ pub(crate) fn validate(
         .statements(source.statement_nodes)
         .get(result.statement_index as usize)
     {
-        if validation::reference_result_custody::local_owes_record_loans(
+        if typed_trees_to_checked_trees::validation::reference_result_custody::local_owes_record_loans(
             &checked.typed,
             local.type_reference,
         ) {
-            validation::reference_result_custody::local_record_loans(
+            typed_trees_to_checked_trees::validation::reference_result_custody::local_record_loans(
                 &checked.typed,
                 &checked.facts,
                 machine,
@@ -391,7 +394,7 @@ pub(crate) fn validate(
                 if selection.is_some()
                     && projected_leaf.is_none()
                     && structural_arguments.iter().any(|argument| {
-                        argument.access == checked_trees::CheckedStructuralAccess::Owned
+                        argument.access == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
                     })
                 {
                     return unsupported("selected ownership mixes fresh and existing obligations");
@@ -459,13 +462,16 @@ pub(crate) fn validate(
                 // its whole contract is the declared `[scalar; N]` carrier
                 // and the planner's literal-zero element in the element's
                 // own primitive.
-                let expected = validation::unwrapped_type_reference(&checked.typed, reference)
-                    .ok_or(LoweringError::Unsupported(
-                        "zeroed scalar array carrier missing",
-                    ))?;
-                let checked_trees::types::TypeReferenceNode::FixedArray {
+                let expected = typed_trees_to_checked_trees::validation::unwrapped_type_reference(
+                    &checked.typed,
+                    reference,
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "zeroed scalar array carrier missing",
+                ))?;
+                let typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::FixedArray {
                     element_type,
-                    length: checked_trees::types::FixedArrayLength::Literal(length),
+                    length: typed_trees_to_checked_trees::checked_trees::types::FixedArrayLength::Literal(length),
                 } = checked.type_reference_table.type_reference(expected)
                 else {
                     return unsupported("zeroed scalar array substituted its carrier");
@@ -477,8 +483,8 @@ pub(crate) fn validate(
                     return unsupported("zeroed scalar array element is not a primitive");
                 };
                 let computation = checked.facts.values.scalar_computations.nodes.get(element);
-                let checked_trees::CheckedScalarComputationKind::Value(
-                    checked_trees::CheckedScalarExpression::IntegerLiteral { literal },
+                let typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationKind::Value(
+                    typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::IntegerLiteral { literal },
                 ) = &computation.kind
                 else {
                     return unsupported("zeroed scalar array element is not a literal zero");
@@ -490,7 +496,7 @@ pub(crate) fn validate(
                 }
             }
             CheckedStructuralValueKind::Reference { source: argument } => {
-                if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
+                if argument.access == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow {
                     // A `&T` selection leaf replays its authored `&place`
                     // against the retained root/path instead of the
                     // owned-ingress map used by mutable reference carriers.
@@ -504,7 +510,7 @@ pub(crate) fn validate(
                         &argument,
                     )?;
                 } else {
-                    let expected = validation::reference_result_custody::initializer_source(
+                    let expected = typed_trees_to_checked_trees::validation::reference_result_custody::initializer_source(
                         &checked.typed,
                         source,
                         expression,
@@ -544,9 +550,12 @@ pub(crate) fn validate(
                 else {
                     return unsupported("array establishment lost its authored constructor");
                 };
-                let expected = validation::unwrapped_type_reference(&checked.typed, reference)
-                    .ok_or(LoweringError::Unsupported("array carrier missing"))?;
-                let checked_trees::types::TypeReferenceNode::FixedArray { element_type, .. } =
+                let expected = typed_trees_to_checked_trees::validation::unwrapped_type_reference(
+                    &checked.typed,
+                    reference,
+                )
+                .ok_or(LoweringError::Unsupported("array carrier missing"))?;
+                let typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::FixedArray { element_type, .. } =
                     checked.type_reference_table.type_reference(expected)
                 else {
                     return unsupported("array establishment substituted its carrier");
@@ -825,7 +834,9 @@ fn validate_operand(
         statement,
         expression,
         plans.nodes.get(handle).primitive_type,
-        &checked_trees::CheckedCallScalarArgument::Computation(handle),
+        &typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Computation(
+            handle,
+        ),
     )?;
     Ok(plans.nodes.get(handle).primitive_type)
 }
@@ -855,14 +866,14 @@ pub(crate) fn operand_source(
             .expression_handles(call.arguments)
             .to_vec(),
         Some(StatementNode::Transition(transition))
-            if transition.exit == checked_trees::statement::TransitionExit::Ordinary =>
+            if transition.exit == typed_trees_to_checked_trees::checked_trees::statement::TransitionExit::Ordinary =>
         {
             [transition.target, transition.continuation]
                 .into_iter()
                 .filter(|target| target.is_valid())
                 .filter_map(
                     |target| match checked.statement_table.transition_target(target) {
-                        checked_trees::statement::TransitionTargetNode::Value(expression) => {
+                        typed_trees_to_checked_trees::checked_trees::statement::TransitionTargetNode::Value(expression) => {
                             Some(*expression)
                         }
                         _ => None,
@@ -890,10 +901,13 @@ pub(crate) fn operand_source(
             // The constructor may carry structural payload siblings, so the
             // tolerant roster resolves first; the selected field still owes a
             // primitive carrier.
-            let source = validation::structural_case_constructor(&checked.typed, expression)
-                .ok_or(LoweringError::Unsupported(
-                    "structural field lost its authored constructor",
-                ))?;
+            let source = typed_trees_to_checked_trees::validation::structural_case_constructor(
+                &checked.typed,
+                expression,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "structural field lost its authored constructor",
+            ))?;
             return source
                 .fields
                 .get(field_ordinal as usize)
@@ -928,7 +942,7 @@ pub(crate) fn operand_source(
                         .data_members(data)
                         .iter()
                         .find_map(|member| match member {
-                            checked_trees::data::DataMember::Field(declaration)
+                            typed_trees_to_checked_trees::checked_trees::data::DataMember::Field(declaration)
                                 if declaration.symbol == field.field_symbol
                                     && !declaration.relevance.is_erased() =>
                             {
@@ -967,15 +981,25 @@ pub(crate) fn operand_source(
         else {
             continue;
         };
-        let primitive = validation::expression_result_type_reference(
+        let primitive = typed_trees_to_checked_trees::validation::expression_result_type_reference(
             &checked.typed,
             machine,
             source,
             dispatch.subject,
         )
-        .and_then(|reference| validation::unwrapped_type_reference(&checked.typed, reference))
+        .and_then(|reference| {
+            typed_trees_to_checked_trees::validation::unwrapped_type_reference(
+                &checked.typed,
+                reference,
+            )
+        })
         .and_then(|reference| checked.primitive_type_reference(reference))
-        .or_else(|| validation::match_subject_primitive_type(&checked.typed, dispatch));
+        .or_else(|| {
+            typed_trees_to_checked_trees::validation::match_subject_primitive_type(
+                &checked.typed,
+                dispatch,
+            )
+        });
         if role == (CheckedScalarExpressionRole::StructuralValueSubject { expression }) {
             return primitive
                 .map(|primitive| (dispatch.subject, primitive))
@@ -1044,7 +1068,7 @@ fn local_value_provenance(
     let Some(StatementNode::LocalData(local)) = statements.get(statement) else {
         return unsupported("owned local origin has no declaration");
     };
-    let origin = validation::expression_permission_provenance(
+    let origin = typed_trees_to_checked_trees::validation::expression_permission_provenance(
         &checked.typed,
         local.initial_value,
         &mut |expression| {
@@ -1173,13 +1197,13 @@ pub(crate) fn validate_local_ownership(
     let mut drops = 0;
     let mut transfers = 0;
     let mut loan_events: Vec<(
-        arena::Handle<checked_trees::BorrowLoanFact>,
+        arena::Handle<typed_trees_to_checked_trees::checked_trees::BorrowLoanFact>,
         language_semantics::PermissionEventKind,
     )> = Vec::new();
     for (_, event) in ownership.permissions.iter().filter(|(_, event)| {
         event.machine_symbol == machine
             && event.state_symbol == state
-            && event.root == facts::PlaceRoot::Symbol(symbol)
+            && event.root == typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(symbol)
     }) {
         // Borrow loans share the local's event stream: `&a.first` records a
         // Shared Establish/Consume pair on `a` for the loan's whole range.
@@ -1249,9 +1273,9 @@ fn replays_loan_event(
     machine: SymbolHandle,
     state: SymbolHandle,
     root: SymbolHandle,
-    event: &checked_trees::FlowPermissionEventFact,
+    event: &typed_trees_to_checked_trees::checked_trees::FlowPermissionEventFact,
     matched: &mut Vec<(
-        arena::Handle<checked_trees::BorrowLoanFact>,
+        arena::Handle<typed_trees_to_checked_trees::checked_trees::BorrowLoanFact>,
         language_semantics::PermissionEventKind,
     )>,
 ) -> bool {
@@ -1273,12 +1297,14 @@ fn replays_loan_event(
     };
     let event_segments = checked.facts.flow.ownership.segments.span(event.segments);
     let expected_provenance =
-        |loan: &checked_trees::BorrowLoanFact| PermissionProvenance::Established {
-            machine_symbol: machine,
-            state_symbol: state,
-            source: PermissionEventSource::Statement {
-                statement_index: loan.statement_index,
-            },
+        |loan: &typed_trees_to_checked_trees::checked_trees::BorrowLoanFact| {
+            PermissionProvenance::Established {
+                machine_symbol: machine,
+                state_symbol: state,
+                source: PermissionEventSource::Statement {
+                    statement_index: loan.statement_index,
+                },
+            }
         };
     let matched_loan = borrow.loans.iter().find(|(handle, loan)| {
         if matched.contains(&(*handle, event.kind))
@@ -1304,11 +1330,11 @@ fn replays_loan_event(
             (event.access, &loan.kind),
             (
                 PermissionAccess::Shared,
-                checked_trees::BorrowAccessKind::Read
+                typed_trees_to_checked_trees::checked_trees::BorrowAccessKind::Read
             ) | (
                 PermissionAccess::Exclusive,
-                checked_trees::BorrowAccessKind::Mutable
-                    | checked_trees::BorrowAccessKind::WriteOnly,
+                typed_trees_to_checked_trees::checked_trees::BorrowAccessKind::Mutable
+                    | typed_trees_to_checked_trees::checked_trees::BorrowAccessKind::WriteOnly,
             )
         ) && match event.kind {
             PermissionEventKind::Establish => {
@@ -1369,10 +1395,12 @@ fn replays_loan_event(
 /// producer.
 pub(crate) fn shared_borrow_record_referent(
     checked: &CheckedTrees,
-    reference: checked_trees::types::TypeReferenceHandle,
-) -> Option<checked_trees::types::TypeReferenceHandle> {
-    let checked_trees::types::TypeReferenceNode::Reference {
-        referee, access, ..
+    reference: typed_trees_to_checked_trees::checked_trees::types::TypeReferenceHandle,
+) -> Option<typed_trees_to_checked_trees::checked_trees::types::TypeReferenceHandle> {
+    let typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Reference {
+        referee,
+        access,
+        ..
     } = checked.type_reference_table.type_reference(reference)
     else {
         return None;
@@ -1381,17 +1409,22 @@ pub(crate) fn shared_borrow_record_referent(
         return None;
     }
     if checked.primitive_type_reference(*referee).is_some() {
-        return validation::has_linear_owned_contents(&checked.typed, *referee).then_some(*referee);
+        return typed_trees_to_checked_trees::validation::has_linear_owned_contents(
+            &checked.typed,
+            *referee,
+        )
+        .then_some(*referee);
     }
     // `&[T]` names the slice view itself as the borrowed record: element custody
     // belongs to the view, so there are no plain owned contents to require.
-    if let checked_trees::types::TypeReferenceNode::Slice { .. } =
+    if let typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Slice { .. } =
         checked.type_reference_table.type_reference(*referee)
     {
         return Some(*referee);
     }
-    let checked_trees::types::TypeReferenceNode::Named { symbol, .. } =
-        checked.type_reference_table.type_reference(*referee)
+    let typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Named {
+        symbol, ..
+    } = checked.type_reference_table.type_reference(*referee)
     else {
         return None;
     };
@@ -1399,12 +1432,15 @@ pub(crate) fn shared_borrow_record_referent(
         .data_definitions()
         .iter()
         .find(|record| record.symbol == *symbol)?;
-    if checked
-        .data_members(record)
-        .iter()
-        .any(|member| matches!(member, checked_trees::data::DataMember::Variant(_)))
-        || !validation::has_linear_owned_contents(&checked.typed, *referee)
-    {
+    if checked.data_members(record).iter().any(|member| {
+        matches!(
+            member,
+            typed_trees_to_checked_trees::checked_trees::data::DataMember::Variant(_)
+        )
+    }) || !typed_trees_to_checked_trees::validation::has_linear_owned_contents(
+        &checked.typed,
+        *referee,
+    ) {
         return None;
     }
     Some(*referee)
@@ -1414,24 +1450,29 @@ pub(crate) fn shared_borrow_record_referent(
 /// Qualification and ownership shells remain checked by the existing validator.
 pub(crate) fn plain_record(
     checked: &CheckedTrees,
-    reference: checked_trees::types::TypeReferenceHandle,
+    reference: typed_trees_to_checked_trees::checked_trees::types::TypeReferenceHandle,
 ) -> bool {
-    let checked_trees::types::TypeReferenceNode::Named { symbol, .. } =
-        checked.type_reference_table.type_reference(reference)
+    let typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Named {
+        symbol, ..
+    } = checked.type_reference_table.type_reference(reference)
     else {
         return false;
     };
-    validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, reference)
-        && checked
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == *symbol)
-            .is_some_and(|data| {
-                !checked
-                    .data_members(data)
-                    .iter()
-                    .any(|member| matches!(member, checked_trees::data::DataMember::Variant(_)))
+    typed_trees_to_checked_trees::validation::has_plain_owned_contents_with_numeric_constraints(
+        &checked.typed,
+        reference,
+    ) && checked
+        .data_definitions()
+        .iter()
+        .find(|data| data.symbol == *symbol)
+        .is_some_and(|data| {
+            !checked.data_members(data).iter().any(|member| {
+                matches!(
+                    member,
+                    typed_trees_to_checked_trees::checked_trees::data::DataMember::Variant(_)
+                )
             })
+        })
 }
 
 /// The `[T]` carrier a borrowed `&[T]` view joins: one reference shell is the
@@ -1440,23 +1481,23 @@ pub(crate) fn plain_record(
 /// length, read and subslice obligations are already reconstructed.
 pub(crate) fn borrowed_slice_view_referent(
     checked: &CheckedTrees,
-    mut reference: checked_trees::types::TypeReferenceHandle,
-) -> Option<checked_trees::types::TypeReferenceHandle> {
+    mut reference: typed_trees_to_checked_trees::checked_trees::types::TypeReferenceHandle,
+) -> Option<typed_trees_to_checked_trees::checked_trees::types::TypeReferenceHandle> {
     let mut borrowed = false;
     let mut visited = Vec::new();
     while reference.is_valid() && !visited.contains(&reference) {
         visited.push(reference);
         match checked.type_reference_table.type_reference(reference) {
-            checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
                 reference = *base_type;
             }
-            checked_trees::types::TypeReferenceNode::Reference { referee, .. } if !borrowed => {
+            typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Reference { referee, .. } if !borrowed => {
                 borrowed = true;
                 reference = *referee;
             }
-            checked_trees::types::TypeReferenceNode::Slice { element_type } if borrowed => {
+            typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Slice { element_type } if borrowed => {
                 let mut element = *element_type;
-                while let checked_trees::types::TypeReferenceNode::Constrained {
+                while let typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Constrained {
                     base_type, ..
                 } = checked.type_reference_table.type_reference(element)
                 {

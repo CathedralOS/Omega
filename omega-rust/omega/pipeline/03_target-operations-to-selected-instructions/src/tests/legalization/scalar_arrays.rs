@@ -1,13 +1,17 @@
 //! Target and legalized readers reconstruct leaves, storage and returned identity.
+use crate::legalized_operations::LegalizedScalarInstructionKind as K;
 use crate::{legalize_target_operations, validate_legalized_operations};
-use abstract_operations::{AbstractFunctionResult, AbstractOperation as O};
-use calling_conventions::ValueShape;
-use legalized_operations::LegalizedScalarInstructionKind as K;
+use abstract_operations_to_target_operations::calling_conventions::ValueShape;
+use abstract_operations_to_target_operations::target_operations::{
+    TargetStructuralHomeLayout, TargetUnitOperation,
+};
 use semantic_vocabulary::{
     EdgeId, FuelScheduleIdentity, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
 };
-use target_operations::{TargetStructuralHomeLayout, TargetUnitOperation};
 use terminal_psi::{StructuralMultiplicity, StructuralTypeShape};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractFunctionResult, AbstractOperation as O,
+};
 
 mod floating_parameters;
 mod incoming_stack;
@@ -17,9 +21,9 @@ mod records;
 fn fixture(
     length: u64,
 ) -> (
-    abstract_operations::AbstractOperationPlan,
-    target_operations::TargetOperationPlan,
-    optimization_unit::PsiOptimizationUnit,
+    terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan,
+    abstract_operations_to_target_operations::target_operations::TargetOperationPlan,
+    terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
 ) {
     let (mut source, _, _) = crate::tests::fixtures::plain_unit::plain_unit_fixture();
     let root = StructuralTypeId::new(1).unwrap();
@@ -101,12 +105,12 @@ fn fixture(
         ),
     )
     .unwrap();
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),
     )
     .unwrap();
-    optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+    terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
     (source, target, unit)
 }
 
@@ -119,11 +123,12 @@ fn scalar_array_graph_returns_replay_exact_abi_without_optional_mirrors() {
     let scalar_type = ScalarType::Integer(integer);
     let result = ValueId::new(9).unwrap();
     let returned = ValueId::new(8).unwrap();
-    source.functions[0].result =
-        AbstractFunctionResult::Scalar(abstract_operations::AbstractResult {
+    source.functions[0].result = AbstractFunctionResult::Scalar(
+        terminal_psi_to_abstract_operations::abstract_operations::AbstractResult {
             value: result,
             scalar_type,
-        });
+        },
+    );
     source.functions[0].operations.pop();
     source.functions[0].operations.extend([
         O::IntegerConstant {
@@ -149,7 +154,7 @@ fn scalar_array_graph_returns_replay_exact_abi_without_optional_mirrors() {
     .unwrap();
     target.functions[0].scalar_abi = None;
     target.functions[0].mixed_structural_scalar_abi = None;
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),
     )
@@ -162,12 +167,12 @@ fn scalar_array_graph_returns_replay_exact_abi_without_optional_mirrors() {
         match mutation {
             0 => graph.call_plan.result.as_mut().unwrap().shape = ValueShape::integer(4, 4),
             1 => {
-                let target_operations::TargetControlTerminator::ReturnScalar { expression, .. } =
+                let abstract_operations_to_target_operations::target_operations::TargetControlTerminator::ReturnScalar { expression, .. } =
                     &mut graph.blocks[0].terminator
                 else {
                     panic!("scalar return");
                 };
-                let target_operations::TargetScalarExpression::Integer { scalar_type, .. } =
+                let abstract_operations_to_target_operations::target_operations::TargetScalarExpression::Integer { scalar_type, .. } =
                     expression
                 else {
                     panic!("integer return");
@@ -179,7 +184,7 @@ fn scalar_array_graph_returns_replay_exact_abi_without_optional_mirrors() {
                 .unwrap();
             }
             2 => {
-                let target_operations::TargetControlTerminator::ReturnScalar {
+                let abstract_operations_to_target_operations::target_operations::TargetControlTerminator::ReturnScalar {
                     source_value, ..
                 } = &mut graph.blocks[0].terminator
                 else {
@@ -188,7 +193,7 @@ fn scalar_array_graph_returns_replay_exact_abi_without_optional_mirrors() {
                 *source_value = result;
             }
             _ => {
-                let calling_conventions::ValueLocation::Register { byte_size, .. } =
+                let abstract_operations_to_target_operations::calling_conventions::ValueLocation::Register { byte_size, .. } =
                     &mut graph.call_plan.result.as_mut().unwrap().locations[0]
                 else {
                     panic!("register return");
@@ -233,7 +238,7 @@ fn array_target_replay_rejects_leaf_storage_and_producer_substitution() {
                     TargetStructuralHomeLayout::Aggregate(ValueShape::integer(4, 1))
             }
             3 => {
-                let target_operations::TargetStructuralHomeOrigin::OperationResult {
+                let abstract_operations_to_target_operations::target_operations::TargetStructuralHomeOrigin::OperationResult {
                     result, ..
                 } = &mut result_home.origin
                 else {
@@ -318,19 +323,19 @@ fn incoming_array_identity_rejects_substituted_parameter_storage() {
         ),
     )
     .unwrap();
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),
     )
     .unwrap();
-    optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+    terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
     let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
     validate_legalized_operations(&target, &source, &unit, legalized.plan().clone()).unwrap();
     for mutation in 0..5 {
         let mut changed = target.clone();
         let graph = &mut changed.functions[0].graph;
-        let target_operations::TargetControlTerminator::ReturnStructural {
-            source: target_operations::TargetStructuralReturnSource::Parameter(parameter),
+        let abstract_operations_to_target_operations::target_operations::TargetControlTerminator::ReturnStructural {
+            source: abstract_operations_to_target_operations::target_operations::TargetStructuralReturnSource::Parameter(parameter),
             ..
         } = &mut graph.blocks[0].terminator
         else {

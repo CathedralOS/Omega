@@ -4,7 +4,7 @@
 use super::{ExitScalars, exit_return_expression, has_builtin_operators, is_result_reference};
 use language_core::OperatorSpelling;
 use numerics::{arithmetic::ArithmeticDomain, bignum::BigInt};
-use typed_trees::{
+use symbol_resolved_trees_to_typed_trees::typed_trees::{
     TypedTrees,
     expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator},
     types::{PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode},
@@ -13,7 +13,7 @@ use typed_trees::{
 impl ExitScalars<'_, '_> {
     pub(super) fn proves_result_bounds(&self, expression: ExpressionHandle) -> bool {
         has_builtin_operators(self.program, &self.facts.operators, expression)
-            && validation::has_builtin_bound_expression_meaning(
+            && crate::validation::has_builtin_bound_expression_meaning(
                 self.program,
                 self.machine,
                 self.program.machine_states(self.machine).first(),
@@ -70,19 +70,19 @@ impl ExitScalars<'_, '_> {
         // These bounds hold at every evaluation. Entry operands use only their
         // immutable declared ranges, while result bounds belong to this live
         // state's exact return occurrence, never another state's same-spelled name.
-        let result_bounds = validation::immutable_integer_expression_bounds(
+        let result_bounds = crate::validation::immutable_integer_expression_bounds(
             self.program,
             self.machine,
             state,
             result_expression,
         )?;
-        let argument_bounds = validation::immutable_integer_expression_bounds(
+        let argument_bounds = crate::validation::immutable_integer_expression_bounds(
             self.program,
             self.machine,
             entry,
             argument,
         )?;
-        let argument_type = validation::expression_result_type_reference(
+        let argument_type = crate::validation::expression_result_type_reference(
             self.program,
             self.machine,
             entry,
@@ -101,7 +101,10 @@ impl ExitScalars<'_, '_> {
             argument_bounds.0,
             argument_bounds.1,
         ] {
-            typed_trees::closed_numeric::land_integer(&BigInt::from_i64(endpoint), primitive)?;
+            symbol_resolved_trees_to_typed_trees::typed_trees::closed_numeric::land_integer(
+                &BigInt::from_i64(endpoint),
+                primitive,
+            )?;
         }
         let (left, right, types) = if result_on_left {
             (
@@ -116,7 +119,7 @@ impl ExitScalars<'_, '_> {
                 [argument_type, Some(result_type)],
             )
         };
-        if !typed_trees::operator::has_builtin_spelled_expression_meaning(
+        if !symbol_resolved_trees_to_typed_trees::typed_trees::operator::has_builtin_spelled_expression_meaning(
             self.program,
             self.machine.symbol,
             expression,
@@ -164,7 +167,7 @@ impl ExitScalars<'_, '_> {
         if !remaining.is_empty() {
             return None;
         }
-        let place = validation::reserved_result_place(self.program, expression)?;
+        let place = crate::validation::reserved_result_place(self.program, expression)?;
         Some((selected, place.type_reference))
     }
 }
@@ -222,8 +225,8 @@ fn exact_integer_carrier(
 #[cfg(test)]
 mod tests {
     use super::{PrimitiveType, TypeReferenceNode, TypedTrees, exact_integer_carrier};
+    use symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier;
     use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef, SymbolTableBuilder};
-    use typed_trees::name::Identifier;
 
     #[test]
     fn cyclic_carrier_wrappers_are_unknown() {

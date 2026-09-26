@@ -6,7 +6,7 @@ use super::{
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 pub(super) fn encoded_locals(
-    checked: &checked_trees::CheckedTrees,
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
     names: &[&str],
 ) -> (Vec<u8>, Vec<u8>) {
     let machine = main_machine(checked);
@@ -350,7 +350,8 @@ fn later_initializer_custody_rejects_target_coordinate_namespace_and_result_drif
             if mutation == 0 {
                 result.binding_ordinal += 1;
             } else {
-                result.primitive_type = typed_trees::types::PrimitiveType::Bool;
+                result.primitive_type =
+                    symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::Bool;
             }
             assert!(
                 checked_trees_to_lowered_psi::lower_machine(

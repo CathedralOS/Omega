@@ -5,20 +5,22 @@
 //! no longer be re-derived for the exact subject and must refuse the premise
 //! rather than letting the first same-shaped row mint a field type.
 use super::{canonical_place_type_reference, expression_type_reference_in_state};
+use crate::checked_trees::expression::ExpressionNode;
 use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression;
 use crate::flow::ownership::discover_state_move_events;
 use crate::tests::front_end::typed_program;
-use checked_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    TypeReferenceHandle, TypeReferenceNode,
+};
 use symbols::SymbolHandle;
-use typed_trees::data::DataMember;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// `exercise` holds an `Outer` parameter and returns its `inner` field: the
 /// read's ownership disposition depends entirely on the field-type projection
 /// proving `inner: u64` (a copy) through the parameter's declared type.
 struct Fixture {
-    program: typed_trees::TypedTrees,
+    program: symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     value_symbol: SymbolHandle,
@@ -31,8 +33,8 @@ struct Fixture {
 impl Fixture {
     fn place(&self) -> CanonicalPlace {
         CanonicalPlace {
-            root: facts::PlaceRoot::Symbol(self.value_symbol),
-            segments: vec![facts::PlaceSegment::Field {
+            root: crate::fact_plan::PlaceRoot::Symbol(self.value_symbol),
+            segments: vec![crate::fact_plan::PlaceSegment::Field {
                 symbol: self.field_symbol,
             }],
         }
@@ -49,7 +51,12 @@ impl Fixture {
         )
     }
 
-    fn move_events(&self) -> Vec<(facts::PlaceRoot, Vec<facts::PlaceSegment>)> {
+    fn move_events(
+        &self,
+    ) -> Vec<(
+        crate::fact_plan::PlaceRoot,
+        Vec<crate::fact_plan::PlaceSegment>,
+    )> {
         let machine = self
             .program
             .machines()
@@ -62,8 +69,8 @@ impl Fixture {
             .iter()
             .find(|state| state.symbol == self.state_symbol)
             .expect("fixture state");
-        let borrow = checked_trees::BorrowFacts::default();
-        let operators = checked_trees::CheckedOperatorFacts::default();
+        let borrow = crate::checked_trees::BorrowFacts::default();
+        let operators = crate::checked_trees::CheckedOperatorFacts::default();
         let mut segments = arena::Arena::default();
         discover_state_move_events(
             &self.program,
@@ -144,7 +151,10 @@ fn attached_fixture() -> Fixture {
     fixture_from_machine(program, machine_symbol)
 }
 
-fn fixture_from_machine(program: typed_trees::TypedTrees, machine_symbol: SymbolHandle) -> Fixture {
+fn fixture_from_machine(
+    program: symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine_symbol: SymbolHandle,
+) -> Fixture {
     let machine = program
         .machines()
         .iter()
@@ -224,8 +234,8 @@ fn type_reference_rooted_place_projects_through_its_segments() {
     // so `Outer.inner` lands on the field's own `u64`.
     let fixture = fixture();
     let place = CanonicalPlace {
-        root: facts::PlaceRoot::TypeReference(fixture.value_type),
-        segments: vec![facts::PlaceSegment::Field {
+        root: crate::fact_plan::PlaceRoot::TypeReference(fixture.value_type),
+        segments: vec![crate::fact_plan::PlaceSegment::Field {
             symbol: fixture.field_symbol,
         }],
     };
@@ -261,7 +271,7 @@ fn attached_declaration_duplicates_cannot_mint_field_type_evidence() {
     assert!(
         fixture.move_events().iter().any(|(_, segments)| {
             *segments
-                == vec![facts::PlaceSegment::Field {
+                == vec![crate::fact_plan::PlaceSegment::Field {
                     symbol: fixture.field_symbol,
                 }]
         }),
@@ -274,10 +284,10 @@ fn attached_declaration_duplicates_cannot_mint_field_type_evidence() {
 /// expression itself and the member type must be reconstructed from the
 /// position walk's leaf evidence.
 struct RootedFixture {
-    program: typed_trees::TypedTrees,
+    program: symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-    member: checked_trees::expression::ExpressionHandle,
+    member: crate::checked_trees::expression::ExpressionHandle,
     place: CanonicalPlace,
     statement_count: usize,
 }
@@ -292,7 +302,12 @@ impl RootedFixture {
         )
     }
 
-    fn move_events(&self) -> Vec<(facts::PlaceRoot, Vec<facts::PlaceSegment>)> {
+    fn move_events(
+        &self,
+    ) -> Vec<(
+        crate::fact_plan::PlaceRoot,
+        Vec<crate::fact_plan::PlaceSegment>,
+    )> {
         let machine = self
             .program
             .machines()
@@ -305,8 +320,8 @@ impl RootedFixture {
             .iter()
             .find(|state| state.symbol == self.state_symbol)
             .expect("fixture state");
-        let borrow = checked_trees::BorrowFacts::default();
-        let operators = checked_trees::CheckedOperatorFacts::default();
+        let borrow = crate::checked_trees::BorrowFacts::default();
+        let operators = crate::checked_trees::CheckedOperatorFacts::default();
         let mut segments = arena::Arena::default();
         discover_state_move_events(
             &self.program,
@@ -359,7 +374,7 @@ fn rooted_fixture(source: &str, machine_name: &str, member_name: &str) -> Rooted
 }
 
 fn declared_field_type(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     type_name: &str,
     field_name: &str,
 ) -> TypeReferenceHandle {
@@ -400,7 +415,7 @@ fn match_rooted_place_projects_through_the_arms_common_position() {
     );
     assert_eq!(
         fixture.place.root,
-        facts::PlaceRoot::Expression(program_member_receiver(&fixture)),
+        crate::fact_plan::PlaceRoot::Expression(program_member_receiver(&fixture)),
         "the member read must root at the match expression, not a symbol"
     );
     assert_eq!(
@@ -425,12 +440,14 @@ fn match_rooted_place_projects_through_the_arms_common_position() {
         fixture
             .move_events()
             .iter()
-            .all(|(root, _)| *root != facts::PlaceRoot::Expression(member.receiver)),
+            .all(|(root, _)| *root != crate::fact_plan::PlaceRoot::Expression(member.receiver)),
         "a proven copy read off the dispatch must not record a move"
     );
 }
 
-fn program_member_receiver(fixture: &RootedFixture) -> checked_trees::expression::ExpressionHandle {
+fn program_member_receiver(
+    fixture: &RootedFixture,
+) -> crate::checked_trees::expression::ExpressionHandle {
     let ExpressionNode::Member(member) =
         fixture.program.expression_table.expression(fixture.member)
     else {
@@ -603,7 +620,7 @@ fn unprovable_field_provenance_keeps_the_ownership_obligation() {
         proven
             .move_events()
             .iter()
-            .all(|(root, _)| *root != facts::PlaceRoot::Symbol(proven.value_symbol)),
+            .all(|(root, _)| *root != crate::fact_plan::PlaceRoot::Symbol(proven.value_symbol)),
         "a proven copy read must not record a move"
     );
 
@@ -616,9 +633,9 @@ fn unprovable_field_provenance_keeps_the_ownership_obligation() {
     ambiguous.push_duplicate_outer();
     assert!(
         ambiguous.move_events().iter().any(|(root, segments)| {
-            *root == facts::PlaceRoot::Symbol(ambiguous.value_symbol)
+            *root == crate::fact_plan::PlaceRoot::Symbol(ambiguous.value_symbol)
                 && *segments
-                    == vec![facts::PlaceSegment::Field {
+                    == vec![crate::fact_plan::PlaceSegment::Field {
                         symbol: ambiguous.field_symbol,
                     }]
         }),

@@ -1,9 +1,9 @@
 use crate::lowerer::Lowerer;
 use crate::signatures::callable_signature::lower_state_signature;
 use crate::signatures::type_parameters::lower_type_parameters;
+use crate::typed_trees as typed;
 use diagnostics::Diagnostic;
-use symbol_resolved_trees as resolved;
-use typed_trees as typed;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees as resolved;
 
 pub(crate) fn lower_trait_definition(
     lowerer: &mut Lowerer,
@@ -168,7 +168,7 @@ pub(crate) fn lower_trait_definition(
             // A refinement narrows an existing base conformance: a named
             // clause must select a real base requirement, and its authored
             // axes may only restrict what the base already permits.
-            let covered: Vec<&symbol_resolved_trees::signature::StateSignature> = match &clause
+            let covered: Vec<&syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::signature::StateSignature> = match &clause
                 .requirement
             {
                 Some(requirement) => {

@@ -146,6 +146,6 @@ selected provider authority, strong closure identity, and exact requirement;
 equal compact coordinates cannot authorize requirement substitution.
 
 See [component publication](component_publication.md) for runtime custody and
-[native realization](../../../omega-rust/omega/compiler/README.md#native-realization)
+[native realization](../../../omega-rust/omega/docs/compiler/README.md#native-realization)
 for the current implementation boundary. Unsupported callback forms reject;
 carrying an opaque companion intact is not interpreting or admitting it.

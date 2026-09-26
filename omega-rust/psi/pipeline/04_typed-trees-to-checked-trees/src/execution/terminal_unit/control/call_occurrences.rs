@@ -10,15 +10,15 @@ use crate::execution::terminal_unit::types::{ShapeCollector, is_unit, machine_bi
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::control::call_results::checked_structural_result_type;
 
-use checked_trees::{CheckedScalarComputationHandle, CheckedScalarComputationKind};
+use crate::checked_trees::{CheckedScalarComputationHandle, CheckedScalarComputationKind};
 
 pub(in crate::execution::terminal_unit) fn tail_call<'a>(
     program: &'a TypedTrees,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
 ) -> Option<(
-    typed_trees::expression::ExpressionHandle,
-    &'a typed_trees::expression::TableCallExpression,
+    symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    &'a symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
 )> {
     let statements = program.statement_table.statements(state.statement_nodes);
     if !is_unit(program, state.return_type) || statement_index.checked_add(1)? != statements.len() {
@@ -40,12 +40,12 @@ pub(in crate::execution::terminal_unit) fn tail_call<'a>(
 /// Tail consumers retain their existing final-statement check above.
 pub(in crate::execution::terminal_unit) fn unit_statement_call<'a>(
     program: &'a TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
 ) -> Option<(
-    typed_trees::expression::ExpressionHandle,
-    &'a typed_trees::expression::TableCallExpression,
+    symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    &'a symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
 )> {
     if let Some(call) = tail_call(program, state, statement_index) {
         return Some(call);
@@ -63,18 +63,18 @@ pub(in crate::execution::terminal_unit) fn unit_statement_call<'a>(
     let ExpressionNode::Call(call) = program.expression_table.expression(*expression) else {
         return None;
     };
-    validation::unit_statement_call_is_supported(program, machine, state, *expression)
+    crate::validation::unit_statement_call_is_supported(program, machine, state, *expression)
         .then_some((*expression, call))
 }
 
 pub(super) fn ordered_statement_call<'program>(
     program: &'program TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
 ) -> Option<(
-    typed_trees::expression::ExpressionHandle,
-    &'program typed_trees::expression::TableCallExpression,
+    symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    &'program symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
 )> {
     if let Some(call) = unit_statement_call(program, machine, state, statement_index) {
         return Some(call);
@@ -121,10 +121,10 @@ pub(in crate::execution::terminal_unit) fn outer_calls_traced<'a>(
     program: &TypedTrees,
     facts: &'a CheckFacts,
     machine: SymbolHandle,
-    state: &typed_trees::state::State,
-    calls: &'a [checked_trees::FlowCallFact],
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    calls: &'a [crate::checked_trees::FlowCallFact],
     trace: &LocalConstructionTrace,
-) -> Option<Vec<&'a checked_trees::FlowCallFact>> {
+) -> Option<Vec<&'a crate::checked_trees::FlowCallFact>> {
     outer_calls_before_traced(
         program,
         facts,
@@ -143,9 +143,9 @@ pub(in crate::execution::terminal_unit) fn outer_calls<'a>(
     program: &TypedTrees,
     facts: &'a CheckFacts,
     machine: SymbolHandle,
-    state: &typed_trees::state::State,
-    calls: &'a [checked_trees::FlowCallFact],
-) -> Option<Vec<&'a checked_trees::FlowCallFact>> {
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    calls: &'a [crate::checked_trees::FlowCallFact],
+) -> Option<Vec<&'a crate::checked_trees::FlowCallFact>> {
     outer_calls_traced(
         program,
         facts,
@@ -166,24 +166,25 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
     program: &TypedTrees,
     facts: &'a CheckFacts,
     machine: SymbolHandle,
-    state: &typed_trees::state::State,
-    calls: &'a [checked_trees::FlowCallFact],
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    calls: &'a [crate::checked_trees::FlowCallFact],
     statement_end: usize,
     trace: &LocalConstructionTrace,
-) -> Option<Vec<&'a checked_trees::FlowCallFact>> {
+) -> Option<Vec<&'a crate::checked_trees::FlowCallFact>> {
     trace.phase("outer calls: statement window");
     let statements = program.statement_table.statements(state.statement_nodes);
     // Selected execution retires the row of a call it replaced in the body;
     // the row keeps its handle for the certificates holding it and no longer
     // names an outer or nested call to sequence.
-    let retired =
-        |call: &checked_trees::FlowCallFact| facts.flow.control.is_retired(state.symbol, call);
+    let retired = |call: &crate::checked_trees::FlowCallFact| {
+        facts.flow.control.is_retired(state.symbol, call)
+    };
     // A pure scalar builtin (min/max/sqrt, float rounding and
     // classification) is an operand of its enclosing scalar expression: the
     // computation graph folds it rather than recording a Call node, so it is
     // never an outer or nested call to sequence. Machine-control, port, and
     // custody builtins keep their rows.
-    let scalar_intrinsic = |call: &checked_trees::FlowCallFact| {
+    let scalar_intrinsic = |call: &crate::checked_trees::FlowCallFact| {
         program
             .symbols
             .builtin_function_for_symbol(call.target_symbol)
@@ -197,7 +198,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
         return None;
     }
     let mut consumed = Vec::new();
-    let mut structural = Vec::<&checked_trees::FlowCallFact>::new();
+    let mut structural = Vec::<&crate::checked_trees::FlowCallFact>::new();
     let mut outer = Vec::new();
     let owner = crate::lookup::machine_by_symbol(program, machine)?;
     let mut scalar_local_count = 0u32;
@@ -232,7 +233,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 visited.push(value);
                 let node = plans.nodes.get(value);
                 match node.kind {
-                    checked_trees::CheckedStructuralValueKind::Call { source_call } => {
+                    crate::checked_trees::CheckedStructuralValueKind::Call { source_call } => {
                         if !facts.flow.control.calls.is_valid(source_call) {
                             return None;
                         }
@@ -246,12 +247,13 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                         consumed.push(source_call);
                         structural.push(call);
                     }
-                    checked_trees::CheckedStructuralValueKind::Record { fields, .. }
-                    | checked_trees::CheckedStructuralValueKind::StructuralCase {
-                        fields, ..
+                    crate::checked_trees::CheckedStructuralValueKind::Record { fields, .. }
+                    | crate::checked_trees::CheckedStructuralValueKind::StructuralCase {
+                        fields,
+                        ..
                     } => {
                         for field in plans.record_fields.span(fields)? {
-                            if let checked_trees::CheckedStructuralRecordFieldValue::Structural(
+                            if let crate::checked_trees::CheckedStructuralRecordFieldValue::Structural(
                                 child,
                             ) = field.value
                             {
@@ -259,23 +261,37 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                             }
                         }
                     }
-                    checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => {
+                    crate::checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => {
                         pending.extend(plans.dispatch_arms.span(arms)?.iter().map(|arm| arm.value));
                     }
-                    checked_trees::CheckedStructuralValueKind::Projection { source, .. } => {
+                    crate::checked_trees::CheckedStructuralValueKind::Projection {
+                        source, ..
+                    } => {
                         pending.push(source);
                     }
-                    checked_trees::CheckedStructuralValueKind::FixedArray { ref elements } => {
+                    crate::checked_trees::CheckedStructuralValueKind::FixedArray {
+                        ref elements,
+                    } => {
                         pending.extend(elements.iter().copied());
                     }
-                    checked_trees::CheckedStructuralValueKind::Reference { .. }
-                    | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { .. }
-                    | checked_trees::CheckedStructuralValueKind::Case(_)
-                    | checked_trees::CheckedStructuralValueKind::ScalarCasePlace { .. }
-                    | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. }
-                    | checked_trees::CheckedStructuralValueKind::ViewElementCopy { .. }
-                    | checked_trees::CheckedStructuralValueKind::ZeroedScalarArray { .. }
-                    | checked_trees::CheckedStructuralValueKind::Place(_) => {}
+                    crate::checked_trees::CheckedStructuralValueKind::Reference { .. }
+                    | crate::checked_trees::CheckedStructuralValueKind::BorrowedSliceView {
+                        ..
+                    }
+                    | crate::checked_trees::CheckedStructuralValueKind::Case(_)
+                    | crate::checked_trees::CheckedStructuralValueKind::ScalarCasePlace {
+                        ..
+                    }
+                    | crate::checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace {
+                        ..
+                    }
+                    | crate::checked_trees::CheckedStructuralValueKind::ViewElementCopy {
+                        ..
+                    }
+                    | crate::checked_trees::CheckedStructuralValueKind::ZeroedScalarArray {
+                        ..
+                    }
+                    | crate::checked_trees::CheckedStructuralValueKind::Place(_) => {}
                 }
             }
         }
@@ -416,7 +432,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
             .into_iter()
             .map(|(expression, expected)| {
                 (
-                    checked_trees::CheckedArrayConstructionSource::Statement,
+                    crate::checked_trees::CheckedArrayConstructionSource::Statement,
                     expression,
                     expected,
                 )
@@ -434,7 +450,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
             );
         for (source, expression, expected) in constructions {
             let Some(elements) =
-                validation::scalar_array_elements(program, machine, expression, expected)
+                crate::validation::scalar_array_elements(program, machine, expression, expected)
             else {
                 continue;
             };
@@ -497,8 +513,12 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
         ) else {
             continue;
         };
-        let reference =
-            validation::declared_place_type_raw(program, owner, Some(state), assignment.target)?;
+        let reference = crate::validation::declared_place_type_raw(
+            program,
+            owner,
+            Some(state),
+            assignment.target,
+        )?;
         let reference = match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Reference { referee, .. } => *referee,
             _ => reference,
@@ -534,9 +554,12 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
         }
         trace.phase("outer calls: duplicate statement call");
         trace.statement(u32::try_from(call.statement_index).ok());
-        if outer.iter().any(|prior: &&checked_trees::FlowCallFact| {
-            prior.statement_index == call.statement_index
-        }) {
+        if outer
+            .iter()
+            .any(|prior: &&crate::checked_trees::FlowCallFact| {
+                prior.statement_index == call.statement_index
+            })
+        {
             return None;
         }
         outer.push(call);
@@ -739,10 +762,10 @@ fn collect_argument_calls(
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
-    call: &checked_trees::FlowCallFact,
-    arguments: &[typed_trees::expression::ExpressionHandle],
-    calls: &[checked_trees::FlowCallFact],
-    consumed: &mut Vec<arena::Handle<checked_trees::FlowCallFact>>,
+    call: &crate::checked_trees::FlowCallFact,
+    arguments: &[symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle],
+    calls: &[crate::checked_trees::FlowCallFact],
+    consumed: &mut Vec<arena::Handle<crate::checked_trees::FlowCallFact>>,
 ) -> Option<()> {
     let parameters = crate::semantic::calls::call_target_parameters(program, call.target_symbol)?;
     let explicit_self = arguments.len()
@@ -818,10 +841,10 @@ fn collect(
     state: SymbolHandle,
     statement: usize,
     handle: CheckedScalarComputationHandle,
-    calls: &[checked_trees::FlowCallFact],
+    calls: &[crate::checked_trees::FlowCallFact],
     minimum_call_ordinal: u32,
     active: &mut Vec<CheckedScalarComputationHandle>,
-    consumed: &mut Vec<arena::Handle<checked_trees::FlowCallFact>>,
+    consumed: &mut Vec<arena::Handle<crate::checked_trees::FlowCallFact>>,
 ) -> Option<()> {
     let plans = &facts.values.scalar_computations;
     if !plans.nodes.is_valid(handle) || active.contains(&handle) {
@@ -831,12 +854,12 @@ fn collect(
     match &plans.nodes.get(handle).kind {
         CheckedScalarComputationKind::CaseMembership {
             subject:
-                checked_trees::CheckedScalarComputationStructuralArgument::Place(_)
-                | checked_trees::CheckedScalarComputationStructuralArgument::Array { .. },
+                crate::checked_trees::CheckedScalarComputationStructuralArgument::Place(_)
+                | crate::checked_trees::CheckedScalarComputationStructuralArgument::Array { .. },
             ..
         } => {}
         CheckedScalarComputationKind::CaseMembership {
-            subject: checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
+            subject: crate::checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
             ..
         } => {
             for field in plans.case_fields.span(subject.fields)? {
@@ -899,7 +922,9 @@ fn collect(
                 consumed,
             )?;
             for arm in plans.dispatch_arms.span(*arms)? {
-                if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) = arm.pattern {
+                if let crate::checked_trees::CheckedScalarDispatchPattern::Value(pattern) =
+                    arm.pattern
+                {
                     collect(
                         facts,
                         state,
@@ -963,8 +988,9 @@ fn collect(
                 )?;
             }
             for argument in plans.structural_arguments.span(*structural_arguments)? {
-                if let checked_trees::CheckedScalarComputationStructuralArgument::Case(subject) =
-                    argument
+                if let crate::checked_trees::CheckedScalarComputationStructuralArgument::Case(
+                    subject,
+                ) = argument
                 {
                     for field in plans.case_fields.span(subject.fields)? {
                         collect(
@@ -979,7 +1005,7 @@ fn collect(
                         )?;
                     }
                 }
-                if let checked_trees::CheckedScalarComputationStructuralArgument::Array {
+                if let crate::checked_trees::CheckedScalarComputationStructuralArgument::Array {
                     elements,
                     ..
                 } = argument

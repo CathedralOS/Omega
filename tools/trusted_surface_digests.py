@@ -2,7 +2,7 @@
 """Re-record trusted-surface implementation-site digests.
 
 The trusted-surface ledger
-(`omega-rust/psi/semantics/terminal-verifier/src/trusted_surface/sites.rs`)
+(`omega-rust/psi/terminal-verifier/src/trusted_surface/sites.rs`)
 pins each bound implementation file's SHA-256; the suite's
 `recorded_digests_match_the_working_tree` fails when a bound file changes.
 
@@ -29,7 +29,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SITES_RS = REPO_ROOT.joinpath(
-    "omega-rust/psi/semantics/terminal-verifier/src/trusted_surface/sites.rs"
+    "omega-rust/psi/terminal-verifier/src/trusted_surface/sites.rs"
 )
 
 SITE_BLOCK = re.compile(

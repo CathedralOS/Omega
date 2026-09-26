@@ -45,7 +45,7 @@ impl Context<'_> {
                             for arm in plans.dispatch_arms.span(*arms).ok_or(
                                 LoweringError::Unsupported("array operand dispatch has stale arms"),
                             )? {
-                                if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) =
+                                if let typed_trees_to_checked_trees::checked_trees::CheckedScalarDispatchPattern::Value(pattern) =
                                     arm.pattern
                                 {
                                     pending.push(pattern);
@@ -131,8 +131,8 @@ impl Context<'_> {
                             .is_empty()
                         && matches!(
                             selected.status,
-                            checked_trees::CheckedOperatorResolutionStatus::Missing
-                                | checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+                            typed_trees_to_checked_trees::checked_trees::CheckedOperatorResolutionStatus::Missing
+                                | typed_trees_to_checked_trees::checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
                         ))
             })
     }
@@ -171,7 +171,7 @@ impl Context<'_> {
             && start <= end
             && end <= length
             && self.indexed_builtin(source, language_core::OperatorSpelling::Range)
-            && validation::has_builtin_subslice_meaning(
+            && typed_trees_to_checked_trees::validation::has_builtin_subslice_meaning(
                 &self.checked.typed,
                 machine,
                 Some(state),
@@ -190,7 +190,7 @@ impl Context<'_> {
             ExpressionNode::String(bytes) => return u64::try_from(bytes.len()).ok(),
             ExpressionNode::Borrow(borrow) => return self.static_extent(borrow.target, depth + 1),
             ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
-                if !validation::place_has_builtin_coordinates(
+                if !typed_trees_to_checked_trees::validation::place_has_builtin_coordinates(
                     &self.checked.typed,
                     machine,
                     Some(state),
@@ -202,8 +202,15 @@ impl Context<'_> {
             }
             ExpressionNode::ArrayLiteral(_) => {
                 let reference =
-                    validation::declared_constant_array_type(&self.checked.typed, source)?;
-                validation::closed_literal_array_elements(&self.checked.typed, source, reference)?;
+                    typed_trees_to_checked_trees::validation::declared_constant_array_type(
+                        &self.checked.typed,
+                        source,
+                    )?;
+                typed_trees_to_checked_trees::validation::closed_literal_array_elements(
+                    &self.checked.typed,
+                    source,
+                    reference,
+                )?;
             }
             ExpressionNode::Indexed(indexed) => {
                 if let ExpressionNode::Range(_) =
@@ -232,12 +239,12 @@ impl Context<'_> {
                 };
                 if index.value_u64()? >= self.static_extent(indexed.collection, depth + 1)?
                     || !self.indexed_builtin(source, language_core::OperatorSpelling::Index)
-                    || !(validation::place_has_builtin_coordinates(
+                    || !(typed_trees_to_checked_trees::validation::place_has_builtin_coordinates(
                         &self.checked.typed,
                         machine,
                         Some(state),
                         source,
-                    ) || validation::builtin_constant_array_projection_type(
+                    ) || typed_trees_to_checked_trees::validation::builtin_constant_array_projection_type(
                         &self.checked.typed,
                         machine.symbol,
                         source,
@@ -249,16 +256,20 @@ impl Context<'_> {
             }
             _ => return None,
         }
-        let mut reference =
-            validation::declared_place_type_raw(&self.checked.typed, machine, Some(state), source)?;
+        let mut reference = typed_trees_to_checked_trees::validation::declared_place_type_raw(
+            &self.checked.typed,
+            machine,
+            Some(state),
+            source,
+        )?;
         for _ in 0..self.checked.type_reference_table.type_reference_count() {
             match self.checked.type_reference_table.type_reference(reference) {
-                checked_trees::types::TypeReferenceNode::Reference { referee, .. }
-                | checked_trees::types::TypeReferenceNode::Constrained {
+                typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Reference { referee, .. }
+                | typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Constrained {
                     base_type: referee, ..
                 } => reference = *referee,
-                checked_trees::types::TypeReferenceNode::FixedArray {
-                    length: checked_trees::types::FixedArrayLength::Literal(length),
+                typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::FixedArray {
+                    length: typed_trees_to_checked_trees::checked_trees::types::FixedArrayLength::Literal(length),
                     ..
                 } => return u64::try_from(*length).ok(),
                 _ => return None,
@@ -303,7 +314,7 @@ impl Context<'_> {
         };
         if range.end_inclusive
             || !self.indexed_builtin(source, language_core::OperatorSpelling::Range)
-            || !validation::has_builtin_subslice_meaning(
+            || !typed_trees_to_checked_trees::validation::has_builtin_subslice_meaning(
                 &self.checked.typed,
                 machine,
                 Some(state),
@@ -376,10 +387,10 @@ impl Context<'_> {
     /// coordinate retain their authored subslice source.
     fn operation_subslice_views(
         &self,
-        operation: &checked_trees::CheckedUnitEffectOperationPlan,
+        operation: &typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan,
         views: &mut Vec<ExpressionHandle>,
     ) {
-        use checked_trees::CheckedUnitEffectOperationPlan as Plan;
+        use typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan as Plan;
         let (coordinate, arguments) = match operation {
             Plan::CallUnit {
                 coordinate,
@@ -423,7 +434,7 @@ impl Context<'_> {
             return;
         }
         for argument in arguments {
-            if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+            if let typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
                 expression,
                 ..
             } = &argument.source
@@ -435,14 +446,14 @@ impl Context<'_> {
 
     fn scalar_terminator_subslice_views(
         &self,
-        terminator: &checked_trees::CheckedScalarStateTerminator,
+        terminator: &typed_trees_to_checked_trees::checked_trees::CheckedScalarStateTerminator,
         views: &mut Vec<ExpressionHandle>,
     ) {
         match terminator {
-            checked_trees::CheckedScalarStateTerminator::Jump(successor) => {
+            typed_trees_to_checked_trees::checked_trees::CheckedScalarStateTerminator::Jump(successor) => {
                 self.scalar_successor_subslice_views(successor, views);
             }
-            checked_trees::CheckedScalarStateTerminator::Conditional {
+            typed_trees_to_checked_trees::checked_trees::CheckedScalarStateTerminator::Conditional {
                 when_true,
                 when_false,
                 ..
@@ -450,7 +461,7 @@ impl Context<'_> {
                 self.scalar_destination_subslice_views(when_true, views);
                 self.scalar_destination_subslice_views(when_false, views);
             }
-            checked_trees::CheckedScalarStateTerminator::Guarded { arms, fallback } => {
+            typed_trees_to_checked_trees::checked_trees::CheckedScalarStateTerminator::Guarded { arms, fallback } => {
                 let arms = self
                     .checked
                     .facts
@@ -466,8 +477,10 @@ impl Context<'_> {
 
     fn scalar_guard_subslice_views(
         &self,
-        arms: &[checked_trees::CheckedScalarGuardedExit],
-        fallback: Option<&checked_trees::CheckedScalarBranchDestination>,
+        arms: &[typed_trees_to_checked_trees::checked_trees::CheckedScalarGuardedExit],
+        fallback: Option<
+            &typed_trees_to_checked_trees::checked_trees::CheckedScalarBranchDestination,
+        >,
         views: &mut Vec<ExpressionHandle>,
     ) {
         for arm in arms {
@@ -480,10 +493,13 @@ impl Context<'_> {
 
     fn scalar_destination_subslice_views(
         &self,
-        destination: &checked_trees::CheckedScalarBranchDestination,
+        destination: &typed_trees_to_checked_trees::checked_trees::CheckedScalarBranchDestination,
         views: &mut Vec<ExpressionHandle>,
     ) {
-        let checked_trees::CheckedScalarBranchDestination::Jump(successor) = destination else {
+        let typed_trees_to_checked_trees::checked_trees::CheckedScalarBranchDestination::Jump(
+            successor,
+        ) = destination
+        else {
             return;
         };
         self.scalar_successor_subslice_views(successor, views);
@@ -493,7 +509,7 @@ impl Context<'_> {
     /// transfer arena keyed by the edge's authored statement ordinal.
     fn scalar_successor_subslice_views(
         &self,
-        successor: &checked_trees::CheckedScalarSuccessor,
+        successor: &typed_trees_to_checked_trees::checked_trees::CheckedScalarSuccessor,
         views: &mut Vec<ExpressionHandle>,
     ) {
         if successor.statement_ordinal != self.statement {
@@ -507,7 +523,7 @@ impl Context<'_> {
             .structural_transfers
             .span_or_empty(successor.structural_transfers)
         {
-            if let checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
+            if let typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
                 expression,
                 ..
             } = &transfer.source
@@ -519,10 +535,10 @@ impl Context<'_> {
 
     fn composed_terminator_subslice_views(
         &self,
-        terminator: &checked_trees::CheckedComposedUnitControlTerminatorPlan,
+        terminator: &typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlTerminatorPlan,
         views: &mut Vec<ExpressionHandle>,
     ) {
-        use checked_trees::CheckedComposedUnitControlTerminatorPlan as Plan;
+        use typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlTerminatorPlan as Plan;
         match terminator {
             Plan::Jump { successor } => {
                 self.composed_successor_subslice_views(successor, views);
@@ -561,7 +577,7 @@ impl Context<'_> {
                 {
                     return;
                 }
-                if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+                if let typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
                     expression,
                     ..
                 } = &subject.source
@@ -578,14 +594,14 @@ impl Context<'_> {
 
     fn composed_successor_subslice_views(
         &self,
-        successor: &checked_trees::CheckedStructuralControlSuccessorPlan,
+        successor: &typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlSuccessorPlan,
         views: &mut Vec<ExpressionHandle>,
     ) {
         if successor.statement_ordinal != self.statement {
             return;
         }
         for transfer in &successor.transfers {
-            if let checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
+            if let typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
                 expression,
                 ..
             } = &transfer.source

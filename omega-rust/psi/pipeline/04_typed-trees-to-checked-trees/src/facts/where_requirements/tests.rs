@@ -1,16 +1,16 @@
-use crate::tests::front_end::checked_program;
-use checked_trees::{
+use crate::checked_trees::{
     CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedScalarExpression,
     CheckedStructuralPredicatePathSegment,
 };
-use typed_trees::types::PrimitiveType;
+use crate::tests::front_end::checked_program;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
 
-fn checked(source: &str) -> checked_trees::CheckedTrees {
+fn checked(source: &str) -> crate::checked_trees::CheckedTrees {
     checked_program(source)
 }
 
 fn machine_requirements(
-    checked: &checked_trees::CheckedTrees,
+    checked: &crate::checked_trees::CheckedTrees,
     machine_name: &str,
 ) -> Vec<CheckedBooleanExpression> {
     let machine = checked

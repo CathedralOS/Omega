@@ -10,7 +10,7 @@ use crate::SelectedInstructionError;
 use semantic_vocabulary::{IeeeFloatComparisonOperation as Relation, IeeeFloatFormat, IntegerType};
 
 pub(super) fn emit(
-    operation: &legalized_operations::LegalizedScalarInstruction,
+    operation: &crate::legalized_operations::LegalizedScalarInstruction,
     state: &mut Builder<'_>,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let result = operation

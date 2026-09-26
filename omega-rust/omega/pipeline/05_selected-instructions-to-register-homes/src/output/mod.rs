@@ -25,11 +25,11 @@ use crate::{
     ValidatedRegisterHomes,
 };
 use optimization_core::{OptimizationSelections, OptimizationWorkBudget};
-use register_environment::ValidatedTargetRegisterEnvironment;
 pub use retained::RetainedAllocation;
 use selected_instructions_to_selected_instructions::{
     SelectedProgramRef, ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
 };
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
 
 mod sealed {
     pub trait Sealed {}
@@ -71,7 +71,9 @@ trait ProjectAllocation {
 /// by independent replay in the allocation phase.
 #[derive(Clone)]
 pub struct AllocationOutput<'program> {
-    program: register_homes::AllocatedProgramRef<'program>,
+    program: selected_instructions_to_selected_instructions::register_homes::AllocatedProgramRef<
+        'program,
+    >,
     selected: SelectedProgramRef<'program>,
     liveness: &'program ValidatedLiveness,
     ranges: &'program ValidatedLiveRanges,
@@ -88,12 +90,17 @@ pub struct AllocationOutput<'program> {
 }
 
 impl<'program> AllocationOutput<'program> {
-    pub const fn program(&self) -> register_homes::AllocatedProgramRef<'program> {
+    pub const fn program(
+        &self,
+    ) -> selected_instructions_to_selected_instructions::register_homes::AllocatedProgramRef<'program>
+    {
         self.program
     }
 
     /// The selected program's borrow remains tied to the retained input, not this view.
-    pub fn selected_plan(&self) -> &'program selected_instructions::SelectedInstructionPlan {
+    pub fn selected_plan(
+        &self,
+    ) -> &'program target_operations_to_selected_instructions::SelectedInstructionPlan {
         self.program.selected
     }
 

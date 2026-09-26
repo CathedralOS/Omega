@@ -6,7 +6,7 @@
 //! fail-closed custody corruptions the spelled suite already covers.
 
 use crate::tests::front_end::checked_program_result;
-fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
+fn check(source: &str) -> Result<crate::checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     checked_program_result(source)
 }
 

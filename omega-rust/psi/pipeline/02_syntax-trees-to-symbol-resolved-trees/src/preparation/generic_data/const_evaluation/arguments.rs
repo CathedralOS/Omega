@@ -32,7 +32,7 @@ use crate::preparation::generic_data::validate_syntax_integer_range;
 /// UNTOUCHED for the existing type-check-only path (skip, never reject).
 pub(in crate::preparation::generic_data) fn consider_generic_spelling(
     syntax: &mut SyntaxTrees,
-    generic_data: &HashMap<syntax_trees::item::ItemHandle, GenericData>,
+    generic_data: &HashMap<tokens_to_syntax_trees::syntax_trees::item::ItemHandle, GenericData>,
     const_definitions: &HashMap<String, ConstDefinition>,
     const_values: &HashMap<String, i128>,
     selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
@@ -160,12 +160,14 @@ pub(in crate::preparation::generic_data) fn consider_generic_spelling(
                             *argument,
                             name.source_span(),
                             value.encoding.clone(),
-                            [syntax_trees::types::ConstArgumentOrigin {
-                                reference: name.source_span(),
-                                declaration: definition.name.source_span(),
-                                initializer: syntax.expressions.source_span(definition.value),
-                                canonical_value_encoding: value.encoding,
-                            }],
+                            [
+                                tokens_to_syntax_trees::syntax_trees::types::ConstArgumentOrigin {
+                                    reference: name.source_span(),
+                                    declaration: definition.name.source_span(),
+                                    initializer: syntax.expressions.source_span(definition.value),
+                                    canonical_value_encoding: value.encoding,
+                                },
+                            ],
                             [],
                         );
                     syntax.tables.type_references.replace_type_reference(
@@ -210,8 +212,8 @@ pub(in crate::preparation::generic_data) fn consider_generic_spelling(
             TypeReferenceNode::ConstExpression(expression) => {
                 if matches!(
                     syntax.expressions.expression(expression),
-                    syntax_trees::expression::ExpressionNode::StructLiteral(_)
-                        | syntax_trees::expression::ExpressionNode::ArrayLiteral(_)
+                    tokens_to_syntax_trees::syntax_trees::expression::ExpressionNode::StructLiteral(_)
+                        | tokens_to_syntax_trees::syntax_trees::expression::ExpressionNode::ArrayLiteral(_)
                 ) {
                     let value = canonicalize_selected_index_expression(
                         syntax,
@@ -248,7 +250,7 @@ pub(in crate::preparation::generic_data) fn consider_generic_spelling(
                 // fold rather than reporting it as a malformed argument.
                 if matches!(
                     syntax.expressions.expression(expression),
-                    syntax_trees::expression::ExpressionNode::Call(_)
+                    tokens_to_syntax_trees::syntax_trees::expression::ExpressionNode::Call(_)
                 ) {
                     continue;
                 }

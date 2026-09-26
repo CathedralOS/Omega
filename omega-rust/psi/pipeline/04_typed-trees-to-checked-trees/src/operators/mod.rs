@@ -1,6 +1,6 @@
 //! Operator facts: for each operator the program spells, the declared
 //! operators it could mean and the one resolution selected, recorded as
-//! `checked_trees::CheckedOperatorFacts`.
+//! `crate::checked_trees::CheckedOperatorFacts`.
 //!
 //! `build_operator_facts` is the entry; `facts::build_check_facts` calls it
 //! right after the value facts. It walks the expression of every value row
@@ -28,25 +28,27 @@
 
 use std::collections::HashSet;
 
-use arena::Arena;
-use checked_trees::{
+use crate::checked_trees::{
     CheckedArithmeticPolicyAdapter, CheckedNamedOperatorUseFact, CheckedOperatorCandidateFact,
     CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedOperatorUseFact,
     CheckedValueFacts, CheckedValueOrigin,
 };
+use arena::Arena;
 use language_core::operator_spelling::OperatorSpelling;
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::float_semantics::FloatFormat;
-use symbols::{BuiltinFunction, SymbolHandle};
-use typed_trees::TypedTrees;
-use typed_trees::expression::{
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableCallExpression, TableIndexedExpression,
 };
-use typed_trees::operator::{
+use symbol_resolved_trees_to_typed_trees::typed_trees::operator::{
     SelectedTraitOperatorMeaning, SpelledOperator, resolve_spelling_for_operands,
     selected_trait_operator_meanings,
 };
-use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    PrimitiveType, TypeReferenceHandle,
+};
+use symbols::{BuiltinFunction, SymbolHandle};
 
 mod applications;
 mod receiver;
@@ -100,7 +102,7 @@ pub(crate) fn build_operator_facts(
 
 pub(crate) fn derive_checked_operator_realization_contracts(
     program: &TypedTrees,
-) -> Vec<checked_trees::CheckedOperatorRealizationContract> {
+) -> Vec<crate::checked_trees::CheckedOperatorRealizationContract> {
     let mut rows = Vec::new();
     for machine in program.machines() {
         let Some(entry) = program.machine_states(machine).first() else {
@@ -119,10 +121,12 @@ pub(crate) fn derive_checked_operator_realization_contracts(
             {
                 continue;
             }
-            let Some(operator) = typed_trees::operator::declaration_by_symbol(
-                program,
-                conformance.requirement_symbol,
-            ) else {
+            let Some(operator) =
+                symbol_resolved_trees_to_typed_trees::typed_trees::operator::declaration_by_symbol(
+                    program,
+                    conformance.requirement_symbol,
+                )
+            else {
                 continue;
             };
             let requirement_parameter_names = program
@@ -130,37 +134,44 @@ pub(crate) fn derive_checked_operator_realization_contracts(
                 .iter()
                 .map(|parameter| parameter.name.as_str().to_owned())
                 .collect::<Vec<_>>();
-            rows.push(checked_trees::CheckedOperatorRealizationContract::new(
-                machine.symbol,
-                operator.symbol,
-                crate::facts::encode_contract_set_canonical(
-                    program,
-                    program.machine_contracts(machine),
-                    &provider_parameter_names,
-                    &[],
-                    &[],
-                    false,
-                    true,
+            rows.push(
+                crate::checked_trees::CheckedOperatorRealizationContract::new(
+                    machine.symbol,
+                    operator.symbol,
+                    crate::facts::encode_contract_set_canonical(
+                        program,
+                        program.machine_contracts(machine),
+                        &provider_parameter_names,
+                        &[],
+                        &[],
+                        false,
+                        true,
+                    ),
+                    crate::facts::encode_contract_set_canonical(
+                        program,
+                        program.operator_contracts(operator),
+                        &requirement_parameter_names,
+                        &[],
+                        &[],
+                        false,
+                        true,
+                    ),
+                    crate::validation::checked_operator_contract_snapshot(
+                        program,
+                        program.machine_contracts(machine),
+                    ),
+                    crate::validation::checked_operator_contract_snapshot(
+                        program,
+                        program.operator_contracts(operator),
+                    ),
+                    operator_realization_admission_snapshot(
+                        program,
+                        machine,
+                        conformance,
+                        operator,
+                    ),
                 ),
-                crate::facts::encode_contract_set_canonical(
-                    program,
-                    program.operator_contracts(operator),
-                    &requirement_parameter_names,
-                    &[],
-                    &[],
-                    false,
-                    true,
-                ),
-                validation::checked_operator_contract_snapshot(
-                    program,
-                    program.machine_contracts(machine),
-                ),
-                validation::checked_operator_contract_snapshot(
-                    program,
-                    program.operator_contracts(operator),
-                ),
-                operator_realization_admission_snapshot(program, machine, conformance, operator),
-            ));
+            );
         }
     }
     rows.sort_by_key(|row| {
@@ -176,9 +187,9 @@ pub(crate) fn derive_checked_operator_realization_contracts(
 
 fn operator_realization_admission_snapshot(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    conformance: &typed_trees::machine::TraitConformance,
-    operator: &typed_trees::operator::OperatorDefinition,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    conformance: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::TraitConformance,
+    operator: &symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition,
 ) -> Vec<u8> {
     use std::fmt::Debug;
 
@@ -215,28 +226,28 @@ fn operator_realization_admission_snapshot(
             output,
         );
         match node {
-            typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
                 append_type(program, *referee, visited, output);
             }
-            typed_trees::types::TypeReferenceNode::Constrained {
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained {
                 base_type,
                 constraints,
             } => {
                 append_type(program, *base_type, visited, output);
                 for constraint in program.type_reference_table.constraints(*constraints) {
                     append_debug(constraint, output);
-                    if let typed_trees::types::TypeConstraintNode::Domain(domain) = constraint {
+                    if let symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode::Domain(domain) = constraint {
                         for argument in &domain.arguments {
                             append_type(program, *argument, visited, output);
                         }
                     }
                 }
             }
-            typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. }
-            | typed_trees::types::TypeReferenceNode::Slice { element_type } => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. }
+            | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Slice { element_type } => {
                 append_type(program, *element_type, visited, output);
             }
-            typed_trees::types::TypeReferenceNode::Generic { arguments, .. } => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Generic { arguments, .. } => {
                 for argument in program
                     .type_reference_table
                     .type_reference_handles(*arguments)
@@ -244,10 +255,10 @@ fn operator_realization_admission_snapshot(
                     append_type(program, *argument, visited, output);
                 }
             }
-            typed_trees::types::TypeReferenceNode::ConstExpression(_)
-            | typed_trees::types::TypeReferenceNode::DynamicTrait { .. }
-            | typed_trees::types::TypeReferenceNode::Named { .. }
-            | typed_trees::types::TypeReferenceNode::Unit => {}
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::ConstExpression(_)
+            | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::DynamicTrait { .. }
+            | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named { .. }
+            | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Unit => {}
         }
     }
 
@@ -318,9 +329,11 @@ fn operator_realization_admission_snapshot(
 
 pub(crate) fn derive_checked_operator_crash_contracts(
     program: &TypedTrees,
-) -> Vec<checked_trees::CheckedOperatorCrashContract> {
+) -> Vec<crate::checked_trees::CheckedOperatorCrashContract> {
     use std::collections::BTreeMap;
-    use typed_trees::{domain::ProofFact, signature::SignatureContractKind};
+    use symbol_resolved_trees_to_typed_trees::typed_trees::{
+        domain::ProofFact, signature::SignatureContractKind,
+    };
 
     #[derive(Default)]
     struct Bucket {
@@ -336,14 +349,14 @@ pub(crate) fn derive_checked_operator_crash_contracts(
     );
     let mut rows = operators
         .map(|operator| {
-            let mut buckets = BTreeMap::<checked_trees::CrashCause, Bucket>::new();
+            let mut buckets = BTreeMap::<crate::checked_trees::CrashCause, Bucket>::new();
             for contract in program.operator_contracts(operator) {
                 let SignatureContractKind::Crashes { cause } = contract.kind else {
                     continue;
                 };
                 let cause = match cause {
-                    typed_trees::signature::CrashCause::Trap => checked_trees::CrashCause::Trap,
-                    typed_trees::signature::CrashCause::Abort => checked_trees::CrashCause::Abort,
+                    symbol_resolved_trees_to_typed_trees::typed_trees::signature::CrashCause::Trap => crate::checked_trees::CrashCause::Trap,
+                    symbol_resolved_trees_to_typed_trees::typed_trees::signature::CrashCause::Abort => crate::checked_trees::CrashCause::Abort,
                 };
                 let bucket = buckets.entry(cause).or_default();
                 if contract.facts.is_empty() {
@@ -378,7 +391,7 @@ pub(crate) fn derive_checked_operator_crash_contracts(
             let buckets = buckets
                 .into_iter()
                 .map(|(cause, bucket)| {
-                    checked_trees::CheckedOperatorCrashBucket::new(
+                    crate::checked_trees::CheckedOperatorCrashBucket::new(
                         cause,
                         bucket.unconditional,
                         if bucket.unconditional {
@@ -389,7 +402,7 @@ pub(crate) fn derive_checked_operator_crash_contracts(
                     )
                 })
                 .collect();
-            checked_trees::CheckedOperatorCrashContract::new(operator.symbol, buckets)
+            crate::checked_trees::CheckedOperatorCrashContract::new(operator.symbol, buckets)
         })
         .collect::<Vec<_>>();
     rows.sort_by_key(|row| {
@@ -428,9 +441,11 @@ fn collect_expression_operator_use(
             let subject_type =
                 expression_type_reference_for_origin(program, dispatch.subject, origin);
             let floating_subject = subject_type
-                .and_then(|reference| validation::unwrapped_type_reference(program, reference))
+                .and_then(|reference| {
+                    crate::validation::unwrapped_type_reference(program, reference)
+                })
                 .and_then(|reference| program.primitive_type_reference(reference))
-                .or_else(|| validation::match_subject_primitive_type(program, dispatch))
+                .or_else(|| crate::validation::match_subject_primitive_type(program, dispatch))
                 .is_some_and(|primitive| {
                     matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
                 });
@@ -440,7 +455,7 @@ fn collect_expression_operator_use(
                 .iter()
                 .enumerate()
             {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                     if floating_subject
                         && let Ok(ordinal) = u32::try_from(ordinal)
                         && let Some(position) =
@@ -460,7 +475,7 @@ fn collect_expression_operator_use(
                             candidates,
                         );
                         equality.occurrence =
-                            checked_trees::CheckedOperatorOccurrence::MatchEquality { source_arm };
+                            crate::checked_trees::CheckedOperatorOccurrence::MatchEquality { source_arm };
                         uses.append(equality);
                     }
                     collect_expression_operator_use(
@@ -673,7 +688,10 @@ fn builtin_float_operator_use_fact(
         builtin_float_operator_selection(program, expression, origin, call)?;
     // The shorthand resolved to a top-level `boundary requirement`; that
     // species retains its own named requirement use.
-    typed_trees::operator::declaration_by_symbol(program, selected_operator_symbol)?;
+    symbol_resolved_trees_to_typed_trees::typed_trees::operator::declaration_by_symbol(
+        program,
+        selected_operator_symbol,
+    )?;
 
     Some(CheckedNamedOperatorUseFact {
         expression,
@@ -825,7 +843,10 @@ fn named_operator_use_fact(
     origin: CheckedValueOrigin,
     call: &TableCallExpression,
 ) -> Option<CheckedNamedOperatorUseFact> {
-    let operator = typed_trees::operator::resolve_named_expression_call(program, call)?;
+    let operator =
+        symbol_resolved_trees_to_typed_trees::typed_trees::operator::resolve_named_expression_call(
+            program, call,
+        )?;
     let path = program.operator_path_members(operator.name);
     let [namespace, requirement] = path else {
         return None;
@@ -1064,7 +1085,7 @@ fn operator_use_fact(
     }
     let use_site = program.expression_table.source_span(expression);
     let candidates = if matches!(spelling, OperatorSpelling::Index | OperatorSpelling::Range) {
-        typed_trees::operator::resolve_indexed_spelling_for_operands(
+        symbol_resolved_trees_to_typed_trees::typed_trees::operator::resolve_indexed_spelling_for_operands(
             program,
             spelling,
             operand_types,
@@ -1101,16 +1122,16 @@ fn operator_use_fact(
             .first()
             .copied()
             .flatten()
-            .and_then(|reference| validation::unwrapped_type_reference(program, reference))
+            .and_then(|reference| crate::validation::unwrapped_type_reference(program, reference))
             .is_some_and(|reference| {
                 matches!(
                     program.type_reference_table.type_reference(reference),
-                    typed_trees::types::TypeReferenceNode::FixedArray { .. }
-                        | typed_trees::types::TypeReferenceNode::Slice { .. }
+                    symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::FixedArray { .. }
+                        | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Slice { .. }
                 )
             })
             && origin_machine_symbol(origin).is_some_and(|machine_symbol| {
-                typed_trees::operator::has_builtin_spelled_expression_meaning(
+                symbol_resolved_trees_to_typed_trees::typed_trees::operator::has_builtin_spelled_expression_meaning(
                     program,
                     machine_symbol,
                     expression,

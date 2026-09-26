@@ -12,7 +12,7 @@ use std::time::Instant;
 
 use abstract_operations_to_abstract_operations::test_support::run_psi_pipeline;
 use optimization_core::{Optimization, OptimizationSelections, OptimizationWorkBudget};
-use optimization_unit::recompute_psi_optimization_unit_identity;
+use terminal_psi_to_abstract_operations::optimization_unit::recompute_psi_optimization_unit_identity;
 use terminal_psi_to_abstract_operations::{
     VerifiedPsiOptimizationUnit, build_verified_psi_optimization_unit, lower_artifact,
 };
@@ -128,7 +128,9 @@ fn verified_unit(source: &str) -> VerifiedPsiOptimizationUnit {
     .expect("build optimization unit")
 }
 
-fn recompute_cost(unit: &optimization_unit::PsiOptimizationUnit) -> (u128, usize, usize) {
+fn recompute_cost(
+    unit: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
+) -> (u128, usize, usize) {
     let mut elapsed = Vec::new();
     let mut calls = Vec::new();
     let mut bytes = Vec::new();

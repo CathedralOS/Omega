@@ -1,6 +1,6 @@
 use crate::parser::parse_syntax_trees;
+use crate::syntax_trees::item::{DataMember, Item};
 use source_files_to_tokens::Lexer;
-use syntax_trees::item::{DataMember, Item};
 
 #[test]
 fn numbered_declarations_share_ordinary_data_and_source_identity() {

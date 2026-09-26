@@ -1,5 +1,5 @@
-use checked_trees::{ContractProofFactKind, ProofFactKind};
-use facts::{
+use crate::checked_trees::{ContractProofFactKind, ProofFactKind};
+use crate::fact_plan::{
     ContractFactKind as SemanticContractFactKind,
     ProofObligationKind as SemanticProofObligationKind,
 };

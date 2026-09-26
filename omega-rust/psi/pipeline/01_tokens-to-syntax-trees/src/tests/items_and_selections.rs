@@ -1,7 +1,7 @@
 use crate::parser::parse_syntax_trees;
+use crate::syntax_trees::expression::ExpressionNode;
+use crate::syntax_trees::statement::StatementNode;
 use source_files_to_tokens::Lexer;
-use syntax_trees::expression::ExpressionNode;
-use syntax_trees::statement::StatementNode;
 
 #[test]
 fn name_expression_source_custody_retains_complete_authored_paths() {
@@ -171,7 +171,7 @@ fn trait_defaults_share_atomic_binding_dispatch() {
     let definition = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Trait(definition) => Some(definition),
+            crate::syntax_trees::item::Item::Trait(definition) => Some(definition),
             _ => None,
         })
         .expect("trait");
@@ -191,12 +191,12 @@ fn trait_defaults_share_atomic_binding_dispatch() {
 }
 
 fn first_machine_statements(
-    parsed: &syntax_trees::SyntaxTrees,
-) -> &[syntax_trees::statement::StatementHandle] {
+    parsed: &crate::syntax_trees::SyntaxTrees,
+) -> &[crate::syntax_trees::statement::StatementHandle] {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine");
@@ -224,7 +224,7 @@ fn tail_targets_preserve_other_receiver_calls_without_reclassifying_state_coordi
         let machine = parsed
             .root_items()
             .find_map(|item| match item {
-                syntax_trees::item::Item::Machine(machine) => Some(machine),
+                crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
                 _ => None,
             })
             .unwrap();
@@ -239,15 +239,17 @@ fn tail_targets_preserve_other_receiver_calls_without_reclassifying_state_coordi
         };
         let target_node = parsed.statements.transition_target(transition.target);
         if named {
-            let syntax_trees::statement::TransitionTargetNode::Named {
-                evidence_arguments, ..
+            let crate::syntax_trees::statement::TransitionTargetNode::Named {
+                evidence_arguments,
+                ..
             } = target_node
             else {
                 panic!("state/namespace target changed: {target}");
             };
             assert_eq!(evidence_arguments[0].as_str(), "proof");
         } else {
-            let syntax_trees::statement::TransitionTargetNode::Value(expression) = target_node
+            let crate::syntax_trees::statement::TransitionTargetNode::Value(expression) =
+                target_node
             else {
                 panic!("receiver call became a state transfer: {target}");
             };
@@ -286,7 +288,7 @@ fn opposite_boolean_subject_arms_test_the_subject_once() {
         let machine = parsed
             .root_items()
             .find_map(|item| match item {
-                syntax_trees::item::Item::Machine(machine) => Some(machine),
+                crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
                 _ => None,
             })
             .unwrap();
@@ -299,7 +301,8 @@ fn opposite_boolean_subject_arms_test_the_subject_once() {
         else {
             panic!("first authored arm");
         };
-        let syntax_trees::statement::TransitionGuardNode::When(expression) = first_arm.guard else {
+        let crate::syntax_trees::statement::TransitionGuardNode::When(expression) = first_arm.guard
+        else {
             panic!("first arm tests the subject");
         };
         let ExpressionNode::Binary(comparison) = parsed.expressions.expression(expression) else {
@@ -316,7 +319,7 @@ fn opposite_boolean_subject_arms_test_the_subject_once() {
         };
         assert!(matches!(
             last_arm.guard,
-            syntax_trees::statement::TransitionGuardNode::Always
+            crate::syntax_trees::statement::TransitionGuardNode::Always
         ));
     }
 }
@@ -335,7 +338,7 @@ fn unrelated_or_nonpair_boolean_guards_keep_their_tests() {
         let machine = parsed
             .root_items()
             .find_map(|item| match item {
-                syntax_trees::item::Item::Machine(machine) => Some(machine),
+                crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
                 _ => None,
             })
             .unwrap();
@@ -351,7 +354,7 @@ fn unrelated_or_nonpair_boolean_guards_keep_their_tests() {
             assert!(
                 matches!(
                     transition.guard,
-                    syntax_trees::statement::TransitionGuardNode::When(_)
+                    crate::syntax_trees::statement::TransitionGuardNode::When(_)
                 ),
                 "{body}"
             );
@@ -373,7 +376,7 @@ fn boolean_transition_targets_are_literals_without_parentheses() {
         let machine = parsed
             .root_items()
             .find_map(|item| match item {
-                syntax_trees::item::Item::Machine(machine) => Some(machine),
+                crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
                 _ => None,
             })
             .unwrap();
@@ -384,7 +387,7 @@ fn boolean_transition_targets_are_literals_without_parentheses() {
         let StatementNode::Transition(transition) = parsed.statements.statement(statement) else {
             panic!("transition");
         };
-        let syntax_trees::statement::TransitionTargetNode::Value(expression) =
+        let crate::syntax_trees::statement::TransitionTargetNode::Value(expression) =
             parsed.statements.transition_target(transition.target)
         else {
             panic!("literal value target");
@@ -482,7 +485,7 @@ fn old_remains_an_ordinary_parameter_and_local_identifier() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("migration machine");
@@ -522,7 +525,7 @@ fn entry_remains_an_ordinary_machine_name_with_a_generated_internal_entry() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("ordinary entry machine");
@@ -543,7 +546,7 @@ fn trait_machine_parameter_is_requirement_identity() {
     let trait_definition = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Trait(definition) => Some(definition),
+            crate::syntax_trees::item::Item::Trait(definition) => Some(definition),
             _ => None,
         })
         .expect("PrivateCallbackSlot trait");
@@ -556,8 +559,10 @@ fn trait_machine_parameter_is_requirement_identity() {
     assert_eq!(parameter.name.as_str(), "Requirement");
     assert!(matches!(
         parameter.kind,
-        syntax_trees::item::TypeParameterKind::Machine {
-            contract: Some(syntax_trees::item::MachineParameterContract::RequirementIdentity)
+        crate::syntax_trees::item::TypeParameterKind::Machine {
+            contract: Some(
+                crate::syntax_trees::item::MachineParameterContract::RequirementIdentity
+            )
         }
     ));
 }
@@ -571,7 +576,7 @@ fn retains_public_data_visibility_in_syntax() {
     let definitions = parsed
         .root_items()
         .filter_map(|item| match item {
-            syntax_trees::item::Item::Data(data) => Some(data),
+            crate::syntax_trees::item::Item::Data(data) => Some(data),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -596,7 +601,7 @@ fn retains_public_machine_visibility_in_syntax() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("public machine");
@@ -772,7 +777,7 @@ fn root_binding_statement_retains_operand_paths_and_the_authored_bind_span() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("build machine");
@@ -841,7 +846,7 @@ fn root_binding_statement_retains_computed_operands_without_a_declaration_path()
         let machine = parsed
             .root_items()
             .find_map(|item| match item {
-                syntax_trees::item::Item::Machine(machine) => Some(machine),
+                crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
                 _ => None,
             })
             .expect("build machine");
@@ -923,7 +928,7 @@ fn retains_public_name_first_conformance_visibility() {
     let conformance = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Conformance(conformance) => Some(conformance),
+            crate::syntax_trees::item::Item::Conformance(conformance) => Some(conformance),
             _ => None,
         })
         .expect("public name-first conformance");
@@ -947,11 +952,11 @@ fn retains_public_trait_and_numbered_data_visibility() {
 
     assert!(parsed.root_items().any(|item| matches!(
         item,
-        syntax_trees::item::Item::Trait(definition) if definition.is_public
+        crate::syntax_trees::item::Item::Trait(definition) if definition.is_public
     )));
     assert!(parsed.root_items().any(|item| matches!(
         item,
-        syntax_trees::item::Item::Data(definition) if definition.is_public
+        crate::syntax_trees::item::Item::Data(definition) if definition.is_public
     )));
 }
 
@@ -987,7 +992,7 @@ fn parses_relevance_on_ordinary_numbered_fields() {
     let schema = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Data(schema) => Some(schema),
+            crate::syntax_trees::item::Item::Data(schema) => Some(schema),
             _ => None,
         })
         .expect("ordinary numbered data");
@@ -996,7 +1001,7 @@ fn parses_relevance_on_ordinary_numbered_fields() {
         .data_members(schema.members)
         .iter()
         .filter_map(|member| match member {
-            syntax_trees::item::DataMember::Field(field) => Some(field),
+            crate::syntax_trees::item::DataMember::Field(field) => Some(field),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -1024,7 +1029,7 @@ fn parses_primitive_witness_and_transparent_proposition_declarations() {
     let propositions = parsed
         .root_items()
         .filter_map(|item| match item {
-            syntax_trees::item::Item::Proposition(proposition) => Some(proposition),
+            crate::syntax_trees::item::Item::Proposition(proposition) => Some(proposition),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -1034,7 +1039,7 @@ fn parses_primitive_witness_and_transparent_proposition_declarations() {
     assert!(!propositions[1].is_public);
     assert!(matches!(
         propositions[0].body,
-        syntax_trees::item::PropositionBody::Primitive
+        crate::syntax_trees::item::PropositionBody::Primitive
     ));
     assert_eq!(
         parsed
@@ -1052,11 +1057,11 @@ fn parses_primitive_witness_and_transparent_proposition_declarations() {
     );
     assert!(matches!(
         propositions[1].body,
-        syntax_trees::item::PropositionBody::Witness { .. }
+        crate::syntax_trees::item::PropositionBody::Witness { .. }
     ));
     assert!(matches!(
         propositions[2].body,
-        syntax_trees::item::PropositionBody::Transparent { proposition }
+        crate::syntax_trees::item::PropositionBody::Transparent { proposition }
             if matches!(parsed.expressions.expression(proposition), ExpressionNode::Call(_))
     ));
     assert!(propositions[0].transparent_formula_source_span.is_none());
@@ -1091,7 +1096,7 @@ fn parses_public_and_private_const_declarations() {
     let declarations = parsed
         .root_items()
         .filter_map(|item| match item {
-            syntax_trees::item::Item::Const(declaration) => Some(declaration),
+            crate::syntax_trees::item::Item::Const(declaration) => Some(declaration),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -1114,7 +1119,7 @@ fn struct_literal_retains_its_complete_authored_source_span() {
     let declaration = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Const(declaration) => Some(declaration),
+            crate::syntax_trees::item::Item::Const(declaration) => Some(declaration),
             _ => None,
         })
         .expect("structured const declaration");
@@ -1132,7 +1137,7 @@ fn array_literal_retains_its_complete_authored_source_span() {
         let declaration = parsed
             .root_items()
             .find_map(|item| match item {
-                syntax_trees::item::Item::Const(declaration) => Some(declaration),
+                crate::syntax_trees::item::Item::Const(declaration) => Some(declaration),
                 _ => None,
             })
             .expect("array const declaration");
@@ -1167,7 +1172,7 @@ fn parses_public_and_private_named_conformances() {
     let conformances = parsed
         .root_items()
         .filter_map(|item| match item {
-            syntax_trees::item::Item::Conformance(conformance) => Some(conformance),
+            crate::syntax_trees::item::Item::Conformance(conformance) => Some(conformance),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -1259,7 +1264,7 @@ fn parses_trait_proposition_parameter_with_authored_signature() {
     let trait_definitions = parsed
         .root_items()
         .filter_map(|item| match item {
-            syntax_trees::item::Item::Trait(definition) => Some(definition),
+            crate::syntax_trees::item::Item::Trait(definition) => Some(definition),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -1269,7 +1274,7 @@ fn parses_trait_proposition_parameter_with_authored_signature() {
     let parameters = parsed
         .items
         .type_parameters(trait_definition.type_parameters);
-    let syntax_trees::item::TypeParameterKind::Proposition {
+    let crate::syntax_trees::item::TypeParameterKind::Proposition {
         contract: Some(contract),
     } = &parameters[1].kind
     else {

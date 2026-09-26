@@ -2,10 +2,12 @@
 //! of `float_comparisons`, keyed by the same checked `operator_use` identity.
 
 use super::{CheckedBoundaryOperatorApplicationOccurrence, unsupported};
-use checked_trees::CheckedTrees;
-use checked_trees::types::PrimitiveType;
-use lowered_psi::{LoweredPsi, LoweredSelectedIntegerComparisonOperation};
+use checked_trees_to_lowered_psi::lowered_psi::{
+    LoweredPsi, LoweredSelectedIntegerComparisonOperation,
+};
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
+use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
+use typed_trees_to_checked_trees::checked_trees::types::PrimitiveType;
 
 pub(super) fn replay(
     checked: &CheckedTrees,

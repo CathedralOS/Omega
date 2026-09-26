@@ -1,8 +1,13 @@
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
-use optimization_unit::{EffectLink, FuelSettlement, PsiProvenance, ValueDefinitionSite};
-use register_environment::baseline_target_register_environment;
-use register_model::RegisterInstructionConstraint;
-use selected_instructions::{
+use semantic_vocabulary::{
+    BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
+    IntegerValue, MachineId, ObligationId, OperationId, PlaceId, ScalarType, ValueId,
+};
+use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
+use target_operations_to_selected_instructions::register_model::RegisterInstructionConstraint;
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use target_operations_to_selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedBoundarySettlement,
     SelectedBoundarySettlementPayload, SelectedCallContract, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedMemoryAccess,
@@ -10,15 +15,12 @@ use selected_instructions::{
     SelectedTerminator, SelectedValueBinding, SelectedValueTransport, VirtualRegister,
     VirtualRegisterId, VirtualRegisterOrigin,
 };
-use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
-    IntegerValue, MachineId, ObligationId, OperationId, PlaceId, ScalarType, ValueId,
-};
-use target::NativeTarget;
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 use terminal_psi::{
     CrashCause, CrashRouteBucket, CrashRouteGuard, SemanticFingerprint, TerminalPsiIdentity,
     VocabularyMarker,
+};
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    EffectLink, FuelSettlement, PsiProvenance, ValueDefinitionSite,
 };
 
 use super::{
@@ -86,7 +88,7 @@ const EDGE_FJ: u64 = 33;
 
 fn register(
     id: VirtualRegisterId,
-    class: register_model::RegisterClassId,
+    class: target_operations_to_selected_instructions::register_model::RegisterClassId,
     origin: VirtualRegisterOrigin,
 ) -> VirtualRegister {
     VirtualRegister {
@@ -151,7 +153,7 @@ struct FixtureParts {
     branch_row: RegisterInstructionConstraint,
     jump_row: RegisterInstructionConstraint,
     return_row: RegisterInstructionConstraint,
-    class: register_model::RegisterClassId,
+    class: target_operations_to_selected_instructions::register_model::RegisterClassId,
     scalar_type: ScalarType,
     machine: MachineId,
 }
@@ -182,7 +184,7 @@ fn parts(target: NativeTarget) -> FixtureParts {
 }
 
 fn result_register(
-    class: register_model::RegisterClassId,
+    class: target_operations_to_selected_instructions::register_model::RegisterClassId,
     id: VirtualRegisterId,
     instruction: SelectedInstructionId,
     value: u64,
@@ -466,7 +468,7 @@ fn fork_deep_fixture(target: NativeTarget) -> ValidatedScheduledRelocation {
 fn mutated(
     target: NativeTarget,
     forked: bool,
-    edit: impl FnOnce(&mut SelectedFunction, &register_environment::ValidatedTargetRegisterEnvironment),
+    edit: impl FnOnce(&mut SelectedFunction, &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment),
 ) -> ValidatedScheduledRelocation {
     let environment = baseline_target_register_environment(target).unwrap();
     let mut source = if forked {
@@ -486,7 +488,7 @@ fn mutated(
 
 fn relocate(
     source: &ValidatedScheduledRelocation,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
     members: &[SelectedInstructionId],
     destination: SelectedInstructionId,
 ) -> Result<ValidatedScheduledRelocation, ScheduledRelocationError> {
@@ -896,18 +898,18 @@ fn calls_barriers_and_memory_bound_the_window() {
         function.calls.push(SelectedCallContract {
             instruction: C_TAIL,
             operation: OperationId::new(41).unwrap(),
-            call: legalized_operations::LegalizedScalarCall {
-                source: legalized_operations::NativeCallOrigin::Authored,
+            call: target_operations_to_selected_instructions::legalized_operations::LegalizedScalarCall {
+                source: target_operations_to_selected_instructions::legalized_operations::NativeCallOrigin::Authored,
                 callee: MachineId::new(42).unwrap(),
-                call_plan: calling_conventions::CallPlan {
-                    policy: calling_conventions::CallingPolicy::MicrosoftX64,
+                call_plan: abstract_operations_to_target_operations::calling_conventions::CallPlan {
+                    policy: abstract_operations_to_target_operations::calling_conventions::CallingPolicy::MicrosoftX64,
                     parameters: Vec::new(),
                     result: None,
                     callback_materializations: Vec::new(),
-                    ordinary_clobbers: calling_conventions::RegisterSet::new(std::iter::empty()),
+                    ordinary_clobbers: abstract_operations_to_target_operations::calling_conventions::RegisterSet::new(std::iter::empty()),
                     stack_alignment: 16,
                     shadow_bytes: 0,
-                    entry_control: calling_conventions::EntryControl::CallReturn,
+                    entry_control: abstract_operations_to_target_operations::calling_conventions::EntryControl::CallReturn,
                 },
                 arguments: Vec::new(),
                 result_placement: None,
@@ -974,7 +976,7 @@ fn only_plain_edges_carry_the_run() {
     let transported = mutated(target, false, |function, environment| {
         let mut edge = successor(BLOCK_C, BlockId::new(2).unwrap(), EDGE_BC);
         edge.bindings.push(SelectedValueBinding {
-            semantic: abstract_operations::ValueBinding {
+            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                 parameter: ValueId::new(20).unwrap(),
                 argument: ValueId::new(1).unwrap(),
                 scalar_type: ScalarType::Integer(

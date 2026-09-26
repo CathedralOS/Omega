@@ -12,16 +12,16 @@
 use super::{
     CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, StatementNode, unsupported,
 };
-use checked_trees::CheckedUnitStructuralArgumentPlan;
 use symbols::SymbolHandle;
+use typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan;
 
 pub(super) fn validate(
     checked: &CheckedTrees,
-    machine: &checked_trees::machine::Machine,
-    authored: &checked_trees::state::State,
+    machine: &typed_trees_to_checked_trees::checked_trees::machine::Machine,
+    authored: &typed_trees_to_checked_trees::checked_trees::state::State,
     statement: u32,
     expression: ExpressionHandle,
-    reference: checked_trees::types::TypeReferenceHandle,
+    reference: typed_trees_to_checked_trees::checked_trees::types::TypeReferenceHandle,
     argument: &CheckedUnitStructuralArgumentPlan,
 ) -> Result<(), LoweringError> {
     let ExpressionNode::Borrow(borrow) = checked.expression_table.expression(expression) else {
@@ -33,14 +33,16 @@ pub(super) fn validate(
     let Some(referent) = super::shared_borrow_record_referent(checked, reference) else {
         return unsupported("borrowed selection result lost its record referent");
     };
-    if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
+    if argument.access
+        != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
+    {
         return unsupported("borrowed selection changed its planned access");
     }
     let (checked_path, root) = walk_exact_place(checked, machine, authored, borrow.target)?;
     if checked_path != argument.path {
         return unsupported("borrowed selection path does not match its projected path");
     }
-    let leaf = validation::expression_result_type_reference(
+    let leaf = typed_trees_to_checked_trees::validation::expression_result_type_reference(
         &checked.typed,
         machine,
         authored,
@@ -63,16 +65,24 @@ pub(super) fn validate(
         &argument.source,
     )?;
     let root_reference =
-        validation::expression_result_type_reference(&checked.typed, machine, authored, root)
-            .ok_or(LoweringError::Unsupported(
-                "borrowed selection lost its root type",
-            ))?;
+        typed_trees_to_checked_trees::validation::expression_result_type_reference(
+            &checked.typed,
+            machine,
+            authored,
+            root,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "borrowed selection lost its root type",
+        ))?;
     // The root carrier rule matches the referent rule: a shared borrow moves
     // nothing, so a `[linear]` root is an admissible place to observe through.
-    if !validation::has_linear_owned_contents(
+    if !typed_trees_to_checked_trees::validation::has_linear_owned_contents(
         &checked.typed,
-        validation::unwrapped_type_reference(&checked.typed, root_reference)
-            .unwrap_or(root_reference),
+        typed_trees_to_checked_trees::validation::unwrapped_type_reference(
+            &checked.typed,
+            root_reference,
+        )
+        .unwrap_or(root_reference),
     ) {
         return unsupported(
             "borrowed selection root is not a structural place the pipeline can carry",
@@ -90,25 +100,31 @@ pub(super) fn validate(
 /// carry payload fields out of a borrowed case.
 pub(super) fn validate_scalar_case_place(
     checked: &CheckedTrees,
-    machine: &checked_trees::machine::Machine,
-    authored: &checked_trees::state::State,
+    machine: &typed_trees_to_checked_trees::checked_trees::machine::Machine,
+    authored: &typed_trees_to_checked_trees::checked_trees::state::State,
     statement: u32,
     expression: ExpressionHandle,
-    reference: checked_trees::types::TypeReferenceHandle,
+    reference: typed_trees_to_checked_trees::checked_trees::types::TypeReferenceHandle,
     argument: &CheckedUnitStructuralArgumentPlan,
 ) -> Result<(), LoweringError> {
-    if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
+    if argument.access
+        != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
+    {
         return unsupported("scalar case place changed its planned access");
     }
     let (checked_path, root) = walk_exact_place(checked, machine, authored, expression)?;
     if checked_path != argument.path || checked_path.is_empty() {
         return unsupported("scalar case place path does not match its projected path");
     }
-    let leaf =
-        validation::expression_result_type_reference(&checked.typed, machine, authored, expression)
-            .ok_or(LoweringError::Unsupported(
-                "scalar case place lost its leaf type",
-            ))?;
+    let leaf = typed_trees_to_checked_trees::validation::expression_result_type_reference(
+        &checked.typed,
+        machine,
+        authored,
+        expression,
+    )
+    .ok_or(LoweringError::Unsupported(
+        "scalar case place lost its leaf type",
+    ))?;
     if checked.normalized_type_identity(leaf).as_str() != argument.type_identity
         || checked.normalized_type_identity(leaf) != checked.normalized_type_identity(reference)
     {
@@ -136,14 +152,16 @@ pub(super) fn validate_scalar_case_place(
 /// be `Unrestricted`: an affine subtree can only ride the move contract.
 pub(super) fn validate_copied_place(
     checked: &CheckedTrees,
-    machine: &checked_trees::machine::Machine,
-    authored: &checked_trees::state::State,
+    machine: &typed_trees_to_checked_trees::checked_trees::machine::Machine,
+    authored: &typed_trees_to_checked_trees::checked_trees::state::State,
     statement: u32,
     expression: ExpressionHandle,
-    reference: checked_trees::types::TypeReferenceHandle,
+    reference: typed_trees_to_checked_trees::checked_trees::types::TypeReferenceHandle,
     argument: &CheckedUnitStructuralArgumentPlan,
 ) -> Result<(), LoweringError> {
-    if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
+    if argument.access
+        != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
+    {
         return unsupported("copied place changed its planned access");
     }
     let (checked_path, root) = walk_exact_place(checked, machine, authored, expression)?;
@@ -153,12 +171,19 @@ pub(super) fn validate_copied_place(
     if checked_path != argument.path {
         return unsupported("copied place path does not match its projected path");
     }
-    let leaf =
-        validation::expression_result_type_reference(&checked.typed, machine, authored, expression)
-            .ok_or(LoweringError::Unsupported(
-                "copied place lost its leaf type",
-            ))?;
-    let Some(unwrapped) = validation::unwrapped_type_reference(&checked.typed, reference) else {
+    let leaf = typed_trees_to_checked_trees::validation::expression_result_type_reference(
+        &checked.typed,
+        machine,
+        authored,
+        expression,
+    )
+    .ok_or(LoweringError::Unsupported(
+        "copied place lost its leaf type",
+    ))?;
+    let Some(unwrapped) = typed_trees_to_checked_trees::validation::unwrapped_type_reference(
+        &checked.typed,
+        reference,
+    ) else {
         return unsupported("copied place lost its leaf type");
     };
     // A `&[T]` leaf's registry entry names its borrowed view carrier — the
@@ -195,13 +220,17 @@ pub(super) fn validate_copied_place(
 /// borrowed payload needs a spelling the authored expression never offered.
 fn leaf_is_payloadless_case_sum(
     checked: &CheckedTrees,
-    reference: checked_trees::types::TypeReferenceHandle,
+    reference: typed_trees_to_checked_trees::checked_trees::types::TypeReferenceHandle,
 ) -> bool {
-    let Some(unwrapped) = validation::unwrapped_type_reference(&checked.typed, reference) else {
+    let Some(unwrapped) = typed_trees_to_checked_trees::validation::unwrapped_type_reference(
+        &checked.typed,
+        reference,
+    ) else {
         return false;
     };
-    let checked_trees::types::TypeReferenceNode::Named { symbol, .. } =
-        checked.type_reference_table.type_reference(unwrapped)
+    let typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Named {
+        symbol, ..
+    } = checked.type_reference_table.type_reference(unwrapped)
     else {
         return false;
     };
@@ -215,7 +244,7 @@ fn leaf_is_payloadless_case_sum(
     let members = checked.data_members(data);
     !members.is_empty()
         && members.iter().all(|member| {
-            matches!(member, checked_trees::data::DataMember::Variant(variant) if checked.data_payload_fields(variant).is_empty())
+            matches!(member, typed_trees_to_checked_trees::checked_trees::data::DataMember::Variant(variant) if checked.data_payload_fields(variant).is_empty())
         })
 }
 
@@ -224,12 +253,12 @@ fn leaf_is_payloadless_case_sum(
 /// literal-bound rules the checker committed to.
 fn walk_exact_place(
     checked: &CheckedTrees,
-    machine: &checked_trees::machine::Machine,
-    authored: &checked_trees::state::State,
+    machine: &typed_trees_to_checked_trees::checked_trees::machine::Machine,
+    authored: &typed_trees_to_checked_trees::checked_trees::state::State,
     target: ExpressionHandle,
 ) -> Result<
     (
-        Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+        Vec<typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment>,
         ExpressionHandle,
     ),
     LoweringError,
@@ -242,13 +271,18 @@ fn walk_exact_place(
                 if member.case_variant.is_some() {
                     return unsupported("borrowed selection target uses a case member");
                 }
-                let receiver = validation::declared_place_type_raw(
+                let receiver = typed_trees_to_checked_trees::validation::declared_place_type_raw(
                     &checked.typed,
                     machine,
                     Some(authored),
                     member.receiver,
                 )
-                .and_then(|receiver| validation::unwrapped_type_reference(&checked.typed, receiver))
+                .and_then(|receiver| {
+                    typed_trees_to_checked_trees::validation::unwrapped_type_reference(
+                        &checked.typed,
+                        receiver,
+                    )
+                })
                 .ok_or(LoweringError::Unsupported(
                     "borrowed selection lost its receiver type",
                 ))?;
@@ -257,8 +291,8 @@ fn walk_exact_place(
                 // declaration — the erased borrow-region arguments are not
                 // part of the member-walk identity.
                 let symbol = match checked.type_reference_table.type_reference(receiver) {
-                    checked_trees::types::TypeReferenceNode::Named { symbol, .. } => *symbol,
-                    checked_trees::types::TypeReferenceNode::Generic { base_symbol, .. } => {
+                    typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Named { symbol, .. } => *symbol,
+                    typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Generic { base_symbol, .. } => {
                         *base_symbol
                     }
                     _ => {
@@ -282,7 +316,7 @@ fn walk_exact_place(
                     .ok_or(LoweringError::Unsupported(
                         "borrowed selection field owner is absent",
                     ))?;
-                let field = validation::exact_data_member_field(
+                let field = typed_trees_to_checked_trees::validation::exact_data_member_field(
                     &checked.typed,
                     owner,
                     if self_receiver {
@@ -299,7 +333,7 @@ fn walk_exact_place(
                 if field.relevance.is_erased() {
                     return unsupported("borrowed selection reads an erased member");
                 }
-                checked_path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
+                checked_path.push(typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field(
                     field.path_identity(),
                 ));
                 cursor = member.receiver;
@@ -321,20 +355,23 @@ fn walk_exact_place(
                     .ok_or(LoweringError::Unsupported(
                         "borrowed selection index exceeds u64",
                     ))?;
-                let container = validation::declared_place_type_raw(
+                let container = typed_trees_to_checked_trees::validation::declared_place_type_raw(
                     &checked.typed,
                     machine,
                     Some(authored),
                     indexed.collection,
                 )
                 .and_then(|container| {
-                    validation::unwrapped_type_reference(&checked.typed, container)
+                    typed_trees_to_checked_trees::validation::unwrapped_type_reference(
+                        &checked.typed,
+                        container,
+                    )
                 })
                 .ok_or(LoweringError::Unsupported(
                     "borrowed selection index has no declared collection",
                 ))?;
-                let checked_trees::types::TypeReferenceNode::FixedArray {
-                    length: checked_trees::types::FixedArrayLength::Literal(length),
+                let typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::FixedArray {
+                    length: typed_trees_to_checked_trees::checked_trees::types::FixedArrayLength::Literal(length),
                     ..
                 } = checked.type_reference_table.type_reference(container)
                 else {
@@ -346,7 +383,7 @@ fn walk_exact_place(
                 {
                     return unsupported("borrowed selection index is out of bounds");
                 }
-                checked_path.push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+                checked_path.push(typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
                     index,
                 ));
                 cursor = indexed.collection;
@@ -364,11 +401,11 @@ fn walk_exact_place(
 /// authored name.
 fn validate_place_root(
     checked: &CheckedTrees,
-    machine: &checked_trees::machine::Machine,
-    authored: &checked_trees::state::State,
+    machine: &typed_trees_to_checked_trees::checked_trees::machine::Machine,
+    authored: &typed_trees_to_checked_trees::checked_trees::state::State,
     statement: u32,
     root: ExpressionHandle,
-    source: &checked_trees::CheckedUnitStructuralArgumentSourcePlan,
+    source: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan,
 ) -> Result<(), LoweringError> {
     let ExpressionNode::Name(name) = checked.expression_table.expression(root) else {
         return unsupported("borrowed selection target is not an exact place");

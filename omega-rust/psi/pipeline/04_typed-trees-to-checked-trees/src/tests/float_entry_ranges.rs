@@ -5,9 +5,9 @@
 use super::{SymbolHandle, TypeReferenceNode};
 use crate::tests::front_end::checked_program;
 use semantic_vocabulary::IeeeFloatValue;
-use typed_trees::types::PrimitiveType;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
 
-fn machine_named(checked: &checked_trees::CheckedTrees, name: &str) -> SymbolHandle {
+fn machine_named(checked: &crate::checked_trees::CheckedTrees, name: &str) -> SymbolHandle {
     checked
         .machines()
         .iter()
@@ -19,9 +19,9 @@ fn machine_named(checked: &checked_trees::CheckedTrees, name: &str) -> SymbolHan
 }
 
 fn contract_plan(
-    checked: &checked_trees::CheckedTrees,
+    checked: &crate::checked_trees::CheckedTrees,
     machine: SymbolHandle,
-) -> &checked_trees::MachineContractPlan {
+) -> &crate::checked_trees::MachineContractPlan {
     checked
         .facts
         .contract_plans
@@ -48,7 +48,7 @@ fn exclusive_f64_entry_range_retains_authored_endpoint() {
     };
     assert_eq!(
         *requirement,
-        checked_trees::ClosedFloatRangeRequirement {
+        crate::checked_trees::ClosedFloatRangeRequirement {
             position: 0,
             primitive_type: PrimitiveType::F64,
             minimum: IeeeFloatValue::Binary64(0.0f64.to_bits()),
@@ -67,9 +67,9 @@ fn exclusive_f64_entry_range_retains_authored_endpoint() {
     // rather than an unsupported placeholder.
     assert_eq!(
         plan.closed_scalar_values.requires(),
-        &[Some(checked_trees::ClosedScalarContractValue::FloatRange(
-            *requirement,
-        ))]
+        &[Some(
+            crate::checked_trees::ClosedScalarContractValue::FloatRange(*requirement,)
+        )]
     );
 }
 
@@ -91,7 +91,7 @@ fn inclusive_f64_entry_range_retains_boundary_kind() {
     };
     assert_eq!(
         *requirement,
-        checked_trees::ClosedFloatRangeRequirement {
+        crate::checked_trees::ClosedFloatRangeRequirement {
             position: 0,
             primitive_type: PrimitiveType::F64,
             minimum: IeeeFloatValue::Binary64(0.0f64.to_bits()),
@@ -121,7 +121,7 @@ fn f32_entry_range_names_its_dense_scalar_position() {
     // the `bool` flag occupies dense scalar position zero.
     assert_eq!(
         *requirement,
-        checked_trees::ClosedFloatRangeRequirement {
+        crate::checked_trees::ClosedFloatRangeRequirement {
             position: 1,
             primitive_type: PrimitiveType::F32,
             minimum: IeeeFloatValue::Binary32(0.5f32.to_bits()),
@@ -149,7 +149,7 @@ fn integer_endpoints_convert_once_into_the_float_carrier() {
     };
     assert_eq!(
         *requirement,
-        checked_trees::ClosedFloatRangeRequirement {
+        crate::checked_trees::ClosedFloatRangeRequirement {
             position: 0,
             primitive_type: PrimitiveType::F64,
             minimum: IeeeFloatValue::Binary64(0.0f64.to_bits()),
@@ -177,7 +177,9 @@ fn machines_without_floating_ranges_have_an_empty_complete_roster() {
     assert!(
         matches!(
             plan.closed_scalar_values.requires(),
-            [Some(checked_trees::ClosedScalarContractValue::Predicate(_))]
+            [Some(
+                crate::checked_trees::ClosedScalarContractValue::Predicate(_)
+            )]
         ),
         "integer ranges keep their closed scalar predicate"
     );
@@ -207,7 +209,12 @@ fn corrupted_range_endpoint_loses_the_complete_roster() {
         panic!("authored parameter range")
     };
     let constraints = *constraints;
-    let [typed_trees::types::TypeConstraintNode::Range { maximum, .. }] = checked
+    let [
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode::Range {
+            maximum,
+            ..
+        },
+    ] = checked
         .typed
         .type_reference_table
         .constraints_mut(constraints)

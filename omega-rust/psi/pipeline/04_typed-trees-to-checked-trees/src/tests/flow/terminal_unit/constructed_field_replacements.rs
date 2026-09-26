@@ -70,10 +70,10 @@ fn case_literal_replaces_an_affine_sum_field() {
     assert_eq!(source, destination);
     assert_eq!(source.source_parameter_index(), Some(0));
     assert!(matches!(source.path.as_slice(),
-        [checked_trees::CheckedUnitStructuralPathSegment::Field(identity)] if identity == "mode"));
+        [crate::checked_trees::CheckedUnitStructuralPathSegment::Field(identity)] if identity == "mode"));
     assert!(matches!(
         value.source,
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+        crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: 0
         }
     ));
@@ -88,7 +88,7 @@ fn case_literal_replaces_an_affine_sum_field() {
     };
     assert!(matches!(
         discard.source,
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+        crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: 1
         }
     ));
@@ -145,8 +145,8 @@ fn nested_field_replacement_keeps_the_full_path() {
     };
     assert!(matches!(destination.path.as_slice(),
         [
-            checked_trees::CheckedUnitStructuralPathSegment::Field(holder),
-            checked_trees::CheckedUnitStructuralPathSegment::Field(msg),
+            crate::checked_trees::CheckedUnitStructuralPathSegment::Field(holder),
+            crate::checked_trees::CheckedUnitStructuralPathSegment::Field(msg),
         ] if holder == "holder" && msg == "msg"));
 }
 

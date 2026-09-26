@@ -179,7 +179,7 @@ current allocation facts, not a producer-supplied preservation summary.
 
 These are may-write requirements, not save/restore instructions. Target grouping,
 storage placement, return-address handling, frame protocol, and final-machine
-reconciliation belong to [machine emission](../../backend/machine-emission/README.md).
+reconciliation belong to [machine emission](../09_resolved-layout-to-resolved-layout/machine_emission.md).
 Abstract spill evidence cannot select an SP/FP base, red-zone policy, probing,
 unwind behavior, or a source crash route. The public
 [storage contract](../../../../wiki/spec/resources/storage.md) requires final

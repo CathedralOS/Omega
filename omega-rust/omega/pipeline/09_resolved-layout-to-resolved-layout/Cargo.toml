@@ -5,15 +5,51 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-isa-x86_64 = { path = "../../backend/instruction_set_architectures/isa-x86_64" }
-machine-code = { path = "../../representations/machine-code" }
-optimization-core = { path = "../../representations/optimization-core" }
-physical-instructions = { path = "../../representations/physical-instructions" }
-selected-instructions-to-register-homes = { path = "../05_selected-instructions-to-register-homes" }
-register-model = { path = "../../representations/register-model" }
-selected-instructions = { path = "../../representations/selected-instructions" }
-target = { path = "../../representations/target" }
-semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
-register-homes-to-post-allocation-machine = { path = "../06_register-homes-to-post-allocation-machine" }
+target-operations-to-selected-instructions = { path = "../03_target-operations-to-selected-instructions" }
 post-allocation-machine-to-selected-form-encoding = { path = "../07_post-allocation-machine-to-selected-form-encoding" }
+register-homes-to-post-allocation-machine = { path = "../06_register-homes-to-post-allocation-machine" }
+typed-trees-to-checked-trees = { path = "../../../psi/pipeline/04_typed-trees-to-checked-trees" }
+language-semantics = { path = "../../../psi/foundation/language-semantics" }
+numerics = { path = "../../../psi/foundation/numerics" }
+symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/03_symbol-resolved-trees-to-typed-trees" }
+optimization-core = { path = "../../../psi/optimization-core" }
+selected-instructions-to-register-homes = { path = "../05_selected-instructions-to-register-homes" }
+target = { path = "../../../psi/target" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 selected-form-encoding-to-resolved-layout = { path = "../08_selected-form-encoding-to-resolved-layout" }
+abstract-operations-to-abstract-operations = { path = "../01_abstract-operations-to-abstract-operations" }
+abstract-operations-to-target-operations = { path = "../02_abstract-operations-to-target-operations" }
+arena = { path = "../../../psi/foundation/arena" }
+diagnostics = { path = "../../../psi/foundation/diagnostics" }
+iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "instr_info"] }
+installation-evidence = { path = "../../../psi/installation-evidence" }
+sha2 = { version = "0.10.9" }
+symbols = { path = "../../../psi/foundation/symbols" }
+terminal-codec = { path = "../../../psi/terminal-codec" }
+terminal-psi = { path = "../../../psi/terminal-psi" }
+terminal-psi-to-abstract-operations = { path = "../00_terminal-psi-to-abstract-operations" }
+
+source = { path = "../../../psi/foundation/source" }
+[features]
+test-support = [
+    "selected-instructions-to-register-homes/test-support",
+    "post-allocation-machine-to-selected-form-encoding/test-support",
+    "selected-form-encoding-to-resolved-layout/test-support",
+]
+
+[dev-dependencies]
+    arena = { path = "../../../psi/foundation/arena" }
+    omega = { path = "../.." }
+target-operations-to-selected-instructions = { path = "../03_target-operations-to-selected-instructions" }
+abstract-operations-to-target-operations = { path = "../02_abstract-operations-to-target-operations" }
+checked-trees-to-lowered-psi = { path = "../../../psi/pipeline/05_checked-trees-to-lowered-psi" }
+optimization-core = { path = "../../../psi/optimization-core", features = ["test-support"] }
+proof-admission = { path = "../../../psi/proof-admission" }
+source-files-to-tokens = { path = "../../../psi/pipeline/00_source-files-to-tokens" }
+symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/03_symbol-resolved-trees-to-typed-trees" }
+symbols = { path = "../../../psi/foundation/symbols" }
+syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
+terminal-psi = { path = "../../../psi/terminal-psi" }
+terminal-psi-to-abstract-operations = { path = "../00_terminal-psi-to-abstract-operations" }
+tokens-to-syntax-trees = { path = "../../../psi/pipeline/01_tokens-to-syntax-trees" }
+typed-trees-to-checked-trees = { path = "../../../psi/pipeline/04_typed-trees-to-checked-trees" }

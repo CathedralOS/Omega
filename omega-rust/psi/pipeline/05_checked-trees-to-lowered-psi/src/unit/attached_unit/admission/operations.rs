@@ -8,8 +8,8 @@ use super::super::super::{
 use super::super::bodies::UnitPlans;
 use super::super::{provider_attachments, reference_results, scalar_arrays, structural_calls};
 use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
-use checked_trees::CheckedBoundaryMachinePlan;
 use symbols::SymbolHandle;
+use typed_trees_to_checked_trees::checked_trees::CheckedBoundaryMachinePlan;
 
 pub(super) fn validate<'a>(
     checked: &'a CheckedTrees,

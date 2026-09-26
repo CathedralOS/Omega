@@ -59,7 +59,7 @@ pub(super) fn admit_membership_node(
     machine: semantic_vocabulary::MachineId,
     block: semantic_vocabulary::BlockId,
     node_index: usize,
-    node: &optimization_unit::OptimizationNode,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
 ) -> Option<FoldedCaseMembershipRow> {
     let O::StructuralCaseMembership {
         psi_operation,

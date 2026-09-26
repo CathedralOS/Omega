@@ -5,10 +5,10 @@ use super::{
 };
 use crate::LoweringError;
 use crate::lowering::scalar::expressions::insert_value;
-use abstract_operations::AbstractOperation;
+use crate::target_operations::TargetIntegerExpression;
 use semantic_vocabulary::{ScalarType, ValueId};
 use std::collections::BTreeMap;
-use target_operations::TargetIntegerExpression;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
 pub(in crate::lowering) fn try_lower_integer_operation(
     operation: &AbstractOperation,
     values: &mut BTreeMap<ValueId, KnownScalar>,

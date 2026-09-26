@@ -1,5 +1,6 @@
 use super::type_references::{OperatorResultOwnership, classify_operator_result_ownership};
 use crate::authored_selections::is_boundary_acceptance_marker;
+use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use crate::flow::FlowOwnershipEventSource;
 use crate::flow::canonical_place_from_expression_in_state;
 use crate::flow::canonical_place_from_symbol;
@@ -9,12 +10,11 @@ use crate::flow::ownership::type_references;
 use crate::flow::ownership::type_requires_ownership;
 use crate::flow::resolve_operator_for_call;
 use crate::flow::symbol_type_symbol;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 pub(super) mod observations;
 
 pub(super) fn append_move_events_for_expression(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     sink: &mut DirectMoveEventSink<'_>,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -29,13 +29,13 @@ pub(super) fn append_move_events_for_expression(
             .is_none()
         && canonical_place_from_expression_in_state(program, state_symbol, statement_index, subject)
             .is_some_and(|place| {
-                matches!(place.root, facts::PlaceRoot::Symbol(_))
+                matches!(place.root, crate::fact_plan::PlaceRoot::Symbol(_))
                     && place.segments.iter().all(|segment| {
                         matches!(
                             segment,
-                            facts::PlaceSegment::Field { .. }
-                                | facts::PlaceSegment::Case { .. }
-                                | facts::PlaceSegment::FixedIndex { .. }
+                            crate::fact_plan::PlaceSegment::Field { .. }
+                                | crate::fact_plan::PlaceSegment::Case { .. }
+                                | crate::fact_plan::PlaceSegment::FixedIndex { .. }
                         )
                     })
             })
@@ -126,7 +126,7 @@ pub(super) fn append_move_events_for_expression(
             // or fresh constructions, none of which move owned operands out of
             // the tag read.
             let tag_observed =
-                validation::match_case_dispatch(program, sink.machine, sink.state, dispatch)
+                crate::validation::match_case_dispatch(program, sink.machine, sink.state, dispatch)
                     .is_some();
             if !tag_observed {
                 append_move_events_for_expression(
@@ -144,7 +144,7 @@ pub(super) fn append_move_events_for_expression(
                 .iter()
                 .enumerate()
             {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                     append_move_events_for_expression(
                         program,
                         sink,
@@ -300,7 +300,7 @@ pub(super) fn append_move_events_for_expression(
 /// a call to that machine lends its arguments: `a.equals(&b)` over a derived
 /// `Equatable` lowers to such an `a == b`, and neither side moves.
 fn selected_meaning_borrows_operands(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> bool {
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget as Target;
@@ -328,7 +328,7 @@ fn selected_meaning_borrows_operands(
                     program
                         .type_reference_table
                         .type_reference(parameter.type_reference),
-                    typed_trees::types::TypeReferenceNode::Reference {
+                    symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference {
                         access: language_semantics::ReferenceAccess::Shared,
                         ..
                     }
@@ -338,11 +338,11 @@ fn selected_meaning_borrows_operands(
 }
 
 fn append_move_events_for_call_arguments(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     sink: &mut DirectMoveEventSink<'_>,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    call: &typed_trees::expression::TableCallExpression,
+    call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
     source: FlowOwnershipEventSource,
 ) {
     // Calls with an ordinary state or a bodyless callable signature are owned
@@ -422,9 +422,9 @@ fn append_move_events_for_call_arguments(
 /// Expression recursion must make the same classification or its unknown-call
 /// fallback will incorrectly transfer a borrowed receiver wholesale.
 fn expression_call_is_owned_by_call_flow(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
-    call: &typed_trees::expression::TableCallExpression,
+    call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
 ) -> bool {
     if is_boundary_acceptance_marker(call.target.as_str()) {
         return false;
@@ -475,11 +475,11 @@ fn expression_call_is_owned_by_call_flow(
 /// consumes the receiver, so it gets a receiver-place move; the common
 /// borrowed receiver (`&self`/`&mut self`) transfers nothing.
 pub(in crate::flow::ownership) fn append_move_events_for_operator_statement_call(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     sink: &mut DirectMoveEventSink<'_>,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    call: &typed_trees::statement::TableCall,
+    call: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableCall,
     source: FlowOwnershipEventSource,
 ) {
     // A valid receiver symbol that resolves to a typed value (a local,
@@ -565,8 +565,10 @@ impl OperatorCallOwnershipPolicy {
 /// the rest positionally; a static-path call binds every parameter
 /// positionally. Each binding transfers only when its declared type owns.
 fn operator_call_ownership_policy(
-    program: &typed_trees::TypedTrees,
-    operator: Option<&typed_trees::operator::OperatorDefinition>,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    operator: Option<
+        &symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition,
+    >,
     argument_count: usize,
     has_value_receiver: bool,
 ) -> OperatorCallOwnershipPolicy {
@@ -609,7 +611,7 @@ fn operator_call_ownership_policy(
 /// (`String::with_capacity(...)`) rather than a runtime value. A static path
 /// names no place, so it can never be moved from.
 fn receiver_expression_is_static_type_path(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     receiver: ExpressionHandle,
 ) -> bool {
     receiver_expression_static_path_segments(program, receiver).is_some()
@@ -620,7 +622,7 @@ fn receiver_expression_is_static_type_path(
 /// counts as static exactly when its resolved symbol has no value type (it is
 /// not a local, parameter, field, or contained object).
 fn receiver_expression_static_path_segments(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     receiver: ExpressionHandle,
 ) -> Option<Vec<&str>> {
     if !receiver.is_valid() {
@@ -661,7 +663,7 @@ fn receiver_expression_static_path_segments(
 /// policy in one place; a place-like initializer is excluded because its
 /// transfer is already recorded by the source-side move.
 pub(in crate::flow::ownership) fn initializer_produces_owned_value(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     initializer: ExpressionHandle,
 ) -> bool {
     if !initializer.is_valid() {

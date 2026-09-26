@@ -207,8 +207,8 @@ class LandingTests(unittest.TestCase):
         self.assert_remote(board)
 
     def test_publish_refuses_unrecorded_trusted_surface_change(self):
-        sites_path = "omega-rust/psi/semantics/terminal-verifier/src/trusted_surface/sites.rs"
-        bound_path = "omega-rust/psi/semantics/terminal-verifier/src/validation/rule.rs"
+        sites_path = "omega-rust/psi/terminal-verifier/src/trusted_surface/sites.rs"
+        bound_path = "omega-rust/psi/terminal-verifier/src/validation/rule.rs"
         def record(contents):
             digest = hashlib.sha256(contents.encode("utf-8")).hexdigest()
             sites = self.a / sites_path

@@ -6,10 +6,12 @@ use super::{
     TerminalStructuralValue, decode_module, main_machine, unsigned,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus};
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationResult, Terminator};
 
 #[test]
@@ -22,15 +24,16 @@ fn anonymous_shared_result_keeps_its_owner_until_call_completion() {
         machine main(token: Token) { read(&forward(token)); }
     "#,
     );
-    let _pure_artifact = terminal_production::TerminalProductionRequest::new(
-        &pure,
-        TerminalMachineSelection::Name("main"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("anonymous shared call with an empty consumer publishes")
-    .into_artifact();
+    let _pure_artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &pure,
+            TerminalMachineSelection::Name("main"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("anonymous shared call with an empty consumer publishes")
+        .into_artifact();
     let boundary = crate::front_end::checked_program(
         r#"
         pub data Token { value: u64; }
@@ -39,15 +42,16 @@ fn anonymous_shared_result_keeps_its_owner_until_call_completion() {
         machine main() reaches Factory { read(&Factory::create()); }
     "#,
     );
-    let _boundary_artifact = terminal_production::TerminalProductionRequest::new(
-        &boundary,
-        TerminalMachineSelection::Name("main"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("zero-parameter free caller retains a boundary-produced temporary")
-    .into_artifact();
+    let _boundary_artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &boundary,
+            TerminalMachineSelection::Name("main"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("zero-parameter free caller retains a boundary-produced temporary")
+        .into_artifact();
     for boundary in [false, true] {
         for fields in ["value: u64;", "", "elements: [u16; 3];"] {
             assert_anonymous_shared(&anonymous_source(boundary, fields), boundary, &[]);
@@ -84,15 +88,16 @@ fn assert_anonymous_shared(source: &str, boundary: bool, names: &[&str]) {
 
     let checked = crate::front_end::checked_program(source);
     let artifact = encoded_locals(&checked, names);
-    let published = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("Main::main"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("anonymous shared argument retains and then cleans its owner")
-    .into_artifact();
+    let published =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("Main::main"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("anonymous shared argument retains and then cleans its owner")
+        .into_artifact();
     let module = decode_module(&artifact.0).unwrap();
     assert_eq!(decode_module(published.semantic_bytes()).unwrap(), module);
     let caller = module
@@ -271,7 +276,12 @@ fn anonymous_shared_result_permissions_rejoin_exact_owner_and_continuation() {
             .ownership
             .permissions
             .iter()
-            .filter(|(_, event)| matches!(event.root, facts::PlaceRoot::Expression(_)))
+            .filter(|(_, event)| {
+                matches!(
+                    event.root,
+                    typed_trees_to_checked_trees::fact_plan::PlaceRoot::Expression(_)
+                )
+            })
             .map(|(handle, event)| (handle, event.clone()))
             .collect::<Vec<_>>();
         assert_eq!(events.len(), 3, "owner, loan, then owner cleanup");
@@ -280,7 +290,7 @@ fn anonymous_shared_result_permissions_rejoin_exact_owner_and_continuation() {
                 let mut changed = original.clone();
                 let mut altered = event.clone();
                 match mutation {
-                    0 => altered.root = facts::PlaceRoot::Unknown,
+                    0 => altered.root = typed_trees_to_checked_trees::fact_plan::PlaceRoot::Unknown,
                     1 => altered.provenance = PermissionProvenance::Unknown,
                     2 => altered.source = PermissionEventSource::StateExit,
                     3 => altered.obligation_live = true,
@@ -296,18 +306,17 @@ fn anonymous_shared_result_permissions_rejoin_exact_owner_and_continuation() {
                     }
                     7 => altered.kind = language_semantics::PermissionEventKind::Transfer,
                     8 => {
-                        altered.segments = changed
-                            .facts
-                            .flow
-                            .ownership
-                            .segments
-                            .insert_many([facts::PlaceSegment::FixedIndex { index: 0 }])
+                        altered.segments = changed.facts.flow.ownership.segments.insert_many([
+                            typed_trees_to_checked_trees::fact_plan::PlaceSegment::FixedIndex {
+                                index: 0,
+                            },
+                        ])
                     }
                     _ => unreachable!(),
                 }
                 *changed.facts.flow.ownership.permissions.get_mut(*handle) = altered;
                 assert!(
-                    terminal_production::TerminalProductionRequest::new(
+                    lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                         &changed,
                         TerminalMachineSelection::Name("Main::main")
                     )
@@ -334,7 +343,7 @@ fn anonymous_shared_result_permissions_rejoin_exact_owner_and_continuation() {
             .permissions
             .get_mut(events[2].0) = events[1].1.clone();
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &changed,
                 TerminalMachineSelection::Name("Main::main")
             )
@@ -391,7 +400,7 @@ fn anonymous_shared_results_reject_conflicting_return_cleanup() {
         };
         *discard_result_on_return = true;
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &changed,
                 TerminalMachineSelection::Name("Main::main")
             )
@@ -437,15 +446,15 @@ fn anonymous_shared_continuation_rejects_missing_delayed_or_rebound_cleanup() {
                     match mutation {
                         3 => coordinate.statement_index += 1,
                         4 => affine_discards.clear(),
-                        5 => affine_discards[0].source = checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal: 99 },
+                        5 => affine_discards[0].source = typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal: 99 },
                         6 => affine_discards[0].type_identity.push_str("-different"),
-                        7 => affine_discards[0].path.push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(0)),
+                        7 => affine_discards[0].path.push(typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(0)),
                         _ => unreachable!(),
                     }
                 }
             }
             assert!(
-                terminal_production::TerminalProductionRequest::new(
+                lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                     &changed,
                     TerminalMachineSelection::Name("Main::main")
                 )
@@ -566,7 +575,7 @@ fn named_results_share_their_identity_across_reads_and_final_disposition() {
                     "{prefix} {calls} {completion}"
                 )));
                 let artifact = encoded_locals(&checked, &names);
-                let published = terminal_production::TerminalProductionRequest::new(
+                let published = lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                     &checked,
                     TerminalMachineSelection::Name("Main::main"),
                 )
@@ -728,14 +737,14 @@ fn shared_result_operands_keep_exact_authored_identity_and_final_cleanup() {
             match mutation {
                 1 => {
                     structural_arguments[0].source =
-                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                             binding_ordinal: 1,
                         }
                 }
-                2 => structural_arguments[0].access = checked_trees::CheckedStructuralAccess::Owned,
+                2 => structural_arguments[0].access = typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned,
                 3 => {
                     structural_arguments[0].access =
-                        checked_trees::CheckedStructuralAccess::MutableBorrow
+                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow
                 }
                 _ => unreachable!(),
             }

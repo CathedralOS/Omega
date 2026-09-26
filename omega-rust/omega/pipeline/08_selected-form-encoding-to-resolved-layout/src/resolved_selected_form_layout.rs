@@ -7,21 +7,21 @@ mod ordinary;
 mod validation;
 
 pub use error::OptimizedResolvedSelectedFormLayoutError;
-use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
+use target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel;
 
-use machine_code::ResolvedMachineLayout;
-pub use machine_code::{
+use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
+use post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedMachineLayout;
+pub use post_allocation_machine_to_selected_form_encoding::machine_code::{
     ResolvedBranchEvidence, ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate,
     ResolvedJumpEvidence, ResolvedSelectedBlockLayout, ResolvedSelectedFormLayoutIdentity,
     ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout, SelectedFunctionLayoutPolicy,
 };
-use machine_code::{
+use post_allocation_machine_to_selected_form_encoding::machine_code::{
     SelectedFormEncodingIdentity, SelectedFormMachineOptimizationCustody,
     SelectedFormMovnOptimizationCustody,
 };
-use physical_instructions::PostAllocationMachineOptimizationCustody;
-use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
+use register_homes_to_post_allocation_machine::PostAllocationMachineOptimizationCustody;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 use std::sync::Arc;
 use target::NativeTarget;
@@ -56,7 +56,9 @@ pub fn admit_resolved_machine_layout<S: ValidatedSelectedAnalysis>(
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     pre_layout: &StagedOptimizedSelectedFormEncoding,
-    program: std::sync::Arc<machine_code::ResolvedMachineLayout>,
+    program: std::sync::Arc<
+        post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedMachineLayout,
+    >,
 ) -> Result<StagedOptimizedResolvedSelectedFormLayout, OptimizedResolvedSelectedFormLayoutError> {
     let artifact = StagedOptimizedResolvedSelectedFormLayout { program };
     validation::validate(selected, machine, physical, pre_layout, &artifact)?;
@@ -69,11 +71,15 @@ pub struct StagedOptimizedResolvedSelectedFormLayout {
 }
 
 impl StagedOptimizedResolvedSelectedFormLayout {
-    pub fn selected(&self) -> selected_instructions::SelectedInstructionPlanIdentity {
+    pub fn selected(
+        &self,
+    ) -> target_operations_to_selected_instructions::SelectedInstructionPlanIdentity {
         self.program.selected
     }
 
-    pub fn machine(&self) -> physical_instructions::PostAllocationMachineIdentity {
+    pub fn machine(
+        &self,
+    ) -> register_homes_to_post_allocation_machine::PostAllocationMachineIdentity {
         self.program.machine
     }
 

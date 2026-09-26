@@ -26,12 +26,14 @@ pub(super) fn prepare(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
-    store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
+    store: &typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarFieldStorePlan,
     bindings: &storage::ScalarBindings,
     types: &[StructuralTypeDeclaration],
 ) -> Result<Prepared, LoweringError> {
     let (_, source) = source_custody::authored_state(checked, state)?;
-    let Some(checked_trees::statement::StatementNode::Assignment(assignment)) = checked
+    let Some(typed_trees_to_checked_trees::checked_trees::statement::StatementNode::Assignment(
+        assignment,
+    )) = checked
         .statement_table
         .statements(source.statement_nodes)
         .get(store.statement_index as usize)
@@ -46,7 +48,7 @@ pub(super) fn prepare(
         assignment,
         store,
     )?;
-    let checked_trees::CheckedStructuralScalarFieldStoreDestination::Local { symbol } =
+    let typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarFieldStoreDestination::Local { symbol } =
         store.destination
     else {
         return unsupported("scalar graph field store needs its local storage join");
@@ -65,13 +67,13 @@ pub(super) fn prepare(
             "record store lost its root carrier",
         ))?;
     let destination = bindings
-        .owned_argument(&checked_trees::CheckedUnitStructuralArgumentPlan {
-            source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+        .owned_argument(&typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan {
+            source: typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                 symbol,
             },
             path: Vec::new(),
             type_identity: identity.into_string(),
-            access: checked_trees::CheckedStructuralAccess::Owned,
+            access: typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned,
         })?
         .place;
     let (path, field) = crate::emission::structural_scalar_store::lower_structural_field_path(
@@ -89,7 +91,7 @@ pub(super) fn prepare(
         );
     }
     let expression = match store.value {
-        checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(_) => {
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(_) => {
             Some(bindings.expression_at(
                 checked,
                 state,
@@ -97,11 +99,11 @@ pub(super) fn prepare(
                 CheckedScalarExpressionRole::AssignmentValue,
             )?)
         }
-        checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(_) => None,
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(_) => None,
         // A call result is established by the ordered call operation of the
         // attached-Unit statement sequence. This scalar-graph store route has
         // no such operation beside it and cannot substitute a local read.
-        checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { .. } => {
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { .. } => {
             return unsupported("record store has no call operation supplying its result");
         }
     };

@@ -41,7 +41,10 @@ unsafe impl GlobalAlloc for CountAllocations {
     }
 }
 
-fn program(template_count: usize, independent_machines: usize) -> typed_trees::TypedTrees {
+fn program(
+    template_count: usize,
+    independent_machines: usize,
+) -> symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees {
     let mut source = String::new();
     for ordinal in 0..template_count {
         writeln!(

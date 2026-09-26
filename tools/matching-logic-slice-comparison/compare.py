@@ -51,7 +51,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 PINNED_CASES = HERE / "pinned_cases.json"
 CLASSICALITY = Path(
-    "omega-rust/psi/semantics/proof-admission/src/classicality.rs"
+    "omega-rust/psi/proof-admission/src/classicality.rs"
 )
 SORT_ENCODING = Path("tools/matching-logic-sort-encoding")
 SLICE = Path("tools/matching-logic-slice")
@@ -66,41 +66,41 @@ SURFACES = {
     # that decode and verify the emitted proof structures (trust graph,
     # proof bundle, proof sidecar sections).
     "receiver_terminal_verifier": [
-        "omega-rust/psi/semantics/terminal-verifier/src",
+        "omega-rust/psi/terminal-verifier/src",
     ],
     "receiver_pcc_codec": [
-        "omega-rust/psi/semantics/terminal-codec/src/sections/proof_sidecar.rs",
-        "omega-rust/psi/semantics/terminal-codec/src/sections/proof_bundle",
-        "omega-rust/psi/semantics/terminal-codec/src/sections/trust_graph",
-        "omega-rust/psi/semantics/terminal-codec/src/sections/trust_graph.rs",
-        "omega-rust/omega/compiler/compilation-report/src/pcc.rs",
-        "omega-rust/omega/compiler/compilation-report/src/pcc",
+        "omega-rust/psi/terminal-codec/src/sections/proof_sidecar.rs",
+        "omega-rust/psi/terminal-codec/src/sections/proof_bundle",
+        "omega-rust/psi/terminal-codec/src/sections/trust_graph",
+        "omega-rust/psi/terminal-codec/src/sections/trust_graph.rs",
+        "omega-rust/omega/src/compiler/compilation-report/src/pcc.rs",
+        "omega-rust/omega/src/compiler/compilation-report/src/pcc",
     ],
     # The admission kernel and the mathematical theory the kernel checks
     # against: sorts, terms, denotation, integer rule theory. On the
     # candidate side these are the "theory" the encoding must restate.
     "admission_kernel": [
-        "omega-rust/psi/semantics/proof-admission/src/kernel.rs",
-        "omega-rust/psi/semantics/proof-admission/src/kernel",
-        "omega-rust/psi/semantics/proof-admission/src/admission.rs",
-        "omega-rust/psi/semantics/proof-admission/src/admission",
-        "omega-rust/psi/semantics/proof-admission/src/classicality.rs",
-        "omega-rust/psi/semantics/proof-admission/src/proof.rs",
-        "omega-rust/psi/semantics/proof-admission/src/proof",
+        "omega-rust/psi/proof-admission/src/kernel.rs",
+        "omega-rust/psi/proof-admission/src/kernel",
+        "omega-rust/psi/proof-admission/src/admission.rs",
+        "omega-rust/psi/proof-admission/src/admission",
+        "omega-rust/psi/proof-admission/src/classicality.rs",
+        "omega-rust/psi/proof-admission/src/proof.rs",
+        "omega-rust/psi/proof-admission/src/proof",
     ],
     "theory_surface": [
-        "omega-rust/psi/semantics/proof-admission/src/mathematical_core.rs",
-        "omega-rust/psi/semantics/proof-admission/src/mathematical_core",
-        "omega-rust/psi/semantics/proof-admission/src/integer_rules.rs",
-        "omega-rust/psi/semantics/proof-admission/src/integer_rules",
-        "omega-rust/psi/semantics/proof-admission/src/predicate_denotation.rs",
-        "omega-rust/psi/semantics/proof-admission/src/predicate_denotation",
+        "omega-rust/psi/proof-admission/src/mathematical_core.rs",
+        "omega-rust/psi/proof-admission/src/mathematical_core",
+        "omega-rust/psi/proof-admission/src/integer_rules.rs",
+        "omega-rust/psi/proof-admission/src/integer_rules",
+        "omega-rust/psi/proof-admission/src/predicate_denotation.rs",
+        "omega-rust/psi/proof-admission/src/predicate_denotation",
     ],
     # Producer-side proof derivation: obligations, checker, derivation
     # store. Not trusted on the receiver side, but part of the complete
     # current route the comparison must count.
     "derivation_support": [
-        "omega-rust/psi/semantics/proof/src",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/proof_engine",
     ],
 }
 

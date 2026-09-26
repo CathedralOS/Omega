@@ -13,8 +13,10 @@ use optimization_core::{
     AnalysisKind, Optimization, OptimizationRuleContract, OptimizationRuleIdentity,
     OptimizationSafetyClass, OptimizationSelections, OptimizationValidatorIdentity,
 };
-use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch};
-use optimization_unit_semantics::{
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch,
+};
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_dead_scalar_node_candidate,
 };
 

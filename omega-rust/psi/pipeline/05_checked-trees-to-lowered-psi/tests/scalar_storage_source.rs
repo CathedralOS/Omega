@@ -109,31 +109,37 @@ fn assert_call_snapshot_and_execution(source: &str, statement_index: usize) {
         .find(|machine| machine.name.as_str() == "value")
         .unwrap();
     let state = &checked.machine_states(caller)[0];
-    let point = facts::ProgramPoint::Statement {
+    let point = typed_trees_to_checked_trees::fact_plan::ProgramPoint::Statement {
         machine_symbol: caller.symbol,
         state_symbol: state.symbol,
         statement_index,
     };
-    let snapshots = checked
-        .facts
-        .semantic
-        .facts
-        .iter()
-        .filter_map(|(_, fact)| {
-            if fact.point != point {
-                return None;
-            }
-            let facts::FactPayload::AssignedScalarValue { value } = fact.payload else {
-                return None;
-            };
-            Some(checked.facts.semantic.scalar_values.get(value))
-        })
-        .collect::<Vec<_>>();
+    let snapshots =
+        checked
+            .facts
+            .semantic
+            .facts
+            .iter()
+            .filter_map(|(_, fact)| {
+                if fact.point != point {
+                    return None;
+                }
+                let typed_trees_to_checked_trees::fact_plan::FactPayload::AssignedScalarValue {
+                    value,
+                } = fact.payload
+                else {
+                    return None;
+                };
+                Some(checked.facts.semantic.scalar_values.get(value))
+            })
+            .collect::<Vec<_>>();
     assert_eq!(
         snapshots,
-        vec![&facts::ScalarValue::Integer(
-            numerics::bignum::BigInt::from_u64(65)
-        )]
+        vec![
+            &typed_trees_to_checked_trees::fact_plan::ScalarValue::Integer(
+                numerics::bignum::BigInt::from_u64(65)
+            )
+        ]
     );
     assert_eq!(
         execute(source),
@@ -211,7 +217,7 @@ fn scalar_storage_guards_select_using_the_updated_value() {
 
 #[test]
 fn changed_scalar_storage_destination_custody_rejects() {
-    use checked_trees::CheckedScalarBindingDestination;
+    use typed_trees_to_checked_trees::checked_trees::CheckedScalarBindingDestination;
     let source = "machine value() -> u8\nrequires 3u8 == 3u8\nensures 3u8 == 3u8\n{ let mut first: u8 = 1; let mut second: u8 = 2; first = 3; first }";
     let original = crate::front_end::checked_program(source);
     checked_trees_to_lowered_psi::lower_machine(&original, TerminalMachineSelection::Name("value"))
@@ -232,7 +238,10 @@ fn changed_scalar_storage_destination_custody_rejects() {
                 bindings[0].destination = CheckedScalarBindingDestination::StorageAssign { symbol }
             }
             2 => bindings[1].destination = bindings[0].destination,
-            _ => bindings[2].primitive_type = typed_trees::types::PrimitiveType::Bool,
+            _ => {
+                bindings[2].primitive_type =
+                    symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::Bool
+            }
         }
         assert!(
             checked_trees_to_lowered_psi::lower_machine(
@@ -247,7 +256,9 @@ fn changed_scalar_storage_destination_custody_rejects() {
 
 #[test]
 fn scalar_storage_reads_reject_stale_symbols_and_duplicate_computations() {
-    use checked_trees::{CheckedScalarExpression, CheckedScalarExpressionRole};
+    use typed_trees_to_checked_trees::checked_trees::{
+        CheckedScalarExpression, CheckedScalarExpressionRole,
+    };
     let source = "machine value() -> u8\nrequires 7u8 == 7u8\nensures 7u8 == 7u8\n{ let mut current: u8 = 7; current }";
     let original = crate::front_end::checked_program(source);
     checked_trees_to_lowered_psi::lower_machine(&original, TerminalMachineSelection::Name("value"))

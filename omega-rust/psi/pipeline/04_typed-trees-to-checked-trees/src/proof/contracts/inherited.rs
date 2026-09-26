@@ -1,8 +1,10 @@
 use super::CheckedEvidenceTerm;
-use checked_trees::{ContractProofFact, ContractProofFactKind, ContractProofFactOwner};
+use crate::checked_trees::{ContractProofFact, ContractProofFactKind, ContractProofFactOwner};
 use symbols::SymbolHandle;
 
-pub(crate) fn estimated_contract_fact_capacity(program: &typed_trees::TypedTrees) -> usize {
+pub(crate) fn estimated_contract_fact_capacity(
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+) -> usize {
     program
         .machines()
         .iter()
@@ -56,9 +58,9 @@ pub(crate) fn estimated_contract_fact_capacity(program: &typed_trees::TypedTrees
                 .machine_type_parameters(machine)
                 .iter()
                 .filter_map(|parameter| match &parameter.kind {
-                    typed_trees::data::TypeParameterKind::Machine { contract } => program
+                    symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Machine { contract } => program
                         .machine_parameter_contract_view(contract)
-                        .map(typed_trees::data::MachineParameterContractView::signature),
+                        .map(symbol_resolved_trees_to_typed_trees::typed_trees::data::MachineParameterContractView::signature),
                     _ => None,
                 })
                 .map(|signature| {
@@ -80,10 +82,10 @@ pub(crate) fn estimated_contract_fact_capacity(program: &typed_trees::TypedTrees
 }
 
 pub(crate) fn append_inherited_trait_contract_facts(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     contract_facts: &mut arena::Arena<ContractProofFact>,
-    inherited_scopes: &mut arena::Arena<checked_trees::InheritedContractScope>,
+    inherited_scopes: &mut arena::Arena<crate::checked_trees::InheritedContractScope>,
     evidence_terms: &arena::Arena<CheckedEvidenceTerm>,
 ) {
     let mut visited_traits = Vec::new();
@@ -108,12 +110,12 @@ pub(crate) fn append_inherited_trait_contract_facts(
 }
 
 fn append_trait_contract_facts_for_machine(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    trait_definition: &typed_trees::trait_definition::TraitDefinition,
-    effective_arguments: &[typed_trees::types::TypeReferenceHandle],
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    trait_definition: &symbol_resolved_trees_to_typed_trees::typed_trees::trait_definition::TraitDefinition,
+    effective_arguments: &[symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle],
     contract_facts: &mut arena::Arena<ContractProofFact>,
-    inherited_scopes: &mut arena::Arena<checked_trees::InheritedContractScope>,
+    inherited_scopes: &mut arena::Arena<crate::checked_trees::InheritedContractScope>,
     evidence_terms: &arena::Arena<CheckedEvidenceTerm>,
     visited_traits: &mut Vec<SymbolHandle>,
 ) {
@@ -179,7 +181,7 @@ fn append_trait_contract_facts_for_machine(
                 // row; the scope records the exact edge arguments so semantic
                 // labels and obligations can instantiate the schema instead of
                 // guessing from display names.
-                let scope = inherited_scopes.append(checked_trees::InheritedContractScope {
+                let scope = inherited_scopes.append(crate::checked_trees::InheritedContractScope {
                     conformance_machine: machine.symbol,
                     declaring_trait: trait_definition.symbol,
                     requirement: signature.symbol,
@@ -212,7 +214,7 @@ fn append_trait_contract_facts_for_machine(
         let parent_arguments = program
             .type_reference_table
             .type_reference_handles(requirement.arguments);
-        let composed_arguments = validation::compose_forwarded_trait_arguments(
+        let composed_arguments = crate::validation::compose_forwarded_trait_arguments(
             program,
             trait_definition,
             effective_arguments,
@@ -234,8 +236,8 @@ fn append_trait_contract_facts_for_machine(
 }
 
 fn estimated_inherited_trait_contract_fact_capacity(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
 ) -> usize {
     let mut visited_traits = Vec::new();
     program
@@ -254,9 +256,9 @@ fn estimated_inherited_trait_contract_fact_capacity(
 }
 
 fn estimated_trait_contract_fact_capacity_for_machine(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    trait_definition: &typed_trees::trait_definition::TraitDefinition,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    trait_definition: &symbol_resolved_trees_to_typed_trees::typed_trees::trait_definition::TraitDefinition,
     visited_traits: &mut Vec<SymbolHandle>,
 ) -> usize {
     if visited_traits.contains(&trait_definition.symbol) {
@@ -299,10 +301,10 @@ fn estimated_trait_contract_fact_capacity_for_machine(
 }
 
 fn trait_requirement_state_symbols(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     trait_symbol: SymbolHandle,
-    requirement: &typed_trees::signature::StateSignature,
+    requirement: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateSignature,
 ) -> Option<(SymbolHandle, SymbolHandle)> {
     if machine_selects_exact_requirement(program, machine, trait_symbol, requirement) {
         return program
@@ -322,10 +324,10 @@ fn trait_requirement_state_symbols(
 }
 
 fn machine_selects_exact_requirement(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     trait_symbol: SymbolHandle,
-    requirement: &typed_trees::signature::StateSignature,
+    requirement: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateSignature,
 ) -> bool {
     program
         .machine_trait_conformances(machine)
@@ -340,9 +342,9 @@ fn machine_selects_exact_requirement(
 }
 
 fn trait_conformance_candidate_machines<'program>(
-    program: &'program typed_trees::TypedTrees,
-    machine: &'program typed_trees::machine::Machine,
-) -> Vec<&'program typed_trees::machine::Machine> {
+    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &'program symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+) -> Vec<&'program symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine> {
     let Some(attached_data) = machine.attached_data.as_ref() else {
         return vec![machine];
     };
@@ -357,9 +359,9 @@ fn trait_conformance_candidate_machines<'program>(
 }
 
 fn trait_definition_by_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     symbol: SymbolHandle,
-) -> Option<&typed_trees::trait_definition::TraitDefinition> {
+) -> Option<&symbol_resolved_trees_to_typed_trees::typed_trees::trait_definition::TraitDefinition> {
     if !symbol.is_valid() {
         return None;
     }

@@ -28,7 +28,7 @@ impl StateGraphEmission<'_, '_> {
     pub(super) fn stage_guarded_chain(
         &mut self,
         position: usize,
-        arms: &[checked_trees::CheckedGuardedJumpPlan],
+        arms: &[typed_trees_to_checked_trees::checked_trees::CheckedGuardedJumpPlan],
         values: &mut Vec<ValueDeclaration>,
         evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
         next_value: &mut u64,

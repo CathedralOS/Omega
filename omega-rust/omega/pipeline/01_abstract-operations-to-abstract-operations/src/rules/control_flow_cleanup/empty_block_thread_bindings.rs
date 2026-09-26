@@ -4,11 +4,11 @@
 
 use std::collections::BTreeMap;
 
-use abstract_operations::ValueBinding;
-use optimization_unit::{
+use semantic_vocabulary::{BlockId, EdgeId};
+use terminal_psi_to_abstract_operations::abstract_operations::ValueBinding;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     OwnershipFrontierSite, PsiOptimizationFunction, PsiOptimizationUnit, ValueDefinition,
 };
-use semantic_vocabulary::{BlockId, EdgeId};
 
 use crate::OwnershipFrontierAnalysis;
 

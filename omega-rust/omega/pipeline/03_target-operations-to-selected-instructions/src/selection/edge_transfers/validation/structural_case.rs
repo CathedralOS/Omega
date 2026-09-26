@@ -6,11 +6,11 @@ use super::{
     SelectedTerminator, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use crate::SelectedInstructionError;
-use crate::selection::edge_transfers::invalid;
-use selected_instructions::{
+use crate::selected_instructions::{
     FrameStorageSlotId, SelectedCasePayloadTransport as Transport, SelectedMemoryAccess,
     SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
 };
+use crate::selection::edge_transfers::invalid;
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
 
 pub(super) fn validate_prepared_states(
@@ -341,7 +341,7 @@ fn check_instruction(
     actual: &SelectedInstruction,
     position: usize,
     kind: SelectedInstructionKind,
-    key: register_model::RegisterConstraintKey,
+    key: crate::register_model::RegisterConstraintKey,
     registers: &[VirtualRegisterId],
     provenance: &SelectedInstructionProvenance,
     function: usize,

@@ -115,8 +115,8 @@ fn rejects_direct_mutable_borrow_while_local_alias_is_active() {
     "#;
 
     let typed = typed_program(source);
-    let proof_plan = proof::obligations::build_proof_plan(&typed);
-    let operations = validation::infer_operational_may(&typed);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
+    let operations = crate::validation::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
@@ -129,7 +129,7 @@ fn rejects_direct_mutable_borrow_while_local_alias_is_active() {
         &domains,
         &operations,
     );
-    let facts = checked_trees::CheckFacts {
+    let facts = crate::checked_trees::CheckFacts {
         semantic,
         proof,
         borrow,
@@ -182,8 +182,8 @@ fn rejects_direct_mutable_borrow_while_helper_alias_is_active() {
     "#;
 
     let typed = typed_program(source);
-    let proof_plan = proof::obligations::build_proof_plan(&typed);
-    let operations = validation::infer_operational_may(&typed);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
+    let operations = crate::validation::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
@@ -196,7 +196,7 @@ fn rejects_direct_mutable_borrow_while_helper_alias_is_active() {
         &domains,
         &operations,
     );
-    let facts = checked_trees::CheckFacts {
+    let facts = crate::checked_trees::CheckFacts {
         semantic,
         proof,
         borrow,
@@ -283,8 +283,8 @@ fn rejects_local_borrow_creation_while_prior_alias_is_active() {
     "#;
 
     let typed = typed_program(source);
-    let proof_plan = proof::obligations::build_proof_plan(&typed);
-    let operations = validation::infer_operational_may(&typed);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
+    let operations = crate::validation::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
@@ -297,7 +297,7 @@ fn rejects_local_borrow_creation_while_prior_alias_is_active() {
         &domains,
         &operations,
     );
-    let facts = checked_trees::CheckFacts {
+    let facts = crate::checked_trees::CheckFacts {
         semantic,
         proof,
         borrow,
@@ -340,8 +340,8 @@ fn rejects_direct_assignment_while_local_alias_is_active() {
     "#;
 
     let typed = typed_program(source);
-    let proof_plan = proof::obligations::build_proof_plan(&typed);
-    let operations = validation::infer_operational_may(&typed);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
+    let operations = crate::validation::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
@@ -354,7 +354,7 @@ fn rejects_direct_assignment_while_local_alias_is_active() {
         &domains,
         &operations,
     );
-    let facts = checked_trees::CheckFacts {
+    let facts = crate::checked_trees::CheckFacts {
         semantic,
         proof,
         borrow,
@@ -410,8 +410,8 @@ fn rejects_mutating_call_through_owner_while_view_is_active() {
     "#;
 
     let typed = typed_program(source);
-    let proof_plan = proof::obligations::build_proof_plan(&typed);
-    let operations = validation::infer_operational_may(&typed);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
+    let operations = crate::validation::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
@@ -424,7 +424,7 @@ fn rejects_mutating_call_through_owner_while_view_is_active() {
         &domains,
         &operations,
     );
-    let facts = checked_trees::CheckFacts {
+    let facts = crate::checked_trees::CheckFacts {
         semantic,
         proof,
         borrow,
@@ -473,8 +473,8 @@ fn rejects_vec_push_while_slice_view_is_active() {
     "#;
 
     let typed = typed_program(source);
-    let proof_plan = proof::obligations::build_proof_plan(&typed);
-    let operations = validation::infer_operational_may(&typed);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
+    let operations = crate::validation::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
@@ -487,7 +487,7 @@ fn rejects_vec_push_while_slice_view_is_active() {
         &domains,
         &operations,
     );
-    let facts = checked_trees::CheckFacts {
+    let facts = crate::checked_trees::CheckFacts {
         semantic,
         proof,
         borrow,
@@ -541,8 +541,8 @@ fn accepts_mutating_call_through_owner_on_disjoint_field() {
     "#;
 
     let typed = typed_program(source);
-    let proof_plan = proof::obligations::build_proof_plan(&typed);
-    let operations = validation::infer_operational_may(&typed);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
+    let operations = crate::validation::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
@@ -555,7 +555,7 @@ fn accepts_mutating_call_through_owner_on_disjoint_field() {
         &domains,
         &operations,
     );
-    let facts = checked_trees::CheckFacts {
+    let facts = crate::checked_trees::CheckFacts {
         semantic,
         proof,
         borrow,
@@ -601,8 +601,8 @@ fn accepts_known_pure_mutable_receiver_call_while_view_is_active() {
     "#;
 
     let typed = typed_program(source);
-    let proof_plan = proof::obligations::build_proof_plan(&typed);
-    let operations = validation::infer_operational_may(&typed);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
+    let operations = crate::validation::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
@@ -615,7 +615,7 @@ fn accepts_known_pure_mutable_receiver_call_while_view_is_active() {
         &domains,
         &operations,
     );
-    let facts = checked_trees::CheckFacts {
+    let facts = crate::checked_trees::CheckFacts {
         semantic,
         proof,
         borrow,
@@ -648,8 +648,8 @@ fn accepts_direct_mutable_borrow_after_local_alias_reassignment() {
     "#;
 
     let typed = typed_program(source);
-    let proof_plan = proof::obligations::build_proof_plan(&typed);
-    let operations = validation::infer_operational_may(&typed);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
+    let operations = crate::validation::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
@@ -662,7 +662,7 @@ fn accepts_direct_mutable_borrow_after_local_alias_reassignment() {
         &domains,
         &operations,
     );
-    let facts = checked_trees::CheckFacts {
+    let facts = crate::checked_trees::CheckFacts {
         semantic,
         proof,
         borrow,
@@ -709,8 +709,8 @@ fn rejects_linked_input_mutation_while_free_machine_view_is_active() {
     "#;
 
     let typed = typed_program(source);
-    let proof_plan = proof::obligations::build_proof_plan(&typed);
-    let operations = validation::infer_operational_may(&typed);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
+    let operations = crate::validation::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
@@ -723,7 +723,7 @@ fn rejects_linked_input_mutation_while_free_machine_view_is_active() {
         &domains,
         &operations,
     );
-    let facts = checked_trees::CheckFacts {
+    let facts = crate::checked_trees::CheckFacts {
         semantic,
         proof,
         borrow,
@@ -782,8 +782,8 @@ fn rejects_ambiguous_view_return_with_multiple_ref_inputs() {
     "#;
 
     let typed = typed_program(source);
-    let proof_plan = proof::obligations::build_proof_plan(&typed);
-    let operations = validation::infer_operational_may(&typed);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
+    let operations = crate::validation::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
@@ -796,7 +796,7 @@ fn rejects_ambiguous_view_return_with_multiple_ref_inputs() {
         &domains,
         &operations,
     );
-    let facts = checked_trees::CheckFacts {
+    let facts = crate::checked_trees::CheckFacts {
         semantic,
         proof,
         borrow,

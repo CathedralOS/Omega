@@ -6,10 +6,10 @@ use super::{
     RUNTIME_VALUE_PROOF_OUTPUT_SOURCE, STATIC_REQUIREMENT_TRAIT_DEFAULT_SOURCE,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use omega::terminal_fixed_fuel::derive_fixed_entry_fuel;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerValue, OperationId};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
-use terminal_fixed_fuel::derive_fixed_entry_fuel;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
@@ -30,7 +30,7 @@ fn ordinary_attached_scalar_machine_lowers_through_the_unit_closure() {
         .expect("ordinary attached scalar machine selection");
     assert_eq!(
         selection.signature,
-        checked_trees::CheckedTerminalSignatureEligibility::Attached
+        typed_trees_to_checked_trees::checked_trees::CheckedTerminalSignatureEligibility::Attached
     );
     // The checker plans the attached scalar body as a Unit effect closure,
     // which is the lane that lowers it; no scalar entry lane is involved.

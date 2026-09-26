@@ -9,7 +9,7 @@ mod proof_questions;
 
 pub use error::VerifiedPsiOptimizationUnitBuildError;
 
-use abstract_operations::AbstractOperationPlan;
+use crate::abstract_operations::AbstractOperationPlan;
 use accepted_obligations::project_accepted_obligation_facts;
 use ownership_frontiers::project_ownership_frontiers;
 use proof_questions::project_proof_questions;
@@ -21,17 +21,20 @@ pub fn build_verified_psi_optimization_unit(
     input: VerifiedPsiOptimizationInput,
     fuel_schedule: semantic_vocabulary::FuelScheduleIdentity,
 ) -> Result<VerifiedPsiOptimizationUnit, VerifiedPsiOptimizationUnitBuildError> {
-    let mut seed =
-        optimization_unit::reconstruct_psi_optimization_unit_seed(input.plan(), fuel_schedule)?;
+    let mut seed = crate::optimization_unit::reconstruct_psi_optimization_unit_seed(
+        input.plan(),
+        fuel_schedule,
+    )?;
     let context = input.context();
-    optimization_unit::attach_verified_module_context(&mut seed, context.module())
+    crate::optimization_unit::attach_verified_module_context(&mut seed, context.module())
         .map_err(VerifiedPsiOptimizationUnitBuildError::MissingStructuralCatalogMachine)?;
     let facts = project_accepted_obligation_facts(&seed, context)?;
-    let unit = optimization_unit::attach_accepted_obligation_facts(seed, facts)?;
+    let unit = crate::optimization_unit::attach_accepted_obligation_facts(seed, facts)?;
     let proof_questions = project_proof_questions(&input)?;
-    let unit = optimization_unit::attach_proof_questions(unit, proof_questions)?;
+    let unit = crate::optimization_unit::attach_proof_questions(unit, proof_questions)?;
     let ownership_frontiers = project_ownership_frontiers(&input)?;
-    let unit = optimization_unit::attach_ownership_frontier_facts(unit, ownership_frontiers)?;
+    let unit =
+        crate::optimization_unit::attach_ownership_frontier_facts(unit, ownership_frontiers)?;
     Ok(VerifiedPsiOptimizationUnit { input, unit })
 }
 
@@ -107,7 +110,7 @@ impl VerifiedPsiOptimizationContext {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedPsiOptimizationUnit {
     pub(crate) input: VerifiedPsiOptimizationInput,
-    pub(crate) unit: optimization_unit::PsiOptimizationUnit,
+    pub(crate) unit: crate::optimization_unit::PsiOptimizationUnit,
 }
 
 impl VerifiedPsiOptimizationUnit {
@@ -115,7 +118,7 @@ impl VerifiedPsiOptimizationUnit {
         &self.input
     }
 
-    pub const fn unit(&self) -> &optimization_unit::PsiOptimizationUnit {
+    pub const fn unit(&self) -> &crate::optimization_unit::PsiOptimizationUnit {
         &self.unit
     }
 
@@ -123,7 +126,7 @@ impl VerifiedPsiOptimizationUnit {
         self,
     ) -> (
         VerifiedPsiOptimizationInput,
-        optimization_unit::PsiOptimizationUnit,
+        crate::optimization_unit::PsiOptimizationUnit,
     ) {
         (self.input, self.unit)
     }

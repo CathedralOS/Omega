@@ -5,36 +5,40 @@ use crate::symbols::lookup::child_symbol_by_kinds;
 use crate::symbols::scope::MachineScope;
 
 fn type_reference_symbol(
-    child_type_references: &Arena<symbol_resolved_trees::types::TypeReference>,
-    type_reference: &symbol_resolved_trees::types::TypeReference,
+    child_type_references: &Arena<crate::symbol_resolved_trees::types::TypeReference>,
+    type_reference: &crate::symbol_resolved_trees::types::TypeReference,
 ) -> SymbolHandle {
     match type_reference {
-        symbol_resolved_trees::types::TypeReference::Reference(reference) => type_reference_symbol(
-            child_type_references,
-            child_type_references.get(reference.referee),
-        ),
-        symbol_resolved_trees::types::TypeReference::Constrained(constrained) => {
+        crate::symbol_resolved_trees::types::TypeReference::Reference(reference) => {
+            type_reference_symbol(
+                child_type_references,
+                child_type_references.get(reference.referee),
+            )
+        }
+        crate::symbol_resolved_trees::types::TypeReference::Constrained(constrained) => {
             type_reference_symbol(
                 child_type_references,
                 child_type_references.get(constrained.base_type),
             )
         }
-        symbol_resolved_trees::types::TypeReference::FixedArray(fixed_array) => {
+        crate::symbol_resolved_trees::types::TypeReference::FixedArray(fixed_array) => {
             type_reference_symbol(
                 child_type_references,
                 child_type_references.get(fixed_array.element_type),
             )
         }
-        symbol_resolved_trees::types::TypeReference::Slice(slice) => type_reference_symbol(
+        crate::symbol_resolved_trees::types::TypeReference::Slice(slice) => type_reference_symbol(
             child_type_references,
             child_type_references.get(slice.element_type),
         ),
-        symbol_resolved_trees::types::TypeReference::Generic(generic) => generic.base_symbol,
-        symbol_resolved_trees::types::TypeReference::ConstExpression(_) => SymbolHandle::invalid(),
-        symbol_resolved_trees::types::TypeReference::DynamicTrait { symbol, .. } => *symbol,
-        symbol_resolved_trees::types::TypeReference::Named { symbol, .. } => *symbol,
-        symbol_resolved_trees::types::TypeReference::SelfType { symbol } => *symbol,
-        symbol_resolved_trees::types::TypeReference::Unit => SymbolHandle::invalid(),
+        crate::symbol_resolved_trees::types::TypeReference::Generic(generic) => generic.base_symbol,
+        crate::symbol_resolved_trees::types::TypeReference::ConstExpression(_) => {
+            SymbolHandle::invalid()
+        }
+        crate::symbol_resolved_trees::types::TypeReference::DynamicTrait { symbol, .. } => *symbol,
+        crate::symbol_resolved_trees::types::TypeReference::Named { symbol, .. } => *symbol,
+        crate::symbol_resolved_trees::types::TypeReference::SelfType { symbol } => *symbol,
+        crate::symbol_resolved_trees::types::TypeReference::Unit => SymbolHandle::invalid(),
     }
 }
 
@@ -68,14 +72,14 @@ fn exact_service_carrier_data(symbols: &SymbolTable, symbol: SymbolHandle) -> bo
 pub(in crate::symbols) fn call_target_for_type_reference(
     machine: &MachineScope<'_>,
     symbols: &SymbolTable,
-    child_type_references: &Arena<symbol_resolved_trees::types::TypeReference>,
-    type_reference: &symbol_resolved_trees::types::TypeReference,
-    target: &symbol_resolved_trees::name::DiagnosticName,
+    child_type_references: &Arena<crate::symbol_resolved_trees::types::TypeReference>,
+    type_reference: &crate::symbol_resolved_trees::types::TypeReference,
+    target: &crate::symbol_resolved_trees::name::DiagnosticName,
 ) -> SymbolHandle {
     // The exact `Binding<R>` carrier owns no call surface: a receiver call
     // resolves against the closed boundary requirement `R` it carries, the
     // same target a bare requirement receiver would select.
-    if let symbol_resolved_trees::types::TypeReference::Generic(generic) = type_reference
+    if let crate::symbol_resolved_trees::types::TypeReference::Generic(generic) = type_reference
         && generic.arguments.len() == 1
         && exact_service_carrier_data(symbols, generic.base_symbol)
     {

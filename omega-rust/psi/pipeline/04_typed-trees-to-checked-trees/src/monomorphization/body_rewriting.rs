@@ -36,7 +36,10 @@ pub(super) fn rewrite_selected_call(
     program: &mut TypedTrees,
     site: CallSite,
     target: SymbolHandle,
-    subjects: &[(typed_trees::name::Identifier, SymbolHandle)],
+    subjects: &[(
+        symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
+        SymbolHandle,
+    )],
 ) {
     let target_name = state_by_symbol(program, target)
         .map(|state| state.name.clone())
@@ -49,9 +52,12 @@ pub(super) fn rewrite_selected_call(
 /// argument matching the specialization's realized trailing parameters.
 pub(super) fn runtime_value_subjects(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     machine_arguments: &[StaticMachineArgument],
-) -> Vec<(typed_trees::name::Identifier, SymbolHandle)> {
+) -> Vec<(
+    symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
+    SymbolHandle,
+)> {
     machine_arguments
         .iter()
         .filter_map(|argument| {
@@ -67,12 +73,15 @@ pub(super) fn runtime_value_subjects(
 /// initializers and contract-only expressions deliberately acquire no body owner.
 pub(super) fn cloned_runtime_call_subjects(
     program: &TypedTrees,
-    states: HandleSpan<typed_trees::state::State>,
+    states: HandleSpan<symbol_resolved_trees_to_typed_trees::typed_trees::state::State>,
     state_symbols: &[(SymbolHandle, SymbolHandle)],
     expression_start: usize,
 ) -> Vec<(
     ExpressionHandle,
-    Vec<(typed_trees::name::Identifier, SymbolHandle)>,
+    Vec<(
+        symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
+        SymbolHandle,
+    )>,
 )> {
     let mut calls = Vec::new();
     let mut expressions = Vec::new();
@@ -108,8 +117,8 @@ pub(super) fn cloned_runtime_call_subjects(
 }
 
 pub(super) fn insert_subject_name(
-    table: &mut typed_trees::expression::ExpressionTable,
-    member: typed_trees::name::Identifier,
+    table: &mut symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionTable,
+    member: symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
     symbol: SymbolHandle,
 ) -> ExpressionHandle {
     let mut members = HandleSpan::empty();
@@ -117,7 +126,7 @@ pub(super) fn insert_subject_name(
     let mut member_symbols = HandleSpan::empty();
     table.push_name_path_member_symbol(&mut member_symbols, symbol);
     table.insert(ExpressionNode::Name(
-        typed_trees::expression::TableNamePath {
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableNamePath {
             members,
             member_symbols,
             head_symbol: symbol,
@@ -130,8 +139,11 @@ pub(super) fn rewrite_selected_call_with_name(
     program: &mut TypedTrees,
     site: CallSite,
     target: SymbolHandle,
-    target_name: typed_trees::name::Identifier,
-    subjects: &[(typed_trees::name::Identifier, SymbolHandle)],
+    target_name: symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
+    subjects: &[(
+        symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
+        SymbolHandle,
+    )],
 ) {
     match site {
         CallSite::Statement(handle) => {

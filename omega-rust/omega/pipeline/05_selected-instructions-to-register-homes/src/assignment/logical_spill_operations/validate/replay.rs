@@ -1,18 +1,20 @@
-use optimization_unit::ValueDefinitionSite;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
+use semantic_vocabulary::{IntegerCarrier, IntegerSign, ScalarType};
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::{
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedTerminator,
     VirtualRegisterId, VirtualRegisterOrigin,
 };
-use semantic_vocabulary::{IntegerCarrier, IntegerSign, ScalarType};
+use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
 use crate::LogicalSpillOperationError;
-use register_homes::{
+use selected_instructions_to_selected_instructions::register_homes::{
     FunctionAllocationLegality, FunctionSpillChoices, LogicalReloadValueId, LogicalSpillAction,
     LogicalSpillReload, LogicalSpillStorage, LogicalSpillStorageClass, LogicalSpillStorageId,
     LogicalSpillStore, LogicalSpillUseRewrite,
 };
-use selected_instructions::{FunctionLiveRanges, LiveRangeFragment, VirtualFixedConstraintSite};
+use target_operations_to_selected_instructions::{
+    FunctionLiveRanges, LiveRangeFragment, VirtualFixedConstraintSite,
+};
 
 pub(super) fn replay_action(
     function: usize,
@@ -89,7 +91,7 @@ pub(super) fn replay_action(
     };
     if !matches!(
         victim.definition_site,
-        Some(ValueDefinitionSite::Node { block, .. }) if matches!(selected_block.origin, selected_instructions::SelectedBlockOrigin::Source(authored) if authored == block)
+        Some(ValueDefinitionSite::Node { block, .. }) if matches!(selected_block.origin, target_operations_to_selected_instructions::SelectedBlockOrigin::Source(authored) if authored == block)
     ) {
         return Err(LogicalSpillOperationError::UnsupportedOrigin {
             function,
@@ -303,13 +305,13 @@ pub(super) fn replay_action(
 fn register(
     selected: &SelectedFunction,
     id: VirtualRegisterId,
-) -> Option<&selected_instructions::VirtualRegister> {
+) -> Option<&target_operations_to_selected_instructions::VirtualRegister> {
     selected.virtual_registers.iter().find(|row| row.id == id)
 }
 
 fn instruction(
     selected: &SelectedFunction,
-    block: selected_instructions::SelectedBlockId,
+    block: target_operations_to_selected_instructions::SelectedBlockId,
     id: SelectedInstructionId,
 ) -> Option<&SelectedInstruction> {
     let block = selected.blocks.iter().find(|row| row.id == block)?;

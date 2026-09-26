@@ -36,9 +36,9 @@ mod statements;
 #[cfg(test)]
 mod tests;
 
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
 use symbols::SymbolHandle;
-use typed_trees::machine::Machine;
-use typed_trees::state::State;
 
 use super::facts::RangeFacts;
 use super::seed_state_requires;
@@ -46,10 +46,10 @@ use super::seed_state_requires;
 use self::statements::collect_state_argument_facts_from_statement;
 
 struct StateArgumentContext<'program, 'frames> {
-    program: &'program typed_trees::TypedTrees,
+    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &'program Machine,
     state: &'program State,
-    call_frames: Option<&'frames validation::CallFrameResolver<'program>>,
+    call_frames: Option<&'frames crate::validation::CallFrameResolver<'program>>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -192,12 +192,12 @@ impl MergedIndexProofs {
 const MAX_PROPAGATION_PASSES: usize = 64;
 
 pub(super) fn collect_state_argument_facts<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     field_lengths: &[(SymbolHandle, String, usize)],
     machine: &'program Machine,
-    call_frames: Option<&validation::CallFrameResolver<'program>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'program>>,
     calls: &[super::facts::RangeCallContext<'_>],
-    operators: &checked_trees::CheckedOperatorFacts,
+    operators: &crate::checked_trees::CheckedOperatorFacts,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Vec<StateArgumentFacts> {
     #[cfg(test)]
@@ -342,12 +342,12 @@ fn merge_contribution(collected: &mut Vec<StateArgumentFacts>, incoming: &StateA
 
 #[cfg(test)]
 fn collect_state_argument_facts_whole_pass<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     field_lengths: &[(SymbolHandle, String, usize)],
     machine: &'program Machine,
-    call_frames: Option<&validation::CallFrameResolver<'program>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'program>>,
     calls: &[super::facts::RangeCallContext<'_>],
-    operators: &checked_trees::CheckedOperatorFacts,
+    operators: &crate::checked_trees::CheckedOperatorFacts,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Vec<StateArgumentFacts> {
     // Facts about a state's arguments are derived from the call/transition

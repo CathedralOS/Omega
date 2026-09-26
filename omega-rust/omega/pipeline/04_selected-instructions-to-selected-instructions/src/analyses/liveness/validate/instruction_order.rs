@@ -1,6 +1,8 @@
 //! One block's instructions in program order, terminator last.
 
-use selected_instructions::{SelectedBlock, SelectedInstruction, SelectedTerminator};
+use target_operations_to_selected_instructions::{
+    SelectedBlock, SelectedInstruction, SelectedTerminator,
+};
 
 pub(super) fn ordered_instructions(block: &SelectedBlock) -> Vec<&SelectedInstruction> {
     block

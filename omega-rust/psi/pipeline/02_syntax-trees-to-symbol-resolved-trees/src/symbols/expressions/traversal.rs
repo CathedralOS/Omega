@@ -10,11 +10,11 @@ use crate::symbols::scope::MachineScope;
 pub(in crate::symbols) fn assign_static_argument_type_symbols(
     symbols: &SymbolTable,
     machine: &MachineScope<'_>,
-    parameters: &[symbol_resolved_trees::signature::StateParameter],
+    parameters: &[crate::symbol_resolved_trees::signature::StateParameter],
     state_symbol: SymbolHandle,
-    expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
-    child_type_references: &mut arena::Arena<symbol_resolved_trees::types::TypeReference>,
-    argument: &symbol_resolved_trees::expression::StaticMachineArgument,
+    expression_table: &mut crate::symbol_resolved_trees::expression::ExpressionTable,
+    child_type_references: &mut arena::Arena<crate::symbol_resolved_trees::types::TypeReference>,
+    argument: &crate::symbol_resolved_trees::expression::StaticMachineArgument,
 ) {
     if argument.type_reference.is_valid() {
         let mut reference = child_type_references.get(argument.type_reference).clone();
@@ -54,11 +54,11 @@ pub(in crate::symbols) fn assign_static_argument_type_symbols(
 pub(in crate::symbols) fn assign_statement_expression_symbols(
     symbols: &SymbolTable,
     machine: &MachineScope<'_>,
-    parameters: &[symbol_resolved_trees::signature::StateParameter],
+    parameters: &[crate::symbol_resolved_trees::signature::StateParameter],
     state_symbol: SymbolHandle,
-    expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
-    child_type_references: &mut arena::Arena<symbol_resolved_trees::types::TypeReference>,
-    expression: symbol_resolved_trees::expression::ExpressionHandle,
+    expression_table: &mut crate::symbol_resolved_trees::expression::ExpressionTable,
+    child_type_references: &mut arena::Arena<crate::symbol_resolved_trees::types::TypeReference>,
+    expression: crate::symbol_resolved_trees::expression::ExpressionHandle,
 ) {
     if !expression.is_valid() {
         return;
@@ -78,11 +78,11 @@ pub(in crate::symbols) fn assign_statement_expression_symbols(
 pub(in crate::symbols) fn assign_expression_span_symbols(
     symbols: &SymbolTable,
     machine: &MachineScope<'_>,
-    parameters: &[symbol_resolved_trees::signature::StateParameter],
+    parameters: &[crate::symbol_resolved_trees::signature::StateParameter],
     state_symbol: SymbolHandle,
-    expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
-    child_type_references: &mut arena::Arena<symbol_resolved_trees::types::TypeReference>,
-    expressions: HandleSpan<symbol_resolved_trees::expression::ExpressionHandle>,
+    expression_table: &mut crate::symbol_resolved_trees::expression::ExpressionTable,
+    child_type_references: &mut arena::Arena<crate::symbol_resolved_trees::types::TypeReference>,
+    expressions: HandleSpan<crate::symbol_resolved_trees::expression::ExpressionHandle>,
 ) {
     let count = expressions.count();
     for offset in 0..count {
@@ -102,18 +102,18 @@ pub(in crate::symbols) fn assign_expression_span_symbols(
 pub(in crate::symbols) fn assign_expression_table_symbols(
     symbols: &SymbolTable,
     machine: &MachineScope<'_>,
-    parameters: &[symbol_resolved_trees::signature::StateParameter],
+    parameters: &[crate::symbol_resolved_trees::signature::StateParameter],
     state_symbol: SymbolHandle,
-    expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
-    child_type_references: &mut arena::Arena<symbol_resolved_trees::types::TypeReference>,
-    expression: symbol_resolved_trees::expression::ExpressionHandle,
+    expression_table: &mut crate::symbol_resolved_trees::expression::ExpressionTable,
+    child_type_references: &mut arena::Arena<crate::symbol_resolved_trees::types::TypeReference>,
+    expression: crate::symbol_resolved_trees::expression::ExpressionHandle,
 ) {
     if !expression.is_valid() {
         return;
     }
 
     match expression_table.expression(expression).clone() {
-        symbol_resolved_trees::expression::ExpressionNode::Match(dispatch) => {
+        crate::symbol_resolved_trees::expression::ExpressionNode::Match(dispatch) => {
             assign_expression_table_symbols(
                 symbols,
                 machine,
@@ -125,7 +125,8 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
             );
             for offset in 0..dispatch.arms.count() {
                 let arm = expression_table.match_arms(dispatch.arms)[offset as usize];
-                if let symbol_resolved_trees::expression::MatchPattern::Value(pattern) = arm.pattern
+                if let crate::symbol_resolved_trees::expression::MatchPattern::Value(pattern) =
+                    arm.pattern
                 {
                     assign_expression_table_symbols(
                         symbols,
@@ -148,7 +149,7 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
                 );
             }
         }
-        symbol_resolved_trees::expression::ExpressionNode::Atomic(atomic) => {
+        crate::symbol_resolved_trees::expression::ExpressionNode::Atomic(atomic) => {
             assign_expression_table_symbols(
                 symbols,
                 machine,
@@ -159,7 +160,7 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
                 atomic.value,
             );
         }
-        symbol_resolved_trees::expression::ExpressionNode::ArrayLiteral(values) => {
+        crate::symbol_resolved_trees::expression::ExpressionNode::ArrayLiteral(values) => {
             assign_expression_span_symbols(
                 symbols,
                 machine,
@@ -170,7 +171,7 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
                 values,
             );
         }
-        symbol_resolved_trees::expression::ExpressionNode::Binary(binary) => {
+        crate::symbol_resolved_trees::expression::ExpressionNode::Binary(binary) => {
             assign_expression_table_symbols(
                 symbols,
                 machine,
@@ -190,11 +191,11 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
                 binary.right,
             );
         }
-        symbol_resolved_trees::expression::ExpressionNode::Boolean(_)
-        | symbol_resolved_trees::expression::ExpressionNode::Float(_)
-        | symbol_resolved_trees::expression::ExpressionNode::Integer(_)
-        | symbol_resolved_trees::expression::ExpressionNode::String(_) => {}
-        symbol_resolved_trees::expression::ExpressionNode::Cast(cast) => {
+        crate::symbol_resolved_trees::expression::ExpressionNode::Boolean(_)
+        | crate::symbol_resolved_trees::expression::ExpressionNode::Float(_)
+        | crate::symbol_resolved_trees::expression::ExpressionNode::Integer(_)
+        | crate::symbol_resolved_trees::expression::ExpressionNode::String(_) => {}
+        crate::symbol_resolved_trees::expression::ExpressionNode::Cast(cast) => {
             assign_expression_table_symbols(
                 symbols,
                 machine,
@@ -248,7 +249,7 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
                 );
             }
         }
-        symbol_resolved_trees::expression::ExpressionNode::Call(call) => {
+        crate::symbol_resolved_trees::expression::ExpressionNode::Call(call) => {
             for argument in &call.machine_arguments {
                 assign_static_argument_type_symbols(
                     symbols,
@@ -292,7 +293,7 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
                 expression,
             );
         }
-        symbol_resolved_trees::expression::ExpressionNode::Indexed(indexed) => {
+        crate::symbol_resolved_trees::expression::ExpressionNode::Indexed(indexed) => {
             assign_expression_table_symbols(
                 symbols,
                 machine,
@@ -312,7 +313,7 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
                 indexed.index,
             );
         }
-        symbol_resolved_trees::expression::ExpressionNode::Range(range) => {
+        crate::symbol_resolved_trees::expression::ExpressionNode::Range(range) => {
             if range.start.is_valid() {
                 assign_expression_table_symbols(
                     symbols,
@@ -336,7 +337,7 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
                 );
             }
         }
-        symbol_resolved_trees::expression::ExpressionNode::Member(member) => {
+        crate::symbol_resolved_trees::expression::ExpressionNode::Member(member) => {
             let receiver = member.receiver;
             let member_name = member.member.clone();
             assign_expression_table_symbols(
@@ -358,7 +359,7 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
                 expression,
             );
         }
-        symbol_resolved_trees::expression::ExpressionNode::Membership(membership) => {
+        crate::symbol_resolved_trees::expression::ExpressionNode::Membership(membership) => {
             assign_expression_table_symbols(
                 symbols,
                 machine,
@@ -370,7 +371,7 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
             );
             assign_membership_symbol(symbols, expression_table, membership.domain, expression);
         }
-        symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
+        crate::symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
             assign_expression_table_symbols(
                 symbols,
                 machine,
@@ -381,7 +382,7 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
                 inner.target,
             );
         }
-        symbol_resolved_trees::expression::ExpressionNode::Unary(unary) => {
+        crate::symbol_resolved_trees::expression::ExpressionNode::Unary(unary) => {
             assign_expression_table_symbols(
                 symbols,
                 machine,
@@ -392,7 +393,7 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
                 unary.operand,
             );
         }
-        symbol_resolved_trees::expression::ExpressionNode::Name(path) => {
+        crate::symbol_resolved_trees::expression::ExpressionNode::Name(path) => {
             assign_name_symbol(
                 symbols,
                 machine,
@@ -403,7 +404,7 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
                 expression,
             );
         }
-        symbol_resolved_trees::expression::ExpressionNode::StructLiteral(struct_literal) => {
+        crate::symbol_resolved_trees::expression::ExpressionNode::StructLiteral(struct_literal) => {
             let count = struct_literal.fields.count();
             for offset in 0..count {
                 let field = &expression_table.struct_fields(struct_literal.fields)[offset as usize];
@@ -419,7 +420,7 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
             }
             assign_struct_literal_symbols(symbols, expression_table, expression);
         }
-        symbol_resolved_trees::expression::ExpressionNode::ZeroValue(type_reference) => {
+        crate::symbol_resolved_trees::expression::ExpressionNode::ZeroValue(type_reference) => {
             let mut target_type = child_type_references.get(type_reference).clone();
             crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type(
                 symbols,

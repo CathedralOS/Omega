@@ -21,16 +21,18 @@
 //! `self.field` never appear in the local set, so they are never rejected.
 
 use diagnostics::Diagnostic;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+    StatementNode, TransitionTargetNode,
+};
 use symbols::SymbolHandle;
-use typed_trees::expression::ExpressionNode;
-use typed_trees::statement::{StatementNode, TransitionTargetNode};
 
 use crate::borrow::accesses::borrow_access_place;
 use crate::borrow::view_link::returns_borrow;
-use checked_trees::CheckFacts;
+use crate::checked_trees::CheckFacts;
 
 pub(super) fn check_view_return_escape(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &CheckFacts,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -143,9 +145,9 @@ pub(super) fn check_view_return_escape(
 /// `Expression` or a transition `Value` target. Other statements/targets do not
 /// return a value.
 fn return_expression(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     statement: &StatementNode,
-) -> Option<typed_trees::expression::ExpressionHandle> {
+) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle> {
     match statement {
         StatementNode::Expression(expression) => Some(*expression),
         StatementNode::Transition(transition) => {
@@ -198,8 +200,8 @@ fn local_name(statements: &[StatementNode], symbol: SymbolHandle) -> String {
 }
 
 fn state_subject<'a>(
-    machine: &'a typed_trees::machine::Machine,
-    state: &'a typed_trees::state::State,
+    machine: &'a symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &'a symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
 ) -> &'a str {
     if state.name.as_str() == "entry" || machine.name.as_str().ends_with(state.name.as_str()) {
         machine.name.as_str()

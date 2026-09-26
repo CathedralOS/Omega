@@ -1,19 +1,21 @@
 //! Proof-output call facts, open requirement checks and named witness lanes.
 
+use crate::checked_trees::{
+    CheckedEvidenceTerm, ContractProofFactKind, ContractProofFactOwner, ProofFacts,
+};
 use crate::proof::proposition_vocabulary::{
     contract_proposition_labels, lower_checked_proposition_application,
 };
-use checked_trees::{
-    CheckedEvidenceTerm, ContractProofFactKind, ContractProofFactOwner, ProofFacts,
+use symbol_resolved_trees_to_typed_trees::typed_trees::proposition::{
+    ProofSubstitutions, PropositionLabels,
 };
 use symbols::SymbolHandle;
-use typed_trees::proposition::{ProofSubstitutions, PropositionLabels};
 
 pub(crate) fn bind_proof_output_call_facts(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     proof: &mut ProofFacts,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    use typed_trees::expression::ExpressionNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
 
     let mut diagnostics = Vec::new();
     let mut invocations = arena::Arena::default();
@@ -29,7 +31,7 @@ pub(crate) fn bind_proof_output_call_facts(
             crate::semantic::calls::find_state_with_machine(program, call.target_symbol);
         let open_requirement = crate::lookup::machine_by_symbol(program, package.machine_symbol)
             .map(|machine| {
-                validation::named_conformance_target_requirement(
+                crate::validation::named_conformance_target_requirement(
                     program,
                     machine,
                     call.target_symbol,
@@ -291,7 +293,7 @@ pub(crate) fn bind_proof_output_call_facts(
                     (
                         Some(runtime_value_type),
                         Some(value_binding),
-                        Some(typed_trees::statement::StatementNode::LocalData(local)),
+                        Some(symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local)),
                     ) => {
                         let local_call = local
                             .initial_value
@@ -303,7 +305,7 @@ pub(crate) fn bind_proof_output_call_facts(
                             && matches!(local_call, Some(ExpressionNode::Call(local_call))
                                 if local_call.target_symbol == call.target_symbol)
                     }
-                    (None, None, Some(typed_trees::statement::StatementNode::Call(unit_call))) => {
+                    (None, None, Some(symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Call(unit_call))) => {
                         unit_call.target_symbol == call.target_symbol
                     }
                     _ => false,
@@ -338,7 +340,7 @@ pub(crate) fn bind_proof_output_call_facts(
                 ));
                 continue;
             }
-            Some(checked_trees::ProofOutputRuntimeCallFact {
+            Some(crate::checked_trees::ProofOutputRuntimeCallFact {
                 statement_index,
                 call_ordinal: 0,
             })
@@ -368,7 +370,7 @@ pub(crate) fn bind_proof_output_call_facts(
                                 state_symbol: package.state_symbol,
                             }))
             }) || invocations.iter().any(
-                |(_, invocation): (_, &checked_trees::ProofOutputCallFact)| {
+                |(_, invocation): (_, &crate::checked_trees::ProofOutputCallFact)| {
                     invocation.caller_machine_symbol == package.machine_symbol
                         && invocation.caller_state_symbol == package.state_symbol
                         && invocation.outputs.iter().any(|output| {
@@ -433,7 +435,7 @@ pub(crate) fn bind_proof_output_call_facts(
                 continue;
             }
             append_proposition_application_if_missing(proof, &instantiated_proposition);
-            evidence_arguments.push(checked_trees::ProofOutputEvidenceArgumentFact {
+            evidence_arguments.push(crate::checked_trees::ProofOutputEvidenceArgumentFact {
                 input_position,
                 callee_input,
                 source,
@@ -483,7 +485,7 @@ pub(crate) fn bind_proof_output_call_facts(
                         evidence_interface: declaration.evidence_interface,
                     })
                 });
-            outputs.push(checked_trees::ProofOutputFact {
+            outputs.push(crate::checked_trees::ProofOutputFact {
                 output_position: declaration.lane_position,
                 callee_output,
                 instantiated_proposition,
@@ -494,7 +496,7 @@ pub(crate) fn bind_proof_output_call_facts(
         if invalid {
             continue;
         }
-        invocations.append(checked_trees::ProofOutputCallFact {
+        invocations.append(crate::checked_trees::ProofOutputCallFact {
             caller_machine_symbol: package.machine_symbol,
             caller_state_symbol: package.state_symbol,
             statement_index: package.statement_index,
@@ -517,11 +519,11 @@ pub(crate) fn bind_proof_output_call_facts(
 }
 
 fn check_open_proof_output_requirement(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     caller: SymbolHandle,
-    call: &typed_trees::expression::TableCallExpression,
+    call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
     owner: SymbolHandle,
-    requirement: &typed_trees::signature::StateSignature,
+    requirement: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateSignature,
 ) -> Result<(), diagnostics::Diagnostic> {
     let rejected = |reason: &str| {
         diagnostics::Diagnostic::error(format!(
@@ -550,7 +552,10 @@ fn check_open_proof_output_requirement(
     let unit = !requirement.return_type.is_valid();
     let scalar = matches!(
         program.primitive_type_reference(requirement.return_type),
-        Some(typed_trees::types::PrimitiveType::I32 | typed_trees::types::PrimitiveType::Bool)
+        Some(
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::I32
+                | symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::Bool
+        )
     ) && program.state_signature_parameters(requirement).is_empty()
         && program
             .expression_table
@@ -567,15 +572,15 @@ fn check_open_proof_output_requirement(
 }
 
 fn checked_static_requirement_dispatch<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     caller_machine: symbols::SymbolHandle,
-    call: &typed_trees::expression::TableCallExpression,
-    realization_machine: &'program typed_trees::machine::Machine,
-    realization_state: &'program typed_trees::state::State,
+    call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
+    realization_machine: &'program symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    realization_state: &'program symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
 ) -> Result<
     Option<(
-        checked_trees::StaticRequirementDispatchFact,
-        &'program typed_trees::signature::StateSignature,
+        crate::checked_trees::StaticRequirementDispatchFact,
+        &'program symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateSignature,
     )>,
     diagnostics::Diagnostic,
 > {
@@ -713,7 +718,10 @@ fn checked_static_requirement_dispatch<'program>(
     let bounded_scalar_result = requirement_result == realization_result
         && matches!(
             requirement_result,
-            Some(typed_trees::types::PrimitiveType::I32 | typed_trees::types::PrimitiveType::Bool)
+            Some(
+                symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::I32
+                    | symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::Bool
+            )
         )
         && program.state_signature_parameters(requirement).is_empty()
         && program.state_parameters(realization_state).is_empty()
@@ -736,7 +744,7 @@ fn checked_static_requirement_dispatch<'program>(
     check_public_named_witness_lanes(program, requirement).map_err(rejected)?;
 
     Ok(Some((
-        checked_trees::StaticRequirementDispatchFact {
+        crate::checked_trees::StaticRequirementDispatchFact {
             application_report_fingerprint: dispatch.application_report_fingerprint,
             application_commitment: dispatch.application_commitment,
             declaring_trait: dispatch.declaring_trait,
@@ -753,8 +761,8 @@ fn checked_static_requirement_dispatch<'program>(
 /// identity, so a dispatch declared on a parent is admitted through a
 /// conformance to its descendant.
 fn trait_requires_transitively(
-    program: &typed_trees::TypedTrees,
-    trait_definition: &typed_trees::trait_definition::TraitDefinition,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    trait_definition: &symbol_resolved_trees_to_typed_trees::typed_trees::trait_definition::TraitDefinition,
     required_trait: SymbolHandle,
 ) -> bool {
     let mut pending = vec![trait_definition];
@@ -781,11 +789,11 @@ fn trait_requires_transitively(
 }
 
 fn check_public_named_witness_lanes(
-    program: &typed_trees::TypedTrees,
-    requirement: &typed_trees::signature::StateSignature,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    requirement: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateSignature,
 ) -> Result<(), &'static str> {
-    use typed_trees::domain::ProofFact;
-    use typed_trees::signature::SignatureContractKind;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind;
     let contracts = program.state_signature_contracts(requirement);
     if contracts.iter().any(|contract| {
         !matches!(
@@ -836,8 +844,8 @@ fn check_public_named_witness_lanes(
 
 fn proof_output_source_term_by_name(
     proof: &ProofFacts,
-    invocations: &arena::Arena<checked_trees::ProofOutputCallFact>,
-    package: &typed_trees::typed_trees::ProofOutputCall,
+    invocations: &arena::Arena<crate::checked_trees::ProofOutputCallFact>,
+    package: &symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::ProofOutputCall,
     name: &str,
 ) -> Option<arena::Handle<CheckedEvidenceTerm>> {
     proof
@@ -871,20 +879,21 @@ fn proof_output_source_term_by_name(
 }
 
 fn instantiate_proof_output_proposition(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     proof: &ProofFacts,
-    package: &typed_trees::typed_trees::ProofOutputCall,
-    call: &typed_trees::expression::TableCallExpression,
-    target_parameters: &[typed_trees::signature::StateParameter],
+    package: &symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::ProofOutputCall,
+    call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
+    target_parameters: &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter],
     term: arena::Handle<CheckedEvidenceTerm>,
-) -> Option<(checked_trees::CheckedPropositionApplication, String)> {
+) -> Option<(crate::checked_trees::CheckedPropositionApplication, String)> {
     let contract = proof
         .contract_facts
         .iter()
         .map(|(_, contract)| contract)
         .find(|contract| contract.evidence_term == Some(term))?;
-    let typed_trees::domain::ProofFact::Proposition(application) =
-        program.proof_facts.get(contract.fact)
+    let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(
+        application,
+    ) = program.proof_facts.get(contract.fact)
     else {
         return None;
     };
@@ -933,7 +942,7 @@ fn instantiate_proof_output_proposition(
 
 fn append_proposition_application_if_missing(
     proof: &mut ProofFacts,
-    application: &checked_trees::CheckedPropositionApplication,
+    application: &crate::checked_trees::CheckedPropositionApplication,
 ) {
     if !proof
         .proposition_vocabulary
@@ -970,8 +979,8 @@ pub(crate) fn intake_checked_proof_output_propositions(
 }
 
 pub(crate) fn intake_call_ensures_propositions(
-    program: &typed_trees::TypedTrees,
-    call: &typed_trees::statement::TableCall,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    call: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableCall,
     known: &mut std::collections::BTreeSet<String>,
 ) {
     let Some((callee, state)) = crate::lookup::machine_by_symbol(program, call.target_symbol)
@@ -987,7 +996,7 @@ pub(crate) fn intake_call_ensures_propositions(
     };
     let parameters = program.state_parameters(state);
     let arguments = program.statement_table.expression_handles(call.arguments);
-    let receiver = typed_trees::expression::display_name_path(
+    let receiver = symbol_resolved_trees_to_typed_trees::typed_trees::expression::display_name_path(
         program.statement_table.name_path_members(call.receiver),
         "::",
     );
@@ -1017,13 +1026,13 @@ pub(crate) fn intake_call_ensures_propositions(
     known.extend(contract_proposition_labels(
         program,
         program.machine_contracts(callee),
-        typed_trees::signature::SignatureContractKind::Ensures,
+        symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Ensures,
         &substitutions,
     ));
     known.extend(contract_proposition_labels(
         program,
         program.state_contracts(state),
-        typed_trees::signature::SignatureContractKind::Ensures,
+        symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Ensures,
         &substitutions,
     ));
 }

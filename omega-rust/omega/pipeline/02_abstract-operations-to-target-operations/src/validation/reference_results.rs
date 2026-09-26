@@ -16,13 +16,15 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use abstract_operations::{AbstractBoundaryResult, AbstractFunction, AbstractOperation};
+use crate::target_operations::TargetReferenceResult;
 use semantic_vocabulary::{MachineId, OperationId, PlaceId, StructuralTypeId};
-use target_operations::TargetReferenceResult;
 use terminal_psi::{
     RecordFieldValue, StructuralAccess, StructuralArgument, StructuralFieldType,
     StructuralMultiplicity, StructuralOperationResult, StructuralPathSegment,
     StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
+};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractBoundaryResult, AbstractFunction, AbstractOperation,
 };
 
 /// Which retained row family a source `BoundaryCall` lowered into. Only the

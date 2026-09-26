@@ -1,0 +1,19 @@
+[package]
+name = "optimization-core"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[features]
+test-support = []
+
+[lib]
+name = "optimization_core"
+path = "src/lib.rs"
+
+[dependencies]
+terminal-psi = { path = "../terminal-psi" }
+sha2 = "0.10.9"
+terminal-codec = { path = "../terminal-codec" }
+
+[dev-dependencies]

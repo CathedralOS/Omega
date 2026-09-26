@@ -14,8 +14,8 @@ use crate::selection::model::SelectedInstructionError;
 /// Replay one integer arithmetic operation. The dispatcher routes only this
 /// family's kinds here.
 pub(super) fn validate(
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
-    operation: &legalized_operations::LegalizedScalarInstruction,
+    environment: &crate::register_environment::ValidatedTargetRegisterEnvironment,
+    operation: &crate::legalized_operations::LegalizedScalarInstruction,
     replay: &mut Replay<'_>,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let function = replay.function;
@@ -732,8 +732,8 @@ pub(super) fn validate(
             }
             let divide_operator = matches!(
                 *operator,
-                legalized_operations::LegalizedExactIntegerOperator::Divide
-                    | legalized_operations::LegalizedExactIntegerOperator::Remainder
+                crate::legalized_operations::LegalizedExactIntegerOperator::Divide
+                    | crate::legalized_operations::LegalizedExactIntegerOperator::Remainder
             );
             // Exact divide/remainder: u64 keeps the unsigned entry
             // (its dividend range escapes i64); every other fixed
@@ -759,7 +759,7 @@ pub(super) fn validate(
                             .map_err(|_| invalid())?,
                     );
             let (kind, key) = match operator {
-                legalized_operations::LegalizedExactIntegerOperator::Divide => {
+                crate::legalized_operations::LegalizedExactIntegerOperator::Divide => {
                     if unsigned_divide {
                         (
                             SelectedInstructionKind::ExactDivideU64 {
@@ -778,7 +778,7 @@ pub(super) fn validate(
                         )
                     }
                 }
-                legalized_operations::LegalizedExactIntegerOperator::Remainder => {
+                crate::legalized_operations::LegalizedExactIntegerOperator::Remainder => {
                     if unsigned_divide {
                         (
                             SelectedInstructionKind::ExactRemainderU64 {
@@ -797,21 +797,21 @@ pub(super) fn validate(
                         )
                     }
                 }
-                legalized_operations::LegalizedExactIntegerOperator::Add => (
+                crate::legalized_operations::LegalizedExactIntegerOperator::Add => (
                     SelectedInstructionKind::ExactAddI64 {
                         obligation: *obligation,
                         accepted_fact: *accepted_fact,
                     },
                     constraints.keys.add_i64,
                 ),
-                legalized_operations::LegalizedExactIntegerOperator::Subtract => (
+                crate::legalized_operations::LegalizedExactIntegerOperator::Subtract => (
                     SelectedInstructionKind::ExactSubtractI64 {
                         obligation: *obligation,
                         accepted_fact: *accepted_fact,
                     },
                     constraints.keys.subtract_i64,
                 ),
-                legalized_operations::LegalizedExactIntegerOperator::Multiply => (
+                crate::legalized_operations::LegalizedExactIntegerOperator::Multiply => (
                     SelectedInstructionKind::ExactMultiplyI64 {
                         obligation: *obligation,
                         accepted_fact: *accepted_fact,
@@ -824,7 +824,8 @@ pub(super) fn validate(
             let mut operands = vec![left_register, right_register, output];
             if environment.target().architecture == target::Architecture::X86_64 {
                 if unsigned_divide
-                    && *operator == legalized_operations::LegalizedExactIntegerOperator::Divide
+                    && *operator
+                        == crate::legalized_operations::LegalizedExactIntegerOperator::Divide
                 {
                     operands.push(division_scratch(replay)?);
                 } else if divide_operator {

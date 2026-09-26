@@ -10,7 +10,7 @@ mod dead_tail;
 mod primitive_locals;
 mod record_locals;
 
-fn crash_source(cause: &str, guard: &str, prefix: &str) -> checked_trees::CheckedTrees {
+fn crash_source(cause: &str, guard: &str, prefix: &str) -> crate::checked_trees::CheckedTrees {
     let source = format!(
         "machine identity(flag: bool) -> bool {{ flag }}
          machine value(flag: bool) -> u8 crashes {cause} {{
@@ -26,8 +26,8 @@ fn crash_source(cause: &str, guard: &str, prefix: &str) -> checked_trees::Checke
 #[test]
 fn scalar_crash_destinations_retain_exact_source_site_after_bindings() {
     for (cause, expected_cause) in [
-        ("Trap", checked_trees::CrashCause::Trap),
-        ("Abort", checked_trees::CrashCause::Abort),
+        ("Trap", crate::checked_trees::CrashCause::Trap),
+        ("Abort", crate::checked_trees::CrashCause::Abort),
     ] {
         for (guard, prefix, guard_ordinal) in [
             ("flag", "", 0),
@@ -110,11 +110,11 @@ fn scalar_crash_destinations_reject_combined_or_nonterminal_exits() {
                 false
             }
             4 => {
-                changed.target = typed_trees::statement::TransitionTargetHandle::invalid();
+                changed.target = symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetHandle::invalid();
                 false
             }
             5 => {
-                changed.target = typed_trees::statement::TransitionTargetHandle::from_parts(
+                changed.target = symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetHandle::from_parts(
                     changed.target.arena_index(),
                     changed.target.generation() + 1,
                 );
@@ -122,7 +122,7 @@ fn scalar_crash_destinations_reject_combined_or_nonterminal_exits() {
             }
             _ => {
                 changed.target =
-                    typed_trees::statement::TransitionTargetHandle::from_arena_index(u32::MAX);
+                    symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetHandle::from_arena_index(u32::MAX);
                 false
             }
         };

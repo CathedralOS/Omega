@@ -9,14 +9,14 @@ mod view_candidates;
 #[cfg(test)]
 mod tests;
 
-use register_model::{
+use target_operations_to_selected_instructions::register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile, target_register_environment_identity,
 };
 
+use crate::register_homes::AllocationLegalityPlan;
 use crate::{AllocationLegalityError, ValidatedAllocatorAvailability, ValidatedLiveRanges};
-use register_homes::AllocationLegalityPlan;
 
 pub(crate) fn compute_terminal_allocation_legality(
     ranges: &ValidatedLiveRanges,

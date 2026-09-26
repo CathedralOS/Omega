@@ -2,13 +2,13 @@
 //! table.
 
 use crate::diagnostics::parse_error::ParseError;
-use arena::{Handle, HandleSpan};
-use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::expression::{
     ExpressionHandle, ExpressionNode, TableCallExpression, TableIndexedExpression,
     TableMemberExpression,
 };
-use syntax_trees::statement::TableCall;
+use crate::syntax_trees::statement::TableCall;
+use arena::{Handle, HandleSpan};
 
 /// Deep-copy an expression that is a valid place (member / name / indexed /
 /// self), returning a fresh handle with the same structure.  Returns `None`
@@ -44,7 +44,7 @@ pub(crate) fn copy_expression_as_place(
         }
         ExpressionNode::Borrow(inner) => {
             let inner_copy = copy_expression_as_place(syntax_trees, inner.target)?;
-            ExpressionNode::Borrow(syntax_trees::expression::TableBorrowExpression {
+            ExpressionNode::Borrow(crate::syntax_trees::expression::TableBorrowExpression {
                 target: inner_copy,
                 access: inner.access,
             })
@@ -57,7 +57,7 @@ pub(crate) fn copy_expression_as_place(
 pub(crate) fn root_binding_declaration(
     syntax_trees: &SyntaxTrees,
     expression: ExpressionHandle,
-) -> Result<Option<syntax_trees::statement::RootBinding>, ParseError> {
+) -> Result<Option<crate::syntax_trees::statement::RootBinding>, ParseError> {
     let ExpressionNode::Call(call) = syntax_trees.expressions.expression(expression) else {
         return Ok(None);
     };
@@ -107,7 +107,7 @@ pub(crate) fn root_binding_declaration(
             ExpressionHandle::invalid()
         }
     };
-    Ok(Some(syntax_trees::statement::RootBinding {
+    Ok(Some(crate::syntax_trees::statement::RootBinding {
         receiver: member.receiver,
         slot: operand(*slot)?,
         implementation: if matches!(
@@ -146,7 +146,7 @@ pub(crate) fn expression_handle_to_statement_call(
 }
 
 struct StatementIdentifierPath {
-    members: HandleSpan<syntax_trees::identifier::Identifier>,
+    members: HandleSpan<crate::syntax_trees::identifier::Identifier>,
     starts_at_self: bool,
 }
 
@@ -155,7 +155,7 @@ fn split_expression_call_handle(
     call: &TableCallExpression,
 ) -> Option<(
     StatementIdentifierPath,
-    syntax_trees::identifier::Identifier,
+    crate::syntax_trees::identifier::Identifier,
 )> {
     let receiver = if call.receiver.is_valid() {
         expression_handle_to_identifier_path_span(syntax_trees, call.receiver)?
@@ -180,7 +180,7 @@ fn expression_handle_to_identifier_path_span(
         }),
         ExpressionNode::SelfValue => {
             let self_member = syntax_trees.statements.append_identifier_path_member(
-                syntax_trees::identifier::Identifier::generated("self"),
+                crate::syntax_trees::identifier::Identifier::generated("self"),
             );
             Some(StatementIdentifierPath {
                 members: HandleSpan::from_parts(self_member, 1),
@@ -203,8 +203,8 @@ fn expression_handle_to_identifier_path_span(
 
 fn copy_expression_identifier_path_to_statement_table(
     syntax_trees: &mut SyntaxTrees,
-    path: HandleSpan<syntax_trees::identifier::Identifier>,
-) -> HandleSpan<syntax_trees::identifier::Identifier> {
+    path: HandleSpan<crate::syntax_trees::identifier::Identifier>,
+) -> HandleSpan<crate::syntax_trees::identifier::Identifier> {
     let mut start = Handle::invalid();
     let mut count = 0u32;
 
@@ -232,9 +232,9 @@ fn copy_expression_identifier_path_to_statement_table(
 
 fn append_statement_identifier_path_member(
     syntax_trees: &mut SyntaxTrees,
-    path: HandleSpan<syntax_trees::identifier::Identifier>,
-    member: syntax_trees::identifier::Identifier,
-) -> HandleSpan<syntax_trees::identifier::Identifier> {
+    path: HandleSpan<crate::syntax_trees::identifier::Identifier>,
+    member: crate::syntax_trees::identifier::Identifier,
+) -> HandleSpan<crate::syntax_trees::identifier::Identifier> {
     let handle = syntax_trees
         .statements
         .append_identifier_path_member(member);

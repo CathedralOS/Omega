@@ -1,8 +1,10 @@
 use source_files_to_tokens::Lexer;
-use symbol_resolved_trees::SymbolResolvedTrees;
-use symbol_resolved_trees::data::DataMember;
-use symbol_resolved_trees::domain::ProofFact;
-use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::SymbolResolvedTrees;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::domain::ProofFact;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::parse_syntax_trees;
 

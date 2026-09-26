@@ -1,5 +1,5 @@
-use checked_trees::expression::{ExpressionHandle, ExpressionNode, TableRangeExpression};
-use checked_trees::{
+use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode, TableRangeExpression};
+use crate::checked_trees::{
     BorrowCompatibilityPlaceSide, BorrowCompatibilityPremise, BorrowCompatibilityPremiseRelation,
     BorrowCompatibilitySelectorPosition, BorrowCompatibilitySelectorSnapshot,
     BorrowCompatibilitySelectorValue,
@@ -31,7 +31,7 @@ pub(super) enum NormalizedBound {
     /// outside the vocabulary.
     Projected {
         symbol: SymbolHandle,
-        segments: Vec<facts::PlaceSegment>,
+        segments: Vec<crate::fact_plan::PlaceSegment>,
     },
     /// The value currently stored under one projected place of mutable
     /// storage (`mut_pair.first`, `self.pivot[2]`). Like `Storage` it is a
@@ -39,7 +39,7 @@ pub(super) enum NormalizedBound {
     /// version-pin evidence before stated premises can claim it.
     StorageProjected {
         symbol: SymbolHandle,
-        segments: Vec<facts::PlaceSegment>,
+        segments: Vec<crate::fact_plan::PlaceSegment>,
     },
     /// `first + second + offset` over two distinct immutable symbols in
     /// canonical arena order; `offset` may be zero because a two-symbol sum
@@ -60,7 +60,7 @@ pub(super) enum NormalizedBound {
     /// coordinate.
     CallResult {
         expression: ExpressionHandle,
-        segments: Vec<facts::PlaceSegment>,
+        segments: Vec<crate::fact_plan::PlaceSegment>,
     },
 }
 
@@ -421,7 +421,7 @@ impl<'a> SelectorSnapshotEvaluation<'a> {
 
 #[cfg(test)]
 pub(super) fn index_expressions_may_overlap(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     left: ExpressionHandle,
     right: ExpressionHandle,
 ) -> bool {
@@ -454,13 +454,13 @@ pub(super) fn index_expressions_may_overlap(
 /// disequality, and a stated premise is consulted only when structural
 /// relations cannot settle it.
 pub(super) fn index_expressions_may_overlap_with_selectors<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     left: ExpressionHandle,
     left_location: SelectorLocation,
     right: ExpressionHandle,
     right_location: SelectorLocation,
     selectors: &mut SelectorSnapshotEvaluation<'_>,
-    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
+    bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
 ) -> bool {
     if left == right {
         return true;
@@ -522,7 +522,7 @@ pub(super) fn index_extents_may_overlap(
 
 #[cfg(test)]
 pub(super) fn index_expression_may_contain_fixed(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
     index: usize,
 ) -> bool {
@@ -623,8 +623,8 @@ fn index_window_provably_empty(
 }
 
 fn range_integer_bounds(
-    program: &typed_trees::TypedTrees,
-    lookup: &validation::ImmutableBoundLookup<'_>,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    lookup: &crate::validation::ImmutableBoundLookup<'_>,
     range: &TableRangeExpression,
     location: SelectorLocation,
     selectors: &mut SelectorSnapshotEvaluation<'_>,
@@ -713,18 +713,18 @@ fn structural_bound_equal(left: NormalizedBound, right: NormalizedBound) -> bool
 /// location. The bound positions match the overlap selectors: `Index` for a
 /// point expression, `RangeStart`/`RangeExclusiveEnd` for a range window.
 pub(super) fn index_expression_extent_with_selectors<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
     location: SelectorLocation,
     selectors: &mut SelectorSnapshotEvaluation<'_>,
-    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
+    bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
 ) -> EvaluatedIndexExtent {
     // The bound index scans the whole program once; the caller shares one
     // cell across every selector session this pass evaluates.
     match program.expression_table.expression(expression) {
         ExpressionNode::Range(range) => {
-            let bound_lookup =
-                bound_lookup.get_or_insert_with(|| validation::ImmutableBoundLookup::new(program));
+            let bound_lookup = bound_lookup
+                .get_or_insert_with(|| crate::validation::ImmutableBoundLookup::new(program));
             let (start, end) =
                 range_integer_bounds(program, bound_lookup, range, location, selectors);
             EvaluatedIndexExtent::Window { start, end }
@@ -744,7 +744,7 @@ pub(super) fn index_expression_extent_with_selectors<'p>(
                         selector_bound(
                             program,
                             bound_lookup.get_or_insert_with(|| {
-                                validation::ImmutableBoundLookup::new(program)
+                                crate::validation::ImmutableBoundLookup::new(program)
                             }),
                             expression,
                         )
@@ -767,8 +767,8 @@ pub(super) fn index_expression_extent_with_selectors<'p>(
 /// reported as unknown (`None`), which the overlap checks treat conservatively
 /// as possibly-overlapping.
 fn exclusive_end_bound(
-    program: &typed_trees::TypedTrees,
-    lookup: &validation::ImmutableBoundLookup<'_>,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    lookup: &crate::validation::ImmutableBoundLookup<'_>,
     range: &TableRangeExpression,
     location: SelectorLocation,
     selectors: &mut SelectorSnapshotEvaluation<'_>,
@@ -820,13 +820,13 @@ fn exclusive_end_bound(
 /// only reach one through a guarantee whose result binding is version-pinned
 /// to the same occurrence.
 pub(super) fn selector_bound(
-    program: &typed_trees::TypedTrees,
-    lookup: &validation::ImmutableBoundLookup<'_>,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    lookup: &crate::validation::ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<NormalizedBound> {
     normalized_bound(program, lookup, expression)
         .or_else(|| {
-            validation::mutable_integer_bound_storage_symbol(program, lookup, expression)
+            crate::validation::mutable_integer_bound_storage_symbol(program, lookup, expression)
                 .map(|symbol| NormalizedBound::Storage { symbol })
         })
         .or_else(|| projected_bound(program, lookup, expression))
@@ -838,12 +838,12 @@ pub(super) fn selector_bound(
 /// receiver contributes the projected storage coordinate under the same
 /// pin-evidence contract as `Storage`.
 pub(super) fn projected_bound(
-    program: &typed_trees::TypedTrees,
-    lookup: &validation::ImmutableBoundLookup<'_>,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    lookup: &crate::validation::ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<NormalizedBound> {
     let (symbol, field, is_mutable) =
-        validation::projected_integer_bound_root(program, lookup, expression)?;
+        crate::validation::projected_integer_bound_root(program, lookup, expression)?;
     // The bound names the canonical attached-field identity the write frame
     // carries; the authored member spelling can disagree for `self` members.
     let field = match program.expression_table.expression(expression) {
@@ -852,7 +852,7 @@ pub(super) fn projected_bound(
         }
         _ => field,
     };
-    let segments = vec![facts::PlaceSegment::Field { symbol: field }];
+    let segments = vec![crate::fact_plan::PlaceSegment::Field { symbol: field }];
     Some(if is_mutable {
         NormalizedBound::StorageProjected { symbol, segments }
     } else {
@@ -865,12 +865,12 @@ pub(super) fn projected_bound(
 /// contributes the element's storage coordinate under the same pin-evidence
 /// contract as `Storage`.
 pub(super) fn indexed_bound(
-    program: &typed_trees::TypedTrees,
-    lookup: &validation::ImmutableBoundLookup<'_>,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    lookup: &crate::validation::ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<NormalizedBound> {
     let (symbol, segments, is_mutable) =
-        validation::indexed_integer_bound_root(program, lookup, expression)?;
+        crate::validation::indexed_integer_bound_root(program, lookup, expression)?;
     Some(if is_mutable {
         NormalizedBound::StorageProjected { symbol, segments }
     } else {
@@ -879,8 +879,8 @@ pub(super) fn indexed_bound(
 }
 
 pub(super) fn normalized_bound(
-    program: &typed_trees::TypedTrees,
-    lookup: &validation::ImmutableBoundLookup<'_>,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    lookup: &crate::validation::ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<NormalizedBound> {
     // A call result has no place identity: the occurrence's own expression
@@ -897,7 +897,7 @@ pub(super) fn normalized_bound(
         program.expression_table.expression(expression),
         ExpressionNode::Member(_) | ExpressionNode::Indexed(_) | ExpressionNode::Borrow(_)
     ) && let Some(place) = crate::flow::canonical_place_from_expression(program, expression)
-        && let facts::PlaceRoot::Expression(root) = place.root
+        && let crate::fact_plan::PlaceRoot::Expression(root) = place.root
         && matches!(
             program.expression_table.expression(root),
             ExpressionNode::Call(_)
@@ -909,25 +909,27 @@ pub(super) fn normalized_bound(
         });
     }
     if let Some(offset) =
-        validation::immutable_integer_bound_symbol_offset(program, lookup, expression)
+        crate::validation::immutable_integer_bound_symbol_offset(program, lookup, expression)
     {
         return Some(NormalizedBound::Symbol {
             symbol: offset.symbol,
             offset: offset.offset,
         });
     }
-    if let Some(sum) = validation::immutable_integer_bound_sum(program, lookup, expression) {
+    if let Some(sum) = crate::validation::immutable_integer_bound_sum(program, lookup, expression) {
         return Some(NormalizedBound::SymbolSum {
             first: sum.first,
             second: sum.second,
             offset: sum.offset,
         });
     }
-    let Some(expression) =
-        validation::normalize_immutable_integer_bound_expression(program, lookup, expression)
-    else {
-        return validation::immutable_integer_bound_value_symbol(program, lookup, expression)
-            .map(|symbol| NormalizedBound::Symbol { symbol, offset: 0 });
+    let Some(expression) = crate::validation::normalize_immutable_integer_bound_expression(
+        program, lookup, expression,
+    ) else {
+        return crate::validation::immutable_integer_bound_value_symbol(
+            program, lookup, expression,
+        )
+        .map(|symbol| NormalizedBound::Symbol { symbol, offset: 0 });
     };
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(value) => value.value_i64().map(NormalizedBound::Integer),

@@ -57,14 +57,14 @@ const SOURCE: &str = r#"
     }
 "#;
 
-fn lowered() -> lowered_psi::LoweredPsi {
+fn lowered() -> checked_trees_to_lowered_psi::lowered_psi::LoweredPsi {
     let checked = crate::front_end::checked_program(SOURCE);
     lower_machine(&checked, TerminalMachineSelection::Name("Customer::run"))
         .expect("lower registration program")
 }
 
 fn unregister_boundary(
-    lowered: &lowered_psi::LoweredPsi,
+    lowered: &checked_trees_to_lowered_psi::lowered_psi::LoweredPsi,
 ) -> &terminal_psi::BoundaryMachineDeclaration {
     let [boundary] = lowered.semantic_module.boundary_machines.as_slice() else {
         panic!("one retained boundary requirement")

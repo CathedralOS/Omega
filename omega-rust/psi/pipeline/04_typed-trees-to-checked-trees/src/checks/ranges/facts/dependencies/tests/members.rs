@@ -5,9 +5,9 @@ use crate::checks::ranges::facts::dependencies::tests::initializer;
 use crate::checks::ranges::facts::dependencies::tests::parameter_place;
 use crate::flow::CanonicalPlace;
 use crate::tests::front_end::typed_program;
-use typed_trees::machine::Machine;
-use typed_trees::state::State;
-use typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 
 fn window(program: &TypedTrees) -> (&Machine, &State) {
     let machine = program
@@ -35,13 +35,13 @@ fn statement_index_of(program: &TypedTrees, state: &State, name: &str) -> usize 
 fn checked_facts<'program>(
     program: &'program TypedTrees,
 ) -> (
-    checked_trees::BorrowFacts,
-    checked_trees::FlowFacts,
-    Option<validation::CallFrameResolver<'program>>,
+    crate::checked_trees::BorrowFacts,
+    crate::checked_trees::FlowFacts,
+    Option<crate::validation::CallFrameResolver<'program>>,
 ) {
     let borrows = crate::borrow::build_borrow_facts(program);
     let flow = crate::checks::ranges::cache_tests::range_flow_fixture(program, &borrows);
-    let frames = validation::CallFrameResolver::new(program);
+    let frames = crate::validation::CallFrameResolver::new(program);
     (borrows, flow, frames)
 }
 
@@ -203,7 +203,7 @@ fn a_self_call_receiver_member_reads_the_receiver_footprint() {
         .as_ref()
         .expect("self-call member footprint");
     let machine_root = crate::flow::CanonicalPlace {
-        root: facts::PlaceRoot::Symbol(machine.symbol),
+        root: crate::fact_plan::PlaceRoot::Symbol(machine.symbol),
         segments: Vec::new(),
     };
     assert!(reads.contains(&machine_root), "{reads:?}");
@@ -859,7 +859,7 @@ fn case_guard(program: &TypedTrees, state: &State) -> (usize, ExpressionHandle) 
         .enumerate()
         .find_map(|(statement_index, statement)| match statement {
             StatementNode::Transition(transition) => match transition.guard {
-                typed_trees::statement::TransitionGuardNode::When(guard) => {
+                symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionGuardNode::When(guard) => {
                     Some((statement_index, guard))
                 }
                 _ => None,
@@ -879,9 +879,9 @@ fn field_symbol(program: &TypedTrees, data: &str, field: &str) -> SymbolHandle {
         .data_members(definition)
         .iter()
         .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field_row) if field_row.name.as_str() == field => {
-                Some(field_row.symbol)
-            }
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                field_row,
+            ) if field_row.name.as_str() == field => Some(field_row.symbol),
             _ => None,
         })
         .expect(field)
@@ -897,11 +897,9 @@ fn variant_symbol(program: &TypedTrees, data: &str, variant: &str) -> SymbolHand
         .data_members(definition)
         .iter()
         .find_map(|member| match member {
-            typed_trees::data::DataMember::Variant(variant_row)
-                if variant_row.name.as_str() == variant =>
-            {
-                Some(variant_row.symbol)
-            }
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
+                variant_row,
+            ) if variant_row.name.as_str() == variant => Some(variant_row.symbol),
             _ => None,
         })
         .expect(variant)
@@ -922,15 +920,13 @@ fn payload_field_symbol(
         .data_members(definition)
         .iter()
         .find_map(|member| match member {
-            typed_trees::data::DataMember::Variant(variant_row)
-                if variant_row.name.as_str() == variant =>
-            {
-                program
-                    .data_payload_fields(variant_row)
-                    .iter()
-                    .find(|field_row| field_row.name.as_str() == field)
-                    .map(|field_row| field_row.symbol)
-            }
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
+                variant_row,
+            ) if variant_row.name.as_str() == variant => program
+                .data_payload_fields(variant_row)
+                .iter()
+                .find(|field_row| field_row.name.as_str() == field)
+                .map(|field_row| field_row.symbol),
             _ => None,
         })
         .expect(field)
@@ -975,15 +971,21 @@ fn a_case_qualified_member_in_a_destructure_guard_reads_the_projected_place() {
         .as_ref()
         .expect("case-qualified member footprint");
     let mut expected = parameter_place(&program, state, "self");
-    expected.segments.push(facts::PlaceSegment::Field {
-        symbol: field_symbol(&program, "Main", "attack"),
-    });
-    expected.segments.push(facts::PlaceSegment::Case {
-        variant: variant_symbol(&program, "Attack", "Strike"),
-    });
-    expected.segments.push(facts::PlaceSegment::Field {
-        symbol: payload_field_symbol(&program, "Attack", "Strike", "bonus"),
-    });
+    expected
+        .segments
+        .push(crate::fact_plan::PlaceSegment::Field {
+            symbol: field_symbol(&program, "Main", "attack"),
+        });
+    expected
+        .segments
+        .push(crate::fact_plan::PlaceSegment::Case {
+            variant: variant_symbol(&program, "Attack", "Strike"),
+        });
+    expected
+        .segments
+        .push(crate::fact_plan::PlaceSegment::Field {
+            symbol: payload_field_symbol(&program, "Attack", "Strike", "bonus"),
+        });
     assert_eq!(reads.as_slice(), [expected.clone()].as_slice(), "{reads:?}");
     for (write, survives) in [
         (expected.clone(), false),
@@ -1051,15 +1053,19 @@ fn a_case_qualified_member_on_a_captured_subject_reads_the_generated_local() {
         })
         .expect("captured subject local");
     let mut expected = CanonicalPlace {
-        root: facts::PlaceRoot::Symbol(subject),
+        root: crate::fact_plan::PlaceRoot::Symbol(subject),
         segments: Vec::new(),
     };
-    expected.segments.push(facts::PlaceSegment::Case {
-        variant: variant_symbol(&program, "Attack", "Strike"),
-    });
-    expected.segments.push(facts::PlaceSegment::Field {
-        symbol: payload_field_symbol(&program, "Attack", "Strike", "bonus"),
-    });
+    expected
+        .segments
+        .push(crate::fact_plan::PlaceSegment::Case {
+            variant: variant_symbol(&program, "Attack", "Strike"),
+        });
+    expected
+        .segments
+        .push(crate::fact_plan::PlaceSegment::Field {
+            symbol: payload_field_symbol(&program, "Attack", "Strike", "bonus"),
+        });
     assert_eq!(reads.as_slice(), [expected].as_slice(), "{reads:?}");
 }
 
@@ -1103,18 +1109,26 @@ fn a_member_through_a_case_qualified_receiver_reads_the_projected_place() {
         .as_ref()
         .expect("member-through-case-receiver footprint");
     let mut expected = parameter_place(&program, state, "self");
-    expected.segments.push(facts::PlaceSegment::Field {
-        symbol: field_symbol(&program, "Main", "attack"),
-    });
-    expected.segments.push(facts::PlaceSegment::Case {
-        variant: variant_symbol(&program, "Attack", "Strike"),
-    });
-    expected.segments.push(facts::PlaceSegment::Field {
-        symbol: payload_field_symbol(&program, "Attack", "Strike", "inner"),
-    });
-    expected.segments.push(facts::PlaceSegment::Field {
-        symbol: field_symbol(&program, "Inner", "v"),
-    });
+    expected
+        .segments
+        .push(crate::fact_plan::PlaceSegment::Field {
+            symbol: field_symbol(&program, "Main", "attack"),
+        });
+    expected
+        .segments
+        .push(crate::fact_plan::PlaceSegment::Case {
+            variant: variant_symbol(&program, "Attack", "Strike"),
+        });
+    expected
+        .segments
+        .push(crate::fact_plan::PlaceSegment::Field {
+            symbol: payload_field_symbol(&program, "Attack", "Strike", "inner"),
+        });
+    expected
+        .segments
+        .push(crate::fact_plan::PlaceSegment::Field {
+            symbol: field_symbol(&program, "Inner", "v"),
+        });
     assert_eq!(reads.as_slice(), [expected.clone()].as_slice(), "{reads:?}");
     for (write, survives) in [
         (expected.clone(), false),

@@ -11,17 +11,19 @@
 //! Array elements and case fields share this receiving check.
 
 use crate::lowering_error::LoweringError;
-use checked_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
-use checked_trees::types::PrimitiveType;
-use checked_trees::{
+use language_semantics::declaration_selection::CollectionMeasure;
+use numerics::arithmetic::ArithmeticDomain;
+use symbols::SymbolHandle;
+use typed_trees_to_checked_trees::checked_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator,
+};
+use typed_trees_to_checked_trees::checked_trees::types::PrimitiveType;
+use typed_trees_to_checked_trees::checked_trees::{
     CheckedBooleanExpression as Boolean, CheckedCallScalarArgument, CheckedIeeeFloatComparisonKind,
     CheckedIntegerBinaryKind as IntegerBinary, CheckedIntegerComparisonKind,
     CheckedScalarComputationHandle, CheckedScalarComputationKind as Computation,
     CheckedScalarExpression as Scalar, CheckedTrees,
 };
-use language_semantics::declaration_selection::CollectionMeasure;
-use numerics::arithmetic::ArithmeticDomain;
-use symbols::SymbolHandle;
 
 mod extents;
 
@@ -100,7 +102,7 @@ impl Context<'_> {
         };
         if matching.next().is_some()
             || Some(selected.spelling) != expected
-            || selected.status != checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+            || selected.status != typed_trees_to_checked_trees::checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
             || selected.selected_operator_symbol.is_valid()
         {
             return false;
@@ -128,9 +130,9 @@ impl Context<'_> {
         }
         match self.checked.facts.operators.expression_use(source) {
             Some(selected) => {
-                selected.status == checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+                selected.status == typed_trees_to_checked_trees::checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
             }
-            None => validation::has_anonymous_operator_meaning(&self.checked.typed, source),
+            None => typed_trees_to_checked_trees::validation::has_anonymous_operator_meaning(&self.checked.typed, source),
         }
     }
 
@@ -146,12 +148,14 @@ impl Context<'_> {
         // Children are matched by this traversal. The whole-tree bound helper
         // has a separate proof-query depth limit, not an operand admission rule.
         match self.checked.expression_table.expression(source) {
-            ExpressionNode::Binary(_) => validation::has_builtin_binary_expression_meaning(
-                &self.checked.typed,
-                machine,
-                Some(state),
-                source,
-            ),
+            ExpressionNode::Binary(_) => {
+                typed_trees_to_checked_trees::validation::has_builtin_binary_expression_meaning(
+                    &self.checked.typed,
+                    machine,
+                    Some(state),
+                    source,
+                )
+            }
             // Neither unary spelling is overloadable; casts retain policy in
             // their own typed node and are checked by scalar correspondence.
             _ => true,
@@ -284,10 +288,10 @@ impl Context<'_> {
                     && plans.dispatch_arms.span(*arms).is_some_and(|arms| {
                         arms.iter().all(|arm| {
                             (match arm.pattern {
-                                checked_trees::CheckedScalarDispatchPattern::Value(pattern) => {
+                                typed_trees_to_checked_trees::checked_trees::CheckedScalarDispatchPattern::Value(pattern) => {
                                     self.computation(pattern, active)
                                 }
-                                checked_trees::CheckedScalarDispatchPattern::Wildcard => true,
+                                typed_trees_to_checked_trees::checked_trees::CheckedScalarDispatchPattern::Wildcard => true,
                             }) && self.computation(arm.value, active)
                         })
                     })
@@ -387,7 +391,10 @@ impl Context<'_> {
             return false;
         }
         if let Some((selected, primitive)) =
-            validation::closed_record_scalar_projection(&self.checked.typed, source)
+            typed_trees_to_checked_trees::validation::closed_record_scalar_projection(
+                &self.checked.typed,
+                source,
+            )
         {
             return value.primitive_type() == Some(primitive)
                 && self.scalar(selected, value, operands, depth + 1);
@@ -440,7 +447,7 @@ impl Context<'_> {
                 value
                     .primitive_type()
                     .and_then(|primitive| {
-                        validation::land_anonymous_integer_expression(
+                        typed_trees_to_checked_trees::validation::land_anonymous_integer_expression(
                             &self.checked.typed,
                             source,
                             primitive,
@@ -540,7 +547,10 @@ impl Context<'_> {
                     Scalar::IntegerExactCast { .. } => cast.domain == ArithmeticDomain::Exact,
                     Scalar::IntegerWiden { .. } => {
                         operand.primitive_type().is_some_and(|source_type| {
-                            validation::integer_widen_is_total(source_type, *primitive_type)
+                            typed_trees_to_checked_trees::validation::integer_widen_is_total(
+                                source_type,
+                                *primitive_type,
+                            )
                         })
                     }
                     _ => false,
@@ -563,7 +573,7 @@ impl Context<'_> {
             }
             Scalar::StructuralParameterByteLength {
                 root:
-                    checked_trees::CheckedStorageRoot::Parameter {
+                    typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::Parameter {
                         index: parameter_position,
                     },
                 path,
@@ -573,7 +583,10 @@ impl Context<'_> {
             // A view local's length is authored as `local.len` on the local's
             // own bare name; it is observed whole, never through a path.
             Scalar::StructuralParameterByteLength {
-                root: checked_trees::CheckedStorageRoot::ViewLocal { symbol },
+                root:
+                    typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::ViewLocal {
+                        symbol,
+                    },
                 path,
             } => path.is_empty() && self.view_local_length(source, *symbol).unwrap_or(false),
             Scalar::StructuralParameterField { .. } => matches!(
@@ -593,7 +606,7 @@ impl Context<'_> {
         symbol: symbols::SymbolHandle,
     ) -> Option<bool> {
         let (machine, state) = super::authored_state(self.checked, self.state).ok()?;
-        let receiver = validation::collection_length_receiver(
+        let receiver = typed_trees_to_checked_trees::validation::collection_length_receiver(
             &self.checked.typed,
             machine,
             Some(state),
@@ -613,10 +626,10 @@ impl Context<'_> {
         &self,
         source: ExpressionHandle,
         parameter_position: u32,
-        path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+        path: &[typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment],
     ) -> Option<bool> {
         let (machine, state) = super::authored_state(self.checked, self.state).ok()?;
-        let receiver = validation::collection_length_receiver(
+        let receiver = typed_trees_to_checked_trees::validation::collection_length_receiver(
             &self.checked.typed,
             machine,
             Some(state),
@@ -658,14 +671,12 @@ impl Context<'_> {
             return operands.get(*position) == Some(&(source, PrimitiveType::Bool));
         }
         match value {
-            Boolean::Constant(value) => {
-                matches!(node, ExpressionNode::Boolean(authored) if value == authored)
-                    || validation::evaluate_anonymous_numeric_comparison(
-                        &self.checked.typed,
-                        source,
-                        |expression| self.anonymous_builtin(expression),
-                    ) == Some(*value)
-            }
+            Boolean::Constant(value) => matches!(node, ExpressionNode::Boolean(authored) if value == authored)
+                || typed_trees_to_checked_trees::validation::evaluate_anonymous_numeric_comparison(
+                    &self.checked.typed,
+                    source,
+                    |expression| self.anonymous_builtin(expression),
+                ) == Some(*value),
             Boolean::Not(operand) => match node {
                 ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
                     self.builtin(source)
@@ -868,7 +879,7 @@ impl Context<'_> {
                 || !matches!(
                     left.as_ref(),
                     Scalar::StructuralParameterByteLength {
-                        root: checked_trees::CheckedStorageRoot::Parameter { index: parameter_position },
+                        root: typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::Parameter { index: parameter_position },
                         path: retained,
                     } if *parameter_position == position && paths_match(retained, &path)
                 )
@@ -897,7 +908,7 @@ impl Context<'_> {
                         && matches!(
                             left.as_ref(),
                             Scalar::StructuralParameterIndexedRead {
-                                root: checked_trees::CheckedStorageRoot::Parameter { index: parameter_position },
+                                root: typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::Parameter { index: parameter_position },
                                 path: retained,
                                 index: retained_index,
                                 element_path,
@@ -933,7 +944,10 @@ impl Context<'_> {
     fn carrier_parameter_place(
         &self,
         source: ExpressionHandle,
-    ) -> Option<(u32, Vec<checked_trees::CheckedUnitStructuralPathSegment>)> {
+    ) -> Option<(
+        u32,
+        Vec<typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment>,
+    )> {
         let (machine, state) = super::authored_state(self.checked, self.state).ok()?;
         let authored =
             crate::emission::call_source_custody::projected_receivers::store_destination(
@@ -997,7 +1011,7 @@ impl Context<'_> {
                 // This shared query includes resolved call results and retains
                 // their qualification shells; the caller's destination is not
                 // an arithmetic-domain witness for a completed call.
-                validation::declared_place_type_raw(
+                typed_trees_to_checked_trees::validation::declared_place_type_raw(
                     &self.checked.typed,
                     machine,
                     Some(state),
@@ -1005,7 +1019,7 @@ impl Context<'_> {
                 )
                 .map(|reference| self.checked.arithmetic_domain_for_type_reference(reference))
                 .or_else(|| {
-                    validation::collection_length_receiver(
+                    typed_trees_to_checked_trees::validation::collection_length_receiver(
                         &self.checked.typed,
                         machine,
                         Some(state),
@@ -1088,7 +1102,7 @@ impl Context<'_> {
             _ => None,
         };
         let anonymous = || {
-            validation::land_anonymous_integer_expression(
+            typed_trees_to_checked_trees::validation::land_anonymous_integer_expression(
                 &self.checked.typed,
                 cast.value,
                 primitive,
@@ -1127,7 +1141,10 @@ impl Context<'_> {
 
     fn projected_literal(&self, source: ExpressionHandle) -> Option<ExpressionHandle> {
         if let Some((selected, _)) =
-            validation::closed_record_scalar_projection(&self.checked.typed, source)
+            typed_trees_to_checked_trees::validation::closed_record_scalar_projection(
+                &self.checked.typed,
+                source,
+            )
         {
             return Some(selected);
         }
@@ -1140,7 +1157,7 @@ impl Context<'_> {
         let (machine, _) =
             crate::expression_preparation::source_custody::authored_state(self.checked, self.state)
                 .ok()?;
-        validation::builtin_constant_array_projection_type(
+        typed_trees_to_checked_trees::validation::builtin_constant_array_projection_type(
             &self.checked.typed,
             machine.symbol,
             source,
@@ -1164,8 +1181,8 @@ impl Context<'_> {
                         || operator.candidate_count != 0
                         || !matches!(
                             operator.status,
-                            checked_trees::CheckedOperatorResolutionStatus::Missing
-                                | checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+                            typed_trees_to_checked_trees::checked_trees::CheckedOperatorResolutionStatus::Missing
+                                | typed_trees_to_checked_trees::checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
                         )
                 })
             {
@@ -1179,8 +1196,15 @@ impl Context<'_> {
             indices.push(usize::try_from(index.value_u64()?).ok()?);
             selected = indexed.collection;
         }
-        let reference = validation::declared_constant_array_type(&self.checked.typed, selected)?;
-        validation::closed_literal_array_elements(&self.checked.typed, selected, reference)?;
+        let reference = typed_trees_to_checked_trees::validation::declared_constant_array_type(
+            &self.checked.typed,
+            selected,
+        )?;
+        typed_trees_to_checked_trees::validation::closed_literal_array_elements(
+            &self.checked.typed,
+            selected,
+            reference,
+        )?;
         for index in indices.into_iter().rev() {
             let ExpressionNode::ArrayLiteral(elements) =
                 self.checked.expression_table.expression(selected)
@@ -1239,8 +1263,8 @@ impl Context<'_> {
 }
 
 fn paths_match(
-    retained: &[checked_trees::CheckedStructuralPredicatePathSegment],
-    authored: &[checked_trees::CheckedUnitStructuralPathSegment],
+    retained: &[typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment],
+    authored: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment],
 ) -> bool {
     retained.len() == authored.len()
         && retained
@@ -1248,12 +1272,12 @@ fn paths_match(
             .zip(authored)
             .all(|(retained, authored)| match (retained, authored) {
                 (
-                    checked_trees::CheckedStructuralPredicatePathSegment::Field(left),
-                    checked_trees::CheckedUnitStructuralPathSegment::Field(right),
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Field(left),
+                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field(right),
                 ) => left == right,
                 (
-                    checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(left),
-                    checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(right),
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(left),
+                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(right),
                 ) => left == right,
                 _ => false,
             })

@@ -7,10 +7,10 @@
 //! joined module publishes its bounded roster directly, and an ordinary
 //! selection reconstructs every application from its checked closure.
 
-use checked_trees::CheckedTrees;
-use lowered_psi::LoweredPsi;
+use crate::lowered_psi::LoweredPsi;
 use semantic_vocabulary::MachineId;
 use symbols::SymbolHandle;
+use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
 
 use crate::lowering_error::{LoweringError, unsupported};
 use crate::producer_result::ConformancePublication;

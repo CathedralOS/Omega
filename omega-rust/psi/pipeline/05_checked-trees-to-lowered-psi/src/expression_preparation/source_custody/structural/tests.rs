@@ -2,7 +2,7 @@ use super::{
     CheckedScalarDispatchPattern, CheckedStructuralValueKind, CheckedTrees,
     CheckedUnitEffectOperationPlan, SymbolHandle, validate,
 };
-use crate::TerminalMachineSelection;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 fn checked() -> CheckedTrees {
     let source = "data Tag { case First; case Second; }
         machine choose(selector: u64) -> Tag {
@@ -25,11 +25,11 @@ fn moved_record_replay_preserves_value_origin_and_requires_exact_transfer() {
          }",
     );
     let mut moves = Vec::new();
-    crate::lower_machine(&original, TerminalMachineSelection::Name("moved"))
+    checked_trees_to_lowered_psi::lower_machine(&original, TerminalMachineSelection::Name("moved"))
         .expect("chained moves retain the survivor and dispose only their current owners");
     for (_, root) in original.facts.values.structural_values.roots.iter() {
         let operation = CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-            result: checked_trees::CheckedUnitStructuralResultBindingPlan {
+            result: typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralResultBindingPlan {
                 statement_index: root.statement_ordinal,
                 binding_ordinal: root.statement_ordinal,
                 type_identity: original
@@ -184,7 +184,7 @@ fn operation(
         root.machine,
         root.state,
         CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-            result: checked_trees::CheckedUnitStructuralResultBindingPlan {
+            result: typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralResultBindingPlan {
                 statement_index: root.statement_ordinal,
                 binding_ordinal: 0,
                 type_identity: checked
@@ -224,8 +224,10 @@ fn structural_replay_rejects_substituted_integer_pattern_payload() {
     else {
         panic!("value pattern");
     };
-    let checked_trees::CheckedScalarComputationKind::Value(
-        checked_trees::CheckedScalarExpression::IntegerLiteral { literal },
+    let typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationKind::Value(
+        typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::IntegerLiteral {
+            literal,
+        },
     ) = &mut checked
         .facts
         .values
@@ -445,7 +447,7 @@ fn owned_record_child_replay_rejects_same_carrier_parameter_substitution() {
         unreachable!()
     };
     argument.source =
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 1 };
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 1 };
     assert!(
         validate(&checked, machine, state, &operation)
             .unwrap_err()
@@ -475,7 +477,7 @@ fn whole_record_root_replay_rejects_same_carrier_source_substitution() {
         panic!("whole record operand");
     };
     argument.source =
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 1 };
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 1 };
     assert!(
         validate(&checked, machine, state, &operation)
             .unwrap_err()
@@ -533,7 +535,7 @@ fn carrier_selection_receipt_replay_rejects_mutated_claim_sets() {
             0 => {
                 let path = ownership.selection_transfer_claims.get(claims.start()).path;
                 *ownership.segments.get_mut(path.start()) =
-                    facts::PlaceSegment::FixedIndex { index: 0 };
+                    typed_trees_to_checked_trees::fact_plan::PlaceSegment::FixedIndex { index: 0 };
             }
             // A duplicated row can never match the distinct second frontier
             // path the leaf type requires.

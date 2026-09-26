@@ -19,18 +19,18 @@ use optimization_core::OptimizationWorkBudget;
 
 use crate::{AllocationSource, RegisterHomeIdentity};
 use optimization_core::{OptimizationWorkUsage, PostAllocationOptimizationManifestIdentity};
-pub use register_homes::{
+pub use selected_instructions_to_selected_instructions::register_homes::{
     AllocatedCalleeSavedRequirementIdentity, AllocatedCalleeSavedRequirementPlan,
     AllocatedCalleeSavedRequirementPolicy, AllocatedCalleeSavedUnitRequirement,
     CalleeSavedModificationWitness, FunctionAllocatedCalleeSavedRequirements,
     encode_callee_saved_modification_witness_identity,
 };
-use register_model::{
+use target::NativeTarget;
+use target_operations_to_selected_instructions::SelectedInstructionPlanIdentity;
+use target_operations_to_selected_instructions::register_model::{
     FrameAbiPreservationConvention, PhysicalRegisterModelIdentity,
     TargetRegisterEnvironmentIdentity,
 };
-use selected_instructions::SelectedInstructionPlanIdentity;
-use target::NativeTarget;
 
 pub fn stage_allocated_callee_saved_requirements(
     source: &impl AllocationSource,

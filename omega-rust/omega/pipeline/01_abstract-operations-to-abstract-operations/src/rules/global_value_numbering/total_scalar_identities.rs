@@ -4,16 +4,16 @@
 
 use std::collections::BTreeMap;
 
-use abstract_operations::AbstractOperation;
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
-use optimization_unit::{
+use semantic_vocabulary::{IntegerType, IntegerValue, OperationId, ScalarType, ValueId};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     NodeLocation, PsiOptimizationUnit, PsiRewriteCandidate, TotalScalarIdentityKind,
     TotalScalarIdentityRewrite,
 };
-use semantic_vocabulary::{IntegerType, IntegerValue, OperationId, ScalarType, ValueId};
 
 use crate::rules::GLOBAL_VALUE_NUMBERING_PASS_NAME;
 use crate::rules::global_value_numbering::exact_pure_scalar_effect;

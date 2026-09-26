@@ -1,27 +1,27 @@
+use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use crate::checked_trees::{FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef};
+use crate::fact_plan::{
+    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
+};
 use crate::flow::FlowBuildContext;
 use crate::flow::append_constraint_ref;
 use crate::flow::reference_spans;
 use crate::flow::retained_constraint_refs;
 use crate::flow::retained_flow_contexts;
 use arena::{Handle, HandleSpan};
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use checked_trees::{FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef};
-use facts::{
-    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
-};
+use symbol_resolved_trees_to_typed_trees::typed_trees::proposition::ProofSubstitutions;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionGuardNode;
 use symbols::SymbolHandle;
-use typed_trees::proposition::ProofSubstitutions;
-use typed_trees::statement::TransitionGuardNode;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_guard_context(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    transition_target: typed_trees::statement::TransitionTargetHandle,
+    transition_target: symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetHandle,
     guard: TransitionGuardNode,
     value: bool,
     active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
@@ -86,7 +86,7 @@ pub(super) fn append_guard_context(
 /// that do not all prove it.
 #[allow(clippy::too_many_arguments)]
 fn append_guard_bounds_context(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     machine_symbol: SymbolHandle,
@@ -114,8 +114,8 @@ fn append_guard_bounds_context(
     // reading conjuncts, then split `&&` as the arm's own test would.
     append_true_arm_conjuncts(program, expression, &mut conjuncts);
     struct GuardBound {
-        place: facts::PlaceHandle,
-        carrier: facts::IntegerRange,
+        place: crate::fact_plan::PlaceHandle,
+        carrier: crate::fact_plan::IntegerRange,
         lower: Option<numerics::bignum::BigInt>,
         upper: Option<numerics::bignum::BigInt>,
     }
@@ -124,8 +124,8 @@ fn append_guard_bounds_context(
         ExpressionNode::Integer(value) => value.value_bignum(),
         _ => None,
     };
-    let mirrored = |operator: typed_trees::expression::BinaryOperator| {
-        use typed_trees::expression::BinaryOperator as Operator;
+    let mirrored = |operator: symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator| {
+        use symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator as Operator;
         match operator {
             Operator::Less => Operator::Greater,
             Operator::LessOrEqual => Operator::GreaterOrEqual,
@@ -135,7 +135,7 @@ fn append_guard_bounds_context(
         }
     };
     for conjunct in conjuncts {
-        if !validation::has_builtin_decomposed_guard_meaning(
+        if !crate::validation::has_builtin_decomposed_guard_meaning(
             program,
             machine,
             Some(state),
@@ -153,11 +153,11 @@ fn append_guard_bounds_context(
         };
         let one = numerics::bignum::BigInt::from_u64(1);
         let (lower, upper) = match operator {
-            typed_trees::expression::BinaryOperator::Less => (None, Some(endpoint.sub(&one))),
-            typed_trees::expression::BinaryOperator::LessOrEqual => (None, Some(endpoint)),
-            typed_trees::expression::BinaryOperator::Greater => (Some(endpoint.add(&one)), None),
-            typed_trees::expression::BinaryOperator::GreaterOrEqual => (Some(endpoint), None),
-            typed_trees::expression::BinaryOperator::Equal => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Less => (None, Some(endpoint.sub(&one))),
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::LessOrEqual => (None, Some(endpoint)),
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Greater => (Some(endpoint.add(&one)), None),
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::GreaterOrEqual => (Some(endpoint), None),
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Equal => {
                 (Some(endpoint.clone()), Some(endpoint))
             }
             _ => continue,
@@ -219,7 +219,7 @@ fn append_guard_bounds_context(
         if row.lower.is_none() && row.upper.is_none() {
             continue;
         }
-        let mut range = facts::IntegerRange {
+        let mut range = crate::fact_plan::IntegerRange {
             minimum: row.lower.unwrap_or_else(|| row.carrier.minimum.clone()),
             maximum: row.upper.unwrap_or_else(|| row.carrier.maximum.clone()),
         };
@@ -298,7 +298,7 @@ fn append_guard_bounds_context(
 /// their carriers.
 #[allow(clippy::too_many_arguments)]
 fn append_case_constraint_context(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     state_symbol: SymbolHandle,
@@ -337,7 +337,10 @@ fn append_case_constraint_context(
             ));
         }
         for member in program.data_members(definition) {
-            if let typed_trees::data::DataMember::Field(field) = member {
+            if let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                field,
+            ) = member
+            {
                 substitutions.push((
                     field.symbol,
                     field.name.as_str().to_owned(),
@@ -354,8 +357,9 @@ fn append_case_constraint_context(
                     .saturating_add(offset),
                 variant.where_facts.start().generation(),
             );
-            let typed_trees::domain::ProofFact::Expression(fact_expression) =
-                program.proof_facts.get(fact_handle)
+            let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
+                fact_expression,
+            ) = program.proof_facts.get(fact_handle)
             else {
                 continue;
             };
@@ -370,7 +374,7 @@ fn append_case_constraint_context(
                 origin: FactOrigin::TransitionGuard,
                 evidence: QualificationEvidence::default(),
                 payload: FactPayload::ContractBooleanExpression {
-                    kind: facts::ContractFactKind::Requires,
+                    kind: crate::fact_plan::ContractFactKind::Requires,
                     fact: fact_handle,
                     expression: *fact_expression,
                     instantiated,
@@ -403,7 +407,7 @@ fn append_case_constraint_context(
 /// peel the arm-test `<expr> == true` wrappers. `expr == false` under a true
 /// arm is contradictory and contributes nothing.
 fn append_true_arm_conjuncts(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
     conjuncts: &mut Vec<ExpressionHandle>,
 ) {
@@ -413,13 +417,13 @@ fn append_true_arm_conjuncts(
     };
     match program.expression_table.expression(expression) {
         ExpressionNode::Binary(binary)
-            if binary.operator == typed_trees::expression::BinaryOperator::And =>
+            if binary.operator == symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::And =>
         {
             append_true_arm_conjuncts(program, binary.left, conjuncts);
             append_true_arm_conjuncts(program, binary.right, conjuncts);
         }
         ExpressionNode::Binary(binary)
-            if binary.operator == typed_trees::expression::BinaryOperator::Equal =>
+            if binary.operator == symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Equal =>
         {
             match (boolean(binary.left), boolean(binary.right)) {
                 (None, Some(true)) => append_true_arm_conjuncts(program, binary.left, conjuncts),
@@ -433,13 +437,13 @@ fn append_true_arm_conjuncts(
 }
 
 fn flatten_and_conjuncts(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
     conjuncts: &mut Vec<ExpressionHandle>,
 ) {
     match program.expression_table.expression(expression) {
         ExpressionNode::Binary(binary)
-            if binary.operator == typed_trees::expression::BinaryOperator::And =>
+            if binary.operator == symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::And =>
         {
             flatten_and_conjuncts(program, binary.left, conjuncts);
             flatten_and_conjuncts(program, binary.right, conjuncts);
@@ -452,17 +456,19 @@ fn flatten_and_conjuncts(
 /// case-membership `in` test lowers to, and return the subject with the
 /// resolved variant and its data definition.
 fn case_membership_claim(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<(
     ExpressionHandle,
-    &typed_trees::data::DataVariant,
-    &typed_trees::data::DataDefinition,
+    &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataVariant,
+    &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition,
 )> {
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
         return None;
     };
-    if binary.operator != typed_trees::expression::BinaryOperator::Equal {
+    if binary.operator
+        != symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Equal
+    {
         return None;
     }
     for (case_reference, subject) in [(binary.right, binary.left), (binary.left, binary.right)] {
@@ -480,13 +486,13 @@ fn case_membership_claim(
             program
                 .data_members(definition)
                 .iter()
-                .find_map(|member| match member {
-                    typed_trees::data::DataMember::Variant(variant)
-                        if variant.symbol == path.symbol =>
-                    {
-                        Some(variant)
-                    }
-                    _ => None,
+                .find_map(|member| {
+                    match member {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
+                    variant,
+                ) if variant.symbol == path.symbol => Some(variant),
+                _ => None,
+            }
                 })
         else {
             continue;
@@ -498,7 +504,7 @@ fn case_membership_claim(
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::flow) fn append_predicate_context(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     state_symbol: SymbolHandle,
@@ -531,7 +537,7 @@ pub(in crate::flow) fn append_predicate_context(
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::flow) fn append_match_pattern_context(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     state_symbol: SymbolHandle,
@@ -553,11 +559,15 @@ pub(in crate::flow) fn append_match_pattern_context(
     // Selected float equality need not mean mathematical equality. Missing
     // selection is rejected by checking, never promoted to builtin evidence.
     if matches!(
-        validation::match_subject_primitive_type(program, dispatch),
-        Some(typed_trees::types::PrimitiveType::F32 | typed_trees::types::PrimitiveType::F64)
+        crate::validation::match_subject_primitive_type(program, dispatch),
+        Some(
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::F32
+                | symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::F64
+        )
     ) || build.operators.uses.iter().any(|(_, operator_use)| {
         operator_use.expression == expression
-            && operator_use.occurrence != checked_trees::CheckedOperatorOccurrence::Expression
+            && operator_use.occurrence
+                != crate::checked_trees::CheckedOperatorOccurrence::Expression
     }) {
         return;
     }
@@ -592,8 +602,8 @@ pub(in crate::flow) fn append_match_pattern_context(
 }
 
 fn match_input_has_builtin_meaning(
-    program: &typed_trees::TypedTrees,
-    operators: &checked_trees::CheckedOperatorFacts,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    operators: &crate::checked_trees::CheckedOperatorFacts,
     expression: ExpressionHandle,
 ) -> bool {
     let recurse = |child| match_input_has_builtin_meaning(program, operators, child);
@@ -630,7 +640,7 @@ fn match_input_has_builtin_meaning(
 
 #[allow(clippy::too_many_arguments)]
 fn append_observation_context(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     state_symbol: SymbolHandle,
@@ -690,7 +700,7 @@ fn append_observation_context(
 }
 
 fn expression_is_stable_predicate(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> bool {
     match program.expression_table.expression(expression) {

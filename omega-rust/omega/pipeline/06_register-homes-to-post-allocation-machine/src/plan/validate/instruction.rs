@@ -1,12 +1,16 @@
 use std::collections::BTreeSet;
 
-use register_model::{RegisterOperandAccess, ValidatedPhysicalRegisterModel};
-use selected_instructions::{MachineAlternativeApplicability, SelectedBlock, SelectedInstruction};
 use selected_instructions_to_register_homes::FunctionRegisterHomes;
+use target_operations_to_selected_instructions::register_model::{
+    RegisterOperandAccess, ValidatedPhysicalRegisterModel,
+};
+use target_operations_to_selected_instructions::{
+    MachineAlternativeApplicability, SelectedBlock, SelectedInstruction,
+};
 
 use crate::PostAllocationMachineError;
-use physical_instructions::{PhysicalOperandFootprint, PostAllocationMachineInstruction};
-use selected_instructions::InstructionMachineEffects;
+use crate::physical_instructions::{PhysicalOperandFootprint, PostAllocationMachineInstruction};
+use target_operations_to_selected_instructions::InstructionMachineEffects;
 
 pub(super) fn reconstruct_instruction(
     function_index: usize,
@@ -102,90 +106,90 @@ pub(super) fn reconstruct_instruction(
         alternative,
         operands,
         address: match selected.kind {
-            selected_instructions::SelectedInstructionKind::Load64 { byte_offset } => {
-                Some(physical_instructions::PhysicalAddressOperation::Load64 {
+            target_operations_to_selected_instructions::SelectedInstructionKind::Load64 { byte_offset } => {
+                Some(crate::physical_instructions::PhysicalAddressOperation::Load64 {
                     base_operand: 0,
                     byte_offset,
                 })
             }
-            selected_instructions::SelectedInstructionKind::LoadPacked { byte_offset, width } => {
+            target_operations_to_selected_instructions::SelectedInstructionKind::LoadPacked { byte_offset, width } => {
                 Some(
-                    physical_instructions::PhysicalAddressOperation::LoadPacked {
+                    crate::physical_instructions::PhysicalAddressOperation::LoadPacked {
                         base_operand: 0,
                         byte_offset,
                         width,
                     },
                 )
             }
-            selected_instructions::SelectedInstructionKind::StorePacked { byte_offset, width } => {
+            target_operations_to_selected_instructions::SelectedInstructionKind::StorePacked { byte_offset, width } => {
                 Some(
-                    physical_instructions::PhysicalAddressOperation::StorePacked {
+                    crate::physical_instructions::PhysicalAddressOperation::StorePacked {
                         base_operand: 0,
                         byte_offset,
                         width,
                     },
                 )
             }
-            selected_instructions::SelectedInstructionKind::Load8 { byte_offset } => {
-                Some(physical_instructions::PhysicalAddressOperation::Load8 {
+            target_operations_to_selected_instructions::SelectedInstructionKind::Load8 { byte_offset } => {
+                Some(crate::physical_instructions::PhysicalAddressOperation::Load8 {
                     base_operand: 0,
                     byte_offset,
                 })
             }
-            selected_instructions::SelectedInstructionKind::Load16 { byte_offset } => {
-                Some(physical_instructions::PhysicalAddressOperation::Load16 {
+            target_operations_to_selected_instructions::SelectedInstructionKind::Load16 { byte_offset } => {
+                Some(crate::physical_instructions::PhysicalAddressOperation::Load16 {
                     base_operand: 0,
                     byte_offset,
                 })
             }
-            selected_instructions::SelectedInstructionKind::Load32 { byte_offset } => {
-                Some(physical_instructions::PhysicalAddressOperation::Load32 {
+            target_operations_to_selected_instructions::SelectedInstructionKind::Load32 { byte_offset } => {
+                Some(crate::physical_instructions::PhysicalAddressOperation::Load32 {
                     base_operand: 0,
                     byte_offset,
                 })
             }
-            selected_instructions::SelectedInstructionKind::Load8Indexed => Some(
-                physical_instructions::PhysicalAddressOperation::Load8Indexed {
+            target_operations_to_selected_instructions::SelectedInstructionKind::Load8Indexed => Some(
+                crate::physical_instructions::PhysicalAddressOperation::Load8Indexed {
                     base_operand: 0,
                     index_operand: 1,
                 },
             ),
-            selected_instructions::SelectedInstructionKind::HostedReadByte { slot } => {
-                Some(physical_instructions::PhysicalAddressOperation::HostedReadByte { slot })
+            target_operations_to_selected_instructions::SelectedInstructionKind::HostedReadByte { slot } => {
+                Some(crate::physical_instructions::PhysicalAddressOperation::HostedReadByte { slot })
             }
-            selected_instructions::SelectedInstructionKind::SaveFloatingControl { slot } => {
-                Some(physical_instructions::PhysicalAddressOperation::SaveFloatingControl { slot })
+            target_operations_to_selected_instructions::SelectedInstructionKind::SaveFloatingControl { slot } => {
+                Some(crate::physical_instructions::PhysicalAddressOperation::SaveFloatingControl { slot })
             }
-            selected_instructions::SelectedInstructionKind::RestoreFloatingControl { slot } => {
+            target_operations_to_selected_instructions::SelectedInstructionKind::RestoreFloatingControl { slot } => {
                 Some(
-                    physical_instructions::PhysicalAddressOperation::RestoreFloatingControl {
+                    crate::physical_instructions::PhysicalAddressOperation::RestoreFloatingControl {
                         slot,
                     },
                 )
             }
-            selected_instructions::SelectedInstructionKind::HostedWriteByteI32 { slot } => {
-                Some(physical_instructions::PhysicalAddressOperation::HostedWriteByteI32 { slot })
+            target_operations_to_selected_instructions::SelectedInstructionKind::HostedWriteByteI32 { slot } => {
+                Some(crate::physical_instructions::PhysicalAddressOperation::HostedWriteByteI32 { slot })
             }
-            selected_instructions::SelectedInstructionKind::Store {
+            target_operations_to_selected_instructions::SelectedInstructionKind::Store {
                 byte_offset,
                 byte_size,
-            } => Some(physical_instructions::PhysicalAddressOperation::Store {
+            } => Some(crate::physical_instructions::PhysicalAddressOperation::Store {
                 base_operand: 0,
                 byte_offset,
                 byte_size,
             }),
-            selected_instructions::SelectedInstructionKind::AddressOffset { byte_offset } => Some(
-                physical_instructions::PhysicalAddressOperation::AddressOffset {
+            target_operations_to_selected_instructions::SelectedInstructionKind::AddressOffset { byte_offset } => Some(
+                crate::physical_instructions::PhysicalAddressOperation::AddressOffset {
                     base_operand: 0,
                     byte_offset,
                 },
             ),
-            selected_instructions::SelectedInstructionKind::Store64 { slot, byte_offset } => {
-                Some(physical_instructions::PhysicalAddressOperation::Store64 { slot, byte_offset })
+            target_operations_to_selected_instructions::SelectedInstructionKind::Store64 { slot, byte_offset } => {
+                Some(crate::physical_instructions::PhysicalAddressOperation::Store64 { slot, byte_offset })
             }
-            selected_instructions::SelectedInstructionKind::FrameAddress { slot, byte_offset } => {
+            target_operations_to_selected_instructions::SelectedInstructionKind::FrameAddress { slot, byte_offset } => {
                 Some(
-                    physical_instructions::PhysicalAddressOperation::FrameAddress {
+                    crate::physical_instructions::PhysicalAddressOperation::FrameAddress {
                         slot,
                         byte_offset,
                     },
@@ -260,19 +264,19 @@ pub(super) fn selected_instructions(
     block: &SelectedBlock,
 ) -> impl Iterator<Item = &SelectedInstruction> {
     let terminator = match &block.terminator {
-        selected_instructions::SelectedTerminator::ConditionalBranch { instruction, .. }
-        | selected_instructions::SelectedTerminator::ConditionalBranchU64LessThan {
+        target_operations_to_selected_instructions::SelectedTerminator::ConditionalBranch { instruction, .. }
+        | target_operations_to_selected_instructions::SelectedTerminator::ConditionalBranchU64LessThan {
             instruction,
             ..
         }
-        | selected_instructions::SelectedTerminator::ConditionalBranchI64LessThan {
+        | target_operations_to_selected_instructions::SelectedTerminator::ConditionalBranchI64LessThan {
             instruction,
             ..
         }
-        | selected_instructions::SelectedTerminator::Jump { instruction, .. }
-        | selected_instructions::SelectedTerminator::Return { instruction, .. }
-        | selected_instructions::SelectedTerminator::Crash { instruction, .. }
-        | selected_instructions::SelectedTerminator::HostedExitProcess { instruction, .. } => {
+        | target_operations_to_selected_instructions::SelectedTerminator::Jump { instruction, .. }
+        | target_operations_to_selected_instructions::SelectedTerminator::Return { instruction, .. }
+        | target_operations_to_selected_instructions::SelectedTerminator::Crash { instruction, .. }
+        | target_operations_to_selected_instructions::SelectedTerminator::HostedExitProcess { instruction, .. } => {
             instruction
         }
     };

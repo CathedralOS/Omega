@@ -1,11 +1,11 @@
 use crate::parser::parse_syntax_trees;
+use crate::syntax_trees::expression::ExpressionNode;
+use crate::syntax_trees::types::TypeReferenceNode;
 use source_files_to_tokens::Lexer;
-use syntax_trees::expression::ExpressionNode;
-use syntax_trees::types::TypeReferenceNode;
 
 #[test]
 fn unary_const_arguments_retain_their_typed_evaluation_obligation() {
-    use syntax_trees::item::{DataMember, Item};
+    use crate::syntax_trees::item::{DataMember, Item};
 
     // Even wrong operand carriers belong to semantic admission, not an
     // integer-only fold in the parser.
@@ -56,13 +56,13 @@ fn fixed_array_equation_operands_retain_type_structure_through_grouping_and_copy
         let tokens = Lexer::new(&source).tokenize().expect("tokenize equation");
         let parsed = parse_syntax_trees(&tokens).expect("parse fixed-array type equation");
         let item = parsed.root_items().next().expect("data item");
-        let mut copied = syntax_trees::SyntaxTrees::default();
+        let mut copied = crate::syntax_trees::SyntaxTrees::default();
         let copied_item = copied.copy_item_from(&parsed, item);
         for (trees, item) in [(&parsed, item), (&copied, &copied_item)] {
-            let syntax_trees::item::Item::Data(data) = item else {
+            let crate::syntax_trees::item::Item::Data(data) = item else {
                 panic!("expected data");
             };
-            let [syntax_trees::item::ProofFact::Expression(fact)] =
+            let [crate::syntax_trees::item::ProofFact::Expression(fact)] =
                 trees.items.proof_facts(data.where_facts)
             else {
                 panic!("expected one equation");
@@ -72,7 +72,7 @@ fn fixed_array_equation_operands_retain_type_structure_through_grouping_and_copy
             };
             assert_eq!(
                 equation.operator,
-                syntax_trees::expression::BinaryOperator::Equal
+                crate::syntax_trees::expression::BinaryOperator::Equal
             );
             let operand = [equation.left, equation.right]
                 .into_iter()
@@ -83,14 +83,14 @@ fn fixed_array_equation_operands_retain_type_structure_through_grouping_and_copy
                 .expect("one operand retains a type reference");
             let TypeReferenceNode::FixedArray {
                 element_type,
-                length: syntax_trees::types::FixedArrayLength::Literal(2),
+                length: crate::syntax_trees::types::FixedArrayLength::Literal(2),
             } = trees.type_references.type_reference(operand)
             else {
                 panic!("expected outer fixed array");
             };
             let TypeReferenceNode::FixedArray {
                 element_type,
-                length: syntax_trees::types::FixedArrayLength::ConstParameter(count),
+                length: crate::syntax_trees::types::FixedArrayLength::ConstParameter(count),
             } = trees.type_references.type_reference(*element_type)
             else {
                 panic!("expected nested fixed array");
@@ -147,13 +147,13 @@ fn reference_operands_retain_access_and_element_type_role_through_copy() {
         let tokens = Lexer::new(&source).tokenize().unwrap();
         let parsed = parse_syntax_trees(&tokens).expect("reference around a type-role operand");
         let item = parsed.root_items().next().unwrap();
-        let mut copied = syntax_trees::SyntaxTrees::default();
+        let mut copied = crate::syntax_trees::SyntaxTrees::default();
         let copied_item = copied.copy_item_from(&parsed, item);
         for (trees, item) in [(&parsed, item), (&copied, &copied_item)] {
-            let syntax_trees::item::Item::Data(data) = item else {
+            let crate::syntax_trees::item::Item::Data(data) = item else {
                 panic!("data");
             };
-            let [syntax_trees::item::ProofFact::Expression(fact)] =
+            let [crate::syntax_trees::item::ProofFact::Expression(fact)] =
                 trees.items.proof_facts(data.where_facts)
             else {
                 panic!("equation");
@@ -292,13 +292,13 @@ fn range_end_kind_and_authored_endpoints_survive_tree_copy() {
             let tokens = Lexer::new(&source).tokenize().expect("tokenize range");
             let parsed = parse_syntax_trees(&tokens).expect("parse authored endpoint");
             let item = parsed.root_items().next().expect("data item");
-            let mut copied = syntax_trees::SyntaxTrees::default();
+            let mut copied = crate::syntax_trees::SyntaxTrees::default();
             let copied_item = copied.copy_item_from(&parsed, item);
             for (trees, item) in [(&parsed, item), (&copied, &copied_item)] {
-                let syntax_trees::item::Item::Data(data) = item else {
+                let crate::syntax_trees::item::Item::Data(data) = item else {
                     panic!("expected data");
                 };
-                let [syntax_trees::item::DataMember::Field(field)] =
+                let [crate::syntax_trees::item::DataMember::Field(field)] =
                     trees.items.data_members(data.members)
                 else {
                     panic!("expected one field");
@@ -309,7 +309,7 @@ fn range_end_kind_and_authored_endpoints_survive_tree_copy() {
                     panic!("expected constrained field");
                 };
                 let [
-                    syntax_trees::types::TypeConstraintNode::Range {
+                    crate::syntax_trees::types::TypeConstraintNode::Range {
                         minimum,
                         maximum,
                         end_inclusive,

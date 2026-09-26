@@ -38,12 +38,12 @@ use super::{
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::structural_scalar_store::lower_structural_field_path;
 use crate::terminal_identities::lookup_type_id;
-use checked_trees::{
+use language_semantics::Multiplicity;
+use terminal_psi::{StructuralArgument, StructuralOperationResult};
+use typed_trees_to_checked_trees::checked_trees::{
     CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralResultBindingPlan,
 };
-use language_semantics::Multiplicity;
-use terminal_psi::{StructuralArgument, StructuralOperationResult};
 
 /// One open restoration debt: the exact hole beneath a mutable-borrowed
 /// parameter root and the structural result place now holding the removed
@@ -420,24 +420,24 @@ fn spell_place(
         CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. } => "literal".to_owned(),
         CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
             root:
-                checked_trees::CheckedStorageRoot::Parameter {
+                typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::Parameter {
                     index: parameter_index,
                 },
             ..
         }
         | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
             root:
-                checked_trees::CheckedStorageRoot::Parameter {
+                typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::Parameter {
                     index: parameter_index,
                 },
             ..
         } => format!("parameter#{parameter_index}[..]"),
         CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
-            root: checked_trees::CheckedStorageRoot::ViewLocal { .. },
+            root: typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::ViewLocal { .. },
             ..
         }
         | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
-            root: checked_trees::CheckedStorageRoot::ViewLocal { .. },
+            root: typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::ViewLocal { .. },
             ..
         } => "local[..]".to_owned(),
     };
@@ -455,12 +455,16 @@ fn spell_place(
                 spelling.push_str(&format!("[{start}..{end}]"));
             }
             CheckedUnitStructuralPathSegment::RuntimeIndex(
-                checked_trees::CheckedRuntimeIndex::Parameter { position },
+                typed_trees_to_checked_trees::checked_trees::CheckedRuntimeIndex::Parameter {
+                    position,
+                },
             ) => {
                 spelling.push_str(&format!("[selector#{position}]"));
             }
             CheckedUnitStructuralPathSegment::RuntimeIndex(
-                checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
+                typed_trees_to_checked_trees::checked_trees::CheckedRuntimeIndex::AssignmentIndex {
+                    depth,
+                },
             ) => spelling.push_str(&format!("[index#{depth}]")),
         }
     }
@@ -477,11 +481,6 @@ mod tests {
     use crate::TerminalMachineSelection;
     use crate::emission::operation_emission::buffer::OperationBuffer;
     use crate::lowering_error::LoweringError;
-    use checked_trees::{
-        CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
-        CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
-        CheckedUnitStructuralResultBindingPlan,
-    };
     use language_semantics::Multiplicity;
     use semantic_vocabulary::{
         BlockId, ContractId, EdgeId, MachineId, OperationId, PlaceId, ScalarType,
@@ -493,6 +492,11 @@ mod tests {
         StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
         StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
         TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, VocabularyMarker,
+    };
+    use typed_trees_to_checked_trees::checked_trees::{
+        CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
+        CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
+        CheckedUnitStructuralResultBindingPlan,
     };
 
     fn id<T>(raw: u64, constructor: impl FnOnce(u64) -> Option<T>) -> T {
@@ -1460,13 +1464,13 @@ mod tests {
         assert!(plan.operations.iter().any(|operation| {
             matches!(
                 operation,
-                checked_trees::CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
+                typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
             )
         }));
         assert!(plan.operations.iter().any(|operation| {
             matches!(
                 operation,
-                checked_trees::CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
+                typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
             )
         }));
         let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
@@ -1527,13 +1531,13 @@ mod tests {
         assert!(plan.operations.iter().any(|operation| {
             matches!(
                 operation,
-                checked_trees::CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
+                typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
             )
         }));
         assert!(plan.operations.iter().any(|operation| {
             matches!(
                 operation,
-                checked_trees::CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
+                typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
             )
         }));
         let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))

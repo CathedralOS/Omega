@@ -1,9 +1,9 @@
 //! Verify inspection input before attempting an optional fixed-work certificate.
 
-use proof_admission::AdmissionProfile;
-use terminal_fixed_fuel::{
+use crate::terminal_fixed_fuel::{
     FixedEntryFuelCertificate, FixedFuelError, derive_fixed_entry_fuel, validate_fixed_entry_fuel,
 };
+use proof_admission::AdmissionProfile;
 use terminal_psi::{ProofBundle, TerminalModule};
 use terminal_verifier::{VerificationError, verify_module};
 
@@ -79,7 +79,7 @@ mod tests {
             FixedFuelError::ControlCycle(block),
             FixedFuelError::UnboundedCycleComponent {
                 component: semantic_vocabulary::CycleComponentId::new(1).unwrap(),
-                cause: terminal_fixed_fuel::UnboundedCycleCause::Unranked,
+                cause: crate::terminal_fixed_fuel::UnboundedCycleCause::Unranked,
             },
             FixedFuelError::CallCycle(machine),
             FixedFuelError::BranchingNotYetSupported(block),

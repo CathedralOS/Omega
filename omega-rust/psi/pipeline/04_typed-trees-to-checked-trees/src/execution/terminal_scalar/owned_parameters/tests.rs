@@ -1,6 +1,6 @@
 use super::{Multiplicity, PermissionAccess, PermissionEventKind, SymbolHandle, validate};
 use crate::tests::front_end::checked_program_result;
-fn checked() -> checked_trees::CheckedTrees {
+fn checked() -> crate::checked_trees::CheckedTrees {
     let source = "data Limits { limit: u64; divisor: u64 [3..=5]; }
         machine reset(value: &mut u64) -> u64 { value = 0; 0 }
         machine inspect(marker: u64, limits: Limits) -> u64 {
@@ -77,7 +77,7 @@ fn affine_graph_rejoins_discard_eligibility_and_whole_transfers() {
                     }
                     1 => {
                         ownership.permissions.get_mut(handle).root =
-                            facts::PlaceRoot::Symbol(SymbolHandle::invalid())
+                            crate::fact_plan::PlaceRoot::Symbol(SymbolHandle::invalid())
                     }
                     2 => ownership.permissions.get_mut(handle).obligation_live = true,
                     3 => ownership.permissions.get_mut(handle).multiplicity = Multiplicity::Linear,

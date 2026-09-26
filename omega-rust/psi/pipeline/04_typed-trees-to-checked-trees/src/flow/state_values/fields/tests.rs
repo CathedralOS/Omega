@@ -1,14 +1,14 @@
 use super::{BoundsSource, ByteSequencePredicate, integer_literal_thresholds, meet};
+use crate::checked_trees::expression::ExpressionHandle;
 use crate::flow::state_values::fields::FieldValue;
 use crate::tests::front_end::typed_program;
-use checked_trees::expression::ExpressionHandle;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetHandle;
 use symbols::SymbolHandle;
-use typed_trees::statement::TransitionTargetHandle;
 
 fn field(symbol: u32, literal: u32, predicates: Vec<ByteSequencePredicate>) -> FieldValue {
     let edge_potential = predicates.clone();
     FieldValue {
-        segments: vec![facts::PlaceSegment::Field {
+        segments: vec![crate::fact_plan::PlaceSegment::Field {
             symbol: SymbolHandle::from_arena_index(symbol),
         }],
         literal: ExpressionHandle::from_arena_index(literal),
@@ -40,10 +40,13 @@ fn edge(ordinal: u32) -> BoundsSource {
     )
 }
 
-fn fixture() -> (typed_trees::TypedTrees, typed_trees::machine::Machine) {
+fn fixture() -> (
+    symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+) {
     (
-        typed_trees::TypedTrees::default(),
-        typed_trees::machine::Machine::default(),
+        symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default(),
+        symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine::default(),
     )
 }
 
@@ -138,8 +141,8 @@ fn deliveries_shrink_and_regrow_with_each_edges_latest_evidence() {
     assert_eq!(previous[0].literal, ExpressionHandle::from_arena_index(2));
 }
 
-fn range(minimum: u64, maximum: u64) -> facts::IntegerRange {
-    facts::IntegerRange {
+fn range(minimum: u64, maximum: u64) -> crate::fact_plan::IntegerRange {
+    crate::fact_plan::IntegerRange {
         minimum: numerics::bignum::BigInt::from_u64(minimum),
         maximum: numerics::bignum::BigInt::from_u64(maximum),
     }
@@ -302,12 +305,14 @@ fn repeated_delivery_preserves_widening_until_the_evidence_changes() {
         .data_members(counter)
         .iter()
         .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) => Some(field.symbol),
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) => {
+                Some(field.symbol)
+            }
             _ => None,
         })
         .expect("count field");
     let mut initial = field(1, 0, Vec::new());
-    initial.segments = vec![facts::PlaceSegment::Field { symbol }];
+    initial.segments = vec![crate::fact_plan::PlaceSegment::Field { symbol }];
     initial.integer_bounds = Some(range(0, 0));
     initial.seed_delivery(edge(0));
     let mut previous = vec![initial.clone()];

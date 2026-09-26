@@ -19,8 +19,8 @@ use super::{
     transport_register,
 };
 use crate::SelectedInstructionError;
+use crate::legalized_operations::LegalizedRuntimeIndexOperand;
 use crate::selection::construction::scalar_graph::structural::invalid;
-use legalized_operations::LegalizedRuntimeIndexOperand;
 use semantic_vocabulary::{IntegerValue, PlaceId, ValueId};
 
 /// Join each runtime element's scaled selector to `address`, in path order,

@@ -1,5 +1,5 @@
 //! Borrow facts: the writable roots, loans, borrowing calls and argument
-//! accesses of every state, recorded as `checked_trees::BorrowFacts` for the
+//! accesses of every state, recorded as `crate::checked_trees::BorrowFacts` for the
 //! later fact builders and the borrow checks in `checks::borrows`.
 //!
 //! `build_borrow_facts` is the entry; `facts::build_check_facts` calls it
@@ -16,7 +16,7 @@
 //! it for the returned-view checks. `last_uses` and `loans` also export
 //! queries used elsewhere in the crate.
 
-use checked_trees::BorrowFacts;
+use crate::checked_trees::BorrowFacts;
 pub(crate) mod accesses;
 pub(crate) mod calls;
 mod last_uses;
@@ -40,7 +40,9 @@ use crate::lookup::machine_state_count;
 use roots::estimated_borrow_root_capacity;
 use state::{BorrowFactArenas, append_state_borrow_facts};
 
-pub(crate) fn build_borrow_facts(program: &typed_trees::TypedTrees) -> BorrowFacts {
+pub(crate) fn build_borrow_facts(
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+) -> BorrowFacts {
     let mut writable_roots = arena::Arena::with_capacity(estimated_borrow_root_capacity(program));
     let mut access_segments =
         arena::Arena::with_capacity(program.expression_table.expression_count());

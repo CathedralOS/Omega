@@ -6,11 +6,13 @@ use super::{
     decode_module, decode_proof_bundle, invoking, main_machine, unsigned,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
 use std::collections::BTreeSet;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus};
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{BoundaryMachineResult, OperationKind, OperationResult, Terminator};
 
 fn observed_source(completion: &str) -> String {
@@ -141,15 +143,16 @@ fn boundary_temporaries_supply_existing_ordinary_and_boundary_result_carriers() 
         let source = source(completion).replace("boundary trait Sink {", "boundary trait Sink { machine replace(token: Token, first: u16, second: u16) -> Token reaches Sink;");
         let checked = crate::front_end::checked_program(&source);
         let artifact = encoded_locals(&checked, &names);
-        let published = terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("Main::main"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .unwrap()
-        .into_artifact();
+        let published =
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("Main::main"),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .unwrap()
+            .into_artifact();
         assert_eq!(
             decode_module(published.semantic_bytes()).unwrap(),
             decode_module(&artifact.0).unwrap()
@@ -175,15 +178,16 @@ fn boundary_temporary_schedule_preserves_prefix_result_slots_ids_and_residual_cl
         }
         let checked = crate::front_end::checked_program(&source);
         let artifact = encoded_locals(&checked, &["prefix", "first", "spare", "measured"]);
-        let published = terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("Main::main"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .unwrap()
-        .into_artifact();
+        let published =
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("Main::main"),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .unwrap()
+            .into_artifact();
         let module = decode_module(&artifact.0).unwrap();
         assert_eq!(decode_module(published.semantic_bytes()).unwrap(), module);
         let mut machines = BTreeSet::new();
@@ -437,7 +441,7 @@ fn boundary_temporary_custody_rejects_substitution_reordering_and_duplicate_clea
                 unreachable!()
             };
             structural_arguments[0].source =
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                     binding_ordinal: 1,
                 };
         } else if mutation == 2 {

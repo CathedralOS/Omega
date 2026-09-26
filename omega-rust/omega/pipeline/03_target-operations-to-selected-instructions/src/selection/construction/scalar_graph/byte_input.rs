@@ -4,8 +4,8 @@ use super::{
     SelectedInstructionProvenance,
 };
 use crate::SelectedInstructionError;
-use legalized_operations::LegalizedScalarInstruction;
-use selected_instructions::{
+use crate::legalized_operations::LegalizedScalarInstruction;
+use crate::selected_instructions::{
     LocalStorageSlotId, SelectedBoundarySettlement, SelectedBoundarySettlementPayload,
     SelectedLocalStorageSlot,
 };
@@ -26,7 +26,7 @@ pub(super) fn emit(
     };
     if !row.has_valid_hosted_read_byte_shape()
         || row.result.is_some()
-        || !matches!(row.ownership.as_slice(), [optimization_unit::OwnershipEvent::ClaimCompletion(claims)] if claims.is_empty())
+        || !matches!(row.ownership.as_slice(), [terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::ClaimCompletion(claims)] if claims.is_empty())
     {
         return Err(SelectedInstructionError::custody());
     }

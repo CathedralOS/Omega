@@ -5,25 +5,25 @@
 //! Inner }`: a leaf copy produces the replacement, the window move copies the
 //! displaced `inner` out at offset 8, and the store copies the replacement's
 //! home back to offset 8.
+use crate::legalized_operations::LegalizedScalarInstructionKind;
+use crate::selected_instructions::{SelectedInstructionKind, SelectedMemoryAccessRole};
 use crate::{
     legalize_target_operations, select_instructions, selection_constraints,
     validate_selected_instructions,
 };
-use abstract_operations::AbstractOperation;
 use abstract_operations_to_target_operations::TargetLoweringRequest;
-use legalized_operations::LegalizedScalarInstructionKind;
-use selected_instructions::{SelectedInstructionKind, SelectedMemoryAccessRole};
+use abstract_operations_to_target_operations::target_operations::TargetUnitOperation;
 use semantic_vocabulary::{
     FuelScheduleIdentity, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType,
     StructuralFieldId, StructuralTypeId,
 };
 use target::NativeTarget;
-use target_operations::TargetUnitOperation;
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralFieldDeclaration, StructuralFieldType,
     StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,
     StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
 
 fn integer(bits: u16) -> ScalarType {
     ScalarType::Integer(IntegerType::new(IntegerSign::Signed, bits).unwrap())
@@ -89,7 +89,9 @@ fn result(id: u64) -> StructuralOperationResult {
 
 /// Copy `inner` out as the replacement, open the window on `inner`, and
 /// reseat it with the copy.
-fn source(access: StructuralAccess) -> abstract_operations::AbstractOperationPlan {
+fn source(
+    access: StructuralAccess,
+) -> terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan {
     let (mut source, _, _) = crate::tests::fixtures::plain_unit::plain_unit_fixture();
     for declaration in [
         record(
@@ -148,9 +150,9 @@ fn source(access: StructuralAccess) -> abstract_operations::AbstractOperationPla
 fn fixture(
     native: NativeTarget,
 ) -> (
-    abstract_operations::AbstractOperationPlan,
-    target_operations::TargetOperationPlan,
-    optimization_unit::PsiOptimizationUnit,
+    terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan,
+    abstract_operations_to_target_operations::target_operations::TargetOperationPlan,
+    terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
 ) {
     let source = source(StructuralAccess::MutableBorrow);
     let target = abstract_operations_to_target_operations::lower_to_target_operations(
@@ -158,12 +160,12 @@ fn fixture(
         TargetLoweringRequest::new(native),
     )
     .expect("a verified window pair lowers to its two extent copies");
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),
     )
     .unwrap();
-    optimization_unit_semantics::validate_psi_optimization_unit(&unit)
+    terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&unit)
         .expect("the window pair keeps canonical custody");
     (source, target, unit)
 }
@@ -198,7 +200,10 @@ fn window_pair_lowers_and_legalizes_as_extent_copies() {
             .iter()
             .flat_map(|block| &block.instructions)
             .collect();
-        let extent = calling_conventions::ValueShape::integer(16, 8);
+        let extent =
+            abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(
+                16, 8,
+            );
         assert!(instructions.iter().any(|row| row.operation == operation(2)
             && matches!(&row.kind,
                 LegalizedScalarInstructionKind::StructuralLeafCopy { source, byte_offset: 8, shape, .. }
@@ -218,7 +223,7 @@ fn window_store_selects_the_inverse_chunked_copy() {
         let (source, target, unit) = fixture(native);
         let legal = legalize_target_operations(&target, &source, &unit).unwrap();
         let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
+            crate::register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = selection_constraints(&legal, &environment);
         let selected = select_instructions(
             &legal,
@@ -261,7 +266,7 @@ fn window_store_selects_the_inverse_chunked_copy() {
                 .iter()
                 .filter(|access| {
                     access.origin
-                        == selected_instructions::SelectedMemoryAccessOrigin::Operation(
+                        == crate::selected_instructions::SelectedMemoryAccessOrigin::Operation(
                             operation_id,
                         )
                         && access.role == role
@@ -357,12 +362,17 @@ fn window_pair_over_a_shared_root_rejects_in_target_lowering() {
         TargetLoweringRequest::new(NativeTarget::linux_x64()),
     )
     .expect_err("a shared root opens no window");
+    // `file!()` separators follow the invoking platform: normalize before the
+    // suffix check so the assertion holds on Windows hosts as well.
+    let site_file = match &error {
+        abstract_operations_to_target_operations::LoweringError::UnsupportedControlFlow {
+            site,
+            ..
+        } => site.file().replace('\\', "/"),
+        _ => panic!("expected an unsupported-control-flow refusal, got {error:?}"),
+    };
     assert!(
-        matches!(
-            error,
-            abstract_operations_to_target_operations::LoweringError::UnsupportedControlFlow { site, .. }
-                if site.file().ends_with("control_flow/borrowed_windows.rs")
-        ),
+        site_file.ends_with("control_flow/borrowed_windows.rs"),
         "{error:?}"
     );
 }

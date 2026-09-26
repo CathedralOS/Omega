@@ -9,13 +9,13 @@ mod source_custody;
 #[path = "scalar_local_borrows/support.rs"]
 mod support;
 
-use checked_trees::{
-    CheckedScalarBindingDestination, CheckedScalarComputationKind, CheckedScalarExpression,
-    CheckedUnitStructuralArgumentSourcePlan,
-};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::{TerminalExecutionResult, TerminalScalarValue};
 use terminal_psi::{OperationKind, StructuralAccess};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedScalarBindingDestination, CheckedScalarComputationKind, CheckedScalarExpression,
+    CheckedUnitStructuralArgumentSourcePlan,
+};
 
 use support::{Expectations, execute, publish_original, reject, unsigned};
 

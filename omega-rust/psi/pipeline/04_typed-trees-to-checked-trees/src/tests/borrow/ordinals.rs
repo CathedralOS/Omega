@@ -28,7 +28,7 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
         operational_acknowledgement: Default::default(),
     }));
 
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let unit_type = program.type_reference_table.insert(TypeReferenceNode::Unit);
     let nested_call = program.expression_table.insert_tree(&nested_call);
     let mut outer_arguments = Default::default();
@@ -40,7 +40,8 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
         name: Identifier::generated("Game"),
         attached_data: None,
         attached_data_symbol: symbols::SymbolHandle::invalid(),
-        attached_data_application: typed_trees::types::TypeReferenceHandle::invalid(),
+        attached_data_application:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
         generic_data_template: symbols::SymbolHandle::invalid(),
         spelling: None,
         is_public: false,
@@ -68,7 +69,8 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
         symbol: entry_symbol,
         name: Identifier::generated("entry"),
         parameters: Default::default(),
-        return_type: typed_trees::types::TypeReferenceHandle::invalid(),
+        return_type:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
         contracts: Default::default(),
         statement_nodes: Default::default(),
     };
@@ -110,7 +112,7 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
             symbol: outer_symbol,
             name: Identifier::generated("outer"),
             parameters: Default::default(),
-            return_type: typed_trees::types::TypeReferenceHandle::invalid(),
+            return_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
             contracts: Default::default(),
             statement_nodes: Default::default(),
         },
@@ -121,7 +123,7 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
             symbol: inner_symbol,
             name: Identifier::generated("inner"),
             parameters: Default::default(),
-            return_type: typed_trees::types::TypeReferenceHandle::invalid(),
+            return_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
             contracts: Default::default(),
             statement_nodes: Default::default(),
         },

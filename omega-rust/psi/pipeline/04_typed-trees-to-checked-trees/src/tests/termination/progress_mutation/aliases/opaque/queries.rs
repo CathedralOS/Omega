@@ -1,5 +1,5 @@
 use crate::tests::termination::progress_mutation::aliases::opaque::opaque_fixture;
-use typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 
 #[test]
 fn unknown_reference_queries_do_not_contaminate_known_origins_or_write_frames() {
@@ -36,11 +36,11 @@ fn unknown_reference_queries_do_not_contaminate_known_origins_or_write_frames() 
         .symbol;
 
     for names in [["unrelated", "borrowed"], ["borrowed", "unrelated"]] {
-        let resolver = validation::CallFrameResolver::new(&program).unwrap();
+        let resolver = crate::validation::CallFrameResolver::new(&program).unwrap();
         let frame = resolver.inferred_state_write_frame(machine, state);
         assert_eq!(
             frame,
-            facts::NormalizedWriteFrame::complete(vec!["$P0.counter".to_owned()])
+            crate::fact_plan::NormalizedWriteFrame::complete(vec!["$P0.counter".to_owned()])
         );
         for name in names {
             let origin =

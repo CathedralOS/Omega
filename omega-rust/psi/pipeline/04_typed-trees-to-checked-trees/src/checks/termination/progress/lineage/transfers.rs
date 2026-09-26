@@ -14,11 +14,11 @@ pub(super) struct ParameterTransfer {
 }
 
 pub(super) fn collect(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     flow: &FlowFacts,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     subjects: &[ProgressSubject],
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Vec<ParameterTransfer> {
     let mut transfers = Vec::new();
     for (_, state) in flow

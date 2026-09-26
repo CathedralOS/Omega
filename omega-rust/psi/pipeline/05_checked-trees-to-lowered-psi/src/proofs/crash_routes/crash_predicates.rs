@@ -6,7 +6,7 @@ use crate::proofs::{
     CheckedBooleanExpression, CheckedScalarExpression, LoweringError, Proposition, ScalarTerm,
     ScalarType, ValueDeclaration, unsupported,
 };
-use checked_trees::CheckedIeeeFloatComparisonKind;
+use typed_trees_to_checked_trees::checked_trees::CheckedIeeeFloatComparisonKind;
 
 pub(crate) fn lower_checked_crash_predicates(
     predicates: &[CheckedBooleanExpression],

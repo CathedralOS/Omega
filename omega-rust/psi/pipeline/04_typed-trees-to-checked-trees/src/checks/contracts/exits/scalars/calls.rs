@@ -1,21 +1,25 @@
 //! Call operands transported through an exact normal-return guarantee.
 //! No source arithmetic, callee body, or current argument storage is replayed.
 use super::{CheckedScalarExpressionRole, ExpressionHandle, FactPayload, Machine, ScalarValue};
+use crate::checked_trees::{
+    CheckedScalarComputationKind, ContractProofFactKind, ContractProofFactOwner,
+};
 use crate::checks::contracts::exits::scalars::ExitScalars;
 use crate::checks::contracts::return_values::is_result_reference;
+use crate::fact_plan::FactPlace;
 use crate::flow::canonical_place_from_expression_in_state;
 use crate::values::evaluate_checked_scalar;
 use crate::values::scalar_value_at_place;
-use checked_trees::{CheckedScalarComputationKind, ContractProofFactKind, ContractProofFactOwner};
-use facts::FactPlace;
-use typed_trees::expression::{BinaryOperator, ExpressionNode};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    BinaryOperator, ExpressionNode,
+};
 
 #[derive(Clone, Copy)]
 pub(super) struct NormalReturnCall<'a> {
     pub state: symbols::SymbolHandle,
-    pub fact: &'a checked_trees::FlowCallFact,
+    pub fact: &'a crate::checked_trees::FlowCallFact,
     pub callee: &'a Machine,
-    pub entry: &'a typed_trees::state::State,
+    pub entry: &'a symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     pub arguments: &'a [ExpressionHandle],
 }
 
@@ -107,7 +111,7 @@ impl ExitScalars<'_, '_> {
                 .primitive_type_reference(parameter.type_reference)
                 == Some(result_type)
             && result_type.accepts_integer_literal()
-            && typed_trees::operator::has_builtin_spelled_expression_meaning(
+            && symbol_resolved_trees_to_typed_trees::typed_trees::operator::has_builtin_spelled_expression_meaning(
                 self.program,
                 call.callee.symbol,
                 guarantee,
@@ -291,7 +295,7 @@ impl ExitScalars<'_, '_> {
             {
                 return None;
             }
-            let typed_trees::domain::ProofFact::Expression(expression) = self.program.proof_facts.get(guarantee.fact) else {
+            let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(expression) = self.program.proof_facts.get(guarantee.fact) else {
                 return None;
             };
             Some(*expression)
@@ -310,14 +314,14 @@ impl ExitScalars<'_, '_> {
         let result_type = self.program.primitive_type_reference(entry.return_type)?;
         if !matches!(
             result_type,
-            typed_trees::types::PrimitiveType::I8
-                | typed_trees::types::PrimitiveType::I16
-                | typed_trees::types::PrimitiveType::I32
-                | typed_trees::types::PrimitiveType::I64
-                | typed_trees::types::PrimitiveType::U8
-                | typed_trees::types::PrimitiveType::U16
-                | typed_trees::types::PrimitiveType::U32
-                | typed_trees::types::PrimitiveType::U64
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::I8
+                | symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::I16
+                | symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::I32
+                | symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::I64
+                | symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U8
+                | symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U16
+                | symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U32
+                | symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U64
         ) {
             return None;
         }
@@ -347,11 +351,11 @@ impl ExitScalars<'_, '_> {
     fn closed_argument_value(
         &self,
         state: symbols::SymbolHandle,
-        call: &checked_trees::FlowCallFact,
+        call: &crate::checked_trees::FlowCallFact,
         call_expression: ExpressionHandle,
         argument: ExpressionHandle,
         position: usize,
-        expected_type: typed_trees::types::PrimitiveType,
+        expected_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType,
     ) -> Option<ScalarValue> {
         let statement = u32::try_from(call.statement_index).ok()?;
         let position = u32::try_from(position).ok()?;
@@ -365,11 +369,11 @@ impl ExitScalars<'_, '_> {
             .statement_table
             .statements(caller_state.statement_nodes);
         let direct_binding_ordinal = match statements.get(call.statement_index)? {
-            typed_trees::statement::StatementNode::LocalData(local)
+            symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local)
                 if !local.is_mutable && local.initial_value == call_expression =>
             {
                 u32::try_from(statements[..call.statement_index].iter().filter(|statement| {
-                    matches!(statement, typed_trees::statement::StatementNode::LocalData(local)
+                    matches!(statement, symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local)
                         if !local.is_mutable && self.program.primitive_type_reference(local.type_reference).is_some())
                 }).count()).ok()
             }

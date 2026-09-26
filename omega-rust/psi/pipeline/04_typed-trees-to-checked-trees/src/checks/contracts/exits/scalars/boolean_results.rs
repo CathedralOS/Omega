@@ -13,11 +13,11 @@
 //! equations. Reading candidate clauses and expanding their substitutions share
 //! one budget; neither callee bodies nor current mutable storage supply values.
 
-use checked_trees::{
+use crate::checked_trees::{
     CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole,
 };
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
 use symbols::SymbolHandle;
-use typed_trees::types::PrimitiveType;
 
 use super::{ExitScalars, ExpressionHandle, exit_return_expression};
 
@@ -204,7 +204,7 @@ impl ExitScalars<'_, '_> {
                     .iter()
                     .enumerate()
                     .filter_map(|(statement, node)| {
-                        let typed_trees::statement::StatementNode::LocalData(local) = node else {
+                        let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) = node else {
                             return None;
                         };
                         (!local.is_mutable
@@ -258,7 +258,7 @@ impl ExitScalars<'_, '_> {
                     self.program
                         .expression_table
                         .expression(local.initial_value),
-                    typed_trees::expression::ExpressionNode::Call(_)
+                    symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(_)
                 ) {
                     // Pure direct-call arguments already have occurrence-owned
                     // plans; manufacturing another initializer root would duplicate

@@ -9,23 +9,23 @@ use crate::rules::tests::fixtures::proof_check_elision::{
     live_signed_remainder_by_negative_one_unit,
 };
 use crate::{AnalysisProduct, RuleAnalysisView};
-use abstract_operations::AbstractOperation as O;
 use optimization_core::{
     AnalysisKind, OptimizationFactReference, OptimizationValidatorIdentity,
     ScalarConstantFactIdentity,
 };
-use optimization_unit::{
-    IntegerConstantRewrite, OptimizationFact, PsiRewriteCandidate, PsiRewritePatch,
-    recompute_psi_optimization_unit_identity,
-};
-use optimization_unit_semantics::{
-    OptimizationUnitValidationError,
-    validate_proof_certified_signed_integer_remainder_by_negative_one_candidate,
-    validate_psi_optimization_unit,
-};
 use semantic_vocabulary::{
     BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId, ScalarType,
     ValueId,
+};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    IntegerConstantRewrite, OptimizationFact, PsiRewriteCandidate, PsiRewritePatch,
+    recompute_psi_optimization_unit_identity,
+};
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::{
+    OptimizationUnitValidationError,
+    validate_proof_certified_signed_integer_remainder_by_negative_one_candidate,
+    validate_psi_optimization_unit,
 };
 
 #[test]

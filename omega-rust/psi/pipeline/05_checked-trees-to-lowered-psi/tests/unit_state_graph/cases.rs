@@ -2,15 +2,17 @@ use super::{
     AdmissionProfile, SOURCE, TerminalEffect, TerminalExecutionResult, encode_module,
     encode_proof_section, interpret_terminal_artifact_measured,
 };
-use checked_trees::{
-    CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlTerminatorPlan,
-};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_interpreter::TerminalScalarValue;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlTerminatorPlan,
+};
 
-fn output(checked: &checked_trees::CheckedTrees) -> Vec<(Vec<u8>, u128)> {
+fn output(
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+) -> Vec<(Vec<u8>, u128)> {
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -74,7 +76,9 @@ fn expected_output() -> Vec<(Vec<u8>, u128)> {
     .collect()
 }
 
-fn graph(checked: &mut checked_trees::CheckedTrees) -> &mut CheckedComposedUnitControlMachinePlan {
+fn graph(
+    checked: &mut typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+) -> &mut CheckedComposedUnitControlMachinePlan {
     let relay = checked
         .machines()
         .iter()
@@ -90,7 +94,7 @@ fn graph(checked: &mut checked_trees::CheckedTrees) -> &mut CheckedComposedUnitC
     plan
 }
 
-fn rejected(checked: &checked_trees::CheckedTrees, expected: &str) {
+fn rejected(checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees, expected: &str) {
     let error = checked_trees_to_lowered_psi::lower_machine(
         checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -276,17 +280,17 @@ fn checked_scalar_and_view_edges_reject_other_same_typed_source_parameters() {
         if change_view {
             assert_eq!(
                 when_true.transfers[0].source,
-                checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 }
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 }
             );
             when_true.transfers[0].source =
-                checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 1 };
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 1 };
         } else {
             assert_eq!(
                 when_true.scalar_arguments[0].source,
-                checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 1 }
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 1 }
             );
             when_true.scalar_arguments[0].source =
-                checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 2 };
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 2 };
         }
         rejected(&changed, "not the retained parameter binding");
     }
@@ -317,7 +321,7 @@ fn guard_source_binding_cannot_retarget_an_unchanged_checked_guard() {
     let mut checked = crate::front_end::checked_program(SOURCE);
     assert_eq!(output(&checked), expected_output());
     let state = graph(&mut checked).states[0].state;
-    let role = checked_trees::CheckedScalarExpressionRole::Guard;
+    let role = typed_trees_to_checked_trees::checked_trees::CheckedScalarExpressionRole::Guard;
     let handle = checked
         .facts
         .values
@@ -327,10 +331,9 @@ fn guard_source_binding_cannot_retarget_an_unchanged_checked_guard() {
         .find(|(_, binding)| binding.state == state && binding.role == role)
         .map(|(handle, _)| handle)
         .expect("relay guard retains authored source custody");
-    let replacement = checked
-        .typed
-        .expression_table
-        .insert(checked_trees::expression::ExpressionNode::Boolean(false));
+    let replacement = checked.typed.expression_table.insert(
+        typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode::Boolean(false),
+    );
     // The selected expression and composed guard still agree. Only their
     // source-binding handle now names an unrelated, live Boolean expression.
     let binding = checked

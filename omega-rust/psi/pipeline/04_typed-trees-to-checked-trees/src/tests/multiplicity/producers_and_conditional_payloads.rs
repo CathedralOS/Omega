@@ -303,7 +303,7 @@ fn active_case_frontier_preserves_independent_payload_claims() {
         .flat_map(|machine| checked.machine_states(machine))
         .flat_map(|state| checked.statement_table.statements(state.statement_nodes))
         .find_map(|statement| match statement {
-            typed_trees::statement::StatementNode::LocalData(local)
+            symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local)
                 if local.name.as_str() == "state" =>
             {
                 Some(local.symbol)
@@ -322,7 +322,7 @@ fn active_case_frontier_preserves_independent_payload_claims() {
             event.access == PermissionAccess::Owned
                 && event.kind == PermissionEventKind::Establish
                 && event.obligation_live
-                && event.root == facts::PlaceRoot::Symbol(state_symbol)
+                && event.root == crate::fact_plan::PlaceRoot::Symbol(state_symbol)
         })
         .collect::<Vec<_>>();
     assert_eq!(establishments.len(), 2);
@@ -335,8 +335,8 @@ fn active_case_frontier_preserves_independent_payload_claims() {
                 .segments
                 .span_or_empty(event.segments),
             [
-                facts::PlaceSegment::Case { .. },
-                facts::PlaceSegment::Field { .. }
+                crate::fact_plan::PlaceSegment::Case { .. },
+                crate::fact_plan::PlaceSegment::Field { .. }
             ]
         )
     }));
@@ -462,8 +462,8 @@ fn active_case_result_map_omits_proven_inactive_alternatives() {
             .segments
             .span_or_empty(entries[0].output_segments),
         [
-            facts::PlaceSegment::Case { .. },
-            facts::PlaceSegment::Field { .. }
+            crate::fact_plan::PlaceSegment::Case { .. },
+            crate::fact_plan::PlaceSegment::Field { .. }
         ]
     ));
 }

@@ -5,7 +5,9 @@
 //! the same way `seed_boundary_call_ensures_facts` bounds written
 //! out-arguments. Only the authored contract is read — the callee's body is
 //! never replayed here, so an unbounded result keeps the ordinary rejection.
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode,
+};
 
 /// The interval a call index's target `ensures` proves for its `result`, as
 /// inclusive `(low, high)` endpoints — each side `None` when no literal
@@ -14,7 +16,7 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 /// interface), unresolved targets, a `result`-shadowed signature, or a
 /// contract with no literal `result` comparison.
 pub(in crate::checks::ranges) fn ensured_call_result_bounds(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<(Option<i64>, Option<i64>)> {
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
@@ -58,11 +60,11 @@ pub(in crate::checks::ranges) fn ensured_call_result_bounds(
         .iter()
         .chain(program.state_contracts(target))
     {
-        if contract.kind != typed_trees::signature::SignatureContractKind::Ensures {
+        if contract.kind != symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Ensures {
             continue;
         }
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            if let typed_trees::domain::ProofFact::Expression(conjunct) = fact {
+            if let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(conjunct) = fact {
                 bounds.fold_conjunct(program, *conjunct);
             }
         }
@@ -82,7 +84,11 @@ impl EnsuredResultBounds {
     /// <literal>` contributes (mirroring `seed_ensures_bound_conjunct`), and a
     /// conjunct that cannot name a literal bound is skipped rather than
     /// poisoning the interval its sibling conjuncts still prove.
-    fn fold_conjunct(&mut self, program: &typed_trees::TypedTrees, conjunct: ExpressionHandle) {
+    fn fold_conjunct(
+        &mut self,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        conjunct: ExpressionHandle,
+    ) {
         if let ExpressionNode::Atomic(atomic) = program.expression_table.expression(conjunct) {
             self.fold_conjunct(program, atomic.value);
             return;
@@ -143,7 +149,10 @@ impl EnsuredResultBounds {
 
 /// Whether `expression` is exactly the reserved `result` binder — a
 /// single-member `result` name, mirroring the contract-label convention.
-fn is_result_binder(program: &typed_trees::TypedTrees, expression: ExpressionHandle) -> bool {
+fn is_result_binder(
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> bool {
     let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
         return false;
     };

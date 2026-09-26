@@ -21,9 +21,9 @@ mod value_call_hoisting;
 
 use crate::lowering::statement::statement_nodes::lower_statement_node;
 use crate::resolution::lowerer::Lowerer;
+use crate::symbol_resolved_trees::statement::Statement;
 use diagnostics::Diagnostic;
-use symbol_resolved_trees::statement::Statement;
-use syntax_trees::{self as syntax, SyntaxTrees};
+use tokens_to_syntax_trees::syntax_trees::{self as syntax, SyntaxTrees};
 
 /// Lowers a syntax statement to one or more symbol-resolved statements.
 ///

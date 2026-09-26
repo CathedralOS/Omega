@@ -8,12 +8,14 @@
 use super::nodes::{NodeRejection, admit, validate};
 use super::{AbstractOperation, PsiOptimizationFunction};
 use crate::LegalizationError;
-use abstract_operations::AbstractFunctionResult;
-use optimization_unit::{EffectLink, OptimizationBlock, OptimizationNode};
 use semantic_vocabulary::{
     BlockId, EdgeId, IeeeFloatFormat, MachineId, OperationId, ServiceId, ValueId,
 };
 use std::collections::BTreeSet;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractFunctionResult;
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    EffectLink, OptimizationBlock, OptimizationNode,
+};
 
 fn node(operation: AbstractOperation) -> OptimizationNode {
     OptimizationNode {

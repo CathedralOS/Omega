@@ -4,7 +4,7 @@ use super::{
     CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, LoweringError,
     StatementNode, shared_temporary, unsupported,
 };
-use checked_trees::CheckedStructuralAccess;
+use typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess;
 
 pub(crate) fn validate_cleanup(
     checked: &CheckedTrees,
@@ -50,7 +50,7 @@ pub(crate) fn validate_cleanup(
             || *discard_result_on_return
             || result.multiplicity != language_semantics::Multiplicity::Affine
             || discard.source
-                != (checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                != (typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                     binding_ordinal: result.binding_ordinal,
                 })
             || !discard.path.is_empty()
@@ -80,7 +80,7 @@ pub(crate) fn validate_cleanup(
     let record_cleanup =
         !affine_discards.is_empty()
             && affine_discards.iter().all(|discard| {
-                let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                let typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                     binding_ordinal: binding,
                 } = discard.source
                 else {
@@ -110,9 +110,9 @@ pub(crate) fn validate_cleanup(
                     && structural_arguments.iter().any(|argument| {
                         argument.source == discard.source
                             && argument.path.last()
-                                == Some(&checked_trees::CheckedUnitStructuralPathSegment::Referent)
+                                == Some(&typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Referent)
                     })
-                    && validation::reference_result_custody::local_record_loans(
+                    && typed_trees_to_checked_trees::validation::reference_result_custody::local_record_loans(
                         &checked.typed,
                         &checked.facts,
                         caller.machine,
@@ -122,7 +122,7 @@ pub(crate) fn validate_cleanup(
                     .is_some_and(|loans| {
                         !loans.is_empty()
                             && loans.iter().all(|(_, loan)| {
-                                validation::reference_result_custody::release_statement(
+                                typed_trees_to_checked_trees::validation::reference_result_custody::release_statement(
                                     &checked.facts,
                                     caller.machine,
                                     caller.state,
@@ -209,7 +209,9 @@ pub(crate) fn validate_cleanup(
             caller.state,
             producer,
         )?;
-        let Some(checked_trees::NominalMachineUseSite::Expression(expression)) = source.source_site
+        let Some(typed_trees_to_checked_trees::checked_trees::NominalMachineUseSite::Expression(
+            expression,
+        )) = source.source_site
         else {
             return unsupported("call cleanup lost its expression-owned source");
         };

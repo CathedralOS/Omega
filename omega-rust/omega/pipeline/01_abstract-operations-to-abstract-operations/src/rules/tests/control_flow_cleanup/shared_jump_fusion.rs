@@ -5,17 +5,17 @@ use super::super::super::SharedJumpFusionRule;
 use crate::rules::tests::fixtures::control_flow_cleanup::shared_terminal_unit;
 use crate::rules::tests::fixtures::id;
 use crate::{AnalysisProduct, RuleAnalysisView, RuleProposalError};
-use abstract_operations::AbstractOperation as O;
 use optimization_core::{AnalysisKind, OptimizationRuleContract, OptimizationRuleIdentity};
-use optimization_unit::{
+use semantic_vocabulary::{BlockId, EdgeId, MachineId};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     NodeLocation, PsiProvenance, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch,
     recompute_psi_optimization_unit_identity,
 };
-use optimization_unit_semantics::{
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_psi_optimization_unit,
     validate_shared_jump_fusion_candidate,
 };
-use semantic_vocabulary::{BlockId, EdgeId, MachineId};
 
 #[test]
 fn shared_terminal_jump_fusion_clones_one_path_and_retains_exact_custody() {
@@ -124,10 +124,12 @@ fn shared_terminal_jump_fusion_clones_one_path_and_retains_exact_custody() {
         .unwrap()
         .nodes[0];
     nonterminal.provenance.push(duplicated);
-    nonterminal.fuel.push(optimization_unit::FuelSettlement {
-        site: duplicated,
-        units: 1,
-    });
+    nonterminal.fuel.push(
+        terminal_psi_to_abstract_operations::optimization_unit::FuelSettlement {
+            site: duplicated,
+            units: 1,
+        },
+    );
     nonterminal_duplicate.identity =
         recompute_psi_optimization_unit_identity(&nonterminal_duplicate);
     assert_eq!(

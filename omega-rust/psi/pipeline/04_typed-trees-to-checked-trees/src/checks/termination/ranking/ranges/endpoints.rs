@@ -3,11 +3,13 @@
 use super::super::patterns;
 use super::super::write_preservation::prefix_preserves_path;
 use super::Bounds;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::machine::Machine;
-use typed_trees::statement::StatementNode;
 
 mod endpoint_input;
 use endpoint_input::EndpointInput;
@@ -16,13 +18,13 @@ pub(super) fn pinned_expression_bounds(
     program: &TypedTrees,
     machine: &Machine,
     expression: ExpressionHandle,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<Bounds> {
     let [state] = program.machine_states(machine) else {
         return None;
     };
     let (low, high) =
-        validation::immutable_integer_expression_bounds(program, machine, state, expression)
+        crate::validation::immutable_integer_expression_bounds(program, machine, state, expression)
             .or_else(|| EndpointInput::declared_member_bounds(program, state, expression))?;
     let mut inputs = Vec::new();
     let mut pending = vec![expression];

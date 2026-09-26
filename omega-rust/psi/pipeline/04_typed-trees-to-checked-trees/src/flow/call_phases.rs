@@ -2,6 +2,10 @@
 //! the call's borrow constraints, `requires` contexts, invalidation over the call's
 //! written places (`invalidation`), `ensures` exit contexts, and field facts
 //! re-seeded on readable `&mut` referents (`referents`).
+use crate::checked_trees::{
+    BorrowCallFact, BorrowFacts, FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef,
+};
+use crate::fact_plan::{FactPlan, ProgramPoint};
 use crate::flow::FlowBuildContext;
 use crate::flow::append_constraint_ref;
 use crate::flow::append_contiguous_borrow_access_constraints;
@@ -9,10 +13,6 @@ use crate::flow::append_flow_contexts_for_points;
 use crate::flow::retained_constraint_refs;
 use crate::flow::retained_flow_contexts;
 use arena::HandleSpan;
-use checked_trees::{
-    BorrowCallFact, BorrowFacts, FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef,
-};
-use facts::{FactPlan, ProgramPoint};
 
 mod invalidation;
 mod referents;
@@ -85,8 +85,8 @@ pub(super) fn build_call_entry_contexts(
 pub(super) fn build_call_requires_contexts(
     semantic: &FactPlan,
     build: &mut FlowBuildContext,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     borrow_call: &BorrowCallFact,
 ) -> CallFlowContexts {
     build_call_contract_contexts(
@@ -104,8 +104,8 @@ pub(super) fn build_call_requires_contexts(
 pub(super) fn build_call_exit_contexts(
     semantic: &FactPlan,
     build: &mut FlowBuildContext,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     borrow_call: &BorrowCallFact,
     post_contexts: HandleSpan<FlowSemanticContextRef>,
     post_constraints: HandleSpan<FlowConstraintRef>,

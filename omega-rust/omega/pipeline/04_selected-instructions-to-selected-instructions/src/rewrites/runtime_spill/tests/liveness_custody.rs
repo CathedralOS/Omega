@@ -47,7 +47,8 @@ fn invalid_liveness_precedes_range_computation_and_public_range_errors() {
                     .virtual_live_in
                     .clear();
                 // Recomputing the hash cannot turn altered facts into evidence.
-                changed.receipt.identity = selected_instructions::liveness_identity(changed.plan());
+                changed.receipt.identity =
+                    target_operations_to_selected_instructions::liveness_identity(changed.plan());
                 let rejected =
                     crate::validate_liveness(&selected, changed.plan().clone()).unwrap_err();
                 LiveRangeError::LivenessRevalidation(rejected)
@@ -80,7 +81,11 @@ fn every_changed_selected_input_requires_fresh_liveness_custody() {
             2 => {
                 Arc::make_mut(&mut changed.transformed).functions[0].blocks[0].instructions[0]
                     .implicit_uses
-                    .push(register_model::RegisterUnitId(999));
+                    .push(
+                        target_operations_to_selected_instructions::register_model::RegisterUnitId(
+                            999,
+                        ),
+                    );
             }
             _ => unreachable!(),
         }

@@ -1,6 +1,6 @@
 //! Invocation-local root/offset homes; calls additionally materialize a descriptor.
-use legalized_operations::{LegalizedScalarFunction, LegalizedScalarTerminator};
-use selected_instructions::VirtualRegisterId;
+use crate::legalized_operations::{LegalizedScalarFunction, LegalizedScalarTerminator};
+use crate::selected_instructions::VirtualRegisterId;
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind, ValueId};
 use std::collections::BTreeSet;
 
@@ -234,7 +234,7 @@ fn edge_successors(
     terminator: &LegalizedScalarTerminator,
 ) -> Vec<(
     semantic_vocabulary::BlockId,
-    Option<&legalized_operations::LegalizedScalarSuccessor>,
+    Option<&crate::legalized_operations::LegalizedScalarSuccessor>,
 )> {
     match terminator {
         LegalizedScalarTerminator::Jump { successor, .. } => {

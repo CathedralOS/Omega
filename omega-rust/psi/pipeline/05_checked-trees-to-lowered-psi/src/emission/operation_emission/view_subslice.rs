@@ -17,12 +17,12 @@ use crate::emission::operation_emission::expressions::{
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::lowering_error::{LoweringError, unsupported};
 use crate::terminal_identities::obligation_id;
-use checked_trees::types::PrimitiveType;
 use semantic_vocabulary::{IntegerValue, PlaceId, StructuralPlaceKind, StructuralTypeId, ValueId};
 use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralMultiplicity, StructuralOperationResult,
     StructuralPlaceDeclaration, ValueDeclaration,
 };
+use typed_trees_to_checked_trees::checked_trees::types::PrimitiveType;
 
 /// Which Terminal view family the range narrows: byte views count bytes,
 /// element views count elements.

@@ -1,11 +1,11 @@
 //! Returned partition invocations and the wrappers composed from them.
 
-use crate::checks::content::content_paths::{
-    content_path, content_segments_to_fact_path, unique_entry_claim_identity,
-};
-use checked_trees::{
+use crate::checked_trees::{
     CheckFacts, ContentPartitionCompositionFact, ContentPartitionPlaceSubstitution,
     ContentPartitionResultRewrite, FlowClaimOutcomeSource,
+};
+use crate::checks::content::content_paths::{
+    content_path, content_segments_to_fact_path, unique_entry_claim_identity,
 };
 use language_semantics::content::{
     ContentConservationEquation, ContentConservationOwnerKind, ContentConservationPlan,
@@ -15,11 +15,15 @@ use language_semantics::content::{
 use language_semantics::{
     PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
 };
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+    StatementNode, TransitionTargetNode,
+};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::signature::StateParameter;
-use typed_trees::statement::{StatementNode, TransitionTargetNode};
 
 #[derive(Debug, Clone)]
 pub(crate) struct ReturnedPartitionInvocation {
@@ -44,7 +48,7 @@ enum ReturnedPartitionInvocationForm {
 struct PartitionCompositionEvidence {
     call_ordinal: Option<usize>,
     input_claim_identities: Vec<PermissionClaimIdentity>,
-    input_claim_bindings: Vec<checked_trees::ContentPartitionInputClaimBinding>,
+    input_claim_bindings: Vec<crate::checked_trees::ContentPartitionInputClaimBinding>,
     result_rewrites: Vec<ContentPartitionResultRewrite>,
     substitutions: Vec<ContentPartitionPlaceSubstitution>,
     observed_entry_projection: bool,
@@ -58,7 +62,7 @@ pub(crate) struct AvailablePartitionSource {
 
 pub(crate) fn returned_partition_invocations(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
 ) -> Vec<ReturnedPartitionInvocation> {
     let statements = program.statement_table.statements(state.statement_nodes);
     let mut invocations = statements
@@ -167,7 +171,7 @@ pub(crate) fn instantiate_partition_wrapper(
     program: &TypedTrees,
     facts: &CheckFacts,
     machine_symbol: SymbolHandle,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     invocation: &ReturnedPartitionInvocation,
     source: &ContentConservationPlan,
     source_derivation_depth: u32,
@@ -343,7 +347,7 @@ fn partition_invocation_call_ordinal(
 fn instantiate_partition_term(
     program: &TypedTrees,
     facts: &CheckFacts,
-    caller_state: &typed_trees::state::State,
+    caller_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     invocation: &ReturnedPartitionInvocation,
     target_parameters: &[StateParameter],
     term: &ContentConservationTerm,
@@ -394,7 +398,7 @@ fn instantiate_partition_term(
 fn instantiate_partition_subject(
     program: &TypedTrees,
     facts: &CheckFacts,
-    caller_state: &typed_trees::state::State,
+    caller_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     invocation: &ReturnedPartitionInvocation,
     target_parameters: &[StateParameter],
     subject: &ContentStructuralPlace,
@@ -444,7 +448,7 @@ fn instantiate_partition_subject(
                 argument,
                 &subject.segments,
             )?;
-            let facts::PlaceRoot::Symbol(actual_root) = actual.root else {
+            let crate::fact_plan::PlaceRoot::Symbol(actual_root) = actual.root else {
                 return None;
             };
             let (caller_position, caller_parameter) = program
@@ -498,12 +502,12 @@ fn instantiate_partition_subject(
                 },
                 segments: content_path(program, &actual.segments)?,
             };
-            evidence
-                .input_claim_bindings
-                .push(checked_trees::ContentPartitionInputClaimBinding {
+            evidence.input_claim_bindings.push(
+                crate::checked_trees::ContentPartitionInputClaimBinding {
                     claim_identity,
                     entry_place: entry_place.clone(),
-                });
+                },
+            );
             entry_place
         }
         _ => return None,
@@ -530,7 +534,7 @@ fn instantiate_partition_subject(
 fn instantiate_partition_result_subject(
     program: &TypedTrees,
     facts: &CheckFacts,
-    caller_state: &typed_trees::state::State,
+    caller_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     invocation: &ReturnedPartitionInvocation,
     subject: &ContentStructuralPlace,
     evidence: &mut PartitionCompositionEvidence,
@@ -566,7 +570,7 @@ fn instantiate_partition_result_subject(
                 && event.access == PermissionAccess::Owned
                 && event.obligation_live
                 && event.claim_identity != PermissionClaimIdentity::Unknown
-                && event.root == facts::PlaceRoot::Symbol(local_symbol)
+                && event.root == crate::fact_plan::PlaceRoot::Symbol(local_symbol)
                 && facts.flow.ownership.segments.span_or_empty(event.segments) == local_segments
         })
         .map(|(_, event)| event.claim_identity)
@@ -669,7 +673,7 @@ fn partition_argument_place(
         statement_index,
         argument,
     )?;
-    if matches!(direct.root, facts::PlaceRoot::Symbol(_)) {
+    if matches!(direct.root, crate::fact_plan::PlaceRoot::Symbol(_)) {
         direct
             .segments
             .extend(content_segments_to_fact_path(projection_path)?);
@@ -682,7 +686,7 @@ fn partition_argument_place(
         statement_index,
         leaf,
     )?;
-    matches!(leaf.root, facts::PlaceRoot::Symbol(_)).then_some(leaf)
+    matches!(leaf.root, crate::fact_plan::PlaceRoot::Symbol(_)).then_some(leaf)
 }
 
 fn aggregate_argument_projection(
@@ -731,9 +735,9 @@ mod tests {
         ContentConservationEquation, ContentConservationTerm, ContentPlaceRoot,
         ContentPlaceVersion, ContentStructuralPlace,
     };
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
     use symbols::SymbolHandle;
-    use typed_trees::expression::ExpressionHandle;
-    use typed_trees::signature::StateParameter;
 
     fn projection_term() -> ContentConservationTerm {
         ContentConservationTerm::Projection {

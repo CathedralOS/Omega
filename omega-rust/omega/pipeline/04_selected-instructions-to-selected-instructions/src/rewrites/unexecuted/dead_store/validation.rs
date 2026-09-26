@@ -15,16 +15,16 @@
 use std::sync::Arc;
 
 use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
+use semantic_vocabulary::PlaceId;
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use target_operations_to_selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedBlockId, SelectedCasePayloadTransport,
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionPlan, SelectedMemoryAccess, SelectedMemoryAccessRole,
     SelectedStructuralTransport, SelectedSuccessor, SelectedValueTransport, VirtualRegisterOrigin,
 };
-use semantic_vocabulary::PlaceId;
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 use terminal_psi::StructuralPlaceDeclaration;
 
 use super::{
@@ -366,7 +366,7 @@ fn origin_carries(origin: VirtualRegisterOrigin, value: semantic_vocabulary::Val
 /// observes.
 fn scratch_dies(
     function: &SelectedFunction,
-    register: selected_instructions::VirtualRegisterId,
+    register: target_operations_to_selected_instructions::VirtualRegisterId,
 ) -> bool {
     let mut occurrences = 0_usize;
     for block in &function.blocks {
@@ -923,7 +923,12 @@ fn edge_keeps(
             }
             SubjectStorage::Staging(slot) => {
                 destination == slot
-                    || lent == Some(selected_instructions::SelectedAddressBase::Local(slot))
+                    || lent
+                        == Some(
+                            target_operations_to_selected_instructions::SelectedAddressBase::Local(
+                                slot,
+                            ),
+                        )
             }
         };
         if touches {

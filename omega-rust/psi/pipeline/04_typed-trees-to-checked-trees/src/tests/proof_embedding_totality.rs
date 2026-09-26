@@ -2,7 +2,7 @@ use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::front_end::{typed_program_from_source_map, typed_program_result};
 
-fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
+fn check(source: &str) -> Result<crate::checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     lower_typed_trees(typed_program_result(source)?, &CheckingRequest::settled())
 }
 

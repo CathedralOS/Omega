@@ -1,7 +1,9 @@
 //! A structural local bound by its initializer's call lowers as that call's
 //! owned result and verifies independently.
 
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
+};
 
 #[test]
 fn call_bound_structural_local_lowers_and_verifies_beside_a_store() {
@@ -12,15 +14,18 @@ fn call_bound_structural_local_lowers_and_verifies_beside_a_store() {
          machine make() -> Holder { Holder { inner: Inner { value: 1 }, count: 2 } }
          machine Main::main(&mut self) { let h: Holder = make(); self.total = 5; }",
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("Main::main"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("the bound call result and the following store lower")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                "Main::main",
+            ),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("the bound call result and the following store lower")
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let entry = module
         .machines

@@ -2,12 +2,12 @@ use super::{
     BigInt, CheckedStructuralPredicatePathSegment, IntegerBoundsSource, IntegerRange,
     PrimitiveType, SymbolHandle,
 };
+use crate::fact_plan::{FactContextHandle, FactPlan};
 use crate::flow::{CanonicalPlace, canonical_place_from_symbol};
 use crate::values::bounds::declared_bounds;
 use crate::values::bounds::primitive_range;
 use crate::values::exclusive_reference;
-use facts::{FactContextHandle, FactPlan};
-use typed_trees::{
+use symbol_resolved_trees_to_typed_trees::typed_trees::{
     TypedTrees, expression::ExpressionNode, signature::StateParameter, statement::StatementNode,
     types::TypeReferenceHandle,
 };
@@ -46,7 +46,7 @@ impl PlaceIntegerBounds<'_> {
     ) -> Option<IntegerRange> {
         self.bounds(place).or_else(|| {
             let declared = match place.root {
-                facts::PlaceRoot::Symbol(symbol) if place.segments.is_empty() => {
+                crate::fact_plan::PlaceRoot::Symbol(symbol) if place.segments.is_empty() => {
                     self.declared_type(symbol)
                 }
                 _ => None,
@@ -110,7 +110,7 @@ impl PlaceIntegerBounds<'_> {
 
 fn program_statements<'a>(
     program: &'a TypedTrees,
-    state: &'a typed_trees::state::State,
+    state: &'a symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
 ) -> &'a [StatementNode] {
     program.statement_table.statements(state.statement_nodes)
 }
@@ -218,7 +218,7 @@ impl IntegerBoundsSource for PlaceIntegerBounds<'_> {
         // Literal byte reads need an element type, not a nominal text domain.
         // Raw fixed arrays and constrained carriers share the same read rule.
         let element_reference = loop {
-            use typed_trees::types::TypeReferenceNode;
+            use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
             match self.program.type_reference_table.type_reference(reference) {
                 TypeReferenceNode::Reference { referee, .. }
                 | TypeReferenceNode::Constrained {

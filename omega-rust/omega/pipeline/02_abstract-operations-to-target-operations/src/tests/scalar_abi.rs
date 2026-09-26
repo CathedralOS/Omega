@@ -5,7 +5,7 @@ use super::{
     CallingPolicy, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, NativeTarget,
     OperationId, ScalarType, ValueId, ValueShape, evaluate_call_plan, identity,
 };
-use target_operations::{ScalarAbiValue, ScalarFunctionAbi};
+use crate::target_operations::{ScalarAbiValue, ScalarFunctionAbi};
 fn mixed_fixed_integer_plan() -> (
     AbstractOperationPlan,
     Vec<AbstractParameter>,

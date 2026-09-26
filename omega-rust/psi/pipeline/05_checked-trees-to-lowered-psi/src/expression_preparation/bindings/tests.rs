@@ -15,14 +15,16 @@ use crate::expression_preparation::prepare_expression::{
     lower_checked_boolean_expression, lower_checked_scalar_expression,
 };
 use crate::terminal_identities::{block_id, value_id};
-use checked_trees::CheckedScalarBindingDestination;
-use checked_trees::types::PrimitiveType;
-use checked_trees::{CheckedIntegerBinaryKind, CheckedIntegerComparisonKind};
 use terminal_psi::{Block, Operation, OperationKind, Terminator, ValueDeclaration};
+use typed_trees_to_checked_trees::checked_trees::CheckedScalarBindingDestination;
+use typed_trees_to_checked_trees::checked_trees::types::PrimitiveType;
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
+};
 
 #[test]
 fn closed_record_projections_replay_exact_sources_carriers_and_all_siblings() {
-    use checked_trees::expression::ExpressionNode;
+    use typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode;
     let source = "data Config [copy] { size: u64; enabled: bool; }
         data Foreign [copy] { size: u64; enabled: bool; }
         data Outer [copy] { config: Config; bytes: [u8; 1]; }
@@ -51,14 +53,20 @@ fn closed_record_projections_replay_exact_sources_carriers_and_all_siblings() {
         .find(|machine| machine.name.as_str() == "read")
         .unwrap();
     let read_entry = &original.machine_states(read_machine)[0];
-    let checked_trees::statement::StatementNode::Expression(read_source) = original
+    let typed_trees_to_checked_trees::checked_trees::statement::StatementNode::Expression(
+        read_source,
+    ) = original
         .statement_table
         .statements(read_entry.statement_nodes)[0]
     else {
         panic!("read expression");
     };
     assert!(
-        validation::closed_record_scalar_projection(&original.typed, read_source).is_some(),
+        typed_trees_to_checked_trees::validation::closed_record_scalar_projection(
+            &original.typed,
+            read_source
+        )
+        .is_some(),
         "authored constructor projection selects a closed scalar leaf"
     );
     let bindings = ScalarBindings::new(0);
@@ -94,7 +102,7 @@ fn closed_record_projections_replay_exact_sources_carriers_and_all_siblings() {
     validate_parameter(&original, parameter_retained).expect("literal retains source custody");
     let substituted_field = CheckedScalarExpression::StructuralParameterField {
         parameter_position: 0,
-        path: vec![checked_trees::CheckedStructuralPredicatePathSegment::Field(
+        path: vec![typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Field(
             "size".into(),
         )],
         primitive_type: PrimitiveType::U64,
@@ -151,7 +159,7 @@ fn closed_record_projections_replay_exact_sources_carriers_and_all_siblings() {
     let CheckedScalarExpression::IntegerBinary { kind, .. } = &mut nested.expression else {
         panic!("nested addition");
     };
-    *kind = checked_trees::CheckedIntegerBinaryKind::ExactMultiply;
+    *kind = typed_trees_to_checked_trees::checked_trees::CheckedIntegerBinaryKind::ExactMultiply;
     assert!(
         validate(&changed, state("nested")).is_err(),
         "projection replay preserves its enclosing operator"
@@ -182,7 +190,8 @@ fn closed_record_projections_replay_exact_sources_carriers_and_all_siblings() {
         .iter()
         .find(|definition| definition.name.as_str() == "Foreign")
         .unwrap();
-    let checked_trees::data::DataMember::Field(foreign_field) = &original.data_members(foreign)[0]
+    let typed_trees_to_checked_trees::checked_trees::data::DataMember::Field(foreign_field) =
+        &original.data_members(foreign)[0]
     else {
         panic!("field");
     };
@@ -242,10 +251,11 @@ fn closed_record_projections_replay_exact_sources_carriers_and_all_siblings() {
 
     let mut changed = original.clone();
     let mut stale = actuals[0].clone();
-    stale.value = checked_trees::expression::ExpressionHandle::from_parts(
-        stale.value.arena_index(),
-        stale.value.generation() + 1,
-    );
+    stale.value =
+        typed_trees_to_checked_trees::checked_trees::expression::ExpressionHandle::from_parts(
+            stale.value.arena_index(),
+            stale.value.generation() + 1,
+        );
     changed
         .typed
         .expression_table
@@ -313,8 +323,8 @@ fn owned_structural_locals_reuse_exact_published_payloads_and_reject_invalid_cus
         path: Vec::new(),
         access: StructuralAccess::Owned,
     };
-    let argument = checked_trees::CheckedUnitStructuralArgumentPlan {
-        source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
+    let argument = typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan {
+        source: typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
         ..Default::default()
     };
     let bindings = ScalarBindings::new(0).with_structural_locals(&[(symbol, source.clone())]);
@@ -348,20 +358,21 @@ fn owned_structural_locals_reuse_exact_published_payloads_and_reject_invalid_cus
         );
     }
     let mut changed = argument.clone();
-    changed.access = checked_trees::CheckedStructuralAccess::SharedBorrow;
+    changed.access =
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow;
     assert!(bindings.owned_argument(&changed).is_err());
-    changed.access = checked_trees::CheckedStructuralAccess::Owned;
-    changed
-        .path
-        .push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+    changed.access = typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned;
+    changed.path.push(
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
             0,
-        ));
+        ),
+    );
     assert!(bindings.owned_argument(&changed).is_err());
     changed.path.clear();
     let invalid = symbols::SymbolHandle::invalid();
     changed.source =
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: invalid };
-    changed.access = checked_trees::CheckedStructuralAccess::Owned;
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: invalid };
+    changed.access = typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned;
     assert!(
         ScalarBindings::new(0)
             .with_structural_locals(&[(invalid, source)])
@@ -830,7 +841,10 @@ fn storage_and_immutable_namespaces_resolve_distinct_current_values() {
 fn storage_mapping_rejects_missing_duplicate_and_wrong_type_custody() {
     let symbol = symbols::SymbolHandle::from_arena_index(1);
     let other = symbols::SymbolHandle::from_arena_index(2);
-    let integer = terminal_scalar_type(typed_trees::types::PrimitiveType::U8).unwrap();
+    let integer = terminal_scalar_type(
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U8,
+    )
+    .unwrap();
     let mut bindings = ScalarBindings::new(0);
     assert!(
         bindings
@@ -892,7 +906,8 @@ fn storage_mapping_rejects_missing_duplicate_and_wrong_type_custody() {
     assert!(
         lower_checked_scalar_expression(&CheckedScalarExpression::StorageRead {
             symbol,
-            primitive_type: typed_trees::types::PrimitiveType::Bool
+            primitive_type:
+                symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::Bool
         })
         .is_err()
     );

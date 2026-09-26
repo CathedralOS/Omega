@@ -1,17 +1,17 @@
 //! Optimizer module role: executable entrance. Exact countdown invariant-constant coordination.
 
-use abstract_operations::AbstractOperation as O;
 use optimization_core::OptimizationUnitIdentity;
-use optimization_unit::{
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     EffectLink, FuelSettlement, NodeLocation, PsiOptimizationFunction, PsiOptimizationUnit,
     PsiProvenance, ValueDefinition, ValueDefinitionSite, recompute_psi_optimization_unit_identity,
 };
 
 use crate::validation::ValidatedOptimizerCycleComponents;
-use optimization_unit::OptimizerUnsignedCountdownRankingCertificate;
 use semantic_vocabulary::{
     BlockId, IntegerType, IntegerValue, MachineId, OperationId, ScalarType, ValueId,
 };
+use terminal_psi_to_abstract_operations::optimization_unit::OptimizerUnsignedCountdownRankingCertificate;
 
 use super::{CountedLoopAnalysisError, UnsignedCountdownLoopSummary, ValidatedCountedLoopAnalysis};
 

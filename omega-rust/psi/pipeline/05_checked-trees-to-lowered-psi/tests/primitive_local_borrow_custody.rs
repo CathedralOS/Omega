@@ -1,8 +1,10 @@
 //! Primitive referent publication independently checks exact source borrow facts.
 
-use checked_trees::{BorrowAccessKind, CheckedUnitEffectOperationPlan};
-use terminal_production::{
+use lowered_psi_to_terminal_psi::terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
+use typed_trees_to_checked_trees::checked_trees::{
+    BorrowAccessKind, CheckedUnitEffectOperationPlan,
 };
 
 const SOURCE: &str = r#"
@@ -19,7 +21,7 @@ const SOURCE: &str = r#"
 fn primitive_local_mutable_and_write_only_borrows_publish_with_exact_custody() {
     for source in [SOURCE.to_owned(), SOURCE.replace("&mut", "&write")] {
         let checked = crate::front_end::checked_program(&source);
-        let _ = terminal_production::TerminalProductionRequest::new(
+        let _ = lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
             &checked,
             TerminalMachineSelection::Name("enter"),
         )
@@ -34,7 +36,7 @@ fn primitive_local_mutable_and_write_only_borrows_publish_with_exact_custody() {
 #[test]
 fn primitive_local_publication_rejects_missing_duplicate_and_drifted_borrow_facts() {
     let original = crate::front_end::checked_program(SOURCE);
-    let _ = terminal_production::TerminalProductionRequest::new(
+    let _ = lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
         &original,
         TerminalMachineSelection::Name("enter"),
     )
@@ -117,9 +119,9 @@ fn primitive_local_publication_rejects_missing_duplicate_and_drifted_borrow_fact
             }
             10 => borrows.states.get_mut(state_handle).machine_symbol = call.target_symbol,
             11 => {
-                let path = borrows
-                    .access_segments
-                    .insert_many([facts::PlaceSegment::FixedIndex { index: 0 }]);
+                let path = borrows.access_segments.insert_many([
+                    typed_trees_to_checked_trees::fact_plan::PlaceSegment::FixedIndex { index: 0 },
+                ]);
                 borrows.argument_accesses.get_mut(access_handle).segments = path;
             }
             _ => {
@@ -130,7 +132,7 @@ fn primitive_local_publication_rejects_missing_duplicate_and_drifted_borrow_fact
             }
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &changed,
                 TerminalMachineSelection::Name("enter")
             )
@@ -146,7 +148,7 @@ fn primitive_local_publication_rejects_missing_duplicate_and_drifted_borrow_fact
 #[test]
 fn primitive_local_coherent_plan_and_borrow_substitution_cannot_replace_authored_actual() {
     let mut changed = crate::front_end::checked_program(SOURCE);
-    let _ = terminal_production::TerminalProductionRequest::new(
+    let _ = lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
         &changed,
         TerminalMachineSelection::Name("enter"),
     )
@@ -179,13 +181,13 @@ fn primitive_local_coherent_plan_and_borrow_substitution_cannot_replace_authored
     else {
         panic!("call");
     };
-    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol: scratch } =
+    let typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol: scratch } =
         structural_arguments[0].source
     else {
         panic!("primitive argument");
     };
     structural_arguments[0].source =
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol: spare };
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol: spare };
     let access_handles = changed
         .facts
         .borrow
@@ -202,7 +204,7 @@ fn primitive_local_coherent_plan_and_borrow_substitution_cannot_replace_authored
             .root_symbol = spare;
     }
     assert!(
-        terminal_production::TerminalProductionRequest::new(
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
             &changed,
             TerminalMachineSelection::Name("enter")
         )

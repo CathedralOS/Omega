@@ -2,7 +2,9 @@
 
 use semantic_vocabulary::{IntegerType, OperationId};
 
-use optimization_unit::{NodeLocation, PsiProvenance, ValueDefinitionSite};
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    NodeLocation, PsiProvenance, ValueDefinitionSite,
+};
 
 use super::{
     BlockId, IntegerValue, O, OptimizerCycleComponent, PsiOptimizationFunction, ScalarType, ValueId,
@@ -132,7 +134,10 @@ pub(super) fn validate_canonical_preheader_suffix(
 fn sole_preheader<'function>(
     function: &'function PsiOptimizationFunction,
     component: &OptimizerCycleComponent,
-) -> Option<(&'function optimization_unit::OptimizationBlock, usize)> {
+) -> Option<(
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationBlock,
+    usize,
+)> {
     let [entry] = component.entries.as_slice() else {
         return None;
     };

@@ -3,18 +3,24 @@
 use std::collections::BTreeMap;
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use register_model::{RegisterClassId, RegisterViewId, ValidatedPhysicalRegisterModel};
-use selected_instructions::VirtualRegisterId;
+use target_operations_to_selected_instructions::VirtualRegisterId;
+use target_operations_to_selected_instructions::register_model::{
+    RegisterClassId, RegisterViewId, ValidatedPhysicalRegisterModel,
+};
 
 use crate::unsequenced_spill_stages::{
     SpillRecoveryChoiceError, SpillRecoveryChoicePlan, SpillRecoveryChoicePolicy,
     SpillRecoveryContender, SpillRecoveryResident, SpillRecoveryVictimChoice,
     ValidatedAbstractSpillInsertion, ValidatedSpillRecoveryWorklist,
 };
-use register_homes::{FunctionAllocationLegality, VirtualRegisterAllocationLegality};
-use selected_instructions::{FunctionLiveRanges, LiveRangePoint, VirtualInterference};
+use selected_instructions_to_selected_instructions::register_homes::{
+    FunctionAllocationLegality, VirtualRegisterAllocationLegality,
+};
 use selected_instructions_to_selected_instructions::{
     ValidatedAllocationLegality, ValidatedLiveRanges,
+};
+use target_operations_to_selected_instructions::{
+    FunctionLiveRanges, LiveRangePoint, VirtualInterference,
 };
 
 #[derive(Clone, Copy)]

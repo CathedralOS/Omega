@@ -1,4 +1,3 @@
-use abstract_operations::{AbstractBoundaryResult, AbstractOperation};
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, OperationId, PlaceId, ScalarType,
@@ -11,6 +10,9 @@ use terminal_psi::{
     StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
     StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
     TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractBoundaryResult, AbstractOperation,
 };
 use terminal_psi_to_abstract_operations::lower_artifact;
 use terminal_verifier::ProofBundle;

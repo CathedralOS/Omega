@@ -1,6 +1,7 @@
 //! Recording permission events: crash frontiers, proven case membership
 //! and the statically inactive call results that shape which events count.
 
+use crate::checked_trees::{CheckFacts, FlowPermissionEventFact};
 use crate::checks::multiplicity::claim_outcomes::{
     apply_claim_origin_rewrites, call_result_origin_rewrites, derive_checked_claim_outcome_maps,
     publish_claim_outcome_maps, publish_conditional_claim_joins,
@@ -15,18 +16,20 @@ use crate::checks::multiplicity::linear_validation::{
 };
 use crate::checks::multiplicity::owned_selection;
 use crate::checks::multiplicity::temporary_results;
-use checked_trees::{CheckFacts, FlowPermissionEventFact};
 use diagnostics::Diagnostic;
 use language_semantics::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
     PermissionEventSource,
 };
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 use symbols::SymbolHandle;
-use typed_trees::statement::StatementNode;
 
 #[cfg(test)]
-pub(crate) fn record_permission_events(program: &typed_trees::TypedTrees, facts: &mut CheckFacts) {
-    let call_frames = validation::CallFrameResolver::new(program);
+pub(crate) fn record_permission_events(
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    facts: &mut CheckFacts,
+) {
+    let call_frames = crate::validation::CallFrameResolver::new(program);
     let incoming_guards = crate::checks::ranges::incoming_guards::IncomingGuardIndex::build(
         program,
         call_frames.as_ref(),
@@ -36,7 +39,7 @@ pub(crate) fn record_permission_events(program: &typed_trees::TypedTrees, facts:
 }
 
 pub(crate) fn record_permission_events_with_incoming_guards(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &mut CheckFacts,
     incoming_guards: &crate::checks::ranges::incoming_guards::IncomingGuardIndex,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -93,7 +96,7 @@ pub(crate) fn record_permission_events_with_incoming_guards(
                 access: PermissionAccess::Owned,
                 claim_identity,
                 provenance: place.provenance.expect("entry place has provenance"),
-                root: facts::PlaceRoot::Symbol(place.symbol),
+                root: crate::fact_plan::PlaceRoot::Symbol(place.symbol),
                 segments,
                 obligation_live: true,
             });
@@ -254,7 +257,7 @@ struct DerivedCrashFrontier {
 /// payload is omitted until active-case proof can make its liveness definite.
 /// Crash abandons these claims; it does not synthesize cleanup or consumption.
 fn record_crash_frontier_lower_bounds(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &mut CheckFacts,
     incoming_guards: &crate::checks::ranges::incoming_guards::IncomingGuardIndex,
 ) {
@@ -328,7 +331,9 @@ fn record_crash_frontier_lower_bounds(
             };
             if !matches!(
                 transition.exit,
-                typed_trees::statement::TransitionExit::Crash(_)
+                symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionExit::Crash(
+                    _
+                )
             ) {
                 continue;
             }
@@ -394,7 +399,7 @@ struct ProvenCaseMembership {
     parameter: SymbolHandle,
     /// Source-independent path below the final-state parameter at which this
     /// case tag was tested. The selected variant is stored separately.
-    subject_path: Vec<facts::PlaceSegment>,
+    subject_path: Vec<crate::fact_plan::PlaceSegment>,
     variant: SymbolHandle,
 }
 
@@ -410,8 +415,8 @@ struct ProvenCaseMembership {
 /// cannot accidentally inherit it. A nested claim enters the lower bound only
 /// when membership evidence covers every case segment.
 fn proven_conditional_entry_claims(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     incoming: &[crate::checks::ranges::incoming_guards::IncomingGuard],
     places: &[LinearPlace],
 ) -> Vec<PermissionClaimIdentity> {
@@ -455,11 +460,13 @@ fn proven_conditional_entry_claims(
         let mut subject_path = Vec::new();
         let all_cases_proven = place.path.iter().all(|segment| {
             let proven = match segment {
-                facts::PlaceSegment::Case { variant } => memberships.iter().any(|evidence| {
-                    evidence.parameter == place.symbol
-                        && evidence.subject_path == subject_path
-                        && evidence.variant == *variant
-                }),
+                crate::fact_plan::PlaceSegment::Case { variant } => {
+                    memberships.iter().any(|evidence| {
+                        evidence.parameter == place.symbol
+                            && evidence.subject_path == subject_path
+                            && evidence.variant == *variant
+                    })
+                }
                 _ => true,
             };
             subject_path.push(*segment);
@@ -477,16 +484,17 @@ fn proven_conditional_entry_claims(
 }
 
 fn source_independent_case_subject(
-    program: &typed_trees::TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> Option<crate::flow::CanonicalPlace> {
     let place = crate::flow::canonical_place_from_expression(program, expression)?;
-    if !matches!(place.root, facts::PlaceRoot::Symbol(symbol) if symbol.is_valid())
+    if !matches!(place.root, crate::fact_plan::PlaceRoot::Symbol(symbol) if symbol.is_valid())
         || !place.segments.iter().all(|segment| match segment {
-            facts::PlaceSegment::Field { symbol } => symbol.is_valid(),
-            facts::PlaceSegment::Case { variant } => variant.is_valid(),
-            facts::PlaceSegment::FixedIndex { .. } => true,
-            facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::Index { .. } => false,
+            crate::fact_plan::PlaceSegment::Field { symbol } => symbol.is_valid(),
+            crate::fact_plan::PlaceSegment::Case { variant } => variant.is_valid(),
+            crate::fact_plan::PlaceSegment::FixedIndex { .. } => true,
+            crate::fact_plan::PlaceSegment::FixedRange { .. }
+            | crate::fact_plan::PlaceSegment::Index { .. } => false,
         })
     {
         return None;
@@ -498,11 +506,16 @@ fn source_independent_case_subject(
 /// a predicate as `predicate == true`; unwrap that shell but deliberately do
 /// not infer through negation or disjunction here.
 pub(crate) fn collect_positive_case_tests(
-    program: &typed_trees::TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
-    tests: &mut Vec<(typed_trees::expression::ExpressionHandle, SymbolHandle)>,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    tests: &mut Vec<(
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+        SymbolHandle,
+    )>,
 ) {
-    use typed_trees::expression::{BinaryOperator, ExpressionNode};
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+        BinaryOperator, ExpressionNode,
+    };
 
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
         return;
@@ -531,13 +544,14 @@ pub(crate) fn collect_positive_case_tests(
         return;
     }
 
-    let case_variant = |candidate| match program.expression_table.expression(candidate) {
+    let case_variant = |candidate| {
+        match program.expression_table.expression(candidate) {
         ExpressionNode::Name(path)
             if program.data_definitions().iter().any(|definition| {
                 program.data_members(definition).iter().any(|member| {
                     matches!(
                         member,
-                        typed_trees::data::DataMember::Variant(variant)
+                        symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant)
                             if variant.symbol == path.symbol
                     )
                 })
@@ -546,6 +560,7 @@ pub(crate) fn collect_positive_case_tests(
             Some(path.symbol)
         }
         _ => None,
+    }
     };
     if let Some(variant) = case_variant(binary.right) {
         tests.push((binary.left, variant));
@@ -555,10 +570,15 @@ pub(crate) fn collect_positive_case_tests(
 }
 
 pub(crate) fn exact_positive_case_test(
-    program: &typed_trees::TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Option<(typed_trees::expression::ExpressionHandle, SymbolHandle)> {
-    use typed_trees::expression::{BinaryOperator, ExpressionNode};
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+) -> Option<(
+    symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    SymbolHandle,
+)> {
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+        BinaryOperator, ExpressionNode,
+    };
 
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
         return None;
@@ -587,7 +607,7 @@ pub(crate) fn exact_positive_case_test(
 }
 
 pub(crate) fn case_transition_run_is_exhaustive(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     statements: &[StatementNode],
     arm_indices: &[usize],
 ) -> bool {
@@ -597,7 +617,10 @@ pub(crate) fn case_transition_run_is_exhaustive(
         let Some(StatementNode::Transition(transition)) = statements.get(statement_index) else {
             return false;
         };
-        let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard else {
+        let symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionGuardNode::When(
+            guard,
+        ) = transition.guard
+        else {
             return false;
         };
         let Some((subject, variant)) = exact_positive_case_test(program, guard) else {
@@ -623,7 +646,9 @@ pub(crate) fn case_transition_run_is_exhaustive(
             .data_members(definition)
             .iter()
             .filter_map(|member| match member {
-                typed_trees::data::DataMember::Variant(variant) => Some(variant.symbol),
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
+                    variant,
+                ) => Some(variant.symbol),
                 _ => None,
             })
             .collect::<Vec<_>>();
@@ -634,10 +659,10 @@ pub(crate) fn case_transition_run_is_exhaustive(
 }
 
 pub(crate) fn select_case_alternative_from_guard(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    subject: typed_trees::expression::ExpressionHandle,
+    subject: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     variant: SymbolHandle,
     places: &mut [LinearPlace],
 ) {
@@ -649,19 +674,19 @@ pub(crate) fn select_case_alternative_from_guard(
     ) else {
         return;
     };
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(symbol) = place.root else {
         return;
     };
     let mut selected_path = place.segments;
-    selected_path.push(facts::PlaceSegment::Case { variant });
+    selected_path.push(crate::fact_plan::PlaceSegment::Case { variant });
     select_static_case_alternative(symbol, &selected_path, places);
 }
 
 pub(crate) fn exclude_case_alternative(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    subject: typed_trees::expression::ExpressionHandle,
+    subject: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     variant: SymbolHandle,
     places: &mut [LinearPlace],
 ) {
@@ -673,14 +698,15 @@ pub(crate) fn exclude_case_alternative(
     ) else {
         return;
     };
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(symbol) = place.root else {
         return;
     };
     let case_index = place.segments.len();
     for candidate in places.iter_mut().filter(|candidate| {
         candidate.symbol == symbol
             && candidate.path.get(..case_index) == Some(place.segments.as_slice())
-            && candidate.path.get(case_index) == Some(&facts::PlaceSegment::Case { variant })
+            && candidate.path.get(case_index)
+                == Some(&crate::fact_plan::PlaceSegment::Case { variant })
     }) {
         candidate.live = false;
         candidate.case_excluded = true;
@@ -699,8 +725,8 @@ pub(crate) fn exclude_case_alternative(
 /// path-aligned results publish structural output paths; opaque multi-output
 /// calls remain conservative until they publish an explicit result mapping.
 fn reconcile_state_call_result_origins(
-    program: &typed_trees::TypedTrees,
-    ownership: &checked_trees::FlowOwnershipFacts,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    ownership: &crate::checked_trees::FlowOwnershipFacts,
     permission_events: &mut [FlowPermissionEventFact],
 ) -> Vec<CheckedClaimOutcomeMap> {
     let segments = &ownership.segments;
@@ -719,8 +745,8 @@ fn reconcile_state_call_result_origins(
 }
 
 fn apply_statically_inactive_call_results(
-    program: &typed_trees::TypedTrees,
-    segments: &arena::Arena<facts::PlaceSegment>,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    segments: &arena::Arena<crate::fact_plan::PlaceSegment>,
     permission_events: &mut [FlowPermissionEventFact],
     maps: &[CheckedClaimOutcomeMap],
 ) -> bool {
@@ -746,8 +772,9 @@ fn apply_statically_inactive_call_results(
                 StatementNode::Assignment(assignment) => assignment.value,
                 _ => return None,
             };
-            let typed_trees::expression::ExpressionNode::Call(call) =
-                program.expression_table.expression(expression)
+            let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(
+                call,
+            ) = program.expression_table.expression(expression)
             else {
                 return None;
             };

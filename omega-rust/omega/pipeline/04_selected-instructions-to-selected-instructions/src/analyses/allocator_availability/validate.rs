@@ -1,16 +1,16 @@
-use register_model::{
+use target::NativeTarget;
+use target_operations_to_selected_instructions::register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile,
 };
-use target::NativeTarget;
 
+use crate::register_homes::{
+    AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy, allocator_availability_identity,
+};
 use crate::{
     AllocatorAvailabilityError, AllocatorAvailabilityValidationReceipt,
     ValidatedAllocatorAvailability,
-};
-use register_homes::{
-    AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy, allocator_availability_identity,
 };
 
 pub(crate) fn validate_allocator_availability(

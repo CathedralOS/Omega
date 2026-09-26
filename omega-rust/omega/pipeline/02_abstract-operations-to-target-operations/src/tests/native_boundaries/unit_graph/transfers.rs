@@ -3,7 +3,7 @@ use super::{
     AbstractBlockEntry, AbstractOperation, AbstractOperationPlan, AbstractParameter, IntegerSign,
     IntegerType, ScalarType, block, call, edge, fixture, lower, operation, successor, value,
 };
-use abstract_operations::ValueBinding;
+use terminal_psi_to_abstract_operations::abstract_operations::ValueBinding;
 
 pub(super) fn transferred() -> AbstractOperationPlan {
     let mut plan = fixture();
@@ -103,7 +103,7 @@ fn scalar_block_transfers_preserve_both_parallel_edges_and_destination_values() 
     let plan = transferred();
     let lowered = lower(&plan).unwrap();
     let graph = &lowered.functions[1].graph;
-    let target_operations::TargetControlTerminator::Conditional {
+    let crate::target_operations::TargetControlTerminator::Conditional {
         when_true,
         when_false,
         ..
@@ -113,25 +113,26 @@ fn scalar_block_transfers_preserve_both_parallel_edges_and_destination_values() 
     };
     assert_eq!(when_true.bindings.len(), 3);
     assert_eq!(when_false.bindings, when_true.bindings);
-    let target_operations::TargetControlTerminator::Conditional { condition, .. } =
+    let crate::target_operations::TargetControlTerminator::Conditional { condition, .. } =
         &graph.blocks[1].terminator
     else {
         panic!("conditional");
     };
     assert_eq!(
         *condition,
-        target_operations::TargetBooleanExpression::BlockParameter(
-            target_operations::TargetScalarBlockValue {
+        crate::target_operations::TargetBooleanExpression::BlockParameter(
+            crate::target_operations::TargetScalarBlockValue {
                 block: block(4),
                 value: value(51),
                 scalar_type: ScalarType::Boolean,
             }
         )
     );
-    let target_operations::TargetUnitOperation::ScalarDefinition {
+    let crate::target_operations::TargetUnitOperation::ScalarDefinition {
         expression:
-            target_operations::TargetScalarExpression::Integer {
-                expression: target_operations::TargetIntegerExpression::IntegerWiden { operand, .. },
+            crate::target_operations::TargetScalarExpression::Integer {
+                expression:
+                    crate::target_operations::TargetIntegerExpression::IntegerWiden { operand, .. },
                 ..
             },
         ..
@@ -140,7 +141,7 @@ fn scalar_block_transfers_preserve_both_parallel_edges_and_destination_values() 
         panic!("widen");
     };
     assert!(
-        matches!(operand.as_ref(), target_operations::TargetIntegerExpression::BlockParameter(parameter) if parameter.block == block(4) && parameter.value == value(50))
+        matches!(operand.as_ref(), crate::target_operations::TargetIntegerExpression::BlockParameter(parameter) if parameter.block == block(4) && parameter.value == value(50))
     );
 }
 

@@ -1,9 +1,14 @@
 use crate::tests::front_end::typed_program;
 use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::direct::direct_source;
+use symbol_resolved_trees_to_typed_trees::typed_trees::{
+    expression::ExpressionNode, statement::StatementNode,
+};
 use symbols::SymbolHandle;
-use typed_trees::{expression::ExpressionNode, statement::StatementNode};
 
-fn assert_nested_identity(program: &typed_trees::TypedTrees, known: bool) {
+fn assert_nested_identity(
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    known: bool,
+) {
     let machine = program
         .machines()
         .iter()
@@ -14,7 +19,7 @@ fn assert_nested_identity(program: &typed_trees::TypedTrees, known: bool) {
     let StatementNode::LocalData(borrowed) = &statements[0] else {
         panic!("the caller's selected reference")
     };
-    let resolver = validation::CallFrameResolver::new(program).unwrap();
+    let resolver = crate::validation::CallFrameResolver::new(program).unwrap();
     let frame = resolver.inferred_state_write_frame(machine, state);
     let origin = resolver.local_reference_origin_before_statement(
         machine,
@@ -26,8 +31,8 @@ fn assert_nested_identity(program: &typed_trees::TypedTrees, known: bool) {
         let (root, segments) = origin.expect("the helper's exact owned field projection");
         assert_eq!(root, program.state_parameters(state)[0].symbol);
         let [
-            facts::PlaceSegment::Field { symbol: inner },
-            facts::PlaceSegment::Field { symbol: context },
+            crate::fact_plan::PlaceSegment::Field { symbol: inner },
+            crate::fact_plan::PlaceSegment::Field { symbol: context },
         ] = segments.as_slice()
         else {
             panic!("two exact owned fields: {segments:?}")

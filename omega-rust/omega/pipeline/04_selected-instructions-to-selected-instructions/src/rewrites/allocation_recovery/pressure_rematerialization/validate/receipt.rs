@@ -3,7 +3,7 @@ use crate::{PressureRematerializationPlan, PressureRematerializationValidationRe
 
 pub(super) fn bind(
     plan: &PressureRematerializationPlan,
-    transformed_selected: selected_instructions::SelectedInstructionPlanIdentity,
+    transformed_selected: target_operations_to_selected_instructions::SelectedInstructionPlanIdentity,
     function_count: usize,
     applied_count: usize,
     rewritten_use_count: usize,

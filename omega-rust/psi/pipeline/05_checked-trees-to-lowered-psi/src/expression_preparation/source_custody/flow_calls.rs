@@ -1,13 +1,13 @@
 use crate::lowering_error::{LoweringError, unsupported};
-use checked_trees::CheckedTrees;
+use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
 
 pub(crate) fn retain_exact_flow_call(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     source_state: symbols::SymbolHandle,
-    coordinate: checked_trees::CheckedUnitCallCoordinate,
+    coordinate: typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate,
     target: symbols::SymbolHandle,
-) -> Result<&checked_trees::FlowCallFact, LoweringError> {
+) -> Result<&typed_trees_to_checked_trees::checked_trees::FlowCallFact, LoweringError> {
     let mut states = checked
         .facts
         .flow

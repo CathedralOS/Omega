@@ -1,11 +1,11 @@
 //! Token bindings survive resolution; bindings without a semantic home in their
 //! operand tuple and duplicate owner-local shapes reject.
 
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
 use crate::{ResolutionRequest, resolve};
 use source_files_to_tokens::Lexer;
-use symbol_resolved_trees::SymbolResolvedTrees;
-use syntax_trees::operator_spelling::OperatorSpelling;
 use tokens_to_syntax_trees::parse_syntax_trees;
+use tokens_to_syntax_trees::syntax_trees::operator_spelling::OperatorSpelling;
 
 fn resolve_source(source: &str) -> Result<SymbolResolvedTrees, Vec<diagnostics::Diagnostic>> {
     let tokens = Lexer::new(source).tokenize().expect("tokens");
@@ -49,7 +49,7 @@ fn token_bearing_machines_retain_their_spelling_and_named_machines_have_none() {
     assert!(add.attached_data_symbol.is_valid());
     let entry = program.machine_state(program.machine_state_handles(add.states)[0]);
     for parameter in program.state_parameters(entry.parameters) {
-        let symbol_resolved_trees::types::TypeReference::Named { symbol, .. } =
+        let crate::symbol_resolved_trees::types::TypeReference::Named { symbol, .. } =
             &parameter.type_reference
         else {
             panic!("named operand type");
@@ -835,7 +835,7 @@ mod package_ownership {
                 DependencyScope::Product,
             );
         }
-        let mut syntax = syntax_trees::SyntaxTrees::default();
+        let mut syntax = tokens_to_syntax_trees::syntax_trees::SyntaxTrees::default();
         for file in sources.files() {
             let tokens = Lexer::new(&file.source).tokenize().expect("tokens");
             syntax

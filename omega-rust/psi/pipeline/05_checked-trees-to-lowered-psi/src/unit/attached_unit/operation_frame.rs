@@ -73,8 +73,10 @@ use crate::unit::{
     allocate_dense, claim_id, lookup_service_id, lookup_type_id, place_id, terminal_scalar_type,
     unsupported,
 };
-use checked_trees::{CheckedComposedUnitControlStatePlan, CheckedUnitStructuralArgumentPlan};
 use std::borrow::Cow;
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedComposedUnitControlStatePlan, CheckedUnitStructuralArgumentPlan,
+};
 
 mod atomic_access;
 mod boundary_calls;
@@ -105,7 +107,8 @@ pub(super) struct OperationFrame<'f, 'c> {
     pub(super) state: symbols::SymbolHandle,
     /// The machine's scalar completion binding, whose initializer lowers in
     /// the `Return` role. A composed state completes without one.
-    pub(super) scalar_result: Option<&'f checked_trees::CheckedUnitScalarResultBindingPlan>,
+    pub(super) scalar_result:
+        Option<&'f typed_trees_to_checked_trees::checked_trees::CheckedUnitScalarResultBindingPlan>,
     /// Scalar formals ahead of the dense local namespace.
     pub(super) scalar_parameter_count: usize,
     /// Values the operation's authored source can name; staged argument
@@ -157,11 +160,13 @@ pub(super) struct CallerCustody<'f> {
     /// The caller's erased scalar formals; erased actuals lower over them.
     pub(super) erased_scalar_parameters: &'f [ValueDeclaration],
     /// The caller's erased proof-only roster; `Formal` actuals resolve in it.
-    pub(super) erased_proof_parameters: &'f [checked_trees::CheckedErasedProofParameterPlan],
+    pub(super) erased_proof_parameters:
+        &'f [typed_trees_to_checked_trees::checked_trees::CheckedErasedProofParameterPlan],
     /// The claims the emitting body (ordinary) or state (composed) holds on
     /// entry. A boundary call expects one receipt per claim its parameter
     /// arguments carry.
-    pub(super) entry_claims: &'f [checked_trees::CheckedUnitEntryClaimPlan],
+    pub(super) entry_claims:
+        &'f [typed_trees_to_checked_trees::checked_trees::CheckedUnitEntryClaimPlan],
     pub(super) claims: ClaimBindings<'f>,
     /// The ordinary machine's trivial affine locals; a composed state has none.
     pub(super) local_places: &'f [StructuralPlaceDeclaration],
@@ -337,7 +342,7 @@ impl StructuralResults<'_> {
     /// a repeated binding when it registers the result.
     fn require_next(
         &self,
-        result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
+        result: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralResultBindingPlan,
         drifted: &'static str,
     ) -> Result<(), LoweringError> {
         match self {
@@ -550,12 +555,12 @@ impl OperationFrame<'_, '_> {
     fn write_only_primitive_store(
         &mut self,
         statement_index: u32,
-        destination: &checked_trees::CheckedPrimitiveStoreDestination,
-        path: &[checked_trees::CheckedUnitStructuralPathSegment],
-        value: &checked_trees::CheckedCallScalarArgument,
+        destination: &typed_trees_to_checked_trees::checked_trees::CheckedPrimitiveStoreDestination,
+        path: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment],
+        value: &typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument,
     ) -> Result<(), LoweringError> {
         let destination = match destination {
-            checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index } => {
+            typed_trees_to_checked_trees::checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index } => {
                 let parameter = self.parameters.get(*parameter_index as usize).ok_or(
                     LoweringError::Unsupported("primitive store parameter is absent"),
                 )?;
@@ -565,7 +570,7 @@ impl OperationFrame<'_, '_> {
                     self.structural_types.declarations(),
                 )?
             }
-            checked_trees::CheckedPrimitiveStoreDestination::Local { symbol } => {
+            typed_trees_to_checked_trees::checked_trees::CheckedPrimitiveStoreDestination::Local { symbol } => {
                 if !path.is_empty() {
                     return unsupported("primitive local store has a projected destination");
                 }
@@ -606,7 +611,7 @@ impl OperationFrame<'_, '_> {
 
     fn structural_byte_sequence_field_store(
         &mut self,
-        store: &checked_trees::CheckedStructuralByteSequenceFieldStorePlan,
+        store: &typed_trees_to_checked_trees::checked_trees::CheckedStructuralByteSequenceFieldStorePlan,
     ) -> Result<(), LoweringError> {
         // Only a roster this body owns may gain the generated literal-view
         // carrier; the store below rejects a published roster without it.
@@ -641,7 +646,7 @@ impl OperationFrame<'_, '_> {
 
     fn structural_byte_sequence_field_byte_store(
         &mut self,
-        store: &checked_trees::CheckedStructuralByteSequenceFieldByteStorePlan,
+        store: &typed_trees_to_checked_trees::checked_trees::CheckedStructuralByteSequenceFieldByteStorePlan,
     ) -> Result<(), LoweringError> {
         let dense;
         let bindings = match &self.evaluation.scalar_bindings {
@@ -687,7 +692,7 @@ impl OperationFrame<'_, '_> {
 
     fn byte_sequence_write(
         &mut self,
-        write: &checked_trees::CheckedByteSequenceWritePlan,
+        write: &typed_trees_to_checked_trees::checked_trees::CheckedByteSequenceWritePlan,
     ) -> Result<(), LoweringError> {
         let dense;
         let bindings = match &self.evaluation.scalar_bindings {
@@ -728,7 +733,7 @@ impl OperationFrame<'_, '_> {
 
     fn structural_scalar_field_store(
         &mut self,
-        store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
+        store: &typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarFieldStorePlan,
     ) -> Result<(), LoweringError> {
         let destination = self
             .parameters
@@ -935,8 +940,8 @@ impl OperationFrame<'_, '_> {
     /// order, so the ordinal must name the next position.
     fn establish_scalar_local(
         &mut self,
-        result: &checked_trees::CheckedUnitScalarResultBindingPlan,
-        value: &checked_trees::CheckedCallScalarArgument,
+        result: &typed_trees_to_checked_trees::checked_trees::CheckedUnitScalarResultBindingPlan,
+        value: &typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument,
     ) -> Result<(), LoweringError> {
         if self.evaluation.scalar_bindings.is_none()
             && usize::try_from(result.binding_ordinal)
@@ -973,7 +978,7 @@ impl OperationFrame<'_, '_> {
         }
         if let Some(bindings) = self.evaluation.scalar_bindings.as_mut() {
             bindings.append(
-                checked_trees::CheckedScalarBindingDestination::Immutable,
+                typed_trees_to_checked_trees::checked_trees::CheckedScalarBindingDestination::Immutable,
                 lowered.scalar_type,
                 self.values.len(),
             )?;
@@ -988,7 +993,7 @@ impl OperationFrame<'_, '_> {
     /// closed before its sequence's exits.
     fn move_structural_field(
         &mut self,
-        result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
+        result: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralResultBindingPlan,
         source: &CheckedUnitStructuralArgumentPlan,
     ) -> Result<(), LoweringError> {
         self.results
@@ -1066,13 +1071,13 @@ impl OperationFrame<'_, '_> {
             .require_next(result, "view subslice result binding is not dense")?;
         super::view_ranges::binding_local(self.checked, self.state, operation)?;
         let (root, family, expression, start, end) = match &source.source {
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+            typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
                 root,
                 expression,
                 start,
                 end,
             } => (*root, ViewFamily::Bytes, *expression, start, end),
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
+            typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
                 root,
                 expression,
                 start,
@@ -1082,10 +1087,14 @@ impl OperationFrame<'_, '_> {
         };
         let field_range = !source.path.is_empty();
         let range_source = match root {
-            checked_trees::CheckedStorageRoot::Parameter { index } if field_range => {
+            typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::Parameter {
+                index,
+            } if field_range => {
                 self.establish_whole_field_view(index, source, &result.type_identity, family)?
             }
-            checked_trees::CheckedStorageRoot::Parameter { index } => {
+            typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::Parameter {
+                index,
+            } => {
                 let parameter =
                     self.parameters
                         .get(index as usize)
@@ -1118,7 +1127,9 @@ impl OperationFrame<'_, '_> {
                     family,
                 }
             }
-            checked_trees::CheckedStorageRoot::ViewLocal { symbol } => {
+            typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::ViewLocal {
+                symbol,
+            } => {
                 let local = view_locals::resolve(&self.evaluation.view_locals, symbol)?;
                 if (family == ViewFamily::Bytes)
                     != (local.carrier == view_locals::ViewCarrier::Bytes)
@@ -1149,7 +1160,7 @@ impl OperationFrame<'_, '_> {
         let site = ViewRangeSite {
             state: self.state,
             statement: result.statement_index,
-            site: checked_trees::CheckedSubsliceSite::LocalBinding,
+            site: typed_trees_to_checked_trees::checked_trees::CheckedSubsliceSite::LocalBinding,
             expression,
             retained: Some((start, end)),
         };
@@ -1222,7 +1233,7 @@ impl OperationFrame<'_, '_> {
                 "view subslice field owner parameter is absent",
             ))?;
         if family != ViewFamily::Elements
-            || source.access != checked_trees::CheckedStructuralAccess::SharedBorrow
+            || source.access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
             || !matches!(
                 parameter.access,
                 terminal_psi::StructuralAccess::SharedBorrow
@@ -1312,11 +1323,16 @@ impl OperationFrame<'_, '_> {
         destination: &CheckedUnitStructuralArgumentPlan,
         value: &CheckedUnitStructuralArgumentPlan,
     ) -> Result<(), LoweringError> {
-        let (Some(binding_ordinal), true, checked_trees::CheckedStructuralAccess::Owned) = (
+        let (
+            Some(binding_ordinal),
+            true,
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned,
+        ) = (
             value.source_structural_result_binding_ordinal(),
             value.path.is_empty(),
             value.access,
-        ) else {
+        )
+        else {
             return unsupported("borrowed-window repair value is not a whole owned result");
         };
         let repair = self
@@ -1341,12 +1357,12 @@ impl OperationFrame<'_, '_> {
     /// continuation while its evaluated scalar bindings stay live.
     fn call_continuation_cleanup(
         &mut self,
-        affine_discards: &[checked_trees::CheckedUnitPartialAffineDiscardPlan],
+        affine_discards: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitPartialAffineDiscardPlan],
     ) -> Result<(), LoweringError> {
         let mut discards = Vec::new();
         let mut residuals = Vec::new();
         for discard in affine_discards {
-            let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            let typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                 binding_ordinal,
             } = discard.source
             else {

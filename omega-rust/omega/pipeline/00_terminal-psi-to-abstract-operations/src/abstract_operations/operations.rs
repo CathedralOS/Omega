@@ -1,0 +1,995 @@
+//! Executable abstract vocabulary, including moves, drops, calls and control.
+
+use crate::abstract_operations::{
+    AbstractAtomicEvent, AbstractBoundaryResult, AbstractDynamicDescriptorArgument,
+    AbstractParameterDynamicDispatch, AbstractReboundDynamicDispatch, AbstractResult,
+    AbstractStoredDynamicDescriptor, AbstractStoredDynamicDispatch,
+    AbstractStructuralCaseSuccessor, AbstractSuccessor, AtomicModificationAfter, AtomicReadsFrom,
+    CompletionClaimSource, ValueBinding,
+};
+use semantic_vocabulary::{
+    BlockId, BoundaryMachineId, ClaimId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType,
+    IntegerValue, MachineId, OperationId, PlaceId, ScalarType, ServiceId, StructuralCaseId,
+    ValueId,
+};
+use terminal_psi::{
+    ClaimTransfer, CompletionReceipt, CrashCause, CrashRouteBucket, OutcomeSpecificCallEvidence,
+    StructuralArgument, StructuralOperationResult, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultClaimTransfer,
+    StructuralTypeDeclaration, TerminalAffineCleanupAction, TerminalDynamicDescriptorParameter,
+};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AbstractOperation {
+    /// Establish one exact recursive fixed array from row-major scalar leaves.
+    /// Empty dimensions retain their declared type; physical storage is chosen
+    /// downstream, independently of this complete semantic payload.
+    EstablishScalarArray {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        elements: Vec<ValueId>,
+    },
+    /// Establish initialized activation-local primitive storage, not a scalar alias.
+    EstablishPrimitiveLocal {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        value: AbstractResult,
+    },
+    /// Replace an established primitive local through its retained place identity.
+    PrimitiveLocalStore {
+        psi_operation: OperationId,
+        destination: PlaceId,
+        value: AbstractResult,
+    },
+    /// Make a fresh observation of an established primitive local or a primitive
+    /// leaf under a readable borrow. `path` is the verified Terminal
+    /// projection: record fields and fixed-array elements, literal or
+    /// runtime-selected, in any order (`grid[i][j]`, `ents[i].hp`). An empty
+    /// path observes the whole primitive root. Each `RuntimeIndex` segment's
+    /// bound is an obligation this operation owns and the verifier already
+    /// discharged; see [`AbstractOperation::runtime_indices`].
+    PrimitiveScalarRead {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        source: PlaceId,
+        path: Vec<StructuralPathSegment>,
+    },
+    /// Observe the exact active case without consuming the readable sum root.
+    StructuralCaseMembership {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        source: PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        case: StructuralCaseId,
+    },
+    /// Establish an immutable view with the exact source, endpoints and two-leg bounds proof.
+    ByteSequenceSubslice {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        source: PlaceId,
+        start: ValueId,
+        end: ValueId,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+    },
+    /// Read one byte with the verified same-view length and bounds obligation.
+    ByteSequenceRead {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        source: PlaceId,
+        index: ValueId,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+    },
+    /// Write one byte through the exact mutable view and verified bounds.
+    ByteSequenceWrite {
+        psi_operation: OperationId,
+        destination: PlaceId,
+        index: ValueId,
+        value: ValueId,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+    },
+    /// Replace one live field byte without changing its length or neighboring content.
+    StructuralByteSequenceFieldByteStore {
+        psi_operation: OperationId,
+        destination: PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        field: semantic_vocabulary::StructuralFieldId,
+        index: ValueId,
+        value: ValueId,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+    },
+    /// Replace exactly the source's live bytes and length under verified capacity bounds.
+    StructuralByteSequenceFieldStore {
+        psi_operation: OperationId,
+        destination: PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        field: semantic_vocabulary::StructuralFieldId,
+        source: PlaceId,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+    },
+    /// Read one live field byte through the exact field's current length
+    /// observation and the bounds obligation `index < length`.
+    StructuralByteSequenceFieldRead {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        source: PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        field: semantic_vocabulary::StructuralFieldId,
+        index: ValueId,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+    },
+    /// Observe live length metadata of the exact bounded-owned byte field.
+    StructuralByteSequenceFieldLength {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        source: PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        field: semantic_vocabulary::StructuralFieldId,
+    },
+    /// Observe the byte count of one verifier-approved view.
+    ByteSequenceLength {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        source: PlaceId,
+    },
+    /// Establish one shared element view over a structural collection place.
+    /// The view is a descriptor loan, not an element copy.
+    EstablishElementView {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        destination: PlaceId,
+        source: StructuralArgument,
+        element: semantic_vocabulary::StructuralTypeId,
+    },
+    /// Observe the element count of one verifier-approved element view.
+    ElementViewLength {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        source: PlaceId,
+    },
+    /// Read one element with the verified same-view length and bounds
+    /// obligation.
+    ElementViewRead {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        source: PlaceId,
+        index: ValueId,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+    },
+    /// Establish an immutable element window with the exact source, endpoints
+    /// and two-leg bounds proof.
+    ElementViewSubslice {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        source: PlaceId,
+        start: ValueId,
+        end: ValueId,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+    },
+    /// Zero-code declaration of one existential descriptor in the current
+    /// function's runtime interface. Keeping the complete Terminal row in the
+    /// entry block prevents an unused parameter from disappearing before a
+    /// receiving lowerer selects its physical `{data, table}` ABI.
+    DynamicDescriptorParameter {
+        parameter: TerminalDynamicDescriptorParameter,
+    },
+    /// Establish a selected `{instance, table}` descriptor in one exact
+    /// aggregate field. This remains target-neutral; later stages choose the
+    /// physical two-word local and field offsets.
+    StoreDynamicDescriptor {
+        psi_operation: OperationId,
+        stored: AbstractStoredDynamicDescriptor,
+    },
+    /// One verifier-approved non-observing replacement through an exact
+    /// primitive leaf under a mutable or write-only structural parameter.
+    /// `path` is the verified Terminal projection to the leaf — fields and
+    /// literal or runtime-selected elements in any order — and selects it
+    /// without changing root custody; an empty path retains whole-primitive
+    /// replacement. Each `RuntimeIndex` segment's bound is an obligation this
+    /// operation owns. The complete parameter row
+    /// keeps access, multiplicity, nominal type, and signature position from
+    /// being reconstructed from physical ABI shape; `value` retains the exact
+    /// preceding scalar definition and type. Target lowering must not realize
+    /// this event without a separate target address/width/store model.
+    WriteOnlyPrimitiveStore {
+        psi_operation: OperationId,
+        destination: StructuralParameterDeclaration,
+        path: Vec<StructuralPathSegment>,
+        value: AbstractResult,
+    },
+    /// One verifier-approved scalar replacement at an exact field beneath a
+    /// structural parameter root. The complete parameter row retains root
+    /// authority, `path` and `field` retain the selected structural location,
+    /// and `value` rejoins the exact typed dominating scalar definition. The
+    /// carrier `path` composes record fields and literal or runtime-selected
+    /// elements in any order (`ents[i].pos` for `ents[i].pos.x`); each
+    /// runtime element's bound is an obligation this operation owns.
+    StructuralScalarFieldStore {
+        psi_operation: OperationId,
+        destination: StructuralParameterDeclaration,
+        path: Vec<StructuralPathSegment>,
+        field: semantic_vocabulary::StructuralFieldId,
+        value: AbstractResult,
+        range_obligation: Option<semantic_vocabulary::ObligationId>,
+    },
+    /// Move one declared structural field subtree out of a mutable-borrowed
+    /// machine parameter, opening the restoration window the Terminal
+    /// verifier recorded as debt on the borrowed root. `source` retains the
+    /// complete parameter row — borrow authority, multiplicity, and nominal
+    /// type — rather than a bare place; `path` + `field` name the exact
+    /// vacated location in the root's spelled segment space; and `result` is
+    /// the fresh structural operation result carrying the moved subtree under
+    /// exact-once custody. The window stays open until a
+    /// `StoreStructuralField` reseats this exact hole; consumers must not
+    /// erase, duplicate, or reorder either side of the pair against the
+    /// borrowed root's other observations.
+    MoveStructuralField {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        source: StructuralParameterDeclaration,
+        path: Vec<StructuralPathSegment>,
+        field: semantic_vocabulary::StructuralFieldId,
+    },
+    /// Establish one owned copy of an `Unrestricted` leaf projected out of a
+    /// live readable root. The source stays fully intact: copying observes
+    /// contents like a structural field read, so shared loans admit it where
+    /// a move would vacate borrowed storage. The result is fresh storage the
+    /// way an `EstablishScalarCase` result is — consumers must not alias it
+    /// back into the borrowed root's custody.
+    StructuralLeafCopy {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        source: PlaceId,
+        path: Vec<StructuralPathSegment>,
+    },
+    /// Reseat one whole owned structural subtree into the exact field
+    /// `path` + `field` beneath `destination`, closing the restoration window
+    /// `MoveStructuralField` opened there. `destination` retains the complete
+    /// borrowed parameter row; `value` is the consumed whole-place owned
+    /// argument whose declared type the verifier matched to the declared
+    /// field. This is only the repair of an open hole — it never replaces a
+    /// live field and it re-disposes nothing.
+    StoreStructuralField {
+        psi_operation: OperationId,
+        destination: StructuralParameterDeclaration,
+        path: Vec<StructuralPathSegment>,
+        field: semantic_vocabulary::StructuralFieldId,
+        value: StructuralArgument,
+    },
+    /// One normalized atomic memory event with its proof-static ordering
+    /// retained as checkable evidence. `event.ordering_is_legal()` and
+    /// `event.custody_is_consistent()` replay the source-admitted legality
+    /// and result-custody relations so optimization and target refinement
+    /// verify the concurrency contract rather than trusting producer
+    /// assertion. `reads_from` retains the edge the event claims to have
+    /// observed — `Some` on every observing event, `None` on stores and
+    /// fences — and `modification_after` retains the edge a write claims
+    /// to immediately follow in its place's modification order — `Some`
+    /// on every write event, `None` on loads and fences — for the
+    /// independent coherence recheck
+    /// `crate::abstract_operations::happens_before_atomic_coherence_violation`
+    /// under the activation's bounded `happens_before` derivation.
+    /// Terminal Psi does not yet emit normalized atomic events;
+    /// consumers must keep rejecting this operation until its producer and
+    /// checked target realization land.
+    AtomicEvent {
+        psi_operation: OperationId,
+        event: AbstractAtomicEvent,
+        reads_from: Option<AtomicReadsFrom>,
+        modification_after: Option<AtomicModificationAfter>,
+    },
+    /// Atomically establish one exact scalar case of a declared structural sum.
+    /// Target realization remains deliberately separate from retention in the
+    /// optimizer's target-neutral semantic vocabulary.
+    EstablishScalarCase {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        result_case: StructuralCaseId,
+        fields: Vec<terminal_psi::ScalarCaseField>,
+    },
+    /// Establish one exact immutable byte payload in a verifier-declared
+    /// borrowed-view place. The bytes remain semantic data until target
+    /// realization chooses their physical code/data placement.
+    EstablishByteSequenceLiteral {
+        psi_operation: OperationId,
+        place: StructuralPlaceDeclaration,
+        structural_type: StructuralTypeDeclaration,
+        bytes: Vec<u8>,
+        /// Domain memberships the literal mints onto its destination. They are
+        /// the verified literal's own establishment authority, replayed as the
+        /// place's qualification roster.
+        qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
+    },
+    EstablishTrivialAffineLocal {
+        psi_operation: OperationId,
+        place: StructuralPlaceDeclaration,
+        structural_type: StructuralTypeDeclaration,
+    },
+    /// Atomically establish a complete record from declaration-ordered scalar
+    /// values and owned child records. The result retains exact semantic custody;
+    /// target lowering assigns its physical home before use.
+    EstablishRecord {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        fields: Vec<terminal_psi::RecordFieldInitializer>,
+    },
+    /// Invoke one Unit-result machine with exact caller-local scalar and
+    /// structural arguments. Physical ABI placement remains downstream.
+    CallUnit {
+        psi_operation: OperationId,
+        callee: MachineId,
+        arguments: Vec<ValueId>,
+        structural_arguments: Vec<StructuralArgument>,
+        claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
+    /// Invoke one Unit-result machine while forwarding exact existential
+    /// descriptor arguments into its declared dynamic parameter interface.
+    CallUnitWithDynamicArguments {
+        psi_operation: OperationId,
+        callee: MachineId,
+        structural_arguments: Vec<StructuralArgument>,
+        dynamic_arguments: Vec<AbstractDynamicDescriptorArgument>,
+        claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
+    CallStructuralScalar {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        callee: MachineId,
+        arguments: Vec<ValueId>,
+        structural_arguments: Vec<StructuralArgument>,
+        claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
+    CallStructuralScalarWithDynamicArguments {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        callee: MachineId,
+        structural_arguments: Vec<StructuralArgument>,
+        dynamic_arguments: Vec<AbstractDynamicDescriptorArgument>,
+        claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
+    /// Invoke one scalar-result requirement through an exact rebound dynamic
+    /// descriptor. Target realization must materialize the two-word
+    /// `{instance, table}` carrier and call through the selected private table;
+    /// it may not replace this operation with a direct call to `realization`.
+    CallDynamicScalar {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        dynamic_dispatch: AbstractReboundDynamicDispatch,
+        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
+    /// Invoke one scalar requirement by reloading a descriptor previously
+    /// established in an aggregate field.
+    CallStoredDynamicScalar {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        dynamic_dispatch: AbstractStoredDynamicDispatch,
+        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
+    CallDynamicParameterScalar {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        dynamic_dispatch: AbstractParameterDynamicDispatch,
+        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
+    /// Invoke one Unit-result requirement through the same exact rebound
+    /// descriptor carrier as a scalar dynamic call. Result shape is a property
+    /// of the selected callable row, not of descriptor custody.
+    CallDynamicUnit {
+        psi_operation: OperationId,
+        dynamic_dispatch: AbstractReboundDynamicDispatch,
+        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
+    /// Invoke one Unit-result requirement through a descriptor received by the
+    /// current function. The closed parameter interface supplies the result
+    /// shape and the concrete instance/table pair remains a runtime input.
+    CallDynamicParameterUnit {
+        psi_operation: OperationId,
+        dynamic_dispatch: AbstractParameterDynamicDispatch,
+        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
+    /// One verifier-approved structural-result call. The result place and
+    /// returned-claim correspondence remain semantic custody; target lowering
+    /// may realize only a deliberately bounded ABI subset.
+    CallStructural {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        callee: MachineId,
+        /// Runtime scalar arguments in exact Terminal call order. The
+        /// established structural-only lane carries an empty row.
+        arguments: Vec<ValueId>,
+        structural_arguments: Vec<StructuralArgument>,
+        claim_transfers: Vec<ClaimTransfer>,
+        returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
+        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+        selected_evidence: Vec<OutcomeSpecificCallEvidence>,
+    },
+    BoundaryCall {
+        psi_operation: OperationId,
+        result: AbstractBoundaryResult,
+        boundary: BoundaryMachineId,
+        /// Runtime scalar arguments in the exact terminal-Psi call order.
+        arguments: Vec<ValueId>,
+        structural_arguments: Vec<StructuralArgument>,
+        completion_claim_sources: Vec<CompletionClaimSource>,
+        completion_receipts: Vec<CompletionReceipt>,
+    },
+    PortWrite {
+        psi_operation: OperationId,
+        service: ServiceId,
+        port: u16,
+        value: u8,
+    },
+    Call {
+        psi_operation: OperationId,
+        result: ValueId,
+        scalar_type: ScalarType,
+        callee: MachineId,
+        arguments: Vec<ValueId>,
+        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
+    IntegerConstant {
+        psi_operation: OperationId,
+        result: ValueId,
+        scalar_type: ScalarType,
+        value: IntegerValue,
+    },
+    IeeeFloatConstant {
+        psi_operation: OperationId,
+        result: ValueId,
+        value: IeeeFloatValue,
+    },
+    NearestIeeeFloatFusedMultiplyAdd {
+        psi_operation: OperationId,
+        result: ValueId,
+        format: IeeeFloatFormat,
+        left: ValueId,
+        right: ValueId,
+        addend: ValueId,
+    },
+    /// IEEE execution, not mathematical equality or an integer-order fact.
+    IeeeFloatCompare {
+        psi_operation: OperationId,
+        result: ValueId,
+        comparison: semantic_vocabulary::IeeeFloatComparisonOperation,
+        format: IeeeFloatFormat,
+        left: ValueId,
+        right: ValueId,
+    },
+    BooleanConstant {
+        psi_operation: OperationId,
+        result: ValueId,
+        value: bool,
+    },
+    BooleanStructuralField {
+        psi_operation: OperationId,
+        result: ValueId,
+        source: PlaceId,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        field: semantic_vocabulary::StructuralFieldId,
+    },
+    /// Read one exact relevant integer field below the retained structural root.
+    /// The canonical carrier path excludes the final declaration-local field.
+    /// Source custody is reconstructed from the parameter/result/block catalog;
+    /// the observation retains its own value identity and integer type.
+    IntegerStructuralField {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        source: PlaceId,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        field: semantic_vocabulary::StructuralFieldId,
+    },
+    BooleanNot {
+        psi_operation: OperationId,
+        result: ValueId,
+        operand: ValueId,
+    },
+    BooleanEqual {
+        psi_operation: OperationId,
+        result: ValueId,
+        left: ValueId,
+        right: ValueId,
+    },
+    IntegerEqual {
+        psi_operation: OperationId,
+        result: ValueId,
+        left: ValueId,
+        right: ValueId,
+    },
+    IntegerLessThan {
+        psi_operation: OperationId,
+        result: ValueId,
+        left: ValueId,
+        right: ValueId,
+    },
+    IntegerLessOrEqual {
+        psi_operation: OperationId,
+        result: ValueId,
+        left: ValueId,
+        right: ValueId,
+    },
+    IntegerBitwiseNot {
+        psi_operation: OperationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        operand: ValueId,
+    },
+    IntegerWiden {
+        psi_operation: OperationId,
+        result: ValueId,
+        source_type: IntegerType,
+        target_type: IntegerType,
+        operand: ValueId,
+    },
+    IntegerExactCast {
+        psi_operation: OperationId,
+        obligation: semantic_vocabulary::ObligationId,
+        result: ValueId,
+        source_type: IntegerType,
+        target_type: IntegerType,
+        operand: ValueId,
+    },
+    IntegerBitwiseAnd {
+        psi_operation: OperationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        left: ValueId,
+        right: ValueId,
+    },
+    IntegerBitwiseOr {
+        psi_operation: OperationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        left: ValueId,
+        right: ValueId,
+    },
+    IntegerBitwiseXor {
+        psi_operation: OperationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        left: ValueId,
+        right: ValueId,
+    },
+    WrappingIntegerShiftLeft {
+        psi_operation: OperationId,
+        result: ValueId,
+        value_type: IntegerType,
+        count_type: IntegerType,
+        value: ValueId,
+        count: ValueId,
+    },
+    WrappingIntegerShiftRight {
+        psi_operation: OperationId,
+        result: ValueId,
+        value_type: IntegerType,
+        count_type: IntegerType,
+        value: ValueId,
+        count: ValueId,
+    },
+    ExactIntegerShiftLeft {
+        psi_operation: OperationId,
+        obligation: semantic_vocabulary::ObligationId,
+        result: ValueId,
+        value_type: IntegerType,
+        count_type: IntegerType,
+        value: ValueId,
+        count: ValueId,
+    },
+    ExactIntegerShiftRight {
+        psi_operation: OperationId,
+        obligation: semantic_vocabulary::ObligationId,
+        result: ValueId,
+        value_type: IntegerType,
+        count_type: IntegerType,
+        value: ValueId,
+        count: ValueId,
+    },
+    WrappingIntegerAdd {
+        psi_operation: OperationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        left: ValueId,
+        right: ValueId,
+    },
+    /// Exact mathematical addition admitted only after Psi verifies the
+    /// operation's overflow obligation. Target realization may use the same
+    /// modular instruction as wrapping addition, but the semantic operation
+    /// identity remains distinct for optimization and audit.
+    ExactIntegerAdd {
+        psi_operation: OperationId,
+        obligation: semantic_vocabulary::ObligationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        left: ValueId,
+        right: ValueId,
+    },
+    SaturatingIntegerAdd {
+        psi_operation: OperationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        left: ValueId,
+        right: ValueId,
+    },
+    WrappingIntegerSubtract {
+        psi_operation: OperationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        left: ValueId,
+        right: ValueId,
+    },
+    /// Exact mathematical subtraction with a verifier-discharged range
+    /// obligation. It must not be reclassified as wrapping arithmetic merely
+    /// because both lower to the same native instruction on admitted inputs.
+    ExactIntegerSubtract {
+        psi_operation: OperationId,
+        obligation: semantic_vocabulary::ObligationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        left: ValueId,
+        right: ValueId,
+    },
+    SaturatingIntegerSubtract {
+        psi_operation: OperationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        left: ValueId,
+        right: ValueId,
+    },
+    WrappingIntegerMultiply {
+        psi_operation: OperationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        left: ValueId,
+        right: ValueId,
+    },
+    /// Exact mathematical multiplication with a verifier-discharged range
+    /// obligation, retained separately from modular multiplication.
+    ExactIntegerMultiply {
+        psi_operation: OperationId,
+        obligation: semantic_vocabulary::ObligationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        left: ValueId,
+        right: ValueId,
+    },
+    ExactIntegerDivide {
+        psi_operation: OperationId,
+        obligation: semantic_vocabulary::ObligationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        left: ValueId,
+        right: ValueId,
+    },
+    ExactIntegerRemainder {
+        psi_operation: OperationId,
+        obligation: semantic_vocabulary::ObligationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        left: ValueId,
+        right: ValueId,
+    },
+    WrappingIntegerDivide {
+        psi_operation: OperationId,
+        obligation: semantic_vocabulary::ObligationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        left: ValueId,
+        right: ValueId,
+    },
+    WrappingIntegerRemainder {
+        psi_operation: OperationId,
+        obligation: semantic_vocabulary::ObligationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        left: ValueId,
+        right: ValueId,
+    },
+    SaturatingIntegerDivide {
+        psi_operation: OperationId,
+        obligation: semantic_vocabulary::ObligationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        left: ValueId,
+        right: ValueId,
+    },
+    SaturatingIntegerRemainder {
+        psi_operation: OperationId,
+        obligation: semantic_vocabulary::ObligationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        left: ValueId,
+        right: ValueId,
+    },
+    SaturatingIntegerMultiply {
+        psi_operation: OperationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        left: ValueId,
+        right: ValueId,
+    },
+    /// One Terminal `Trapping` primitive: the exact result, or a `Trap` crash
+    /// at this operation when a settled `numerics::integer_policy` Trapping
+    /// predicate holds. The operation is its own crash site, so it is never
+    /// dead, never folded to a value its predicate would reject, and never
+    /// realized through a sibling policy: native realization checks the
+    /// predicate and traps in place.
+    TrappingInteger {
+        psi_operation: OperationId,
+        result: ValueId,
+        /// The result carrier. Binary arithmetic operands and a shifted value
+        /// share it.
+        scalar_type: IntegerType,
+        /// The independently typed second axis: a shift's count type or a
+        /// conversion's source type, and `scalar_type` for binary arithmetic.
+        operand_type: IntegerType,
+        operation: terminal_psi::TrappingIntegerOperation,
+    },
+    Jump {
+        psi_edge: EdgeId,
+        target: BlockId,
+        bindings: Vec<ValueBinding>,
+        structural_bindings: Vec<crate::abstract_operations::AbstractStructuralBinding>,
+        /// Exact Terminal-Psi edge cleanup order. These no-ABI affine
+        /// discards still participate in ownership semantics and therefore
+        /// cannot be reconstructed from the target block alone.
+        trivial_affine_discards: Vec<PlaceId>,
+        /// Exact ordered complement of the partially transferred owner.
+        residual_affine_discards: Vec<terminal_psi::StructuralAffineDiscard>,
+    },
+    Conditional {
+        condition: ValueId,
+        when_true: AbstractSuccessor,
+        when_false: AbstractSuccessor,
+    },
+    /// Inspect one verifier-approved closed structural sum. Each successor
+    /// carries the exact case identity and binds only that case's relevant
+    /// scalar payload fields to its target block parameters.
+    StructuralCase {
+        source: PlaceId,
+        cases: Vec<AbstractStructuralCaseSuccessor>,
+    },
+    Return {
+        psi_edge: EdgeId,
+        result: ValueId,
+        value: ValueId,
+        scalar_type: ScalarType,
+        /// Exact cleanup execution order retained from verified Psi. The
+        /// scalar result is materialized before these actions execute.
+        cleanup_actions: Vec<TerminalAffineCleanupAction>,
+    },
+    ReturnUnit {
+        psi_edge: EdgeId,
+        /// Exact cleanup execution order retained from verified Psi.
+        cleanup_actions: Vec<TerminalAffineCleanupAction>,
+    },
+    /// Transfer one verified structural root and its complete live claim set
+    /// into the function's declared structural result. Omega realization must
+    /// preserve this custody metadata even though claim identities add no ABI
+    /// fragments of their own.
+    ReturnStructural {
+        psi_edge: EdgeId,
+        source: PlaceId,
+        returned_claims: Vec<ClaimId>,
+        /// Exact typed no-ABI local declarations established before this
+        /// return. They remain distinct from caller-supplied parameters.
+        trivial_affine_locals: Vec<(
+            OperationId,
+            StructuralPlaceDeclaration,
+            StructuralTypeDeclaration,
+        )>,
+        trivial_affine_discards: Vec<PlaceId>,
+    },
+    /// Establish one verified reference carrier. The structural result owns the
+    /// loan; its referent remains the `source` argument's projected home and is
+    /// located by compile-time custody, never by reading a stored pointer.
+    EstablishReference {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        source: StructuralArgument,
+    },
+    /// Close one verified loan: the carrier is discarded and the referent
+    /// root's suspended access is restored. Referent storage is not disposed.
+    ReleaseReference {
+        psi_operation: OperationId,
+        source: PlaceId,
+    },
+    /// A verified no-successor terminal. The audit-only site guard and frontier
+    /// remain attached at the Omega boundary even though native realization
+    /// only needs the closed cause and edge identity.
+    Crash {
+        psi_edge: EdgeId,
+        cause: CrashCause,
+        site_guard: Vec<terminal_psi::CrashPredicateTerm>,
+        frontier_lower_bound: Vec<ClaimId>,
+    },
+}
+
+impl AbstractOperation {
+    /// Every runtime-selected element (`RuntimeIndex { index, obligation }`)
+    /// in the name-spelled paths this operation carries, in operand and path
+    /// order: the Omega image of Terminal's `structural_projections`
+    /// inventory. Each `index` is a scalar use of the operation, and each
+    /// `obligation` is owned by it — the verifier reconstructed
+    /// `index < extent` at this operation, so consumers carry that evidence
+    /// rather than re-deriving a bound or trusting a byte offset. Because the
+    /// accepted certificate names the selector's exact value, optimizer
+    /// rewrites leave selectors as spelled; a rewrite that would retire one
+    /// fails validation instead.
+    pub fn runtime_indices(&self) -> Vec<(ValueId, semantic_vocabulary::ObligationId)> {
+        self.structural_paths()
+            .into_iter()
+            .flatten()
+            .filter_map(StructuralPathSegment::runtime_index)
+            .collect()
+    }
+
+    /// The name-spelled paths this operation carries, in operand order.
+    /// Operations without a projection (scalar arithmetic, control, dynamic
+    /// dispatch selections, literal establishment) carry none.
+    fn structural_paths(&self) -> Vec<&[StructuralPathSegment]> {
+        match self {
+            Self::PrimitiveScalarRead { path, .. }
+            | Self::WriteOnlyPrimitiveStore { path, .. }
+            | Self::StructuralScalarFieldStore { path, .. }
+            | Self::StructuralCaseMembership { path, .. }
+            | Self::StructuralByteSequenceFieldByteStore { path, .. }
+            | Self::StructuralByteSequenceFieldStore { path, .. }
+            | Self::StructuralByteSequenceFieldLength { path, .. }
+            | Self::StructuralByteSequenceFieldRead { path, .. }
+            | Self::MoveStructuralField { path, .. }
+            | Self::StructuralLeafCopy { path, .. } => vec![path.as_slice()],
+            Self::StoreStructuralField { path, value, .. } => {
+                vec![path.as_slice(), value.path.as_slice()]
+            }
+            Self::EstablishReference { source, .. } | Self::EstablishElementView { source, .. } => {
+                vec![source.path.as_slice()]
+            }
+            Self::CallUnit {
+                structural_arguments,
+                ..
+            }
+            | Self::CallUnitWithDynamicArguments {
+                structural_arguments,
+                ..
+            }
+            | Self::CallStructuralScalar {
+                structural_arguments,
+                ..
+            }
+            | Self::CallStructuralScalarWithDynamicArguments {
+                structural_arguments,
+                ..
+            }
+            | Self::CallStructural {
+                structural_arguments,
+                ..
+            }
+            | Self::BoundaryCall {
+                structural_arguments,
+                ..
+            } => structural_arguments
+                .iter()
+                .map(|argument| argument.path.as_slice())
+                .collect(),
+            _ => Vec::new(),
+        }
+    }
+
+    /// The authored Terminal operation this row realizes, or `None` for a
+    /// control transfer (identified by its edge) and a dynamic descriptor
+    /// parameter (identified by its place).
+    pub fn psi_operation(&self) -> Option<OperationId> {
+        match self {
+            Self::WriteOnlyPrimitiveStore { psi_operation, .. }
+            | Self::ByteSequenceWrite { psi_operation, .. }
+            | Self::StructuralByteSequenceFieldByteStore { psi_operation, .. }
+            | Self::StructuralByteSequenceFieldStore { psi_operation, .. }
+            | Self::EstablishPrimitiveLocal { psi_operation, .. }
+            | Self::PrimitiveLocalStore { psi_operation, .. }
+            | Self::PrimitiveScalarRead { psi_operation, .. }
+            | Self::StructuralCaseMembership { psi_operation, .. }
+            | Self::StructuralByteSequenceFieldLength { psi_operation, .. }
+            | Self::StructuralByteSequenceFieldRead { psi_operation, .. }
+            | Self::StructuralScalarFieldStore { psi_operation, .. }
+            | Self::MoveStructuralField { psi_operation, .. }
+            | Self::StoreStructuralField { psi_operation, .. }
+            | Self::StructuralLeafCopy { psi_operation, .. }
+            | Self::StoreDynamicDescriptor { psi_operation, .. }
+            | Self::EstablishScalarArray { psi_operation, .. }
+            | Self::EstablishScalarCase { psi_operation, .. }
+            | Self::EstablishByteSequenceLiteral { psi_operation, .. }
+            | Self::EstablishTrivialAffineLocal { psi_operation, .. }
+            | Self::EstablishRecord { psi_operation, .. }
+            | Self::EstablishReference { psi_operation, .. }
+            | Self::ReleaseReference { psi_operation, .. }
+            | Self::AtomicEvent { psi_operation, .. }
+            | Self::CallUnit { psi_operation, .. }
+            | Self::CallUnitWithDynamicArguments { psi_operation, .. }
+            | Self::CallStructuralScalar { psi_operation, .. }
+            | Self::CallStructuralScalarWithDynamicArguments { psi_operation, .. }
+            | Self::CallDynamicScalar { psi_operation, .. }
+            | Self::CallStoredDynamicScalar { psi_operation, .. }
+            | Self::CallDynamicParameterScalar { psi_operation, .. }
+            | Self::CallDynamicUnit { psi_operation, .. }
+            | Self::CallDynamicParameterUnit { psi_operation, .. }
+            | Self::CallStructural { psi_operation, .. }
+            | Self::BoundaryCall { psi_operation, .. }
+            | Self::PortWrite { psi_operation, .. }
+            | Self::Call { psi_operation, .. }
+            | Self::IntegerConstant { psi_operation, .. }
+            | Self::IeeeFloatConstant { psi_operation, .. }
+            | Self::IeeeFloatCompare { psi_operation, .. }
+            | Self::NearestIeeeFloatFusedMultiplyAdd { psi_operation, .. }
+            | Self::BooleanConstant { psi_operation, .. }
+            | Self::BooleanStructuralField { psi_operation, .. }
+            | Self::ByteSequenceRead { psi_operation, .. }
+            | Self::ByteSequenceSubslice { psi_operation, .. }
+            | Self::ByteSequenceLength { psi_operation, .. }
+            | Self::EstablishElementView { psi_operation, .. }
+            | Self::ElementViewLength { psi_operation, .. }
+            | Self::ElementViewRead { psi_operation, .. }
+            | Self::ElementViewSubslice { psi_operation, .. }
+            | Self::IntegerStructuralField { psi_operation, .. }
+            | Self::BooleanNot { psi_operation, .. }
+            | Self::BooleanEqual { psi_operation, .. }
+            | Self::IntegerEqual { psi_operation, .. }
+            | Self::IntegerLessThan { psi_operation, .. }
+            | Self::IntegerLessOrEqual { psi_operation, .. }
+            | Self::IntegerBitwiseNot { psi_operation, .. }
+            | Self::IntegerWiden { psi_operation, .. }
+            | Self::IntegerExactCast { psi_operation, .. }
+            | Self::IntegerBitwiseAnd { psi_operation, .. }
+            | Self::IntegerBitwiseOr { psi_operation, .. }
+            | Self::IntegerBitwiseXor { psi_operation, .. }
+            | Self::WrappingIntegerShiftLeft { psi_operation, .. }
+            | Self::WrappingIntegerShiftRight { psi_operation, .. }
+            | Self::ExactIntegerShiftLeft { psi_operation, .. }
+            | Self::ExactIntegerShiftRight { psi_operation, .. }
+            | Self::WrappingIntegerAdd { psi_operation, .. }
+            | Self::ExactIntegerAdd { psi_operation, .. }
+            | Self::SaturatingIntegerAdd { psi_operation, .. }
+            | Self::WrappingIntegerSubtract { psi_operation, .. }
+            | Self::ExactIntegerSubtract { psi_operation, .. }
+            | Self::SaturatingIntegerSubtract { psi_operation, .. }
+            | Self::WrappingIntegerMultiply { psi_operation, .. }
+            | Self::ExactIntegerMultiply { psi_operation, .. }
+            | Self::ExactIntegerDivide { psi_operation, .. }
+            | Self::ExactIntegerRemainder { psi_operation, .. }
+            | Self::WrappingIntegerDivide { psi_operation, .. }
+            | Self::WrappingIntegerRemainder { psi_operation, .. }
+            | Self::SaturatingIntegerDivide { psi_operation, .. }
+            | Self::SaturatingIntegerRemainder { psi_operation, .. }
+            | Self::SaturatingIntegerMultiply { psi_operation, .. }
+            | Self::TrappingInteger { psi_operation, .. } => Some(*psi_operation),
+            Self::DynamicDescriptorParameter { .. }
+            | Self::Jump { .. }
+            | Self::Conditional { .. }
+            | Self::StructuralCase { .. }
+            | Self::Return { .. }
+            | Self::ReturnUnit { .. }
+            | Self::ReturnStructural { .. }
+            | Self::Crash { .. } => None,
+        }
+    }
+}

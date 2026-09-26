@@ -1,19 +1,19 @@
 use super::{candidate_position, candidates, member_relief, split_domain_pressure};
 use crate::RegisterHomeError;
-use legalized_operations::LegalizedStructuralContract;
-use optimization_unit::ValueDefinitionSite;
-use register_environment::baseline_target_register_environment;
-use register_model::RegisterClassId;
-use selected_instructions::{
-    DistinctUseDefTie, EdgeRegisterTransfer, FunctionLiveRanges, LiveRangePoint, LivenessPosition,
-    SelectedBlockId, SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
-    VirtualInterference, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
-};
 use semantic_vocabulary::{
     EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, PlaceId, ScalarType, ValueId,
 };
 use target::NativeTarget;
+use target_operations_to_selected_instructions::legalized_operations::LegalizedStructuralContract;
+use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
+use target_operations_to_selected_instructions::register_model::RegisterClassId;
+use target_operations_to_selected_instructions::{
+    DistinctUseDefTie, EdgeRegisterTransfer, FunctionLiveRanges, LiveRangePoint, LivenessPosition,
+    SelectedBlockId, SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
+    VirtualInterference, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
 fn pressure(function: usize, register: u32) -> RegisterHomeError {
     RegisterHomeError::NoCompatibleHome { function, register }
@@ -70,7 +70,7 @@ fn roster_covers_every_entry_live_in_origin() {
                 reference_sources: Vec::new(),
             }),
             structural_types: Vec::new().into(),
-            parameters: vec![legalized_operations::LegalizedCallUnitParameter {
+            parameters: vec![target_operations_to_selected_instructions::legalized_operations::LegalizedCallUnitParameter {
                 semantic: terminal_psi::StructuralParameterDeclaration {
                     place,
                     position: 0,
@@ -81,15 +81,15 @@ fn roster_covers_every_entry_live_in_origin() {
                     qualifications: Vec::new(),
                     projected_qualifications: Vec::new(),
                 },
-                target: target_operations::TargetStructuralParameter {
+                target: abstract_operations_to_target_operations::target_operations::TargetStructuralParameter {
                     place,
                     structural_type,
                     multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                     access: terminal_psi::StructuralAccess::SharedBorrow,
                     projected_qualifications: Vec::new(),
-                    shape: calling_conventions::ValueShape::borrowed_reference(8, 8),
-                    placement: calling_conventions::ValuePlacement {
-                        shape: calling_conventions::ValueShape::borrowed_reference(8, 8),
+                    shape: abstract_operations_to_target_operations::calling_conventions::ValueShape::borrowed_reference(8, 8),
+                    placement: abstract_operations_to_target_operations::calling_conventions::ValuePlacement {
+                        shape: abstract_operations_to_target_operations::calling_conventions::ValueShape::borrowed_reference(8, 8),
                         locations: Vec::new(),
                     },
                 },

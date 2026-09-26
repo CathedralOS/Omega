@@ -1,7 +1,9 @@
 use optimization_core::OptimizationUnitIdentity;
-use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::FuelScheduleIdentity;
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
+use target_operations_to_selected_instructions::{
+    SelectedInstructionPlan, SelectedInstructionPlanIdentity,
+};
 
 use crate::rewrites::unexecuted::peepholes::{
     ValidatedConditionMaterialization, ValidatedCopiedCallOperand, ValidatedProjectedAccess,

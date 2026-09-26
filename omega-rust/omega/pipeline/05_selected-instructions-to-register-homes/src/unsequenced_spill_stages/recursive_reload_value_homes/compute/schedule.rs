@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use register_model::ValidatedPhysicalRegisterModel;
+use target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel;
 
 use crate::unsequenced_spill_stages::{
     GeneralizedReloadCoexistingValue, GeneralizedReloadValueHomeOutcome, GeneralizedSpillActionId,
@@ -12,7 +12,7 @@ use crate::unsequenced_spill_stages::{
 };
 
 use super::{ActiveHome, ReloadSpec, homes};
-use register_homes::FunctionAllocationLegality;
+use selected_instructions_to_selected_instructions::register_homes::FunctionAllocationLegality;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn assign(
@@ -213,7 +213,10 @@ fn choose(
     spec: &ReloadSpec,
     active: &[ActiveHome],
     physical: &ValidatedPhysicalRegisterModel,
-) -> Result<register_model::RegisterViewId, RecursiveReloadValueHomeError> {
+) -> Result<
+    target_operations_to_selected_instructions::register_model::RegisterViewId,
+    RecursiveReloadValueHomeError,
+> {
     spec.candidates
         .iter()
         .copied()
@@ -226,7 +229,7 @@ fn choose(
 
 fn record(
     spec: &ReloadSpec,
-    view: register_model::RegisterViewId,
+    view: target_operations_to_selected_instructions::register_model::RegisterViewId,
     active: &[ActiveHome],
     rosters: &mut BTreeMap<GeneralizedSpillActionId, BTreeSet<RecursiveReloadCoexistingHome>>,
 ) {

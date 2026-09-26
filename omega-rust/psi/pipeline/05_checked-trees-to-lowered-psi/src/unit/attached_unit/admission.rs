@@ -17,8 +17,10 @@ use super::{
     RuntimeRequirementOwner, reference_results, retain_exact_unit_boundary, scalar_completion,
     structural_completion, validate_unit_operation_sequence,
 };
-use checked_trees::{CheckedBoundaryMachinePlan, CheckedComposedUnitControlMachinePlan};
 use symbols::SymbolHandle;
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedBoundaryMachinePlan, CheckedComposedUnitControlMachinePlan,
+};
 
 pub(super) enum AdmittedBody<'a> {
     Ordinary(&'a CheckedUnitEffectMachinePlan),

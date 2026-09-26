@@ -25,7 +25,7 @@ fn state_graph_admits_scalar_result_with_crash_exit_state() {
     assert!(graph.states.iter().any(|state| {
         matches!(
             state.terminator,
-            checked_trees::CheckedScalarStateTerminator::Crash {
+            crate::checked_trees::CheckedScalarStateTerminator::Crash {
                 statement_ordinal: 0
             }
         )
@@ -76,7 +76,7 @@ fn state_graph_admits_structural_machine_with_crash_exit_state() {
         .filter(|state| {
             matches!(
                 state.terminator,
-                checked_trees::CheckedComposedUnitControlTerminatorPlan::Crash {
+                crate::checked_trees::CheckedComposedUnitControlTerminatorPlan::Crash {
                     statement_ordinal: 0
                 }
             )

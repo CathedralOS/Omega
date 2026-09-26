@@ -1,6 +1,8 @@
 //! Exact selected-control projection shared by liveness transfer and evidence.
 
-use selected_instructions::{SelectedInstruction, SelectedSuccessor, SelectedTerminator};
+use target_operations_to_selected_instructions::{
+    SelectedInstruction, SelectedSuccessor, SelectedTerminator,
+};
 
 pub(super) fn instruction(terminator: &SelectedTerminator) -> &SelectedInstruction {
     match terminator {

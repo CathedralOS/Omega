@@ -1,11 +1,11 @@
 //! Mutable carrier access remains distinct at every erased reborrow edge.
 use super::{OperationKind, StructuralAccess, source};
-use checked_trees::BorrowAccessKind;
-use checked_trees::expression::ExpressionNode;
-use checked_trees::statement::StatementNode;
-use terminal_production::{
+use lowered_psi_to_terminal_psi::terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
+use typed_trees_to_checked_trees::checked_trees::BorrowAccessKind;
+use typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode;
+use typed_trees_to_checked_trees::checked_trees::statement::StatementNode;
 
 fn nested_source() -> String {
     source(
@@ -20,15 +20,16 @@ fn nested_source() -> String {
 #[test]
 fn mutable_chain_retains_each_access_and_exact_projected_calls() {
     let checked = crate::front_end::checked_program(&nested_source());
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("forward"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap()
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("forward"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap()
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     terminal_verifier::verify_module(
@@ -105,15 +106,16 @@ fn mutable_chain_retains_each_access_and_exact_projected_calls() {
 #[test]
 fn mutable_alias_source_replay_rejects_access_path_and_lifetime_substitution() {
     let original = crate::front_end::checked_program(&nested_source());
-    let _artifact = terminal_production::TerminalProductionRequest::new(
-        &original,
-        TerminalMachineSelection::Name("forward"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap()
-    .into_artifact();
+    let _artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &original,
+            TerminalMachineSelection::Name("forward"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap()
+        .into_artifact();
     let (direct_handle, direct) = original
         .facts
         .borrow
@@ -211,7 +213,9 @@ fn mutable_alias_source_replay_rejects_access_path_and_lifetime_substitution() {
                     .weakenings
                     .get_mut(child.parent_end_status.child_weakening)
                     .source =
-                    checked_trees::FlowInvalidationSource::Statement { statement_index: 3 }
+                    typed_trees_to_checked_trees::checked_trees::FlowInvalidationSource::Statement {
+                        statement_index: 3,
+                    }
             }
             8 => {
                 checked
@@ -241,7 +245,7 @@ fn mutable_alias_source_replay_rejects_access_path_and_lifetime_substitution() {
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &checked,
                 TerminalMachineSelection::Name("forward")
             )

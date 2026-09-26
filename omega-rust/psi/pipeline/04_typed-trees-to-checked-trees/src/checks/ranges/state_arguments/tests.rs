@@ -26,11 +26,11 @@ fn compare_machine(
 ) -> (Vec<StateArgumentFacts>, usize, usize) {
     let program = typed_program(source);
     let borrows = crate::borrow::build_borrow_facts(&program);
-    let proof_plan = proof::obligations::build_proof_plan(&program);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&program);
     let values = crate::values::build_value_facts(&program, &proof_plan);
     let operators = crate::operators::build_operator_facts(&program, &values);
     let flow = super::super::cache_tests::range_flow_fixture(&program, &borrows);
-    let frames = validation::CallFrameResolver::new(&program).unwrap();
+    let frames = crate::validation::CallFrameResolver::new(&program).unwrap();
     let machine = match machine_name {
         Some(name) => program
             .machines()

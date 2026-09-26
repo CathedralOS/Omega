@@ -12,14 +12,14 @@ mod transformation;
 mod usage;
 
 use copy_constraint::validated_copy_row;
-use register_model::{
+use roots::validate_roots;
+use seal::seal_validation;
+use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
+use target_operations_to_selected_instructions::register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile,
 };
-use roots::validate_roots;
-use seal::seal_validation;
-use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 use transformation::replay_transformation;
 use usage::replay_usage;
 

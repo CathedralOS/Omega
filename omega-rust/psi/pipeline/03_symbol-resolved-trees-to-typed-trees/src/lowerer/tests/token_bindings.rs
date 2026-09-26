@@ -1,10 +1,10 @@
 //! Token-bearing machines reach operand-directed selection through their
 //! operator-signature view, under the machine's own symbol.
 
+use crate::typed_trees::TypedTrees;
+use crate::typed_trees::operator::{declaration_by_symbol, resolve_spelling_for_operands};
+use crate::typed_trees::types::TypeReferenceHandle;
 use language_core::operator_spelling::OperatorSpelling;
-use typed_trees::TypedTrees;
-use typed_trees::operator::{declaration_by_symbol, resolve_spelling_for_operands};
-use typed_trees::types::TypeReferenceHandle;
 
 const SOURCE: &str = "data Wrapped { value: u8; }
     pub machine + Wrapped::add(left: Wrapped, right: Wrapped) -> u64

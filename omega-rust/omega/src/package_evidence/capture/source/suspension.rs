@@ -1,0 +1,186 @@
+use crate::package_evidence::capture::PackageReviewInput;
+use crate::package_evidence::capture::semantics::facts::exactly_one;
+use crate::package_evidence::capture::source::ProjectedNestedSourceLocation;
+use crate::package_evidence::capture::source::locations::canonical_source_span_location;
+use crate::package_evidence::record::PackageReviewSourceLocationRole;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
+
+pub(crate) fn project_machine_operational_source_locations(
+    compilation: &PackageReviewInput<'_>,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
+    let mut locations = project_operational_keyword_locations(
+        compilation,
+        machine.name.as_str(),
+        "suspends",
+        machine.suspends,
+        &machine.suspends_keyword_source_spans,
+        PackageReviewSourceLocationRole::Suspension,
+    )?;
+    locations.extend(project_operational_keyword_locations(
+        compilation,
+        machine.name.as_str(),
+        "blocks",
+        machine.blocks,
+        &machine.blocks_keyword_source_spans,
+        PackageReviewSourceLocationRole::Blocking,
+    )?);
+
+    validate_machine_operational_interfaces(compilation, machine)?;
+    Ok(locations)
+}
+
+pub(crate) fn validate_machine_operational(
+    compilation: &PackageReviewInput<'_>,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+) -> Result<(), Vec<Diagnostic>> {
+    validate_operational_keyword_custody(
+        compilation,
+        machine.name.as_str(),
+        "suspends",
+        machine.suspends,
+        &machine.suspends_keyword_source_spans,
+        PackageReviewSourceLocationRole::Suspension,
+    )?;
+    validate_operational_keyword_custody(
+        compilation,
+        machine.name.as_str(),
+        "blocks",
+        machine.blocks,
+        &machine.blocks_keyword_source_spans,
+        PackageReviewSourceLocationRole::Blocking,
+    )?;
+    validate_machine_operational_interfaces(compilation, machine)
+}
+
+fn validate_machine_operational_interfaces(
+    compilation: &PackageReviewInput<'_>,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+) -> Result<(), Vec<Diagnostic>> {
+    let suspension = compilation
+        .facts
+        .suspensions
+        .for_machine(machine.symbol)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "reviewed callable `{}` has no exact suspension fact",
+                machine.name
+            ))]
+        })?;
+    let blocking = compilation
+        .facts
+        .blocking
+        .for_machine(machine.symbol)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "reviewed callable `{}` has no exact blocking fact",
+                machine.name
+            ))]
+        })?;
+    let publishes = machine.is_public
+        || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody;
+    let expected_suspension = if publishes || machine.suspends {
+        language_semantics::SuspensionInterface::PublishedMaySuspend(machine.suspends)
+    } else {
+        language_semantics::SuspensionInterface::InternalInferred
+    };
+    let expected_blocking = if publishes || machine.blocks {
+        language_semantics::BlockingInterface::PublishedMayBlock(machine.blocks)
+    } else {
+        language_semantics::BlockingInterface::InternalInferred
+    };
+    if suspension.interface != expected_suspension || blocking.interface != expected_blocking {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` authored operational custody does not equal its exact checked interfaces",
+            machine.name
+        ))]);
+    }
+    Ok(())
+}
+
+pub(crate) fn project_signature_operational_source_locations(
+    compilation: &PackageReviewInput<'_>,
+    owner: SymbolHandle,
+    signature: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateSignature,
+) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
+    let mut locations = project_operational_keyword_locations(
+        compilation,
+        signature.name.as_str(),
+        "suspends",
+        signature.suspends,
+        &signature.suspends_keyword_source_spans,
+        PackageReviewSourceLocationRole::Suspension,
+    )?;
+    locations.extend(project_operational_keyword_locations(
+        compilation,
+        signature.name.as_str(),
+        "blocks",
+        signature.blocks,
+        &signature.blocks_keyword_source_spans,
+        PackageReviewSourceLocationRole::Blocking,
+    )?);
+    let checked = exactly_one(
+        compilation
+            .facts
+            .contract_plans
+            .crash_capsules
+            .iter()
+            .filter(|capsule| {
+                capsule.target_machine() == owner && capsule.target_state() == signature.symbol
+            }),
+        signature.name.as_str(),
+        "signature contract capsule",
+    )?;
+    if checked.published_may_suspend() != signature.suspends
+        || checked.published_may_block() != signature.blocks
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed signature `{}` authored operational custody does not equal its exact checked contract capsule",
+            signature.name
+        ))]);
+    }
+    Ok(locations)
+}
+
+fn project_operational_keyword_locations(
+    compilation: &PackageReviewInput<'_>,
+    owner_name: &str,
+    clause: &str,
+    authored: bool,
+    source_spans: &[source::SourceSpan],
+    role: PackageReviewSourceLocationRole,
+) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
+    validate_operational_keyword_custody(
+        compilation,
+        owner_name,
+        clause,
+        authored,
+        source_spans,
+        role,
+    )?;
+    source_spans
+        .iter()
+        .copied()
+        .map(|source_span| Ok(ProjectedNestedSourceLocation { source_span, role }))
+        .collect()
+}
+
+fn validate_operational_keyword_custody(
+    compilation: &PackageReviewInput<'_>,
+    owner_name: &str,
+    clause: &str,
+    authored: bool,
+    source_spans: &[source::SourceSpan],
+    role: PackageReviewSourceLocationRole,
+) -> Result<(), Vec<Diagnostic>> {
+    if authored == source_spans.is_empty() {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{owner_name}` has contradictory authored `{clause}` source custody"
+        ))]);
+    }
+    for source_span in source_spans {
+        canonical_source_span_location(compilation, *source_span, role)?;
+    }
+    Ok(())
+}

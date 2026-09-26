@@ -1,10 +1,10 @@
 use super::{close_storage_places_over_aliases, close_storage_places_over_aliases_with_resolver};
+use crate::fact_plan::{PlaceRoot, PlaceSegment};
 use crate::flow::CanonicalPlace;
 use crate::tests::front_end::typed_program;
-use facts::{PlaceRoot, PlaceSegment};
+use crate::validation::CallFrameResolver;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 use symbols::SymbolHandle;
-use typed_trees::statement::StatementNode;
-use validation::CallFrameResolver;
 
 fn place(root: SymbolHandle, segments: &[PlaceSegment]) -> CanonicalPlace {
     CanonicalPlace {
@@ -38,7 +38,7 @@ fn shared_alias_closure_uses_each_statement_prefix_across_rebinding() {
     let parameters = program.state_parameters(state);
     let first = parameters[0].symbol;
     let second = parameters[1].symbol;
-    let typed_trees::data::DataMember::Field(field) =
+    let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) =
         &program.data_members(&program.data_definitions()[0])[0]
     else {
         panic!("Pair.value field");

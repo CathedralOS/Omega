@@ -1,11 +1,11 @@
 use super::StatementNode;
 use crate::CheckingRequest;
-use crate::lower_typed_trees;
-use crate::tests::front_end::typed_program;
-use checked_trees::{
+use crate::checked_trees::{
     CheckedCallScalarArgument, CheckedScalarComputationKind, CheckedScalarExpressionRole,
     CheckedTrees, CheckedUnitEffectOperationPlan,
 };
+use crate::lower_typed_trees;
+use crate::tests::front_end::typed_program;
 
 fn checked_call(boundary: bool) -> CheckedTrees {
     let declaration = if boundary {
@@ -28,7 +28,9 @@ fn checked_call(boundary: bool) -> CheckedTrees {
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
 }
 
-fn caller(checked: &CheckedTrees) -> &typed_trees::machine::Machine {
+fn caller(
+    checked: &CheckedTrees,
+) -> &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine {
     checked
         .machines()
         .iter()

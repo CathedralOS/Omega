@@ -57,7 +57,9 @@ fn result_bearing_boundary_rejects_compact_equal_commitment_substitution() {
         .boundary_machines[0];
     let retained_report = boundary.contract_report_fingerprint;
     boundary.contract_commitment =
-        checked_trees::MachineContractCommitment::from_digest([0x5a; 32]);
+        typed_trees_to_checked_trees::checked_trees::MachineContractCommitment::from_digest(
+            [0x5a; 32],
+        );
     assert_eq!(boundary.contract_report_fingerprint, retained_report);
 
     assert_eq!(
@@ -747,7 +749,7 @@ fn direct_internal_structural_result_call_gets_an_exact_checked_plan() {
         panic!("one source state");
     };
     let [
-        checked_trees::CheckedUnitEffectOperationPlan::StructuralCall {
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::StructuralCall {
             coordinate,
             structural_arguments,
             custody,
@@ -1497,7 +1499,10 @@ fn lowering_rejects_stale_structural_return_cleanup_coordinates() {
 
 #[test]
 fn lowering_rejects_stale_affine_local_declaration_and_cleanup_rows() {
-    fn checked_plan() -> (checked_trees::CheckedTrees, symbols::SymbolHandle) {
+    fn checked_plan() -> (
+        typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+        symbols::SymbolHandle,
+    ) {
         let checked = checked_source();
         let symbol = checked
             .machines()

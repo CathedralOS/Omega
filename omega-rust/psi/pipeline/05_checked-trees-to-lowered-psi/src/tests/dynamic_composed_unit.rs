@@ -1,6 +1,6 @@
 //! Fixtures shared by the dynamic composed unit lowering tests.
 
-use crate::TerminalMachineSelection;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 mod direct_dynamic_units;
 mod finite_family;
@@ -9,10 +9,10 @@ mod mutating_realizations_and_effects;
 mod plan_isolation;
 mod rebound_dynamic_custody;
 
-use crate::tests::{LoweringError, checked_source_with_core_service, lower_machine};
-use checked_trees::CheckedDynamicBinding::Direct;
-use checked_trees::CheckedDynamicDispatchPlan::Scalar;
+use crate::tests::{checked_source_with_core_service, lower_machine};
 use terminal_psi::OperationKind;
+use typed_trees_to_checked_trees::checked_trees::CheckedDynamicBinding::Direct;
+use typed_trees_to_checked_trees::checked_trees::CheckedDynamicDispatchPlan::Scalar;
 
 const DIRECT_DYNAMIC_SOURCE: &str = r#"
     trait Measure {
@@ -906,13 +906,13 @@ const FAMILY_DYNAMIC_UNIT_SOURCE: &str = r#"
     }
 "#;
 
-fn direct_dynamic_checked() -> checked_trees::CheckedTrees {
+fn direct_dynamic_checked() -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
     checked_source_with_core_service(DIRECT_DYNAMIC_SOURCE)
 }
 
 fn direct_plan(
-    checked: &checked_trees::CheckedTrees,
-) -> &checked_trees::CheckedDynamicScalarCallPlan {
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+) -> &typed_trees_to_checked_trees::checked_trees::CheckedDynamicScalarCallPlan {
     let plans = &checked
         .facts
         .flow
@@ -1041,8 +1041,8 @@ fn assert_stored_dynamic_scalar_artifact_executes(
 }
 
 fn direct_plan_mut(
-    checked: &mut checked_trees::CheckedTrees,
-) -> &mut checked_trees::CheckedDynamicScalarCallPlan {
+    checked: &mut typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+) -> &mut typed_trees_to_checked_trees::checked_trees::CheckedDynamicScalarCallPlan {
     let plans = &mut checked
         .facts
         .flow
@@ -1055,9 +1055,11 @@ fn direct_plan_mut(
     plan
 }
 
-fn unsupported_message(checked: &checked_trees::CheckedTrees) -> &'static str {
+fn unsupported_message(
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+) -> &'static str {
     match lower_machine(checked, TerminalMachineSelection::Name("Main::run")) {
-        Err(LoweringError::Unsupported(message)) => message,
+        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(message)) => message,
         result => panic!("tampered direct dynamic custody must reject, got {result:?}"),
     }
 }

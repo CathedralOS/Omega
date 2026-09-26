@@ -3,18 +3,23 @@
 //! lowered target roster to retain it.
 
 use crate::LoweringError;
-use abstract_operations::{AbstractOperation, AbstractOperationPlan};
-use calling_conventions::{CallSignature, ValueShape};
+use crate::calling_conventions::{CallSignature, ValueShape};
+use crate::target_operations::{TargetOperationPlan, TargetUnitOperation};
 use semantic_vocabulary::OperationId;
 use std::collections::BTreeMap;
 use target::NativeTarget;
-use target_operations::{TargetOperationPlan, TargetUnitOperation};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractOperation, AbstractOperationPlan,
+};
 
 pub(crate) fn bind_native_callback_arguments(
     plan: &AbstractOperationPlan,
     target: NativeTarget,
     admitted_rows: &[crate::AdmittedNativeCallbackArgument],
-) -> Result<BTreeMap<OperationId, target_operations::TargetNativeCallbackArgument>, LoweringError> {
+) -> Result<
+    BTreeMap<OperationId, crate::target_operations::TargetNativeCallbackArgument>,
+    LoweringError,
+> {
     if admitted_rows.len() > 1 {
         for (index, admitted) in admitted_rows.iter().enumerate() {
             if admitted_rows[..index]
@@ -62,7 +67,7 @@ pub(crate) fn bind_native_callback_arguments(
         }
         native_callbacks_by_operation.insert(
             admitted.terminal_operation,
-            target_operations::TargetNativeCallbackArgument {
+            crate::target_operations::TargetNativeCallbackArgument {
                 terminal_operation: admitted.terminal_operation,
                 placement_index: admitted.placement_index,
                 callback_function: admitted.callback_function,
@@ -104,7 +109,7 @@ fn native_callback_application_is_exact(
             .map(|result| result.shape),
     };
     let Ok(validated) =
-        calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
+        crate::calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
             admitted.registrar_boundary_entry_plan.clone(),
             &signature,
             &admitted.registrar_context,
@@ -132,7 +137,8 @@ fn native_callback_application_is_exact(
             .parameters
             .get(ordinal)
             == Some(&application.placement)
-        && demand.destination == calling_conventions::NativePlace::Parameter(application.parameter)
+        && demand.destination
+            == crate::calling_conventions::NativePlace::Parameter(application.parameter)
         && materialization.destination == demand.destination
         && materialization.binder == binder.binder
         && binder.requirement == demand.requirement
@@ -140,7 +146,7 @@ fn native_callback_application_is_exact(
 
 pub(crate) fn validate_native_callback_target_rows(
     plan: &TargetOperationPlan,
-    expected: &BTreeMap<OperationId, target_operations::TargetNativeCallbackArgument>,
+    expected: &BTreeMap<OperationId, crate::target_operations::TargetNativeCallbackArgument>,
 ) -> Result<(), LoweringError> {
     for (operation, callback) in expected {
         let matches = plan

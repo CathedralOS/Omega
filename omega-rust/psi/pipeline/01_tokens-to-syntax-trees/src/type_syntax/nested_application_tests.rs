@@ -6,11 +6,11 @@
 //! the enclosing list: the two authored spans then overlap and the enclosing
 //! application reads argument handles that belong to its child.
 
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::item::{DataMember, Item};
+use crate::syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 use arena::HandleSpan;
 use source_files_to_tokens::Lexer;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::item::{DataMember, Item};
-use syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 /// `Pair<u64[0..=3], Pair<u64[0..=7], u64[0..=15]>>`: the enclosing
 /// application has two arguments and its second argument has two of its own.

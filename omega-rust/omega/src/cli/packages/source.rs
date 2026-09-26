@@ -1,29 +1,30 @@
 use crate::cli::arguments::SourceArguments;
-use package_source::PrimaryGitChoices;
+use omega::package_source::PrimaryGitChoices;
 
 pub(crate) fn run(arguments: SourceArguments) {
-    let adapter = match package_manager::operations::SourceAdapter::parse(&arguments.source_kind) {
-        Ok(adapter) => adapter,
-        Err(error) => {
-            eprintln!("invalid source adapter: {error:?}");
-            std::process::exit(2);
-        }
-    };
-    let storage =
-        match package_source::SourceResolverStorage::for_current_user(PrimaryGitChoices::default())
-        {
-            Ok(storage) => storage,
+    let adapter =
+        match omega::package_manager::operations::SourceAdapter::parse(&arguments.source_kind) {
+            Ok(adapter) => adapter,
             Err(error) => {
-                eprintln!("cannot open private source resolver storage: {error}");
-                std::process::exit(1);
+                eprintln!("invalid source adapter: {error:?}");
+                std::process::exit(2);
             }
         };
-    match package_manager::operations::inspect_package_source_locator(
+    let storage = match omega::package_source::SourceResolverStorage::for_current_user(
+        PrimaryGitChoices::default(),
+    ) {
+        Ok(storage) => storage,
+        Err(error) => {
+            eprintln!("cannot open private source resolver storage: {error}");
+            std::process::exit(1);
+        }
+    };
+    match omega::package_manager::operations::inspect_package_source_locator(
         adapter,
         arguments.locator,
         arguments.rev,
         &storage,
-        package_source::LocalSourceLimits::default(),
+        omega::package_source::LocalSourceLimits::default(),
     ) {
         Ok(report) => print!("{}", report.to_text()),
         Err(error) => {

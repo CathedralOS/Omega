@@ -3,11 +3,11 @@ use super::{
     IntegerSign, IntegerType, OperationKind, ScalarType, StructuralAccess, StructuralFieldType,
     StructuralTypeShape,
 };
-use checked_trees::CheckedUnitStructuralPathSegment;
-use terminal_production::{
+use lowered_psi_to_terminal_psi::terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
 use terminal_psi::StructuralPathSegment;
+use typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment;
 
 #[path = "projections/harness.rs"]
 mod harness;
@@ -79,15 +79,16 @@ fn assert_corrupted_projected_receiver(callee_borrow: &str) {
     let (source, caller_name, _) =
         projected_source("mut", callee_borrow, true, false, false, false, false);
     let checked = crate::front_end::checked_program(&source);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name(caller_name),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap()
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name(caller_name),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap()
+        .into_artifact();
     drop(checked);
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();

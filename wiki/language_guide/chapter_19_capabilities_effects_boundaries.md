@@ -22,7 +22,7 @@ defines these distinctions precisely.
 Examples illustrate the intended source model, not a claim that every target or
 native route is implemented. Unsupported routes must reject rather than weaken
 a contract. Implementation limits belong beside the
-[native realization code](../../omega-rust/omega/compiler/README.md#native-realization).
+[native realization code](../../omega-rust/omega/docs/compiler/README.md#native-realization).
 
 ## Boundary Surfaces
 
@@ -95,7 +95,7 @@ must agree on the exact representation; a state-migration proof cannot repair
 an incompatible ABI in an existing caller.
 
 See [opaque representations](../spec/build/opaque_representations.md) and
-[representation review](../../omega-rust/omega/packages/review/evidence/README.md).
+[representation review](../../omega-rust/omega/docs/package-evidence/README.md).
 Opacity alone is not an accepted proposition or capability establishment.
 
 ## Boundary Traits
@@ -812,7 +812,7 @@ notifications for a new activation. It still respects the acyclic `invokes` grap
 executor affinity, and [callback entry-stack contract](../spec/resources/entry_stacks.md#foreign-callback-entry).
 A native declaration alone proves no absence of opaque re-entry.
 
-The [native implementation note](../../omega-rust/omega/compiler/README.md#callback-custody-boundaries)
+The [native implementation note](../../omega-rust/omega/docs/compiler/README.md#callback-custody-boundaries)
 separates current materialization support from complete authored-use, registration,
 and lifetime custody. A retained callback companion or installed-entry record
 alone does not establish that protocol.

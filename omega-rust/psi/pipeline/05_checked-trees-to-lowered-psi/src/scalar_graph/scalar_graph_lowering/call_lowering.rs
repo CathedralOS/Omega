@@ -16,7 +16,7 @@ use crate::scalar_graph::{
     QualifiedScalarType, StructuralAccess, StructuralArgument, StructuralPathSegment,
     StructuralTypeDeclaration, allocate_dense, place_id, scalar_carriers, unsupported,
 };
-use checked_trees::CheckedErasedProofParameterPlan;
+use typed_trees_to_checked_trees::checked_trees::CheckedErasedProofParameterPlan;
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn lower_checked_direct_call_binding(
@@ -165,7 +165,7 @@ pub(crate) fn lower_scalar_call(
     // `Formal` positions stay dense.
     let erased_proof_arguments = (0..target.erased_proof_parameters().len())
         .map(|erased_ordinal| {
-            let role = checked_trees::CheckedProofTermRole::ErasedUnitCallArgument {
+            let role = typed_trees_to_checked_trees::checked_trees::CheckedProofTermRole::ErasedUnitCallArgument {
                 call_ordinal,
                 erased_ordinal: u32::try_from(erased_ordinal).map_err(|_| {
                     LoweringError::Unsupported("scalar call erased proof ordinal exceeds u32")
@@ -258,7 +258,7 @@ pub(crate) fn lower_scalar_call(
 pub(crate) fn lower_scalar_graph_successor(
     checked: &CheckedTrees,
     qualifications: &PreparedScalarQualifications,
-    states: &[checked_trees::CheckedScalarStateGraph],
+    states: &[typed_trees_to_checked_trees::checked_trees::CheckedScalarStateGraph],
     source_state: symbols::SymbolHandle,
     source_value_types: &[QualifiedScalarType],
     successor: &CheckedScalarSuccessor,
@@ -315,14 +315,14 @@ pub(crate) fn lower_scalar_graph_successor(
         .iter()
     {
         match transfer.source {
-            checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } => {
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } => {
                 let parameter = source.structural_parameters.get(index as usize).ok_or(
                     LoweringError::Unsupported("scalar successor transfer parameter is absent"),
                 )?;
                 // The state's structural namespace is its checked roster in
                 // order, so the transfer's roster index addresses it directly.
-                let argument = checked_trees::CheckedUnitStructuralArgumentPlan {
-                    source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                let argument = typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan {
+                    source: typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                         parameter_index: index,
                     },
                     path: Vec::new(),
@@ -333,7 +333,7 @@ pub(crate) fn lower_scalar_graph_successor(
                     // A borrowed view forwards its descriptor along the edge:
                     // the callee re-borrows the same place rather than taking
                     // ownership the source never had.
-                    checked_trees::CheckedStructuralAccess::SharedBorrow => scalar_bindings
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow => scalar_bindings
                         .shared_structural_argument(
                             &argument,
                             source_machine,
@@ -342,23 +342,23 @@ pub(crate) fn lower_scalar_graph_successor(
                     _ => scalar_bindings.owned_argument(&argument)?,
                 });
             }
-            checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
                 root:
-                    checked_trees::CheckedStorageRoot::Parameter {
+                    typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::Parameter {
                         index: parameter_index,
                     },
                 expression,
             }
-            | checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
+            | typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
                 root:
-                    checked_trees::CheckedStorageRoot::Parameter {
+                    typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::Parameter {
                         index: parameter_index,
                     },
                 expression,
             } => {
                 let element = matches!(
                     transfer.source,
-                    checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
+                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
                         ..
                     }
                 );
@@ -374,18 +374,18 @@ pub(crate) fn lower_scalar_graph_successor(
                     .ok_or(LoweringError::Unsupported(
                         "scalar successor subslice target is absent",
                     ))?;
-                let checked_trees::expression::ExpressionNode::Indexed(indexed) =
+                let typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode::Indexed(indexed) =
                     checked.expression_table.expression(expression)
                 else {
                     return unsupported("scalar successor subslice lost its indexed source");
                 };
-                let checked_trees::expression::ExpressionNode::Range(range) =
+                let typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode::Range(range) =
                     checked.expression_table.expression(indexed.index)
                 else {
                     return unsupported("scalar successor subslice lost its authored range");
                 };
                 let endpoint =
-                    |handle: checked_trees::expression::ExpressionHandle,
+                    |handle: typed_trees_to_checked_trees::checked_trees::expression::ExpressionHandle,
                      role: CheckedScalarExpressionRole|
                      -> Result<Option<LoweredDirectExpression>, LoweringError> {
                         if !handle.is_valid() {
@@ -406,7 +406,7 @@ pub(crate) fn lower_scalar_graph_successor(
                 let start = endpoint(
                     range.start,
                     CheckedScalarExpressionRole::SubsliceStart {
-                        site: checked_trees::CheckedSubsliceSite::TransitionArgument {
+                        site: typed_trees_to_checked_trees::checked_trees::CheckedSubsliceSite::TransitionArgument {
                             argument_ordinal: retained_target.position,
                         },
                     },
@@ -417,19 +417,19 @@ pub(crate) fn lower_scalar_graph_successor(
                 let end = endpoint(
                     range.end,
                     CheckedScalarExpressionRole::SubsliceEnd {
-                        site: checked_trees::CheckedSubsliceSite::TransitionArgument {
+                        site: typed_trees_to_checked_trees::checked_trees::CheckedSubsliceSite::TransitionArgument {
                             argument_ordinal: retained_target.position,
                         },
                     },
                 )?;
                 let source = scalar_bindings.shared_structural_argument(
-                    &checked_trees::CheckedUnitStructuralArgumentPlan {
-                        source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan {
+                        source: typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                             parameter_index,
                         },
                         path: Vec::new(),
                         type_identity: retained_source.type_identity.clone(),
-                        access: checked_trees::CheckedStructuralAccess::SharedBorrow,
+                        access: typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow,
                     },
                     source_custody::authored_state(checked, source_state)?.0,
                     checked

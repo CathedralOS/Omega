@@ -40,8 +40,8 @@ fn literal_call_arguments_require_shared_whole_source_custody() {
         },
         CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal: 0 },
         CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
-            root: checked_trees::CheckedStorageRoot::Parameter { index: 0 },
-            expression: typed_trees::expression::ExpressionHandle::invalid(),
+            root: crate::checked_trees::CheckedStorageRoot::Parameter { index: 0 },
+            expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid(),
             start: None,
             end: None,
         },

@@ -8,9 +8,9 @@ use super::{
     StructuralPlaceKind, StructuralTypeId, allocate_dense, lookup_type_id, place_id, unsupported,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
-use checked_trees::expression::ExpressionNode;
-use checked_trees::statement::StatementNode;
-use checked_trees::{
+use typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode;
+use typed_trees_to_checked_trees::checked_trees::statement::StatementNode;
+use typed_trees_to_checked_trees::checked_trees::{
     CheckedStructuralAccess, CheckedUnitStructuralPathSegment,
     CheckedUnitStructuralResultBindingPlan,
 };
@@ -42,14 +42,14 @@ pub(super) fn validate_establishment(
         CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index }
         | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
             root:
-                checked_trees::CheckedStorageRoot::Parameter {
+                typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::Parameter {
                     index: parameter_index,
                 },
             ..
         }
         | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
             root:
-                checked_trees::CheckedStorageRoot::Parameter {
+                typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::Parameter {
                     index: parameter_index,
                 },
             ..
@@ -66,8 +66,10 @@ pub(super) fn validate_establishment(
     // leaf shape in the same fields; reconstructing the authored tail selects
     // exactly one.
     let exact_ingress = if let Some(position) =
-        validation::reference_result_custody::source_parameter(&checked.typed, state)
-    {
+        typed_trees_to_checked_trees::validation::reference_result_custody::source_parameter(
+            &checked.typed,
+            state,
+        ) {
         parameter.position as usize == position
             && matches!(
                 parameter.access,
@@ -78,7 +80,10 @@ pub(super) fn validate_establishment(
             && parameter.qualifications.is_empty()
             && source.path.is_empty()
     } else if let Some((position, expected)) =
-        validation::reference_result_custody::source_leaf(&checked.typed, state)
+        typed_trees_to_checked_trees::validation::reference_result_custody::source_leaf(
+            &checked.typed,
+            state,
+        )
     {
         parameter.position as usize == position
             && parameter.access == CheckedStructuralAccess::Owned
@@ -172,7 +177,7 @@ pub(super) fn validate_establishment(
             if start.value_i64() != Some(0) {
                 return None;
             }
-            let receiver = validation::collection_length_receiver(
+            let receiver = typed_trees_to_checked_trees::validation::collection_length_receiver(
                 &checked.typed,
                 typed_machine,
                 Some(state),
@@ -298,15 +303,16 @@ pub(super) fn validate_releases(
             machine.state,
             operation,
         )?;
-        let boundary = validation::reference_result_custody::release_statement(
-            &checked.facts,
-            machine.machine,
-            machine.state,
-            custody.reference_loan,
-        )
-        .ok_or(LoweringError::Unsupported(
-            "reference carrier has no exact weakening boundary",
-        ))?;
+        let boundary =
+            typed_trees_to_checked_trees::validation::reference_result_custody::release_statement(
+                &checked.facts,
+                machine.machine,
+                machine.state,
+                custody.reference_loan,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "reference carrier has no exact weakening boundary",
+            ))?;
         let mut releases = machine.operations.iter().enumerate().filter_map(
             |(index, operation)| match operation {
                 CheckedUnitEffectOperationPlan::ReleaseReference {
@@ -358,10 +364,10 @@ pub(super) fn validate_releases(
 pub(super) fn validate_consumer(
     checked: &CheckedTrees,
     caller: &CallerView<'_>,
-    coordinate: checked_trees::CheckedUnitCallCoordinate,
-    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
-    parameter: &checked_trees::CheckedUnitStructuralParameterPlan,
-    expression: checked_trees::expression::ExpressionHandle,
+    coordinate: typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate,
+    argument: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan,
+    parameter: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralParameterPlan,
+    expression: typed_trees_to_checked_trees::checked_trees::expression::ExpressionHandle,
 ) -> Result<bool, LoweringError> {
     let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal() else {
         return Ok(false);
@@ -375,30 +381,39 @@ pub(super) fn validate_consumer(
         _ => None,
     }).filter(|result| {
         matches!(checked.statement_table.statements(state.statement_nodes).get(result.statement_index as usize),
-            Some(StatementNode::LocalData(local)) if validation::reference_result_custody::is_reference_record(&checked.typed, local.type_reference))
+            Some(StatementNode::LocalData(local)) if typed_trees_to_checked_trees::validation::reference_result_custody::is_reference_record(&checked.typed, local.type_reference))
     });
     if let Some(result) = record_result {
-        let Some(reference) =
-            validation::declared_place_type_raw(&checked.typed, machine, Some(state), expression)
-        else {
+        let Some(reference) = typed_trees_to_checked_trees::validation::declared_place_type_raw(
+            &checked.typed,
+            machine,
+            Some(state),
+            expression,
+        ) else {
             return Ok(false);
         };
-        if validation::reference_result_custody::parts(&checked.typed, reference).is_none() {
-            return Ok(false);
-        }
-        let expected = validation::reference_result_custody::record_argument(
+        if typed_trees_to_checked_trees::validation::reference_result_custody::parts(
             &checked.typed,
-            &checked.facts,
-            caller.machine,
-            state,
-            coordinate.statement_index,
-            expression,
-            result,
             reference,
         )
-        .ok_or(LoweringError::Unsupported(
-            "record reference consumer has no exact live source",
-        ))?;
+        .is_none()
+        {
+            return Ok(false);
+        }
+        let expected =
+            typed_trees_to_checked_trees::validation::reference_result_custody::record_argument(
+                &checked.typed,
+                &checked.facts,
+                caller.machine,
+                state,
+                coordinate.statement_index,
+                expression,
+                result,
+                reference,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "record reference consumer has no exact live source",
+            ))?;
         if expected != *argument
             || argument.type_identity != parameter.type_identity
             || argument.access != parameter.access
@@ -423,19 +438,23 @@ pub(super) fn validate_consumer(
     else {
         return unsupported("reference result consumer has no authored local");
     };
-    let (referent, _) =
-        validation::reference_result_custody::parts(&checked.typed, local.type_reference).ok_or(
-            LoweringError::Unsupported("reference local lost its declared reference type"),
-        )?;
-    let boundary = validation::reference_result_custody::release_statement(
-        &checked.facts,
-        caller.machine,
-        caller.state,
-        custody.reference_loan,
+    let (referent, _) = typed_trees_to_checked_trees::validation::reference_result_custody::parts(
+        &checked.typed,
+        local.type_reference,
     )
     .ok_or(LoweringError::Unsupported(
-        "reference consumer has no weakening boundary",
+        "reference local lost its declared reference type",
     ))?;
+    let boundary =
+        typed_trees_to_checked_trees::validation::reference_result_custody::release_statement(
+            &checked.facts,
+            caller.machine,
+            caller.state,
+            custody.reference_loan,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "reference consumer has no weakening boundary",
+        ))?;
     if argument.path != [CheckedUnitStructuralPathSegment::Referent]
         || argument.access != CheckedStructuralAccess::MutableBorrow
         || parameter.access != argument.access

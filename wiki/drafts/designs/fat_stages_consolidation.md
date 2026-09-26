@@ -39,7 +39,7 @@ verifier, installer, tests, and Omega stage 00, not internal plumbing.
 Consumers should not have to import stage 07's machinery to read the
 contract.
 
-Dies entirely: `representations/` (IRs move into producing stages),
+Dies mostly: `representations/` (stage-produced IRs move into producing stages; shared boundary vocabularies with upstream consumers stay — see `omega/representations/README.md`),
 `semantics/` (judges into stage checker modules; verifier/codec/interpreters
 into the binary), `backend/` (ISA→02–05, emission tail→08–09),
 `compiler/`, `psi/compiler/` (→07), `build/`, `packages/`, `tooling/`

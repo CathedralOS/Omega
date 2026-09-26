@@ -92,8 +92,8 @@ fn subslice_view_results_keep_their_frontier_decline() {
     assert!(
         matches!(
             error,
-            crate::lowering_error::LoweringError::InvalidUnitMachinePlan { .. }
-                | crate::lowering_error::LoweringError::Unsupported(_)
+            crate::LoweringError::InvalidUnitMachinePlan { .. }
+                | crate::LoweringError::Unsupported(_)
         ),
         "unexpected outcome: {error:?}"
     );

@@ -12,9 +12,9 @@ mod intervals;
 mod proof_facts;
 mod proof_goals;
 
-use optimization_unit::{PsiOptimizationUnit, ValueRangeFact};
-use optimization_unit_semantics::validate_current_value_range_fact_at;
 use semantic_vocabulary::{BlockId, MachineId};
+use terminal_psi_to_abstract_operations::optimization_unit::{PsiOptimizationUnit, ValueRangeFact};
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_current_value_range_fact_at;
 
 use crate::analyses::control_flow::dominators;
 

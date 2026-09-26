@@ -20,8 +20,8 @@ use crate::execution::terminal_unit::{
 pub(crate) fn structural_signature(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
     retain_reference_self: bool,
 ) -> Option<(String, Vec<CheckedUnitStructuralParameterPlan>)> {
@@ -41,8 +41,8 @@ pub(crate) fn structural_signature(
 pub(crate) fn fused_service_scalar_signature(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
     retain_reference_self: bool,
 ) -> Option<(
@@ -80,7 +80,7 @@ fn scalar_parameter_signature(
 pub(crate) fn free_fused_service_scalar_signature(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
 ) -> Option<(
     Vec<CheckedUnitStructuralParameterPlan>,
@@ -106,7 +106,7 @@ pub(crate) fn free_fused_service_scalar_signature(
             scalar_parameters.push(scalar_parameter_signature(program, position, parameter)?);
             continue;
         }
-        if typed_trees::service::exact_bound_service_requirement(program, parameter.type_reference)
+        if symbol_resolved_trees_to_typed_trees::typed_trees::service::exact_bound_service_requirement(program, parameter.type_reference)
             .is_none()
             || !structural_parameters.is_empty()
         {
@@ -145,8 +145,8 @@ pub(crate) fn free_fused_service_scalar_signature(
 pub(crate) fn partial_affine_structural_signature(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
 ) -> Option<(Option<String>, Vec<CheckedUnitStructuralParameterPlan>)> {
     let (attachment, structural, scalar) = structural_signature_with_partial_affine(
@@ -162,8 +162,8 @@ pub(crate) fn partial_affine_structural_signature(
 fn structural_signature_with_partial_affine(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
     allow_partial_affine: bool,
     allow_scalar_parameters: bool,
@@ -275,7 +275,7 @@ fn structural_signature_with_partial_affine(
         // resolved attachment above.
         let (type_identity, fused_service_erasure) = if parameter.is_self {
             (attachment.as_ref()?.0.clone(), None)
-        } else if typed_trees::service::exact_bound_service_requirement(
+        } else if symbol_resolved_trees_to_typed_trees::typed_trees::service::exact_bound_service_requirement(
             program,
             parameter.type_reference,
         )
@@ -368,8 +368,8 @@ fn structural_signature_with_partial_affine(
 pub(crate) fn structural_scalar_signature(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
     retain_reference_self: bool,
 ) -> Option<(
@@ -396,8 +396,8 @@ pub(crate) fn structural_scalar_signature(
 pub(crate) fn structural_scalar_signature_traced(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
     retain_reference_self: bool,
     trace: &LocalConstructionTrace,
@@ -435,8 +435,8 @@ pub(crate) fn structural_scalar_signature_traced(
 /// machine that reads its receiver belongs to the Unit state graph.
 pub(crate) fn ambient_self_scalar_graph_signature(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
 ) -> Option<(
     Vec<CheckedUnitStructuralParameterPlan>,
     Vec<CheckedStructuralScalarParameterPlan>,
@@ -458,7 +458,7 @@ pub(crate) fn ambient_self_scalar_graph_signature(
 pub(crate) fn free_structural_scalar_signature(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
 ) -> Option<(
     Vec<CheckedUnitStructuralParameterPlan>,
@@ -478,7 +478,7 @@ pub(crate) fn free_structural_scalar_signature(
 pub(crate) fn free_structural_scalar_signature_traced(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
     trace: &LocalConstructionTrace,
 ) -> Option<(
@@ -494,7 +494,7 @@ pub(crate) fn free_structural_scalar_signature_traced(
 fn scalar_and_structural_parameters(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
     attachment: Option<(&str, Multiplicity)>,
     retain_reference_self: bool,
@@ -620,7 +620,8 @@ pub(crate) fn entry_claims(
             continue;
         }
         let source = source_parameters.get(parameter.position as usize)?;
-        let expected_root = facts::PlaceRoot::Symbol(parameter_root_symbol(machine, source));
+        let expected_root =
+            crate::fact_plan::PlaceRoot::Symbol(parameter_root_symbol(machine, source));
         let matching = events
             .iter()
             .filter(|event| event.root == expected_root)
@@ -658,14 +659,17 @@ pub(crate) fn entry_claims(
             source_type = *base_type;
         }
         if let TypeReferenceNode::FixedArray {
-            length: typed_trees::types::FixedArrayLength::Literal(length),
+            length:
+                symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::Literal(
+                    length,
+                ),
             ..
         } = program.type_reference_table.type_reference(source_type)
         {
             let indices = matching
                 .iter()
                 .map(|event| {
-                    let [facts::PlaceSegment::FixedIndex { index }] =
+                    let [crate::fact_plan::PlaceSegment::FixedIndex { index }] =
                         facts.flow.ownership.segments.span_or_empty(event.segments)
                     else {
                         return None;
@@ -702,16 +706,16 @@ pub(crate) fn entry_claims(
                 .span_or_empty(event.segments)
                 .iter()
                 .map(|segment| match segment {
-                    facts::PlaceSegment::Field { symbol } => {
+                    crate::fact_plan::PlaceSegment::Field { symbol } => {
                         terminal_field_identity(program, *symbol)
                             .map(CheckedUnitStructuralPathSegment::Field)
                     }
-                    facts::PlaceSegment::FixedIndex { index } => u64::try_from(*index)
+                    crate::fact_plan::PlaceSegment::FixedIndex { index } => u64::try_from(*index)
                         .ok()
                         .map(CheckedUnitStructuralPathSegment::FixedIndex),
-                    facts::PlaceSegment::Case { .. }
-                    | facts::PlaceSegment::FixedRange { .. }
-                    | facts::PlaceSegment::Index { .. } => None,
+                    crate::fact_plan::PlaceSegment::Case { .. }
+                    | crate::fact_plan::PlaceSegment::FixedRange { .. }
+                    | crate::fact_plan::PlaceSegment::Index { .. } => None,
                 })
                 .collect::<Option<Vec<_>>>()?;
             output.push(CheckedUnitEntryClaimPlan {

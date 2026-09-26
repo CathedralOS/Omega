@@ -1,8 +1,8 @@
-use machine_code::resolved_machine_layout_identity as layout_identity;
+use post_allocation_machine_to_selected_form_encoding::machine_code::resolved_machine_layout_identity as layout_identity;
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
-use physical_instructions::PostAllocationMachineOptimizationCustody;
 use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
+use register_homes_to_post_allocation_machine::PostAllocationMachineOptimizationCustody;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 
 use super::super::{

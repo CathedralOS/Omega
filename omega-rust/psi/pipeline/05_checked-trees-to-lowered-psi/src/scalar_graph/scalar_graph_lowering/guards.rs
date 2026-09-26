@@ -163,7 +163,9 @@ fn validate_second_guard(
     statement: u32,
 ) -> Result<(), LoweringError> {
     use crate::expression_preparation::source_custody;
-    use checked_trees::statement::{StatementNode, TransitionGuardNode};
+    use typed_trees_to_checked_trees::checked_trees::statement::{
+        StatementNode, TransitionGuardNode,
+    };
 
     let (_, source) = source_custody::authored_state(checked, state)?;
     match checked
@@ -191,7 +193,9 @@ fn validate_fallback(
     statement: u32,
     fallback: &CheckedScalarBranchDestination,
 ) -> Result<(), LoweringError> {
-    use checked_trees::statement::{StatementNode, TransitionExit, TransitionGuardNode};
+    use typed_trees_to_checked_trees::checked_trees::statement::{
+        StatementNode, TransitionExit, TransitionGuardNode,
+    };
 
     let program = &checked.typed;
     let state = program

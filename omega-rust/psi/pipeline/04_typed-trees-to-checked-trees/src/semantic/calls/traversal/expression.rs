@@ -1,9 +1,9 @@
+use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use crate::lookup::{
     call_receiver_parts, receiver_can_dispatch_to_machine, resolve_state_call_target,
 };
 use crate::semantic::calls::CallSite;
 use crate::semantic::calls::CallSiteTraversal;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 
 pub(super) fn find_call_site_in_expression<'program>(
     traversal: &mut CallSiteTraversal<'program, '_>,
@@ -15,7 +15,7 @@ pub(super) fn find_call_site_in_expression<'program>(
                 return Some(site);
             }
             for arm in traversal.program.expression_table.match_arms(dispatch.arms) {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern
+                if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern
                     && let Some(site) = find_call_site_in_expression(traversal, pattern)
                 {
                     return Some(site);

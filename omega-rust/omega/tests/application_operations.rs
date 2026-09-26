@@ -1,9 +1,9 @@
 //! Operations are callable in-process, including after a rejected request.
 
-use compiler::CompileOptions;
 use omega::compilation::{
     CompileProjectError, CompileProjectRequest, ProjectProduct, compile_project,
 };
+use omega::compiler::CompileOptions;
 use omega::execution::{
     ExecutionOutcome, InterpreterComparison, ProcessExitObservation, RunRequest, run_project,
 };
@@ -186,7 +186,7 @@ fn run_returns_host_output_and_comparison_then_cross_target_without_execution() 
             })
             .is_err()
         );
-        use package_manager::{
+        use omega::package_manager::{
             PackageCommand, PackageCommandOptions, PackageCommandStatus, execute_package_command,
         };
         let accepted = execute_package_command(

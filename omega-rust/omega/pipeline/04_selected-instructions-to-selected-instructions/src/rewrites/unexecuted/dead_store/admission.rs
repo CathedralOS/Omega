@@ -76,14 +76,14 @@
 //! reject, since a boundary event positioned where the bytes remain current
 //! could observe them.
 use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
+use semantic_vocabulary::PlaceId;
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedBlockId, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind, SelectedMemoryAccess, SelectedMemoryAccessRole,
     SelectedStructuralTransport, SelectedSuccessor, VirtualRegisterOrigin,
 };
-use semantic_vocabulary::PlaceId;
 use terminal_psi::StructuralPlaceDeclaration;
 
 use super::DeadStoreEliminationError;
@@ -694,7 +694,7 @@ fn origin_carries(origin: VirtualRegisterOrigin, value: semantic_vocabulary::Val
 /// still observes.
 fn scratch_definition_is_dead(
     function: &SelectedFunction,
-    register: selected_instructions::VirtualRegisterId,
+    register: target_operations_to_selected_instructions::VirtualRegisterId,
 ) -> bool {
     let mut occurrences = 0_usize;
     for block in &function.blocks {
@@ -727,11 +727,11 @@ fn scratch_definition_is_dead(
                     .payloads
                     .iter()
                     .filter(|payload| match &payload.transport {
-                        selected_instructions::SelectedCasePayloadTransport::Unused => false,
-                        selected_instructions::SelectedCasePayloadTransport::Unmaterialized {
+                        target_operations_to_selected_instructions::SelectedCasePayloadTransport::Unused => false,
+                        target_operations_to_selected_instructions::SelectedCasePayloadTransport::Unmaterialized {
                             parameter,
                         } => *parameter == register,
-                        selected_instructions::SelectedCasePayloadTransport::Registers {
+                        target_operations_to_selected_instructions::SelectedCasePayloadTransport::Registers {
                             argument,
                             parameter,
                         } => *argument == register || *parameter == register,
@@ -742,8 +742,8 @@ fn scratch_definition_is_dead(
                 .bindings
                 .iter()
                 .filter(|binding| match &binding.transport {
-                    selected_instructions::SelectedValueTransport::Unused => false,
-                    selected_instructions::SelectedValueTransport::Registers {
+                    target_operations_to_selected_instructions::SelectedValueTransport::Unused => false,
+                    target_operations_to_selected_instructions::SelectedValueTransport::Registers {
                         argument,
                         parameter,
                     } => *argument == register || *parameter == register,
@@ -1314,7 +1314,12 @@ fn edge_unobserved(
             }
             SubjectStorage::Staging(slot) => {
                 destination == slot
-                    || lent == Some(selected_instructions::SelectedAddressBase::Local(slot))
+                    || lent
+                        == Some(
+                            target_operations_to_selected_instructions::SelectedAddressBase::Local(
+                                slot,
+                            ),
+                        )
             }
         };
         if touches {
@@ -1345,7 +1350,10 @@ pub(super) fn shifted_boundary_settlements(
     function: &SelectedFunction,
     block: SelectedBlockId,
     removed: usize,
-) -> Result<Vec<selected_instructions::SelectedBoundarySettlement>, DeadStoreEliminationError> {
+) -> Result<
+    Vec<target_operations_to_selected_instructions::SelectedBoundarySettlement>,
+    DeadStoreEliminationError,
+> {
     let body = function
         .blocks
         .iter()

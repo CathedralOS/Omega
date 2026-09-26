@@ -1,7 +1,7 @@
 use crate::CheckingRequest;
+use crate::checked_trees::{CheckedBooleanExpression, CheckedScalarExpression};
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
-use checked_trees::{CheckedBooleanExpression, CheckedScalarExpression};
 
 #[test]
 fn a_body_write_cannot_make_a_false_entry_crash_route_true() {
@@ -150,7 +150,7 @@ fn mutable_boolean_requires_retains_entry_operand_and_body_retains_current_stora
         .expression_at(
             state.symbol,
             1,
-            checked_trees::CheckedScalarExpressionRole::Return,
+            crate::checked_trees::CheckedScalarExpressionRole::Return,
         )
         .expect("current Boolean return");
     assert!(
@@ -187,7 +187,8 @@ fn published_mutable_parameter_crash_predicates_are_entry_snapshots() {
         let [bucket] = contract.crash.published() else {
             panic!("one crash bucket")
         };
-        let [checked_trees::CrashRouteGuard::Predicate(predicate)] = bucket.alternative_guards()
+        let [crate::checked_trees::CrashRouteGuard::Predicate(predicate)] =
+            bucket.alternative_guards()
         else {
             panic!("one route")
         };

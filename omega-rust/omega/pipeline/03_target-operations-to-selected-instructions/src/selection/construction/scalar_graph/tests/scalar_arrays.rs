@@ -36,7 +36,7 @@ pub(super) fn array_fixture(target: target::NativeTarget, length: u16) -> Legali
         projected_qualifications: Vec::new(),
         claims: Vec::new(),
     };
-    source.structural = Some(legalized_operations::LegalizedStructuralContract {
+    source.structural = Some(crate::legalized_operations::LegalizedStructuralContract {
         result: Some(StructuralResultDeclaration {
             reference_sources: Vec::new(),
             place: PlaceId::new(2).unwrap(),
@@ -85,7 +85,7 @@ pub(super) fn array_fixture(target: target::NativeTarget, length: u16) -> Legali
         panic!("return");
     };
     returned.value = LegalizedScalarReturnValue::Structural {
-        source: legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+        source: crate::legalized_operations::LegalizedStructuralCaseSource::OperationResult {
             operation: producer,
             result,
         },
@@ -160,7 +160,7 @@ fn scalar_record_selection_replays_field_identity_operands_and_store_offsets() {
                 .collect(),
         };
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -228,7 +228,7 @@ fn array_selection_rejects_reordered_operands_and_changed_layout() {
     ] {
         let source = array_fixture(target, 2);
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -312,7 +312,7 @@ fn packed_array_selection_replays_exact_extent_and_instruction_scratch() {
     ] {
         let source = array_fixture(target, 3);
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -355,14 +355,14 @@ fn packed_array_selection_replays_exact_extent_and_instruction_scratch() {
                     changed.blocks[0].instructions[load_position].kind =
                         SelectedInstructionKind::LoadPacked {
                             byte_offset: 0,
-                            width: selected_instructions::PackedByteWidth::Five,
+                            width: crate::selected_instructions::PackedByteWidth::Five,
                         }
                 }
                 1 => {
                     changed.blocks[0].instructions[load_position].kind =
                         SelectedInstructionKind::LoadPacked {
                             byte_offset: 1,
-                            width: selected_instructions::PackedByteWidth::Three,
+                            width: crate::selected_instructions::PackedByteWidth::Three,
                         }
                 }
                 2 => {

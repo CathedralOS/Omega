@@ -1,8 +1,8 @@
 //! Optimizer module role: executable entrance. Verified-cycle topology, identity, and immutable-body coordination.
 
-use optimization_unit::PsiOptimizationUnit;
-use optimization_unit_semantics::OptimizationUnitValidationError;
 use semantic_vocabulary::MachineId;
+use terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit;
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::OptimizationUnitValidationError;
 
 mod components;
 mod countdown_ranking;
@@ -14,7 +14,7 @@ mod topology;
 
 pub use countdown_ranking::validate_psi_ranking_certificate_snapshot;
 
-use optimization_unit::{
+use terminal_psi_to_abstract_operations::optimization_unit::{
     CycleComponentEdge, CycleComponentId, OptimizerCycleComponent, OptimizerCycleComponentSnapshot,
     OptimizerRankingCertificateSnapshot, OptimizerUnsignedCountdownRankingCertificate,
     OptimizerUnsignedMinusOneDescent, OptimizerUnsignedPositiveGuard,

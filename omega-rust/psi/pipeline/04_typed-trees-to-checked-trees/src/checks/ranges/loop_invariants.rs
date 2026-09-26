@@ -1,13 +1,15 @@
 use language_core::receiver_place_field;
 use language_semantics::declaration_selection::CollectionMeasure;
-use symbols::SymbolHandle;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
-use typed_trees::machine::Machine;
-use typed_trees::state::State;
-use typed_trees::statement::{
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
     StatementNode, TableAssignment, TransitionGuardNode, TransitionTargetHandle,
     TransitionTargetNode,
 };
+use symbols::SymbolHandle;
 
 use super::facts::RangeFacts;
 
@@ -112,9 +114,9 @@ enum Direction {
 /// per machine with the checked-fact pass's shared call-frame resolver;
 /// `seed_loop_invariant_facts` then seeds the matching states.
 pub(super) fn collect_loop_invariant_facts(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Vec<LoopInvariant> {
     let Some(call_frames) = call_frames else {
         return Vec::new();
@@ -349,7 +351,7 @@ pub(super) fn collect_loop_invariant_facts(
 
 /// Seed `facts` with every loop-invariant fact collected for `state`.
 pub(super) fn seed_loop_invariant_facts(
-    _program: &typed_trees::TypedTrees,
+    _program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &mut RangeFacts<'_>,
     state: &State,
     invariants: &[LoopInvariant],
@@ -375,7 +377,10 @@ pub(super) fn seed_loop_invariant_facts(
 
 /// Build the directed state-transition edges, restricted to edges whose target
 /// is a state of `machine`.
-fn build_edges(program: &typed_trees::TypedTrees, machine: &Machine) -> Vec<Edge> {
+fn build_edges(
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &Machine,
+) -> Vec<Edge> {
     let mut edges = Vec::new();
     for state in program.machine_states(machine) {
         for statement in program.statement_table.statements(state.statement_nodes) {
@@ -402,7 +407,7 @@ fn build_edges(program: &typed_trees::TypedTrees, machine: &Machine) -> Vec<Edge
 }
 
 fn push_edge(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     edges: &mut Vec<Edge>,
     source: SymbolHandle,
@@ -484,24 +489,25 @@ fn find_state(states: &[State], symbol: SymbolHandle) -> Option<&State> {
 /// The counter field a state assignment targets, when the target is a direct
 /// `self.field` member. Returns the field symbol.
 fn assignment_counter_field(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     assignment: &TableAssignment,
 ) -> Option<SymbolHandle> {
-    validation::exact_self_field(program, machine, assignment.target).map(|field| field.symbol)
+    crate::validation::exact_self_field(program, machine, assignment.target)
+        .map(|field| field.symbol)
 }
 
 /// Classify a single write to `counter`: a decrement `self.i = self.i - c`, an
 /// increment `self.i = self.i + c` / `self.i = c + self.i` (`c` a positive
 /// integer literal), or anything else. A literal `c` is deliberately required.
 fn classify_counter_write(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
     counter: SymbolHandle,
     assignment: &TableAssignment,
 ) -> CounterWrite {
-    if !validation::has_builtin_bound_expression_meaning(
+    if !crate::validation::has_builtin_bound_expression_meaning(
         program,
         machine,
         Some(state),
@@ -547,7 +553,7 @@ fn classify_counter_write(
 /// Each back edge guarantees only its own `i < B_edge`, so the MAX over edges is the bound that
 /// holds on every incoming loop path.
 fn back_edge_counter_upper_bound(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     states: &[State],
     back_sources: &[SymbolHandle],
@@ -570,7 +576,7 @@ fn back_edge_counter_upper_bound(
 /// states have different expression handles even when they name the same
 /// machine place.
 fn loop_head_index_collection(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     states: &[State],
     edges: &[Edge],
@@ -590,7 +596,7 @@ fn loop_head_index_collection(
 /// The stable machine place `B` for a relational loop-head invariant
 /// `counter < B`, under the same all-entry/all-back-edge rule.
 fn loop_head_upper_place(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     states: &[State],
     edges: &[Edge],
@@ -611,7 +617,7 @@ fn loop_head_upper_place(
 }
 
 fn loop_head_relational_upper(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     states: &[State],
     edges: &[Edge],
@@ -650,7 +656,7 @@ fn loop_head_relational_upper(
 /// `head`. Continuation/convergent/unguarded/ambiguous edges fail closed, just
 /// as for the constant upper-bound candidate.
 fn source_arm_to_head_relational_upper(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     source: &State,
     head: SymbolHandle,
@@ -675,8 +681,12 @@ fn source_arm_to_head_relational_upper(
         };
         // Validate the original expression, including generated Boolean arm
         // equality, before the relation reader peels any wrapper or operands.
-        if !validation::has_builtin_bound_expression_meaning(program, machine, Some(source), guard)
-        {
+        if !crate::validation::has_builtin_bound_expression_meaning(
+            program,
+            machine,
+            Some(source),
+            guard,
+        ) {
             return None;
         }
         let edge_upper = parse_counter_relational_upper(program, machine, guard, counter)?;
@@ -693,7 +703,7 @@ fn source_arm_to_head_relational_upper(
 /// transition arm's synthesized `subject == true` shell. Source-state locals
 /// and parameters deliberately do not carry across a state boundary.
 fn parse_counter_relational_upper(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     guard: ExpressionHandle,
     counter: SymbolHandle,
@@ -758,13 +768,13 @@ fn parse_counter_relational_upper(
 /// already assumed machine contract facts. The caller separately proves every
 /// named place frame-stable before using the chain as a loop invariant.
 fn machine_bound_collection_chains(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
-    call_frames: &validation::CallFrameResolver<'_>,
+    call_frames: &crate::validation::CallFrameResolver<'_>,
     bound: &str,
 ) -> Vec<BoundCollectionChain> {
-    use typed_trees::domain::ProofFact;
-    use typed_trees::signature::SignatureContractKind;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind;
 
     let mut relations = Vec::new();
     for contract in program.machine_contracts(machine) {
@@ -821,12 +831,12 @@ fn machine_bound_collection_chains(
 }
 
 fn collect_authored_upper_relations(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     expression: ExpressionHandle,
     relations: &mut Vec<AuthoredUpperRelation>,
 ) {
-    if !validation::has_builtin_decomposed_guard_meaning(
+    if !crate::validation::has_builtin_decomposed_guard_meaning(
         program,
         machine,
         program.machine_states(machine).first(),
@@ -874,7 +884,7 @@ fn collect_authored_upper_relations(
 }
 
 fn authored_upper_term(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<UpperTerm> {
     let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
@@ -898,9 +908,9 @@ fn authored_upper_term(
 /// and calls (including nested value calls) are treated with the same path
 /// overlap law as R5. An opaque call summary rejects the candidate.
 fn loop_preserves_path(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
-    call_frames: &validation::CallFrameResolver<'_>,
+    call_frames: &crate::validation::CallFrameResolver<'_>,
     states: &[State],
     loop_states: &[SymbolHandle],
     path: &str,
@@ -921,9 +931,9 @@ fn loop_preserves_path(
 /// including preheaders outside the natural loop; otherwise a preheader write
 /// could make the contract fact stale before the first loop edge.
 fn machine_preserves_path(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
-    call_frames: &validation::CallFrameResolver<'_>,
+    call_frames: &crate::validation::CallFrameResolver<'_>,
     path: &str,
 ) -> bool {
     program
@@ -933,9 +943,9 @@ fn machine_preserves_path(
 }
 
 fn state_preserves_path(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
-    call_frames: &validation::CallFrameResolver<'_>,
+    call_frames: &crate::validation::CallFrameResolver<'_>,
     state: &State,
     path: &str,
 ) -> bool {
@@ -945,7 +955,7 @@ fn state_preserves_path(
         }
         if let StatementNode::Assignment(assignment) = statement {
             let target = program.expression_table.display_name(assignment.target);
-            if validation::frame_paths_overlap(&target, path) {
+            if crate::validation::frame_paths_overlap(&target, path) {
                 return false;
             }
         }
@@ -958,7 +968,7 @@ fn state_preserves_path(
 /// unconditional convergence), via the continuation (`_`) arm (a negated guard gives no upper
 /// bound), or via more than one transition (ambiguous).
 fn source_arm_to_head_upper_bound(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     source: &State,
     head: SymbolHandle,
@@ -982,8 +992,12 @@ fn source_arm_to_head_upper_bound(
         let TransitionGuardNode::When(guard) = transition.guard else {
             return None;
         };
-        if !validation::has_builtin_bound_expression_meaning(program, machine, Some(source), guard)
-        {
+        if !crate::validation::has_builtin_bound_expression_meaning(
+            program,
+            machine,
+            Some(source),
+            guard,
+        ) {
             return None;
         }
         let edge_bound = parse_counter_upper_bound(program, machine, guard, counter)?;
@@ -1000,7 +1014,7 @@ fn source_arm_to_head_upper_bound(
 /// transition arm wraps its subject as `subject == true`, so an outer boolean equality is
 /// unwrapped first (matching `seed_boolean_equality_guard_facts`). `None` otherwise.
 fn parse_counter_upper_bound(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     guard: ExpressionHandle,
     counter: SymbolHandle,
@@ -1031,7 +1045,7 @@ fn parse_counter_upper_bound(
 /// For an `Equal` whose one side is `Boolean(true)`, the other (the real subject). `None` if
 /// neither side is `Boolean(true)` (a `== false` negation, or a non-boolean equality).
 fn boolean_equality_inner(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     left: ExpressionHandle,
     right: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
@@ -1050,7 +1064,10 @@ fn boolean_equality_inner(
     }
 }
 
-fn integer_literal(program: &typed_trees::TypedTrees, expression: ExpressionHandle) -> Option<i64> {
+fn integer_literal(
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<i64> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(value) => value.value_i64(),
         _ => None,
@@ -1058,7 +1075,7 @@ fn integer_literal(program: &typed_trees::TypedTrees, expression: ExpressionHand
 }
 
 fn transition_target_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     target: TransitionTargetHandle,
 ) -> Option<SymbolHandle> {
     if !target.is_valid() {
@@ -1071,7 +1088,7 @@ fn transition_target_symbol(
 }
 
 fn is_positive_integer_literal(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> bool {
     matches!(
@@ -1082,12 +1099,12 @@ fn is_positive_integer_literal(
 
 /// Whether `expression` is a direct `self.field` member naming `counter`.
 fn expression_is_counter_member(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     expression: ExpressionHandle,
     counter: SymbolHandle,
 ) -> bool {
-    validation::exact_self_field(program, machine, expression)
+    crate::validation::exact_self_field(program, machine, expression)
         .is_some_and(|field| field.symbol == counter)
 }
 
@@ -1097,9 +1114,9 @@ fn expression_is_counter_member(
 /// Opaque or overlapping calls fail closed. Returns the common direction, or
 /// `None`.
 fn loop_modifications_direction(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
-    call_frames: &validation::CallFrameResolver<'_>,
+    call_frames: &crate::validation::CallFrameResolver<'_>,
     states: &[State],
     loop_states: &[SymbolHandle],
     counter: SymbolHandle,
@@ -1123,7 +1140,7 @@ fn loop_modifications_direction(
                         .into_complete_paths()?;
                     if writes
                         .iter()
-                        .any(|path| validation::frame_paths_overlap(path, counter_path))
+                        .any(|path| crate::validation::frame_paths_overlap(path, counter_path))
                     {
                         return None;
                     }
@@ -1148,14 +1165,14 @@ fn loop_modifications_direction(
 /// G2 + G4: every loop-ENTRY edge must assign `counter = K` for a constant
 /// integer literal `K`. Returns `(min, max)` over the entry inits.
 fn entry_constant_init_range(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     states: &[State],
     edges: &[Edge],
     loop_states: &[SymbolHandle],
     head: SymbolHandle,
     counter: SymbolHandle,
     machine: &Machine,
-    call_frames: &validation::CallFrameResolver<'_>,
+    call_frames: &crate::validation::CallFrameResolver<'_>,
     counter_path: &str,
 ) -> Option<(i64, i64)> {
     let mut min_init: Option<i64> = None;
@@ -1207,9 +1224,9 @@ enum InitProbe {
 /// predecessor that DOES set the counter is classified exactly as before; only the previously
 /// dead "predecessor does not set it" case now walks further back.
 fn counter_entry_init(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
-    call_frames: &validation::CallFrameResolver<'_>,
+    call_frames: &crate::validation::CallFrameResolver<'_>,
     states: &[State],
     edges: &[Edge],
     loop_states: &[SymbolHandle],
@@ -1246,9 +1263,9 @@ fn counter_entry_init(
 
 /// Classify a state's net effect on `counter` (last write wins), for `counter_entry_init`.
 fn probe_state_init(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
-    call_frames: &validation::CallFrameResolver<'_>,
+    call_frames: &crate::validation::CallFrameResolver<'_>,
     state: &State,
     counter: SymbolHandle,
     counter_path: &str,
@@ -1267,7 +1284,7 @@ fn probe_state_init(
                     .is_some_and(|writes| {
                         writes
                             .iter()
-                            .all(|path| !validation::frame_paths_overlap(path, counter_path))
+                            .all(|path| !crate::validation::frame_paths_overlap(path, counter_path))
                     });
                 if !disjoint {
                     probe = InitProbe::Unknown;
@@ -1276,7 +1293,7 @@ fn probe_state_init(
             }
             // Check the original RHS before interpreting an initializer as a
             // constant entry bound, just as for the in-loop arithmetic writes.
-            if !validation::has_builtin_bound_expression_meaning(
+            if !crate::validation::has_builtin_bound_expression_meaning(
                 program,
                 machine,
                 Some(state),
@@ -1303,14 +1320,14 @@ fn probe_state_init(
 /// invariant.
 fn statement_may_write_path(
     machine: &Machine,
-    call_frames: &validation::CallFrameResolver<'_>,
+    call_frames: &crate::validation::CallFrameResolver<'_>,
     statement: &StatementNode,
     path: &str,
 ) -> Option<bool> {
     let value_writes = call_frames.statement_value_may_write_paths(machine, statement)?;
     if value_writes
         .iter()
-        .any(|written| validation::frame_paths_overlap(written, path))
+        .any(|written| crate::validation::frame_paths_overlap(written, path))
     {
         return Some(true);
     }
@@ -1321,14 +1338,14 @@ fn statement_may_write_path(
     Some(
         statement_writes
             .iter()
-            .any(|written| validation::frame_paths_overlap(written, path)),
+            .any(|written| crate::validation::frame_paths_overlap(written, path)),
     )
 }
 
 /// The display name of `counter` as it appears as an index (`self.i`), sourced
 /// from an actual monotone-write LHS so it renders identically to the index use.
 fn counter_display_name(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     states: &[State],
     loop_states: &[SymbolHandle],

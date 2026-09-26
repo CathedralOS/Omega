@@ -146,18 +146,17 @@ pub(super) fn create(
         element_stride: stride,
     });
     if crate::selection::established_view_input::requires_descriptor(function, result.place) {
-        let slot = selected_instructions::LocalStorageSlotId::Structural {
+        let slot = crate::selected_instructions::LocalStorageSlotId::Structural {
             operation: row.operation,
             place: result.place,
         };
-        builder
-            .transport
-            .local_slots
-            .push(selected_instructions::SelectedLocalStorageSlot {
+        builder.transport.local_slots.push(
+            crate::selected_instructions::SelectedLocalStorageSlot {
                 id: slot,
                 byte_size: 16,
                 alignment: 8,
-            });
+            },
+        );
         let pointer = transport_register(builder, result.place, 0)?;
         // B + R * K <= Bound and O + L * K <= R * K imply B + O <= Bound.
         // Equality forces L = 0: zero address bits then represent an empty view.

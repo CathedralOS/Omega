@@ -1,6 +1,8 @@
-use register_model::{RegisterClassId, RegisterOperandAccess, RegisterUnitId};
-use selected_instructions::{SelectedBlockId, VirtualRegisterId};
 use semantic_vocabulary::{BlockId, MachineId};
+use target_operations_to_selected_instructions::register_model::{
+    RegisterClassId, RegisterOperandAccess, RegisterUnitId,
+};
+use target_operations_to_selected_instructions::{SelectedBlockId, VirtualRegisterId};
 
 use super::{
     canonical::validate as validate_canonical,
@@ -11,7 +13,7 @@ use super::{
     },
 };
 use crate::LiveRangeError;
-use selected_instructions::{
+use target_operations_to_selected_instructions::{
     ArchitecturalUnitLiveRange, BlockLiveness, CopyAffinity, FunctionLiveRanges, FunctionLiveness,
     InstructionLiveness, LiveRangeFragment, LiveRangePoint, LivenessPosition, OperandPosition,
     VirtualInterference, VirtualLiveRange,
@@ -98,13 +100,13 @@ fn copy_affinity_replay_rejects_drifted_missing_and_unordered_rows() {
     expected.copy_affinities = vec![
         CopyAffinity {
             block: SelectedBlockId(0),
-            instruction: selected_instructions::SelectedInstructionId(0),
+            instruction: target_operations_to_selected_instructions::SelectedInstructionId(0),
             source: VirtualRegisterId(0),
             destination: VirtualRegisterId(1),
         },
         CopyAffinity {
             block: SelectedBlockId(0),
-            instruction: selected_instructions::SelectedInstructionId(1),
+            instruction: target_operations_to_selected_instructions::SelectedInstructionId(1),
             source: VirtualRegisterId(2),
             destination: VirtualRegisterId(3),
         },
@@ -127,7 +129,7 @@ fn copy_affinity_replay_rejects_drifted_missing_and_unordered_rows() {
 fn independent_tie_derivation_matches_production() {
     let instruction = InstructionLiveness {
         position: LivenessPosition(1),
-        instruction: selected_instructions::SelectedInstructionId(1),
+        instruction: target_operations_to_selected_instructions::SelectedInstructionId(1),
         virtual_uses: vec![VirtualRegisterId(0)],
         virtual_defs: vec![VirtualRegisterId(1)],
         virtual_live_in: vec![VirtualRegisterId(0)],
@@ -222,7 +224,8 @@ fn parallel_early_definition_replay_requires_each_exact_use_only_hazard() {
             5 => changed.operand_positions[2].access = RegisterOperandAccess::UseDef,
             6 => {
                 let mut source = changed.operand_positions[0];
-                source.instruction = selected_instructions::SelectedInstructionId(9);
+                source.instruction =
+                    target_operations_to_selected_instructions::SelectedInstructionId(9);
                 source.position = LivenessPosition(9);
                 source.virtual_register = VirtualRegisterId(2);
                 let mut definition = source;
@@ -292,13 +295,13 @@ fn isolated_tied_early_clobber_replay_rejects_malformed_and_corrupt_rows() {
     assert_eq!(expected[0].uses[0].virtual_register, VirtualRegisterId(1));
 
     let mut tied_source_duplicated_as_hazard = expected.clone();
-    tied_source_duplicated_as_hazard[0]
-        .uses
-        .push(selected_instructions::EarlyClobberUse {
+    tied_source_duplicated_as_hazard[0].uses.push(
+        target_operations_to_selected_instructions::EarlyClobberUse {
             operand: 0,
             virtual_register: VirtualRegisterId(0),
             class: RegisterClassId(0),
-        });
+        },
+    );
     assert_eq!(
         require_early_clobber_rows(0, &tied_source_duplicated_as_hazard, &expected),
         Err(LiveRangeError::EarlyClobberMismatch { function: 0 })
@@ -349,7 +352,7 @@ fn component_tied_early_clobber_replay_matches_and_rejects_a_second_early_member
         .early_clobber = true;
     two_early.operand_positions.push(OperandPosition {
         position: LivenessPosition(0),
-        instruction: selected_instructions::SelectedInstructionId(0),
+        instruction: target_operations_to_selected_instructions::SelectedInstructionId(0),
         operand: 2,
         virtual_register: VirtualRegisterId(4),
         access: RegisterOperandAccess::Use,
@@ -370,17 +373,21 @@ fn component_tied_early_clobber_replay_matches_and_rejects_a_second_early_member
 
 #[test]
 fn tied_component_receipt_count_uses_transitive_closure() {
-    let edge = |use_register, def_register, instruction| selected_instructions::DistinctUseDefTie {
-        block: SelectedBlockId(0),
-        position: LivenessPosition(instruction),
-        instruction: selected_instructions::SelectedInstructionId(instruction),
-        use_operand: 0,
-        use_virtual_register: VirtualRegisterId(use_register),
-        use_point: LiveRangePoint(instruction * 2),
-        def_operand: 1,
-        def_virtual_register: VirtualRegisterId(def_register),
-        def_point: LiveRangePoint(instruction * 2 + 1),
-        class: RegisterClassId(0),
+    let edge = |use_register, def_register, instruction| {
+        target_operations_to_selected_instructions::DistinctUseDefTie {
+            block: SelectedBlockId(0),
+            position: LivenessPosition(instruction),
+            instruction: target_operations_to_selected_instructions::SelectedInstructionId(
+                instruction,
+            ),
+            use_operand: 0,
+            use_virtual_register: VirtualRegisterId(use_register),
+            use_point: LiveRangePoint(instruction * 2),
+            def_operand: 1,
+            def_virtual_register: VirtualRegisterId(def_register),
+            def_point: LiveRangePoint(instruction * 2 + 1),
+            class: RegisterClassId(0),
+        }
     };
     assert_eq!(
         super::super::receipt::tied_component_count(

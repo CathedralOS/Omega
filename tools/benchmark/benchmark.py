@@ -462,7 +462,7 @@ def non_applicable_record(args, root, repository, omega, selection,
 
 
 # One entry per catalogued deployment profile, in TargetProfile catalog
-# order (omega-rust/omega/representations/target/src/lib.rs). Each entry
+# order (omega-rust/psi/target/src/lib.rs). Each entry
 # is the host leg the profile's runtime leg needs; committed records
 # supply measured rows, and these declarations keep legs no matching
 # host has run yet explicit in the matrix rather than absent. `blocked`

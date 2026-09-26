@@ -1,13 +1,15 @@
-use checked_trees::{CheckedContractEntailmentAssumptionDischarge, MachineContractPlans};
+use crate::checked_trees::{CheckedContractEntailmentAssumptionDischarge, MachineContractPlans};
+use crate::validation::{ContractEntailmentStandDown, ContractEntailmentStandDownReason};
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm,
     ScalarType, ValueId,
 };
-use typed_trees::TypedTrees;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
-use typed_trees::signature::SignatureContractKind;
-use typed_trees::types::PrimitiveType;
-use validation::{ContractEntailmentStandDown, ContractEntailmentStandDownReason};
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedContractEntailmentAssumptionDischargeRecheckError {
@@ -44,7 +46,7 @@ pub(crate) fn build_contract_entailment_assumption_discharges(
     program: &TypedTrees,
     contracts: &MachineContractPlans,
 ) -> Result<Vec<CheckedContractEntailmentAssumptionDischarge>, Vec<diagnostics::Diagnostic>> {
-    let stand_downs = validation::collect_contract_entailment_stand_downs(program);
+    let stand_downs = crate::validation::collect_contract_entailment_stand_downs(program);
     let mut certificates = Vec::new();
     for stand_down in stand_downs.iter().filter(|stand_down| {
         stand_down.reason == ContractEntailmentStandDownReason::UnrecognizedInductiveBody
@@ -74,7 +76,7 @@ pub fn recheck_contract_entailment_assumption_discharge(
     contracts: &MachineContractPlans,
     certificate: &CheckedContractEntailmentAssumptionDischarge,
 ) -> Result<(), CheckedContractEntailmentAssumptionDischargeRecheckError> {
-    let stand_down = validation::collect_contract_entailment_stand_downs(program)
+    let stand_down = crate::validation::collect_contract_entailment_stand_downs(program)
         .into_iter()
         .find(|stand_down| {
             stand_down.reason == ContractEntailmentStandDownReason::UnrecognizedInductiveBody
@@ -121,7 +123,10 @@ fn reconstruct_discharge(
         .span_or_empty(contract.facts)
         .get(stand_down.fact_index)
         .ok_or(CheckedContractEntailmentAssumptionDischargeRecheckError::FactCoordinateMissing)?;
-    let typed_trees::domain::ProofFact::Expression(goal_expression) = fact else {
+    let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
+        goal_expression,
+    ) = fact
+    else {
         return Err(
             CheckedContractEntailmentAssumptionDischargeRecheckError::FactIsNotPlainExpression,
         );
@@ -149,7 +154,10 @@ fn reconstruct_discharge(
         .filter(|contract| contract.kind == SignatureContractKind::Requires)
     {
         for fact in program.proof_facts.span_or_empty(requires.facts) {
-            let typed_trees::domain::ProofFact::Expression(expression) = fact else {
+            let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
+                expression,
+            ) = fact
+            else {
                 continue;
             };
             if let Some(assumption) = lower_proposition(program, *expression, &parameters) {
@@ -225,7 +233,7 @@ fn accept_reconstructed(
 
 fn parameter_bindings(
     program: &TypedTrees,
-    entry: &typed_trees::state::State,
+    entry: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
 ) -> Result<Vec<ParameterBinding>, CheckedContractEntailmentAssumptionDischargeRecheckError> {
     let mut bindings = Vec::new();
     for (position, parameter) in program.state_parameters(entry).iter().enumerate() {

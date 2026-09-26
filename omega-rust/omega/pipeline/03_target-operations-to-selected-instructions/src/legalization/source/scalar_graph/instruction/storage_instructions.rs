@@ -4,13 +4,13 @@
 use super::super::{AbstractOperationPlan, Error, PsiOptimizationUnit};
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
-use abstract_operations::AbstractOperation;
-use legalized_operations::LegalizedScalarInstructionKind;
+use crate::legalized_operations::LegalizedScalarInstructionKind;
 use semantic_vocabulary::ScalarType;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
 
 pub(super) fn project_structural_case_membership(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::StructuralCaseMembership {
@@ -42,8 +42,8 @@ pub(super) fn project_structural_case_membership(
 }
 
 pub(super) fn project_structural_leaf_copy(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
@@ -82,8 +82,8 @@ pub(super) fn project_structural_leaf_copy(
 /// extended by the vacated field; its store is the inverse copy. Both
 /// resolve one field extent independently of the target rows they rejoin.
 pub(super) fn project_borrowed_window(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     match &node.operation {
@@ -140,8 +140,8 @@ pub(super) fn project_borrowed_window(
 /// each to its selector and certificate; its root is then a structural
 /// parameter, since a primitive local has no projection.
 pub(super) fn project_primitive_scalar_read(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::PrimitiveScalarRead {
@@ -179,8 +179,8 @@ pub(super) fn project_primitive_scalar_read(
 }
 
 pub(super) fn project_write_only_primitive_store(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::WriteOnlyPrimitiveStore {
@@ -219,8 +219,8 @@ pub(super) fn project_write_only_primitive_store(
 }
 
 pub(super) fn project_structural_scalar_field_store(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::StructuralScalarFieldStore {
@@ -263,8 +263,8 @@ pub(super) fn project_structural_scalar_field_store(
 }
 
 pub(super) fn project_byte_sequence_subslice(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::ByteSequenceSubslice {
@@ -303,8 +303,8 @@ pub(super) fn project_byte_sequence_subslice(
 }
 
 pub(super) fn project_structural_byte_sequence_field_byte_store(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::StructuralByteSequenceFieldByteStore {
@@ -349,8 +349,8 @@ pub(super) fn project_structural_byte_sequence_field_byte_store(
 }
 
 pub(super) fn project_structural_byte_sequence_field_read(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::StructuralByteSequenceFieldRead {
@@ -392,8 +392,8 @@ pub(super) fn project_structural_byte_sequence_field_read(
 }
 
 pub(super) fn project_structural_byte_sequence_field_store(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::StructuralByteSequenceFieldStore {
@@ -436,8 +436,8 @@ pub(super) fn project_structural_byte_sequence_field_store(
 }
 
 pub(super) fn project_byte_sequence_write(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::ByteSequenceWrite {
@@ -474,8 +474,8 @@ pub(super) fn project_byte_sequence_write(
 }
 
 pub(super) fn project_byte_sequence_read(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::ByteSequenceRead {
@@ -511,8 +511,8 @@ pub(super) fn project_byte_sequence_read(
 }
 
 pub(super) fn project_element_view_read(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::ElementViewRead {
@@ -548,8 +548,8 @@ pub(super) fn project_element_view_read(
 }
 
 pub(super) fn project_element_view_subslice(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::ElementViewSubslice {

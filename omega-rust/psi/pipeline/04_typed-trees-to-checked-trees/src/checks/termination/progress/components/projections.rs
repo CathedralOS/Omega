@@ -1,22 +1,22 @@
 //! A structural bound on finite premise transport, not an iteration budget.
 
 use super::super::CheckedProgressSummary;
+use crate::checked_trees::FlowFacts;
 use crate::checks::termination::progress::fact_subjects::fact_subject;
 use crate::checks::termination::progress::machine_summaries::{
     call_argument_subject_with_parameters, selected_call_summary,
 };
-use checked_trees::FlowFacts;
 use language_semantics::TerminationGuarantee;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 
 pub(super) fn finite_projection_limit(
     program: &TypedTrees,
     flow: &FlowFacts,
-    semantic: &facts::FactPlan,
+    semantic: &crate::fact_plan::FactPlan,
     component: &[SymbolHandle],
     summaries: &[CheckedProgressSummary],
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<usize> {
     let mut parameter_count = 0usize;
     let mut maximum_prefix_length = 0usize;

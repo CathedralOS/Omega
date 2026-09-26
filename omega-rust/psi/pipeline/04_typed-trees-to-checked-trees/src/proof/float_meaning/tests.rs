@@ -5,9 +5,9 @@ use super::{
     CheckedProofPropositionId, ExpressionNode, FloatProjectionOperation, PrimitiveType, ProofFacts,
     TypedTrees,
 };
+use crate::checked_trees::{CheckedFloatProjectionInputId, CheckedProofValueId};
 use crate::proof::bind_float_meaning_projection_facts;
 use crate::tests::front_end::{typed_program, typed_program_from_source_map};
-use checked_trees::{CheckedFloatProjectionInputId, CheckedProofValueId};
 use source::{SourceMap, SourceOrigin};
 use std::path::PathBuf;
 
@@ -216,13 +216,13 @@ fn transitional_source(input: CheckedFloatProjectionInput) -> CheckedFloatProjec
 }
 
 fn bind_projection_facts_without_exit_proof(program: &TypedTrees) -> ProofFacts {
-    let validation = validation::validate_specialized_program(
+    let validation = crate::validation::validate_specialized_program(
         program,
-        validation::OpaquePropertyValidation::Required(&[]),
+        crate::validation::OpaquePropertyValidation::Required(&[]),
     )
     .map(|validated| validated.facts)
     .expect("validate projection facts");
-    let proof_plan = proof::obligations::build_proof_plan(program);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(program);
     let borrow = crate::borrow::build_borrow_facts(program);
     let mut proof = crate::proof::build_proof_facts(program, &proof_plan, &borrow);
     bind_float_meaning_projection_facts(
@@ -509,9 +509,7 @@ fn direct_structural_member_retains_checked_owner_and_path() {
     assert_eq!(leaf.field.parameter_position, 0);
     assert_eq!(
         leaf.field.path,
-        [checked_trees::CheckedStructuralPredicatePathSegment::Field(
-            "value".to_owned()
-        )]
+        [crate::checked_trees::CheckedStructuralPredicatePathSegment::Field("value".to_owned())]
     );
     assert_eq!(
         leaf.fallback,
@@ -726,9 +724,9 @@ fn exact_literal_bits_are_the_checked_semantic_source_identity() {
 #[test]
 fn checked_binding_rejects_source_identity_substitution() {
     let program = typed_projection_program();
-    let mut validation = validation::validate_specialized_program(
+    let mut validation = crate::validation::validate_specialized_program(
         &program,
-        validation::OpaquePropertyValidation::Required(&[]),
+        crate::validation::OpaquePropertyValidation::Required(&[]),
     )
     .map(|validated| validated.facts)
     .expect("validate");
@@ -754,9 +752,9 @@ fn checked_binding_rejects_source_identity_substitution() {
 #[test]
 fn checked_binding_rejects_cross_format_operation_tamper() {
     let program = typed_projection_program();
-    let mut validation = validation::validate_specialized_program(
+    let mut validation = crate::validation::validate_specialized_program(
         &program,
-        validation::OpaquePropertyValidation::Required(&[]),
+        crate::validation::OpaquePropertyValidation::Required(&[]),
     )
     .map(|validated| validated.facts)
     .expect("validate");
@@ -777,9 +775,9 @@ fn checked_binding_rejects_cross_format_operation_tamper() {
 #[test]
 fn checked_binding_rejects_catalog_contract_tamper() {
     let program = typed_projection_program();
-    let mut validation = validation::validate_specialized_program(
+    let mut validation = crate::validation::validate_specialized_program(
         &program,
-        validation::OpaquePropertyValidation::Required(&[]),
+        crate::validation::OpaquePropertyValidation::Required(&[]),
     )
     .map(|validated| validated.facts)
     .expect("validate");
@@ -805,9 +803,9 @@ fn checked_binding_rejects_catalog_contract_tamper() {
 #[test]
 fn checked_binding_rejects_forged_cross_format_equality_fact() {
     let mut program = typed_projection_program();
-    let mut validation = validation::validate_specialized_program(
+    let mut validation = crate::validation::validate_specialized_program(
         &program,
-        validation::OpaquePropertyValidation::Required(&[]),
+        crate::validation::OpaquePropertyValidation::Required(&[]),
     )
     .map(|validated| validated.facts)
     .expect("validate");
@@ -845,9 +843,9 @@ fn source_validation_rejects_cross_format_float_meaning_equal() {
                 { }
             "#,
     );
-    let diagnostics = validation::validate_specialized_program(
+    let diagnostics = crate::validation::validate_specialized_program(
         &program,
-        validation::OpaquePropertyValidation::Required(&[]),
+        crate::validation::OpaquePropertyValidation::Required(&[]),
     )
     .map(|validated| validated.facts)
     .expect_err("FloatMeaningEqual is carrier-specific");
@@ -860,9 +858,9 @@ fn source_validation_rejects_cross_format_float_meaning_equal() {
 
 #[test]
 fn proof_projection_call_rejects_a_local_operator_lookalike() {
-    let diagnostics = validation::validate_specialized_program(
+    let diagnostics = crate::validation::validate_specialized_program(
         &local_projection_program(),
-        validation::OpaquePropertyValidation::Required(&[]),
+        crate::validation::OpaquePropertyValidation::Required(&[]),
     )
     .expect_err("a local projection spelling has no closed-catalog authority");
     assert!(
@@ -878,9 +876,9 @@ fn proof_projection_call_rejects_a_local_operator_lookalike() {
 fn canonical_projection_rejects_a_user_owned_float_meaning_result() {
     let program =
         lower_projection_fixture_with_meaning_origin(projection_source(), SourceOrigin::User);
-    let diagnostics = validation::validate_specialized_program(
+    let diagnostics = crate::validation::validate_specialized_program(
         &program,
-        validation::OpaquePropertyValidation::Required(&[]),
+        crate::validation::OpaquePropertyValidation::Required(&[]),
     )
     .map(|validated| validated.facts)
     .expect_err("the canonical operator cannot return a user FloatMeaning lookalike");
@@ -902,9 +900,9 @@ fn projection_call_rejects_a_toolchain_declaration_from_the_wrong_file() {
         "float_projection_lookalike.omg",
         SourceOrigin::Toolchain,
     );
-    let diagnostics = validation::validate_specialized_program(
+    let diagnostics = crate::validation::validate_specialized_program(
         &program,
-        validation::OpaquePropertyValidation::Required(&[]),
+        crate::validation::OpaquePropertyValidation::Required(&[]),
     )
     .map(|validated| validated.facts)
     .expect_err("a different toolchain file cannot own Float projection semantics");
@@ -929,9 +927,9 @@ fn canonical_projection_declaration_rejects_source_format_drift() {
         "float_operations.omg",
         SourceOrigin::Toolchain,
     );
-    let diagnostics = validation::validate_specialized_program(
+    let diagnostics = crate::validation::validate_specialized_program(
         &program,
-        validation::OpaquePropertyValidation::Required(&[]),
+        crate::validation::OpaquePropertyValidation::Required(&[]),
     )
     .map(|validated| validated.facts)
     .expect_err("the sealed meaning32 declaration cannot drift to binary64");
@@ -954,9 +952,9 @@ fn canonical_projection_declaration_rejects_public_visibility_drift() {
         "float_operations.omg",
         SourceOrigin::Toolchain,
     );
-    let diagnostics = validation::validate_specialized_program(
+    let diagnostics = crate::validation::validate_specialized_program(
         &program,
-        validation::OpaquePropertyValidation::Required(&[]),
+        crate::validation::OpaquePropertyValidation::Required(&[]),
     )
     .map(|validated| validated.facts)
     .expect_err("the sealed projection declaration is private");
@@ -980,9 +978,9 @@ fn canonical_projection_declaration_rejects_contract_drift() {
         "float_operations.omg",
         SourceOrigin::Toolchain,
     );
-    let diagnostics = validation::validate_specialized_program(
+    let diagnostics = crate::validation::validate_specialized_program(
         &program,
-        validation::OpaquePropertyValidation::Required(&[]),
+        crate::validation::OpaquePropertyValidation::Required(&[]),
     )
     .map(|validated| validated.facts)
     .expect_err("the sealed projection declaration is contract-free");
@@ -996,9 +994,9 @@ fn canonical_projection_declaration_rejects_contract_drift() {
 #[test]
 fn checked_binding_rejects_validated_facts_replayed_on_a_local_lookalike() {
     let canonical = typed_projection_program();
-    let validation = validation::validate_specialized_program(
+    let validation = crate::validation::validate_specialized_program(
         &canonical,
-        validation::OpaquePropertyValidation::Required(&[]),
+        crate::validation::OpaquePropertyValidation::Required(&[]),
     )
     .map(|validated| validated.facts)
     .expect("validate canonical toolchain projections");
@@ -1024,9 +1022,9 @@ fn checked_binding_rejects_validated_facts_replayed_on_a_local_lookalike() {
 #[test]
 fn checked_binding_rejects_equality_operand_substitution_transactionally() {
     let program = typed_projection_program();
-    let mut validation = validation::validate_specialized_program(
+    let mut validation = crate::validation::validate_specialized_program(
         &program,
-        validation::OpaquePropertyValidation::Required(&[]),
+        crate::validation::OpaquePropertyValidation::Required(&[]),
     )
     .map(|validated| validated.facts)
     .expect("validate");
@@ -1203,13 +1201,13 @@ fn sealed_semantic_application_binds_contract_operands_and_equality() {
     };
     assert_eq!(
         *format_operand,
-        checked_trees::CheckedFloatSemanticApplicationOperand::Format(
+        crate::checked_trees::CheckedFloatSemanticApplicationOperand::Format(
             semantic_vocabulary::IeeeFloatFormat::Binary32
         )
     );
     let (
-        checked_trees::CheckedFloatSemanticApplicationOperand::Meaning(left_meaning),
-        checked_trees::CheckedFloatSemanticApplicationOperand::Meaning(right_meaning),
+        crate::checked_trees::CheckedFloatSemanticApplicationOperand::Meaning(left_meaning),
+        crate::checked_trees::CheckedFloatSemanticApplicationOperand::Meaning(right_meaning),
     ) = (left_operand, right_operand)
     else {
         panic!("the meaning operands name bound proof values")
@@ -1328,8 +1326,10 @@ fn transported_semantic_application_instantiates_at_the_call_use_site() {
         .zip(declaration.operands[1..].iter())
     {
         let (
-            checked_trees::CheckedFloatSemanticApplicationOperand::Meaning(imported_value),
-            checked_trees::CheckedFloatSemanticApplicationOperand::Meaning(declaration_value),
+            crate::checked_trees::CheckedFloatSemanticApplicationOperand::Meaning(imported_value),
+            crate::checked_trees::CheckedFloatSemanticApplicationOperand::Meaning(
+                declaration_value,
+            ),
         ) = (imported_operand, declaration_operand)
         else {
             panic!("both applications carry meaning operands")

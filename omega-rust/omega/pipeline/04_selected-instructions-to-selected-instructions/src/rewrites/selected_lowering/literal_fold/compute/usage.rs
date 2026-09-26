@@ -1,7 +1,7 @@
 //! Producer work accounting and budget admission.
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
 
 use crate::rewrites::block_edges::terminator_successors;
 use crate::{

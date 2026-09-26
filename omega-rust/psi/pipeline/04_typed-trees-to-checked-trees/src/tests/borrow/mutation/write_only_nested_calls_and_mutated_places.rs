@@ -28,16 +28,17 @@ fn write_only_record_field_call_retains_exact_common_field() {
         .iter()
         .find(|definition| definition.name.as_str() == "Pair")
         .expect("Pair definition");
-    let left_symbol = program
-        .data_members(pair)
-        .iter()
-        .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if field.name.as_str() == "left" => {
-                Some(field.symbol)
-            }
-            _ => None,
-        })
-        .expect("Pair.left field");
+    let left_symbol =
+        program
+            .data_members(pair)
+            .iter()
+            .find_map(|member| match member {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                    field,
+                ) if field.name.as_str() == "left" => Some(field.symbol),
+                _ => None,
+            })
+            .expect("Pair.left field");
     let forward = program
         .machines()
         .iter()
@@ -74,15 +75,18 @@ fn write_only_record_field_call_retains_exact_common_field() {
         &facts,
         call,
         &cache,
-        ::validation::CallFrameResolver::new(&program).as_ref(),
+        crate::validation::CallFrameResolver::new(&program).as_ref(),
     )
     .expect("complete storage frame");
 
     assert_eq!(places.len(), 1, "exact callee write: {places:?}");
-    assert_eq!(places[0].root, facts::PlaceRoot::Symbol(pair_symbol));
+    assert_eq!(
+        places[0].root,
+        crate::fact_plan::PlaceRoot::Symbol(pair_symbol)
+    );
     assert_eq!(
         places[0].segments,
-        [facts::PlaceSegment::Field {
+        [crate::fact_plan::PlaceSegment::Field {
             symbol: left_symbol
         }]
     );
@@ -121,31 +125,33 @@ fn write_only_nested_copy_record_leaf_call_retains_one_exact_common_field_path()
         .iter()
         .find(|definition| definition.name.as_str() == "Outer")
         .expect("Outer definition");
-    let inner_field_symbol = program
-        .data_members(outer)
-        .iter()
-        .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if field.name.as_str() == "inner" => {
-                Some(field.symbol)
-            }
-            _ => None,
-        })
-        .expect("Outer.inner field");
+    let inner_field_symbol =
+        program
+            .data_members(outer)
+            .iter()
+            .find_map(|member| match member {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                    field,
+                ) if field.name.as_str() == "inner" => Some(field.symbol),
+                _ => None,
+            })
+            .expect("Outer.inner field");
     let inner = program
         .data_definitions()
         .iter()
         .find(|definition| definition.name.as_str() == "Inner")
         .expect("Inner definition");
-    let leaf_field_symbol = program
-        .data_members(inner)
-        .iter()
-        .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if field.name.as_str() == "leaf" => {
-                Some(field.symbol)
-            }
-            _ => None,
-        })
-        .expect("Inner.leaf field");
+    let leaf_field_symbol =
+        program
+            .data_members(inner)
+            .iter()
+            .find_map(|member| match member {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                    field,
+                ) if field.name.as_str() == "leaf" => Some(field.symbol),
+                _ => None,
+            })
+            .expect("Inner.leaf field");
     let forward = program
         .machines()
         .iter()
@@ -182,19 +188,22 @@ fn write_only_nested_copy_record_leaf_call_retains_one_exact_common_field_path()
         &facts,
         call,
         &cache,
-        ::validation::CallFrameResolver::new(&program).as_ref(),
+        crate::validation::CallFrameResolver::new(&program).as_ref(),
     )
     .expect("complete storage frame");
 
     assert_eq!(places.len(), 1, "exact nested callee write: {places:?}");
-    assert_eq!(places[0].root, facts::PlaceRoot::Symbol(outer_symbol));
+    assert_eq!(
+        places[0].root,
+        crate::fact_plan::PlaceRoot::Symbol(outer_symbol)
+    );
     assert_eq!(
         places[0].segments,
         [
-            facts::PlaceSegment::Field {
+            crate::fact_plan::PlaceSegment::Field {
                 symbol: inner_field_symbol,
             },
-            facts::PlaceSegment::Field {
+            crate::fact_plan::PlaceSegment::Field {
                 symbol: leaf_field_symbol,
             },
         ],
@@ -235,16 +244,17 @@ fn write_only_copy_sum_call_retains_atomic_root_and_field_paths() {
         .iter()
         .find(|definition| definition.name.as_str() == "Holder")
         .expect("Holder definition");
-    let choice_field_symbol = program
-        .data_members(holder)
-        .iter()
-        .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if field.name.as_str() == "choice" => {
-                Some(field.symbol)
-            }
-            _ => None,
-        })
-        .expect("Holder.choice field");
+    let choice_field_symbol =
+        program
+            .data_members(holder)
+            .iter()
+            .find_map(|member| match member {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                    field,
+                ) if field.name.as_str() == "choice" => Some(field.symbol),
+                _ => None,
+            })
+            .expect("Holder.choice field");
     let forward = program
         .machines()
         .iter()
@@ -287,14 +297,14 @@ fn write_only_copy_sum_call_retains_atomic_root_and_field_paths() {
         &facts,
         call,
         &cache,
-        ::validation::CallFrameResolver::new(&program).as_ref(),
+        crate::validation::CallFrameResolver::new(&program).as_ref(),
     )
     .expect("complete storage frame");
 
     assert_eq!(places.len(), 2, "exact sum writes: {places:?}");
     let direct = places
         .iter()
-        .find(|place| place.root == facts::PlaceRoot::Symbol(direct_symbol))
+        .find(|place| place.root == crate::fact_plan::PlaceRoot::Symbol(direct_symbol))
         .expect("direct sum root mutation");
     assert!(
         direct.segments.is_empty(),
@@ -302,11 +312,11 @@ fn write_only_copy_sum_call_retains_atomic_root_and_field_paths() {
     );
     let nested = places
         .iter()
-        .find(|place| place.root == facts::PlaceRoot::Symbol(holder_symbol))
+        .find(|place| place.root == crate::fact_plan::PlaceRoot::Symbol(holder_symbol))
         .expect("nested sum field mutation");
     assert_eq!(
         nested.segments,
-        [facts::PlaceSegment::Field {
+        [crate::fact_plan::PlaceSegment::Field {
             symbol: choice_field_symbol,
         }],
         "whole sum replacement retains its field as one atomic place without case/payload decomposition"
@@ -341,31 +351,33 @@ fn write_only_nested_fixed_byte_array_field_call_retains_exact_ordered_field_pat
         .iter()
         .find(|definition| definition.name.as_str() == "Outer")
         .expect("Outer definition");
-    let inner_field_symbol = program
-        .data_members(outer)
-        .iter()
-        .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if field.name.as_str() == "inner" => {
-                Some(field.symbol)
-            }
-            _ => None,
-        })
-        .expect("Outer.inner field");
+    let inner_field_symbol =
+        program
+            .data_members(outer)
+            .iter()
+            .find_map(|member| match member {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                    field,
+                ) if field.name.as_str() == "inner" => Some(field.symbol),
+                _ => None,
+            })
+            .expect("Outer.inner field");
     let inner = program
         .data_definitions()
         .iter()
         .find(|definition| definition.name.as_str() == "Inner")
         .expect("Inner definition");
-    let bytes_field_symbol = program
-        .data_members(inner)
-        .iter()
-        .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if field.name.as_str() == "bytes" => {
-                Some(field.symbol)
-            }
-            _ => None,
-        })
-        .expect("Inner.bytes field");
+    let bytes_field_symbol =
+        program
+            .data_members(inner)
+            .iter()
+            .find_map(|member| match member {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                    field,
+                ) if field.name.as_str() == "bytes" => Some(field.symbol),
+                _ => None,
+            })
+            .expect("Inner.bytes field");
     let forward = program
         .machines()
         .iter()
@@ -402,19 +414,22 @@ fn write_only_nested_fixed_byte_array_field_call_retains_exact_ordered_field_pat
         &facts,
         call,
         &cache,
-        ::validation::CallFrameResolver::new(&program).as_ref(),
+        crate::validation::CallFrameResolver::new(&program).as_ref(),
     )
     .expect("complete storage frame");
 
     assert_eq!(places.len(), 1, "exact nested callee write: {places:?}");
-    assert_eq!(places[0].root, facts::PlaceRoot::Symbol(outer_symbol));
+    assert_eq!(
+        places[0].root,
+        crate::fact_plan::PlaceRoot::Symbol(outer_symbol)
+    );
     assert_eq!(
         places[0].segments,
         [
-            facts::PlaceSegment::Field {
+            crate::fact_plan::PlaceSegment::Field {
                 symbol: inner_field_symbol,
             },
-            facts::PlaceSegment::Field {
+            crate::fact_plan::PlaceSegment::Field {
                 symbol: bytes_field_symbol,
             },
         ],
@@ -450,31 +465,33 @@ fn write_only_nested_fixed_byte_element_call_retains_fields_and_exact_index() {
         .iter()
         .find(|definition| definition.name.as_str() == "Outer")
         .expect("Outer definition");
-    let inner_field_symbol = program
-        .data_members(outer)
-        .iter()
-        .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if field.name.as_str() == "inner" => {
-                Some(field.symbol)
-            }
-            _ => None,
-        })
-        .expect("Outer.inner field");
+    let inner_field_symbol =
+        program
+            .data_members(outer)
+            .iter()
+            .find_map(|member| match member {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                    field,
+                ) if field.name.as_str() == "inner" => Some(field.symbol),
+                _ => None,
+            })
+            .expect("Outer.inner field");
     let inner = program
         .data_definitions()
         .iter()
         .find(|definition| definition.name.as_str() == "Inner")
         .expect("Inner definition");
-    let bytes_field_symbol = program
-        .data_members(inner)
-        .iter()
-        .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if field.name.as_str() == "bytes" => {
-                Some(field.symbol)
-            }
-            _ => None,
-        })
-        .expect("Inner.bytes field");
+    let bytes_field_symbol =
+        program
+            .data_members(inner)
+            .iter()
+            .find_map(|member| match member {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                    field,
+                ) if field.name.as_str() == "bytes" => Some(field.symbol),
+                _ => None,
+            })
+            .expect("Inner.bytes field");
     let forward = program
         .machines()
         .iter()
@@ -511,22 +528,25 @@ fn write_only_nested_fixed_byte_element_call_retains_fields_and_exact_index() {
         &facts,
         call,
         &cache,
-        ::validation::CallFrameResolver::new(&program).as_ref(),
+        crate::validation::CallFrameResolver::new(&program).as_ref(),
     )
     .expect("complete storage frame");
 
     assert_eq!(places.len(), 1, "exact nested callee write: {places:?}");
-    assert_eq!(places[0].root, facts::PlaceRoot::Symbol(outer_symbol));
+    assert_eq!(
+        places[0].root,
+        crate::fact_plan::PlaceRoot::Symbol(outer_symbol)
+    );
     assert_eq!(
         places[0].segments,
         [
-            facts::PlaceSegment::Field {
+            crate::fact_plan::PlaceSegment::Field {
                 symbol: inner_field_symbol,
             },
-            facts::PlaceSegment::Field {
+            crate::fact_plan::PlaceSegment::Field {
                 symbol: bytes_field_symbol,
             },
-            facts::PlaceSegment::FixedIndex { index: 2 },
+            crate::fact_plan::PlaceSegment::FixedIndex { index: 2 },
         ],
         "literal element mutation must preserve its field path and exact sibling index"
     );
@@ -560,31 +580,33 @@ fn write_only_nested_dynamic_byte_call_retains_fields_and_collection_coarse_inde
         .iter()
         .find(|definition| definition.name.as_str() == "Outer")
         .expect("Outer definition");
-    let inner_field_symbol = program
-        .data_members(outer)
-        .iter()
-        .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if field.name.as_str() == "inner" => {
-                Some(field.symbol)
-            }
-            _ => None,
-        })
-        .expect("Outer.inner field");
+    let inner_field_symbol =
+        program
+            .data_members(outer)
+            .iter()
+            .find_map(|member| match member {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                    field,
+                ) if field.name.as_str() == "inner" => Some(field.symbol),
+                _ => None,
+            })
+            .expect("Outer.inner field");
     let inner = program
         .data_definitions()
         .iter()
         .find(|definition| definition.name.as_str() == "Inner")
         .expect("Inner definition");
-    let bytes_field_symbol = program
-        .data_members(inner)
-        .iter()
-        .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if field.name.as_str() == "bytes" => {
-                Some(field.symbol)
-            }
-            _ => None,
-        })
-        .expect("Inner.bytes field");
+    let bytes_field_symbol =
+        program
+            .data_members(inner)
+            .iter()
+            .find_map(|member| match member {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                    field,
+                ) if field.name.as_str() == "bytes" => Some(field.symbol),
+                _ => None,
+            })
+            .expect("Inner.bytes field");
     let forward = program
         .machines()
         .iter()
@@ -621,26 +643,32 @@ fn write_only_nested_dynamic_byte_call_retains_fields_and_collection_coarse_inde
         &facts,
         call,
         &cache,
-        ::validation::CallFrameResolver::new(&program).as_ref(),
+        crate::validation::CallFrameResolver::new(&program).as_ref(),
     )
     .expect("complete storage frame");
 
     assert_eq!(places.len(), 1, "nested dynamic callee write: {places:?}");
-    assert_eq!(places[0].root, facts::PlaceRoot::Symbol(outer_symbol));
+    assert_eq!(
+        places[0].root,
+        crate::fact_plan::PlaceRoot::Symbol(outer_symbol)
+    );
     assert_eq!(places[0].segments.len(), 3, "exact nested path: {places:?}");
     assert_eq!(
         places[0].segments[..2],
         [
-            facts::PlaceSegment::Field {
+            crate::fact_plan::PlaceSegment::Field {
                 symbol: inner_field_symbol,
             },
-            facts::PlaceSegment::Field {
+            crate::fact_plan::PlaceSegment::Field {
                 symbol: bytes_field_symbol,
             },
         ]
     );
     assert!(
-        matches!(places[0].segments[2], facts::PlaceSegment::Index { .. }),
+        matches!(
+            places[0].segments[2],
+            crate::fact_plan::PlaceSegment::Index { .. }
+        ),
         "a dynamic nested index must retain its record path and the runtime-index segment that existing overlap/invalidation treats conservatively as the byte collection: {places:?}"
     );
 }
@@ -673,31 +701,33 @@ fn write_only_nested_fixed_byte_range_call_retains_fields_and_exact_window() {
         .iter()
         .find(|definition| definition.name.as_str() == "Outer")
         .expect("Outer definition");
-    let inner_field_symbol = program
-        .data_members(outer)
-        .iter()
-        .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if field.name.as_str() == "inner" => {
-                Some(field.symbol)
-            }
-            _ => None,
-        })
-        .expect("Outer.inner field");
+    let inner_field_symbol =
+        program
+            .data_members(outer)
+            .iter()
+            .find_map(|member| match member {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                    field,
+                ) if field.name.as_str() == "inner" => Some(field.symbol),
+                _ => None,
+            })
+            .expect("Outer.inner field");
     let inner = program
         .data_definitions()
         .iter()
         .find(|definition| definition.name.as_str() == "Inner")
         .expect("Inner definition");
-    let bytes_field_symbol = program
-        .data_members(inner)
-        .iter()
-        .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if field.name.as_str() == "bytes" => {
-                Some(field.symbol)
-            }
-            _ => None,
-        })
-        .expect("Inner.bytes field");
+    let bytes_field_symbol =
+        program
+            .data_members(inner)
+            .iter()
+            .find_map(|member| match member {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                    field,
+                ) if field.name.as_str() == "bytes" => Some(field.symbol),
+                _ => None,
+            })
+            .expect("Inner.bytes field");
     let forward = program
         .machines()
         .iter()
@@ -734,22 +764,25 @@ fn write_only_nested_fixed_byte_range_call_retains_fields_and_exact_window() {
         &facts,
         call,
         &cache,
-        ::validation::CallFrameResolver::new(&program).as_ref(),
+        crate::validation::CallFrameResolver::new(&program).as_ref(),
     )
     .expect("complete storage frame");
 
     assert_eq!(places.len(), 1, "exact nested range write: {places:?}");
-    assert_eq!(places[0].root, facts::PlaceRoot::Symbol(outer_symbol));
+    assert_eq!(
+        places[0].root,
+        crate::fact_plan::PlaceRoot::Symbol(outer_symbol)
+    );
     assert_eq!(
         places[0].segments,
         [
-            facts::PlaceSegment::Field {
+            crate::fact_plan::PlaceSegment::Field {
                 symbol: inner_field_symbol,
             },
-            facts::PlaceSegment::Field {
+            crate::fact_plan::PlaceSegment::Field {
                 symbol: bytes_field_symbol,
             },
-            facts::PlaceSegment::FixedRange { start: 1, end: 3 },
+            crate::fact_plan::PlaceSegment::FixedRange { start: 1, end: 3 },
         ],
         "a normalized nested range must retain every field and its exact half-open window"
     );
@@ -762,18 +795,20 @@ fn call_mutated_places_include_mutable_attached_data_arguments() {
     let target_symbol = SymbolHandle::from_arena_index(3);
     let player_symbol = SymbolHandle::from_arena_index(4);
 
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let self_name = Expression::Name(NamePath::resolved(
         vec![Identifier::generated("self")],
         machine_symbol,
         machine_symbol,
     ));
-    let player_member = Expression::Member(Box::new(checked_trees::expression::MemberExpression {
-        receiver: self_name,
-        member_symbol: player_symbol,
-        member: Identifier::generated("player"),
-        case_variant: None,
-    }));
+    let player_member = Expression::Member(Box::new(
+        crate::checked_trees::expression::MemberExpression {
+            receiver: self_name,
+            member_symbol: player_symbol,
+            member: Identifier::generated("player"),
+            case_variant: None,
+        },
+    ));
     let player_argument = mutable_borrow(player_member);
     let player_argument = program.expression_table.insert_tree(&player_argument);
 
@@ -787,7 +822,8 @@ fn call_mutated_places_include_mutable_attached_data_arguments() {
         name: Identifier::generated("Main"),
         attached_data: None,
         attached_data_symbol: symbols::SymbolHandle::invalid(),
-        attached_data_application: typed_trees::types::TypeReferenceHandle::invalid(),
+        attached_data_application:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
         generic_data_template: symbols::SymbolHandle::invalid(),
         spelling: None,
         is_public: false,
@@ -815,7 +851,8 @@ fn call_mutated_places_include_mutable_attached_data_arguments() {
         symbol: state_symbol,
         name: Identifier::generated("main"),
         parameters: Default::default(),
-        return_type: typed_trees::types::TypeReferenceHandle::invalid(),
+        return_type:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
         contracts: Default::default(),
         statement_nodes: Default::default(),
     };
@@ -843,7 +880,8 @@ fn call_mutated_places_include_mutable_attached_data_arguments() {
         symbol: target_symbol,
         name: Identifier::generated("heal"),
         parameters: Default::default(),
-        return_type: typed_trees::types::TypeReferenceHandle::invalid(),
+        return_type:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
         contracts: Default::default(),
         statement_nodes: Default::default(),
     };
@@ -852,7 +890,7 @@ fn call_mutated_places_include_mutable_attached_data_arguments() {
         StateParameter {
             symbol: SymbolHandle::from_arena_index(5),
             name: Identifier::generated("self"),
-            type_reference: typed_trees::types::TypeReferenceHandle::invalid(),
+            type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
             is_const: false,
             is_mutable: true,
             is_self: true,
@@ -864,7 +902,7 @@ fn call_mutated_places_include_mutable_attached_data_arguments() {
         StateParameter {
             symbol: SymbolHandle::from_arena_index(6),
             name: Identifier::generated("player"),
-            type_reference: typed_trees::types::TypeReferenceHandle::invalid(),
+            type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
             is_const: false,
             is_mutable: true,
             is_self: false,
@@ -885,13 +923,13 @@ fn call_mutated_places_include_mutable_attached_data_arguments() {
         &facts,
         &call,
         &state_mutation_summary_cache,
-        ::validation::CallFrameResolver::new(&program).as_ref(),
+        crate::validation::CallFrameResolver::new(&program).as_ref(),
     )
     .expect("complete storage frame");
 
-    assert!(places.iter().any(
-        |place| place.root == facts::PlaceRoot::Symbol(player_symbol) && place.segments.is_empty()
-    ));
+    assert!(places.iter().any(|place| place.root
+        == crate::fact_plan::PlaceRoot::Symbol(player_symbol)
+        && place.segments.is_empty()));
 }
 
 #[test]
@@ -901,7 +939,7 @@ fn call_mutated_places_include_mutable_local_arguments_from_unresolved_names() {
     let target_symbol = SymbolHandle::from_arena_index(12);
     let local_symbol = SymbolHandle::from_arena_index(13);
 
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let local_name = Expression::Name(NamePath::unresolved(vec![Identifier::generated("player")]));
     let local_argument = mutable_borrow(local_name);
     let local_argument = program.expression_table.insert_tree(&local_argument);
@@ -916,7 +954,8 @@ fn call_mutated_places_include_mutable_local_arguments_from_unresolved_names() {
         name: Identifier::generated("Main"),
         attached_data: None,
         attached_data_symbol: symbols::SymbolHandle::invalid(),
-        attached_data_application: typed_trees::types::TypeReferenceHandle::invalid(),
+        attached_data_application:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
         generic_data_template: symbols::SymbolHandle::invalid(),
         spelling: None,
         is_public: false,
@@ -944,17 +983,18 @@ fn call_mutated_places_include_mutable_local_arguments_from_unresolved_names() {
         symbol: state_symbol,
         name: Identifier::generated("main"),
         parameters: Default::default(),
-        return_type: typed_trees::types::TypeReferenceHandle::invalid(),
+        return_type:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
         contracts: Default::default(),
         statement_nodes: Default::default(),
     };
     program.statement_table.push_statement(
         &mut state.statement_nodes,
-        StatementNode::LocalData(typed_trees::statement::TableLocalData {
+        StatementNode::LocalData(symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableLocalData {
             symbol: local_symbol,
             name: Identifier::generated("player"),
-            type_reference: typed_trees::types::TypeReferenceHandle::invalid(),
-            initial_value: typed_trees::expression::ExpressionHandle::invalid(),
+            type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
+            initial_value: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid(),
             is_mutable: false,
             type_is_inferred: false,
             relevance: language_core::BindingRelevance::Relevant,
@@ -984,7 +1024,8 @@ fn call_mutated_places_include_mutable_local_arguments_from_unresolved_names() {
         symbol: target_symbol,
         name: Identifier::generated("heal"),
         parameters: Default::default(),
-        return_type: typed_trees::types::TypeReferenceHandle::invalid(),
+        return_type:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
         contracts: Default::default(),
         statement_nodes: Default::default(),
     };
@@ -993,7 +1034,7 @@ fn call_mutated_places_include_mutable_local_arguments_from_unresolved_names() {
         StateParameter {
             symbol: SymbolHandle::from_arena_index(14),
             name: Identifier::generated("player"),
-            type_reference: typed_trees::types::TypeReferenceHandle::invalid(),
+            type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
             is_const: false,
             is_mutable: true,
             is_self: false,
@@ -1014,14 +1055,11 @@ fn call_mutated_places_include_mutable_local_arguments_from_unresolved_names() {
         &facts,
         &call,
         &state_mutation_summary_cache,
-        ::validation::CallFrameResolver::new(&program).as_ref(),
+        crate::validation::CallFrameResolver::new(&program).as_ref(),
     )
     .expect("complete storage frame");
 
-    assert!(
-        places
-            .iter()
-            .any(|place| place.root == facts::PlaceRoot::Symbol(local_symbol)
-                && place.segments.is_empty())
-    );
+    assert!(places.iter().any(|place| place.root
+        == crate::fact_plan::PlaceRoot::Symbol(local_symbol)
+        && place.segments.is_empty()));
 }

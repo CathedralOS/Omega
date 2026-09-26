@@ -1,9 +1,11 @@
 use super::super::lower_typed_trees;
 use super::parse_typed_trees;
 use crate::CheckingRequest;
-use checked_trees::{CheckedScalarExpression, CheckedTrees, CheckedUnitEffectOperationPlan};
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::statement::StatementNode;
+use crate::checked_trees::{CheckedScalarExpression, CheckedTrees, CheckedUnitEffectOperationPlan};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 
 #[derive(Clone, Copy, Debug)]
 enum Destination {
@@ -86,11 +88,11 @@ fn assert_retained_seven(checked: &CheckedTrees, destination: Destination, sourc
     }
     // Source expressions stay intact; the destination consumer renders their
     // exact value. Replacing this node would lose fractional warning custody.
-    let landed = validation::land_anonymous_integer_expression(
+    let landed = crate::validation::land_anonymous_integer_expression(
         checked,
         field,
-        typed_trees::types::PrimitiveType::I32,
-        |expression| validation::has_anonymous_operator_meaning(checked, expression),
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::I32,
+        |expression| crate::validation::has_anonymous_operator_meaning(checked, expression),
     );
     assert_eq!(
         landed.and_then(|literal| literal.value_i64()),
@@ -239,13 +241,14 @@ fn retained_scalar_record_field_plans_deliver_exact_seven_to_an_owned_call() {
             .iter()
             .filter_map(|operation| match operation {
                 CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. } => {
-                    let checked_trees::CheckedStructuralValueKind::Record { fields, .. } = checked
-                        .facts
-                        .values
-                        .structural_values
-                        .nodes
-                        .get(*value)
-                        .kind
+                    let crate::checked_trees::CheckedStructuralValueKind::Record { fields, .. } =
+                        checked
+                            .facts
+                            .values
+                            .structural_values
+                            .nodes
+                            .get(*value)
+                            .kind
                     else {
                         return None;
                     };
@@ -258,12 +261,12 @@ fn retained_scalar_record_field_plans_deliver_exact_seven_to_an_owned_call() {
                     else {
                         return None;
                     };
-                    let checked_trees::CheckedStructuralRecordFieldValue::Scalar(operand) =
+                    let crate::checked_trees::CheckedStructuralRecordFieldValue::Scalar(operand) =
                         field.value
                     else {
                         return None;
                     };
-                    let checked_trees::CheckedScalarComputationKind::Value(value) = &checked
+                    let crate::checked_trees::CheckedScalarComputationKind::Value(value) = &checked
                         .facts
                         .values
                         .scalar_computations

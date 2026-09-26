@@ -1,9 +1,11 @@
 //! Composed Unit calls execute their scalar operands and their observable bodies.
 
-use checked_trees::{CheckedScalarComputationKind, CheckedScalarExpressionRole};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+use symbol_resolved_trees_to_typed_trees::typed_trees::{
+    expression::ExpressionNode, statement::StatementNode,
+};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::TerminalStructuralInputs;
@@ -11,7 +13,9 @@ use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
 };
-use typed_trees::{expression::ExpressionNode, statement::StatementNode};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedScalarComputationKind, CheckedScalarExpressionRole,
+};
 
 const HELPERS: &str = r#"
     machine identity(input: u8) -> u8
@@ -29,7 +33,10 @@ const HELPERS: &str = r#"
     { input }
 "#;
 
-fn artifact(checked: &checked_trees::CheckedTrees, state_count: usize) -> (Vec<u8>, Vec<u8>) {
+fn artifact(
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+    state_count: usize,
+) -> (Vec<u8>, Vec<u8>) {
     let root = checked
         .typed
         .machines()
@@ -520,7 +527,7 @@ fn transitive_unit_callee_suspension_metadata_is_retained_and_validated() {
         .facts
         .carry
         .suspension_crossings
-        .push(checked_trees::SuspensionCrossingCarryFact {
+        .push(typed_trees_to_checked_trees::checked_trees::SuspensionCrossingCarryFact {
             machine: owner_symbol,
             state: owner_state,
             statement_index: occurrence.statement_index,
@@ -528,10 +535,10 @@ fn transitive_unit_callee_suspension_metadata_is_retained_and_validated() {
             target: helper_symbol,
             receiver: None,
             effective: language_semantics::CarryPolicy::PERMISSIVE,
-            live_values: vec![checked_trees::SuspensionCrossingLiveValueFact {
+            live_values: vec![typed_trees_to_checked_trees::checked_trees::SuspensionCrossingLiveValueFact {
                 type_reference: helper_type,
-                storage: checked_trees::SuspensionCrossingStorage::CallArgument,
-                origin: checked_trees::SuspensionCrossingValueOrigin::CallArgument { position: 0 },
+                storage: typed_trees_to_checked_trees::checked_trees::SuspensionCrossingStorage::CallArgument,
+                origin: typed_trees_to_checked_trees::checked_trees::SuspensionCrossingValueOrigin::CallArgument { position: 0 },
                 claims: Vec::new(),
                 effective: language_semantics::CarryPolicy::PERMISSIVE,
             }],

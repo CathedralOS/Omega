@@ -1,11 +1,13 @@
 use super::{checked_source_with_core_service, lower_machine};
-use crate::TerminalMachineSelection;
-use checked_trees::{
-    CheckedScalarExpression, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalProductionCustody, TerminalProductionTimings,
 };
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationKind, StructuralPathSegment};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedScalarExpression, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
+};
 
 fn source(primitive: &str, value: &str) -> String {
     format!(
@@ -34,15 +36,18 @@ fn indexed_primitive_source_rejects_out_of_bounds_and_shared_writes() {
 fn source_indexed_primitive_storage_retains_canonical_leaf_paths() {
     for (primitive, value) in [("u8", "65"), ("i32", "65"), ("bool", "true")] {
         let checked = checked_source_with_core_service(&source(primitive, value));
-        let artifact = terminal_production::TerminalProductionRequest::new(
-            &checked,
-            terminal_production::TerminalMachineSelection::Name("Buffer::update"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("indexed primitive source produces canonical Terminal")
-        .into_artifact();
+        let artifact =
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                &checked,
+                lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                    "Buffer::update",
+                ),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .expect("indexed primitive source produces canonical Terminal")
+            .into_artifact();
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         let entry = module
             .machines
@@ -74,15 +79,18 @@ fn source_indexed_primitive_storage_retains_canonical_leaf_paths() {
 #[test]
 fn source_indexed_primitive_store_and_read_share_serialized_backing() {
     let checked = checked_source_with_core_service(&source("u8", "65"));
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("Buffer::update"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap()
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                "Buffer::update",
+            ),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap()
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let entry = module
         .machines
@@ -209,7 +217,7 @@ fn indexed_primitive_read_receiver_rejects_changed_source_path() {
             unreachable!()
         };
         *path.last_mut().unwrap() =
-            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index);
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index);
         assert!(
             crate::expression_preparation::source_custody::validate_storage_read_expression(
                 &checked,
@@ -236,15 +244,18 @@ const RUNTIME_ELEMENT_SOURCE: &str = "data Buffer { bytes: [u8; 8]; at: u64; }
 #[test]
 fn field_read_selector_stores_through_a_runtime_element() {
     let checked = checked_source_with_core_service(RUNTIME_ELEMENT_SOURCE);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("Buffer::update"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("a field-read selector produces verified Terminal")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                "Buffer::update",
+            ),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("a field-read selector produces verified Terminal")
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let entry = module
         .machines
@@ -325,14 +336,20 @@ fn runtime_element_store_rejects_a_substituted_path() {
         vec![CheckedUnitStructuralPathSegment::FixedIndex(3)],
         vec![
             CheckedUnitStructuralPathSegment::RuntimeIndex(
-                checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth: 0 },
+                typed_trees_to_checked_trees::checked_trees::CheckedRuntimeIndex::AssignmentIndex {
+                    depth: 0,
+                },
             ),
             CheckedUnitStructuralPathSegment::RuntimeIndex(
-                checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth: 0 },
+                typed_trees_to_checked_trees::checked_trees::CheckedRuntimeIndex::AssignmentIndex {
+                    depth: 0,
+                },
             ),
         ],
         vec![CheckedUnitStructuralPathSegment::RuntimeIndex(
-            checked_trees::CheckedRuntimeIndex::Parameter { position: 0 },
+            typed_trees_to_checked_trees::checked_trees::CheckedRuntimeIndex::Parameter {
+                position: 0,
+            },
         )],
     ] {
         let mut changed = checked.clone();
@@ -353,7 +370,7 @@ fn runtime_element_store_rejects_a_substituted_path() {
             [
                 CheckedUnitStructuralPathSegment::Field(_),
                 CheckedUnitStructuralPathSegment::RuntimeIndex(
-                    checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth: 0 }
+                    typed_trees_to_checked_trees::checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth: 0 }
                 )
             ]
         ));
@@ -371,15 +388,18 @@ fn runtime_element_store_rejects_a_substituted_path() {
 /// each flagged whether it is a scalar field store.
 fn store_paths(source: &str) -> Vec<(bool, Vec<StructuralPathSegment>)> {
     let checked = checked_source_with_core_service(source);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("Buffer::update"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap_or_else(|error| panic!("verified Terminal for {source}: {error:?}"))
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                "Buffer::update",
+            ),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap_or_else(|error| panic!("verified Terminal for {source}: {error:?}"))
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let entry = module
         .machines

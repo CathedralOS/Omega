@@ -3,7 +3,7 @@
 //!
 //! `mathematical_declarations` records each authored declaration onto the
 //! checked surface as identity strings; this module re-walks the typed
-//! mirror (`typed_trees::mathematical`) and elaborates every declaration
+//! mirror (`symbol_resolved_trees_to_typed_trees::typed_trees::mathematical`) and elaborates every declaration
 //! into a `mathematical_core::signature::Declaration` — a closed
 //! `level_arity`/`ty`/`body` triple over `TermArena` handles — then runs
 //! `check_signature` so the kernel itself re-decides that each statement
@@ -113,18 +113,22 @@ use proof_admission::{
     TermArena, TermHandle, check_signature, infer_sort, shift,
 };
 use source::SourceSpan;
-use symbols::{BuiltinTypeAtom, SymbolHandle};
-use typed_trees::TypedTrees;
-use typed_trees::data::{DataMember, DataProperties, TypeParameter, TypeParameterKind};
-use typed_trees::expression::{
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::data::{
+    DataMember, DataProperties, TypeParameter, TypeParameterKind,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, StaticMachineArgument, TableBinaryExpression,
     TableMemberExpression, TableNamePath, UnaryOperator,
 };
-use typed_trees::mathematical::{
+use symbol_resolved_trees_to_typed_trees::typed_trees::mathematical::{
     MathematicalBody, MathematicalDefinition, MathematicalType, MathematicalTypeHandle,
 };
-use typed_trees::name::Identifier;
-use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
+};
+use symbols::{BuiltinTypeAtom, SymbolHandle};
 
 /// A checked kernel signature for a typed program's mathematical
 /// declarations: the shared term arena, the re-decided declaration list
@@ -890,7 +894,7 @@ impl<'a> Elaborator<'a> {
             "expression `{}` has no kernel denotation yet",
             self.program.render_proof_expression(
                 handle,
-                typed_trees::proposition::ProofSubstitutions::None
+                symbol_resolved_trees_to_typed_trees::typed_trees::proposition::ProofSubstitutions::None
             )
         ))
     }
@@ -1002,7 +1006,7 @@ impl<'a> Elaborator<'a> {
                     "cannot determine a shared scalar carrier for `{}`",
                     self.program.render_proof_expression(
                         handle,
-                        typed_trees::proposition::ProofSubstitutions::None
+                        symbol_resolved_trees_to_typed_trees::typed_trees::proposition::ProofSubstitutions::None
                     )
                 ))
             })?;
@@ -1036,7 +1040,7 @@ impl<'a> Elaborator<'a> {
                 "order relation `{}` denotes only over fixed non-address integers",
                 self.program.render_proof_expression(
                     handle,
-                    typed_trees::proposition::ProofSubstitutions::None
+                    symbol_resolved_trees_to_typed_trees::typed_trees::proposition::ProofSubstitutions::None
                 )
             )));
         }
@@ -1084,7 +1088,7 @@ impl<'a> Elaborator<'a> {
                         "operand `{}` of a proposition connective is not a proposition",
                         self.program.render_proof_expression(
                             operand,
-                            typed_trees::proposition::ProofSubstitutions::None
+                            symbol_resolved_trees_to_typed_trees::typed_trees::proposition::ProofSubstitutions::None
                         )
                     )));
                 }
@@ -1241,14 +1245,14 @@ impl<'a> Elaborator<'a> {
                             "operand `{}` inhabits a different scalar carrier",
                             self.program.render_proof_expression(
                                 handle,
-                                typed_trees::proposition::ProofSubstitutions::None
+                                symbol_resolved_trees_to_typed_trees::typed_trees::proposition::ProofSubstitutions::None
                             )
                         ))),
                         None => Err(self.refuse(format!(
                             "cannot determine the scalar carrier of operand `{}`",
                             self.program.render_proof_expression(
                                 handle,
-                                typed_trees::proposition::ProofSubstitutions::None
+                                symbol_resolved_trees_to_typed_trees::typed_trees::proposition::ProofSubstitutions::None
                             )
                         ))),
                     },
@@ -1266,14 +1270,14 @@ impl<'a> Elaborator<'a> {
                     "operand `{}` inhabits a different scalar carrier",
                     self.program.render_proof_expression(
                         handle,
-                        typed_trees::proposition::ProofSubstitutions::None
+                        symbol_resolved_trees_to_typed_trees::typed_trees::proposition::ProofSubstitutions::None
                     )
                 ))),
                 None => Err(self.refuse(format!(
                     "cannot determine the scalar carrier of operand `{}`",
                     self.program.render_proof_expression(
                         handle,
-                        typed_trees::proposition::ProofSubstitutions::None
+                        symbol_resolved_trees_to_typed_trees::typed_trees::proposition::ProofSubstitutions::None
                     )
                 ))),
             },
@@ -2060,11 +2064,11 @@ impl<'a> Elaborator<'a> {
                 out.extend_from_slice(&(arms.len() as u32).to_le_bytes());
                 for arm in arms {
                     match arm.pattern {
-                        typed_trees::expression::MatchPattern::Value(pattern) => {
+                        symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) => {
                             out.push(0);
                             self.write_expression_key(pattern, out);
                         }
-                        typed_trees::expression::MatchPattern::Wildcard => out.push(1),
+                        symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Wildcard => out.push(1),
                     }
                     self.write_expression_key(arm.value, out);
                 }

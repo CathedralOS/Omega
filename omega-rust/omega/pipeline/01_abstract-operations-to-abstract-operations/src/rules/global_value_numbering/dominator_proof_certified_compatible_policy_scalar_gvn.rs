@@ -1,7 +1,7 @@
 //! Cross-block elimination from proof-bearing redundants to total-policy leaders.
 
 use optimization_core::{AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass};
-use optimization_unit::{
+use terminal_psi_to_abstract_operations::optimization_unit::{
     DominatingScalarCommonSubexpressionRewrite, NodeLocation, OptimizationFact,
     PsiOptimizationUnit, PsiRewriteCandidate,
 };

@@ -6,15 +6,15 @@
 //! to inherited requirements select this block's rows, never an ambient
 //! attached machine sharing the leaf name.
 
-use diagnostics::Diagnostic;
-use symbol_resolved_trees::SymbolResolvedTrees;
-use symbol_resolved_trees::name::DiagnosticName;
-use symbol_resolved_trees::signature::StateSignature;
-use symbol_resolved_trees::state::State;
-use symbol_resolved_trees::trait_definition::{
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
+use crate::symbol_resolved_trees::name::DiagnosticName;
+use crate::symbol_resolved_trees::signature::StateSignature;
+use crate::symbol_resolved_trees::state::State;
+use crate::symbol_resolved_trees::trait_definition::{
     ConformanceImplementation, ConformanceRow, ConformanceRowSource,
 };
-use symbol_resolved_trees::types::{TypeConstraint, TypeReference};
+use crate::symbol_resolved_trees::types::{TypeConstraint, TypeReference};
+use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 #[derive(Clone)]
@@ -76,10 +76,10 @@ pub(crate) fn normalize_closed_conformance_blocks(
             ConformanceImplementation::Closed { rows } => normalize_one(
                 program,
                 match &conformance.subject {
-                    symbol_resolved_trees::trait_definition::ConformanceSubject::Carrier(
+                    crate::symbol_resolved_trees::trait_definition::ConformanceSubject::Carrier(
                         type_name,
                     ) => type_name.as_str(),
-                    symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless => {
+                    crate::symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless => {
                         conformance
                             .alias
                             .as_ref()
@@ -165,25 +165,27 @@ pub(crate) fn route_inline_member_calls(program: &mut SymbolResolvedTrees) {
             })
             .collect::<Vec<_>>();
         let subject_states = match &conformance.subject {
-            symbol_resolved_trees::trait_definition::ConformanceSubject::Carrier(type_name) => {
-                program
-                    .machines
-                    .iter()
-                    .filter(|machine| {
-                        machine
-                            .attached_data
-                            .as_ref()
-                            .is_some_and(|subject| subject.as_str() == type_name.as_str())
-                    })
-                    .flat_map(|machine| {
-                        program
-                            .machine_state_handles(machine.states)
-                            .iter()
-                            .map(|handle| program.machine_state(*handle).symbol)
-                    })
-                    .collect::<Vec<_>>()
+            crate::symbol_resolved_trees::trait_definition::ConformanceSubject::Carrier(
+                type_name,
+            ) => program
+                .machines
+                .iter()
+                .filter(|machine| {
+                    machine
+                        .attached_data
+                        .as_ref()
+                        .is_some_and(|subject| subject.as_str() == type_name.as_str())
+                })
+                .flat_map(|machine| {
+                    program
+                        .machine_state_handles(machine.states)
+                        .iter()
+                        .map(|handle| program.machine_state(*handle).symbol)
+                })
+                .collect::<Vec<_>>(),
+            crate::symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless => {
+                Vec::new()
             }
-            symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless => Vec::new(),
         };
         plans.extend(
             rows.iter()

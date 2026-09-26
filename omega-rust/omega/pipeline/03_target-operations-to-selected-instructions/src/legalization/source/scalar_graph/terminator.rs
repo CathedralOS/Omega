@@ -1,14 +1,14 @@
 use super::{AbstractOperationPlan, Error};
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
-use abstract_operations::AbstractOperation;
-use legalized_operations::{
+use crate::legalized_operations::{
     LegalizedScalarReturn, LegalizedScalarReturnValue, LegalizedScalarSuccessor,
     LegalizedScalarTerminator,
 };
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
 pub(super) fn project(
-    node: &optimization_unit::OptimizationNode,
-    function: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    function: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
 ) -> Result<LegalizedScalarTerminator, LegalizationError> {
     match &node.operation {
@@ -102,7 +102,9 @@ pub(super) fn project(
         _ => Err(Error::custody()),
     }
 }
-fn successor(edge: &optimization_unit::OptimizationEdge) -> LegalizedScalarSuccessor {
+fn successor(
+    edge: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationEdge,
+) -> LegalizedScalarSuccessor {
     LegalizedScalarSuccessor {
         edge: edge.psi_edge,
         target: edge.target,

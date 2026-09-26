@@ -6,17 +6,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use checked_trees::types::PrimitiveType;
-use checked_trees::{
-    CheckedBooleanExpression, CheckedBoundaryScalarReturnMachinePlan, CheckedIntegerComparisonKind,
-    CheckedScalarBindingValue, CheckedScalarBranchDestination, CheckedScalarExpression,
-    CheckedScalarExpressionRole, CheckedScalarMachineGraph, CheckedScalarStateTerminator,
-    CheckedScalarSuccessor, CheckedStructuralScalarReturnMachinePlan,
-    CheckedTerminalSignatureEligibility, CheckedTrees, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralParameterPlan, ClosedScalarContractValue, ClosedScalarValueContractPlan,
-};
+use crate::lowered_psi::LoweredPsi;
 use language_semantics::{Multiplicity, PermissionClaimIdentity};
-use lowered_psi::LoweredPsi;
 use proof_admission::{EvidenceRoute, PrimitiveJudgment};
 use semantic_vocabulary::{
     BlockId, ClaimId, IeeeFloatFormat, IntegerType, IntegerValue, MachineId, PlaceId, Proposition,
@@ -32,6 +23,15 @@ use terminal_psi::{
     TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
 };
 use terminal_verifier::{ObligationEvidence, ProofBundle};
+use typed_trees_to_checked_trees::checked_trees::types::PrimitiveType;
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedBooleanExpression, CheckedBoundaryScalarReturnMachinePlan, CheckedIntegerComparisonKind,
+    CheckedScalarBindingValue, CheckedScalarBranchDestination, CheckedScalarExpression,
+    CheckedScalarExpressionRole, CheckedScalarMachineGraph, CheckedScalarStateTerminator,
+    CheckedScalarSuccessor, CheckedStructuralScalarReturnMachinePlan,
+    CheckedTerminalSignatureEligibility, CheckedTrees, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralParameterPlan, ClosedScalarContractValue, ClosedScalarValueContractPlan,
+};
 
 use crate::emission::boolean_control::{
     boolean_decision_block_count, boolean_guard_decision_block_count,

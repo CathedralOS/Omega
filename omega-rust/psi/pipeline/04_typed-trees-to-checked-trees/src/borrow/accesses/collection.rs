@@ -1,14 +1,14 @@
 use super::records;
 use crate::borrow::accesses::BorrowAccessPlace;
 use crate::borrow::accesses::borrow_access_place;
-use checked_trees::expression::ExpressionHandle;
-use checked_trees::{BorrowAccessKind, BorrowArgumentAccessFact};
+use crate::checked_trees::expression::ExpressionHandle;
+use crate::checked_trees::{BorrowAccessKind, BorrowArgumentAccessFact};
 use records::append_argument_access;
 use symbols::SymbolHandle;
 
 pub(super) struct BorrowAccessCollection<'a> {
-    pub(super) program: &'a typed_trees::TypedTrees,
-    access_segments: &'a mut arena::Arena<facts::PlaceSegment>,
+    pub(super) program: &'a symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    access_segments: &'a mut arena::Arena<crate::fact_plan::PlaceSegment>,
     argument_accesses: &'a mut arena::Arena<BorrowArgumentAccessFact>,
     accesses: &'a mut arena::HandleSpan<BorrowArgumentAccessFact>,
     state_symbol: SymbolHandle,
@@ -18,8 +18,8 @@ pub(super) struct BorrowAccessCollection<'a> {
 
 impl<'a> BorrowAccessCollection<'a> {
     pub(super) fn new(
-        program: &'a typed_trees::TypedTrees,
-        access_segments: &'a mut arena::Arena<facts::PlaceSegment>,
+        program: &'a symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        access_segments: &'a mut arena::Arena<crate::fact_plan::PlaceSegment>,
         argument_accesses: &'a mut arena::Arena<BorrowArgumentAccessFact>,
         accesses: &'a mut arena::HandleSpan<BorrowArgumentAccessFact>,
         state_symbol: SymbolHandle,

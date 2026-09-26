@@ -1,11 +1,14 @@
 use crate::tests::front_end::typed_program;
 
 use crate::tests::termination::progress_mutation::fixture_source;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 use symbols::SymbolHandle;
-use typed_trees::expression::ExpressionNode;
-use typed_trees::statement::StatementNode;
 
-pub(super) fn typed_fixture(body: &str, extra: &str) -> typed_trees::TypedTrees {
+pub(super) fn typed_fixture(
+    body: &str,
+    extra: &str,
+) -> symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees {
     let source = fixture_source(
         &format!("{body} transition {{ _ -> 0 }}"),
         true,
@@ -15,7 +18,10 @@ pub(super) fn typed_fixture(body: &str, extra: &str) -> typed_trees::TypedTrees 
     typed_program(&source)
 }
 
-pub(super) fn assert_origin(program: &typed_trees::TypedTrees, expected: Option<&str>) {
+pub(super) fn assert_origin(
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    expected: Option<&str>,
+) {
     let machine = program
         .machines()
         .iter()
@@ -43,7 +49,7 @@ pub(super) fn assert_origin(program: &typed_trees::TypedTrees, expected: Option<
             vec![],
         )
     });
-    let resolver = validation::CallFrameResolver::new(program).unwrap();
+    let resolver = crate::validation::CallFrameResolver::new(program).unwrap();
     let frame = resolver.inferred_state_write_frame(machine, state);
     assert_eq!(
         resolver.local_reference_origin_before_statement(

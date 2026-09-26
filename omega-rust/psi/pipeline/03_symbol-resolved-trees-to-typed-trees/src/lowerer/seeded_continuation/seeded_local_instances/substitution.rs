@@ -1,9 +1,9 @@
 use super::super::exact_field_symbol;
-use symbol_resolved_trees::{
+use symbols::SymbolHandle;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::{
     SymbolResolvedTrees, domain::ProofFact, expression::BinaryOperator,
     expression::ExpressionHandle, expression::ExpressionNode, types::TypeReference,
 };
-use symbols::SymbolHandle;
 
 pub(super) fn member_matches(
     source: &SymbolResolvedTrees,
@@ -11,10 +11,10 @@ pub(super) fn member_matches(
     instance_owner: SymbolHandle,
     substitutions: &[(SymbolHandle, &TypeReference)],
     validated_instances: &[SymbolHandle],
-    template: &symbol_resolved_trees::data::DataMember,
-    instance: &symbol_resolved_trees::data::DataMember,
+    template: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember,
+    instance: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember,
 ) -> bool {
-    use symbol_resolved_trees::data::DataMember;
+    use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember;
     match (template, instance) {
         (DataMember::Field(template), DataMember::Field(instance)) => field_matches(
             source,
@@ -44,8 +44,8 @@ fn field_matches(
     instance_owner: SymbolHandle,
     substitutions: &[(SymbolHandle, &TypeReference)],
     validated_instances: &[SymbolHandle],
-    template: &symbol_resolved_trees::data::DataField,
-    instance: &symbol_resolved_trees::data::DataField,
+    template: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataField,
+    instance: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataField,
 ) -> bool {
     template.identity == instance.identity
         && template.name.as_str() == instance.name.as_str()
@@ -68,8 +68,8 @@ fn variant_matches(
     instance_owner: SymbolHandle,
     substitutions: &[(SymbolHandle, &TypeReference)],
     validated_instances: &[SymbolHandle],
-    template: &symbol_resolved_trees::data::DataVariant,
-    instance: &symbol_resolved_trees::data::DataVariant,
+    template: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataVariant,
+    instance: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataVariant,
 ) -> bool {
     let template_payload = source.data_payload_fields(template.payload);
     let instance_payload = source.data_payload_fields(instance.payload);
@@ -230,7 +230,7 @@ fn flatten_and_conjuncts(
 /// else the last stamped member symbol of a multi-segment path.
 fn fact_name_leaf_symbol(
     source: &SymbolResolvedTrees,
-    path: &symbol_resolved_trees::expression::TableNamePath,
+    path: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::expression::TableNamePath,
 ) -> SymbolHandle {
     if path.symbol.is_valid() {
         return path.symbol;
@@ -340,8 +340,8 @@ fn case_fact_matches(
 }
 
 fn diagnostic_names_match(
-    template: &[symbol_resolved_trees::name::DiagnosticName],
-    instance: &[symbol_resolved_trees::name::DiagnosticName],
+    template: &[syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName],
+    instance: &[syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName],
 ) -> bool {
     template.len() == instance.len()
         && template
@@ -598,7 +598,7 @@ fn fact_type_reference_matches(
 fn exact_variant_symbol(
     source: &SymbolResolvedTrees,
     owner: SymbolHandle,
-    variant: &symbol_resolved_trees::data::DataVariant,
+    variant: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataVariant,
 ) -> bool {
     variant.symbol.is_valid()
         && source.symbols.get(variant.symbol).kind == symbols::SymbolKind::Variant

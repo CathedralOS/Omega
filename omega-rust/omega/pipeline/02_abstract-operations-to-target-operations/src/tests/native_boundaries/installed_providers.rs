@@ -149,12 +149,12 @@ fn installed_provider_plan() -> (
                 operations: vec![
                     AbstractOperation::BoundaryCall {
                         psi_operation: operation,
-                        result: abstract_operations::AbstractBoundaryResult::Unit,
+                        result: terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Unit,
                         boundary,
                         arguments: Vec::new(),
                         structural_arguments: vec![argument.clone()],
                         completion_claim_sources: vec![
-                            abstract_operations::CompletionClaimSource {
+                            terminal_psi_to_abstract_operations::abstract_operations::CompletionClaimSource {
                                 claim,
                                 entry: Some(entry_source.clone()),
                                 content: None,
@@ -302,7 +302,7 @@ fn installed_scalar_provider_plan() -> (
                 operations: vec![
                     AbstractOperation::BoundaryCall {
                         psi_operation: operation,
-                        result: abstract_operations::AbstractBoundaryResult::Unit,
+                        result: terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Unit,
                         boundary,
                         arguments: vec![caller_value],
                         structural_arguments: Vec::new(),
@@ -391,10 +391,12 @@ fn installed_provider_calls_retain_scalar_operands_and_selection_custody() {
                 panic!("ordinary call transport");
             };
             match corruption {
-                0 => *origin = target_operations::NativeCallOrigin::Authored,
+                0 => *origin = crate::target_operations::NativeCallOrigin::Authored,
                 1 => {
-                    let target_operations::NativeCallOrigin::InstalledProvider { provider, .. } =
-                        origin
+                    let crate::target_operations::NativeCallOrigin::InstalledProvider {
+                        provider,
+                        ..
+                    } = origin
                     else {
                         unreachable!()
                     };
@@ -403,7 +405,7 @@ fn installed_provider_calls_retain_scalar_operands_and_selection_custody() {
                 }
                 2 => scalar_arguments.clear(),
                 3 => {
-                    let target_operations::NativeCallOrigin::InstalledProvider {
+                    let crate::target_operations::NativeCallOrigin::InstalledProvider {
                         completion_receipts,
                         ..
                     } = origin
@@ -486,7 +488,8 @@ fn installed_selection_rejects_another_semantically_valid_catalog_candidate() {
         panic!("installed call");
     };
     *callee = alternate_provider.candidate;
-    let target_operations::NativeCallOrigin::InstalledProvider { provider, .. } = origin else {
+    let crate::target_operations::NativeCallOrigin::InstalledProvider { provider, .. } = origin
+    else {
         panic!("installed origin");
     };
     *provider = alternate_provider;
@@ -517,7 +520,7 @@ fn installed_provider_result_must_match_occurrence_and_boundary_declaration() {
             else {
                 unreachable!()
             };
-            *actual = abstract_operations::AbstractBoundaryResult::Structural(
+            *actual = terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Structural(
                 result.structural().unwrap().clone(),
             );
         }

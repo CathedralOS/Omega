@@ -4,7 +4,7 @@
 use crate::facts::canonical_encoding::{encode_contract_set_canonical, encode_type_spelling};
 use crate::facts::crash_plan_facts::{build_crash_contract_capsules, build_published_crash_plan};
 use crate::facts::{crash_calls, operator_crashes};
-use typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 
 /// STR4 checked plans (wiki/spec/language/machines.md): assemble each machine's
 /// normalized contract plan from the published halves already carried on
@@ -14,23 +14,23 @@ use typed_trees::TypedTrees;
 /// prover therefore cannot change an exported contract ID (acceptance 8).
 pub(crate) fn build_contract_plans(
     program: &TypedTrees,
-    service_reaches: &checked_trees::ServiceReachFacts,
-    synchronous_invocations: &checked_trees::SynchronousInvocationFacts,
-    suspensions: &checked_trees::SuspensionFacts,
-    blocking: &checked_trees::BlockingFacts,
-    termination: &checked_trees::TerminationFacts,
-    mutation: &checked_trees::MutationFacts,
-    capabilities: &flow_effects::CapabilityFlowPlan,
-    flow: &checked_trees::FlowFacts,
-    operators: &checked_trees::CheckedOperatorFacts,
-    semantic: &facts::FactPlan,
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
-    scalar_expressions: &checked_trees::CheckedScalarExpressionPlans,
-    scalar_computations: &checked_trees::CheckedScalarComputationPlans,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Result<checked_trees::MachineContractPlans, Vec<diagnostics::Diagnostic>> {
+    service_reaches: &crate::checked_trees::ServiceReachFacts,
+    synchronous_invocations: &crate::checked_trees::SynchronousInvocationFacts,
+    suspensions: &crate::checked_trees::SuspensionFacts,
+    blocking: &crate::checked_trees::BlockingFacts,
+    termination: &crate::checked_trees::TerminationFacts,
+    mutation: &crate::checked_trees::MutationFacts,
+    capabilities: &crate::flow_effects::CapabilityFlowPlan,
+    flow: &crate::checked_trees::FlowFacts,
+    operators: &crate::checked_trees::CheckedOperatorFacts,
+    semantic: &crate::fact_plan::FactPlan,
+    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
+    scalar_expressions: &crate::checked_trees::CheckedScalarExpressionPlans,
+    scalar_computations: &crate::checked_trees::CheckedScalarComputationPlans,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
+) -> Result<crate::checked_trees::MachineContractPlans, Vec<diagnostics::Diagnostic>> {
     let mut machines = Vec::new();
-    let content_conservation = validation::content_conservation_plans(program);
+    let content_conservation = crate::validation::build_content_conservation_plans(program);
     for machine in program.machines() {
         let service_fact = service_reaches.for_machine(machine.symbol);
         let published_service_row = service_fact
@@ -149,7 +149,7 @@ pub(crate) fn build_contract_plans(
         canonical_facts.sort();
         let closed_scalar_values =
             build_closed_scalar_value_contract_plan(program, machine, operators);
-        let identity = checked_trees::contract_identity(
+        let identity = crate::checked_trees::contract_identity(
             machine.supply_mode,
             &published_service_names,
             synchronous_invocation.interface,
@@ -160,7 +160,7 @@ pub(crate) fn build_contract_plans(
             &termination.interface,
             &canonical_facts,
         );
-        machines.push(checked_trees::MachineContractPlan {
+        machines.push(crate::checked_trees::MachineContractPlan {
             machine: machine.symbol,
             closed_scalar_values,
             crash,
@@ -254,7 +254,7 @@ pub(crate) fn build_contract_plans(
                     .filter(|flow| flow.machine_symbol == contract.machine)
                     .copied()
                     .collect();
-                checked_trees::RealizedMachineContractEnvelope {
+                crate::checked_trees::RealizedMachineContractEnvelope {
                 machine: contract.machine,
                 contract_report_fingerprint: contract.report_fingerprint,
                 contract_commitment: contract.commitment,
@@ -271,7 +271,7 @@ pub(crate) fn build_contract_plans(
                 mutation,
                 capabilities: capability_rows,
                 resources:
-                    checked_trees::CheckedMachineResourceEnvelopes::from_checked_contract_entries(
+                    crate::checked_trees::CheckedMachineResourceEnvelopes::from_checked_contract_entries(
                         contract.machine,
                         contract.report_fingerprint,
                         contract.commitment,
@@ -280,7 +280,7 @@ pub(crate) fn build_contract_plans(
             }
             })
             .collect();
-    let plans = checked_trees::MachineContractPlans {
+    let plans = crate::checked_trees::MachineContractPlans {
         machines,
         crash_capsules,
         realized_envelopes,
@@ -300,7 +300,7 @@ pub(crate) fn build_contract_plans(
 /// reordered entry before the source-independent carrier leaves this stage.
 fn validate_checked_resource_envelope_coverage(
     program: &TypedTrees,
-    plans: &checked_trees::MachineContractPlans,
+    plans: &crate::checked_trees::MachineContractPlans,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     for machine in program.machines() {
         let contract = plans.for_machine(machine.symbol).ok_or_else(|| {
@@ -320,12 +320,13 @@ fn validate_checked_resource_envelope_coverage(
             )]);
         }
         for (resource, entry) in realized.resources.iter().zip(expected_entries) {
-            let replayed = checked_trees::CheckedEntryResourceEnvelope::from_checked_contract(
-                machine.symbol,
-                entry.symbol,
-                contract.report_fingerprint,
-                contract.commitment,
-            );
+            let replayed =
+                crate::checked_trees::CheckedEntryResourceEnvelope::from_checked_contract(
+                    machine.symbol,
+                    entry.symbol,
+                    contract.report_fingerprint,
+                    contract.commitment,
+                );
             if resource != &replayed {
                 return Err(vec![diagnostics::Diagnostic::error(
                     "checked resource-envelope replay changed entry ownership or declaration order",
@@ -338,8 +339,8 @@ fn validate_checked_resource_envelope_coverage(
 
 pub(crate) fn build_mutation_facts(
     program: &TypedTrees,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> checked_trees::MutationFacts {
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
+) -> crate::checked_trees::MutationFacts {
     let mut owned_resolver = None;
     let frame_resolver =
         crate::flow::shared_call_frames_or(call_frames, program, &mut owned_resolver);
@@ -351,17 +352,17 @@ pub(crate) fn build_mutation_facts(
             let frames = frame_resolver.map_or_else(
                 || {
                     (0..states.len())
-                        .map(|_| facts::NormalizedWriteFrame::opaque())
+                        .map(|_| crate::fact_plan::NormalizedWriteFrame::opaque())
                         .collect()
                 },
                 |resolver| resolver.inferred_machine_state_write_frames(machine),
             );
-            checked_trees::MachineMutationFact {
+            crate::checked_trees::MachineMutationFact {
                 machine: machine.symbol,
                 state_write_frames: states
                     .iter()
                     .zip(frames)
-                    .map(|(state, frame)| checked_trees::StateWriteFramePlan {
+                    .map(|(state, frame)| crate::checked_trees::StateWriteFramePlan {
                         state: state.symbol,
                         frame,
                     })
@@ -369,15 +370,15 @@ pub(crate) fn build_mutation_facts(
             }
         })
         .collect();
-    checked_trees::MutationFacts { machines }
+    crate::checked_trees::MutationFacts { machines }
 }
 
 pub(crate) fn build_closed_scalar_value_contract_plan(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    operators: &checked_trees::CheckedOperatorFacts,
-) -> checked_trees::ClosedScalarValueContractPlan {
-    use typed_trees::{
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    operators: &crate::checked_trees::CheckedOperatorFacts,
+) -> crate::checked_trees::ClosedScalarValueContractPlan {
+    use symbol_resolved_trees_to_typed_trees::typed_trees::{
         domain::ProofFact,
         expression::{BinaryOperator, ExpressionNode},
         signature::SignatureContractKind,
@@ -392,7 +393,7 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
                     .then_some(type_reference)
             });
 
-    let lower_closed_clause = |contract: &typed_trees::signature::SignatureContract| {
+    let lower_closed_clause = |contract: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContract| {
         let [ProofFact::Expression(expression)] = program.proof_facts.span_or_empty(contract.facts)
         else {
             return None;
@@ -417,8 +418,8 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
         if operators.uses.iter().any(|(_, operator)| {
             operator.expression == *expression
                 && operator.status
-                    != checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
-        }) || !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                    != crate::checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+        }) || !symbol_resolved_trees_to_typed_trees::typed_trees::operator::has_builtin_spelled_expression_meaning(
             program,
             machine.symbol,
             *expression,
@@ -432,10 +433,10 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
             program.expression_table.expression(binary.right),
         ) {
             (ExpressionNode::Boolean(left), ExpressionNode::Boolean(right)) if left == right => {
-                Some(checked_trees::ClosedScalarContractValue::Boolean(*left))
+                Some(crate::checked_trees::ClosedScalarContractValue::Boolean(*left))
             }
             (ExpressionNode::Integer(left), ExpressionNode::Integer(right)) if left == right => {
-                Some(checked_trees::ClosedScalarContractValue::Integer(
+                Some(crate::checked_trees::ClosedScalarContractValue::Integer(
                     left.clone(),
                 ))
             }
@@ -443,7 +444,7 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
         }
     };
 
-    let lower_clause = |contract: &typed_trees::signature::SignatureContract| {
+    let lower_clause = |contract: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContract| {
         lower_closed_clause(contract).or_else(|| {
             // Preserve legacy closed literal encoding, then read compositional
             // scalar predicates in their exact entry or normal-result namespace.
@@ -471,7 +472,7 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
             // `covered_requires`. The facts share one predicate budget
             // because they are one clause.
             let mut remaining = 4096;
-            let mut conjunction: Option<checked_trees::CheckedBooleanExpression> = None;
+            let mut conjunction: Option<crate::checked_trees::CheckedBooleanExpression> = None;
             for fact in facts {
                 // A membership or proposition fact has no scalar predicate
                 // reading, and a clause is all-or-nothing: the whole clause
@@ -491,13 +492,13 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
                 conjunction = Some(match conjunction {
                     None => predicate,
                     // Left-associated, as `a && b && c` reads.
-                    Some(left) => checked_trees::CheckedBooleanExpression::And {
+                    Some(left) => crate::checked_trees::CheckedBooleanExpression::And {
                         left: Box::new(left),
                         right: Box::new(predicate),
                     },
                 });
             }
-            conjunction.map(checked_trees::ClosedScalarContractValue::Predicate)
+            conjunction.map(crate::checked_trees::ClosedScalarContractValue::Predicate)
         })
     };
 
@@ -536,7 +537,7 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
     // disagree about which authored range they describe.
     let ranges = crate::values::lower_scalar_parameter_range_requirements(program, machine);
     requires.extend(ranges.scalar_clauses);
-    checked_trees::ClosedScalarValueContractPlan::new(
+    crate::checked_trees::ClosedScalarValueContractPlan::new(
         requires,
         ensures,
         has_crash_clauses,
@@ -556,9 +557,11 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
 /// roster rather than approximating a scalar predicate.
 fn lower_float_meaning_equality_clause(
     program: &TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Option<checked_trees::ClosedScalarContractValue> {
-    use typed_trees::expression::{BinaryOperator, ExpressionNode};
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+) -> Option<crate::checked_trees::ClosedScalarContractValue> {
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+        BinaryOperator, ExpressionNode,
+    };
 
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
         return None;
@@ -566,11 +569,11 @@ fn lower_float_meaning_equality_clause(
     if binary.operator != BinaryOperator::Equal {
         return None;
     }
-    let operand_produces_meaning = |operand: typed_trees::expression::ExpressionHandle| {
+    let operand_produces_meaning = |operand: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle| {
         let ExpressionNode::Call(call) = program.expression_table.expression(operand) else {
             return false;
         };
-        let Some(operator) = typed_trees::operator::resolve_named_expression_call(program, call)
+        let Some(operator) = symbol_resolved_trees_to_typed_trees::typed_trees::operator::resolve_named_expression_call(program, call)
         else {
             return false;
         };
@@ -582,14 +585,14 @@ fn lower_float_meaning_equality_clause(
             name.as_str(),
         )
         .is_some()
-            || validation::exact_toolchain_float_semantic_contract(program, operator).is_some_and(
+            || crate::validation::exact_toolchain_float_semantic_contract(program, operator).is_some_and(
                 |(row, _)| {
                     row.result == numerics::float_semantics_catalog::FloatSemanticValueKind::Meaning
                 },
             )
     };
     (operand_produces_meaning(binary.left) && operand_produces_meaning(binary.right)).then_some(
-        checked_trees::ClosedScalarContractValue::FloatMeaningEquality {
+        crate::checked_trees::ClosedScalarContractValue::FloatMeaningEquality {
             expression,
             equality: None,
         },
@@ -608,10 +611,10 @@ fn lower_float_meaning_equality_clause(
 /// independently.
 fn trapping_sites(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    scalar_expressions: &checked_trees::CheckedScalarExpressionPlans,
-    scalar_computations: &checked_trees::CheckedScalarComputationPlans,
-) -> Vec<checked_trees::CrashSiteLocation> {
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    scalar_expressions: &crate::checked_trees::CheckedScalarExpressionPlans,
+    scalar_computations: &crate::checked_trees::CheckedScalarComputationPlans,
+) -> Vec<crate::checked_trees::CrashSiteLocation> {
     let states = program
         .machine_states(machine)
         .iter()
@@ -624,7 +627,7 @@ fn trapping_sites(
             states.contains(&located.state) && located.expression.contains_trapping_operation()
         })
         .map(|located| {
-            checked_trees::CrashSiteLocation::new(located.state, located.statement_ordinal)
+            crate::checked_trees::CrashSiteLocation::new(located.state, located.statement_ordinal)
         });
     let computations = scalar_computations
         .roots
@@ -634,25 +637,27 @@ fn trapping_sites(
             root.machine == machine.symbol
                 && computation_contains_trapping_operation(scalar_computations, root.root)
         })
-        .map(|root| checked_trees::CrashSiteLocation::new(root.state, root.statement_ordinal));
+        .map(|root| {
+            crate::checked_trees::CrashSiteLocation::new(root.state, root.statement_ordinal)
+        });
     expressions.chain(computations).collect()
 }
 
 /// Whether evaluating one computation tree executes a Trapping primitive in
 /// any of its pure expressions, operands, arms, or constructed arguments.
 fn computation_contains_trapping_operation(
-    plans: &checked_trees::CheckedScalarComputationPlans,
-    root: checked_trees::CheckedScalarComputationHandle,
+    plans: &crate::checked_trees::CheckedScalarComputationPlans,
+    root: crate::checked_trees::CheckedScalarComputationHandle,
 ) -> bool {
-    use checked_trees::{
+    use crate::checked_trees::{
         CheckedScalarComputationKind as Kind,
         CheckedScalarComputationStructuralArgument as Argument,
         CheckedScalarDispatchPattern as Pattern,
     };
     fn push_argument(
-        plans: &checked_trees::CheckedScalarComputationPlans,
+        plans: &crate::checked_trees::CheckedScalarComputationPlans,
         argument: &Argument,
-        pending: &mut Vec<checked_trees::CheckedScalarComputationHandle>,
+        pending: &mut Vec<crate::checked_trees::CheckedScalarComputationHandle>,
     ) {
         match argument {
             Argument::Place(_) => {}

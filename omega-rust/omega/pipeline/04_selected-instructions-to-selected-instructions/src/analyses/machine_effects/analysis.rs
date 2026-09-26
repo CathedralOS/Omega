@@ -1,7 +1,7 @@
 use crate::analyses::analyze_pre_allocation_machine_effects;
 use crate::{ValidatedPreAllocationMachineEffects, validate_pre_allocation_machine_effects};
 
-use register_environment::ValidatedTargetRegisterEnvironment;
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
 
 use super::MachineEffectStageError;
 use super::catalog::validated_catalog;

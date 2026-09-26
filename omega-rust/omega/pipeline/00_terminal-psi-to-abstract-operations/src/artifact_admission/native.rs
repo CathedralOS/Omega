@@ -3,9 +3,9 @@
 
 use super::ArtifactLoweringError;
 use super::retention::{AdmittedOptimizationArtifact, retain_verified_optimization_context};
+use crate::abstract_operations::AbstractOperationPlan;
 use crate::lowering::lower_decoded_verified_module;
 use crate::optimization::{VerifiedPsiOptimizationContext, VerifiedPsiOptimizationInput};
-use abstract_operations::AbstractOperationPlan;
 use terminal_interpreter::TerminalPlacedViewEstablishment;
 use terminal_verifier::AcceptedControlCycle;
 

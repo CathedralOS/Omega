@@ -5,21 +5,21 @@ use super::{
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::test_support::{budget, instruction, measured_step_budget};
 use optimization_core::OptimizationUnitIdentity;
-use optimization_unit::ValueDefinitionSite;
-use register_environment::baseline_target_register_environment;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
-    PackedByteWidth, SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction,
-    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedTerminator,
-    VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
-};
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
     OperationId, PlaceId, ScalarType, ValueId,
 };
 use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use target_operations_to_selected_instructions::{
+    PackedByteWidth, SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction,
+    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedTerminator,
+    VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
 const PRODUCER: SelectedInstructionId = SelectedInstructionId(2);
 const EXTENSION: SelectedInstructionId = SelectedInstructionId(3);
@@ -33,7 +33,7 @@ const SCRATCH: VirtualRegisterId = VirtualRegisterId(4);
 fn register(
     id: VirtualRegisterId,
     scalar_type: ScalarType,
-    class: register_model::RegisterClassId,
+    class: target_operations_to_selected_instructions::register_model::RegisterClassId,
     origin: VirtualRegisterOrigin,
 ) -> VirtualRegister {
     VirtualRegister {
@@ -51,7 +51,7 @@ fn register(
 fn fixture(
     target: NativeTarget,
     producer_kind: SelectedInstructionKind,
-    producer_key: register_model::RegisterConstraintKey,
+    producer_key: target_operations_to_selected_instructions::register_model::RegisterConstraintKey,
     producer_registers: &[VirtualRegisterId],
     extension_kind: SelectedInstructionKind,
 ) -> ValidatedRedundantExtension {
@@ -182,8 +182,8 @@ fn fixture(
 }
 
 fn keys(
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
-) -> selected_instructions::SelectedConstraintKeys {
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
+) -> target_operations_to_selected_instructions::SelectedConstraintKeys {
     environment.selected_keys()
 }
 
@@ -336,7 +336,7 @@ fn producer_normalization_table() {
     use SelectedInstructionKind::*;
     let cases: &[(
         SelectedInstructionKind,
-        register_model::RegisterConstraintKey,
+        target_operations_to_selected_instructions::register_model::RegisterConstraintKey,
         &[VirtualRegisterId],
         SelectedInstructionKind,
         bool,
@@ -739,7 +739,7 @@ fn producer_normalization_table() {
 /// mutated plan is a well-formed analysis source.
 fn mutated(
     target: NativeTarget,
-    edit: impl FnOnce(&mut SelectedFunction, &register_environment::ValidatedTargetRegisterEnvironment),
+    edit: impl FnOnce(&mut SelectedFunction, &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment),
 ) -> ValidatedRedundantExtension {
     let environment = baseline_target_register_environment(target).unwrap();
     let mut source = fixture(
@@ -761,7 +761,7 @@ fn mutated(
 
 fn remove(
     source: &ValidatedRedundantExtension,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<ValidatedRedundantExtension, RedundantExtensionError> {
     remove_selected_redundant_extension(source, 0, EXTENSION, environment, budget())
 }
@@ -773,7 +773,7 @@ fn malformed_extension_shapes_reject() {
     // A pinned result cannot become a clean copy through the target's copy row.
     let pinned_def = mutated(target, |function, _| {
         function.blocks[0].instructions[1].operands[1].fixed_view =
-            Some(register_model::RegisterViewId(0));
+            Some(target_operations_to_selected_instructions::register_model::RegisterViewId(0));
     });
     assert_eq!(
         remove(&pinned_def, &environment).unwrap_err(),
@@ -797,7 +797,7 @@ fn malformed_extension_shapes_reject() {
             .copied();
         let Some(unit) = unit else {
             function.blocks[0].instructions[1].implicit_defs =
-                vec![register_model::RegisterUnitId(0)];
+                vec![target_operations_to_selected_instructions::register_model::RegisterUnitId(0)];
             return;
         };
         function.blocks[0].instructions[1].implicit_defs = vec![unit];
@@ -902,15 +902,15 @@ fn replay_rejects_anything_but_the_exact_copy() {
             7 => {
                 function
                     .memory_accesses
-                    .push(selected_instructions::SelectedMemoryAccess {
+                    .push(target_operations_to_selected_instructions::SelectedMemoryAccess {
                         instruction: EXTENSION,
-                        origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(
+                        origin: target_operations_to_selected_instructions::SelectedMemoryAccessOrigin::Operation(
                             OperationId::new(4).unwrap(),
                         ),
                         place: PlaceId::new(1).unwrap(),
                         byte_offset: 0,
                         byte_count: 8,
-                        role: selected_instructions::SelectedMemoryAccessRole::ReadPlace,
+                        role: target_operations_to_selected_instructions::SelectedMemoryAccessRole::ReadPlace,
                     });
             }
             _ => unreachable!(),
@@ -1070,8 +1070,9 @@ fn replay_rejects_drift_outside_the_rewritten_block() {
                     jump,
                     &[],
                 ),
-                successor: selected_instructions::SelectedSuccessor {
-                    role: selected_instructions::SelectedSuccessorRole::Semantic,
+                successor: target_operations_to_selected_instructions::SelectedSuccessor {
+                    role:
+                        target_operations_to_selected_instructions::SelectedSuccessorRole::Semantic,
                     structural_case: None,
                     structural_bindings: Vec::new(),
                     psi_edge: EdgeId::new(2).unwrap(),

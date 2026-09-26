@@ -1,14 +1,14 @@
 //! Proof-certified exact multiplication by zero.
 
-use abstract_operations::AbstractOperation as O;
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
-use optimization_unit::{
+use semantic_vocabulary::IntegerValue;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     ProofCertifiedScalarIdentityKind, PsiOptimizationUnit, PsiRewriteCandidate,
 };
-use semantic_vocabulary::IntegerValue;
 
 use crate::rules::PROOF_CHECK_ELISION_PASS_NAME;
 use crate::rules::proof_check_elision::identity_rewrite::{

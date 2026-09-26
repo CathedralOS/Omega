@@ -8,13 +8,13 @@ use super::{
     CheckedBooleanExpression, CheckedScalarExpression, ClosedScalarContractValue, LoweringError,
     namespace, unsupported,
 };
-use checked_trees::domain::ProofFact;
-use checked_trees::signature::SignatureContractKind;
+use typed_trees_to_checked_trees::checked_trees::domain::ProofFact;
+use typed_trees_to_checked_trees::checked_trees::signature::SignatureContractKind;
 
 pub(crate) fn validate_guarantees(
     checked: &CheckedTrees,
-    machine: &checked_trees::machine::Machine,
-    state: &checked_trees::state::State,
+    machine: &typed_trees_to_checked_trees::checked_trees::machine::Machine,
+    state: &typed_trees_to_checked_trees::checked_trees::state::State,
 ) -> Result<(), LoweringError> {
     let contract = checked
         .facts
@@ -84,7 +84,7 @@ pub(crate) fn validate_guarantees(
             0,
             *expression,
             PrimitiveType::Bool,
-            &checked_trees::CheckedCallScalarArgument::Pure(scalar),
+            &typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(scalar),
         )?;
     }
     if retained.next().is_some() {

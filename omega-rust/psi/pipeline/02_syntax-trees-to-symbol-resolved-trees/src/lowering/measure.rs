@@ -4,11 +4,11 @@ use crate::lowering::expression::lower_expression_into_table;
 use crate::lowering::state::lower_state_parameter;
 use crate::lowering::type_reference::lower_type_reference_handle;
 use crate::resolution::lowerer::Lowerer;
+use crate::symbol_resolved_trees::measure::MeasureDefinition;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
-use symbol_resolved_trees::measure::MeasureDefinition;
 use symbols::SymbolHandle;
-use syntax_trees::{self as syntax, SyntaxTrees};
+use tokens_to_syntax_trees::syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_measure_definition(
     lowerer: &mut Lowerer,
@@ -59,7 +59,7 @@ fn lower_measure_name(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     name: HandleSpan<syntax::identifier::Identifier>,
-) -> HandleSpan<symbol_resolved_trees::name::DiagnosticName> {
+) -> HandleSpan<crate::symbol_resolved_trees::name::DiagnosticName> {
     let mut span = HandleSpan::empty();
 
     for member in syntax_trees.items.identifier_path_members(name) {

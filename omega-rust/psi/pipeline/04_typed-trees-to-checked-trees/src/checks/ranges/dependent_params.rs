@@ -13,9 +13,9 @@
 
 use super::facts::RangeFacts;
 use language_core::receiver_place_label;
-use typed_trees::TypedTrees;
-use typed_trees::machine::Machine;
-use typed_trees::state::State;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
 
 pub(in crate::checks::ranges) fn seed_dependent_param_orderings(
     program: &TypedTrees,
@@ -67,9 +67,14 @@ pub(in crate::checks::ranges) fn seed_dependent_param_orderings(
 /// substitution gates in types.rs).
 fn dependent_maximum_of_type_reference(
     program: &TypedTrees,
-    handle: typed_trees::types::TypeReferenceHandle,
-) -> Option<(typed_trees::name::Identifier, i64)> {
-    use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
+    handle: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+) -> Option<(
+    symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
+    i64,
+)> {
+    use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+        TypeConstraintNode, TypeReferenceNode,
+    };
     match program.type_reference_table.type_reference(handle) {
         TypeReferenceNode::Reference { referee, .. } => {
             dependent_maximum_of_type_reference(program, *referee)
@@ -96,7 +101,7 @@ fn dependent_maximum_of_type_reference(
                         end_inclusive,
                         ..
                     } => {
-                        let symbolic = typed_trees::dependent_ranges::symbolic_range_maximum(
+                        let symbolic = symbol_resolved_trees_to_typed_trees::typed_trees::dependent_ranges::symbolic_range_maximum(
                             &program.expression_table,
                             *maximum,
                             *end_inclusive,
@@ -115,9 +120,11 @@ fn dependent_maximum_of_type_reference(
 /// Exact shells (the recognizer class).
 fn sibling_len_of_type_reference(
     program: &TypedTrees,
-    handle: typed_trees::types::TypeReferenceHandle,
-) -> Option<typed_trees::dependent_ranges::SiblingLenBound> {
-    use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
+    handle: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::dependent_ranges::SiblingLenBound> {
+    use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+        TypeConstraintNode, TypeReferenceNode,
+    };
     match program.type_reference_table.type_reference(handle) {
         TypeReferenceNode::Reference { referee, .. } => {
             sibling_len_of_type_reference(program, *referee)
@@ -143,7 +150,7 @@ fn sibling_len_of_type_reference(
                         maximum,
                         end_inclusive,
                         ..
-                    } => typed_trees::dependent_ranges::sibling_range_maximum(
+                    } => symbol_resolved_trees_to_typed_trees::typed_trees::dependent_ranges::sibling_range_maximum(
                         &program.expression_table,
                         *maximum,
                         *end_inclusive,

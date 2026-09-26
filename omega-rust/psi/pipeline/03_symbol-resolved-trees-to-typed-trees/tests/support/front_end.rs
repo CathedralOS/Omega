@@ -27,18 +27,18 @@ use diagnostics::Diagnostic;
 use source::{SourceId, SourceMap};
 use source_files_to_tokens::Lexer;
 use std::sync::Arc;
-use symbol_resolved_trees::SymbolResolvedTrees;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::SymbolResolvedTrees;
 // `symbol_resolved_trees_to_typed_trees` names this crate from the `suite`
 // integration target and, through `extern crate self as ..` in `src/lib.rs`,
 // from the crate's own unit tests, so one spelling serves both trees.
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees::SyntaxTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
     GenericDataRequest, normalize_generic_data,
 };
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
 use tokens_to_syntax_trees::{parse_syntax_trees, parse_syntax_trees_with_id};
-use typed_trees::TypedTrees;
 
 /// Unwrap one stage's result, or panic with the stage name and the source it
 /// ran on.

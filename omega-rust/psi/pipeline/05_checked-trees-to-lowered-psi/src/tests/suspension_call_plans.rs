@@ -7,16 +7,15 @@
 //! cannot resolve them — and `CallUnit` arguments are not an admitted scalar
 //! CallArgument namespace.
 use super::checked_scalar_suspension_fixture;
-use crate::TerminalMachineSelection;
-use crate::lower_machine;
-use crate::lowering_error::LoweringError;
-use checked_trees::{
-    SuspensionCrossingCarryFact, SuspensionCrossingLiveValueFact, SuspensionCrossingStorage,
-    SuspensionCrossingValueOrigin,
-};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use checked_trees_to_lowered_psi::lower_machine;
 use language_semantics::CarryPolicy;
 use symbols::SymbolHandle;
 use terminal_psi::TerminalSuspensionCallTarget;
+use typed_trees_to_checked_trees::checked_trees::{
+    SuspensionCrossingCarryFact, SuspensionCrossingLiveValueFact, SuspensionCrossingStorage,
+    SuspensionCrossingValueOrigin,
+};
 
 const FREE_UNIT_CALL: &str = r#"
     machine sink(flag: u64) {}
@@ -41,7 +40,7 @@ const BOUNDARY_SCALAR_CALL: &str = r#"
 "#;
 
 fn machine_and_state(
-    checked: &checked_trees::CheckedTrees,
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
     machine_name: &str,
 ) -> (SymbolHandle, SymbolHandle) {
     let machine = checked
@@ -59,7 +58,7 @@ fn machine_and_state(
 /// The checked call coordinate's `target_symbol` — the resolved callee entry
 /// state — is what `check_suspension_carry` records on a real crossing.
 fn call_target_symbol(
-    checked: &checked_trees::CheckedTrees,
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
     statement_index: usize,
     call_ordinal: usize,
 ) -> SymbolHandle {
@@ -77,10 +76,13 @@ fn call_target_symbol(
 }
 
 fn state_parameter(
-    checked: &checked_trees::CheckedTrees,
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
     state_symbol: SymbolHandle,
     parameter_name: &str,
-) -> (SymbolHandle, typed_trees::types::TypeReferenceHandle) {
+) -> (
+    SymbolHandle,
+    symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+) {
     let state = checked
         .machines()
         .iter()
@@ -96,7 +98,7 @@ fn state_parameter(
 }
 
 fn push_crossing(
-    checked: &mut checked_trees::CheckedTrees,
+    checked: &mut typed_trees_to_checked_trees::checked_trees::CheckedTrees,
     machine: SymbolHandle,
     state: SymbolHandle,
     statement_index: usize,
@@ -121,7 +123,7 @@ fn push_crossing(
 }
 
 fn expect_single_verified_plan(
-    lowered: &lowered_psi::LoweredPsi,
+    lowered: &checked_trees_to_lowered_psi::lowered_psi::LoweredPsi,
 ) -> &terminal_psi::TerminalSuspensionCallPlan {
     let [site] = lowered.semantic_module.suspension_call_sites.as_slice() else {
         panic!("one exact suspension call site")
@@ -267,7 +269,7 @@ fn unit_call_scalar_argument_frontier_fails_closed() {
     assert!(
         matches!(
             lower_machine(&checked, TerminalMachineSelection::Name("run")),
-            Err(LoweringError::Unsupported(reason))
+            Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(reason))
                 if reason.contains("call argument position is unavailable")
         ),
         "a CallUnit argument frontier fails closed"
@@ -303,7 +305,7 @@ fn unit_call_scalar_environment_frontier_fails_closed() {
     assert!(
         matches!(
             lower_machine(&checked, TerminalMachineSelection::Name("run")),
-            Err(LoweringError::Unsupported(reason))
+            Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(reason))
                 if reason.contains("scalar environment position is unavailable")
         ),
         "a Unit call parameter frontier fails closed"
@@ -323,7 +325,7 @@ fn boundary_call_suspension_frontier_fails_closed_on_target_identity() {
     assert!(
         matches!(
             lower_machine(&checked, TerminalMachineSelection::Name("run")),
-            Err(LoweringError::Unsupported(reason))
+            Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(reason))
                 if reason.contains("cannot resolve its source symbols")
         ),
         "a boundary call crossing fails closed at identity resolution"

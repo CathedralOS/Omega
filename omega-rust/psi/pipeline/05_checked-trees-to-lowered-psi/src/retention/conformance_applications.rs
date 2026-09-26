@@ -1,11 +1,11 @@
-use checked_trees::data::TypeParameterKind;
-use checked_trees::{CheckedTrees, ClosedConformanceConstArgument};
 use terminal_psi::{
     ClosedConformanceApplication, ClosedConformanceCallableResult,
     ClosedConformanceParameterBinding, ClosedConformanceParameterKind,
     ClosedConformanceRealizationCallable, ClosedConformanceRow, TerminalModule,
     closed_conformance_application_commitment, closed_conformance_application_report_fingerprint,
 };
+use typed_trees_to_checked_trees::checked_trees::data::TypeParameterKind;
+use typed_trees_to_checked_trees::checked_trees::{CheckedTrees, ClosedConformanceConstArgument};
 
 use super::LoweringError;
 
@@ -182,7 +182,7 @@ fn collect_closed_conformance_applications(
                             "static conformance requirement is absent or ambiguous",
                         ));
                     };
-                    let classify = |return_type: checked_trees::types::TypeReferenceHandle| {
+                    let classify = |return_type: typed_trees_to_checked_trees::checked_trees::types::TypeReferenceHandle| {
                         if !return_type.is_valid() {
                             return Ok(ClosedConformanceCallableResult::Unit);
                         }
@@ -430,7 +430,9 @@ mod tests {
         append_closed_conformance_applications_excluding,
     };
     use crate::TerminalMachineSelection;
-    use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
+    use lowered_psi_to_terminal_psi::terminal_production::{
+        TerminalProductionCustody, TerminalProductionTimings,
+    };
 
     type Owners = Vec<(symbols::SymbolHandle, semantic_vocabulary::MachineId)>;
 
@@ -530,15 +532,18 @@ mod tests {
         append_closed_conformance_applications_excluding(&checked, &owners, root, &mut module)
             .expect("identical retained callee application is reused");
         assert_eq!(module, once);
-        let artifact = terminal_production::TerminalProductionRequest::new(
-            &checked,
-            terminal_production::TerminalMachineSelection::Name("Main::main"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("public production retains both source-owned applications")
-        .into_artifact();
+        let artifact =
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                &checked,
+                lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
+                    "Main::main",
+                ),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .expect("public production retains both source-owned applications")
+            .into_artifact();
         assert_eq!(
             terminal_codec::decode_module(artifact.semantic_bytes()).unwrap(),
             module

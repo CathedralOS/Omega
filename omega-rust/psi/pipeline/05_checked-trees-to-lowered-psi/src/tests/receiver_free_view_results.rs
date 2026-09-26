@@ -123,8 +123,8 @@ fn member_subslice_results_keep_their_frontier_decline() {
     assert!(
         matches!(
             error,
-            crate::lowering_error::LoweringError::InvalidUnitMachinePlan { .. }
-                | crate::lowering_error::LoweringError::Unsupported(_)
+            crate::LoweringError::InvalidUnitMachinePlan { .. }
+                | crate::LoweringError::Unsupported(_)
         ),
         "unexpected outcome: {error:?}"
     );
@@ -148,8 +148,8 @@ fn exclusive_view_member_construction_keeps_its_decline() {
     assert!(
         matches!(
             error,
-            crate::lowering_error::LoweringError::InvalidUnitMachinePlan { .. }
-                | crate::lowering_error::LoweringError::Unsupported(_)
+            crate::LoweringError::InvalidUnitMachinePlan { .. }
+                | crate::LoweringError::Unsupported(_)
         ),
         "unexpected outcome: {error:?}"
     );
@@ -174,8 +174,8 @@ fn generic_record_construction_keeps_its_decline() {
     assert!(
         matches!(
             error,
-            crate::lowering_error::LoweringError::InvalidUnitMachinePlan { .. }
-                | crate::lowering_error::LoweringError::Unsupported(_)
+            crate::LoweringError::InvalidUnitMachinePlan { .. }
+                | crate::LoweringError::Unsupported(_)
         ),
         "unexpected outcome: {error:?}"
     );

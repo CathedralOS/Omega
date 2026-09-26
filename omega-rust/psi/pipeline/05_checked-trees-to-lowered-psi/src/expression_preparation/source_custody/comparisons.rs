@@ -5,15 +5,15 @@
 
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::emission::selected_comparison::{SelectedComparison, SelectedComparisonMeaning};
+use crate::lowered_psi::LoweredSelectedIntegerComparisonOperation;
 use crate::lowering_error::{LoweringError, unsupported};
-use checked_trees::CheckedTrees;
-use checked_trees::types::PrimitiveType;
-use lowered_psi::LoweredSelectedIntegerComparisonOperation;
 use semantic_vocabulary::ScalarType;
+use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
+use typed_trees_to_checked_trees::checked_trees::types::PrimitiveType;
 
 pub(crate) fn occurrence(
     checked: &CheckedTrees,
-    handle: checked_trees::CheckedOperatorUseHandle,
+    handle: typed_trees_to_checked_trees::checked_trees::CheckedOperatorUseHandle,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     statement: u32,
@@ -21,7 +21,7 @@ pub(crate) fn occurrence(
     let meaning = selected_meaning(checked, handle)?;
     let selected = checked.facts.operators.uses.get(handle);
     validate_origin(checked, selected)?;
-    if !matches!(selected.origin, checked_trees::CheckedValueOrigin::StateStatement { machine_symbol, state_symbol, statement_index, .. }
+    if !matches!(selected.origin, typed_trees_to_checked_trees::checked_trees::CheckedValueOrigin::StateStatement { machine_symbol, state_symbol, statement_index, .. }
         if machine_symbol == machine && state_symbol == state && usize::try_from(statement).ok() == Some(statement_index))
     {
         return unsupported("selected comparison lost its exact source owner");
@@ -58,7 +58,7 @@ pub(crate) fn occurrence(
 /// rather than lowering through an unnamed swapped or composed emission.
 fn selected_meaning(
     checked: &CheckedTrees,
-    handle: checked_trees::CheckedOperatorUseHandle,
+    handle: typed_trees_to_checked_trees::checked_trees::CheckedOperatorUseHandle,
 ) -> Result<SelectedComparisonMeaning, LoweringError> {
     let operators = &checked.facts.operators;
     if let Some((comparison, primitive)) =
@@ -96,10 +96,14 @@ fn selected_meaning(
 
 fn validate_origin(
     checked: &CheckedTrees,
-    selected: &checked_trees::CheckedOperatorUseFact,
+    selected: &typed_trees_to_checked_trees::checked_trees::CheckedOperatorUseFact,
 ) -> Result<(), LoweringError> {
-    use checked_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
-    use checked_trees::{CheckedValueOrigin, CheckedValueStatementRole as Role};
+    use typed_trees_to_checked_trees::checked_trees::statement::{
+        StatementNode, TransitionGuardNode, TransitionTargetNode,
+    };
+    use typed_trees_to_checked_trees::checked_trees::{
+        CheckedValueOrigin, CheckedValueStatementRole as Role,
+    };
     let CheckedValueOrigin::StateStatement {
         machine_symbol,
         state_symbol,

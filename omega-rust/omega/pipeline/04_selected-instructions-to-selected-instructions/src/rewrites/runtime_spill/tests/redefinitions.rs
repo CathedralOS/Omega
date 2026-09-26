@@ -17,8 +17,8 @@ use crate::rewrites::runtime_spill::admission;
 use crate::rewrites::runtime_spill::tests::budget;
 use crate::spill_selected_runtime_value;
 use crate::validate_runtime_spill;
-use register_model::RegisterOperandAccess;
-use selected_instructions::SelectedOperand;
+use target_operations_to_selected_instructions::SelectedOperand;
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
 
 /// The base fixture's copy chain — register 1 defined by instruction 1 and
 /// used by instructions 2, 3, and 4 — gains a redefinition: instruction 6
@@ -122,24 +122,26 @@ fn redefinitions_store_each_write_and_uses_reload_the_last_one() {
                     VirtualRegisterId(1)
                 );
             }
-            let reload_named_by = |block: &selected_instructions::SelectedBlock, id| {
-                block
-                    .instructions
-                    .iter()
-                    .find(|instruction| instruction.id == SelectedInstructionId(id))
-                    .unwrap()
-                    .operands[0]
-                    .virtual_register
-            };
-            let count_loads = |block: &selected_instructions::SelectedBlock| {
-                block
-                    .instructions
-                    .iter()
-                    .filter(|instruction| {
-                        matches!(instruction.kind, SelectedInstructionKind::Load64 { .. })
-                    })
-                    .count()
-            };
+            let reload_named_by =
+                |block: &target_operations_to_selected_instructions::SelectedBlock, id| {
+                    block
+                        .instructions
+                        .iter()
+                        .find(|instruction| instruction.id == SelectedInstructionId(id))
+                        .unwrap()
+                        .operands[0]
+                        .virtual_register
+                };
+            let count_loads =
+                |block: &target_operations_to_selected_instructions::SelectedBlock| {
+                    block
+                        .instructions
+                        .iter()
+                        .filter(|instruction| {
+                            matches!(instruction.kind, SelectedInstructionKind::Load64 { .. })
+                        })
+                        .count()
+                };
             // The redefinition closes the still-open span: the use at 4 reads
             // the new value through a fresh pair even under the crossing
             // policy, which crossed the call between the uses at 2 and 3.

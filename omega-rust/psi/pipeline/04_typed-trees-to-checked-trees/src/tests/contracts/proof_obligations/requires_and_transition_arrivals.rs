@@ -1,12 +1,12 @@
 use crate::CheckingRequest;
 use crate::borrow::build_borrow_facts;
+use crate::checked_trees::ContractProofFactKind;
 use crate::flow::build_domain_facts;
 use crate::flow::build_flow_facts;
 use crate::lower_typed_trees;
 use crate::proof::build_proof_facts;
 use crate::semantic::facts::build_semantic_facts;
 use crate::tests::contracts::parse_typed_trees;
-use checked_trees::ContractProofFactKind;
 
 #[test]
 fn rejects_requires_scalar_member_expression_after_same_index_mutation() {
@@ -732,7 +732,7 @@ fn exit_ensures_requirement_label_resolves_attached_data_members() {
     "#;
 
     let typed = parse_typed_trees(source);
-    let proof_plan = proof::obligations::build_proof_plan(&typed);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let semantic = build_semantic_facts(&typed, &proof);
@@ -742,7 +742,7 @@ fn exit_ensures_requirement_label_resolves_attached_data_members() {
         .find(|machine| machine.name.as_str() == "Main::main")
         .expect("main machine");
     let exit_context = semantic
-        .contexts_at_point(facts::ProgramPoint::Exit {
+        .contexts_at_point(crate::fact_plan::ProgramPoint::Exit {
             machine_symbol: machine.symbol,
             state_symbol: typed.machine_states(machine)[0].symbol,
             statement_index: 0,
@@ -752,7 +752,7 @@ fn exit_ensures_requirement_label_resolves_attached_data_members() {
         .expect("exit context");
     let fact = exit_context.facts().next().expect("exit ensures fact");
 
-    let facts::FactPlace::Place(place_handle) = fact.place else {
+    let crate::fact_plan::FactPlace::Place(place_handle) = fact.place else {
         panic!("expected place-backed contract fact");
     };
     let place = semantic.places.get(place_handle);
@@ -761,14 +761,14 @@ fn exit_ensures_requirement_label_resolves_attached_data_members() {
     let state = &typed.machine_states(machine)[0];
     let self_symbol = typed.state_parameters(state)[0].symbol;
     let value_expression = match fact.payload {
-        facts::FactPayload::ContractDomainMembership { value, .. } => value,
+        crate::fact_plan::FactPayload::ContractDomainMembership { value, .. } => value,
         _ => panic!("expected contract domain membership fact"),
     };
     assert_eq!(
         typed.expression_table.display_name(value_expression),
         "self.player"
     );
-    assert_eq!(place.root, facts::PlaceRoot::Symbol(self_symbol));
+    assert_eq!(place.root, crate::fact_plan::PlaceRoot::Symbol(self_symbol));
     let self_type_symbol = crate::flow::symbol_type_symbol(&typed, self_symbol)
         .expect("self parameter should have a resolvable type symbol");
     assert!(
@@ -784,7 +784,7 @@ fn exit_ensures_requirement_label_resolves_attached_data_members() {
                 .any(|definition| definition.symbol == self_type_symbol),
         "self type symbol should resolve to a machine with attached data or a data definition"
     );
-    let mut scratch = validation::build_definition_fact_plan(&typed);
+    let mut scratch = crate::validation::build_definition_fact_plan(&typed);
     let self_place = scratch.append_symbol_place(self_symbol);
     assert!(
         crate::semantic::places::resolve_place_member_symbol(
@@ -794,7 +794,7 @@ fn exit_ensures_requirement_label_resolves_attached_data_members() {
         "root self place should resolve attached-data member"
     );
     assert_eq!(segments.len(), 1, "segments: {segments:?}");
-    let facts::PlaceSegment::Field {
+    let crate::fact_plan::PlaceSegment::Field {
         symbol: member_symbol,
     } = segments[0]
     else {
@@ -838,8 +838,8 @@ fn accepts_requires_from_local_alias_transfer() {
     "#;
 
     let typed = parse_typed_trees(source);
-    let proof_plan = proof::obligations::build_proof_plan(&typed);
-    let operations = validation::infer_operational_may(&typed);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
+    let operations = crate::validation::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
@@ -858,14 +858,16 @@ fn accepts_requires_from_local_alias_transfer() {
         .find_map(|(_, fact)| matches!(fact.kind, ContractProofFactKind::Requires).then_some(fact))
         .expect("inspect requires fact");
     let proof_expression = match typed.proof_facts.get(inspect_contract.fact) {
-        typed_trees::domain::ProofFact::Membership(membership) => membership.value,
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(
+            membership,
+        ) => membership.value,
         _ => panic!("expected membership proof fact"),
     };
     assert_eq!(
         typed.expression_table.display_name(proof_expression),
         "player"
     );
-    let typed_trees::expression::ExpressionNode::Name(path) =
+    let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Name(path) =
         typed.expression_table.expression(proof_expression)
     else {
         panic!("expected name path proof expression");
@@ -926,13 +928,15 @@ fn accepts_requires_from_local_alias_transfer() {
                 .context_view(context)
                 .facts()
                 .filter_map(|fact| match fact.payload {
-                    facts::FactPayload::DomainMembership { domain_symbol, .. }
-                    | facts::FactPayload::ContractDomainMembership { domain_symbol, .. }
-                        if typed
-                            .domain_definitions()
-                            .iter()
-                            .find(|domain| domain.symbol == domain_symbol)
-                            .is_some_and(|domain| domain.name.to_string() == "Player::Alive") =>
+                    crate::fact_plan::FactPayload::DomainMembership { domain_symbol, .. }
+                    | crate::fact_plan::FactPayload::ContractDomainMembership {
+                        domain_symbol,
+                        ..
+                    } if typed
+                        .domain_definitions()
+                        .iter()
+                        .find(|domain| domain.symbol == domain_symbol)
+                        .is_some_and(|domain| domain.name.to_string() == "Player::Alive") =>
                     {
                         Some(crate::labels::semantic_fact_requirement_label(
                             &typed, &semantic, fact,

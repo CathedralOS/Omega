@@ -6,8 +6,8 @@
 //! statement's entry contexts, and only while every place a guard leaf reads
 //! keeps its invocation-entry provenance below the operand it binds to.
 
+use crate::checked_trees::CheckedTrees;
 use crate::tests::front_end::{checked_program_result, typed_program};
-use checked_trees::CheckedTrees;
 
 fn inspect(source: &str) -> CheckedTrees {
     crate::lower_typed_trees(
@@ -17,7 +17,7 @@ fn inspect(source: &str) -> CheckedTrees {
     .expect("crash-fact inspection lowers without crash admission")
 }
 
-fn named_sites(checked: &CheckedTrees) -> Vec<&checked_trees::CheckedCrashOperatorSite> {
+fn named_sites(checked: &CheckedTrees) -> Vec<&crate::checked_trees::CheckedCrashOperatorSite> {
     checked
         .facts
         .contract_plans
@@ -402,7 +402,7 @@ fn named_call_keeps_a_route_whose_mutable_receiver_field_is_written() {
     };
     assert_eq!(
         bucket.alternative_guards(),
-        &[checked_trees::CrashRouteGuard::Truth],
+        &[crate::checked_trees::CrashRouteGuard::Truth],
     );
 }
 
@@ -519,7 +519,7 @@ fn named_call_discharges_a_route_through_a_shared_borrow_of_a_receiver_field() {
 
 fn published_guard_forms(
     checked: &CheckedTrees,
-) -> Vec<Option<checked_trees::CheckedBooleanExpression>> {
+) -> Vec<Option<crate::checked_trees::CheckedBooleanExpression>> {
     checked
         .facts
         .contract_plans
@@ -529,10 +529,10 @@ fn published_guard_forms(
         .flat_map(|site| site.published.iter())
         .flat_map(|bucket| bucket.alternative_guards())
         .map(|guard| match guard {
-            checked_trees::CrashRouteGuard::Predicate(predicate) => {
+            crate::checked_trees::CrashRouteGuard::Predicate(predicate) => {
                 predicate.scalar_expression().cloned()
             }
-            checked_trees::CrashRouteGuard::Truth => panic!("a guarded route, not Truth"),
+            crate::checked_trees::CrashRouteGuard::Truth => panic!("a guarded route, not Truth"),
         })
         .collect()
 }
@@ -540,9 +540,9 @@ fn published_guard_forms(
 /// `!(right >= 0)` over the operator's own formals: `right` is dense scalar
 /// position 1 (the Terminal operation-contract formal 2) and the literal
 /// lands in the operand's `i32`.
-fn assert_negated_right_at_least_zero(form: &checked_trees::CheckedBooleanExpression) {
-    use checked_trees::{CheckedBooleanExpression, CheckedScalarExpression};
-    use typed_trees::types::PrimitiveType;
+fn assert_negated_right_at_least_zero(form: &crate::checked_trees::CheckedBooleanExpression) {
+    use crate::checked_trees::{CheckedBooleanExpression, CheckedScalarExpression};
+    use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
     let CheckedBooleanExpression::Not(comparison) = form else {
         panic!("the negation survives: {form:?}");
     };
@@ -552,7 +552,7 @@ fn assert_negated_right_at_least_zero(form: &checked_trees::CheckedBooleanExpres
     };
     assert_eq!(
         *kind,
-        checked_trees::CheckedIntegerComparisonKind::LessOrEqual
+        crate::checked_trees::CheckedIntegerComparisonKind::LessOrEqual
     );
     assert!(
         matches!(
@@ -868,9 +868,11 @@ fn named_call_keeps_a_route_whose_copied_record_predates_the_proving_write() {
 /// whose parameter `rec` is operand 0: the entry operand is the caller's
 /// `rec` snapshot, and the leaf's `count` projection rides its own `Member`
 /// node — never doubled by the resolver.
-fn negated_count_at_least_zero() -> checked_trees::CrashPredicateExpression {
-    use checked_trees::CrashPredicateExpression;
-    use typed_trees::expression::{BinaryOperator, UnaryOperator};
+fn negated_count_at_least_zero() -> crate::checked_trees::CrashPredicateExpression {
+    use crate::checked_trees::CrashPredicateExpression;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+        BinaryOperator, UnaryOperator,
+    };
     CrashPredicateExpression::Unary {
         operator: UnaryOperator::LogicalNot as u8,
         operand: Box::new(CrashPredicateExpression::Binary {
@@ -915,8 +917,10 @@ fn named_call_surviving_route_keeps_the_projected_caller_field() {
     };
     assert_eq!(
         bucket.alternative_guards(),
-        &[checked_trees::CrashRouteGuard::Predicate(
-            checked_trees::CrashPredicateIdentity::from_expression(negated_count_at_least_zero()),
+        &[crate::checked_trees::CrashRouteGuard::Predicate(
+            crate::checked_trees::CrashPredicateIdentity::from_expression(
+                negated_count_at_least_zero()
+            ),
         )],
     );
 }
@@ -951,7 +955,7 @@ fn named_call_surviving_route_widens_when_the_read_field_is_rewritten() {
     };
     assert_eq!(
         bucket.alternative_guards(),
-        &[checked_trees::CrashRouteGuard::Truth],
+        &[crate::checked_trees::CrashRouteGuard::Truth],
     );
 }
 
@@ -990,8 +994,10 @@ fn spelled_use_surviving_route_keeps_the_projected_caller_field() {
     };
     assert_eq!(
         bucket.alternative_guards(),
-        &[checked_trees::CrashRouteGuard::Predicate(
-            checked_trees::CrashPredicateIdentity::from_expression(negated_count_at_least_zero()),
+        &[crate::checked_trees::CrashRouteGuard::Predicate(
+            crate::checked_trees::CrashPredicateIdentity::from_expression(
+                negated_count_at_least_zero()
+            ),
         )],
     );
 }
@@ -1500,7 +1506,7 @@ fn spelled_index_crash_guard_resolves_collection_length_on_a_slice_formal() {
         surviving
             .alternative_guards()
             .iter()
-            .all(|guard| matches!(guard, checked_trees::CrashRouteGuard::Predicate(_))),
+            .all(|guard| matches!(guard, crate::checked_trees::CrashRouteGuard::Predicate(_))),
         "the surviving route keeps its structured member predicate: {surviving:?}"
     );
 }
@@ -1584,7 +1590,7 @@ fn spelled_index_use_keeps_a_collection_length_route_no_premise_disproves() {
     assert_eq!(site.surviving.len(), 1);
 }
 
-fn spelled_site(checked: &CheckedTrees) -> &checked_trees::CheckedCrashOperatorSite {
+fn spelled_site(checked: &CheckedTrees) -> &crate::checked_trees::CheckedCrashOperatorSite {
     let sites: Vec<_> = checked
         .facts
         .contract_plans
@@ -1600,16 +1606,16 @@ fn spelled_site(checked: &CheckedTrees) -> &checked_trees::CheckedCrashOperatorS
 }
 
 fn surviving_guard_expressions(
-    site: &checked_trees::CheckedCrashOperatorSite,
-) -> Vec<&checked_trees::CrashPredicateExpression> {
+    site: &crate::checked_trees::CheckedCrashOperatorSite,
+) -> Vec<&crate::checked_trees::CrashPredicateExpression> {
     site.surviving
         .iter()
         .flat_map(|bucket| bucket.alternative_guards())
         .map(|guard| match guard {
-            checked_trees::CrashRouteGuard::Predicate(identity) => identity
+            crate::checked_trees::CrashRouteGuard::Predicate(identity) => identity
                 .expression()
                 .expect("a checked route keeps its predicate expression"),
-            checked_trees::CrashRouteGuard::Truth => {
+            crate::checked_trees::CrashRouteGuard::Truth => {
                 panic!("the route must keep a structured predicate, not Truth")
             }
         })
@@ -1625,8 +1631,10 @@ fn surviving_guard_expressions(
 /// `crashes Trap`.
 #[test]
 fn spelled_use_keeps_a_route_whose_guard_reads_a_callee_scope_call() {
-    use checked_trees::CrashPredicateExpression;
-    use typed_trees::expression::{BinaryOperator, UnaryOperator};
+    use crate::checked_trees::CrashPredicateExpression;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+        BinaryOperator, UnaryOperator,
+    };
     let source = "machine floor() -> i32 { 0 }
          boundary operator == Comparison::equal(left: i32, right: i32) -> bool
          crashes Trap !(right >= floor());
@@ -1679,7 +1687,7 @@ fn spelled_use_call_leaf_route_stays_uncoverable_without_a_matching_ceiling() {
         site.surviving
             .iter()
             .flat_map(|bucket| bucket.alternative_guards())
-            .all(|guard| matches!(guard, checked_trees::CrashRouteGuard::Predicate(_))),
+            .all(|guard| matches!(guard, crate::checked_trees::CrashRouteGuard::Predicate(_))),
         "the uncovered route still keeps its structured predicate: {:?}",
         site.surviving
     );
@@ -1690,8 +1698,10 @@ fn spelled_use_call_leaf_route_stays_uncoverable_without_a_matching_ceiling() {
 /// at the use `1 == value`.
 #[test]
 fn spelled_use_substitutes_formals_inside_a_guard_call_argument() {
-    use checked_trees::CrashPredicateExpression;
-    use typed_trees::expression::{BinaryOperator, UnaryOperator};
+    use crate::checked_trees::CrashPredicateExpression;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+        BinaryOperator, UnaryOperator,
+    };
     let source = "machine offset(amount: i32) -> i32 { amount }
          boundary operator == Comparison::equal(left: i32, right: i32) -> bool
          crashes Trap !(right >= offset(left));
@@ -1721,8 +1731,10 @@ fn spelled_use_substitutes_formals_inside_a_guard_call_argument() {
 /// name means the same path in caller coordinates.
 #[test]
 fn spelled_use_keeps_a_route_whose_guard_call_has_a_namespace_receiver() {
-    use checked_trees::CrashPredicateExpression;
-    use typed_trees::expression::{BinaryOperator, UnaryOperator};
+    use crate::checked_trees::CrashPredicateExpression;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+        BinaryOperator, UnaryOperator,
+    };
     let source = "machine Ns::floor() -> i32 { 0 }
          boundary operator == Comparison::equal(left: i32, right: i32) -> bool
          crashes Trap !(right >= Ns::floor());
@@ -1755,8 +1767,10 @@ fn spelled_use_keeps_a_route_whose_guard_call_has_a_namespace_receiver() {
 /// could only cover by publishing an unconditional `crashes Trap`.
 #[test]
 fn named_call_keeps_a_route_whose_guard_indexes_a_formal() {
-    use checked_trees::CrashPredicateExpression;
-    use typed_trees::expression::{BinaryOperator, UnaryOperator};
+    use crate::checked_trees::CrashPredicateExpression;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+        BinaryOperator, UnaryOperator,
+    };
     let source = "boundary operator Ns::probe(left: [i32; 4], right: i32) -> bool
          crashes Trap !(right >= left[0u64]);
          machine keep(items: [i32; 4], value: i32) -> bool {
@@ -1808,7 +1822,7 @@ fn named_call_still_widens_a_route_whose_opaque_leaf_hides_a_formal() {
     };
     assert_eq!(
         bucket.alternative_guards(),
-        &[checked_trees::CrashRouteGuard::Truth],
+        &[crate::checked_trees::CrashRouteGuard::Truth],
     );
 }
 
@@ -1820,8 +1834,10 @@ fn named_call_still_widens_a_route_whose_opaque_leaf_hides_a_formal() {
 /// by publishing an unconditional `crashes Trap`.
 #[test]
 fn spelled_use_keeps_a_route_whose_guard_reads_a_float_literal() {
-    use checked_trees::CrashPredicateExpression;
-    use typed_trees::expression::{BinaryOperator, UnaryOperator};
+    use crate::checked_trees::CrashPredicateExpression;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+        BinaryOperator, UnaryOperator,
+    };
     let source = "boundary operator == Comparison::equal(left: f64, right: f64) -> bool
          crashes Trap !(right >= 1.5);
          machine keep(value: f64) -> bool {
@@ -1849,8 +1865,10 @@ fn spelled_use_keeps_a_route_whose_guard_reads_a_float_literal() {
 /// `!(2.5 >= value)` rather than `Truth`.
 #[test]
 fn spelled_use_substitutes_a_float_literal_actual() {
-    use checked_trees::CrashPredicateExpression;
-    use typed_trees::expression::{BinaryOperator, UnaryOperator};
+    use crate::checked_trees::CrashPredicateExpression;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+        BinaryOperator, UnaryOperator,
+    };
     let source = "boundary operator == Comparison::equal(left: f64, right: f64) -> bool
          crashes Trap !(left >= right);
          machine keep(value: f64) -> bool {
@@ -1894,7 +1912,7 @@ fn spelled_use_float_leaf_route_stays_uncoverable_without_a_matching_ceiling() {
         site.surviving
             .iter()
             .flat_map(|bucket| bucket.alternative_guards())
-            .all(|guard| matches!(guard, checked_trees::CrashRouteGuard::Predicate(_))),
+            .all(|guard| matches!(guard, crate::checked_trees::CrashRouteGuard::Predicate(_))),
         "the uncovered route still keeps its structured predicate: {:?}",
         site.surviving
     );

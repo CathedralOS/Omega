@@ -24,7 +24,7 @@ impl RuntimeSpillAllocation {
             .ok_or(AllocationReplayError::ReceiptMismatch)?
             .rewrite;
         Ok(AllocationOutput {
-            program: register_homes::AllocatedProgramRef {
+            program: selected_instructions_to_selected_instructions::register_homes::AllocatedProgramRef {
                 selected: rewrite.transformed(),
                 homes: self.homes.plan(),
             },

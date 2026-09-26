@@ -1,19 +1,22 @@
 //! Exit-local congruence for admitted proof integer embeddings.
 
 use super::return_values::{exit_return_expression, is_result_reference};
-use checked_trees::{FlowExitFact, FlowStateFact};
-use typed_trees::TypedTrees;
-use typed_trees::domain::ProofFact;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
-use typed_trees::signature::SignatureContractKind;
+use crate::checked_trees::{FlowExitFact, FlowStateFact};
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind;
 
 pub(super) fn proves_exit_equality(
     program: &TypedTrees,
     state_flow: &FlowStateFact,
     exit_flow: &FlowExitFact,
-    fact: &facts::Fact,
+    fact: &crate::fact_plan::Fact,
 ) -> bool {
-    let facts::FactPayload::ContractBooleanExpression { expression, .. } = fact.payload else {
+    let crate::fact_plan::FactPayload::ContractBooleanExpression { expression, .. } = fact.payload
+    else {
         return false;
     };
     let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
@@ -39,12 +42,13 @@ pub(super) fn proves_exit_equality(
     if binary.operator != BinaryOperator::Equal {
         return false;
     }
-    let Some((left_carrier, left)) = validation::integer_embedding_argument(program, binary.left)
+    let Some((left_carrier, left)) =
+        crate::validation::integer_embedding_argument(program, binary.left)
     else {
         return false;
     };
     let Some((right_carrier, right)) =
-        validation::integer_embedding_argument(program, binary.right)
+        crate::validation::integer_embedding_argument(program, binary.right)
     else {
         return false;
     };
@@ -52,6 +56,6 @@ pub(super) fn proves_exit_equality(
         && source(left)
             .zip(source(right))
             .is_some_and(|(left, right)| {
-                validation::integer_embedding_sources_equal(program, left, right)
+                crate::validation::integer_embedding_sources_equal(program, left, right)
             })
 }

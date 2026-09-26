@@ -1,11 +1,11 @@
+use crate::typed_trees::TypedTrees;
+use crate::typed_trees::domain::DomainDefinition;
+use crate::typed_trees::name::Identifier;
+use crate::typed_trees::types::{DomainConstraint, DomainConstraintSubject, TypeConstraintNode};
 use diagnostics::Diagnostic;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use symbol_resolved_trees::SymbolResolvedTrees;
-use typed_trees::TypedTrees;
-use typed_trees::domain::DomainDefinition;
-use typed_trees::name::Identifier;
-use typed_trees::types::{DomainConstraint, DomainConstraintSubject, TypeConstraintNode};
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::SymbolResolvedTrees;
 
 /// Bind and expand every declared-domain type constraint after the complete
 /// typed program exists. Carrier-aware lookup precedes transparent-alias
@@ -46,17 +46,17 @@ pub(crate) fn normalize_domain_constraints_from(
 pub(crate) fn normalize_domain_constraints_for_type(
     source: &SymbolResolvedTrees,
     program: &mut TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    type_reference: crate::typed_trees::types::TypeReferenceHandle,
 ) -> Result<(), Diagnostic> {
     match program
         .type_reference_table
         .type_reference(type_reference)
         .clone()
     {
-        typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+        crate::typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
             normalize_domain_constraints_for_type(source, program, referee)?;
         }
-        typed_trees::types::TypeReferenceNode::Constrained {
+        crate::typed_trees::types::TypeReferenceNode::Constrained {
             base_type,
             constraints,
         } => normalize_constraint_span(source, program, type_reference, base_type, constraints)?,
@@ -68,8 +68,8 @@ pub(crate) fn normalize_domain_constraints_for_type(
 fn normalize_constraint_span(
     source: &SymbolResolvedTrees,
     program: &mut TypedTrees,
-    site: typed_trees::types::TypeReferenceHandle,
-    carrier: typed_trees::types::TypeReferenceHandle,
+    site: crate::typed_trees::types::TypeReferenceHandle,
+    carrier: crate::typed_trees::types::TypeReferenceHandle,
     constraints: arena::HandleSpan<TypeConstraintNode>,
 ) -> Result<(), Diagnostic> {
     let authored = program
@@ -122,7 +122,7 @@ fn normalize_constraint_span(
                 })?;
         }
 
-        let index_parameters = typed_trees::domain::index_parameters(program, domain);
+        let index_parameters = crate::typed_trees::domain::index_parameters(program, domain);
         if domain_constraint.arguments.len() != index_parameters.len() {
             return Err(Diagnostic::error(format!(
                 "domain family `{}` requires {} closed index argument(s), but {} were supplied",
@@ -131,7 +131,7 @@ fn normalize_constraint_span(
                 domain_constraint.arguments.len()
             )));
         }
-        let instance_name = typed_trees::domain::indexed_domain_instance_name(
+        let instance_name = crate::typed_trees::domain::indexed_domain_instance_name(
             program,
             domain,
             index_parameters,
@@ -191,7 +191,7 @@ fn normalize_constraint_span(
                         .join("::"),
                 )
             };
-            let declaration = typed_trees::domain::domain_by_symbol(program, atom.symbol);
+            let declaration = crate::typed_trees::domain::domain_by_symbol(program, atom.symbol);
             let subject = if atom.symbol.is_valid() {
                 DomainConstraintSubject::Declared
             } else {
@@ -372,11 +372,11 @@ fn with_domain_candidate_index<R>(
 pub(crate) fn select_domain_candidates(
     source: &SymbolResolvedTrees,
     program: &TypedTrees,
-    carrier: typed_trees::types::TypeReferenceHandle,
+    carrier: crate::typed_trees::types::TypeReferenceHandle,
     authored_name: &str,
     reference: Option<source::SourceSpan>,
     retained: symbols::SymbolHandle,
-) -> Vec<typed_trees::domain::DomainDefinition> {
+) -> Vec<crate::typed_trees::domain::DomainDefinition> {
     let selected = reference
         .and_then(|span| {
             source.symbols.find_top_level_by_name_and_kinds_from_source(
@@ -393,7 +393,7 @@ pub(crate) fn select_domain_candidates(
             .source_reference_can_see_symbol(reference.unwrap_or_default(), domain.symbol)
     };
     let matches = if let Some(symbol) = selected {
-        typed_trees::domain::domain_by_symbol(program, symbol)
+        crate::typed_trees::domain::domain_by_symbol(program, symbol)
             .filter(|domain| visible(domain) && domain_accepts_carrier(program, domain, carrier))
             .cloned()
             .into_iter()
@@ -441,9 +441,9 @@ pub(crate) fn select_domain_candidates(
 /// silently selecting a declaration the occurrence never owned.
 fn prefer_local_domain(
     source: &SymbolResolvedTrees,
-    candidates: Vec<typed_trees::domain::DomainDefinition>,
+    candidates: Vec<crate::typed_trees::domain::DomainDefinition>,
     reference: Option<source::SourceSpan>,
-) -> Vec<typed_trees::domain::DomainDefinition> {
+) -> Vec<crate::typed_trees::domain::DomainDefinition> {
     if candidates.len() <= 1 {
         return candidates;
     }
@@ -482,7 +482,7 @@ fn prefer_local_domain(
 /// qualified-exact declarations.
 fn domain_exposed_to(
     source: &SymbolResolvedTrees,
-    domain: &typed_trees::domain::DomainDefinition,
+    domain: &crate::typed_trees::domain::DomainDefinition,
     qualified: &str,
     authored: &str,
     reference: Option<source::SourceSpan>,
@@ -506,10 +506,10 @@ fn domain_exposed_to(
 
 pub(crate) fn domain_accepts_carrier(
     program: &TypedTrees,
-    domain: &typed_trees::domain::DomainDefinition,
-    carrier: typed_trees::types::TypeReferenceHandle,
+    domain: &crate::typed_trees::domain::DomainDefinition,
+    carrier: crate::typed_trees::types::TypeReferenceHandle,
 ) -> bool {
-    if !typed_trees::domain::has_generic_carrier(program, domain) {
+    if !crate::typed_trees::domain::has_generic_carrier(program, domain) {
         // The declaration may import its carrier by a short name while the
         // consumer qualifies it. Spelling is not carrier identity; retain the
         // package owner too so equal module paths in different dependencies
@@ -521,10 +521,10 @@ pub(crate) fn domain_accepts_carrier(
     let Some(parameter) = parameters.first() else {
         return false;
     };
-    let typed_trees::data::TypeParameterKind::Type = parameter.kind else {
+    let crate::typed_trees::data::TypeParameterKind::Type = parameter.kind else {
         return false;
     };
-    let typed_trees::types::TypeReferenceNode::Named { symbol, name } = program
+    let crate::typed_trees::types::TypeReferenceNode::Named { symbol, name } = program
         .type_reference_table
         .type_reference(domain.target_type)
     else {

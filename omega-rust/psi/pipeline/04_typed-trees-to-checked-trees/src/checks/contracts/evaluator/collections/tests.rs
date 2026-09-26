@@ -1,7 +1,7 @@
 use crate::tests::front_end::{checked_program_result, typed_program};
 #[test]
 fn selected_as_slice_target_cannot_supply_builtin_array_extent() {
-    use typed_trees::expression::ExpressionNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
     let mut program = typed_program(VIEW);
     let target = program.machines().last().unwrap().symbol;
     let expression = program

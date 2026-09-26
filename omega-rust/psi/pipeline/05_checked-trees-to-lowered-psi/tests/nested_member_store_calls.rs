@@ -20,7 +20,10 @@ use terminal_psi::OperationKind;
 fn lowered_verified(
     source: &str,
     name: &str,
-) -> (terminal_psi::TerminalModule, lowered_psi::LoweredPsi) {
+) -> (
+    terminal_psi::TerminalModule,
+    checked_trees_to_lowered_psi::lowered_psi::LoweredPsi,
+) {
     let checked = crate::front_end::checked_program(source);
     let lowered =
         checked_trees_to_lowered_psi::lower_machine(&checked, TerminalMachineSelection::Name(name))
@@ -41,7 +44,7 @@ fn lowered_verified(
 /// resolved target state.
 fn assert_exact_call_receipts(
     module: &terminal_psi::TerminalModule,
-    lowered: &lowered_psi::LoweredPsi,
+    lowered: &checked_trees_to_lowered_psi::lowered_psi::LoweredPsi,
     machine_name: &str,
     expected_calls: usize,
     assignment_statement_index: usize,

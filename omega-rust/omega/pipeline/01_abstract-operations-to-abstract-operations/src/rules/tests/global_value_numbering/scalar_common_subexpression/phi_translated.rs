@@ -12,15 +12,15 @@ use crate::rules::tests::fixtures::global_value_numbering::{
     phi_translated_gvn_unit, proof_certified_phi_translated_gvn_unit,
 };
 use crate::rules::tests::fixtures::id;
-use abstract_operations::AbstractOperation as O;
-use optimization_unit::{
+use semantic_vocabulary::{BlockId, EdgeId, OperationId, ValueId};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     OptimizationFact, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch,
     recompute_psi_optimization_unit_identity,
 };
-use optimization_unit_semantics::{
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_phi_translated_scalar_common_subexpression_candidate,
 };
-use semantic_vocabulary::{BlockId, EdgeId, OperationId, ValueId};
 
 fn phi_translated_candidates(unit: &PsiOptimizationUnit) -> Vec<PsiRewriteCandidate> {
     let contract = PhiTranslatedObligationFreeScalarGvnRule::contract();
@@ -180,7 +180,7 @@ fn phi_translated_gvn_candidate_rejects_noncanonical_incoming_order() {
             candidate.predicted_cost_delta(),
             patch,
         ),
-        Err(optimization_unit::PsiRewriteCandidateError::PatchDecisionPointMismatch)
+        Err(terminal_psi_to_abstract_operations::optimization_unit::PsiRewriteCandidateError::PatchDecisionPointMismatch)
     );
 }
 
@@ -418,6 +418,6 @@ fn compatible_policy_phi_translation_declines_incomplete_arms_and_rejects_corrup
             candidate.predicted_cost_delta(),
             reordered_patch,
         ),
-        Err(optimization_unit::PsiRewriteCandidateError::PatchDecisionPointMismatch)
+        Err(terminal_psi_to_abstract_operations::optimization_unit::PsiRewriteCandidateError::PatchDecisionPointMismatch)
     );
 }

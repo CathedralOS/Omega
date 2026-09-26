@@ -59,11 +59,11 @@ impl LoweredStructuralScalarStore {
 }
 
 pub(crate) fn lower_structural_scalar_store_destination(
-    store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
+    store: &typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarFieldStorePlan,
     expected_statement_index: u32,
     parameter: &StructuralParameterDeclaration,
     structural_types: &[StructuralTypeDeclaration],
-    scalar_parameters: &[checked_trees::CheckedStructuralScalarParameterPlan],
+    scalar_parameters: &[typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarParameterPlan],
     available_scalar_types: &[ScalarType],
     access_policy: StoreAccessPolicy,
 ) -> Result<LoweredStructuralScalarStore, LoweringError> {
@@ -89,7 +89,7 @@ pub(crate) fn lower_structural_scalar_store_destination(
 /// Resolve the destination independently of the ordered source expression.
 /// Callers must validate and emit that expression in its current scalar namespace.
 pub(crate) fn lower_structural_scalar_store_place(
-    store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
+    store: &typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarFieldStorePlan,
     expected_statement_index: u32,
     parameter: &StructuralParameterDeclaration,
     structural_types: &[StructuralTypeDeclaration],
@@ -289,7 +289,9 @@ fn lower_structural_field_steps<'a>(
                 *element
             }
             CheckedUnitStructuralPathSegment::RuntimeIndex(
-                checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
+                typed_trees_to_checked_trees::checked_trees::CheckedRuntimeIndex::AssignmentIndex {
+                    depth,
+                },
             ) if !steps.contains(&ProjectionStep::AssignmentIndex { depth: *depth }) => {
                 let StructuralTypeShape::FixedArray { element, .. } = &field_owner.shape else {
                     return unsupported("structural scalar store carrier is not a fixed array");
@@ -322,7 +324,7 @@ fn lower_structural_field_steps<'a>(
 fn checked_store_source_matches(
     value: &CheckedScalarExpression,
     primitive_type: PrimitiveType,
-    scalar_parameters: &[checked_trees::CheckedStructuralScalarParameterPlan],
+    scalar_parameters: &[typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarParameterPlan],
     available_scalar_types: &[ScalarType],
 ) -> bool {
     if checked_store_literal_matches(value, primitive_type) {

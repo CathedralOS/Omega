@@ -1,11 +1,11 @@
 use crate::resolution::ResolutionRequest;
+use crate::symbol_resolved_trees::{SymbolResolvedTrees, expression::ExpressionNode};
 use source::SourceMap;
 use source_files_to_tokens::Lexer;
 use std::path::PathBuf;
 use std::sync::Arc;
-use symbol_resolved_trees::{SymbolResolvedTrees, expression::ExpressionNode};
 use symbols::SymbolKind;
-use syntax_trees::SyntaxTrees;
+use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
 
 fn resolve(texts: &[&str]) -> Result<SymbolResolvedTrees, Vec<diagnostics::Diagnostic>> {
     let mut sources = SourceMap::default();

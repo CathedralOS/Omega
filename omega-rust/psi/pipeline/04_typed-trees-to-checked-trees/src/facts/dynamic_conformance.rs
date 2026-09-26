@@ -1,15 +1,15 @@
 //! Dynamic conformance facts and normalized dynamic row identities.
 
-use typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 
 pub(crate) fn build_dynamic_conformance_facts(
     program: &TypedTrees,
-) -> Result<checked_trees::DynamicConformanceFacts, Vec<diagnostics::Diagnostic>> {
+) -> Result<crate::checked_trees::DynamicConformanceFacts, Vec<diagnostics::Diagnostic>> {
     let mut selections = Vec::new();
     let mut diagnostics = Vec::new();
-    let validated_selections = validation::collect_dynamic_conformance_selections(program)?;
+    let validated_selections = crate::validation::collect_dynamic_conformance_selections(program)?;
     let validated_storages =
-        validation::collect_dynamic_descriptor_storages(program, &validated_selections);
+        crate::validation::collect_dynamic_descriptor_storages(program, &validated_selections);
     for selection in validated_selections {
         let selected = selected_data_conformance(program, &selection);
         let mut rows = Vec::new();
@@ -32,7 +32,7 @@ pub(crate) fn build_dynamic_conformance_facts(
                         continue;
                     }
                 };
-            rows.push(checked_trees::DynamicConformanceRowFact {
+            rows.push(crate::checked_trees::DynamicConformanceRowFact {
                 declaring_trait: row.declaring_trait,
                 requirement: row.requirement,
                 requirement_identity,
@@ -40,19 +40,19 @@ pub(crate) fn build_dynamic_conformance_facts(
                 realization_state: row.realization_state,
                 realization_identity,
                 source: match row.source {
-                    typed_trees::trait_definition::ConformanceRowSource::Inline => {
-                        checked_trees::DynamicConformanceRowSource::Inline
+                    symbol_resolved_trees_to_typed_trees::typed_trees::trait_definition::ConformanceRowSource::Inline => {
+                        crate::checked_trees::DynamicConformanceRowSource::Inline
                     }
-                    typed_trees::trait_definition::ConformanceRowSource::Reference => {
-                        checked_trees::DynamicConformanceRowSource::Reference
+                    symbol_resolved_trees_to_typed_trees::typed_trees::trait_definition::ConformanceRowSource::Reference => {
+                        crate::checked_trees::DynamicConformanceRowSource::Reference
                     }
-                    typed_trees::trait_definition::ConformanceRowSource::TraitDefault => {
-                        checked_trees::DynamicConformanceRowSource::TraitDefault
+                    symbol_resolved_trees_to_typed_trees::typed_trees::trait_definition::ConformanceRowSource::TraitDefault => {
+                        crate::checked_trees::DynamicConformanceRowSource::TraitDefault
                     }
                 },
             });
         }
-        selections.push(checked_trees::DynamicConformanceSelectionFact {
+        selections.push(crate::checked_trees::DynamicConformanceSelectionFact {
             occurrence: selection.occurrence,
             binding: selection.binding,
             binding_name: selection.binding_name.clone(),
@@ -71,7 +71,7 @@ pub(crate) fn build_dynamic_conformance_facts(
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
-    let binding_facts = checked_trees::DynamicConformanceFacts {
+    let binding_facts = crate::checked_trees::DynamicConformanceFacts {
         selections: selections.clone(),
         storages: Vec::new(),
     }
@@ -91,7 +91,7 @@ pub(crate) fn build_dynamic_conformance_facts(
             ));
             continue;
         };
-        storages.push(checked_trees::DynamicDescriptorStorageFact {
+        storages.push(crate::checked_trees::DynamicDescriptorStorageFact {
             occurrence: storage.occurrence,
             machine: storage.machine,
             state: storage.state,
@@ -109,7 +109,7 @@ pub(crate) fn build_dynamic_conformance_facts(
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
-    Ok(checked_trees::DynamicConformanceFacts {
+    Ok(crate::checked_trees::DynamicConformanceFacts {
         selections,
         storages,
     })
@@ -117,7 +117,7 @@ pub(crate) fn build_dynamic_conformance_facts(
 
 pub(crate) fn normalized_dynamic_row_identities(
     program: &TypedTrees,
-    row: &typed_trees::trait_definition::ConformanceRow,
+    row: &symbol_resolved_trees_to_typed_trees::typed_trees::trait_definition::ConformanceRow,
 ) -> Result<(String, String), diagnostics::Diagnostic> {
     let mut declaring_traits = program
         .traits()
@@ -179,8 +179,10 @@ pub(crate) fn normalized_dynamic_row_identities(
 
 fn selected_data_conformance<'program>(
     program: &'program TypedTrees,
-    selection: &validation::DynamicConformanceSelection,
-) -> Option<&'program typed_trees::trait_definition::Conformance> {
+    selection: &crate::validation::DynamicConformanceSelection,
+) -> Option<
+    &'program symbol_resolved_trees_to_typed_trees::typed_trees::trait_definition::Conformance,
+> {
     if let Some(symbol) = selection.conformance {
         return program
             .conformances()

@@ -1,14 +1,14 @@
 use super::{AbstractOperationPlan, Error};
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
-use abstract_operations::AbstractOperation;
-use legalized_operations::{
+use crate::legalized_operations::{
     LegalizedScalarReturnValue, LegalizedScalarSuccessor, LegalizedScalarTerminator,
 };
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
 pub(super) fn validate(
     actual: &LegalizedScalarTerminator,
-    node: &optimization_unit::OptimizationNode,
-    function: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    function: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
     custody: &scalar_graph_input::reference_custody::Custody,
 ) -> Result<(), LegalizationError> {
@@ -170,7 +170,7 @@ pub(super) fn validate(
 }
 fn matches_edge(
     actual: &LegalizedScalarSuccessor,
-    source: &optimization_unit::OptimizationEdge,
+    source: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationEdge,
 ) -> bool {
     actual.edge == source.psi_edge
         && actual.target == source.target

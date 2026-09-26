@@ -1,8 +1,8 @@
 use crate::lowerer::Lowerer;
 use crate::type_reference::lower_type_reference_into_table;
+use crate::typed_trees as typed;
 use diagnostics::Diagnostic;
-use symbol_resolved_trees as resolved;
-use typed_trees as typed;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees as resolved;
 
 /// Nested callable contracts allocate their own telescopes in the same arena.
 /// Finish those children before publishing the complete sibling span; appending

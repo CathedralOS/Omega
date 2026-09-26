@@ -13,10 +13,12 @@
 //! and the selected family's requirements before expanding its atoms.
 
 use diagnostics::Diagnostic;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::identifier::Identifier;
-use syntax_trees::item::{DataMember, Item, TypeParameterKind};
-use syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
+use tokens_to_syntax_trees::syntax_trees::identifier::Identifier;
+use tokens_to_syntax_trees::syntax_trees::item::{DataMember, Item, TypeParameterKind};
+use tokens_to_syntax_trees::syntax_trees::types::{
+    TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 
 use super::constant_selection::ConstantSelection;
 

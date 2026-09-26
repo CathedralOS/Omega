@@ -10,41 +10,34 @@ name = "checked_trees_to_lowered_psi"
 path = "src/lib.rs"
 
 [dependencies]
-lowered-psi = { path = "../../representations/lowered-psi" }
+typed-trees-to-checked-trees = { path = "../04_typed-trees-to-checked-trees" }
 arena = { path = "../../foundation/arena" }
-checked-trees = { path = "../../representations/checked-trees" }
-semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
-facts = { path = "../../representations/facts" }
 language-core = { path = "../../foundation/language-core" }
 language-semantics = { path = "../../foundation/language-semantics" }
 numerics = { path = "../../foundation/numerics" }
-proof-admission = { path = "../../semantics/proof-admission" }
+proof-admission = { path = "../../proof-admission" }
+semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
+sha2 = "0.10.9"
 source = { path = "../../foundation/source" }
 symbols = { path = "../../foundation/symbols" }
-terminal-psi = { path = "../../representations/terminal-psi" }
-terminal-semantics = { path = "../../semantics/terminal-semantics" }
-terminal-codec = { path = "../../semantics/terminal-codec" }
-terminal-verifier = { path = "../../semantics/terminal-verifier" }
-validation = { path = "../../semantics/validation" }
-sha2 = "0.10.9"
-
+terminal-codec = { path = "../../terminal-codec" }
+terminal-psi = { path = "../../terminal-psi" }
+terminal-semantics = { path = "../../terminal-semantics" }
+terminal-verifier = { path = "../../terminal-verifier" }
 [dev-dependencies]
 mimalloc = { version = "0.1", default-features = false }
-diagnostics = { path = "../../foundation/diagnostics" }
-optimization = { path = "../../representations/optimization" }
-lowered-psi-to-lowered-psi = { path = "../06_lowered-psi-to-lowered-psi" }
+terminal-psi-to-abstract-operations = { path = "../../../omega/pipeline/00_terminal-psi-to-abstract-operations" }
 lowered-psi-to-terminal-psi = { path = "../07_lowered-psi-to-terminal-psi" }
-terminal-production = { path = "../../compiler/terminal-production" }
-syntax-trees = { path = "../../representations/syntax-trees" }
-source-files-to-tokens = { path = "../00_source-files-to-tokens" }
-symbol-resolved-trees-to-typed-trees = { path = "../03_symbol-resolved-trees-to-typed-trees" }
-syntax-trees-to-symbol-resolved-trees = { path = "../02_syntax-trees-to-symbol-resolved-trees" }
-terminal-fuel = { path = "../../semantics/terminal-fuel" }
-terminal-fixed-fuel = { path = "../../semantics/terminal-fixed-fuel" }
-terminal-interpreter = { path = "../../semantics/terminal-interpreter" }
 tokens-to-syntax-trees = { path = "../01_tokens-to-syntax-trees" }
-typed-trees = { path = "../../representations/typed-trees" }
+omega = { path = "../../../omega" }
+symbol-resolved-trees-to-typed-trees = { path = "../03_symbol-resolved-trees-to-typed-trees" }
 typed-trees-to-checked-trees = { path = "../04_typed-trees-to-checked-trees" }
+diagnostics = { path = "../../foundation/diagnostics" }
+lowered-psi-to-lowered-psi = { path = "../06_lowered-psi-to-lowered-psi" }
+source-files-to-tokens = { path = "../00_source-files-to-tokens" }
+syntax-trees-to-symbol-resolved-trees = { path = "../02_syntax-trees-to-symbol-resolved-trees" }
+terminal-fuel = { path = "../../terminal-fuel" }
+terminal-interpreter = { path = "../../terminal-interpreter" }
 
 [[test]]
 name = "suite"

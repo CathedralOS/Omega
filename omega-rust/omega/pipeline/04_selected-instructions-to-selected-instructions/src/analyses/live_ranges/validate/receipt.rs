@@ -3,7 +3,9 @@
 use std::collections::BTreeSet;
 
 use crate::LiveRangeValidationReceipt;
-use selected_instructions::{DistinctUseDefTie, LiveRangePlan, live_range_identity};
+use target_operations_to_selected_instructions::{
+    DistinctUseDefTie, LiveRangePlan, live_range_identity,
+};
 
 pub(super) fn build_receipt(plan: &LiveRangePlan) -> LiveRangeValidationReceipt {
     LiveRangeValidationReceipt {
@@ -101,7 +103,8 @@ pub(super) fn build_receipt(plan: &LiveRangePlan) -> LiveRangeValidationReceipt 
 }
 
 pub(super) fn tied_component_count(ties: &[DistinctUseDefTie]) -> usize {
-    let mut components = Vec::<BTreeSet<selected_instructions::VirtualRegisterId>>::new();
+    let mut components =
+        Vec::<BTreeSet<target_operations_to_selected_instructions::VirtualRegisterId>>::new();
     for tie in ties {
         let use_component = components
             .iter()

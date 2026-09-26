@@ -9,13 +9,15 @@ use super::{
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
-use checked_trees::{CheckedByteSequenceWritePlan, expression::ExpressionNode};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedByteSequenceWritePlan, expression::ExpressionNode,
+};
 
 pub(crate) fn validate_assignment(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state_symbol: symbols::SymbolHandle,
-    assignment: &checked_trees::statement::TableAssignment,
+    assignment: &typed_trees_to_checked_trees::checked_trees::statement::TableAssignment,
     write: &CheckedByteSequenceWritePlan,
 ) -> Result<(), LoweringError> {
     let (owner, state) =
@@ -40,7 +42,7 @@ pub(crate) fn validate_assignment(
     if owner.symbol != machine
         || source.root != parameter.symbol
         || !source.path.is_empty()
-        || !validation::place_has_builtin_coordinates(
+        || !typed_trees_to_checked_trees::validation::place_has_builtin_coordinates(
             &checked.typed,
             owner,
             Some(state),
@@ -50,7 +52,7 @@ pub(crate) fn validate_assignment(
             checked
                 .type_reference_table
                 .type_reference(parameter.type_reference),
-            checked_trees::types::TypeReferenceNode::Reference {
+            typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Reference {
                 access: language_core::ReferenceAccess::Mutable,
                 ..
             }
@@ -65,8 +67,8 @@ pub(crate) fn validate_assignment(
                 || selected.candidate_count != 0
                 || !matches!(
                     selected.status,
-                    checked_trees::CheckedOperatorResolutionStatus::Missing
-                        | checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+                    typed_trees_to_checked_trees::checked_trees::CheckedOperatorResolutionStatus::Missing
+                        | typed_trees_to_checked_trees::checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
                 ))
     }) {
         return unsupported("byte-view write changed its selected index meaning");
@@ -117,7 +119,7 @@ pub(crate) fn validate_assignment(
         // producing call is rejoined where the operation order and the value
         // are lowered; a selected expression here would mean the checked
         // stage chose a different source.
-        checked_trees::CheckedByteSequenceStoreValue::ScalarResult { .. } => {
+        typed_trees_to_checked_trees::checked_trees::CheckedByteSequenceStoreValue::ScalarResult { .. } => {
             if !value_expressions.is_empty() {
                 return unsupported("byte-view write replaced a selected RHS with a result");
             }
@@ -128,7 +130,7 @@ pub(crate) fn validate_assignment(
                 return unsupported("byte-view write call result has no authored call");
             }
         }
-        checked_trees::CheckedByteSequenceStoreValue::Pure(retained) => {
+        typed_trees_to_checked_trees::checked_trees::CheckedByteSequenceStoreValue::Pure(retained) => {
             let (binding, expression) = checked
                 .facts
                 .values

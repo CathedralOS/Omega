@@ -1,11 +1,13 @@
 //! Per-function and per-virtual-register legality assembly.
 
-use register_model::{ValidatedPhysicalRegisterModel, ValidatedRegisterReservationProfile};
+use target_operations_to_selected_instructions::register_model::{
+    ValidatedPhysicalRegisterModel, ValidatedRegisterReservationProfile,
+};
 
 use super::{early_clobbers, fixed_views, live_points, view_candidates::CandidateViews};
+use crate::register_homes::{FunctionAllocationLegality, VirtualRegisterAllocationLegality};
 use crate::{AllocationLegalityError, ValidatedAllocatorAvailability};
-use register_homes::{FunctionAllocationLegality, VirtualRegisterAllocationLegality};
-use selected_instructions::FunctionLiveRanges;
+use target_operations_to_selected_instructions::FunctionLiveRanges;
 
 pub(super) fn compute(
     function_index: usize,

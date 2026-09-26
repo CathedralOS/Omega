@@ -1,8 +1,8 @@
 use super::{FlowCallFact, FlowFacts, FlowStateFact, PlaceRoot, StatementNode};
+use crate::fact_plan::{NormalizedWriteFrame, PlaceSegment};
 use crate::flow::CanonicalPlace;
 use crate::flow::reference_places::{preserve_call_prefix_storage, preserve_frame};
 use crate::tests::front_end::typed_program;
-use facts::{NormalizedWriteFrame, PlaceSegment};
 
 #[test]
 fn operand_frames_must_preserve_both_binding_and_referent() {
@@ -26,17 +26,18 @@ fn operand_frames_must_preserve_both_binding_and_referent() {
         panic!("reference declaration")
     };
     let context = program.state_parameters(typed_state)[0].symbol;
-    let scheduler = program
-        .data_definitions()
-        .iter()
-        .flat_map(|definition| program.data_members(definition))
-        .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if field.name.as_str() == "scheduler" => {
-                Some(field.symbol)
-            }
-            _ => None,
-        })
-        .unwrap();
+    let scheduler =
+        program
+            .data_definitions()
+            .iter()
+            .flat_map(|definition| program.data_members(definition))
+            .find_map(|member| match member {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                    field,
+                ) if field.name.as_str() == "scheduler" => Some(field.symbol),
+                _ => None,
+            })
+            .unwrap();
     let state = FlowStateFact {
         machine_symbol: machine.symbol,
         state_symbol: typed_state.symbol,
@@ -52,7 +53,8 @@ fn operand_frames_must_preserve_both_binding_and_referent() {
     };
     let index = statements.len() - 1;
     let binding_write = NormalizedWriteFrame::complete(vec!["borrowed".to_owned()]);
-    let frames = validation::CallFrameResolver::new(&program).expect("typed program resolves");
+    let frames =
+        crate::validation::CallFrameResolver::new(&program).expect("typed program resolves");
     // The old referent alone is disjoint from replacing the local binding.
     assert_eq!(
         preserve_frame(
@@ -116,7 +118,8 @@ fn call_prefix_bound_replays_from_recorded_call_identity() {
         .find(|machine| machine.name.as_str() == "observe")
         .unwrap();
     let typed_state = &program.machine_states(machine)[0];
-    let frames = validation::CallFrameResolver::new(&program).expect("typed program resolves");
+    let frames =
+        crate::validation::CallFrameResolver::new(&program).expect("typed program resolves");
 
     let mut flow = FlowFacts::default();
     // Statement 0 declares `borrowed`; statement 1 holds the transition call.
@@ -183,7 +186,8 @@ fn call_prefix_bound_declines_ambiguous_recorded_identity() {
         .find(|machine| machine.name.as_str() == "observe")
         .unwrap();
     let typed_state = &program.machine_states(machine)[0];
-    let frames = validation::CallFrameResolver::new(&program).expect("typed program resolves");
+    let frames =
+        crate::validation::CallFrameResolver::new(&program).expect("typed program resolves");
 
     let mut flow = FlowFacts::default();
     let subject = FlowCallFact {

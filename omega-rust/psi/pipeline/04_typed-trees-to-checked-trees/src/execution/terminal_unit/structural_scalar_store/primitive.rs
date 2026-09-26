@@ -28,10 +28,11 @@ use super::super::{
 /// Find only initialized primitive storage established before this occurrence.
 pub(in crate::execution::terminal_unit) fn primitive_local_before<'program>(
     program: &'program TypedTrees,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
     symbol: SymbolHandle,
-) -> Option<&'program typed_trees::statement::TableLocalData> {
+) -> Option<&'program symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableLocalData>
+{
     let mut locals = program
         .statement_table
         .statements(state.statement_nodes)
@@ -68,11 +69,11 @@ pub(in crate::execution::terminal_unit) fn primitive_local_before<'program>(
 pub(super) fn store_at(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     statement_index: u32,
-    assignment: &typed_trees::statement::TableAssignment,
+    assignment: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableAssignment,
 ) -> Option<CheckedUnitEffectOperationPlan> {
     let (authored_symbol, symbol, segments) = storage_place(
         program,
@@ -102,7 +103,7 @@ pub(super) fn store_at(
             return None;
         }
         (
-            checked_trees::CheckedPrimitiveStoreDestination::Local { symbol },
+            crate::checked_trees::CheckedPrimitiveStoreDestination::Local { symbol },
             program.primitive_type_reference(local.type_reference)?,
         )
     } else {
@@ -113,7 +114,7 @@ pub(super) fn store_at(
             program.primitive_type_reference(if whole {
                 referee
             } else {
-                validation::declared_place_type_raw(
+                crate::validation::declared_place_type_raw(
                     program,
                     machine,
                     Some(state),
@@ -156,7 +157,7 @@ pub(super) fn store_at(
             statement_index,
             destination,
             path,
-            value: checked_trees::CheckedCallScalarArgument::Computation(root.root),
+            value: crate::checked_trees::CheckedCallScalarArgument::Computation(root.root),
         });
     }
     let (binding, value) = facts.values.scalar_expressions.bound_expression_at(
@@ -180,7 +181,7 @@ pub(super) fn store_at(
         statement_index,
         destination,
         path,
-        value: checked_trees::CheckedCallScalarArgument::Pure(value.clone()),
+        value: crate::checked_trees::CheckedCallScalarArgument::Pure(value.clone()),
     })
 }
 
@@ -193,15 +194,20 @@ pub(super) fn store_at(
 pub(super) fn array_literal_stores(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     statement_index: u32,
-    assignment: &typed_trees::statement::TableAssignment,
+    assignment: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableAssignment,
 ) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
-    let expected = validation::closed_array_store_type(
+    let expected = crate::validation::closed_array_store_type(
         program,
-        validation::declared_place_type_raw(program, machine, Some(state), assignment.target)?,
+        crate::validation::declared_place_type_raw(
+            program,
+            machine,
+            Some(state),
+            assignment.target,
+        )?,
     )?;
     let extents = closed_array_extents(program, expected)?;
     let (_, symbol, segments) = storage_place(
@@ -212,20 +218,21 @@ pub(super) fn array_literal_stores(
         statement_index,
         assignment.target,
     )?;
-    if !matches!(segments.last(), Some(facts::PlaceSegment::Field { .. }))
-        || !validation::place_has_builtin_coordinates(
-            program,
-            machine,
-            Some(state),
-            assignment.target,
-        )
-        || primitive_local_before(
-            program,
-            state,
-            usize::try_from(statement_index).ok()?,
-            symbol,
-        )
-        .is_some()
+    if !matches!(
+        segments.last(),
+        Some(crate::fact_plan::PlaceSegment::Field { .. })
+    ) || !crate::validation::place_has_builtin_coordinates(
+        program,
+        machine,
+        Some(state),
+        assignment.target,
+    ) || primitive_local_before(
+        program,
+        state,
+        usize::try_from(statement_index).ok()?,
+        symbol,
+    )
+    .is_some()
     {
         return None;
     }
@@ -246,7 +253,7 @@ pub(super) fn array_literal_stores(
         machine.symbol,
         state.symbol,
         statement_index,
-        checked_trees::CheckedArrayConstructionSource::Statement,
+        crate::checked_trees::CheckedArrayConstructionSource::Statement,
         assignment.value,
         expected,
     )?;
@@ -254,7 +261,7 @@ pub(super) fn array_literal_stores(
         .into_iter()
         .enumerate()
         .map(|(ordinal, value)| {
-            let checked_trees::CheckedCallScalarArgument::Pure(expression) = &value else {
+            let crate::checked_trees::CheckedCallScalarArgument::Pure(expression) = &value else {
                 return None;
             };
             if !scalar_expression_needs_no_bindings(expression) {
@@ -279,15 +286,16 @@ pub(super) fn array_literal_stores(
 /// The literal extents of a closed primitive array type, outermost first.
 fn closed_array_extents(
     program: &TypedTrees,
-    mut reference: typed_trees::types::TypeReferenceHandle,
+    mut reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
 ) -> Option<Vec<u64>> {
-    if !validation::is_closed_primitive_array_type(program, reference) {
+    if !crate::validation::is_closed_primitive_array_type(program, reference) {
         return None;
     }
     let mut extents = Vec::new();
     while let TypeReferenceNode::FixedArray {
         element_type,
-        length: typed_trees::types::FixedArrayLength::Literal(length),
+        length:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::Literal(length),
     } = program.type_reference_table.type_reference(reference)
     {
         extents.push(u64::try_from(*length).ok()?);
@@ -314,18 +322,22 @@ fn row_major_indices(mut ordinal: u64, extents: &[u64]) -> Option<Vec<u64>> {
 fn storage_place(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: u32,
-    target: typed_trees::expression::ExpressionHandle,
-) -> Option<(SymbolHandle, SymbolHandle, Vec<facts::PlaceSegment>)> {
+    target: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+) -> Option<(
+    SymbolHandle,
+    SymbolHandle,
+    Vec<crate::fact_plan::PlaceSegment>,
+)> {
     let place = crate::flow::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         usize::try_from(statement_index).ok()?,
         target,
     )?;
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(symbol) = place.root else {
         return None;
     };
     Some(
@@ -349,13 +361,13 @@ fn storage_place(
 /// non-self parameter over a named referee.
 fn borrowed_parameter_destination(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     symbol: SymbolHandle,
     whole: bool,
 ) -> Option<(
-    checked_trees::CheckedPrimitiveStoreDestination,
-    typed_trees::types::TypeReferenceHandle,
+    crate::checked_trees::CheckedPrimitiveStoreDestination,
+    symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
 )> {
     let (parameter_index, destination) =
         structural_parameters
@@ -406,7 +418,7 @@ fn borrowed_parameter_destination(
         return None;
     }
     Some((
-        checked_trees::CheckedPrimitiveStoreDestination::Parameter {
+        crate::checked_trees::CheckedPrimitiveStoreDestination::Parameter {
             parameter_index: u32::try_from(parameter_index).ok()?,
         },
         *referee,
@@ -421,11 +433,11 @@ fn borrowed_parameter_destination(
 fn primitive_path(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: u32,
-    target: typed_trees::expression::ExpressionHandle,
-    segments: &[facts::PlaceSegment],
+    target: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    segments: &[crate::fact_plan::PlaceSegment],
 ) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
     let Some(last) = segments.last() else {
         return Some(Vec::new());
@@ -433,8 +445,9 @@ fn primitive_path(
     // A field leaf is the scalar field store's; this store ends at an element.
     if !matches!(
         last,
-        facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. }
-    ) || !validation::place_has_builtin_coordinates(program, machine, Some(state), target)
+        crate::fact_plan::PlaceSegment::FixedIndex { .. }
+            | crate::fact_plan::PlaceSegment::Index { .. }
+    ) || !crate::validation::place_has_builtin_coordinates(program, machine, Some(state), target)
     {
         return None;
     }
@@ -454,11 +467,12 @@ fn primitive_path(
 /// arithmetic-policy shell peel.
 fn primitive_leaf(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    expression: typed_trees::expression::ExpressionHandle,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> Option<PrimitiveType> {
-    let mut leaf = validation::declared_place_type_raw(program, machine, Some(state), expression)?;
+    let mut leaf =
+        crate::validation::declared_place_type_raw(program, machine, Some(state), expression)?;
     // An arithmetic-policy shell (`i32 in Wrapping`) qualifies the element's
     // operations, not its storage identity, so it peels here like the primitive
     // leaf of the record-field store route. Range, named, and domain
@@ -496,16 +510,18 @@ fn primitive_leaf(
 pub(in crate::execution::terminal_unit) fn checked_unit_path(
     program: &TypedTrees,
     selectors: &super::selectors::TargetSelectors,
-    segments: &[facts::PlaceSegment],
+    segments: &[crate::fact_plan::PlaceSegment],
 ) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
     segments
         .iter()
         .map(|segment| match segment {
-            facts::PlaceSegment::Index { expression } => selectors.runtime_segment(*expression),
-            facts::PlaceSegment::FixedIndex { index } => Some(
+            crate::fact_plan::PlaceSegment::Index { expression } => {
+                selectors.runtime_segment(*expression)
+            }
+            crate::fact_plan::PlaceSegment::FixedIndex { index } => Some(
                 CheckedUnitStructuralPathSegment::FixedIndex(u64::try_from(*index).ok()?),
             ),
-            facts::PlaceSegment::Field { symbol } => {
+            crate::fact_plan::PlaceSegment::Field { symbol } => {
                 let mut fields = program
                     .data_definitions()
                     .iter()
@@ -541,8 +557,8 @@ pub(in crate::execution::terminal_unit) fn checked_unit_path(
 fn scalar_binding_symbols_exact(
     program: &TypedTrees,
     facts: &CheckFacts,
-    state: &typed_trees::state::State,
-    binding: &checked_trees::CheckedScalarExpressionBindings,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    binding: &crate::checked_trees::CheckedScalarExpressionBindings,
 ) -> bool {
     let Ok(statement_index) = usize::try_from(binding.statement_ordinal) else {
         return false;
@@ -588,8 +604,8 @@ fn scalar_binding_symbols_exact(
 pub(in crate::execution::terminal_unit) fn scalar_custody_is_exact(
     program: &TypedTrees,
     facts: &CheckFacts,
-    state: &typed_trees::state::State,
-    binding: &checked_trees::CheckedScalarExpressionBindings,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    binding: &crate::checked_trees::CheckedScalarExpressionBindings,
     value: &CheckedScalarExpression,
     primitive_type: PrimitiveType,
 ) -> bool {
@@ -622,8 +638,8 @@ pub(in crate::execution::terminal_unit) fn scalar_custody_is_exact(
 fn scalar_store_value_is_exact(
     program: &TypedTrees,
     facts: &CheckFacts,
-    state: &typed_trees::state::State,
-    binding: &checked_trees::CheckedScalarExpressionBindings,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    binding: &crate::checked_trees::CheckedScalarExpressionBindings,
     value: &CheckedScalarExpression,
     primitive_type: PrimitiveType,
 ) -> bool {
@@ -653,9 +669,9 @@ fn scalar_store_value_is_exact(
 /// policy that the store's value lane does not carry, so a retained
 /// expression built from any of them must keep declining.
 fn scalar_expression_needs_no_bindings(
-    expression: &checked_trees::CheckedScalarExpression,
+    expression: &crate::checked_trees::CheckedScalarExpression,
 ) -> bool {
-    use checked_trees::CheckedScalarExpression;
+    use crate::checked_trees::CheckedScalarExpression;
     match expression {
         CheckedScalarExpression::Parameter { .. }
         | CheckedScalarExpression::Local { .. }
@@ -684,9 +700,9 @@ fn scalar_expression_needs_no_bindings(
 }
 
 fn boolean_expression_needs_no_bindings(
-    expression: &checked_trees::CheckedBooleanExpression,
+    expression: &crate::checked_trees::CheckedBooleanExpression,
 ) -> bool {
-    use checked_trees::CheckedBooleanExpression;
+    use crate::checked_trees::CheckedBooleanExpression;
     match expression {
         CheckedBooleanExpression::Constant(_)
         | CheckedBooleanExpression::Parameter { .. }

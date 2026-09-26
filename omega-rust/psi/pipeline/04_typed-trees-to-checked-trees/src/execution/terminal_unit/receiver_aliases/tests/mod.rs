@@ -9,11 +9,11 @@ use crate::tests::front_end::checked_program;
 
 mod mutable;
 
-fn checked(source: &str) -> checked_trees::CheckedTrees {
+fn checked(source: &str) -> crate::checked_trees::CheckedTrees {
     checked_program(source)
 }
 
-fn fixture(access: &str, prefix: &str, body: &str) -> checked_trees::CheckedTrees {
+fn fixture(access: &str, prefix: &str, body: &str) -> crate::checked_trees::CheckedTrees {
     checked(&format!(
         "data Record [copy] {{ value: u16; }}
          machine Record::replace(&write self, value: u16) {{ self.value = value; }}
@@ -22,7 +22,7 @@ fn fixture(access: &str, prefix: &str, body: &str) -> checked_trees::CheckedTree
     ))
 }
 
-fn aliases(checked: &checked_trees::CheckedTrees) -> Option<Vec<ReceiverAlias>> {
+fn aliases(checked: &crate::checked_trees::CheckedTrees) -> Option<Vec<ReceiverAlias>> {
     let machine = checked
         .machines()
         .iter()
@@ -35,8 +35,8 @@ fn aliases(checked: &checked_trees::CheckedTrees) -> Option<Vec<ReceiverAlias>> 
 /// facts, rebuilt so forged or escaping evidence is judged by the plan that
 /// would consume it rather than by a roster no producer reads on its own.
 fn forward_plan(
-    checked: &checked_trees::CheckedTrees,
-) -> Option<checked_trees::CheckedUnitEffectMachinePlan> {
+    checked: &crate::checked_trees::CheckedTrees,
+) -> Option<crate::checked_trees::CheckedUnitEffectMachinePlan> {
     let plans = crate::execution::terminal_unit::build_checked_unit_effect_plans(
         &checked.typed,
         &checked.facts,
@@ -141,7 +141,7 @@ fn erased_alias_forwarded_as_a_call_argument_lends_its_referent() {
     assert!(matches!(consume_arguments.as_slice(), [argument]
         if argument.source_parameter_index() == Some(0)
             && argument.path.is_empty()
-            && argument.access == checked_trees::CheckedStructuralAccess::WriteOnlyBorrow));
+            && argument.access == crate::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow));
     assert_eq!((replace.statement_index, replace.call_ordinal), (2, 0));
     assert!(matches!(replace_arguments.as_slice(), [argument]
         if argument.source_parameter_index() == Some(0)
@@ -216,7 +216,7 @@ fn nested_aliases_preserve_every_parent_and_original_parameter() {
     }
 }
 
-fn nested_fixture() -> checked_trees::CheckedTrees {
+fn nested_fixture() -> crate::checked_trees::CheckedTrees {
     fixture(
         "write",
         "let held: &write [Record; 2] = &write records; let child: &write [Record; 2] = &write held; let leaf: &write [Record; 2] = &write child;",
@@ -380,7 +380,9 @@ fn projected_self_alias_retains_capture_and_normalized_receiver_paths() {
                 .data_members(definition)
                 .iter()
                 .find_map(|member| match member {
-                    typed_trees::data::DataMember::Field(field) => Some(field.symbol),
+                    symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                        field,
+                    ) => Some(field.symbol),
                     _ => None,
                 })
         })
@@ -439,7 +441,7 @@ fn projected_aliases_reject_changed_capture_or_immediate_projection() {
                     .reborrow_loan_resources
                     .get_mut(resource_handle)
                     .captured_place
-                    .segments[0] = facts::PlaceSegment::FixedIndex { index: 0 }
+                    .segments[0] = crate::fact_plan::PlaceSegment::FixedIndex { index: 0 }
             }
             2 => checked
                 .facts
@@ -455,7 +457,7 @@ fn projected_aliases_reject_changed_capture_or_immediate_projection() {
                 .get_mut(certificate_handle)
                 .parent_place
                 .segments
-                .push(facts::PlaceSegment::FixedIndex { index: 1 }),
+                .push(crate::fact_plan::PlaceSegment::FixedIndex { index: 1 }),
             _ => {
                 checked
                     .facts
@@ -463,7 +465,7 @@ fn projected_aliases_reject_changed_capture_or_immediate_projection() {
                     .reborrow_containment_certificates
                     .get_mut(certificate_handle)
                     .child_place
-                    .segments[0] = facts::PlaceSegment::FixedIndex { index: 0 }
+                    .segments[0] = crate::fact_plan::PlaceSegment::FixedIndex { index: 0 }
             }
         }
         assert!(
@@ -517,7 +519,10 @@ fn nested_aliases_reject_forged_immediate_parent_resource_and_capture() {
             .get_mut(resource_handle);
         match mutation {
             0 => resource.parent_loan = arena::Handle::invalid(),
-            1 => resource.parent_resource = checked_trees::CheckedParentBorrowResource::default(),
+            1 => {
+                resource.parent_resource =
+                    crate::checked_trees::CheckedParentBorrowResource::default()
+            }
             2 => resource.owner_symbol = SymbolHandle::invalid(),
             3 => resource.captured_place.root_symbol = SymbolHandle::invalid(),
             4 => resource.access = BorrowAccessKind::Mutable,
@@ -526,7 +531,7 @@ fn nested_aliases_reject_forged_immediate_parent_resource_and_capture() {
             7 => resource.parent_suspension.child_activation = arena::Handle::invalid(),
             8 => {
                 resource.parent_end_status.status =
-                    checked_trees::ParentLexicalStatusAtChildEnd::LivePastChild
+                    crate::checked_trees::ParentLexicalStatusAtChildEnd::LivePastChild
             }
             9 => resource.restoration.child_loan = arena::Handle::invalid(),
             10 => resource.weakening_reason = FlowBorrowWeakeningReason::LastUseExpired,
@@ -580,11 +585,14 @@ fn nested_aliases_reject_omitted_reordered_and_retargeted_closure() {
             }
             1 => event.retired_parent_path.reverse(),
             2 => event.retired_parent_path[0].weakening = arena::Handle::invalid(),
-            3 => event.disposition = checked_trees::CheckedReborrowResourceDisposition::Reactivate,
+            3 => {
+                event.disposition =
+                    crate::checked_trees::CheckedReborrowResourceDisposition::Reactivate
+            }
             4 => event.child_activation = arena::Handle::invalid(),
             5 => {
                 event.final_target =
-                    checked_trees::CheckedBorrowResourceDispositionTarget::default()
+                    crate::checked_trees::CheckedBorrowResourceDispositionTarget::default()
             }
             6 => event.shared_cohort.push(event.child_resource),
             _ => event.parent_loan = arena::Handle::invalid(),
@@ -624,10 +632,10 @@ fn nested_aliases_reject_omitted_reordered_and_retargeted_closure() {
             3 => containment.parent_place.root_symbol = SymbolHandle::invalid(),
             4 => containment
                 .projection_remainder
-                .push(facts::PlaceSegment::FixedIndex { index: 1 }),
+                .push(crate::fact_plan::PlaceSegment::FixedIndex { index: 1 }),
             _ => {
                 containment.containment =
-                    checked_trees::CheckedReborrowContainmentKind::SharedFreeze
+                    crate::checked_trees::CheckedReborrowContainmentKind::SharedFreeze
             }
         }
         assert!(

@@ -1,10 +1,8 @@
-use checked_trees::{
-    CheckedCallScalarArgument, CheckedScalarComputationKind, CheckedScalarExpressionRole,
-    CheckedUnitEffectOperationPlan,
-};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
@@ -12,8 +10,10 @@ use terminal_interpreter::{
     TerminalEffectResult, TerminalExecutionResult, TerminalInterpretError, TerminalScalarValue,
     TerminalStructuralValue, interpret_terminal_artifact_measured,
 };
-use typed_trees::expression::ExpressionNode;
-use typed_trees::statement::StatementNode;
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedCallScalarArgument, CheckedScalarComputationKind, CheckedScalarExpressionRole,
+    CheckedUnitEffectOperationPlan,
+};
 
 #[path = "nested_initializer_arguments_source/later_results.rs"]
 mod later_results;
@@ -83,7 +83,9 @@ pub(crate) fn invoking(source: &str, boundary: &str) -> String {
     format!("{head} {invocations} {}", &source[body..])
 }
 
-fn main_machine(checked: &checked_trees::CheckedTrees) -> &typed_trees::machine::Machine {
+fn main_machine(
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+) -> &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine {
     checked
         .typed
         .machines()
@@ -92,7 +94,9 @@ fn main_machine(checked: &checked_trees::CheckedTrees) -> &typed_trees::machine:
         .unwrap()
 }
 
-fn encoded(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec<u8>) {
+fn encoded(
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+) -> (Vec<u8>, Vec<u8>) {
     let machine = main_machine(checked);
     let states = checked.typed.machine_states(machine);
     assert_eq!(
@@ -923,7 +927,7 @@ fn initializer_computations_and_outer_result_custody_reject_stale_source() {
                     else {
                         unreachable!();
                     };
-                    let selected = typed_trees::expression::StaticMachineArgument {
+                    let selected = symbol_resolved_trees_to_typed_trees::typed_trees::expression::StaticMachineArgument {
                         path: Box::new([]),
                         application: None,
                         type_reference: Default::default(),
@@ -933,14 +937,14 @@ fn initializer_computations_and_outer_result_custody_reject_stale_source() {
                     };
                     if mutation == 12 {
                         call.quotient_operation =
-                            Some(typed_trees::expression::QuotientOperationRequest {
-                                kind: typed_trees::expression::QuotientOperationKind::Lift,
+                            Some(symbol_resolved_trees_to_typed_trees::typed_trees::expression::QuotientOperationRequest {
+                                kind: symbol_resolved_trees_to_typed_trees::typed_trees::expression::QuotientOperationKind::Lift,
                                 representative_operation: selected,
                                 theorem_evidence: Box::new([]),
                             });
                     } else {
                         call.private_layout_operation =
-                            Some(typed_trees::expression::PrivateLayoutOperationRequest {
+                            Some(symbol_resolved_trees_to_typed_trees::typed_trees::expression::PrivateLayoutOperationRequest {
                                 selected_slot: selected,
                             });
                     }

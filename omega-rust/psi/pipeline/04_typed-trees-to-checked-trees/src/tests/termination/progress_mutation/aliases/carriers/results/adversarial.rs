@@ -7,7 +7,7 @@ use crate::tests::termination::progress_mutation::fixture_source;
 use crate::tests::termination::progress_mutation::fixture_with_body;
 use crate::tests::termination::symbol_of_checked;
 
-fn assert_no_subject(program: &checked_trees::CheckedTrees, operation: &str) {
+fn assert_no_subject(program: &crate::checked_trees::CheckedTrees, operation: &str) {
     let plan = program
         .facts
         .termination
@@ -140,7 +140,7 @@ fn a_shared_aggregate_result_cannot_restore_a_subject_after_overlapping_producer
 
 #[test]
 fn a_helper_local_mutable_value_receiver_retires_shared_result_identity() {
-    use typed_trees::statement::StatementNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 
     for (operation, exact) in [("", true), ("let ignored: u64 = carrier.touch();", false)] {
         // LET-bound value receivers have a separate native-realization fence.
@@ -179,7 +179,7 @@ fn a_helper_local_mutable_value_receiver_retires_shared_result_identity() {
             })
             .unwrap();
         let context = program.state_parameters(state)[0].symbol;
-        let resolver = validation::CallFrameResolver::new(&program).unwrap();
+        let resolver = crate::validation::CallFrameResolver::new(&program).unwrap();
         let frame = resolver.inferred_state_write_frame(machine, state);
         let origin = resolver.local_reference_origin_before_statement(
             machine,

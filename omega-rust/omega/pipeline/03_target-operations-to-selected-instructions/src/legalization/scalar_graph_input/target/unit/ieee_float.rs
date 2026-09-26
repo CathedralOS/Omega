@@ -1,8 +1,10 @@
 use super::super::super::{LegalizationError, ScalarType, ValueShape};
 use super::super::{AbstractOperation, TargetUnitOperation, ValueId};
 use super::Source;
+use abstract_operations_to_target_operations::target_operations::{
+    TargetIeeeFloatFmaOperand, TargetUnitScalarHomeRequirement,
+};
 use semantic_vocabulary::IeeeFloatFormat;
-use target_operations::{TargetIeeeFloatFmaOperand, TargetUnitScalarHomeRequirement};
 
 /// Replay IEEE operations against their exact ordered, available scalar sources.
 pub(super) fn validate(
@@ -146,12 +148,12 @@ mod tests {
         AbstractOperation, IeeeFloatFormat, ScalarType, Source, TargetIeeeFloatFmaOperand,
         TargetUnitOperation, TargetUnitScalarHomeRequirement, ValueId, ValueShape, validate,
     };
+    use abstract_operations_to_target_operations::target_operations::TargetX86ScalarFmaSettlement;
     use semantic_vocabulary::{IeeeFloatValue, OperationId};
     use target::{
         AdmittedX86ScalarFmaProvider, TargetProfile, X86_SCALAR_FMA_REQUIRED_FEATURES,
         X86ScalarFmaSlot,
     };
-    use target_operations::TargetX86ScalarFmaSettlement;
 
     fn op(n: u64) -> OperationId {
         OperationId::new(n).unwrap()

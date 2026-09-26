@@ -21,7 +21,7 @@ fn ieee_call_results_feed_later_calls_with_exact_register_bank() {
             semantic_vocabulary::IeeeFloatFormat::Binary64,
         ] {
             let environment =
-                register_environment::baseline_target_register_environment(target).unwrap();
+                crate::register_environment::baseline_target_register_environment(target).unwrap();
             let scalar_type = ScalarType::IeeeFloat(format);
             let shape = crate::selection::scalar_call_abi::scalar_shape(scalar_type).unwrap();
             let mut source = fixture(target, 1);
@@ -115,7 +115,7 @@ fn ieee_stack_parameter_returns_through_exact_float_register_bank() {
             semantic_vocabulary::IeeeFloatFormat::Binary64,
         ] {
             let environment =
-                register_environment::baseline_target_register_environment(target).unwrap();
+                crate::register_environment::baseline_target_register_environment(target).unwrap();
             let scalar_type = ScalarType::IeeeFloat(format);
             let shape = crate::selection::scalar_call_abi::scalar_shape(scalar_type).unwrap();
             let mut source = fixture(target, 0);
@@ -209,7 +209,7 @@ fn unused_stack_parameters_keep_abi_without_inventing_entry_transport() {
         (target::NativeTarget::macos_arm64(), 8),
     ] {
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let mut source = fixture(target, 0);
         source.attachment = None;
         source.blocks[0].instructions.truncate(2);
@@ -376,7 +376,7 @@ fn narrow_integer_entry_snapshot_normalizes_bits_and_replay_rejects_substitution
             target::NativeTarget::macos_arm64(),
         ] {
             let environment =
-                register_environment::baseline_target_register_environment(target).unwrap();
+                crate::register_environment::baseline_target_register_environment(target).unwrap();
             let mut source = fixture(target, 0);
             let integer = IntegerType::new(sign, bits).unwrap();
             let scalar_type = ScalarType::Integer(integer);
@@ -412,7 +412,7 @@ fn narrow_integer_entry_snapshot_normalizes_bits_and_replay_rejects_substitution
                     IntegerValue::Unsigned(0)
                 });
             source.blocks[0].instructions[1].kind = LegalizedScalarInstructionKind::ExactBinary {
-                operator: legalized_operations::LegalizedExactIntegerOperator::Subtract,
+                operator: crate::legalized_operations::LegalizedExactIntegerOperator::Subtract,
                 left: input,
                 right: ValueId::new(1).unwrap(),
                 obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
@@ -489,7 +489,7 @@ fn raw_boolean_constants_reject_unsigned_two_before_selection() {
         target::NativeTarget::macos_arm64(),
     ] {
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),

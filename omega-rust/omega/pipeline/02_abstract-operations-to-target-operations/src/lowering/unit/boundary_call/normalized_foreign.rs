@@ -14,11 +14,11 @@ use super::{
     StructuralTypeShape, TargetStructuralParameter, TargetUnitOperation,
     TargetUnitScalarHomeRequirement, ValueId, ValueLocation, ValueShape,
 };
-use calling_conventions::ValueClass;
+use crate::calling_conventions::ValueClass;
+use crate::target_operations::{TargetStructuralArgument, TargetUnitScalarArgumentSource};
 #[cfg(test)]
 use semantic_vocabulary::BlockId;
 use semantic_vocabulary::MachineId;
-use target_operations::{TargetStructuralArgument, TargetUnitScalarArgumentSource};
 use terminal_psi::{StructuralAccess, StructuralPathSegment};
 
 /// Lower source-rooted borrowed structural arguments for one evaluated
@@ -50,12 +50,12 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
     target: NativeTarget,
     declaration: &terminal_psi::BoundaryMachineDeclaration,
     structural_arguments: &[terminal_psi::StructuralArgument],
-    boundary_entry_plan: &calling_conventions::BoundaryEntryPlan,
+    boundary_entry_plan: &crate::calling_conventions::BoundaryEntryPlan,
     structural_types: &StructuralTypeLookup<'_>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
-    native_callback: Option<&target_operations::TargetNativeCallbackArgument>,
+    native_callback: Option<&crate::target_operations::TargetNativeCallbackArgument>,
     operations: &[TargetUnitOperation],
 ) -> Result<Vec<TargetStructuralArgument>, LoweringError> {
     if structural_arguments.len() != declaration.structural_parameters.len()
@@ -102,7 +102,7 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                     (
                         home.structural_type(),
                         home.layout.shape(),
-                        target_operations::TargetStructuralArgumentSource::StructuralHome {
+                        crate::target_operations::TargetStructuralArgumentSource::StructuralHome {
                             psi_operation,
                         },
                     )
@@ -219,9 +219,9 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
             // a dominating call's result is the consumed-once owned aggregate
             // the verifier admits under affine multiplicity.
             let expected_multiplicity = match &argument_source {
-                target_operations::TargetStructuralArgumentSource::StructuralHome { .. } => {
-                    terminal_psi::StructuralMultiplicity::Affine
-                }
+                crate::target_operations::TargetStructuralArgumentSource::StructuralHome {
+                    ..
+                } => terminal_psi::StructuralMultiplicity::Affine,
                 _ => terminal_psi::StructuralMultiplicity::Unrestricted,
             };
             if projected_type != parameter.structural_type
@@ -340,12 +340,12 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
     declaration: &terminal_psi::BoundaryMachineDeclaration,
     function: &AbstractFunction,
     arguments: &[ValueId],
-    boundary_entry_plan: &calling_conventions::BoundaryEntryPlan,
+    boundary_entry_plan: &crate::calling_conventions::BoundaryEntryPlan,
     sources: &ScalarSources<'_>,
     result_shape: Option<ValueShape>,
-    native_callback: Option<&target_operations::TargetNativeCallbackArgument>,
+    native_callback: Option<&crate::target_operations::TargetNativeCallbackArgument>,
     structural_parameter_shapes: &[ValueShape],
-) -> Result<Vec<target_operations::NormalizedForeignScalarArgument>, LoweringError> {
+) -> Result<Vec<crate::target_operations::NormalizedForeignScalarArgument>, LoweringError> {
     if !declaration.has_valid_parameter_order()
         || structural_parameter_shapes.len() != declaration.structural_parameters.len()
     {
@@ -401,13 +401,13 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
                     callback.terminal_operation,
                 ));
             }
-            calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
+            crate::calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
                 boundary_entry_plan.clone(),
                 &signature,
                 &callback.registrar_context,
             )
         }
-        None => calling_conventions::validate_boundary_entry_plan(
+        None => crate::calling_conventions::validate_boundary_entry_plan(
             boundary_entry_plan.clone(),
             &signature,
         ),
@@ -480,7 +480,7 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
                 {
                     return Err(LoweringError::BoundaryRealizationMismatch(boundary));
                 }
-                Ok(target_operations::NormalizedForeignScalarArgument {
+                Ok(crate::target_operations::NormalizedForeignScalarArgument {
                     parameter_index: u32::try_from(parameter_index)
                         .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?,
                     source,
@@ -496,9 +496,9 @@ pub(super) fn lower_normalized_foreign_scalar_arguments(
     boundary: BoundaryMachineId,
     declaration: &terminal_psi::BoundaryMachineDeclaration,
     arguments: &[ValueId],
-    boundary_entry_plan: &calling_conventions::BoundaryEntryPlan,
+    boundary_entry_plan: &crate::calling_conventions::BoundaryEntryPlan,
     scalar_values: &BTreeMap<ValueId, KnownUnitInteger>,
-) -> Result<Vec<target_operations::NormalizedForeignScalarArgument>, LoweringError> {
+) -> Result<Vec<crate::target_operations::NormalizedForeignScalarArgument>, LoweringError> {
     let scalar_homes = BTreeMap::new();
     let booleans = BTreeMap::new();
     let ieee_float_constants = BTreeMap::new();
@@ -512,7 +512,7 @@ pub(super) fn lower_normalized_foreign_scalar_arguments(
             entry: BlockId::new(1).unwrap(),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
-            result: abstract_operations::AbstractFunctionResult::Unit,
+            result: terminal_psi_to_abstract_operations::abstract_operations::AbstractFunctionResult::Unit,
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             block_entries: Vec::new(),
@@ -537,8 +537,8 @@ pub(super) fn lower_normalized_foreign_scalar_result(
     boundary: BoundaryMachineId,
     declaration: &terminal_psi::BoundaryMachineDeclaration,
     defining_operation: OperationId,
-    result: Option<abstract_operations::AbstractResult>,
-    boundary_entry_plan: &calling_conventions::BoundaryEntryPlan,
+    result: Option<terminal_psi_to_abstract_operations::abstract_operations::AbstractResult>,
+    boundary_entry_plan: &crate::calling_conventions::BoundaryEntryPlan,
 ) -> Result<Option<TargetUnitScalarHomeRequirement>, LoweringError> {
     let (declaration_result, source_value) = match (&declaration.result, result) {
         (terminal_psi::BoundaryMachineResult::Unit, None) => {

@@ -13,9 +13,6 @@ use crate::proofs::content_conservation::LoweredContentPartitionCompositions;
 use crate::scalar_graph::scalar_computations;
 use crate::scalar_graph::scalar_contracts::LoweredProofTerm;
 use crate::scalar_graph::scalar_graph_lowering;
-use checked_trees::{
-    CheckedBooleanExpression, ClosedScalarContractValue, ClosedScalarValueContractPlan,
-};
 use semantic_vocabulary::{
     ClaimId, PlaceId, QualifiedScalarType, ScalarType, StructuralCaseId, StructuralFieldId,
     StructuralTypeId,
@@ -23,6 +20,9 @@ use semantic_vocabulary::{
 use terminal_psi::{
     CrashCause as TerminalCrashCause, StructuralArgument, StructuralParameterDeclaration,
     StructuralPathSegment,
+};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedBooleanExpression, ClosedScalarContractValue, ClosedScalarValueContractPlan,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -182,7 +182,7 @@ pub(crate) struct LoweredUnitCall {
     /// scalar leaves resolve at emission against the caller value namespace.
     pub(crate) erased_proof_arguments: Vec<LoweredProofTerm>,
     pub(crate) structural_arguments: Vec<StructuralArgument>,
-    pub(crate) crash_routes: Vec<checked_trees::CrashRouteBucket>,
+    pub(crate) crash_routes: Vec<typed_trees_to_checked_trees::checked_trees::CrashRouteBucket>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -201,7 +201,7 @@ pub(crate) struct PreparedScalarMachine {
     pub(crate) result_type: QualifiedScalarType,
     pub(crate) scalar_qualifications: terminal_psi::ScalarQualificationCatalog,
     pub(crate) contract: PreparedScalarContract,
-    pub(crate) crash_routes: Vec<checked_trees::CrashRouteBucket>,
+    pub(crate) crash_routes: Vec<typed_trees_to_checked_trees::checked_trees::CrashRouteBucket>,
     pub(crate) identity_reshuffles: LoweredContentIdentityReshuffles,
     pub(crate) partition_compositions: LoweredContentPartitionCompositions,
     pub(crate) loop_plan: Option<cycles::ScalarLoopPlan>,

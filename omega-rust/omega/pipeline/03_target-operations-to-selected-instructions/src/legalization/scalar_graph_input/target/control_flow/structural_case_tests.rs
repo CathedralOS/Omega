@@ -39,7 +39,7 @@ fn structural_case_graph_replays_exact_payloads_and_cleanup() {
                 .map(|block| block.id)
                 .collect::<Vec<_>>()
         );
-        let legalized_operations::LegalizedScalarTerminator::StructuralCase {
+        let crate::legalized_operations::LegalizedScalarTerminator::StructuralCase {
             cases,
             source: subject,
             ..
@@ -52,7 +52,7 @@ fn structural_case_graph_replays_exact_payloads_and_cleanup() {
         assert_eq!(cases[1].target, BlockId::new(30).unwrap());
         assert_eq!(
             cases[1].payloads[0].parameter.definition_site,
-            optimization_unit::ValueDefinitionSite::BlockParameter {
+            terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite::BlockParameter {
                 block: BlockId::new(30).unwrap(),
                 position: 0
             }
@@ -101,25 +101,25 @@ fn structural_case_graph_rejects_substituted_target_custody() {
             // A home-rooted dispatch cannot be re-rooted at a parameter the
             // function never declared, even with the home's exact layout.
             let layout = source.layout().clone();
-            let target_operations::TargetStructuralCaseSource::Home(home) = source else {
+            let abstract_operations_to_target_operations::target_operations::TargetStructuralCaseSource::Home(home) = source else {
                 panic!("home");
             };
-            let parameter = target_operations::TargetStructuralParameter {
+            let parameter = abstract_operations_to_target_operations::target_operations::TargetStructuralParameter {
                 place: home.place(),
                 structural_type: home.structural_type(),
                 multiplicity: home.multiplicity(),
                 access: terminal_psi::StructuralAccess::Owned,
                 projected_qualifications: Vec::new(),
                 shape: layout.shape(),
-                placement: calling_conventions::ValuePlacement {
+                placement: abstract_operations_to_target_operations::calling_conventions::ValuePlacement {
                     shape: layout.shape(),
                     locations: Vec::new(),
                 },
             };
             *source =
-                target_operations::TargetStructuralCaseSource::Parameter { parameter, layout };
+                abstract_operations_to_target_operations::target_operations::TargetStructuralCaseSource::Parameter { parameter, layout };
         }
-        let target_operations::TargetStructuralCaseSource::Home(source) = source else {
+        let abstract_operations_to_target_operations::target_operations::TargetStructuralCaseSource::Home(source) = source else {
             assert_eq!(mutation, "parameter root");
             assert!(
                 super::super::validate_target(
@@ -149,7 +149,7 @@ fn structural_case_graph_rejects_substituted_target_custody() {
             "field" => cases[1].payloads[0].field = StructuralFieldId::new(99).unwrap(),
             "offset" => cases[1].payloads[0].field_byte_offset = 0,
             "producer" => {
-                let target_operations::TargetStructuralHomeOrigin::OperationResult {
+                let abstract_operations_to_target_operations::target_operations::TargetStructuralHomeOrigin::OperationResult {
                     operation,
                     ..
                 } = &mut source.origin
@@ -159,7 +159,7 @@ fn structural_case_graph_rejects_substituted_target_custody() {
                 *operation = OperationId::new(99).unwrap();
             }
             "place" => {
-                let target_operations::TargetStructuralHomeOrigin::OperationResult {
+                let abstract_operations_to_target_operations::target_operations::TargetStructuralHomeOrigin::OperationResult {
                     result, ..
                 } = &mut source.origin
                 else {
@@ -168,7 +168,7 @@ fn structural_case_graph_rejects_substituted_target_custody() {
                 result.place = PlaceId::new(99).unwrap();
             }
             "layout" => {
-                let target_operations::TargetStructuralHomeLayout::Sum(layout) = &mut source.layout
+                let abstract_operations_to_target_operations::target_operations::TargetStructuralHomeLayout::Sum(layout) = &mut source.layout
                 else {
                     panic!("sum")
                 };

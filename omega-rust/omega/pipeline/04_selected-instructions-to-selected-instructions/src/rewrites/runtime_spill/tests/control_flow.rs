@@ -13,11 +13,11 @@ use crate::rewrites::runtime_spill::tests::{
     VirtualRegisterId, VirtualRegisterOrigin, baseline_target_register_environment, fixture,
     selected_instruction_plan_identity,
 };
-use selected_instructions::{
+use semantic_vocabulary::{BoundaryMachineId, OperationId};
+use target_operations_to_selected_instructions::{
     SelectedBlockOrigin, SelectedBoundarySettlement, SelectedBoundarySettlementPayload,
     SelectedSuccessor, SelectedSuccessorRole, SelectedValueBinding, SelectedValueTransport,
 };
-use semantic_vocabulary::{BoundaryMachineId, OperationId};
 
 pub(super) fn successor(destination: u32) -> SelectedSuccessor {
     SelectedSuccessor {
@@ -135,7 +135,7 @@ fn cyclic_parameter_fixture(target: NativeTarget, passthrough: bool) -> Validate
     });
     let mut back = successor(2);
     back.bindings.push(SelectedValueBinding {
-        semantic: abstract_operations::ValueBinding {
+        semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
             parameter: ValueId::new(2).unwrap(),
             argument: ValueId::new(2).unwrap(),
             scalar_type,

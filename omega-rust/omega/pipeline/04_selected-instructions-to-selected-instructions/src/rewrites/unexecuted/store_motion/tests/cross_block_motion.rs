@@ -8,20 +8,20 @@ use crate::rewrites::unexecuted::store_motion::{
     StoreMutationMotionError, ValidatedStoreMutationMotion, sink_selected_store_mutation,
     validate_store_mutation_motion,
 };
-use optimization_unit::ValueDefinitionSite;
-use register_environment::baseline_target_register_environment;
-use selected_instructions::{
+use semantic_vocabulary::{
+    BlockId, EdgeId, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralCaseId,
+    StructuralFieldId, ValueId,
+};
+use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
+use target_operations_to_selected_instructions::{
     LocalStorageSlotId, SelectedBlock, SelectedBlockId, SelectedBlockOrigin,
     SelectedCasePayloadBinding, SelectedCasePayloadTransport, SelectedFunction,
     SelectedInstructionId, SelectedInstructionKind, SelectedMemoryAccess, SelectedMemoryAccessRole,
     SelectedStructuralBinding, SelectedStructuralCaseEdge, SelectedStructuralTransport,
     SelectedTerminator, SelectedValueBinding, SelectedValueTransport, VirtualRegisterId,
 };
-use semantic_vocabulary::{
-    BlockId, EdgeId, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralCaseId,
-    StructuralFieldId, ValueId,
-};
-use target::NativeTarget;
+use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
 #[test]
 fn cross_block_store_sinks_across_the_edge() {
@@ -207,7 +207,7 @@ fn cross_block_packed_stores_carry_their_scratch() {
     let scratch_argument = mutated_chained(target, |function, environment| {
         pack_store(function, environment);
         crossed_edge(function).bindings.push(SelectedValueBinding {
-            semantic: abstract_operations::ValueBinding {
+            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                 parameter: ValueId::new(5).unwrap(),
                 argument: ValueId::new(1).unwrap(),
                 scalar_type: ScalarType::Integer(
@@ -234,7 +234,7 @@ fn cross_block_packed_stores_carry_their_scratch() {
     let scratch_parameter = mutated_chained(target, |function, environment| {
         pack_store(function, environment);
         crossed_edge(function).bindings.push(SelectedValueBinding {
-            semantic: abstract_operations::ValueBinding {
+            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                 parameter: ValueId::new(5).unwrap(),
                 argument: ValueId::new(1).unwrap(),
                 scalar_type: ScalarType::Integer(
@@ -270,10 +270,10 @@ fn cross_block_packed_stores_carry_their_scratch() {
             case: StructuralCaseId::new(1).unwrap(),
             case_tag: 0,
             payloads: vec![SelectedCasePayloadBinding {
-                semantic: legalized_operations::LegalizedStructuralCasePayload {
+                semantic: target_operations_to_selected_instructions::legalized_operations::LegalizedStructuralCasePayload {
                     field: StructuralFieldId::new(1).unwrap(),
                     field_byte_offset: 0,
-                    parameter: legalized_operations::LegalizedValueDefinition {
+                    parameter: target_operations_to_selected_instructions::legalized_operations::LegalizedValueDefinition {
                         value: ValueId::new(5).unwrap(),
                         scalar_type: ScalarType::Integer(
                             IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
@@ -366,17 +366,17 @@ fn cross_block_local_slot_store_sinks_across_the_edge() {
         let store64 = environment
             .constraint(environment.selected_keys().store64.unwrap())
             .unwrap();
-        function
-            .local_storage_slots
-            .push(selected_instructions::SelectedLocalStorageSlot {
+        function.local_storage_slots.push(
+            target_operations_to_selected_instructions::SelectedLocalStorageSlot {
                 id: slot,
                 byte_size: 16,
                 alignment: 8,
-            });
+            },
+        );
         function.blocks[0].instructions[1] = instruction(
             STORE,
             SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(slot),
                 byte_offset: 0,
             },
             store64,
@@ -421,17 +421,17 @@ fn cross_block_local_slot_store_sinks_across_the_edge() {
         let store64 = environment
             .constraint(environment.selected_keys().store64.unwrap())
             .unwrap();
-        function
-            .local_storage_slots
-            .push(selected_instructions::SelectedLocalStorageSlot {
+        function.local_storage_slots.push(
+            target_operations_to_selected_instructions::SelectedLocalStorageSlot {
                 id: slot,
                 byte_size: 16,
                 alignment: 8,
-            });
+            },
+        );
         function.blocks[0].instructions[1] = instruction(
             STORE,
             SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(slot),
                 byte_offset: 0,
             },
             store64,
@@ -439,7 +439,7 @@ fn cross_block_local_slot_store_sinks_across_the_edge() {
         );
         function.memory_accesses[0].role = SelectedMemoryAccessRole::WriteLocal { slot };
         crossed_edge(function).bindings.push(SelectedValueBinding {
-            semantic: abstract_operations::ValueBinding {
+            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                 parameter: ValueId::new(5).unwrap(),
                 argument: ValueId::new(1).unwrap(),
                 scalar_type: ScalarType::Integer(
@@ -466,17 +466,17 @@ fn cross_block_local_slot_store_sinks_across_the_edge() {
         let store64 = environment
             .constraint(environment.selected_keys().store64.unwrap())
             .unwrap();
-        function
-            .local_storage_slots
-            .push(selected_instructions::SelectedLocalStorageSlot {
+        function.local_storage_slots.push(
+            target_operations_to_selected_instructions::SelectedLocalStorageSlot {
                 id: slot,
                 byte_size: 16,
                 alignment: 8,
-            });
+            },
+        );
         function.blocks[0].instructions[1] = instruction(
             STORE,
             SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(slot),
                 byte_offset: 0,
             },
             store64,
@@ -484,7 +484,7 @@ fn cross_block_local_slot_store_sinks_across_the_edge() {
         );
         function.memory_accesses[0].role = SelectedMemoryAccessRole::WriteLocal { slot };
         crossed_edge(function).bindings.push(SelectedValueBinding {
-            semantic: abstract_operations::ValueBinding {
+            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                 parameter: ValueId::new(5).unwrap(),
                 argument: ValueId::new(1).unwrap(),
                 scalar_type: ScalarType::Integer(
@@ -527,22 +527,26 @@ fn cross_block_staging_slot_store_sinks_across_the_edge() {
         operation: OperationId::new(9).unwrap(),
         place: place(),
     };
-    let staged_pair = |edit: Option<&dyn Fn(&mut selected_instructions::SelectedFunction)>| {
+    let staged_pair = |edit: Option<
+        &dyn Fn(&mut target_operations_to_selected_instructions::SelectedFunction),
+    >| {
         mutated_chained(target, |function, environment| {
             let store64 = environment
                 .constraint(environment.selected_keys().store64.unwrap())
                 .unwrap();
-            function
-                .local_storage_slots
-                .push(selected_instructions::SelectedLocalStorageSlot {
+            function.local_storage_slots.push(
+                target_operations_to_selected_instructions::SelectedLocalStorageSlot {
                     id: slot,
                     byte_size: 16,
                     alignment: 8,
-                });
+                },
+            );
             function.blocks[0].instructions[1] = instruction(
                 STORE,
                 SelectedInstructionKind::Store64 {
-                    slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                    slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(
+                        slot,
+                    ),
                     byte_offset: 0,
                 },
                 store64,
@@ -551,7 +555,9 @@ fn cross_block_staging_slot_store_sinks_across_the_edge() {
             function.blocks[1].instructions[0] = instruction(
                 KILLER,
                 SelectedInstructionKind::Store64 {
-                    slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                    slot: target_operations_to_selected_instructions::FrameStorageSlotId::Local(
+                        slot,
+                    ),
                     byte_offset: 0,
                 },
                 store64,
@@ -593,7 +599,7 @@ fn cross_block_staging_slot_store_sinks_across_the_edge() {
         crossed_edge(function)
             .structural_bindings
             .push(SelectedStructuralBinding {
-                semantic: abstract_operations::AbstractStructuralBinding {
+                semantic: terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding {
                     parameter: PlaceId::new(2).unwrap(),
                     argument: terminal_psi::StructuralArgument {
                         place: PlaceId::new(2).unwrap(),
@@ -620,7 +626,7 @@ fn cross_block_staging_slot_store_sinks_across_the_edge() {
         crossed_edge(function)
             .structural_bindings
             .push(SelectedStructuralBinding {
-                semantic: abstract_operations::AbstractStructuralBinding {
+                semantic: terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding {
                     parameter: PlaceId::new(2).unwrap(),
                     argument: terminal_psi::StructuralArgument {
                         place: PlaceId::new(2).unwrap(),
@@ -680,7 +686,7 @@ fn cross_block_staging_slot_store_sinks_across_the_edge() {
     // crossed block's end.
     let value_edge = staged_pair(Some(&|function| {
         crossed_edge(function).bindings.push(SelectedValueBinding {
-            semantic: abstract_operations::ValueBinding {
+            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                 parameter: ValueId::new(5).unwrap(),
                 argument: ValueId::new(1).unwrap(),
                 scalar_type: ScalarType::Integer(
@@ -791,7 +797,7 @@ fn cross_block_byte_sequence_store_sinks_across_the_edge() {
         crossed_edge(function)
             .structural_bindings
             .push(SelectedStructuralBinding {
-                semantic: abstract_operations::AbstractStructuralBinding {
+                semantic: terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding {
                     parameter: PlaceId::new(2).unwrap(),
                     argument: terminal_psi::StructuralArgument {
                         place: PlaceId::new(2).unwrap(),
@@ -824,7 +830,7 @@ fn cross_block_byte_sequence_store_sinks_across_the_edge() {
     let redefined = mutated_chained(target, |function, environment| {
         sequence_store(function, environment, 8);
         crossed_edge(function).bindings.push(SelectedValueBinding {
-            semantic: abstract_operations::ValueBinding {
+            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                 parameter: ValueId::new(5).unwrap(),
                 argument: ValueId::new(1).unwrap(),
                 scalar_type: ScalarType::Integer(
@@ -1017,7 +1023,7 @@ fn cross_block_constant_index_rows_decide_by_the_landing_byte() {
             8,
         );
         crossed_edge(function).bindings.push(SelectedValueBinding {
-            semantic: abstract_operations::ValueBinding {
+            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                 parameter: ValueId::new(5).unwrap(),
                 argument: ValueId::new(1).unwrap(),
                 scalar_type: ScalarType::Integer(
@@ -1675,7 +1681,7 @@ fn cross_block_unreconciled_forks_land_at_the_fork_end() {
     let environment = baseline_target_register_environment(target).unwrap();
     let forked = |edit: fn(
         &mut SelectedFunction,
-        &register_environment::ValidatedTargetRegisterEnvironment,
+        &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
     )| {
         mutated_chained(target, move |function, environment| {
             let branch = environment
@@ -1870,7 +1876,7 @@ fn cross_block_unreconciled_forks_land_at_the_fork_end() {
             unreachable!()
         };
         when_nonzero.bindings.push(SelectedValueBinding {
-            semantic: abstract_operations::ValueBinding {
+            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                 parameter: ValueId::new(20).unwrap(),
                 argument: ValueId::new(1).unwrap(),
                 scalar_type: ScalarType::Integer(
@@ -2266,7 +2272,7 @@ fn cross_block_edge_transports_and_terminator_rows_decide() {
     // across the edge still sinks.
     let carried = mutated_chained(target, |function, _| {
         crossed_edge(function).bindings.push(SelectedValueBinding {
-            semantic: abstract_operations::ValueBinding {
+            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                 parameter: ValueId::new(5).unwrap(),
                 argument: ValueId::new(1).unwrap(),
                 scalar_type: ScalarType::Integer(
@@ -2292,7 +2298,7 @@ fn cross_block_edge_transports_and_terminator_rows_decide() {
     // moved store would read; the store lands at the crossed block's end.
     let redefined = mutated_chained(target, |function, _| {
         crossed_edge(function).bindings.push(SelectedValueBinding {
-            semantic: abstract_operations::ValueBinding {
+            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
                 parameter: ValueId::new(5).unwrap(),
                 argument: ValueId::new(1).unwrap(),
                 scalar_type: ScalarType::Integer(
@@ -2320,7 +2326,7 @@ fn cross_block_edge_transports_and_terminator_rows_decide() {
         crossed_edge(function)
             .structural_bindings
             .push(SelectedStructuralBinding {
-                semantic: abstract_operations::AbstractStructuralBinding {
+                semantic: terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding {
                     parameter: PlaceId::new(2).unwrap(),
                     argument: terminal_psi::StructuralArgument {
                         place: PlaceId::new(2).unwrap(),
@@ -2385,10 +2391,10 @@ fn cross_block_edge_transports_and_terminator_rows_decide() {
             case: StructuralCaseId::new(1).unwrap(),
             case_tag: 0,
             payloads: vec![SelectedCasePayloadBinding {
-                semantic: legalized_operations::LegalizedStructuralCasePayload {
+                semantic: target_operations_to_selected_instructions::legalized_operations::LegalizedStructuralCasePayload {
                     field: StructuralFieldId::new(1).unwrap(),
                     field_byte_offset: 0,
-                    parameter: legalized_operations::LegalizedValueDefinition {
+                    parameter: target_operations_to_selected_instructions::legalized_operations::LegalizedValueDefinition {
                         value: ValueId::new(5).unwrap(),
                         scalar_type: ScalarType::Integer(
                             IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),

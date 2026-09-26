@@ -309,7 +309,7 @@ substituted receiving plans. Interpreter-only or encoding checks do not replace
 native caller-observation controls on both Linux architectures.
 
 Current source and native limits belong beside
-[Terminal production](../../../omega-rust/psi/compiler/terminal-production/README.md#structural-access-and-stores)
+[Terminal production](../../../omega-rust/psi/pipeline/07_lowered-psi-to-terminal-psi/terminal_production.md#structural-access-and-stores)
 and [ABI lowering](../../../omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/README.md).
 Unsupported forms reject; bounded implementation support does not redefine
 reference semantics.

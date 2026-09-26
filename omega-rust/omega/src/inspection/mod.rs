@@ -13,11 +13,11 @@
 
 pub mod evidence;
 
+use crate::compiler::{CheckedCompileRequest, CompileOptions};
+use crate::package_manager::operations as packages;
+use crate::package_manager::operations::LocalProjectPreparationOptions;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use compiler::{CheckedCompileRequest, CompileOptions};
 use diagnostics::Diagnostic;
-use package_manager::operations as packages;
-use package_manager::operations::LocalProjectPreparationOptions;
 use std::path::PathBuf;
 use terminal_psi::TerminalModule;
 
@@ -36,7 +36,7 @@ pub struct TerminalInspection {
 pub enum InspectTerminalError {
     Diagnostics(Vec<Diagnostic>),
     Preparation(packages::PrepareLocalProjectError),
-    Review(package_manager::review::CompileResolvedPackageReviewsError),
+    Review(crate::package_manager::review::CompileResolvedPackageReviewsError),
     Lowering {
         machine: String,
         error: checked_trees_to_lowered_psi::LoweringError,
@@ -87,9 +87,9 @@ pub fn inspect_terminal(
         machine: request.machine.clone(),
         error,
     })?;
-    compiler::validate_lowered_ieee_float_comparison_custody(&checked, &lowered)
+    crate::compiler::validate_lowered_ieee_float_comparison_custody(&checked, &lowered)
         .map_err(InspectTerminalError::Diagnostics)?;
-    compiler::validate_lowered_integer_comparison_custody(&checked, &lowered)
+    crate::compiler::validate_lowered_integer_comparison_custody(&checked, &lowered)
         .map_err(InspectTerminalError::Diagnostics)?;
     let fixed_fuel =
         evidence::inspect(&lowered.semantic_module, &lowered.proof_bundle).map_err(|error| {
@@ -117,7 +117,7 @@ pub fn inspect_terminal(
 /// stays targetless, as before.
 fn check_inspection_sources(
     request: &InspectTerminalRequest,
-) -> Result<compiler::CheckedCompilation, InspectTerminalError> {
+) -> Result<crate::compiler::CheckedCompilation, InspectTerminalError> {
     let target = crate::invocation_target_profile(request.target_name.as_deref())
         .map_err(|diagnostic| InspectTerminalError::Diagnostics(vec![diagnostic]))?;
     let prepared = packages::prepare_local_project(
@@ -129,7 +129,7 @@ fn check_inspection_sources(
     )
     .map_err(InspectTerminalError::Preparation)?;
     let Some(prepared) = prepared else {
-        return compiler::compile_to_checked(CheckedCompileRequest::new(
+        return crate::compiler::compile_to_checked(CheckedCompileRequest::new(
             &request.root_path,
             request.target_name.as_deref(),
         ))

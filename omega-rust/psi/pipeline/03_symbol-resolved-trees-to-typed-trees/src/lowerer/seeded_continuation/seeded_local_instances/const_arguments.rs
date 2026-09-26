@@ -1,12 +1,12 @@
 //! Exact replay for the first seeded scalar-const instance rung.
 
 use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
-use symbol_resolved_trees::{
+use symbols::{BuiltinTypeAtom, SymbolHandle, SymbolKind};
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::{
     SymbolResolvedTrees,
     data::{TypeParameter, TypeParameterKind},
     types::TypeReference,
 };
-use symbols::{BuiltinTypeAtom, SymbolHandle, SymbolKind};
 
 #[derive(Clone, Copy)]
 enum ScalarConstCarrier {
@@ -27,7 +27,7 @@ pub(super) fn parameter_is_supported(
             TypeParameterKind::Type => true,
             TypeParameterKind::Const { type_reference }
             | TypeParameterKind::Value { type_reference } => {
-                parameter.bounds == symbol_resolved_trees::data::DataProperties::default()
+                parameter.bounds == syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataProperties::default()
                     && (scalar_carrier(source, type_reference).is_some()
                         || super::structured_const_arguments::carrier_is_supported(
                             source,
@@ -109,10 +109,10 @@ pub(super) fn template_argument_is_supported(
 pub(super) fn substituted_array_length_matches(
     source: &SymbolResolvedTrees,
     substitutions: &[(SymbolHandle, &TypeReference)],
-    template: &symbol_resolved_trees::types::FixedArrayLength,
-    instance: &symbol_resolved_trees::types::FixedArrayLength,
+    template: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::FixedArrayLength,
+    instance: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::FixedArrayLength,
 ) -> bool {
-    use symbol_resolved_trees::types::FixedArrayLength;
+    use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::FixedArrayLength;
     if template == instance {
         return true;
     }
@@ -149,9 +149,9 @@ pub(super) fn array_length_is_supported(
     source: &SymbolResolvedTrees,
     owner: SymbolHandle,
     owner_parameters: &[TypeParameter],
-    length: &symbol_resolved_trees::types::FixedArrayLength,
+    length: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::FixedArrayLength,
 ) -> bool {
-    use symbol_resolved_trees::types::FixedArrayLength;
+    use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::FixedArrayLength;
     match length {
         FixedArrayLength::Literal(_) => true,
         FixedArrayLength::ConstParameter { symbol, name } => {

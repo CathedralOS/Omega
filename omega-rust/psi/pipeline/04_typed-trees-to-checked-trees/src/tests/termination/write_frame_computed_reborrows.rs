@@ -143,7 +143,7 @@ fn computed_reborrows_publish_proven_referents_and_fail_closed() {
             "#
         );
         let typed = typed_program(&source);
-        let resolver = validation::CallFrameResolver::new(&typed).expect("resolver");
+        let resolver = crate::validation::CallFrameResolver::new(&typed).expect("resolver");
         let machine = typed
             .machines()
             .iter()

@@ -1,19 +1,21 @@
 //! Borrow primitive referents from incoming pointers or established local storage.
 use super::LiveDefinitions;
 use crate::LoweringError;
+use crate::calling_conventions::ValueShape;
 use crate::lowering::function_signature::{PreparedFunctionSignature, prepare_function_signature};
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractFunction, AbstractFunctionResult, AbstractOperation};
-use calling_conventions::ValueShape;
-use semantic_vocabulary::MachineId;
-use std::collections::{BTreeMap, BTreeSet};
-use target::NativeTarget;
-use target_operations::TargetStructuralArgumentSource;
-use target_operations::{
+use crate::target_operations::TargetStructuralArgumentSource;
+use crate::target_operations::{
     TargetStructuralArgument, TargetStructuralParameter, TargetUnitOperation,
     TargetUnitScalarCallArgument, TerminalPsiProvenance,
 };
+use semantic_vocabulary::MachineId;
+use std::collections::{BTreeMap, BTreeSet};
+use target::NativeTarget;
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralPathSegment};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractFunction, AbstractFunctionResult, AbstractOperation,
+};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower(
@@ -182,13 +184,13 @@ pub(super) fn lower(
         .map(|result| super::primitive_storage::retain_result(psi_operation, result, live))
         .transpose()?;
     operations.push(TargetUnitOperation::Call {
-        origin: target_operations::NativeCallOrigin::Authored,
+        origin: crate::target_operations::NativeCallOrigin::Authored,
         psi_operation,
         callee,
         call_plan: signature.call_plan,
         result: result_home.map_or(
-            target_operations::TargetCallResult::Unit,
-            target_operations::TargetCallResult::Scalar,
+            crate::target_operations::TargetCallResult::Unit,
+            crate::target_operations::TargetCallResult::Scalar,
         ),
         scalar_arguments,
         arguments: target_arguments,
@@ -513,11 +515,11 @@ fn byte_argument(
             *structural_type,
             if crate::lowering::scalar::element_views::is_element_view_parameter(declaration, types)
             {
-                target_operations::TargetStructuralArgumentSource::EstablishedElementView {
+                crate::target_operations::TargetStructuralArgumentSource::EstablishedElementView {
                     psi_operation: *producer,
                 }
             } else {
-                target_operations::TargetStructuralArgumentSource::EstablishedByteView {
+                crate::target_operations::TargetStructuralArgumentSource::EstablishedByteView {
                     psi_operation: *producer,
                 }
             },
@@ -547,7 +549,7 @@ fn byte_argument(
         }
         (
             parameter.structural_type,
-            target_operations::TargetStructuralArgumentSource::BlockParameter {
+            crate::target_operations::TargetStructuralArgumentSource::BlockParameter {
                 block: entry.block,
                 place: parameter.place,
             },

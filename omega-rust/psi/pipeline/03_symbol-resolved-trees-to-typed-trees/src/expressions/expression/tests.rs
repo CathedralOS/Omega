@@ -1,9 +1,9 @@
 use super::lower_expression_handle_from_table;
+use crate::typed_trees as typed;
 use arena::HandleSpan;
 use source::SourceSpan;
-use symbol_resolved_trees as resolved;
 use symbols::SymbolHandle;
-use typed_trees as typed;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees as resolved;
 
 fn authored_selection_occurrences() -> [resolved::AuthoredDeclarationSelectionOccurrenceId; 2] {
     let mut selections = resolved::AuthoredDeclarationSelections::default();

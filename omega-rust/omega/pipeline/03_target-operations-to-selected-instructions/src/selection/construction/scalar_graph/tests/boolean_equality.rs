@@ -3,8 +3,8 @@ use super::{
     IntegerSign, IntegerType, IntegerValue, LegalizedScalarFunction,
     LegalizedScalarInstructionKind, ScalarType, SelectedSelectionConstraints, ValueId, build,
 };
+use crate::legalized_operations::LegalizedScalarComparison as Comparison;
 use crate::selection::construction::scalar_graph::tests::control;
-use legalized_operations::LegalizedScalarComparison as Comparison;
 
 #[test]
 fn boolean_comparison_replay_rejects_operand_carrier_and_ordering_substitution() {
@@ -15,7 +15,7 @@ fn boolean_comparison_replay_rejects_operand_carrier_and_ordering_substitution()
         target::NativeTarget::windows_x64(),
     ] {
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),

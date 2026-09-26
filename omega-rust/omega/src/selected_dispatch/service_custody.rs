@@ -1,0 +1,371 @@
+//! Exact Fused routed-service custody at the checked-to-Terminal boundary.
+
+mod parameters;
+mod root;
+
+pub use root::{derive_fused_program_entry_establishments, program_entry_service_requirements};
+
+use crate::provider_planning::CompositionMode;
+use crate::provider_planning::SelectedProviderReviewProvenance;
+use diagnostics::Diagnostic;
+use symbol_resolved_trees_to_typed_trees::typed_trees::data::{
+    DataDefinition, DataField, DataMember,
+};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedFusedServiceErasureReceipt, CheckedTrees, CheckedUnitPlanOmissionStage,
+    CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType, CheckedUnitStructuralTypeShape,
+};
+
+/// Rejoin every checked routed `Binding<R>` carrier erasure to its exact
+/// typed source field or direct owned parameter and owner-controlled Fused
+/// selected-provider plan. This runs immediately before Terminal production,
+/// where erasure becomes irreversible.
+pub fn validate_fused_service_terminal_custody(
+    checked: &CheckedTrees,
+    selected: &[SelectedProviderReviewProvenance],
+) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    for plan in &checked.facts.flow.terminal_unit_effects.structural_types {
+        let CheckedUnitStructuralTypeShape::Record { fields } = &plan.shape else {
+            if structural_shape_contains_fused_service(&plan.shape) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "checked structural type `{}` carries a fused Service erasure outside its exact record field",
+                    plan.identity,
+                )));
+            }
+            continue;
+        };
+        let mut owner_symbols = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter()
+            .filter(|machine| {
+                machine.attachment_type_identity.as_deref() == Some(plan.identity.as_str())
+            })
+            .map(|machine| machine.machine)
+            .chain(
+                checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .composed_machines
+                    .iter()
+                    .filter(|machine| {
+                        machine.attachment_type_identity.as_deref() == Some(plan.identity.as_str())
+                    })
+                    .map(|machine| machine.machine),
+            )
+            .filter_map(|machine_symbol| {
+                checked
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.symbol == machine_symbol)
+                    .map(|machine| machine.attached_data_symbol)
+            })
+            .collect::<Vec<_>>();
+        if owner_symbols.is_empty() {
+            // A record attached only to boundary-supply machines carries no
+            // unit plan, yet its machines still hold it by `&mut self`:
+            // provider nominals and leg records are owned exactly by their
+            // attached boundary leaves. The owner stays unique — the shape
+            // identity is the data definition's exact normalized identity.
+            owner_symbols = checked
+                .machines()
+                .iter()
+                .filter(|machine| {
+                    attached_data_shape_identity(checked, machine).as_deref()
+                        == Some(plan.identity.as_str())
+                })
+                .map(|machine| machine.attached_data_symbol)
+                .collect();
+        }
+        owner_symbols.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+        owner_symbols.dedup();
+        let owners = owner_symbols
+            .iter()
+            .filter_map(|owner| {
+                checked
+                    .data_definitions()
+                    .iter()
+                    .find(|definition| definition.symbol == *owner)
+            })
+            .collect::<Vec<_>>();
+        let [owner] = owners.as_slice() else {
+            if fields.iter().any(|field| {
+                matches!(
+                    field.field_type,
+                    CheckedUnitStructuralFieldType::FusedServiceBacked { .. }
+                )
+            }) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "checked structural type `{}` cannot rejoin its fused Binding fields to one exact typed owner",
+                    plan.identity,
+                )));
+            }
+            continue;
+        };
+        validate_record_fields(checked, selected, owner, fields, &mut diagnostics);
+    }
+    parameters::validate(checked, selected, &mut diagnostics);
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
+fn validate_record_fields(
+    checked: &CheckedTrees,
+    selected: &[SelectedProviderReviewProvenance],
+    owner: &DataDefinition,
+    checked_fields: &[CheckedUnitStructuralFieldPlan],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for member in checked.data_members(owner) {
+        let DataMember::Field(source_field) = member else {
+            continue;
+        };
+        let source_identity = data_field_identity(source_field);
+        let checked_matches = checked_fields
+            .iter()
+            .filter(|field| field.identity == source_identity)
+            .collect::<Vec<_>>();
+        let classification = symbol_resolved_trees_to_typed_trees::typed_trees::service::classify_exact_bound_service_carrier(
+            checked,
+            source_field.type_reference,
+        );
+        let Ok(Some(carrier)) = classification else {
+            if let Err(reason) = classification {
+                diagnostics.push(Diagnostic::error(format!(
+                    "typed field `{}::{}` has an invalid routed Binding carrier at Terminal custody: {reason}",
+                    owner.name, source_field.name,
+                )));
+            }
+            for field in checked_matches {
+                if matches!(
+                    field.field_type,
+                    CheckedUnitStructuralFieldType::FusedServiceBacked { .. }
+                ) {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "checked field `{}::{}` fabricates a fused Service erasure for a non-Service source field",
+                        owner.name, source_field.name,
+                    )));
+                }
+            }
+            continue;
+        };
+        let [checked_field] = checked_matches.as_slice() else {
+            diagnostics.push(Diagnostic::error(format!(
+                "typed routed Binding field `{}::{}` rejoins {} checked structural fields; expected one",
+                owner.name,
+                source_field.name,
+                checked_matches.len(),
+            )));
+            continue;
+        };
+        let CheckedUnitStructuralFieldType::FusedServiceBacked {
+            provider_type_identity,
+            erasure,
+        } = &checked_field.field_type
+        else {
+            // Shape collection keeps a carrier field whose requirement has no
+            // selected provider as the unerased ProviderBacked shape, so the
+            // record keeps its plan and discovery can nominate the provider.
+            // No erasure happened there, so custody has nothing to rejoin;
+            // establishment owns rejecting a missing selection where one is
+            // required. A field whose selection exists but whose shape is not
+            // Fused has lost its settlement.
+            if matches!(
+                checked_field.field_type,
+                CheckedUnitStructuralFieldType::ProviderBacked { .. }
+            ) && checked.fused_service_erasure(carrier.requirement).is_none()
+            {
+                continue;
+            }
+            diagnostics.push(Diagnostic::error(format!(
+                "typed routed Binding field `{}::{}` lost its exact Fused erasure settlement",
+                owner.name, source_field.name,
+            )));
+            continue;
+        };
+        let source_type_identity = checked
+            .normalized_type_identity(source_field.type_reference)
+            .into_string();
+        if provider_type_identity != &source_type_identity {
+            diagnostics.push(Diagnostic::error(format!(
+                "checked routed Binding field `{}::{}` substituted its normalized carrier identity",
+                owner.name, source_field.name,
+            )));
+            continue;
+        }
+        validate_receipt(
+            checked,
+            selected,
+            owner,
+            source_field,
+            carrier.requirement,
+            *erasure,
+            diagnostics,
+        );
+    }
+
+    for checked_field in checked_fields {
+        if !matches!(
+            checked_field.field_type,
+            CheckedUnitStructuralFieldType::FusedServiceBacked { .. }
+        ) {
+            continue;
+        }
+        let source_matches = checked
+            .data_members(owner)
+            .iter()
+            .filter_map(|member| match member {
+                DataMember::Field(field)
+                    if data_field_identity(field) == checked_field.identity =>
+                {
+                    Some(field)
+                }
+                _ => None,
+            })
+            .count();
+        if source_matches != 1 {
+            diagnostics.push(Diagnostic::error(format!(
+                "checked fused Binding field `{}::{}` rejoins {source_matches} typed source fields; expected one",
+                owner.name, checked_field.identity,
+            )));
+        }
+    }
+}
+
+fn validate_receipt(
+    checked: &CheckedTrees,
+    selected: &[SelectedProviderReviewProvenance],
+    owner: &DataDefinition,
+    field: &DataField,
+    requirement: symbols::SymbolHandle,
+    receipt: CheckedFusedServiceErasureReceipt,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if receipt.requirement != requirement {
+        diagnostics.push(Diagnostic::error(format!(
+            "checked routed Binding field `{}::{}` substituted its boundary requirement",
+            owner.name, field.name,
+        )));
+        return;
+    }
+    if checked.fused_service_erasure(requirement).is_none() {
+        diagnostics.push(Diagnostic::error(format!(
+            "checked routed Binding field `{}::{}` lacks compiler-owned Fused erasure authority",
+            owner.name, field.name,
+        )));
+        return;
+    }
+    let Some(requirement_definition) = checked
+        .traits()
+        .iter()
+        .find(|definition| definition.symbol == requirement)
+    else {
+        diagnostics.push(Diagnostic::error(format!(
+            "checked routed Binding field `{}::{}` lost its exact boundary requirement",
+            owner.name, field.name,
+        )));
+        return;
+    };
+    let Some(schema) =
+        crate::provider_planning::service_schema::from_typed(checked, requirement_definition)
+    else {
+        diagnostics.push(Diagnostic::error(format!(
+            "checked routed Binding field `{}::{}` cannot reconstruct its boundary schema",
+            owner.name, field.name,
+        )));
+        return;
+    };
+    let matching = selected
+        .iter()
+        .filter(|candidate| {
+            candidate.plan.schema == schema
+                && candidate.selected_by.composition_mode() == Ok(CompositionMode::Fused)
+        })
+        .count();
+    if matching != 1 {
+        diagnostics.push(Diagnostic::error(format!(
+            "checked routed Binding field `{}::{}` rejoins {matching} exact Fused selected-provider plans; expected one",
+            owner.name, field.name,
+        )));
+    }
+}
+
+fn data_field_identity(field: &DataField) -> String {
+    field
+        .identity
+        .map(|identity| format!("#{identity}"))
+        .unwrap_or_else(|| field.name.as_str().to_owned())
+}
+
+/// The unit-plan attachment identity of a machine's declared owner, matching
+/// the shape collector's spelling: the exact applied reference when the
+/// machine carries one, else the non-generic data definition's own.
+fn attached_data_shape_identity(
+    checked: &CheckedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+) -> Option<String> {
+    if machine.attached_data_application.is_valid() {
+        return Some(
+            checked
+                .normalized_type_identity(machine.attached_data_application)
+                .into_string(),
+        );
+    }
+    let data = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == machine.attached_data_symbol)?;
+    if let Some(application) = data.generic_instance {
+        return Some(checked.normalized_type_identity(application).into_string());
+    }
+    if !checked.data_type_parameters(data).is_empty() {
+        return None;
+    }
+    let mut escaped = String::new();
+    for character in checked.symbols.display_path(data.symbol, "::").chars() {
+        if matches!(character, '\\' | '(' | ')' | ',') {
+            escaped.push('\\');
+        }
+        escaped.push(character);
+    }
+    Some(format!("named(name({escaped}))"))
+}
+
+fn structural_shape_contains_fused_service(shape: &CheckedUnitStructuralTypeShape) -> bool {
+    match shape {
+        CheckedUnitStructuralTypeShape::Record { fields } => fields.iter().any(|field| {
+            matches!(
+                field.field_type,
+                CheckedUnitStructuralFieldType::FusedServiceBacked { .. }
+            )
+        }),
+        CheckedUnitStructuralTypeShape::Sum { cases } => cases
+            .iter()
+            .any(|case| case.fields.iter().any(fused_service_field)),
+        CheckedUnitStructuralTypeShape::Mixed { fields, cases } => {
+            fields.iter().any(fused_service_field)
+                || cases
+                    .iter()
+                    .any(|case| case.fields.iter().any(fused_service_field))
+        }
+        CheckedUnitStructuralTypeShape::Reference { .. }
+        | CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
+        | CheckedUnitStructuralTypeShape::ByteSequence(_)
+        | CheckedUnitStructuralTypeShape::FixedArray { .. }
+        | CheckedUnitStructuralTypeShape::BorrowedSliceView { .. } => false,
+    }
+}
+
+fn fused_service_field(field: &CheckedUnitStructuralFieldPlan) -> bool {
+    matches!(
+        field.field_type,
+        CheckedUnitStructuralFieldType::FusedServiceBacked { .. }
+    )
+}

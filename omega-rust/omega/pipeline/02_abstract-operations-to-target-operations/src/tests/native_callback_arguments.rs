@@ -3,19 +3,19 @@ use super::{
     BoundaryMachineId, CallSignature, CallingPolicy, MachineId, NativeTarget, OperationId,
     ValueShape, bind_native_callback_arguments, identity, validate_native_callback_target_rows,
 };
-use abstract_operations::AbstractFunctionResult;
-use calling_conventions::{
+use crate::calling_conventions::{
     CallbackBinderRequirement, CallbackMaterialization, CallbackMaterializationContext,
     CallbackRequirementId, NativeCallbackDemand, NativeParameterApplication, NativeParameterId,
     NativePlace, StaticMachineBinderId,
 };
-use function_identity::{MachineFunctionIdentity, StateKey};
+use crate::function_identity::{MachineFunctionIdentity, StateKey};
 use symbols::SymbolHandle;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractFunctionResult;
 
 fn callback_admission(operation: OperationId) -> crate::AdmittedNativeCallbackArgument {
     let target = NativeTarget::linux_x64();
     let shape = ValueShape::integer(8, 8);
-    let mut registrar = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+    let mut registrar = crate::calling_conventions::evaluate_ordinary_boundary_entry_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {
             parameters: vec![shape, shape, shape],
@@ -90,7 +90,7 @@ fn abstract_plan(operation: OperationId) -> AbstractOperationPlan {
             }],
             operations: vec![AbstractOperation::BoundaryCall {
                 psi_operation: operation,
-                result: abstract_operations::AbstractBoundaryResult::Unit,
+                result: terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Unit,
                 boundary,
                 arguments: Vec::new(),
                 structural_arguments: Vec::new(),
@@ -172,7 +172,7 @@ fn native_callback_admission_is_unique_exact_and_transactionally_consumed() {
         );
     }
 
-    let empty_target = target_operations::TargetOperationPlan {
+    let empty_target = crate::target_operations::TargetOperationPlan {
         psi: plan.psi,
         target: NativeTarget::linux_x64(),
         entry: plan.entry,

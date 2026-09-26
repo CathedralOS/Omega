@@ -1,8 +1,8 @@
 //! Wire schema derivation for lowered data definitions.
 
 use crate::resolution::lowerer::Lowerer;
-use symbol_resolved_trees::data::{DataDefinition, DataMember, DataProperties};
-use symbol_resolved_trees::wire::{WireField, WireMember, WireReserved, WireSchema};
+use crate::symbol_resolved_trees::data::{DataDefinition, DataMember, DataProperties};
+use crate::symbol_resolved_trees::wire::{WireField, WireMember, WireReserved, WireSchema};
 
 /// Derive the current record codec's view from the ordinary declaration.
 ///
@@ -72,10 +72,10 @@ pub(crate) fn derive_wire_schema(lowerer: &mut Lowerer, definition: &DataDefinit
 
 #[cfg(test)]
 mod tests {
+    use crate::symbol_resolved_trees::data::DataMember;
+    use crate::symbol_resolved_trees::wire::WireMember;
     use crate::{ResolutionRequest, resolve};
     use source_files_to_tokens::Lexer;
-    use symbol_resolved_trees::data::DataMember;
-    use symbol_resolved_trees::wire::WireMember;
     use tokens_to_syntax_trees::parse_syntax_trees;
 
     #[test]

@@ -126,7 +126,7 @@ pub(super) fn selected(selected: &mut SelectedFunction, scalar_count: usize, mut
         }
         24 => rows[position]
             .clobbers
-            .push(register_model::RegisterUnitId(999)),
+            .push(crate::register_model::RegisterUnitId(999)),
         _ => unreachable!(),
     }
 }
@@ -157,7 +157,7 @@ pub(super) fn source(source: &mut LegalizedScalarFunction, scalar_count: usize, 
         9 => target.fixed_array_length = Some(2),
         10 => target.element_stride = Some(8),
         11 => {
-            let target_operations::TargetStructuralArgumentSource::Placement(placement) =
+            let abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::Placement(placement) =
                 &mut target.source
             else {
                 panic!("borrowed placement");
@@ -219,9 +219,11 @@ pub(super) fn source(source: &mut LegalizedScalarFunction, scalar_count: usize, 
         19 => call
             .requirement_obligations
             .push(ObligationId::new(99).unwrap()),
-        20 => row
-            .ownership
-            .push(optimization_unit::OwnershipEvent::ClaimTransfer(Vec::new())),
+        20 => row.ownership.push(
+            terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::ClaimTransfer(
+                Vec::new(),
+            ),
+        ),
         21 => {
             row.result.as_mut().unwrap().scalar_type =
                 ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap())

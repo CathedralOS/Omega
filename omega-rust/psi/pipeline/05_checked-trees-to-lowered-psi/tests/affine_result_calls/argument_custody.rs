@@ -1,6 +1,8 @@
 use super::{CheckedUnitEffectOperationPlan, checked, lower_machine};
-use checked_trees::{CheckedCallScalarArgument, CheckedScalarExpressionRole};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedCallScalarArgument, CheckedScalarExpressionRole,
+};
 
 #[test]
 fn mixed_argument_roots_rejoin_dense_scalar_positions_and_exact_occurrences() {

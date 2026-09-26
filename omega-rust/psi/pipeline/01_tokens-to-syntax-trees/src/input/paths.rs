@@ -1,5 +1,5 @@
+use crate::syntax_trees::identifier::Identifier;
 use source::{SourceSpan, Span};
-use syntax_trees::identifier::Identifier;
 
 pub(crate) fn join_path_identifier(members: &[Identifier]) -> Identifier {
     let mut name = String::new();
@@ -30,8 +30,8 @@ pub(crate) fn join_path_identifier(members: &[Identifier]) -> Identifier {
 #[cfg(test)]
 mod tests {
     use super::join_path_identifier;
+    use crate::syntax_trees::identifier::Identifier;
     use source::{SourceId, SourceSpan, Span};
-    use syntax_trees::identifier::Identifier;
 
     #[test]
     fn joined_machine_path_retains_authored_source_span() {

@@ -110,7 +110,7 @@ fn named_dead_scalar_suite_reaches_a_custody_preserving_fixed_point() {
             .flat_map(|record| &record.provenance)
             .all(|row| matches!(
                 row.disposition,
-                optimization_unit::ProvenanceDisposition::RealizedAt(_)
+                terminal_psi_to_abstract_operations::optimization_unit::ProvenanceDisposition::RealizedAt(_)
             ))
     );
     assert_eq!(manifest.unwrap().ordered_rules().len(), 2);

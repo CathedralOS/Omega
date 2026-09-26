@@ -1,6 +1,8 @@
 use source_files_to_tokens::Lexer;
-use symbol_resolved_trees::data::{MachineParameterContract, TypeParameterKind};
-use symbol_resolved_trees::types::TypeReference;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::{
+    MachineParameterContract, TypeParameterKind,
+};
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::parse_syntax_trees;
 
@@ -63,7 +65,8 @@ fn resolves_trait_requirement_argument_as_exact_state_identity() {
     assert_eq!(*symbol, callback_requirement.symbol);
 }
 
-fn shadowed_method_program() -> symbol_resolved_trees::SymbolResolvedTrees {
+fn shadowed_method_program()
+-> syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::SymbolResolvedTrees {
     let tokens = Lexer::new(
         "domain<Value> u64::Tagged<Value>;\n\
          boundary trait Device<T, Owner> {\n\
@@ -136,7 +139,7 @@ fn method_type_binder_shadows_owner_in_membership_arguments() {
     let contracts = program.signature_contracts(signature.contracts);
     assert_eq!(contracts.len(), 2);
     for (contract, expected) in contracts.iter().zip([method.symbol, retained.symbol]) {
-        let [symbol_resolved_trees::domain::ProofFact::Membership(membership)] =
+        let [syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::domain::ProofFact::Membership(membership)] =
             program.proof_facts(contract.facts)
         else {
             panic!("membership contract")

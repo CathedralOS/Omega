@@ -1,3 +1,4 @@
+use crate::checked_trees::{BorrowCallFact, BorrowFacts};
 use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression;
 use crate::flow::canonical_place_from_symbol;
@@ -10,11 +11,10 @@ use crate::semantic::calls::CallSite;
 use crate::semantic::calls::find_call_site;
 use crate::semantic::calls::find_state;
 use crate::semantic::calls::find_state_in_machine;
-use checked_trees::{BorrowCallFact, BorrowFacts};
 use symbols::SymbolHandle;
 
 pub(crate) fn call_receiver_is_mutable(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     borrow_call: &BorrowCallFact,
 ) -> bool {
@@ -40,7 +40,7 @@ pub(crate) fn call_receiver_is_mutable(
 }
 
 pub(crate) fn call_receiver_mutated_place(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow_call: &BorrowCallFact,
@@ -68,7 +68,7 @@ pub(crate) fn call_receiver_mutated_place(
 /// replayed site carrying the same recorded coordinate reaches the same
 /// place; see `receiver_place_for_call_site`.
 pub(crate) fn canonical_receiver_place_for_call_site(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     call_site: &CallSite<'_>,
@@ -91,7 +91,7 @@ pub(crate) fn canonical_receiver_place_for_call_site(
 }
 
 fn receiver_place_for_call_site(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     call_site: &CallSite<'_>,
@@ -108,8 +108,11 @@ fn receiver_place_for_call_site(
             // index is this exact call payload, so a replayed copy of the same
             // row resolves the same boundary while a coordinate naming a
             // different statement declines to the receiver-symbol fallback.
-            if let Some(typed_trees::statement::StatementNode::Call(candidate)) =
-                statements.get(statement_index)
+            if let Some(
+                symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Call(
+                    candidate,
+                ),
+            ) = statements.get(statement_index)
                 && *candidate == **statement
                 && let Some((root, segments)) = crate::lookup::projected_statement_receiver_place(
                     program,
@@ -119,7 +122,7 @@ fn receiver_place_for_call_site(
                 )
             {
                 return Some(CanonicalPlace {
-                    root: facts::PlaceRoot::Symbol(root),
+                    root: crate::fact_plan::PlaceRoot::Symbol(root),
                     segments,
                 });
             }
@@ -157,9 +160,9 @@ fn receiver_place_for_call_site(
 }
 
 fn canonical_self_receiver_path(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     caller_state_symbol: SymbolHandle,
-    statement: &typed_trees::statement::TableCall,
+    statement: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableCall,
 ) -> Option<CanonicalPlace> {
     let members = statement_call_receiver_members(program, statement)?;
     if members
@@ -175,7 +178,7 @@ fn canonical_self_receiver_path(
         .iter()
         .find(|parameter| parameter.is_self)?;
     let mut place = CanonicalPlace {
-        root: facts::PlaceRoot::Symbol(self_parameter.symbol),
+        root: crate::fact_plan::PlaceRoot::Symbol(self_parameter.symbol),
         segments: Vec::new(),
     };
 
@@ -195,7 +198,7 @@ fn canonical_self_receiver_path(
 }
 
 fn resolve_self_receiver_member_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     place: &CanonicalPlace,
     member_name: &str,
 ) -> Option<SymbolHandle> {
@@ -205,7 +208,7 @@ fn resolve_self_receiver_member_symbol(
 
 fn canonical_place_root_symbol(place: &CanonicalPlace) -> Option<SymbolHandle> {
     match place.root {
-        facts::PlaceRoot::Symbol(symbol) => Some(symbol),
+        crate::fact_plan::PlaceRoot::Symbol(symbol) => Some(symbol),
         _ => None,
     }
 }

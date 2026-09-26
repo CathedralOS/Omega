@@ -1,12 +1,14 @@
 //! Match effects fork after each comparison and meet at the result join.
 //! A saved subject is not a promise about its storage after a pattern writes it;
 //! only unchanged stable inputs can publish branch-local comparison evidence.
+use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use crate::checked_trees::{FlowConstraintRef, FlowSemanticContextRef};
+use crate::fact_plan::{FactPayload, ProgramPoint};
 use crate::flow::expression::Execution;
 use arena::HandleSpan;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use checked_trees::{FlowConstraintRef, FlowSemanticContextRef};
-use facts::{FactPayload, ProgramPoint};
-use typed_trees::expression::{MatchPattern, TableMatchExpression};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    MatchPattern, TableMatchExpression,
+};
 
 impl Execution<'_, '_, '_> {
     pub(super) fn dispatch(
@@ -53,7 +55,9 @@ impl Execution<'_, '_, '_> {
                         arena::Handle::from_parts(arm_index, dispatch.arms.start().generation());
                     self.record_operator_invocation(
                         expression,
-                        checked_trees::CheckedOperatorOccurrence::MatchEquality { source_arm },
+                        crate::checked_trees::CheckedOperatorOccurrence::MatchEquality {
+                            source_arm,
+                        },
                         &[subject_operand, pattern_operand],
                         *constraints,
                     );

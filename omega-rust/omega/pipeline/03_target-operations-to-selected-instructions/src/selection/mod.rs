@@ -29,14 +29,14 @@ mod silent_boundary_input;
 mod validation;
 pub(crate) mod value_transport;
 
+pub use crate::selected_instructions::selected_instruction_plan_identity;
 pub use model::{
     SelectedInstructionError, SelectedInstructionValidationReceipt, ValidatedSelectedInstructions,
 };
-pub use selected_instructions::selected_instruction_plan_identity;
 pub use validation::validate_selected_instructions;
 
-use register_model::{ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog};
-use selected_instructions::SelectedSelectionConstraints;
+use crate::register_model::{ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog};
+use crate::selected_instructions::SelectedSelectionConstraints;
 
 use crate::legalization::ValidatedLegalizedOperations;
 use construction::build_plan;
@@ -57,8 +57,8 @@ pub fn select_instructions(
 /// content identities of the validated physical model and constraint catalog.
 type EnvironmentKey = (
     target::NativeTarget,
-    register_model::PhysicalRegisterModelIdentity,
-    register_model::RegisterConstraintCatalogIdentity,
+    crate::register_model::PhysicalRegisterModelIdentity,
+    crate::register_model::RegisterConstraintCatalogIdentity,
 );
 
 /// The joined register environment is a pure function of the target and the
@@ -72,14 +72,14 @@ pub(crate) fn target_register_environment(
     physical: &ValidatedPhysicalRegisterModel,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<
-    register_environment::ValidatedTargetRegisterEnvironment,
-    register_environment::TargetRegisterEnvironmentValidationError,
+    crate::register_environment::ValidatedTargetRegisterEnvironment,
+    crate::register_environment::TargetRegisterEnvironmentValidationError,
 > {
     static ENVIRONMENTS: std::sync::OnceLock<
         std::sync::Mutex<
             Vec<(
                 EnvironmentKey,
-                register_environment::ValidatedTargetRegisterEnvironment,
+                crate::register_environment::ValidatedTargetRegisterEnvironment,
             )>,
         >,
     > = std::sync::OnceLock::new();
@@ -90,7 +90,7 @@ pub(crate) fn target_register_environment(
     {
         return Ok(environment.clone());
     }
-    let environment = register_environment::validate_target_register_environment(
+    let environment = crate::register_environment::validate_target_register_environment(
         target,
         physical.model().clone(),
         catalog.catalog().clone(),

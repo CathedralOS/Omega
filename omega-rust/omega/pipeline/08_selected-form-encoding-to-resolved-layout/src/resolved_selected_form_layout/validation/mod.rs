@@ -3,8 +3,8 @@
 //! Policy, ordinary rows, structural rows, and aggregate identity descend
 //! separately. Candidate branch bytes are accepted only by target decoders.
 
-use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
+use target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel;
 
 use post_allocation_machine_to_selected_form_encoding::{
     StagedOptimizedSelectedFormEncoding,

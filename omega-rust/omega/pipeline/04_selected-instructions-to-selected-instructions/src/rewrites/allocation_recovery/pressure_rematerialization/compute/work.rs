@@ -1,5 +1,5 @@
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use selected_instructions::SelectedInstructionPlan;
+use target_operations_to_selected_instructions::SelectedInstructionPlan;
 
 use crate::{FunctionPressureRematerialization, PressureRematerializationError};
 

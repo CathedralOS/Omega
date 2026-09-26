@@ -3,7 +3,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationUnitIdentity,
 };
-use optimization_unit::{PsiOptimizationUnit, recompute_psi_optimization_unit_identity};
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    PsiOptimizationUnit, recompute_psi_optimization_unit_identity,
+};
 
 use super::{AnalysisProduct, analysis_dependencies, compute_analysis};
 

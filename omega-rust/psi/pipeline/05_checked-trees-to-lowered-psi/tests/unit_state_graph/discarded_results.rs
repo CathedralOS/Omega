@@ -2,7 +2,6 @@ use super::{
     AdmissionProfile, TerminalEffect, TerminalExecutionResult, encode_module, encode_proof_section,
     interpret_terminal_artifact_measured,
 };
-use checked_trees::CheckedUnitEffectOperationPlan;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
@@ -11,6 +10,7 @@ use terminal_interpreter::{
     TerminalStructuralValue,
 };
 use terminal_psi::{StructuralPathSegment, TerminalMachineResult};
+use typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan;
 
 const SOURCE: &str = r#"
     boundary trait Output { machine write(bytes: &[u8], marker: u8) reaches Output; }
@@ -114,10 +114,10 @@ fn discarded_result_still_requires_exact_source_and_cleanup() {
             0 => *discard_result_on_return = true,
             1 => result.binding_ordinal += 1,
             2 => coordinate.statement_index += 1,
-            3 => {
-                *target_contract_commitment =
-                    checked_trees::MachineContractCommitment::from_digest([0x5a; 32])
-            }
+            3 => *target_contract_commitment =
+                typed_trees_to_checked_trees::checked_trees::MachineContractCommitment::from_digest(
+                    [0x5a; 32],
+                ),
             4 => {
                 let state = checked.typed.machine_states(
                     checked
@@ -129,8 +129,9 @@ fn discarded_result_still_requires_exact_source_and_cleanup() {
                 )[0]
                 .clone();
                 let handle = state.statement_nodes.start();
-                let checked_trees::statement::StatementNode::Call(call) =
-                    checked.typed.statement_table.statement_mut(handle)
+                let typed_trees_to_checked_trees::checked_trees::statement::StatementNode::Call(
+                    call,
+                ) = checked.typed.statement_table.statement_mut(handle)
                 else {
                     panic!("authored discard");
                 };
@@ -269,7 +270,7 @@ fn graph_result_call_cannot_substitute_a_same_typed_mutable_input() {
         unreachable!()
     };
     structural_arguments[0].source =
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 1 };
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 1 };
     let error = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),

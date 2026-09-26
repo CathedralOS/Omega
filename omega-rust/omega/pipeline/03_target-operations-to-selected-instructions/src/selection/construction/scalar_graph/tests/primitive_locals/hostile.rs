@@ -9,10 +9,10 @@ use super::{
     OperationId, PlaceId, SelectedFunction, SelectedInstructionKind, SelectedSelectionConstraints,
     ValueId, ValueShape, build, evaluate_call_plan,
 };
-use crate::selection::construction::scalar_graph::tests::primitive_locals::local_fixture;
-use selected_instructions::{
+use crate::selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
 };
+use crate::selection::construction::scalar_graph::tests::primitive_locals::local_fixture;
 
 #[test]
 fn repeated_local_borrows_pass_the_original_pointer_in_exact_outgoing_stack_slots() {
@@ -78,7 +78,8 @@ fn repeated_local_borrows_pass_the_original_pointer_in_exact_outgoing_stack_slot
                     Some(6),
                 );
                 let environment =
-                    register_environment::baseline_target_register_environment(target).unwrap();
+                    crate::register_environment::baseline_target_register_environment(target)
+                        .unwrap();
                 let constraints = SelectedSelectionConstraints {
                     keys: environment.selected_keys(),
                     fixed_inputs: Vec::new(),
@@ -127,8 +128,8 @@ fn repeated_local_borrows_pass_the_original_pointer_in_exact_outgoing_stack_slot
                     .virtual_register;
                 for raw in [3, 5] {
                     let operation = OperationId::new(raw).unwrap();
-                    let slot = selected_instructions::OutgoingArgumentSlotId {
-                        role: selected_instructions::OutgoingArgumentSlotRole::Argument,
+                    let slot = crate::selected_instructions::OutgoingArgumentSlotId {
+                        role: crate::selected_instructions::OutgoingArgumentSlotRole::Argument,
                         operation,
                         argument_index: scalar_count as u32,
                     };
@@ -226,7 +227,11 @@ pub(super) fn append(
     let operation = OperationId::new(raw).unwrap();
     let scalar_type = source.blocks[0].instructions[0].result.unwrap().scalar_type;
     let ownership = if matches!(kind, LegalizedScalarInstructionKind::Call(_)) {
-        vec![optimization_unit::OwnershipEvent::ClaimTransfer(Vec::new())]
+        vec![
+            terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::ClaimTransfer(
+                Vec::new(),
+            ),
+        ]
     } else {
         Vec::new()
     };
@@ -276,7 +281,7 @@ fn clobber_fixture(target: target::NativeTarget) -> LegalizedScalarFunction {
         7,
         LegalizedScalarInstructionKind::PrimitiveLocalStore {
             destination: place,
-            value: abstract_operations::AbstractResult {
+            value: terminal_psi_to_abstract_operations::abstract_operations::AbstractResult {
                 value: ValueId::new(3).unwrap(),
                 scalar_type: scalar,
             },
@@ -338,7 +343,7 @@ fn local_reads_and_scalar_results_survive_a_second_borrowed_call_without_substit
     ] {
         let source = clobber_fixture(target);
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),

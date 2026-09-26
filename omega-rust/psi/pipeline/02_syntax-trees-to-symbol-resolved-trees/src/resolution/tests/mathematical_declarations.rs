@@ -4,14 +4,14 @@
 //! parameters, plus name resolution inside carriers, results and bodies.
 
 use crate::resolution::{ExtensionRequest, ResolutionRequest, resolve_extension};
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
+use crate::symbol_resolved_trees::expression::ExpressionNode;
+use crate::symbol_resolved_trees::mathematical::{MathematicalBody, MathematicalType};
+use crate::symbol_resolved_trees::types::TypeReference;
 use source::{SourceMap, SourceOrigin, SourceResolutionStratum};
 use source_files_to_tokens::Lexer;
 use std::path::PathBuf;
 use std::sync::Arc;
-use symbol_resolved_trees::SymbolResolvedTrees;
-use symbol_resolved_trees::expression::ExpressionNode;
-use symbol_resolved_trees::mathematical::{MathematicalBody, MathematicalType};
-use symbol_resolved_trees::types::TypeReference;
 use symbols::SymbolKind;
 use tokens_to_syntax_trees::{parse_syntax_trees, parse_syntax_trees_with_id};
 

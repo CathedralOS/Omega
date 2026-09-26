@@ -1,5 +1,5 @@
 //! Input-only custody for functions whose structural places are local literals.
-use legalized_operations::{LegalizedScalarFunction, LegalizedScalarInstructionKind};
+use crate::legalized_operations::{LegalizedScalarFunction, LegalizedScalarInstructionKind};
 use semantic_vocabulary::StructuralPlaceKind;
 
 pub(super) fn accepts(source: &LegalizedScalarFunction) -> bool {

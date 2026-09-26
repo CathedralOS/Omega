@@ -1,24 +1,24 @@
 //! Attached Unit closure and transfer regression families.
 
 use super::{
-    LoweringError, PermissionClaimIdentity, checked_source_with_core_service,
-    hard_root_checked_fixture, lower_machine, unit_claim_at,
+    PermissionClaimIdentity, checked_source_with_core_service, hard_root_checked_fixture,
+    lower_machine, unit_claim_at,
 };
-use crate::TerminalMachineSelection;
 use crate::machine_lowering::machine_dispatch;
 use crate::proofs::operation_proofs::finalize_operation_proofs;
 use crate::terminal_identities::{
     boundary_machine_id, claim_id, edge_id, machine_id, place_id, service_id, structural_domain_id,
 };
-use checked_trees::{
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape,
-};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use language_semantics::Multiplicity;
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{
     OperationKind, StructuralFieldType, StructuralMultiplicity, StructuralPathSegment,
     StructuralTypeShape, Terminator,
+};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape,
 };
 #[test]
 fn array_call_numeric_requirements_use_completed_argument_facts() {
@@ -178,12 +178,12 @@ fn attached_unit_record_field_custody_crosses_call_and_boundary_settlement() {
         .type_identity
         .clone();
     let plans = &mut checked.facts.flow.terminal_unit_effects;
-    plans
-        .structural_types
-        .push(checked_trees::CheckedUnitStructuralTypePlan {
+    plans.structural_types.push(
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypePlan {
             identity: "example::Token".to_owned(),
             shape: CheckedUnitStructuralTypeShape::Record { fields: Vec::new() },
-        });
+        },
+    );
     let acknowledgement = plans
         .structural_types
         .iter_mut()
@@ -228,19 +228,21 @@ fn attached_unit_nested_record_claim_lowers_through_complete_closure() {
         .clone();
     let plans = &mut checked.facts.flow.terminal_unit_effects;
     plans.structural_types.extend([
-        checked_trees::CheckedUnitStructuralTypePlan {
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypePlan {
             identity: "example::Pocket".to_owned(),
             shape: CheckedUnitStructuralTypeShape::Record {
-                fields: vec![checked_trees::CheckedUnitStructuralFieldPlan {
-                    identity: "#9".to_owned(),
-                    relevance: terminal_psi::BindingRelevance::Relevant,
-                    field_type: CheckedUnitStructuralFieldType::Structural {
-                        type_identity: "example::Token".to_owned(),
+                fields: vec![
+                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralFieldPlan {
+                        identity: "#9".to_owned(),
+                        relevance: terminal_psi::BindingRelevance::Relevant,
+                        field_type: CheckedUnitStructuralFieldType::Structural {
+                            type_identity: "example::Token".to_owned(),
+                        },
                     },
-                }],
+                ],
             },
         },
-        checked_trees::CheckedUnitStructuralTypePlan {
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypePlan {
             identity: "example::Token".to_owned(),
             shape: CheckedUnitStructuralTypeShape::Record { fields: Vec::new() },
         },
@@ -310,12 +312,12 @@ fn attached_unit_disjoint_sibling_claims_lower_as_one_aggregate_transfer() {
         .type_identity
         .clone();
     let plans = &mut checked.facts.flow.terminal_unit_effects;
-    plans
-        .structural_types
-        .push(checked_trees::CheckedUnitStructuralTypePlan {
+    plans.structural_types.push(
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypePlan {
             identity: "example::Token".to_owned(),
             shape: CheckedUnitStructuralTypeShape::Record { fields: Vec::new() },
-        });
+        },
+    );
     let acknowledgement = plans
         .structural_types
         .iter_mut()
@@ -330,7 +332,7 @@ fn attached_unit_disjoint_sibling_claims_lower_as_one_aggregate_transfer() {
     };
     fields.insert(
         1,
-        checked_trees::CheckedUnitStructuralFieldPlan {
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralFieldPlan {
             identity: "#9".to_owned(),
             relevance: terminal_psi::BindingRelevance::Relevant,
             field_type: CheckedUnitStructuralFieldType::Structural {
@@ -360,10 +362,12 @@ fn attached_unit_disjoint_sibling_claims_lower_as_one_aggregate_transfer() {
     else {
         unreachable!()
     };
-    claim_transfers.push(checked_trees::CheckedUnitClaimTransferPlan {
-        claim_identity: root_sibling_claim,
-        argument_index: 0,
-    });
+    claim_transfers.push(
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitClaimTransferPlan {
+            claim_identity: root_sibling_claim,
+            argument_index: 0,
+        },
+    );
     let helper_sibling_claim = plans.machines[1].entry_claims[1].claim_identity;
     let CheckedUnitEffectOperationPlan::BoundaryCall {
         completion_receipts,
@@ -372,10 +376,12 @@ fn attached_unit_disjoint_sibling_claims_lower_as_one_aggregate_transfer() {
     else {
         unreachable!()
     };
-    completion_receipts.push(checked_trees::CheckedUnitClaimTransferPlan {
-        claim_identity: helper_sibling_claim,
-        argument_index: 0,
-    });
+    completion_receipts.push(
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitClaimTransferPlan {
+            claim_identity: helper_sibling_claim,
+            argument_index: 0,
+        },
+    );
 
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("both sibling resources should cross the complete Unit closure");
@@ -506,7 +512,7 @@ fn attached_unit_hard_root_fails_closed_on_missing_transitive_member() {
     assert!(format!("{result:?}").contains("Helper::run"), "{result:?}");
     assert!(matches!(
         result,
-        Err(LoweringError::InvalidUnitMachinePlan { machine, reason, .. })
+        Err(checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan { machine, reason, .. })
             if machine == "Helper::run"
                 && reason == "attached Unit closure is missing a checked transitive machine plan"
     ));
@@ -536,7 +542,7 @@ fn attached_unit_duplicate_plan_names_the_ambiguous_helper() {
         .push(duplicate);
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(LoweringError::InvalidUnitMachinePlan { machine, reason, .. })
+        Err(checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan { machine, reason, .. })
             if machine == "Helper::run"
                 && reason == "attached Unit closure contains duplicate checked machine plans"
     ));
@@ -559,7 +565,7 @@ fn attached_unit_boundary_rejects_missing_canonical_contract_custody() {
 
     assert_eq!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(LoweringError::Unsupported(
+        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
             "Unit boundary target is missing its canonical checked contract identity",
         )),
     );
@@ -571,12 +577,14 @@ fn attached_unit_boundary_rejects_compact_equal_commitment_substitution() {
     let boundary = &mut checked.facts.flow.terminal_unit_effects.boundary_machines[0];
     let retained_report = boundary.contract_report_fingerprint;
     boundary.contract_commitment =
-        checked_trees::MachineContractCommitment::from_digest([0x5a; 32]);
+        typed_trees_to_checked_trees::checked_trees::MachineContractCommitment::from_digest(
+            [0x5a; 32],
+        );
     assert_eq!(boundary.contract_report_fingerprint, retained_report);
 
     assert_eq!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(LoweringError::Unsupported(
+        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
             "Unit boundary target contract compatibility coordinate or strong commitment drifted",
         )),
     );
@@ -608,7 +616,7 @@ fn attached_unit_port_write_requires_exact_direct_checked_port_service() {
 
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(LoweringError::Unsupported(
+        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
             "port output does not carry the unique exact checked PortIo service"
         ))
     ));
@@ -649,7 +657,7 @@ fn attached_unit_borrowed_self_roots_an_ordinary_field_argument_beside_provider_
     );
     let selection = machine_dispatch::select_terminal_machine(
         &checked,
-        TerminalMachineSelection::Name("Main::main"),
+        crate::TerminalMachineSelection::Name("Main::main"),
     )
     .expect("Main::main is the unique terminal selection");
     let lowered = machine_dispatch::lower_selected_machine(&checked, selection)

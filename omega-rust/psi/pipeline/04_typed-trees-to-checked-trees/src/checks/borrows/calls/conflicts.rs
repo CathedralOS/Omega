@@ -1,4 +1,4 @@
-use checked_trees::{
+use crate::checked_trees::{
     BorrowAccessKind, BorrowCallCompatibilityOperand, BorrowCallCompatibilitySubject,
     BorrowCallFact, CheckFacts, FlowStateFact,
 };
@@ -11,16 +11,16 @@ use super::super::overlap::{StatedOrderingPremise, canonical_place_for_loan};
 use super::evidence::{CallCompatibility, argument_operand, loan_operand};
 
 pub(super) fn check_call_access_conflicts<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     borrow_call: &BorrowCallFact,
-    entry_constraints: arena::HandleSpan<checked_trees::FlowConstraintRef>,
+    entry_constraints: arena::HandleSpan<crate::checked_trees::FlowConstraintRef>,
     target_name: &str,
     stated_premises: &[StatedOrderingPremise],
     diagnostics: &mut Vec<Diagnostic>,
     recording: &mut CallCompatibility<'_>,
-    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
+    bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
 ) {
     let accesses: Vec<_> = facts
         .borrow

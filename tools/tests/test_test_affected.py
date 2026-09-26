@@ -60,8 +60,8 @@ class SelectionTests(unittest.TestCase):
                      "OWNER_QUESTIONS.md", "TASKS_BOOTSTRAP.md", "TASKS_OPTIMIZER.md",
                      "wiki/proposals/example.md", "wiki/new.md",
                      "tools/testing.md", "tools/benchmark/README.md",
-                     "omega-rust/omega/representations/optimization-core/rules.md",
-                     "omega-rust/omega/representations/optimization-core/promotions/rule.md"]:
+                     "omega-rust/psi/optimization-core/rules.md",
+                     "omega-rust/psi/optimization-core/promotions/rule.md"]:
             with self.subTest(path=path):
                 self.assertEqual(self.select(path), ("none()", [], []))
         for path in ["fixtures/input.md", "wiki/input.omg", "wiki/config.toml",
@@ -115,7 +115,7 @@ class SelectionTests(unittest.TestCase):
 
     def test_reader_implementation_change_requires_full_recheck(self):
         expression, _, reasons = self.select(
-            "omega-rust/psi/semantics/terminal-codec/src/trust_graph.rs")
+            "omega-rust/psi/terminal-codec/src/trust_graph.rs")
         self.assertEqual(expression, "all()")
         self.assertTrue(reasons)
 

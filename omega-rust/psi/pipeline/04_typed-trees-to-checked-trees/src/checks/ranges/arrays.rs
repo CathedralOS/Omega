@@ -1,13 +1,17 @@
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    FixedArrayLength, TypeReferenceHandle, TypeReferenceNode,
+};
 use symbols::SymbolHandle;
-use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) fn fixed_array_field_lengths(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
 ) -> Vec<(SymbolHandle, String, usize)> {
     let mut fields = Vec::new();
     for data in program.data_definitions() {
         for member in program.data_members(data) {
-            let typed_trees::data::DataMember::Field(field) = member else {
+            let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) =
+                member
+            else {
                 continue;
             };
             let Some(length) = fixed_array_type_length(program, field.type_reference) else {
@@ -20,7 +24,7 @@ pub(super) fn fixed_array_field_lengths(
 }
 
 pub(in crate::checks) fn fixed_array_type_length(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<usize> {
     if bounded_byte_type_capacity(program, type_reference).is_some() {
@@ -53,9 +57,12 @@ pub(in crate::checks) fn fixed_array_type_length(
 /// orchestration const-eval pass owns their substitution) and literals resolve
 /// on the concrete lane, so neither names a symbolic bound.
 pub(in crate::checks) fn fixed_array_type_symbolic_extent(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
-) -> Option<(SymbolHandle, typed_trees::name::Identifier)> {
+) -> Option<(
+    SymbolHandle,
+    symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
+)> {
     if bounded_byte_type_capacity(program, type_reference).is_some() {
         return None;
     }
@@ -78,13 +85,13 @@ pub(in crate::checks) fn fixed_array_type_symbolic_extent(
 }
 
 pub(super) fn bounded_byte_type_capacity(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<usize> {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {
             bounded_byte_type_capacity(program, *referee)
         }
-        _ => validation::bounded_byte_buffer_capacity(program, type_reference),
+        _ => crate::validation::bounded_byte_buffer_capacity(program, type_reference),
     }
 }

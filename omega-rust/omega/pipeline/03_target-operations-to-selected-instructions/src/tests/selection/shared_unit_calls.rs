@@ -1,13 +1,13 @@
 //! Selection retains repeated Unit calls and rejects forged result/reference transport.
+use crate::legalized_operations::LegalizedScalarArgument;
+use crate::selected_instructions::{SelectedInstructionKind, VirtualRegisterOrigin};
 use crate::tests::fixtures::shared_unit_calls::fixture;
 use crate::{
     legalize_target_operations, select_instructions, selection_constraints,
     validate_selected_instructions,
 };
-use abstract_operations::AbstractOperation;
-use legalized_operations::LegalizedScalarArgument;
-use selected_instructions::{SelectedInstructionKind, VirtualRegisterOrigin};
 use semantic_vocabulary::FuelScheduleIdentity;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
 
 #[test]
 fn repeated_shared_unit_calls_select_on_each_native_register_abi() {
@@ -20,7 +20,7 @@ fn repeated_shared_unit_calls_select_on_each_native_register_abi() {
         let (abstracted, targeted, unit) = fixture(native);
         let legalized = legalize_target_operations(&targeted, &abstracted, &unit).unwrap();
         let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
+            crate::register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = selection_constraints(&legalized, &environment);
         let selected = select_instructions(
             &legalized,
@@ -76,7 +76,7 @@ fn repeated_shared_unit_calls_select_on_each_native_register_abi() {
                     else {
                         panic!("Boolean");
                     };
-                    placement.shape = calling_conventions::ValueShape::integer(8, 8);
+                    placement.shape = abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(8, 8);
                 }
                 4 => {
                     let register = function
@@ -144,14 +144,14 @@ fn crash_declaring_shared_unit_calls_select_and_replay_their_roster() {
             abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
         )
         .unwrap();
-        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
             &abstracted,
             FuelScheduleIdentity::new(1).unwrap(),
         )
         .unwrap();
         let legalized = legalize_target_operations(&targeted, &abstracted, &unit).unwrap();
         let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
+            crate::register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = selection_constraints(&legalized, &environment);
         let selected = select_instructions(
             &legalized,
@@ -200,8 +200,10 @@ fn crash_declaring_shared_unit_calls_select_and_replay_their_roster() {
 
 #[test]
 fn borrowed_mixed_arguments_select_and_replay_the_reconstructed_row() {
+    use abstract_operations_to_target_operations::target_operations::{
+        TargetStructuralArgumentSource, TargetUnitOperation,
+    };
     use semantic_vocabulary::{MachineId, OperationId, StructuralTypeId};
-    use target_operations::{TargetStructuralArgumentSource, TargetUnitOperation};
     use terminal_psi::StructuralAccess;
     for native in [
         target::NativeTarget::linux_x64(),
@@ -213,7 +215,7 @@ fn borrowed_mixed_arguments_select_and_replay_the_reconstructed_row() {
             crate::tests::fixtures::shared_unit_calls::mixed_borrowed_fixture(native);
         let legalized = legalize_target_operations(&targeted, &abstracted, &unit).unwrap();
         let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
+            crate::register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = selection_constraints(&legalized, &environment);
         let selected = select_instructions(
             &legalized,
@@ -272,8 +274,10 @@ fn borrowed_mixed_arguments_select_and_replay_the_reconstructed_row() {
 
 #[test]
 fn owned_mixed_arguments_select_and_replay_the_reconstructed_row() {
+    use abstract_operations_to_target_operations::target_operations::{
+        TargetStructuralArgumentSource, TargetUnitOperation,
+    };
     use semantic_vocabulary::{MachineId, OperationId, StructuralTypeId};
-    use target_operations::{TargetStructuralArgumentSource, TargetUnitOperation};
     use terminal_psi::StructuralAccess;
     for native in [
         target::NativeTarget::linux_x64(),
@@ -285,7 +289,7 @@ fn owned_mixed_arguments_select_and_replay_the_reconstructed_row() {
             crate::tests::fixtures::shared_unit_calls::mixed_owned_fixture(native);
         let legalized = legalize_target_operations(&targeted, &abstracted, &unit).unwrap();
         let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
+            crate::register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = selection_constraints(&legalized, &environment);
         let selected = select_instructions(
             &legalized,

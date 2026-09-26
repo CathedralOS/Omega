@@ -23,7 +23,7 @@ pub(crate) fn checked_call_scalar_arguments(
     coordinate: CheckedUnitCallCoordinate,
     parameters: &[CheckedStructuralScalarParameterPlan],
     boundary: bool,
-) -> Option<Vec<checked_trees::CheckedCallScalarArgument>> {
+) -> Option<Vec<crate::checked_trees::CheckedCallScalarArgument>> {
     parameters
         .iter()
         .enumerate()
@@ -66,9 +66,9 @@ pub(crate) fn checked_call_scalar_arguments(
                 {
                     return None;
                 }
-                return Some(checked_trees::CheckedCallScalarArgument::Computation(
-                    root.root,
-                ));
+                return Some(
+                    crate::checked_trees::CheckedCallScalarArgument::Computation(root.root),
+                );
             }
             if !roots.is_empty() {
                 return None;
@@ -79,7 +79,7 @@ pub(crate) fn checked_call_scalar_arguments(
                 role,
             )?;
             (crate::values::scalar_expression_type(expression)? == parameter.primitive_type)
-                .then(|| checked_trees::CheckedCallScalarArgument::Pure(expression.clone()))
+                .then(|| crate::checked_trees::CheckedCallScalarArgument::Pure(expression.clone()))
         })
         .collect()
 }
@@ -93,13 +93,13 @@ pub(crate) fn checked_call_erased_proof_arguments(
     facts: &CheckFacts,
     caller_state: SymbolHandle,
     coordinate: CheckedUnitCallCoordinate,
-    parameters: &[checked_trees::CheckedErasedProofParameterPlan],
-) -> Option<Vec<checked_trees::CheckedProofTerm>> {
+    parameters: &[crate::checked_trees::CheckedErasedProofParameterPlan],
+) -> Option<Vec<crate::checked_trees::CheckedProofTerm>> {
     parameters
         .iter()
         .enumerate()
         .map(|(erased_ordinal, parameter)| {
-            let role = checked_trees::CheckedProofTermRole::ErasedUnitCallArgument {
+            let role = crate::checked_trees::CheckedProofTermRole::ErasedUnitCallArgument {
                 call_ordinal: coordinate.call_ordinal,
                 erased_ordinal: u32::try_from(erased_ordinal).ok()?,
             };
@@ -119,15 +119,15 @@ pub(crate) fn checked_call_erased_proof_arguments(
 fn proof_term_type_matches(
     program: &TypedTrees,
     caller_state: SymbolHandle,
-    term: &checked_trees::CheckedProofTerm,
+    term: &crate::checked_trees::CheckedProofTerm,
     type_identity: &str,
 ) -> bool {
     match term {
-        checked_trees::CheckedProofTerm::Construction {
+        crate::checked_trees::CheckedProofTerm::Construction {
             type_identity: actual,
             ..
         } => actual == type_identity,
-        checked_trees::CheckedProofTerm::Formal { parameter_symbol } => {
+        crate::checked_trees::CheckedProofTerm::Formal { parameter_symbol } => {
             crate::semantic::calls::find_state(program, caller_state).is_some_and(|state| {
                 program.state_parameters(state).iter().any(|parameter| {
                     parameter.symbol == *parameter_symbol
@@ -138,7 +138,7 @@ fn proof_term_type_matches(
         }
         // A bare scalar leaf never satisfies a proof-formal position: scalar
         // leaves only occur nested inside a construction.
-        checked_trees::CheckedProofTerm::Scalar(_) => false,
+        crate::checked_trees::CheckedProofTerm::Scalar(_) => false,
     }
 }
 
@@ -150,7 +150,7 @@ pub(crate) fn checked_call_erased_scalar_arguments(
     caller_state: SymbolHandle,
     coordinate: CheckedUnitCallCoordinate,
     parameters: &[CheckedStructuralScalarParameterPlan],
-) -> Option<Vec<checked_trees::CheckedCallScalarArgument>> {
+) -> Option<Vec<crate::checked_trees::CheckedCallScalarArgument>> {
     parameters
         .iter()
         .enumerate()
@@ -165,7 +165,7 @@ pub(crate) fn checked_call_erased_scalar_arguments(
                 role,
             )?;
             (crate::values::scalar_expression_type(expression)? == parameter.primitive_type)
-                .then(|| checked_trees::CheckedCallScalarArgument::Pure(expression.clone()))
+                .then(|| crate::checked_trees::CheckedCallScalarArgument::Pure(expression.clone()))
         })
         .collect()
 }
@@ -212,7 +212,7 @@ pub(crate) fn projected_argument_path(
     statement_index: usize,
     place: &crate::flow::CanonicalPlace,
 ) -> Option<(
-    typed_trees::types::TypeReferenceHandle,
+    symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
     Vec<CheckedUnitStructuralPathSegment>,
 )> {
     projected_argument_path_impl(program, state_symbol, statement_index, place, None)
@@ -234,7 +234,7 @@ pub(crate) fn projected_borrowed_receiver_path(
     statement_index: usize,
     place: &crate::flow::CanonicalPlace,
 ) -> Option<(
-    typed_trees::types::TypeReferenceHandle,
+    symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
     Vec<CheckedUnitStructuralPathSegment>,
 )> {
     projected_argument_path_impl(
@@ -253,18 +253,18 @@ fn projected_argument_path_impl(
     place: &crate::flow::CanonicalPlace,
     runtime_index_bounds: Option<(&CheckFacts, SymbolHandle)>,
 ) -> Option<(
-    typed_trees::types::TypeReferenceHandle,
+    symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
     Vec<CheckedUnitStructuralPathSegment>,
 )> {
     let mut path = Vec::with_capacity(place.segments.len());
     for (position, segment) in place.segments.iter().enumerate() {
         match segment {
-            facts::PlaceSegment::Field { symbol } => {
+            crate::fact_plan::PlaceSegment::Field { symbol } => {
                 path.push(CheckedUnitStructuralPathSegment::Field(
                     terminal_field_identity(program, *symbol)?,
                 ));
             }
-            facts::PlaceSegment::FixedIndex { index } => {
+            crate::fact_plan::PlaceSegment::FixedIndex { index } => {
                 let container = crate::flow::CanonicalPlace {
                     root: place.root,
                     segments: place.segments[..position].to_vec(),
@@ -282,7 +282,7 @@ fn projected_argument_path_impl(
                     u64::try_from(*index).ok()?,
                 ));
             }
-            facts::PlaceSegment::Index { expression } => {
+            crate::fact_plan::PlaceSegment::Index { expression } => {
                 let (facts, machine) = runtime_index_bounds?;
                 let container = crate::flow::CanonicalPlace {
                     root: place.root,
@@ -304,10 +304,11 @@ fn projected_argument_path_impl(
                     extent,
                 )?;
                 path.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
-                    checked_trees::CheckedRuntimeIndex::Parameter { position },
+                    crate::checked_trees::CheckedRuntimeIndex::Parameter { position },
                 ));
             }
-            facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::Case { .. } => {
+            crate::fact_plan::PlaceSegment::FixedRange { .. }
+            | crate::fact_plan::PlaceSegment::Case { .. } => {
                 return None;
             }
         }
@@ -332,7 +333,7 @@ fn bounded_runtime_index(
     facts: &CheckFacts,
     machine: SymbolHandle,
     state_symbol: SymbolHandle,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     extent: usize,
 ) -> Option<u32> {
     let machine = crate::lookup::machine_by_symbol(program, machine)?;
@@ -401,7 +402,7 @@ pub(crate) fn projected_argument_path_with_identity(
 /// bounds no fixed index here.
 fn fixed_array_literal_length(
     program: &TypedTrees,
-    mut type_reference: typed_trees::types::TypeReferenceHandle,
+    mut type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
 ) -> Option<usize> {
     while let TypeReferenceNode::Constrained { base_type, .. }
     | TypeReferenceNode::Reference {
@@ -411,7 +412,8 @@ fn fixed_array_literal_length(
         type_reference = *base_type;
     }
     let TypeReferenceNode::FixedArray {
-        length: typed_trees::types::FixedArrayLength::Literal(length),
+        length:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::Literal(length),
         ..
     } = program.type_reference_table.type_reference(type_reference)
     else {
@@ -431,13 +433,14 @@ pub(crate) fn fixed_byte_array_range_path(
     place: &crate::flow::CanonicalPlace,
     target: TypeReferenceHandle,
 ) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
-    let (facts::PlaceSegment::FixedRange { start, end }, fields) = place.segments.split_last()?
+    let (crate::fact_plan::PlaceSegment::FixedRange { start, end }, fields) =
+        place.segments.split_last()?
     else {
         return None;
     };
     if !fields
         .iter()
-        .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. }))
+        .all(|segment| matches!(segment, crate::fact_plan::PlaceSegment::Field { .. }))
     {
         return None;
     }
@@ -469,11 +472,11 @@ pub(crate) fn fixed_byte_array_range_path(
 pub(crate) fn ordinary_projected_call_is_supported(
     program: &TypedTrees,
     facts: &CheckFacts,
-    caller_machine: &typed_trees::machine::Machine,
-    caller_state: &typed_trees::state::State,
+    caller_machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    caller_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
-    target_machine: &typed_trees::machine::Machine,
-    target_state: &typed_trees::state::State,
+    target_machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    target_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     arguments: &[CheckedUnitStructuralArgumentPlan],
     allow_field_path_projection: bool,
 ) -> bool {
@@ -625,11 +628,9 @@ pub(crate) fn ordinary_projected_call_is_supported(
                             && ((source.multiplicity == Multiplicity::Unrestricted && static_path)
                                 || ((field_path
                                     || indexed_fields.is_some_and(|fields| !fields.is_empty()))
-                                    && checked_trees::is_borrowed_view(byte_sequence_carrier(
-                                        program,
-                                        target.type_reference,
-                                        &[],
-                                    ))))
+                                    && crate::checked_trees::is_borrowed_view(
+                                        byte_sequence_carrier(program, target.type_reference, &[]),
+                                    )))
                     }
                     CheckedStructuralAccess::WriteOnlyBorrow => {
                         matches!(
@@ -838,8 +839,10 @@ pub(crate) fn ordinary_projected_call_is_supported(
                 }
             }
 
-            let expected_root =
-                facts::PlaceRoot::Symbol(parameter_root_symbol(target_machine.symbol, parameter));
+            let expected_root = crate::fact_plan::PlaceRoot::Symbol(parameter_root_symbol(
+                target_machine.symbol,
+                parameter,
+            ));
             let matching = facts
                 .flow
                 .ownership
@@ -873,8 +876,8 @@ pub(crate) fn ordinary_projected_call_is_supported(
 pub(crate) fn target_contract_mentions_projected_parameter(
     program: &TypedTrees,
     facts: &CheckFacts,
-    target_machine: &typed_trees::machine::Machine,
-    target_state: &typed_trees::state::State,
+    target_machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    target_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     parameter: &StateParameter,
 ) -> bool {
     let expected_root = parameter_root_symbol(target_machine.symbol, parameter);
@@ -907,8 +910,8 @@ pub(crate) fn target_contract_mentions_projected_parameter(
                 membership.value,
             )
             .is_some_and(|place| {
-                place.root == facts::PlaceRoot::Symbol(expected_root)
-                    || place.root == facts::PlaceRoot::Symbol(parameter.symbol)
+                place.root == crate::fact_plan::PlaceRoot::Symbol(expected_root)
+                    || place.root == crate::fact_plan::PlaceRoot::Symbol(parameter.symbol)
             })
         });
     if authored_contract_mentions_parameter {
@@ -921,12 +924,12 @@ pub(crate) fn target_contract_mentions_projected_parameter(
         .is_some_and(|contract| {
             contract.crash.published().iter().any(|bucket| {
                 bucket.alternative_guards().iter().any(|guard| match guard {
-                    checked_trees::CrashRouteGuard::Truth => false,
-                    checked_trees::CrashRouteGuard::Predicate(predicate) => {
+                    crate::checked_trees::CrashRouteGuard::Truth => false,
+                    crate::checked_trees::CrashRouteGuard::Predicate(predicate) => {
                         if matches!(
                             predicate.scalar_expression(),
                             Some(
-                                checked_trees::CheckedBooleanExpression::StructuralParameterField {
+                                crate::checked_trees::CheckedBooleanExpression::StructuralParameterField {
                                     parameter_position: 0,
                                     path,
                                 }
@@ -949,10 +952,10 @@ pub(crate) fn target_contract_mentions_projected_parameter(
 }
 
 pub(crate) fn crash_expression_is_nonempty_member_path_from_parameter(
-    expression: &checked_trees::CrashPredicateExpression,
+    expression: &crate::checked_trees::CrashPredicateExpression,
     parameter: u32,
 ) -> bool {
-    use checked_trees::CrashPredicateExpression;
+    use crate::checked_trees::CrashPredicateExpression;
 
     let mut expression = expression;
     let mut nonempty = false;
@@ -965,10 +968,10 @@ pub(crate) fn crash_expression_is_nonempty_member_path_from_parameter(
 }
 
 pub(crate) fn crash_expression_mentions_parameter_outside_member_path(
-    expression: &checked_trees::CrashPredicateExpression,
+    expression: &crate::checked_trees::CrashPredicateExpression,
     parameter: u32,
 ) -> bool {
-    use checked_trees::CrashPredicateExpression;
+    use crate::checked_trees::CrashPredicateExpression;
 
     match expression {
         CrashPredicateExpression::Parameter(index) => *index == parameter,
@@ -1018,7 +1021,7 @@ pub(crate) fn crash_expression_mentions_parameter_outside_member_path(
 pub(crate) fn byte_sequence_literal_argument(
     program: &TypedTrees,
     parameter_type: TypeReferenceHandle,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     if !byte_sequence_carrier(program, parameter_type, &[])?.is_borrowed_view()
         || structural_access_for_type_reference(program, parameter_type)?

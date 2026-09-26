@@ -1,14 +1,14 @@
-use isa_aarch64::{
+use target_operations_to_selected_instructions::SelectedInstructionId;
+use target_operations_to_selected_instructions::isa_aarch64::{
     Aarch64NormalizedForeignCallTemplateError, Aarch64ScalarCallTemplateError,
     Aarch64SelectedFormEncodingError,
 };
-use isa_x86_64::X86_64MovR32Imm32I64MaterializationError;
-use isa_x86_64::X86_64MovR64Imm32SignExtendedI64MaterializationError;
-use isa_x86_64::{
+use target_operations_to_selected_instructions::isa_x86_64::X86_64MovR32Imm32I64MaterializationError;
+use target_operations_to_selected_instructions::isa_x86_64::X86_64MovR64Imm32SignExtendedI64MaterializationError;
+use target_operations_to_selected_instructions::isa_x86_64::{
     X86_64NormalizedForeignCallTemplateError, X86_64ScalarCallTemplateError,
     X86_64SelectedFormEncodingError,
 };
-use selected_instructions::SelectedInstructionId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedSelectedFormEncodingError {

@@ -1,0 +1,131 @@
+use crate::package_evidence::capture::PackageReviewInput;
+use crate::package_evidence::capture::api::operators::project_operator_coordinate;
+use crate::package_evidence::capture::contracts::facts::ContractProjectionContext;
+use crate::package_evidence::record::{
+    PackageReviewContractBinaryOperator, PackageReviewContractOperatorMeaning,
+    PackageReviewContractUnaryOperator,
+};
+use diagnostics::Diagnostic;
+
+pub(crate) fn exact_checked_contract_operator_meaning(
+    compilation: &PackageReviewInput<'_>,
+    context: &ContractProjectionContext<'_>,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+) -> Result<PackageReviewContractOperatorMeaning, Vec<Diagnostic>> {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionKind,
+        AuthoredDeclarationSelectionTarget,
+    };
+
+    let selections = compilation
+        .expression_table
+        .authored_selection_occurrences(expression)
+        .filter_map(|occurrence| {
+            compilation
+                .authored_declaration_selections()
+                .get(occurrence)
+        })
+        .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::Operator)
+        .collect::<Vec<_>>();
+    let [selection] = selections.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` contract operator has {} exact checked selection rows; expected one",
+            context.subject_kind,
+            context.subject_name,
+            selections.len()
+        ))]);
+    };
+    if selection.exposure() != context.selection_exposure {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` contract operator has the wrong retained selection exposure",
+            context.subject_kind, context.subject_name
+        ))]);
+    }
+    match selection.target() {
+        AuthoredDeclarationSelectionTarget::Intrinsic(
+            AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+        ) => Ok(PackageReviewContractOperatorMeaning::Builtin),
+        AuthoredDeclarationSelectionTarget::Resolved(target) => {
+            let symbol = target.selected_symbol();
+            let declaration = symbol_resolved_trees_to_typed_trees::typed_trees::operator::declaration_by_symbol(compilation, symbol)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(format!(
+                        "reviewed {} `{}` contract selected an operator without one retained declaration",
+                        context.subject_kind, context.subject_name
+                    ))]
+                })?;
+            Ok(PackageReviewContractOperatorMeaning::Declared(
+                project_operator_coordinate(compilation, declaration)?,
+            ))
+        }
+        AuthoredDeclarationSelectionTarget::Intrinsic(_) => Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` contract operator selected a non-operator intrinsic",
+            context.subject_kind, context.subject_name
+        ))]),
+        AuthoredDeclarationSelectionTarget::LateBound(_) => Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` contract operator remains late-bound after checked lowering",
+            context.subject_kind, context.subject_name
+        ))]),
+    }
+}
+
+pub(crate) const fn project_contract_binary_operator(
+    operator: symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator,
+) -> Option<PackageReviewContractBinaryOperator> {
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator;
+    Some(match operator {
+        BinaryOperator::Add => PackageReviewContractBinaryOperator::Add,
+        BinaryOperator::And => PackageReviewContractBinaryOperator::And,
+        BinaryOperator::BitwiseAnd => PackageReviewContractBinaryOperator::BitwiseAnd,
+        BinaryOperator::BitwiseOr => PackageReviewContractBinaryOperator::BitwiseOr,
+        BinaryOperator::BitwiseXor => PackageReviewContractBinaryOperator::BitwiseXor,
+        BinaryOperator::Divide => PackageReviewContractBinaryOperator::Divide,
+        BinaryOperator::Equal => PackageReviewContractBinaryOperator::Equal,
+        BinaryOperator::Greater => PackageReviewContractBinaryOperator::Greater,
+        BinaryOperator::GreaterOrEqual => PackageReviewContractBinaryOperator::GreaterOrEqual,
+        BinaryOperator::Less => PackageReviewContractBinaryOperator::Less,
+        BinaryOperator::LessOrEqual => PackageReviewContractBinaryOperator::LessOrEqual,
+        BinaryOperator::Modulo => PackageReviewContractBinaryOperator::Modulo,
+        BinaryOperator::Multiply => PackageReviewContractBinaryOperator::Multiply,
+        BinaryOperator::NotEqual => PackageReviewContractBinaryOperator::NotEqual,
+        BinaryOperator::Or => PackageReviewContractBinaryOperator::Or,
+        BinaryOperator::ShiftLeft => PackageReviewContractBinaryOperator::ShiftLeft,
+        BinaryOperator::ShiftRight => PackageReviewContractBinaryOperator::ShiftRight,
+        BinaryOperator::Subtract => PackageReviewContractBinaryOperator::Subtract,
+        // The review vocabulary does not yet carry a nominal tag operation.
+        // Encoding it as value equality would erase payload-vs-tag meaning.
+        BinaryOperator::CaseMembership => return None,
+    })
+}
+
+pub(crate) const fn project_contract_unary_operator(
+    operator: symbol_resolved_trees_to_typed_trees::typed_trees::expression::UnaryOperator,
+) -> PackageReviewContractUnaryOperator {
+    match operator {
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::UnaryOperator::BitwiseNot => {
+            PackageReviewContractUnaryOperator::BitwiseNot
+        }
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::UnaryOperator::LogicalNot => {
+            PackageReviewContractUnaryOperator::LogicalNot
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::package_evidence::capture::contracts::expressions::operators::project_contract_binary_operator;
+    use crate::package_evidence::record::PackageReviewContractBinaryOperator;
+
+    #[test]
+    fn nominal_tag_observation_cannot_be_reviewed_as_value_equality() {
+        use symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator;
+        assert_eq!(
+            project_contract_binary_operator(BinaryOperator::CaseMembership),
+            None
+        );
+        assert_eq!(
+            project_contract_binary_operator(BinaryOperator::Equal),
+            Some(PackageReviewContractBinaryOperator::Equal)
+        );
+    }
+}

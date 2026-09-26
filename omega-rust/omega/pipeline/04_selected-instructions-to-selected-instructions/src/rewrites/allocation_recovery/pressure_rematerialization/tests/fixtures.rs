@@ -1,31 +1,33 @@
-use register_homes::{
+use crate::register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FunctionRecoveryClassification,
     PressureRecoveryClassification, RecoveryClassification, RecoveryClassificationPlan,
     RecoveryClassificationPolicy, RecoveryFutureUse, RecoveryVictimRole, SpillChoiceIdentity,
 };
-use selected_instructions::{
+use target_operations_to_selected_instructions::{
     BlockPointDomain, FunctionLiveRanges, LiveRangeFragment, LiveRangeIdentity, LiveRangePlan,
     LiveRangePoint, LivenessIdentity, LivenessPosition, VirtualLiveRange, VirtualOccurrence,
 };
 
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
-use optimization_unit::{FuelSettlement, PsiProvenance, ValueDefinitionSite};
-use register_model::{
+use semantic_vocabulary::{
+    BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
+    OperationId, ScalarType, ValueId,
+};
+use target_operations_to_selected_instructions::register_model::{
     RegisterClassId, RegisterConstraintFamily, RegisterConstraintId, RegisterConstraintKey,
     RegisterInstructionConstraint, RegisterOperandAccess, RegisterOperandConstraint,
     RegisterViewId, TargetRegisterEnvironmentIdentity,
 };
-use selected_instructions::{
+use target_operations_to_selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionKind, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
     SelectedInstructionProvenance, SelectedOperand, SelectedTerminator, VirtualRegister,
     VirtualRegisterId, VirtualRegisterOrigin,
 };
-use semantic_vocabulary::{
-    BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
-    OperationId, ScalarType, ValueId,
-};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    FuelSettlement, PsiProvenance, ValueDefinitionSite,
+};
 
 fn operand(register: u32, access: RegisterOperandAccess) -> SelectedOperand {
     SelectedOperand {
@@ -129,7 +131,9 @@ pub(crate) fn fixture() -> (
             virtual_registers: registers,
             blocks: vec![SelectedBlock {
                 id: SelectedBlockId(0),
-                origin: selected_instructions::SelectedBlockOrigin::Source(source_block),
+                origin: target_operations_to_selected_instructions::SelectedBlockOrigin::Source(
+                    source_block,
+                ),
                 instructions: definitions,
                 terminator: SelectedTerminator::Return {
                     instruction: returned,

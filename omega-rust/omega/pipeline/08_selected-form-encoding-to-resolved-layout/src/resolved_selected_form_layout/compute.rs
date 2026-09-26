@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
-use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
+use target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel;
 
 use post_allocation_machine_to_selected_form_encoding::{
     StagedOptimizedSelectedFormEncoding,
@@ -12,7 +12,9 @@ use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMach
 use super::StagedOptimizedResolvedSelectedFormLayout;
 use super::error::OptimizedResolvedSelectedFormLayoutError;
 use super::ordinary::{instructions, layout, select};
-use machine_code::{ResolvedMachineLayout, resolved_machine_layout_identity as layout_identity};
+use post_allocation_machine_to_selected_form_encoding::machine_code::{
+    ResolvedMachineLayout, resolved_machine_layout_identity as layout_identity,
+};
 
 pub(super) fn compute<S: ValidatedSelectedAnalysis>(
     selected: &S,

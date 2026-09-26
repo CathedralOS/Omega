@@ -1,4 +1,4 @@
-use abstract_operations::AbstractOperation;
+use crate::abstract_operations::AbstractOperation;
 use terminal_psi::{
     Block, Operation, OperationKind, StructuralTypeDeclaration, StructuralTypeShape,
     TerminalMachine,

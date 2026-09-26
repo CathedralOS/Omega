@@ -28,6 +28,10 @@
 //! window and an edge transfer carries no projection. The checked borrow
 //! ledger must already hold the local's shared loan of exactly that field, so
 //! later writes to the array while the view is live stay rejected there.
+use crate::checked_trees::{
+    CheckedScalarExpressionPlans, CheckedStorageRoot, CheckedStructuralControlTransferSourcePlan,
+    CheckedSubsliceSite, CheckedUnitStructuralPathSegment,
+};
 use crate::execution::terminal_unit::CheckFacts;
 use crate::execution::terminal_unit::CheckedScalarExpression;
 use crate::execution::terminal_unit::CheckedScalarExpressionRole;
@@ -46,11 +50,7 @@ use crate::execution::terminal_unit::types::{
     borrowed_slice_view_element, borrowed_slice_view_type_identity, byte_sequence_carrier,
     byte_sequence_type_identity, structural_access_for_type_reference,
 };
-use checked_trees::{
-    CheckedScalarExpressionPlans, CheckedStorageRoot, CheckedStructuralControlTransferSourcePlan,
-    CheckedSubsliceSite, CheckedUnitStructuralPathSegment,
-};
-use typed_trees::expression::ExpressionHandle;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
 
 /// Which borrowed view family a range narrows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -136,8 +136,8 @@ impl ViewSubslice {
 pub(in crate::execution) fn admit(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
     target: TypeReferenceHandle,
     expression: ExpressionHandle,
@@ -154,8 +154,8 @@ pub(in crate::execution) fn admit(
                 || selected.candidate_count != 0
                 || !matches!(
                     selected.status,
-                    checked_trees::CheckedOperatorResolutionStatus::Missing
-                        | checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+                    crate::checked_trees::CheckedOperatorResolutionStatus::Missing
+                        | crate::checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
                 )
         })
     {
@@ -184,8 +184,8 @@ pub(in crate::execution) fn admit(
 fn lends_field_collection(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
     expression: ExpressionHandle,
 ) -> bool {
@@ -220,7 +220,7 @@ fn lends_field_collection(
         return false;
     };
     let mut lent = crate::flow::CanonicalPlace {
-        root: facts::PlaceRoot::Symbol(loan.root_symbol),
+        root: crate::fact_plan::PlaceRoot::Symbol(loan.root_symbol),
         segments: facts
             .borrow
             .access_segments
@@ -229,7 +229,7 @@ fn lends_field_collection(
     };
     crate::flow::normalize_attached_place_root(program, machine.symbol, state.symbol, &mut lent);
     loan.statement_index == statement_index
-        && loan.kind == checked_trees::BorrowAccessKind::Read
+        && loan.kind == crate::checked_trees::BorrowAccessKind::Read
         && lent == place
 }
 
@@ -239,8 +239,8 @@ fn lends_field_collection(
 pub(in crate::execution) fn admit_replayed(
     program: &TypedTrees,
     expressions: &CheckedScalarExpressionPlans,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
     target: TypeReferenceHandle,
     expression: ExpressionHandle,
@@ -299,8 +299,8 @@ pub(in crate::execution) fn admit_replayed(
 /// kind and identity.
 pub(in crate::execution) fn shape(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
     target: TypeReferenceHandle,
     expression: ExpressionHandle,
@@ -335,13 +335,18 @@ pub(in crate::execution) fn shape(
             indexed.collection,
             statement_index,
         )?;
-        return validation::has_builtin_subslice_meaning(program, machine, Some(state), expression)
-            .then_some(ViewRange {
-                root,
-                collection,
-                kind,
-                type_identity,
-            });
+        return crate::validation::has_builtin_subslice_meaning(
+            program,
+            machine,
+            Some(state),
+            expression,
+        )
+        .then_some(ViewRange {
+            root,
+            collection,
+            kind,
+            type_identity,
+        });
     };
     if !path.symbol.is_valid()
         || path.head_symbol != path.symbol
@@ -387,7 +392,7 @@ pub(in crate::execution) fn shape(
             symbol: local.symbol,
         }
     };
-    if !validation::has_builtin_subslice_meaning(program, machine, Some(state), expression) {
+    if !crate::validation::has_builtin_subslice_meaning(program, machine, Some(state), expression) {
         return None;
     }
     Some(ViewRange {
@@ -407,8 +412,8 @@ pub(in crate::execution) fn shape(
 #[allow(clippy::too_many_arguments)]
 fn field_collection(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
     target: TypeReferenceHandle,
     kind: ViewKind,
@@ -429,7 +434,7 @@ fn field_collection(
     if place.segments.is_empty() {
         return None;
     }
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(symbol) = place.root else {
         return None;
     };
     let position = program
@@ -478,10 +483,10 @@ fn field_collection(
 /// not established view places at `statement_index`.
 pub(in crate::execution) fn view_local_before<'a>(
     program: &'a TypedTrees,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
     symbol: symbols::SymbolHandle,
-) -> Option<&'a typed_trees::statement::TableLocalData> {
+) -> Option<&'a symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableLocalData> {
     let mut locals = program
         .statement_table
         .statements(state.statement_nodes)
@@ -522,7 +527,7 @@ pub(in crate::execution) fn view_kind(
     if matches!(
         program.type_reference_table.type_reference(*element_type),
         TypeReferenceNode::Named { .. }
-    ) && checked_trees::is_borrowed_view(byte_sequence_carrier(program, reference, &[]))
+    ) && crate::checked_trees::is_borrowed_view(byte_sequence_carrier(program, reference, &[]))
     {
         return Some(ViewKind::Bytes);
     }

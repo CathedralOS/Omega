@@ -1,10 +1,10 @@
 //! Optimizer module role: executable entrance. Independent replay of a proposed legal-operation projection.
 
 use crate::LegalizationError;
-use abstract_operations::AbstractOperationPlan;
-use legalized_operations::LegalizedOperationPlan;
-use optimization_unit::PsiOptimizationUnit;
-use target_operations::TargetOperationPlan;
+use crate::legalized_operations::LegalizedOperationPlan;
+use abstract_operations_to_target_operations::target_operations::TargetOperationPlan;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan;
+use terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit;
 mod custody;
 mod ordinary_roster;
 mod scalar_graph;

@@ -1,5 +1,5 @@
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use checked_trees::{BorrowAccessKind, BorrowCallFact, CheckFacts, FlowStateFact};
+use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use crate::checked_trees::{BorrowAccessKind, BorrowCallFact, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 
 use crate::checks::borrows::details::binding_reference_access;
@@ -7,11 +7,11 @@ use crate::checks::borrows::resources::invalid_reborrow_attenuation_diagnostic;
 use crate::semantic::calls::{call_site_argument_expressions, find_call_site};
 
 pub(super) fn check_mutable_argument_writability(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     borrow_call: &BorrowCallFact,
-    entry_constraints: arena::HandleSpan<checked_trees::FlowConstraintRef>,
+    entry_constraints: arena::HandleSpan<crate::checked_trees::FlowConstraintRef>,
     target_name: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -91,7 +91,7 @@ pub(super) fn check_mutable_argument_writability(
 /// is what `&mut`/`&write` actually reborrows through, so this answers the
 /// parent side of the reborrow access-pair rule for transient arguments.
 fn borrow_target_reference_access(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     state_flow: &FlowStateFact,
     statement_index: usize,
     target: ExpressionHandle,
@@ -113,7 +113,7 @@ fn borrow_target_reference_access(
 }
 
 fn mutable_argument_root_name(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<String> {
     match program.expression_table.expression(expression) {

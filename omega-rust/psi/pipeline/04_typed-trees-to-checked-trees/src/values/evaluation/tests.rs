@@ -39,7 +39,7 @@ fn expected(value: i64) -> Option<ScalarValue> {
 
 #[test]
 fn structural_reads_require_a_separate_authority_and_admitted_payload() {
-    use checked_trees::CheckedStructuralPredicatePathSegment;
+    use crate::checked_trees::CheckedStructuralPredicatePathSegment;
     let path = vec![CheckedStructuralPredicatePathSegment::Field("byte".into())];
     let read = CheckedScalarExpression::StructuralParameterField {
         parameter_position: 2,
@@ -286,7 +286,7 @@ fn integer_casts_require_admitted_values_and_the_recorded_range() {
         let cast = CheckedScalarExpression::IntegerExactCast {
             primitive_type: PrimitiveType::U8,
             operand: Box::new(literal(value, LandedIntegerType::I16)),
-            range: checked_trees::CheckedIntegerRange {
+            range: crate::checked_trees::CheckedIntegerRange {
                 minimum: BigInt::from_i64(minimum),
                 maximum: BigInt::from_i64(maximum),
             },
@@ -460,7 +460,7 @@ fn generated_return_plan_preserves_explicit_integer_landing() {
         .expression_at(
             state.symbol,
             0,
-            checked_trees::CheckedScalarExpressionRole::Return,
+            crate::checked_trees::CheckedScalarExpressionRole::Return,
         )
         .expect("selected return plan");
     assert_eq!(evaluate(expression, &mut |_| None), expected(7));

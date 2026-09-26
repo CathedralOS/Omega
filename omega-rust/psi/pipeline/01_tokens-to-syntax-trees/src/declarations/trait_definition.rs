@@ -6,12 +6,12 @@ use crate::parameters::parse_generic_parameters::parse_generic_parameters;
 use crate::parameters::parse_parameters::{
     parse_optional_parameters, parse_optional_return_type, parse_parameter,
 };
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::identifier::Identifier;
+use crate::syntax_trees::item::{StateSignature, TraitDefinition};
 use crate::type_syntax::parse_type::parse_type_reference_handle;
 use arena::{Handle, HandleSpan};
-use syntax_trees::SyntaxTrees;
-use syntax_trees::identifier::Identifier;
-use syntax_trees::item::{StateSignature, TraitDefinition};
-use tokens::{KeywordKind, PunctuationKind};
+use source_files_to_tokens::tokens::{KeywordKind, PunctuationKind};
 
 pub(super) fn parse_trait_definition<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
@@ -276,8 +276,8 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
 fn parse_refinement_clause<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
-    refines: Option<syntax_trees::types::TypeReferenceHandle>,
-    clauses: &mut Vec<syntax_trees::item::TraitRefinementClause>,
+    refines: Option<crate::syntax_trees::types::TypeReferenceHandle>,
+    clauses: &mut Vec<crate::syntax_trees::item::TraitRefinementClause>,
 ) -> ParseResult<'tokens, 'source, ()> {
     let requirement = if input.at_punctuation(PunctuationKind::Asterisk) {
         input = input.take_punctuation(PunctuationKind::Asterisk, "*")?;
@@ -298,10 +298,13 @@ fn parse_refinement_clause<'tokens, 'source>(
             let base_name =
                 refines.and_then(
                     |base| match syntax_trees.type_references.type_reference(base) {
-                        syntax_trees::types::TypeReferenceNode::Named(name) => Some(name.clone()),
-                        syntax_trees::types::TypeReferenceNode::Generic { base_name, .. } => {
-                            Some(base_name.clone())
+                        crate::syntax_trees::types::TypeReferenceNode::Named(name) => {
+                            Some(name.clone())
                         }
+                        crate::syntax_trees::types::TypeReferenceNode::Generic {
+                            base_name,
+                            ..
+                        } => Some(base_name.clone()),
                         _ => None,
                     },
                 );
@@ -453,7 +456,7 @@ fn parse_refinement_clause<'tokens, 'source>(
         }
         break;
     }
-    clauses.push(syntax_trees::item::TraitRefinementClause {
+    clauses.push(crate::syntax_trees::item::TraitRefinementClause {
         requirement,
         signature,
     });
@@ -474,7 +477,7 @@ fn parse_refinement_axis_bool<'tokens, 'source>(
 
 fn parse_proposition_parameter_contracts<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
-    type_parameters: HandleSpan<syntax_trees::item::TypeParameter>,
+    type_parameters: HandleSpan<crate::syntax_trees::item::TypeParameter>,
     mut input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ()> {
     loop {
@@ -500,8 +503,8 @@ fn parse_proposition_parameter_contracts<'tokens, 'source>(
             )));
         };
         match &syntax_trees.items.type_parameters(type_parameters)[parameter_index].kind {
-            syntax_trees::item::TypeParameterKind::Proposition { contract: None } => {}
-            syntax_trees::item::TypeParameterKind::Proposition { contract: Some(_) } => {
+            crate::syntax_trees::item::TypeParameterKind::Proposition { contract: None } => {}
+            crate::syntax_trees::item::TypeParameterKind::Proposition { contract: Some(_) } => {
                 return Err(after_name.error_here(format!(
                     "proposition parameter `{}` already has a declaration-site signature",
                     name.as_str(),
@@ -518,8 +521,8 @@ fn parse_proposition_parameter_contracts<'tokens, 'source>(
         let (parameters, rest) = parse_optional_parameters(syntax_trees, after_name)?;
         let rest = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
         syntax_trees.items.type_parameters_mut(type_parameters)[parameter_index].kind =
-            syntax_trees::item::TypeParameterKind::Proposition {
-                contract: Some(syntax_trees::item::PropositionParameterSignature {
+            crate::syntax_trees::item::TypeParameterKind::Proposition {
+                contract: Some(crate::syntax_trees::item::PropositionParameterSignature {
                     name,
                     parameters,
                 }),
@@ -534,7 +537,7 @@ fn parse_proposition_parameter_contracts<'tokens, 'source>(
         .find(|parameter| {
             matches!(
                 parameter.kind,
-                syntax_trees::item::TypeParameterKind::Proposition { contract: None }
+                crate::syntax_trees::item::TypeParameterKind::Proposition { contract: None }
             )
         })
     {
@@ -550,7 +553,7 @@ fn parse_proposition_parameter_contracts<'tokens, 'source>(
 fn parse_trait_parents<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, HandleSpan<syntax_trees::types::TypeReferenceHandle>> {
+) -> ParseResult<'tokens, 'source, HandleSpan<crate::syntax_trees::types::TypeReferenceHandle>> {
     if !input.at_punctuation(PunctuationKind::Colon) {
         return Ok((HandleSpan::empty(), input));
     }
@@ -627,8 +630,8 @@ fn parse_boundary_parameter_telescope<'tokens, 'source>(
     'tokens,
     'source,
     (
-        HandleSpan<syntax_trees::item::StateParameterHandle>,
-        Vec<syntax_trees::item::NativeCallbackParameterNode>,
+        HandleSpan<crate::syntax_trees::item::StateParameterHandle>,
+        Vec<crate::syntax_trees::item::NativeCallbackParameterNode>,
     ),
 > {
     if !input.at_punctuation(PunctuationKind::LeftParen) {
@@ -648,20 +651,21 @@ fn parse_boundary_parameter_telescope<'tokens, 'source>(
             let (name, input_after_name) = input_after_callback.take_identifier()?;
             let input_after_from = input_after_name.take_contextual("from")?;
             let (binder, rest) = input_after_from.take_identifier()?;
-            if native_callback_parameters
-                .iter()
-                .any(|prior: &syntax_trees::item::NativeCallbackParameterNode| prior.name == name)
-            {
+            if native_callback_parameters.iter().any(
+                |prior: &crate::syntax_trees::item::NativeCallbackParameterNode| prior.name == name,
+            ) {
                 return Err(rest.error_here(format!(
                     "native callback parameter `{}` is declared more than once",
                     name.as_str(),
                 )));
             }
-            native_callback_parameters.push(syntax_trees::item::NativeCallbackParameterNode {
-                name,
-                binder,
-                native_ordinal,
-            });
+            native_callback_parameters.push(
+                crate::syntax_trees::item::NativeCallbackParameterNode {
+                    name,
+                    binder,
+                    native_ordinal,
+                },
+            );
             input = rest;
         } else {
             let (parameter, rest) = parse_parameter(syntax_trees, input)?;
@@ -716,7 +720,7 @@ fn parse_trait_machine_name<'tokens, 'source>(
 
 fn parse_trait_requirement<'tokens, 'source>(
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, syntax_trees::identifier::Identifier> {
+) -> ParseResult<'tokens, 'source, crate::syntax_trees::identifier::Identifier> {
     let input = input.take_contextual("requires")?;
     let (required_trait, input) = input.take_identifier()?;
     let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;

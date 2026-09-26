@@ -265,7 +265,7 @@ fn every_proof_check_rule_is_explicit_deterministic_budgeted_and_idempotent() {
                 .flat_map(|function| &function.facts)
                 .all(|fact| !matches!(
                     fact,
-                    optimization_unit::OptimizationFact::OperationObligationReference {
+                    terminal_psi_to_abstract_operations::optimization_unit::OptimizationFact::OperationObligationReference {
                         support,
                         ..
                     } if *support == accepted.operation

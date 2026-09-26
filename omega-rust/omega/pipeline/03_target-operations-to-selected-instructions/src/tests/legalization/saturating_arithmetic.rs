@@ -2,20 +2,20 @@
 //! kind naming that carrier; a non-fixed carrier is not a saturating
 //! carrier, and replay rejects a kind that names a different carrier or a
 //! sibling operation than the source operation.
-use abstract_operations::{
-    AbstractFunctionResult, AbstractOperation, AbstractOperationPlan, AbstractParameter,
-    AbstractResult,
-};
-use legalized_operations::LegalizedScalarInstructionKind;
-use optimization_unit::PsiOptimizationUnit;
+use crate::legalized_operations::LegalizedScalarInstructionKind;
+use abstract_operations_to_target_operations::target_operations::TargetOperationPlan;
 use semantic_vocabulary::{
     EdgeId, FuelScheduleIdentity, IntegerType, OperationId, ScalarType, ValueId,
 };
 use target::NativeTarget;
-use target_operations::TargetOperationPlan;
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractFunctionResult, AbstractOperation, AbstractOperationPlan, AbstractParameter,
+    AbstractResult,
+};
+use terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit;
 
+use crate::legalized_operations::SaturatingCarrier;
 use crate::{legalize_target_operations, validate_legalized_operations};
-use legalized_operations::SaturatingCarrier;
 
 pub(super) fn value(ordinal: u64) -> ValueId {
     ValueId::new(ordinal).unwrap()
@@ -99,12 +99,12 @@ pub(super) fn binary_inputs(
         abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
     )
     .unwrap();
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),
     )
     .unwrap();
-    optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+    terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
     (source, target, unit)
 }
 

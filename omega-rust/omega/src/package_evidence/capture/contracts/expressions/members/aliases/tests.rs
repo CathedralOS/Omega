@@ -1,0 +1,113 @@
+use crate::compiler::CheckedCompileRequest;
+use crate::compiler::compile_to_checked;
+use crate::package_compilation::{PackageCompilationInputs, PackageSourceBinding};
+use crate::package_evidence::capture::contracts::expressions::members::aliases::attached_field;
+use crate::package_evidence::capture::contracts::facts::ContractProjectionContext;
+use std::path::PathBuf;
+use typed_trees_to_checked_trees::checked_trees::ContractProofFactOwner;
+
+struct Source(PathBuf);
+impl Drop for Source {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+#[test]
+fn attached_alias_requires_exact_owner_field_and_nonempty_source_span() {
+    let directory = Source(std::env::temp_dir().join(format!(
+            "omega-member-alias-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        )));
+    std::fs::create_dir(&directory.0).unwrap();
+    std::fs::write(
+        directory.0.join("main.omg"),
+        r#"
+pub data Owner { value: u64; other: u64; }
+pub data Other { value: u64; }
+pub machine Owner::check(&self) {}
+pub machine Other::check(&self) {}
+"#,
+    )
+    .unwrap();
+    std::fs::write(
+        directory.0.join("build.omg"),
+        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
+    )
+    .unwrap();
+    let package = semantic_vocabulary::PackageKeyIdentity::from_digest([41; 32]).unwrap();
+    let inputs = PackageCompilationInputs::new_package(
+        package,
+        vec![PackageSourceBinding::new(
+            package,
+            "review_fixture",
+            directory.0.clone(),
+        )],
+        Vec::new(),
+    )
+    .unwrap();
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&directory.0.join("main.omg"), Some("windows_x86_64"))
+    })
+    .unwrap();
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Owner::check")
+        .unwrap();
+    let entry = &checked.machine_states(machine)[0];
+    let context = ContractProjectionContext {
+        subject_kind: "alias test", subject_name: "Owner::check",
+        owner: ContractProofFactOwner::Machine { machine_symbol: machine.symbol },
+        point: typed_trees_to_checked_trees::fact_plan::ProgramPoint::Machine { machine_symbol: machine.symbol },
+        parameters: checked.state_parameters(entry), domain_symbol: None, data_symbol: None,
+        lifetime_binders: &[], lifetime_substitutions: &[],
+        selection_exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
+    };
+    let symbol = |path: &str| {
+        checked
+            .symbols
+            .symbols()
+            .nodes()
+            .iter()
+            .find_map(|(handle, _)| {
+                (checked.symbols.display_path(handle, "::") == path).then_some(handle)
+            })
+            .unwrap()
+    };
+    let expected = symbol("Owner::value");
+    let selected = symbol("Owner::check::value");
+    let input = (&checked).into();
+    assert!(attached_field(&input, &context, expected, selected));
+    assert!(!attached_field(
+        &input,
+        &context,
+        expected,
+        symbol("Other::check::value")
+    ));
+    // Same owner and valid field declarations are insufficient: the other
+    // seeded field points at a different exact source span in the same file.
+    assert!(!attached_field(
+        &input,
+        &context,
+        expected,
+        symbol("Owner::check::other")
+    ));
+    assert!(!attached_field(
+        &input,
+        &context,
+        symbol("Owner::other"),
+        selected
+    ));
+    assert_ne!(
+        checked.symbols.symbol_source_span(expected),
+        checked
+            .symbols
+            .symbol_source_span(symbol("Owner::check::other"))
+    );
+}

@@ -6,11 +6,11 @@ use super::receivers::resolve_expression_table_receiver_symbol;
 
 pub(in crate::symbols) fn resolve_expression_table_call_target_symbol(
     machine: &MachineScope<'_>,
-    parameters: &[symbol_resolved_trees::signature::StateParameter],
+    parameters: &[crate::symbol_resolved_trees::signature::StateParameter],
     state_symbol: SymbolHandle,
-    call: &symbol_resolved_trees::expression::TableCallExpression,
-    expression_table: &symbol_resolved_trees::expression::ExpressionTable,
-    child_type_references: &arena::Arena<symbol_resolved_trees::types::TypeReference>,
+    call: &crate::symbol_resolved_trees::expression::TableCallExpression,
+    expression_table: &crate::symbol_resolved_trees::expression::ExpressionTable,
+    child_type_references: &arena::Arena<crate::symbol_resolved_trees::types::TypeReference>,
     symbols: &SymbolTable,
 ) -> SymbolHandle {
     if call.receiver.is_valid() {
@@ -58,7 +58,7 @@ pub(in crate::symbols) fn resolve_expression_table_call_target_symbol(
         // requires the exact compiler-owned projection plan.
         if (!receiver_symbol.is_valid()
             || matches!(symbols.get(receiver_symbol).kind, SymbolKind::Domain))
-            && let symbol_resolved_trees::expression::ExpressionNode::Name(path) =
+            && let crate::symbol_resolved_trees::expression::ExpressionNode::Name(path) =
                 expression_table.expression(call.receiver)
             && let [owner] = expression_table.name_path_members(path.members)
         {
@@ -84,10 +84,10 @@ pub(in crate::symbols) fn resolve_expression_table_call_target_symbol(
 }
 
 fn receiver_needs_result_type(
-    expressions: &symbol_resolved_trees::expression::ExpressionTable,
-    mut receiver: symbol_resolved_trees::expression::ExpressionHandle,
+    expressions: &crate::symbol_resolved_trees::expression::ExpressionTable,
+    mut receiver: crate::symbol_resolved_trees::expression::ExpressionHandle,
 ) -> bool {
-    use symbol_resolved_trees::expression::ExpressionNode;
+    use crate::symbol_resolved_trees::expression::ExpressionNode;
     loop {
         receiver = match expressions.expression(receiver) {
             ExpressionNode::Call(_) => return true,

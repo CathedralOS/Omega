@@ -90,8 +90,10 @@ fn scalar(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
 #[cfg(test)]
 mod tests {
     use super::{CheckedBooleanExpression, CheckedScalarExpression, validate};
-    use checked_trees::{CheckedIntegerBinaryKind, CheckedIntegerComparisonKind};
-    use typed_trees::types::PrimitiveType;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
+    use typed_trees_to_checked_trees::checked_trees::{
+        CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
+    };
 
     fn scalar_parameter() -> CheckedScalarExpression {
         CheckedScalarExpression::Parameter {

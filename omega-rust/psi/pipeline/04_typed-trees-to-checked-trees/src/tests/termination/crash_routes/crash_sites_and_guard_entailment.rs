@@ -133,7 +133,7 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
     let [site] = plan("crashing_body").crash.checked_sites() else {
         panic!("the explicit crash should produce exactly one checked site")
     };
-    assert_eq!(site.cause(), checked_trees::CrashCause::Abort);
+    assert_eq!(site.cause(), crate::checked_trees::CrashCause::Abort);
     assert_eq!(site.location().statement_ordinal(), 0);
     let [covering_bucket] = site.guard_covering_buckets() else {
         panic!("an unconditional same-cause route should cover every site guard")
@@ -143,7 +143,7 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
             .crash
             .published_bucket(*covering_bucket)
             .is_some_and(|bucket| bucket.is_unconditional()
-                && bucket.cause() == checked_trees::CrashCause::Abort)
+                && bucket.cause() == crate::checked_trees::CrashCause::Abort)
     );
     assert_eq!(
         site.location().state(),
@@ -181,7 +181,7 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
             .crash
             .published_bucket(*path_covering_bucket)
             .is_some_and(|bucket| !bucket.is_unconditional()
-                && bucket.cause() == checked_trees::CrashCause::Trap)
+                && bucket.cause() == crate::checked_trees::CrashCause::Trap)
     );
 
     let [fallthrough_guarded_site] = plan("fallthrough_guarded_body").crash.checked_sites() else {
@@ -196,7 +196,7 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
             .crash
             .published_bucket(*fallthrough_covering_bucket)
             .is_some_and(|bucket| !bucket.is_unconditional()
-                && bucket.cause() == checked_trees::CrashCause::Trap)
+                && bucket.cause() == crate::checked_trees::CrashCause::Trap)
     );
 
     for name in ["conjunct_guarded_body", "demorgan_guarded_body"] {
@@ -219,7 +219,7 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
             plan(name)
                 .crash
                 .published_bucket(*bucket)
-                .is_some_and(|bucket| bucket.cause() == checked_trees::CrashCause::Trap)
+                .is_some_and(|bucket| bucket.cause() == crate::checked_trees::CrashCause::Trap)
         );
     }
     for name in [
@@ -823,7 +823,10 @@ fn checked_crash_calls_retain_invocation_specific_route_refinement() {
         panic!("the concrete true route should survive")
     };
     assert!(certain_bucket.is_unconditional());
-    assert_eq!(certain_bucket.cause(), checked_trees::CrashCause::Trap);
+    assert_eq!(
+        certain_bucket.cause(),
+        crate::checked_trees::CrashCause::Trap
+    );
 
     let [forwarded_call] = plan("forwarded").crash.checked_calls() else {
         panic!("the unresolved invocation should retain one checked call row")
@@ -831,12 +834,12 @@ fn checked_crash_calls_retain_invocation_specific_route_refinement() {
     let [forwarded_bucket] = forwarded_call.surviving_buckets() else {
         panic!("the unresolved route should survive")
     };
-    let [checked_trees::CrashRouteGuard::Predicate(forwarded_route)] =
+    let [crate::checked_trees::CrashRouteGuard::Predicate(forwarded_route)] =
         forwarded_bucket.alternative_guards()
     else {
         panic!("the unresolved route should remain a predicate")
     };
-    let [checked_trees::CrashRouteGuard::Predicate(published_route)] =
+    let [crate::checked_trees::CrashRouteGuard::Predicate(published_route)] =
         plan("forwarded").crash.published()[0].alternative_guards()
     else {
         panic!("the caller should publish its forwarded predicate")
@@ -847,7 +850,7 @@ fn checked_crash_calls_retain_invocation_specific_route_refinement() {
     );
     assert_eq!(
         forwarded_route.scalar_expression(),
-        Some(&checked_trees::CheckedBooleanExpression::Parameter { position: 0 }),
+        Some(&crate::checked_trees::CheckedBooleanExpression::Parameter { position: 0 }),
         "invocation refinement must retain checked scalar meaning, not only predicate identity",
     );
 
@@ -857,14 +860,14 @@ fn checked_crash_calls_retain_invocation_specific_route_refinement() {
     let [local_forwarded_bucket] = local_forwarded_call.surviving_buckets() else {
         panic!("the local-argument route should survive")
     };
-    let [checked_trees::CrashRouteGuard::Predicate(local_forwarded_route)] =
+    let [crate::checked_trees::CrashRouteGuard::Predicate(local_forwarded_route)] =
         local_forwarded_bucket.alternative_guards()
     else {
         panic!("the local-argument route should remain a predicate")
     };
     assert_eq!(
         local_forwarded_route.scalar_expression(),
-        Some(&checked_trees::CheckedBooleanExpression::Local { position: 1 }),
+        Some(&crate::checked_trees::CheckedBooleanExpression::Local { position: 1 }),
         "direct refinement should retain the caller-local value position assigned after its one parameter",
     );
 
@@ -874,14 +877,14 @@ fn checked_crash_calls_retain_invocation_specific_route_refinement() {
     let [computed_local_bucket] = computed_local_call.surviving_buckets() else {
         panic!("the computed-local route should survive")
     };
-    let [checked_trees::CrashRouteGuard::Predicate(computed_local_route)] =
+    let [crate::checked_trees::CrashRouteGuard::Predicate(computed_local_route)] =
         computed_local_bucket.alternative_guards()
     else {
         panic!("the computed-local route should remain a predicate")
     };
     assert_eq!(
         computed_local_route.scalar_expression(),
-        Some(&checked_trees::CheckedBooleanExpression::Local { position: 1 }),
+        Some(&crate::checked_trees::CheckedBooleanExpression::Local { position: 1 }),
         "computed refinement should retain the caller-local value position",
     );
 

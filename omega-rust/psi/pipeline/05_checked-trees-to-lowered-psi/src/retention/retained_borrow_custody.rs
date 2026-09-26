@@ -5,7 +5,7 @@ use super::{
     StructuralAccess, StructuralMultiplicity, TerminalModule, checked_unit_boundary_identity,
     content_conservation, unsupported,
 };
-use checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees_to_checked_trees::checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 fn unconstrained_type(checked: &CheckedTrees, mut ty: TypeReferenceHandle) -> TypeReferenceHandle {
     while let TypeReferenceNode::Constrained { base_type, .. } =
@@ -49,7 +49,7 @@ fn lower_projection(
 
 fn lower_custody(
     checked: &CheckedTrees,
-    fact: &checked_trees::RetainedBorrowCustodyFact,
+    fact: &typed_trees_to_checked_trees::checked_trees::RetainedBorrowCustodyFact,
 ) -> Result<terminal_psi::RetainedBorrowCustody, LoweringError> {
     let requirements = checked
         .traits()

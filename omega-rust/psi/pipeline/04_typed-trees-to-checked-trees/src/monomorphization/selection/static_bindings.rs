@@ -202,7 +202,7 @@ pub(crate) fn infer_static_bindings(
         (TypeReferenceNode::Constrained { base_type, .. }, _) => infer_static_bindings(
             program,
             *base_type,
-            validation::unwrapped_type_reference(program, actual).unwrap_or(actual),
+            crate::validation::unwrapped_type_reference(program, actual).unwrap_or(actual),
             type_parameters,
             const_parameters,
             fixed_range_parameters,
@@ -299,13 +299,13 @@ pub(crate) fn infer_static_bindings(
 
 pub(crate) fn infer_fixed_array_length_binding(
     program: &TypedTrees,
-    required: &typed_trees::types::FixedArrayLength,
-    actual: &typed_trees::types::FixedArrayLength,
+    required: &symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength,
+    actual: &symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength,
     const_parameters: &[(SymbolHandle, String, TypeReferenceHandle)],
     candidate_index: usize,
     const_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
 ) {
-    let typed_trees::types::FixedArrayLength::ConstParameter { symbol, name } = required else {
+    let symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::ConstParameter { symbol, name } = required else {
         return;
     };
     let Some(parameter_index) =
@@ -321,7 +321,7 @@ pub(crate) fn infer_fixed_array_length_binding(
         return;
     };
     let binding = match actual {
-        typed_trees::types::FixedArrayLength::Literal(value) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::Literal(value) => {
             let value = value.to_string();
             program
                 .type_reference_table
@@ -331,7 +331,7 @@ pub(crate) fn infer_fixed_array_length_binding(
                 })
                 .map(|(handle, _, _)| handle)
         }
-        typed_trees::types::FixedArrayLength::ConstParameter { symbol, name } => program
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::ConstParameter { symbol, name } => program
             .type_reference_table
             .named_references()
             .find(|(_, candidate_symbol, candidate_name)| {
@@ -341,7 +341,7 @@ pub(crate) fn infer_fixed_array_length_binding(
                         && *candidate_name == name.as_str())
             })
             .map(|(handle, _, _)| handle),
-        typed_trees::types::FixedArrayLength::ConstCall { .. } => None,
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::ConstCall { .. } => None,
     };
     if let Some(binding) = binding {
         const_proposals.push((candidate_index, parameter_index, binding));
@@ -397,8 +397,8 @@ pub(crate) fn infer_domain_argument_bindings(
 }
 
 pub(crate) fn same_domain_family(
-    left: &typed_trees::types::DomainConstraint,
-    right: &typed_trees::types::DomainConstraint,
+    left: &symbol_resolved_trees_to_typed_trees::typed_trees::types::DomainConstraint,
+    right: &symbol_resolved_trees_to_typed_trees::typed_trees::types::DomainConstraint,
 ) -> bool {
     if left.symbol.is_valid() && right.symbol.is_valid() {
         return left.symbol == right.symbol;

@@ -17,6 +17,7 @@ mod continuations;
 pub(crate) mod lowerer;
 
 use crate::preparation::generic_data::constant_selection::ConstantSelection;
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
 use crate::{constant, lowering, preparation, selection};
 pub use continuations::{
     ConstInitializerSelection, RebasedSeededSymbolResolvedTrees, SeededSymbolResolvedTrees,
@@ -25,8 +26,7 @@ use diagnostics::Diagnostic;
 use lowerer::{ConstResolutionMode, Lowerer};
 use source::SourceMap;
 use std::sync::Arc;
-use symbol_resolved_trees::SymbolResolvedTrees;
-use syntax_trees::SyntaxTrees;
+use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
 
 /// One syntax forest and the custody it resolves under.
 pub struct ResolutionRequest<'a> {

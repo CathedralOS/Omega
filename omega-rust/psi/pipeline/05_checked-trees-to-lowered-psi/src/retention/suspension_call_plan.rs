@@ -98,7 +98,7 @@ pub(crate) fn retain_suspension_call_plans(
                 );
             }
             let value = match live.origin {
-                checked_trees::SuspensionCrossingValueOrigin::Parameter { position, .. } => {
+                typed_trees_to_checked_trees::checked_trees::SuspensionCrossingValueOrigin::Parameter { position, .. } => {
                     occurrence
                         .source_values_before_call
                         .get(position)
@@ -107,7 +107,7 @@ pub(crate) fn retain_suspension_call_plans(
                             "suspension frontier scalar environment position is unavailable",
                         ))?
                 }
-                checked_trees::SuspensionCrossingValueOrigin::Local {
+                typed_trees_to_checked_trees::checked_trees::SuspensionCrossingValueOrigin::Local {
                     environment_position,
                     ..
                 } => {
@@ -129,7 +129,7 @@ pub(crate) fn retain_suspension_call_plans(
                     }
                     value
                 }
-                checked_trees::SuspensionCrossingValueOrigin::CallArgument { position } => {
+                typed_trees_to_checked_trees::checked_trees::SuspensionCrossingValueOrigin::CallArgument { position } => {
                     let id =
                         call_arguments
                             .get(position)
@@ -141,7 +141,7 @@ pub(crate) fn retain_suspension_call_plans(
                         "suspension frontier call argument value is undeclared",
                     ))?
                 }
-                checked_trees::SuspensionCrossingValueOrigin::Persistent { .. } => {
+                typed_trees_to_checked_trees::checked_trees::SuspensionCrossingValueOrigin::Persistent { .. } => {
                     return unsupported(
                         "persistent suspension frontier lacks an exact Terminal PlaceId join",
                     );
@@ -159,16 +159,16 @@ pub(crate) fn retain_suspension_call_plans(
                 place: terminal_psi::TerminalSuspensionPlace::Scalar(value.id),
                 value_type: terminal_psi::TerminalSuspensionValueType::Scalar(value.scalar_type),
                 storage: match live.storage {
-                    checked_trees::SuspensionCrossingStorage::Persistent => {
+                    typed_trees_to_checked_trees::checked_trees::SuspensionCrossingStorage::Persistent => {
                         terminal_psi::TerminalSuspensionStorage::Persistent
                     }
-                    checked_trees::SuspensionCrossingStorage::Parameter => {
+                    typed_trees_to_checked_trees::checked_trees::SuspensionCrossingStorage::Parameter => {
                         terminal_psi::TerminalSuspensionStorage::Parameter
                     }
-                    checked_trees::SuspensionCrossingStorage::Local => {
+                    typed_trees_to_checked_trees::checked_trees::SuspensionCrossingStorage::Local => {
                         terminal_psi::TerminalSuspensionStorage::Local
                     }
-                    checked_trees::SuspensionCrossingStorage::CallArgument => {
+                    typed_trees_to_checked_trees::checked_trees::SuspensionCrossingStorage::CallArgument => {
                         terminal_psi::TerminalSuspensionStorage::CallArgument
                     }
                 },
@@ -185,7 +185,11 @@ pub(crate) fn retain_suspension_call_plans(
                 right.effective,
             ))
         });
-        let crossing_id = checked_trees::canonical_suspension_crossing_id(&checked.typed, crossing)
+        let crossing_id =
+            typed_trees_to_checked_trees::checked_trees::canonical_suspension_crossing_id(
+                &checked.typed,
+                crossing,
+            )
             .ok_or(LoweringError::Unsupported(
                 "suspension crossing identity cannot resolve its source symbols",
             ))?;
@@ -228,7 +232,7 @@ pub(crate) fn retain_suspension_call_plans(
 fn source_origin_is_exact(
     checked: &CheckedTrees,
     state_symbol: symbols::SymbolHandle,
-    origin: checked_trees::SuspensionCrossingValueOrigin,
+    origin: typed_trees_to_checked_trees::checked_trees::SuspensionCrossingValueOrigin,
 ) -> bool {
     let Some(state) = checked
         .machines()
@@ -239,23 +243,23 @@ fn source_origin_is_exact(
         return false;
     };
     match origin {
-        checked_trees::SuspensionCrossingValueOrigin::Persistent { symbol } => checked
+        typed_trees_to_checked_trees::checked_trees::SuspensionCrossingValueOrigin::Persistent { symbol } => checked
             .state_parameters(state)
             .iter()
             .any(|parameter| parameter.is_self && parameter.symbol == symbol),
-        checked_trees::SuspensionCrossingValueOrigin::Parameter { symbol, position } => checked
+        typed_trees_to_checked_trees::checked_trees::SuspensionCrossingValueOrigin::Parameter { symbol, position } => checked
             .state_parameters(state)
             .iter()
             .filter(|parameter| !parameter.is_self)
             .nth(position)
             .is_some_and(|parameter| parameter.symbol == symbol),
-        checked_trees::SuspensionCrossingValueOrigin::Local {
+        typed_trees_to_checked_trees::checked_trees::SuspensionCrossingValueOrigin::Local {
             symbol,
             statement_index,
             environment_position,
         } => {
             let statements = checked.statement_table.statements(state.statement_nodes);
-            let Some(checked_trees::statement::StatementNode::LocalData(local)) =
+            let Some(typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(local)) =
                 statements.get(statement_index)
             else {
                 return false;
@@ -265,7 +269,7 @@ fn source_origin_is_exact(
                 .filter(|statement| {
                     matches!(
                         statement,
-                        checked_trees::statement::StatementNode::LocalData(_)
+                        typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(_)
                     )
                 })
                 .count();
@@ -277,7 +281,7 @@ fn source_origin_is_exact(
             local.symbol == symbol
                 && environment_position == parameter_count.saturating_add(preceding_locals)
         }
-        checked_trees::SuspensionCrossingValueOrigin::CallArgument { .. } => true,
+        typed_trees_to_checked_trees::checked_trees::SuspensionCrossingValueOrigin::CallArgument { .. } => true,
     }
 }
 

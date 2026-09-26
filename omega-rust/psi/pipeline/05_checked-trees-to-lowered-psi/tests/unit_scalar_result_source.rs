@@ -1,8 +1,8 @@
-use checked_trees::{
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use typed_trees_to_checked_trees::checked_trees::{
     CheckedCallScalarArgument, CheckedScalarExpression, CheckedUnitEffectOperationPlan,
     CheckedUnitScalarResultBindingPlan,
 };
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
 #[path = "unit_scalar_result_source/boundary_wrappers.rs"]
 mod boundary_wrappers;
@@ -83,26 +83,29 @@ machine Main::main(&mut self) -> i32 {
 }
 "#;
 
-fn checked() -> checked_trees::CheckedTrees {
+fn checked() -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
     crate::front_end::checked_program(SOURCE)
 }
 
-fn ordinary_checked() -> checked_trees::CheckedTrees {
+fn ordinary_checked() -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
     crate::front_end::checked_program(ORDINARY_SOURCE)
 }
 
-fn direct_store_checked() -> checked_trees::CheckedTrees {
+fn direct_store_checked() -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
     crate::front_end::checked_program(DIRECT_STORE_SOURCE)
 }
 
-fn checked_with_dependent_scalar_local() -> checked_trees::CheckedTrees {
+fn checked_with_dependent_scalar_local() -> typed_trees_to_checked_trees::checked_trees::CheckedTrees
+{
     crate::front_end::checked_program(&SOURCE.replace(
         "let result: i32 = Host::measure(70);\n    Host::finish(result);",
         "let measured: i32 = Host::measure(70);\n    let result: i32 = measured + 0i32;\n    Host::finish(result);",
     ))
 }
 
-fn main_symbol(checked: &checked_trees::CheckedTrees) -> symbols::SymbolHandle {
+fn main_symbol(
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+) -> symbols::SymbolHandle {
     checked
         .machines()
         .iter()
@@ -112,7 +115,7 @@ fn main_symbol(checked: &checked_trees::CheckedTrees) -> symbols::SymbolHandle {
 }
 
 fn main_operations_mut(
-    checked: &mut checked_trees::CheckedTrees,
+    checked: &mut typed_trees_to_checked_trees::checked_trees::CheckedTrees,
 ) -> &mut Vec<CheckedUnitEffectOperationPlan> {
     let main = main_symbol(checked);
     &mut checked
@@ -126,7 +129,9 @@ fn main_operations_mut(
         .operations
 }
 
-fn rejection_message(checked: &checked_trees::CheckedTrees) -> &'static str {
+fn rejection_message(
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+) -> &'static str {
     match checked_trees_to_lowered_psi::lower_machine(
         checked,
         TerminalMachineSelection::Name("Main::main"),
@@ -263,7 +268,10 @@ fn attached_unit_ordinary_scalar_result_rejects_contract_and_argument_fact_drift
     else {
         panic!("first operation should bind the ordinary scalar result")
     };
-    *target_contract_commitment = checked_trees::MachineContractCommitment::from_digest([0x5a; 32]);
+    *target_contract_commitment =
+        typed_trees_to_checked_trees::checked_trees::MachineContractCommitment::from_digest(
+            [0x5a; 32],
+        );
     assert_eq!(
         rejection_message(&contract),
         "ordinary Unit scalar call disagrees with its checked target signature, contract, or reach"
@@ -289,7 +297,7 @@ fn attached_unit_ordinary_scalar_result_rejects_contract_and_argument_fact_drift
         (
             state,
             coordinate.statement_index,
-            checked_trees::CheckedScalarExpressionRole::UnitCallArgument {
+            typed_trees_to_checked_trees::checked_trees::CheckedScalarExpressionRole::UnitCallArgument {
                 call_ordinal: coordinate.call_ordinal,
                 argument_ordinal: 0,
             },
@@ -340,7 +348,7 @@ fn attached_unit_ordinary_scalar_result_reaches_a_direct_write_only_store() {
                 statement_index: 1,
                 value: CheckedCallScalarArgument::Pure(CheckedScalarExpression::Local {
                     position: 0,
-                    primitive_type: typed_trees::types::PrimitiveType::I32,
+                    primitive_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::I32,
                 }),
                 ..
             },
@@ -399,7 +407,7 @@ fn attached_unit_scalar_expression_local_reaches_later_call_in_terminal_psi() {
         operations.as_slice(),
         [
             CheckedUnitEffectOperationPlan::BoundaryScalarCall { result: measured, .. },
-            CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value: checked_trees::CheckedCallScalarArgument::Pure(value) },
+            CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value: typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(value) },
             CheckedUnitEffectOperationPlan::BoundaryCall { scalar_arguments, .. },
             CheckedUnitEffectOperationPlan::Complete { .. },
         ] if measured.binding_ordinal == 0
@@ -407,7 +415,7 @@ fn attached_unit_scalar_expression_local_reaches_later_call_in_terminal_psi() {
             && matches!(
                 value,
                 CheckedScalarExpression::IntegerBinary {
-                    kind: checked_trees::CheckedIntegerBinaryKind::ExactAdd,
+                    kind: typed_trees_to_checked_trees::checked_trees::CheckedIntegerBinaryKind::ExactAdd,
                     left,
                     ..
                 } if matches!(
@@ -486,10 +494,13 @@ fn attached_unit_scalar_expression_local_rejects_checked_fact_drift() {
     else {
         panic!("second operation should establish the dependent scalar local")
     };
-    *value = checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Local {
-        position: 0,
-        primitive_type: typed_trees::types::PrimitiveType::I32,
-    });
+    *value = typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(
+        CheckedScalarExpression::Local {
+            position: 0,
+            primitive_type:
+                symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::I32,
+        },
+    );
 
     assert_eq!(
         rejection_message(&checked),
@@ -602,7 +613,8 @@ fn attached_unit_scalar_result_type_and_later_local_use_reject_drift() {
         panic!("first operation should bind the scalar result")
     };
     *result = CheckedUnitScalarResultBindingPlan {
-        primitive_type: typed_trees::types::PrimitiveType::U32,
+        primitive_type:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U32,
         ..*result
     };
     assert_eq!(
@@ -710,7 +722,7 @@ fn attached_unit_scalar_result_return_rejects_lost_argument_custody() {
         .find(|expression| {
             expression.state == state
                 && expression.role
-                    == checked_trees::CheckedScalarExpressionRole::UnitCallArgument {
+                    == typed_trees_to_checked_trees::checked_trees::CheckedScalarExpressionRole::UnitCallArgument {
                         call_ordinal: 0,
                         argument_ordinal: 0,
                     }
@@ -726,7 +738,7 @@ fn attached_unit_scalar_result_return_rejects_lost_argument_custody() {
         .filter(|(_, binding)| {
             binding.state == state
                 && binding.role
-                    == checked_trees::CheckedScalarExpressionRole::UnitCallArgument {
+                    == typed_trees_to_checked_trees::checked_trees::CheckedScalarExpressionRole::UnitCallArgument {
                         call_ordinal: 0,
                         argument_ordinal: 0,
                     }

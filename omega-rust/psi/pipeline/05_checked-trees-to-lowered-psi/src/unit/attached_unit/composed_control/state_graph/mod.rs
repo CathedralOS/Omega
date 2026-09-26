@@ -79,10 +79,13 @@ crate: scalar_case_return_preserves_authored_multifield_identity_and_rejects_pla
 covers reordered fields and corrupt plans, and
 scalar_case_return_multistate_borrowed_view_and_ordinary_call_observe_count
 combines returns, loops, and caller-visible mutation. Ordered value exits use
-guarded.rs and the ordinary structural-value emitter. Full source coverage is
-specified in ../../compiler/terminal-production/README.md relative to this crate.
+guarded.rs and the ordinary structural-value emitter; their native constructor,
+borrowed-getter, and selected-effect coverage lives in
+tests/native-differential/tests/scalar_case_results/guarded_returns.rs at the
+repository root. Full source coverage is
+specified in ../../07_lowered-psi-to-terminal-psi/terminal_production.md relative to this crate.
 */
-use checked_trees::{
+use typed_trees_to_checked_trees::checked_trees::{
     CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
     CheckedStructuralControlSuccessorPlan,
 };

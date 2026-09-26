@@ -1,8 +1,8 @@
 //! Named results retain their owner while exact shared call accesses execute.
 use super::{CheckedUnitEffectOperationPlan, Multiplicity};
+use crate::checked_trees::{BorrowAccessKind, CheckedStructuralAccess};
 use crate::tests::flow::terminal_unit::checked;
 use crate::tests::flow::terminal_unit::machine_named;
-use checked_trees::{BorrowAccessKind, CheckedStructuralAccess};
 
 fn source(producer: &str, final_move: bool) -> String {
     let finish = if final_move {
@@ -145,7 +145,7 @@ fn shared_result_reads_keep_cleanup_until_an_owned_transfer() {
                 assert!(argument.path.is_empty());
             }
             let state = crate::semantic::calls::find_state(&checked, plan.state).unwrap();
-            let typed_trees::statement::StatementNode::LocalData(local) =
+            let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) =
                 &checked.statement_table.statements(state.statement_nodes)[0]
             else {
                 panic!("named result");
@@ -160,7 +160,7 @@ fn shared_result_reads_keep_cleanup_until_an_owned_transfer() {
                 .filter(|event| {
                     event.machine_symbol == machine
                         && event.state_symbol == plan.state
-                        && event.root == ::facts::PlaceRoot::Symbol(local.symbol)
+                        && event.root == crate::fact_plan::PlaceRoot::Symbol(local.symbol)
                         && event.kind == language_semantics::PermissionEventKind::Transfer
                         && event.access == language_semantics::PermissionAccess::Owned
                 })

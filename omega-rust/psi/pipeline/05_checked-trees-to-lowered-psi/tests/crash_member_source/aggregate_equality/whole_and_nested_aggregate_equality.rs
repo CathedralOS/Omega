@@ -3,12 +3,12 @@ use crate::crash_member_source::{
     NESTED_PAYLOAD_SUM_EQUALITY_SOURCE, WHOLE_AGGREGATE_EQUALITY_SOURCE,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use omega::terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, Proposition, ScalarTerm, StructuralFieldId,
 };
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
-use terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecutionResult,

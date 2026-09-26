@@ -47,7 +47,7 @@ pub(super) fn lower_destination(
     qualifications: &PreparedScalarQualifications,
     machine: symbols::SymbolHandle,
     source_claims: &[(PermissionClaimIdentity, ClaimId)],
-    states: &[checked_trees::CheckedScalarStateGraph],
+    states: &[typed_trees_to_checked_trees::checked_trees::CheckedScalarStateGraph],
     source_state: symbols::SymbolHandle,
     source_value_types: &[QualifiedScalarType],
     destination: &CheckedScalarBranchDestination,

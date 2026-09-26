@@ -1,7 +1,9 @@
-use abstract_operations::{AbstractFunction, CompletionClaimSource};
+use crate::target_operations::TargetStructuralParameter;
 use semantic_vocabulary::{PlaceId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
-use target_operations::TargetStructuralParameter;
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractFunction, CompletionClaimSource,
+};
 
 pub(super) fn claim_completion_only_boundary_is_exact(
     function: &AbstractFunction,

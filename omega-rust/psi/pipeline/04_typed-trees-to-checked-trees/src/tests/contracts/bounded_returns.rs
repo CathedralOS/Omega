@@ -1,11 +1,11 @@
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
-use typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
 
-fn proof_rejects(program: &typed_trees::TypedTrees) {
-    let plan = proof::obligations::build_proof_plan(program);
-    let diagnostics = proof::checker::check_proof_plan(&plan)
+fn proof_rejects(program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees) {
+    let plan = crate::proof_engine::obligations::build_proof_plan(program);
+    let diagnostics = crate::proof_engine::checker::check_proof_plan(&plan)
         .expect_err("a missing or invalidated arrival premise cannot prove the return");
     assert!(
         diagnostics
@@ -113,7 +113,7 @@ fn same_spelling_with_a_different_symbol_does_not_refine_the_return() {
         .iter_expressions()
         .find_map(|(_, expression)| match expression {
             ExpressionNode::Binary(binary)
-                if binary.operator == typed_trees::expression::BinaryOperator::Less =>
+                if binary.operator == symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Less =>
             {
                 Some(binary.left)
             }
@@ -186,9 +186,15 @@ fn an_unknown_call_frame_cannot_preserve_an_arrival_premise() {
         .expect("increment");
     let statements = program.machine_states(machine)[0].statement_nodes;
     for statement in program.statement_table.statements_mut(statements) {
-        if let typed_trees::statement::StatementNode::Call(call) = statement {
+        if let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Call(
+            call,
+        ) = statement
+        {
             call.target_symbol = symbols::SymbolHandle::invalid();
-            call.target = typed_trees::name::Identifier::generated("unknown");
+            call.target =
+                symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated(
+                    "unknown",
+                );
         }
     }
     let machine = program
@@ -201,14 +207,14 @@ fn an_unknown_call_frame_cannot_preserve_an_arrival_premise() {
         .statements(statements)
         .iter()
         .find_map(|statement| {
-            if let typed_trees::statement::StatementNode::Call(call) = statement {
+            if let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Call(call) = statement {
                 Some(call)
             } else {
                 None
             }
         })
         .expect("unresolved aggregate-argument call");
-    let frames = validation::CallFrameResolver::new(&program).expect("frame resolver");
+    let frames = crate::validation::CallFrameResolver::new(&program).expect("frame resolver");
     assert!(
         frames.may_write_paths(machine, call).is_none(),
         "an unresolved aggregate carrying a mutable reference must have an opaque frame"
@@ -233,9 +239,15 @@ fn unresolved_no_argument_call_preserves_an_unpassed_parameter() {
         .expect("increment");
     let statements = program.machine_states(machine)[0].statement_nodes;
     for statement in program.statement_table.statements_mut(statements) {
-        if let typed_trees::statement::StatementNode::Call(call) = statement {
+        if let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Call(
+            call,
+        ) = statement
+        {
             call.target_symbol = symbols::SymbolHandle::invalid();
-            call.target = typed_trees::name::Identifier::generated("unknown");
+            call.target =
+                symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated(
+                    "unknown",
+                );
         }
     }
     let machine = program
@@ -248,19 +260,19 @@ fn unresolved_no_argument_call_preserves_an_unpassed_parameter() {
         .statements(statements)
         .iter()
         .find_map(|statement| {
-            if let typed_trees::statement::StatementNode::Call(call) = statement {
+            if let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Call(call) = statement {
                 Some(call)
             } else {
                 None
             }
         })
         .expect("unresolved no-argument call");
-    let frames = validation::CallFrameResolver::new(&program).expect("frame resolver");
+    let frames = crate::validation::CallFrameResolver::new(&program).expect("frame resolver");
     assert_eq!(
         frames.may_write_paths(machine, call),
         Some(vec!["self".to_owned()])
     );
-    let plan = proof::obligations::build_proof_plan(&program);
-    proof::checker::check_proof_plan(&plan)
+    let plan = crate::proof_engine::obligations::build_proof_plan(&program);
+    crate::proof_engine::checker::check_proof_plan(&plan)
         .expect("the conservative receiver frame cannot modify the unpassed parameter");
 }

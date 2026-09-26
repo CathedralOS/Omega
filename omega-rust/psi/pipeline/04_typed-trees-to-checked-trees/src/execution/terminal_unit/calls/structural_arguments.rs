@@ -34,19 +34,22 @@ pub(crate) fn structural_call_arguments(
     program: &TypedTrees,
     facts: &CheckFacts,
     scalar_callees: Option<ScalarCalleePlans<'_>>,
-    call: &checked_trees::FlowCallFact,
-    caller_machine: &typed_trees::machine::Machine,
-    caller_state: &typed_trees::state::State,
+    call: &crate::checked_trees::FlowCallFact,
+    caller_machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    caller_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
     caller_trivial_affine_locals: &[(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
-    target_machine: &typed_trees::machine::Machine,
-    target_state: &typed_trees::state::State,
+    target_machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    target_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     call_site: &crate::semantic::calls::CallSite<'_>,
     receiver_symbol: SymbolHandle,
     statement_index: usize,
     allow_fixed_index_projection: bool,
     allow_field_path_projection: bool,
-    caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
+    caller_structural_results: &[(
+        CheckedUnitStructuralResultBindingPlan,
+        crate::fact_plan::PlaceRoot,
+    )],
     trace: &crate::execution::terminal_unit::control::LocalConstructionTrace,
 ) -> Option<Vec<CheckedUnitStructuralArgumentPlan>> {
     let source_parameters = program.state_parameters(caller_state);
@@ -154,7 +157,7 @@ pub(crate) fn structural_call_arguments(
                     target.type_reference,
                     expression,
                     statement_index,
-                    checked_trees::CheckedSubsliceSite::CallArgument {
+                    crate::checked_trees::CheckedSubsliceSite::CallArgument {
                         call_ordinal: u32::try_from(call.call_ordinal).ok()?,
                         argument_ordinal: u32::try_from(argument_ordinal).ok()?,
                     },
@@ -172,7 +175,7 @@ pub(crate) fn structural_call_arguments(
                 crate::execution::terminal_unit::ExpressionNode::Indexed(indexed)
                     if matches!(program.expression_table.expression(indexed.index),
                         crate::execution::terminal_unit::ExpressionNode::Range(_)))
-                && !validation::has_builtin_subslice_meaning(
+                && !crate::validation::has_builtin_subslice_meaning(
                     program,
                     caller_machine,
                     Some(caller_state),
@@ -190,9 +193,9 @@ pub(crate) fn structural_call_arguments(
             .or_else(|| {
                 caller_structural_results
                     .iter()
-                    .find(|(_, root)| *root == facts::PlaceRoot::Expression(expression))
+                    .find(|(_, root)| *root == crate::fact_plan::PlaceRoot::Expression(expression))
                     .map(|_| crate::flow::CanonicalPlace {
-                        root: facts::PlaceRoot::Expression(expression),
+                        root: crate::fact_plan::PlaceRoot::Expression(expression),
                         segments: Vec::new(),
                     })
             })?
@@ -255,7 +258,7 @@ pub(crate) fn structural_call_arguments(
             if !target_machine.supply_mode.is_boundary_declaration()
                 && (target_machine.supply_mode != MachineSupplyMode::CheckedBody
                     || (!is_unit(program, target_state.return_type)
-                        && !validation::is_closed_primitive_array_type(
+                        && !crate::validation::is_closed_primitive_array_type(
                             program,
                             target_state.return_type,
                         )
@@ -280,7 +283,7 @@ pub(crate) fn structural_call_arguments(
             // expression of its own: the call names it by symbol, and the
             // result argument planner joins that symbol to the local's place.
             let expression = if target.is_self && !explicit_self {
-                typed_trees::expression::ExpressionHandle::invalid()
+                symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid()
             } else {
                 *explicit_arguments.get(explicit_index.checked_sub(1)?)?
             };
@@ -302,7 +305,7 @@ pub(crate) fn structural_call_arguments(
             continue;
         }
         arm("call operation: structural arguments: source symbol");
-        let facts::PlaceRoot::Symbol(source_symbol) = place.root else {
+        let crate::fact_plan::PlaceRoot::Symbol(source_symbol) = place.root else {
             return None;
         };
         if crate::execution::terminal_unit::structural_scalar_store::primitive_local_before(
@@ -346,7 +349,7 @@ pub(crate) fn structural_call_arguments(
                     && event.access == PermissionAccess::Owned
                     && event.claim_identity == PermissionClaimIdentity::Unknown
                     && !event.obligation_live
-                    && event.root == facts::PlaceRoot::Symbol(source_symbol)
+                    && event.root == crate::fact_plan::PlaceRoot::Symbol(source_symbol)
                     && facts
                         .flow
                         .ownership
@@ -410,15 +413,17 @@ pub(crate) fn structural_call_arguments(
                 )
                 .unwrap_or(u32::MAX)
         })?;
-        if validation::is_closed_primitive_array_type(program, source_parameter.type_reference)
-            && (target_machine.supply_mode != MachineSupplyMode::CheckedBody
-                || !place.segments.is_empty()
-                || caller_parameters[source_index].access != CheckedStructuralAccess::Owned
-                || caller_parameters[source_index].multiplicity != Multiplicity::Unrestricted
-                || !caller_parameters[source_index].qualifications.is_empty()
-                || !validation::is_closed_primitive_array_type(program, target.type_reference)
-                || structural_access_for_type_reference(program, target.type_reference)?
-                    != CheckedStructuralAccess::Owned)
+        if crate::validation::is_closed_primitive_array_type(
+            program,
+            source_parameter.type_reference,
+        ) && (target_machine.supply_mode != MachineSupplyMode::CheckedBody
+            || !place.segments.is_empty()
+            || caller_parameters[source_index].access != CheckedStructuralAccess::Owned
+            || caller_parameters[source_index].multiplicity != Multiplicity::Unrestricted
+            || !caller_parameters[source_index].qualifications.is_empty()
+            || !crate::validation::is_closed_primitive_array_type(program, target.type_reference)
+            || structural_access_for_type_reference(program, target.type_reference)?
+                != CheckedStructuralAccess::Owned)
         {
             return None;
         }
@@ -426,7 +431,7 @@ pub(crate) fn structural_call_arguments(
         let source_identity = caller_parameters.get(source_index)?.type_identity.clone();
         let path = match place.segments.as_slice() {
             [] => Vec::new(),
-            [.., facts::PlaceSegment::FixedRange { .. }]
+            [.., crate::fact_plan::PlaceSegment::FixedRange { .. }]
                 if (target_machine.supply_mode == MachineSupplyMode::CheckedBody
                     || target_machine.supply_mode.is_boundary_declaration())
                     && matches!(
@@ -460,7 +465,7 @@ pub(crate) fn structural_call_arguments(
                         CheckedStructuralAccess::MutableBorrow
                             | CheckedStructuralAccess::SharedBorrow
                     )
-                    && checked_trees::is_borrowed_view(byte_sequence_carrier(
+                    && crate::checked_trees::is_borrowed_view(byte_sequence_carrier(
                         program,
                         target.type_reference,
                         &[],
@@ -468,8 +473,8 @@ pub(crate) fn structural_call_arguments(
                     && segments.iter().all(|segment| {
                         matches!(
                             segment,
-                            facts::PlaceSegment::Field { .. }
-                                | facts::PlaceSegment::FixedIndex { .. }
+                            crate::fact_plan::PlaceSegment::Field { .. }
+                                | crate::fact_plan::PlaceSegment::FixedIndex { .. }
                         )
                     }) =>
             {
@@ -483,9 +488,9 @@ pub(crate) fn structural_call_arguments(
                     &[],
                 ) && !(caller_parameters[source_index].multiplicity
                     == Multiplicity::Unrestricted
-                    && segments
-                        .iter()
-                        .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. }))
+                    && segments.iter().all(|segment| {
+                        matches!(segment, crate::fact_plan::PlaceSegment::Field { .. })
+                    })
                     && fixed_byte_array_view_is_admitted(
                         program,
                         projected_type,
@@ -522,8 +527,8 @@ pub(crate) fn structural_call_arguments(
                     && segments.iter().all(|segment| {
                         matches!(
                             segment,
-                            facts::PlaceSegment::Field { .. }
-                                | facts::PlaceSegment::FixedIndex { .. }
+                            crate::fact_plan::PlaceSegment::Field { .. }
+                                | crate::fact_plan::PlaceSegment::FixedIndex { .. }
                         )
                     }) =>
             {
@@ -558,8 +563,8 @@ pub(crate) fn structural_call_arguments(
                     && segments.iter().all(|segment| {
                         matches!(
                             segment,
-                            facts::PlaceSegment::Field { .. }
-                                | facts::PlaceSegment::FixedIndex { .. }
+                            crate::fact_plan::PlaceSegment::Field { .. }
+                                | crate::fact_plan::PlaceSegment::FixedIndex { .. }
                         )
                     }) =>
             {
@@ -571,7 +576,7 @@ pub(crate) fn structural_call_arguments(
                     &target_identity,
                 )?
             }
-            [facts::PlaceSegment::FixedIndex { index }]
+            [crate::fact_plan::PlaceSegment::FixedIndex { index }]
                 if allow_fixed_index_projection
                     && caller_parameters
                         .get(source_index)?
@@ -586,7 +591,7 @@ pub(crate) fn structural_call_arguments(
                     &target_identity,
                 )?
             }
-            segments @ [facts::PlaceSegment::FixedIndex { .. }, ..]
+            segments @ [crate::fact_plan::PlaceSegment::FixedIndex { .. }, ..]
                 if (matches!(segments.len(), 2 | 3)
                     || (target_machine.supply_mode == MachineSupplyMode::CheckedBody
                         && caller_parameters.get(source_index)?.access
@@ -596,7 +601,7 @@ pub(crate) fn structural_call_arguments(
                             target.type_reference,
                         )? == CheckedStructuralAccess::WriteOnlyBorrow))
                     && segments.iter().all(|segment| {
-                        matches!(segment, facts::PlaceSegment::FixedIndex { .. })
+                        matches!(segment, crate::fact_plan::PlaceSegment::FixedIndex { .. })
                     })
                     && allow_fixed_index_projection
                     && caller_parameters
@@ -612,11 +617,11 @@ pub(crate) fn structural_call_arguments(
                     &target_identity,
                 )?
             }
-            segments @ [facts::PlaceSegment::Field { .. }, ..]
+            segments @ [crate::fact_plan::PlaceSegment::Field { .. }, ..]
                 if (allow_field_path_projection
-                    && segments
-                        .iter()
-                        .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. })))
+                    && segments.iter().all(|segment| {
+                        matches!(segment, crate::fact_plan::PlaceSegment::Field { .. })
+                    }))
                     && caller_parameters
                         .get(source_index)?
                         .qualifications
@@ -716,7 +721,7 @@ fn alias_forwarded_access(
     {
         return None;
     }
-    let facts::PlaceRoot::Symbol(owner) = authored_place.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(owner) = authored_place.root else {
         return None;
     };
     let alias = aliases.iter().find(|alias| alias.owner == owner)?;
@@ -724,9 +729,11 @@ fn alias_forwarded_access(
         return None;
     }
     let forwarded = match alias.kind {
-        checked_trees::BorrowAccessKind::Read => CheckedStructuralAccess::SharedBorrow,
-        checked_trees::BorrowAccessKind::Mutable => CheckedStructuralAccess::MutableBorrow,
-        checked_trees::BorrowAccessKind::WriteOnly => CheckedStructuralAccess::WriteOnlyBorrow,
+        crate::checked_trees::BorrowAccessKind::Read => CheckedStructuralAccess::SharedBorrow,
+        crate::checked_trees::BorrowAccessKind::Mutable => CheckedStructuralAccess::MutableBorrow,
+        crate::checked_trees::BorrowAccessKind::WriteOnly => {
+            CheckedStructuralAccess::WriteOnlyBorrow
+        }
     };
     (forwarded == target_access).then_some(target_access)
 }
@@ -738,10 +745,10 @@ fn reborrow_restored_call_alias_target(
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
-    call: &checked_trees::FlowCallFact,
+    call: &crate::checked_trees::FlowCallFact,
     authored_place: &crate::flow::CanonicalPlace,
 ) -> Option<crate::flow::CanonicalPlace> {
-    let facts::PlaceRoot::Symbol(authored_root) = authored_place.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(authored_root) = authored_place.root else {
         return None;
     };
     if !authored_place.segments.is_empty() {
@@ -757,7 +764,7 @@ fn reborrow_restored_call_alias_target(
                 || certificate.target_symbol != call.target_symbol
                 || certificate.carrier_place.root_symbol != authored_root
                 || !certificate.carrier_place.segments.is_empty()
-                || certificate.access != checked_trees::BorrowAccessKind::Mutable
+                || certificate.access != crate::checked_trees::BorrowAccessKind::Mutable
                 || !facts.flow.control.calls.is_valid(certificate.call)
             {
                 return None;
@@ -770,7 +777,9 @@ fn reborrow_restored_call_alias_target(
                 && certified_call.has_receiver == call.has_receiver
                 && certified_call.accesses == call.accesses)
                 .then_some(crate::flow::CanonicalPlace {
-                    root: facts::PlaceRoot::Symbol(certificate.restored_place.root_symbol),
+                    root: crate::fact_plan::PlaceRoot::Symbol(
+                        certificate.restored_place.root_symbol,
+                    ),
                     segments: certificate.restored_place.segments.clone(),
                 })
         })
@@ -790,14 +799,14 @@ fn reborrow_restored_shared_cohort_observation_alias_target(
     program: &TypedTrees,
     facts: &CheckFacts,
     machine: SymbolHandle,
-    caller_state: &typed_trees::state::State,
-    target_machine: &typed_trees::machine::Machine,
-    target_state: &typed_trees::state::State,
-    call: &checked_trees::FlowCallFact,
+    caller_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    target_machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    target_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    call: &crate::checked_trees::FlowCallFact,
     call_site: &crate::semantic::calls::CallSite<'_>,
     authored_place: &crate::flow::CanonicalPlace,
 ) -> Option<crate::flow::CanonicalPlace> {
-    let facts::PlaceRoot::Symbol(authored_root) = authored_place.root else {
+    let crate::fact_plan::PlaceRoot::Symbol(authored_root) = authored_place.root else {
         return None;
     };
     if !authored_place.segments.is_empty() || call.call_ordinal != 0 {
@@ -833,7 +842,7 @@ fn reborrow_restored_shared_cohort_observation_alias_target(
                 call.statement_index,
                 *expression,
             )?;
-            let facts::PlaceRoot::Symbol(root) = place.root else {
+            let crate::fact_plan::PlaceRoot::Symbol(root) = place.root else {
                 return None;
             };
             place.segments.is_empty().then_some(root)
@@ -884,7 +893,7 @@ fn reborrow_restored_shared_cohort_observation_alias_target(
                     let member = facts.borrow.reborrow_loan_resources.get(*member);
                     (member.machine_symbol == machine
                         && member.state_symbol == caller_state.symbol
-                        && member.access == checked_trees::BorrowAccessKind::Read)
+                        && member.access == crate::checked_trees::BorrowAccessKind::Read)
                         .then_some(member.owner_symbol)
                 })
                 .collect::<Option<Vec<_>>>()?;
@@ -898,7 +907,7 @@ fn reborrow_restored_shared_cohort_observation_alias_target(
                 return None;
             }
             Some(crate::flow::CanonicalPlace {
-                root: facts::PlaceRoot::Symbol(certificate.restored_place.root_symbol),
+                root: crate::fact_plan::PlaceRoot::Symbol(certificate.restored_place.root_symbol),
                 segments: certificate.restored_place.segments.clone(),
             })
         })
@@ -918,8 +927,8 @@ fn borrow_access_spelling<'place>(
     machine: SymbolHandle,
     state: SymbolHandle,
     place: &'place crate::flow::CanonicalPlace,
-) -> Option<(SymbolHandle, &'place [facts::PlaceSegment])> {
-    let facts::PlaceRoot::Symbol(root) = place.root else {
+) -> Option<(SymbolHandle, &'place [crate::fact_plan::PlaceSegment])> {
+    let crate::fact_plan::PlaceRoot::Symbol(root) = place.root else {
         return None;
     };
     if (root == machine
@@ -929,7 +938,7 @@ fn borrow_access_spelling<'place>(
                 .iter()
                 .any(|parameter| parameter.is_self && parameter.symbol == root)
         }))
-        && let Some((facts::PlaceSegment::Field { symbol }, remaining)) =
+        && let Some((crate::fact_plan::PlaceSegment::Field { symbol }, remaining)) =
             place.segments.split_first()
     {
         return Some((*symbol, remaining));
@@ -942,7 +951,7 @@ pub(crate) fn exact_structural_argument_access(
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
-    call: &checked_trees::FlowCallFact,
+    call: &crate::checked_trees::FlowCallFact,
     place: &crate::flow::CanonicalPlace,
     target_access: CheckedStructuralAccess,
 ) -> Option<CheckedStructuralAccess> {
@@ -1004,13 +1013,13 @@ pub(crate) fn exact_structural_argument_access(
 
 pub(crate) fn exact_structural_borrow_access(
     program: &TypedTrees,
-    borrow: &checked_trees::BorrowFacts,
+    borrow: &crate::checked_trees::BorrowFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
-    call: &checked_trees::FlowCallFact,
+    call: &crate::checked_trees::FlowCallFact,
     place: &crate::flow::CanonicalPlace,
     target_access: CheckedStructuralAccess,
-    returned_loans: &[arena::Handle<checked_trees::BorrowLoanFact>],
+    returned_loans: &[arena::Handle<crate::checked_trees::BorrowLoanFact>],
 ) -> Option<CheckedStructuralAccess> {
     if target_access == CheckedStructuralAccess::Owned {
         return Some(CheckedStructuralAccess::Owned);
@@ -1052,7 +1061,7 @@ pub(crate) fn exact_structural_borrow_access(
         return None;
     }
     if target_access == CheckedStructuralAccess::MutableBorrow
-        && **first == checked_trees::BorrowAccessKind::Read
+        && **first == crate::checked_trees::BorrowAccessKind::Read
         && segments.is_empty()
         && reference_forwarding::preserves_mutable_referent(
             program,
@@ -1067,9 +1076,11 @@ pub(crate) fn exact_structural_borrow_access(
         return Some(CheckedStructuralAccess::MutableBorrow);
     }
     Some(match first {
-        checked_trees::BorrowAccessKind::Read => CheckedStructuralAccess::SharedBorrow,
-        checked_trees::BorrowAccessKind::Mutable => CheckedStructuralAccess::MutableBorrow,
-        checked_trees::BorrowAccessKind::WriteOnly => CheckedStructuralAccess::WriteOnlyBorrow,
+        crate::checked_trees::BorrowAccessKind::Read => CheckedStructuralAccess::SharedBorrow,
+        crate::checked_trees::BorrowAccessKind::Mutable => CheckedStructuralAccess::MutableBorrow,
+        crate::checked_trees::BorrowAccessKind::WriteOnly => {
+            CheckedStructuralAccess::WriteOnlyBorrow
+        }
     })
 }
 
@@ -1077,10 +1088,13 @@ pub(crate) fn call_claim_transfers(
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
-    call: &checked_trees::FlowCallFact,
+    call: &crate::checked_trees::FlowCallFact,
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
     entry_claims: &[CheckedUnitEntryClaimPlan],
-    caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
+    caller_structural_results: &[(
+        CheckedUnitStructuralResultBindingPlan,
+        crate::fact_plan::PlaceRoot,
+    )],
     arguments: &[CheckedUnitStructuralArgumentPlan],
     kind: PermissionEventKind,
 ) -> Option<Vec<CheckedUnitClaimTransferPlan>> {
@@ -1257,7 +1271,7 @@ pub(crate) fn exact_integer_at(
     machine: SymbolHandle,
     state: SymbolHandle,
     statement_index: usize,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     expected_type: PrimitiveType,
 ) -> Option<u64> {
     let matches = facts
@@ -1265,11 +1279,11 @@ pub(crate) fn exact_integer_at(
         .expression_values(expression)
         .filter(|(_, value)| {
             value.origin
-                == checked_trees::CheckedValueOrigin::StateStatement {
+                == crate::checked_trees::CheckedValueOrigin::StateStatement {
                     machine_symbol: machine,
                     state_symbol: state,
                     statement_index,
-                    role: checked_trees::CheckedValueStatementRole::CallArgument,
+                    role: crate::checked_trees::CheckedValueStatementRole::CallArgument,
                 }
         })
         .map(|(_, value)| value)

@@ -1,14 +1,14 @@
 //! Source custody of whole primitive borrows, independent of lowered places.
 
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use checked_trees::state::State;
-use checked_trees::statement::StatementNode;
-use checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-use checked_trees::{
+use language_core::ReferenceAccess;
+use typed_trees_to_checked_trees::checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees_to_checked_trees::checked_trees::state::State;
+use typed_trees_to_checked_trees::checked_trees::statement::StatementNode;
+use typed_trees_to_checked_trees::checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees_to_checked_trees::checked_trees::{
     BorrowAccessKind, BorrowCallFact, CheckedStructuralAccess, CheckedTrees,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
 };
-use language_core::ReferenceAccess;
 
 use super::borrow_rows;
 use crate::lowering_error::LoweringError;

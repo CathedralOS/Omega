@@ -3,10 +3,10 @@ use crate::input::token_cursor::{Input, ParseResult};
 use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
 use crate::parameters::parse_generic_parameters::parse_generic_parameters;
 use crate::parameters::parse_parameters::parse_optional_parameters;
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::item::{PropositionBody, PropositionDefinition};
 use crate::type_syntax::parse_type::parse_type_reference_handle;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::item::{PropositionBody, PropositionDefinition};
-use tokens::PunctuationKind;
+use source_files_to_tokens::tokens::PunctuationKind;
 
 pub(super) fn parse_proposition_definition<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,

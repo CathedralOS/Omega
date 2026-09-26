@@ -16,12 +16,14 @@
 //! both are `read_position` arguments to the same walk.
 use std::collections::{BTreeSet, VecDeque};
 
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess, RegisterUnitId};
-use selected_instructions::{
+use semantic_vocabulary::IntegerValue;
+use target_operations_to_selected_instructions::register_model::{
+    RegisterInstructionConstraint, RegisterOperandAccess, RegisterUnitId,
+};
+use target_operations_to_selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstruction, SelectedInstructionKind,
     SelectedSuccessor, SelectedTerminator, VirtualRegisterId,
 };
-use semantic_vocabulary::IntegerValue;
 
 /// The rejection reasons a condition-state resolution can raise; the
 /// admission maps them onto the pair family's error vocabulary.

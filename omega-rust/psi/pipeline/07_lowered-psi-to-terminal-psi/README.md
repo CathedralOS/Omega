@@ -23,5 +23,12 @@ The replay mechanisms have distinct authored roles:
 
 Receipt fields remain private. Source custody cannot replace canonical coverage
 or grant downstream realization authority. The product coordinator in
-[terminal-production](../../compiler/terminal-production/README.md) sequences
-optimization, artifact publication and source receipt construction.
+[terminal_production](src/terminal_production/mod.rs) sequences
+optimization, artifact publication and source receipt construction. Its
+`TerminalProductionRequest::produce` lowers the selected machine
+(05_checked-trees-to-lowered-psi), runs the selected Psi optimization
+(06_lowered-psi-to-lowered-psi), and publishes the canonical artifact through
+this stage; checked-source receipts stay beside the portable artifact, not
+inside it. The [scalar computation and call map](scalar_calls.md) covers
+authored occurrence replay, argument evaluation, and shared ordinary/composed
+call closures.

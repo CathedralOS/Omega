@@ -5,15 +5,17 @@ use super::super::RedundantBlockParameterRule;
 use crate::RuleAnalysisView;
 use crate::rules::tests::fixtures::control_flow_cleanup::redundant_block_parameter_unit;
 use crate::rules::tests::fixtures::id;
-use abstract_operations::AbstractOperation as O;
 use optimization_core::{
     AnalysisKind, OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
-use optimization_unit::{PsiRewriteCandidate, PsiRewritePatch, RedundantBlockParameterWitness};
-use optimization_unit_semantics::{
+use semantic_vocabulary::ObligationId;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    PsiRewriteCandidate, PsiRewritePatch, RedundantBlockParameterWitness,
+};
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_redundant_block_parameter_candidate,
 };
-use semantic_vocabulary::ObligationId;
 #[test]
 fn redundant_block_parameter_rule_binds_both_exact_conditional_edges() {
     let unit = redundant_block_parameter_unit(true);
@@ -112,7 +114,7 @@ fn differing_bindings_decline_and_incomplete_edge_witness_rejects() {
         .unwrap()
         .pop()
         .unwrap();
-    let optimization_unit::PsiRewritePatch::RemoveRedundantBlockParameter(patch) =
+    let terminal_psi_to_abstract_operations::optimization_unit::PsiRewritePatch::RemoveRedundantBlockParameter(patch) =
         candidate.patch()
     else {
         unreachable!()

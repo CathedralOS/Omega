@@ -7,12 +7,15 @@
 //! row mint evidence.
 use super::intrinsic_enum_equality;
 use crate::tests::front_end::typed_program;
-use typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 
 /// `decide` compares two `Choice` parameters: the equality's custody
 /// classification depends entirely on resolving the shared nominal symbol to
 /// one declaration whose members are all payload-free variants.
-fn equality_is_intrinsic(source: &str, mutate: impl FnOnce(&mut typed_trees::TypedTrees)) -> bool {
+fn equality_is_intrinsic(
+    source: &str,
+    mutate: impl FnOnce(&mut symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees),
+) -> bool {
     let mut program = typed_program(source);
     mutate(&mut program);
     let machine = program
@@ -29,7 +32,7 @@ fn equality_is_intrinsic(source: &str, mutate: impl FnOnce(&mut typed_trees::Typ
     intrinsic_enum_equality(&program, state.symbol, expression)
 }
 
-fn duplicate_choice(program: &mut typed_trees::TypedTrees) {
+fn duplicate_choice(program: &mut symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees) {
     let duplicate = program
         .data_definitions()
         .iter()

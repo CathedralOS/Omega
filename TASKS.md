@@ -255,6 +255,58 @@ backend-visible; full corpus runs only at the end of an item.
   crate holds only orchestration, reports and publication, and
   `omega-rust/pipeline.md`'s "current implementation" paragraph is deleted.
 
+## Fat-stages consolidation
+
+The fold of `omega-rust/` into `pipeline/` + `foundation/` + the binary, per
+[the design](wiki/drafts/designs/fat_stages_consolidation.md) (map:
+`wiki/drafts/designs/fat_stages_map.html`). A stage owns its produced IR, its
+machinery, and its checker module; substeps are modules, never crates; outside
+`pipeline/` only universal substrate and the `omega` binary survive;
+`terminal-psi` stays the lone standalone representation crate. Items land
+leaf-up in the listed order, workspace green at every step — `mbx check` on
+touched crates plus `tools/corpus_gate.py --filter` over affected groups, full
+corpus at the end of an item. Folds are reduce-and-move, not lifts: dead
+machinery dies instead of porting, and each surviving substep enters its stage
+as a module with a typed `in -> out` signature so later promotion to a numbered
+stage is cheap.
+
+- **FOUNDATION-STRAYS-TO-CONSUMERS.** Landed: `access-plans`, `extents`,
+  `layout-plans`, and `mutation-matrix` folded into their consumers; `psi/foundation/`
+  keeps only universal substrate (arena, symbols, diagnostics,
+  semantic-vocabulary, language-core, language-semantics, numerics, source).
+- **EMISSION-TAIL-REMAINDER.** Landed: `backend/{layout,
+  plans/program-entry-plan}` and `backend/runtime/{runtime-abi}` folded into
+  stage 09; `backend/runtime/{executable-installation,external-roots,
+  component-publication}` into the `omega` binary (post_handoff_writer rides
+  `installed-writer`); `backend/artifacts/*` and `backend/plans/backend-plan`
+  moved into the binary earlier. `omega/backend/` is deleted.
+- **OMEGA-IRS-INTO-STAGES.** Landed: `register-homes` -> stage 04, `effects`
+  -> stage 02, `machine-code` -> stage 07, `boundary-applications` +
+  `representation-selections` -> stage 09; `target`, `optimization-core`,
+  `installation-evidence` relocated to the flat `psi/` boundary layer.
+  `omega/representations/` is deleted.
+- **PSI-FOLD-INTO-STAGES.** Landed: engines
+  (`build-time-evaluation`, `checked-interpreter`, `terminal-fixed-fuel`)
+  fold into the `omega` binary's run paths; judges (`proof-admission`,
+  `terminal-semantics`), `terminal-codec`, `terminal-verifier`,
+  `terminal-interpreter`, and `terminal-fuel` sit at the flat `psi/`
+  boundary layer — each is consumed by psi stages, so binary placement is
+  impossible, not deferred. `psi/semantics/` and `psi/representations/` are
+  deleted; `terminal-psi` stays the lone standalone representation crate.
+- **BINARY-MEGA-FOLD-REMAINDER.** Landed: `omega/compiler`, `omega/build/*`
+  (10 crates), `omega/packages/*` (5), `omega/tooling/*` (3),
+  `omega/backend/artifacts/*` (2), `omega/backend/plans/backend-plan`,
+  `psi/semantics/{build-time-evaluation,checked-interpreter,
+  terminal-fixed-fuel}`, and `backend/runtime/{executable-installation,
+  external-roots, component-publication}` folded into the `omega` binary
+  crate as `omega::<lib>` modules. Remaining (owned by other items):
+  `omega::compiler` vs `omega::compilation` orchestration merging under
+  ONE-DRIVER-PER-STAGE/SOURCE-SET-UNION/BUILD-EVALUATES-ONCE.
+- **PIPELINE-PLACEMENT-RULE-REWRITE.** Landed: `omega-rust/pipeline.md`'s
+  placement rule now states the surviving-outside-pipeline test — universal
+  substrate (`psi/foundation/`), the flat `psi/` boundary layer, and the
+  `omega` binary — and the deleted directories are gone from the map.
+
 ## Immediate product closure
 
 Prioritize unchanged customer programs reaching native execution over additional
@@ -1450,8 +1502,8 @@ the source shape; these items track implementation, not further design.
   `builder.tests.group<ExactRequirement>()`, normalized group enablement,
   package-local concrete satisfaction discovery, separate runner roots, and
   Terminal Psi execution gating successful build publication. Own registration
-  in `omega-rust/omega/build/`, compose existing Psi production/verification and
-  interpretation through `omega-rust/omega/compiler/`, and report invocation
+  in `omega-rust/omega/src/`, compose existing Psi production/verification and
+  interpretation through `omega-rust/omega/docs/compiler/`, and report invocation
   outcomes through the normal compile result. Preserve exact product-reference
   identity, private visibility, and source/target provenance; do not discover by
   strings or infer generic applications. Add the optional ordinary std testing
@@ -1560,7 +1612,7 @@ WIRE-RUNTIME-AND-INSTALLATION owns generic executable custody. No compiler graph
 stage, topology-specific IR, or new trusted graph axiom.
 
 - **TOPOLOGY-PLAN-VERIFICATION.** Deliver the Omega build-only package and payment
-  composition project. Reuse `omega-rust/omega/packages/topology/` normalization,
+  composition project. Reuse `omega-rust/omega/src/topology_plan/` normalization,
   policy, certificate, and codec implementations, plus the existing component
   description producer/admission in compiler, build-evaluation, and
   `backend/artifacts/component-description/`.
@@ -2549,7 +2601,7 @@ syntax and other terminal services are not prerequisites.
     contain constants. Preserve assumption closure even when proof use erases.
   - Migrate core relations, quotients and examples. Include the replacement
     proof rows assigned by
-    `omega-rust/omega/packages/review/evidence/EVIDENCE_SCHEMA.md` and
+    `omega-rust/omega/docs/package-evidence/EVIDENCE_SCHEMA.md` and
     QUOTIENT-THEOREM-LIFT's congruence-only lift payload.
 
   Acceptance is source → Terminal serialization → independent checking under
@@ -2867,7 +2919,7 @@ syntax and other terminal services are not prerequisites.
   Owners: native proposal construction, `native-realization`'s
   `retained_native_product` and `callback_thunks`, selected-call ABI transport,
   and image private-function/relocation replay. See
-  [receiving custody limits](omega-rust/omega/compiler/README.md#callback-custody-boundaries).
+  [receiving custody limits](omega-rust/omega/docs/compiler/README.md#callback-custody-boundaries).
   Acceptance: the direct witness and
   `source/library/std/tests/callback_materialization_closure.omg` two-slot
   registrar produce native images binding exact function, symbol, relocation,
@@ -4904,7 +4956,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   Reuse the sealed call-graph plans, argument marshalling, nonmoving leases and
   provider-instance claim ledger. Call-side suspension markers already require
   site/plan pairs; `suspension_call_plan_rejects_coordinated_site_and_plan_deletion`
-  pins that control. The [implementation note](omega-rust/omega/representations/task-plans/README.md)
+  pins that control. The [implementation note](omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/task_plans.md)
   distinguishes those static/accounting mechanisms from executable activation.
 
   - Join final physical frame/spill demand, alignment, entry overhead and complete
@@ -5354,7 +5406,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   dependency edges and target-correct Console, Filesystem and physical-entry
   bindings. Keep freestanding roots dependency-free. The existing narrow
   roles, including macOS x64 entry, are documented
-  [beside package compilation](omega-rust/omega/build/package-compilation/semantic_bindings.md).
+  [beside package compilation](omega-rust/omega/docs/package-compilation/semantic_bindings.md).
   Route exposed composed-call, ownership, entry and proof failures to their
   capability owners, retaining each customer's intended checking/execution
   acceptance; unrelated blocked features do not stop independent migrations.
@@ -6081,7 +6133,7 @@ but report the missing runtime leg explicitly; it does not close that host row.
 
   The package-name snake_case migration that `runtime_value_generics` waited on
   is finished: `grep -rhoE '(package|application)\("[a-z0-9]+(-[a-z0-9]+)+"\)'
-  omega-rust/omega/compiler/tests/` now returns nothing. Reobserve that
+  omega-rust/omega/tests/` now returns nothing. Reobserve that
   target before attributing its failures again.
 
 - **RC-PCC-REPLAY.** Close the release gate for artifact/`.proof` pairs:

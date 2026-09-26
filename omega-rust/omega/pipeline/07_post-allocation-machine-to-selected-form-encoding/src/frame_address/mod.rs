@@ -1,12 +1,14 @@
 //! Resolve symbolic frame addresses against retained raw frame geometry.
 //! These checks do not confer callee-save or frame-protocol authority.
 use crate::OptimizedSelectedFormEncodingError as Error;
-use machine_code::{FunctionTargetFrameLayout, ResolvedPhysicalAddress, TargetFrameLayoutPlan};
-use physical_instructions::{
+use crate::machine_code::{
+    FunctionTargetFrameLayout, ResolvedPhysicalAddress, TargetFrameLayoutPlan,
+};
+use register_homes_to_post_allocation_machine::{
     PhysicalAddressOperation as Address, PostAllocationMachineFunction,
     PostAllocationMachineInstruction, PostAllocationMachinePlan,
 };
-use selected_instructions::FrameStorageSlotId;
+use target_operations_to_selected_instructions::FrameStorageSlotId;
 
 #[cfg(test)]
 mod tests;
@@ -198,11 +200,11 @@ fn frame_displacement(
 /// materialization is a private reload window that must stay unrostered.
 fn check_address_loan(
     geometry: &FunctionTargetFrameLayout,
-    slot: selected_instructions::LocalStorageSlotId,
+    slot: target_operations_to_selected_instructions::LocalStorageSlotId,
 ) -> Result<(), Error> {
     let spill = matches!(
         slot,
-        selected_instructions::LocalStorageSlotId::Spill { .. }
+        target_operations_to_selected_instructions::LocalStorageSlotId::Spill { .. }
     );
     if geometry.stable_address_loans.contains(&slot) == spill {
         return Err(Error::ArtifactMismatch);
@@ -230,12 +232,12 @@ pub(super) fn resolve(
             let geometry = function_geometry(function, frame)?;
             let committed = committed_extent(geometry)?;
             let return_address_bytes = match geometry.return_address {
-                machine_code::ReturnAddressFrameCustody::CallerActivationStack {
+                crate::machine_code::ReturnAddressFrameCustody::CallerActivationStack {
                     size_bytes,
                     ..
                 } => u64::from(size_bytes),
-                machine_code::ReturnAddressFrameCustody::SavedLinkRegister { .. }
-                | machine_code::ReturnAddressFrameCustody::LiveLinkRegister { .. } => 0,
+                crate::machine_code::ReturnAddressFrameCustody::SavedLinkRegister { .. }
+                | crate::machine_code::ReturnAddressFrameCustody::LiveLinkRegister { .. } => 0,
             };
             // Incoming storage starts above the committed extent plus the
             // caller-activation return address; resident bytes never shift it.
@@ -249,7 +251,7 @@ pub(super) fn resolve(
         Address::SaveFloatingControl { slot } | Address::RestoreFloatingControl { slot } => {
             if !matches!(
                 slot,
-                selected_instructions::LocalStorageSlotId::Boundary { .. }
+                target_operations_to_selected_instructions::LocalStorageSlotId::Boundary { .. }
             ) {
                 return Err(Error::ArtifactMismatch);
             }
@@ -275,7 +277,7 @@ pub(super) fn resolve(
         Address::HostedWriteByteI32 { slot } => {
             if !matches!(
                 slot,
-                selected_instructions::LocalStorageSlotId::Boundary { .. }
+                target_operations_to_selected_instructions::LocalStorageSlotId::Boundary { .. }
             ) {
                 return Err(Error::ArtifactMismatch);
             }
@@ -300,7 +302,7 @@ pub(super) fn resolve(
         Address::HostedReadByte { slot } => {
             if !matches!(
                 slot,
-                selected_instructions::LocalStorageSlotId::Structural { .. }
+                target_operations_to_selected_instructions::LocalStorageSlotId::Structural { .. }
             ) {
                 return Err(Error::ArtifactMismatch);
             }
@@ -409,12 +411,12 @@ pub(super) fn validate_address(
             let geometry = function_geometry(function, frame)?;
             let committed = committed_extent(geometry)?;
             let return_address_bytes = match geometry.return_address {
-                machine_code::ReturnAddressFrameCustody::CallerActivationStack {
+                crate::machine_code::ReturnAddressFrameCustody::CallerActivationStack {
                     size_bytes,
                     ..
                 } => u64::from(size_bytes),
-                machine_code::ReturnAddressFrameCustody::SavedLinkRegister { .. }
-                | machine_code::ReturnAddressFrameCustody::LiveLinkRegister { .. } => 0,
+                crate::machine_code::ReturnAddressFrameCustody::SavedLinkRegister { .. }
+                | crate::machine_code::ReturnAddressFrameCustody::LiveLinkRegister { .. } => 0,
             };
             let base = i64::try_from(
                 committed
@@ -433,7 +435,7 @@ pub(super) fn validate_address(
         Address::SaveFloatingControl { slot } | Address::RestoreFloatingControl { slot } => {
             if !matches!(
                 slot,
-                selected_instructions::LocalStorageSlotId::Boundary { .. }
+                target_operations_to_selected_instructions::LocalStorageSlotId::Boundary { .. }
             ) {
                 return Err(Error::ArtifactMismatch);
             }
@@ -459,7 +461,7 @@ pub(super) fn validate_address(
         Address::HostedWriteByteI32 { slot } => {
             if !matches!(
                 slot,
-                selected_instructions::LocalStorageSlotId::Boundary { .. }
+                target_operations_to_selected_instructions::LocalStorageSlotId::Boundary { .. }
             ) {
                 return Err(Error::ArtifactMismatch);
             }
@@ -484,7 +486,7 @@ pub(super) fn validate_address(
         Address::HostedReadByte { slot } => {
             if !matches!(
                 slot,
-                selected_instructions::LocalStorageSlotId::Structural { .. }
+                target_operations_to_selected_instructions::LocalStorageSlotId::Structural { .. }
             ) {
                 return Err(Error::ArtifactMismatch);
             }

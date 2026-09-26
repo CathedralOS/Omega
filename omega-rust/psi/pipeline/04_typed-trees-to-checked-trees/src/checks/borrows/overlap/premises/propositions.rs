@@ -13,20 +13,22 @@
 
 use super::super::indexes::{NormalizedBound, normalized_bound};
 use super::{PremiseScope, StatedOrderingPremise, decompose_premise_expression};
+use crate::checked_trees::{BorrowCompatibilityPremiseSource, ContractProofFact};
 use arena::Handle;
-use checked_trees::{BorrowCompatibilityPremiseSource, ContractProofFact};
-use typed_trees::TypedTrees;
-use typed_trees::expression::ExpressionHandle;
-use typed_trees::machine::Machine;
-use typed_trees::proposition::{PropositionApplication, PropositionBody, PropositionFormula};
-use typed_trees::signature::StateParameter;
-use typed_trees::state::State;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::proposition::{
+    PropositionApplication, PropositionBody, PropositionFormula,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
+use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
 
 /// Decompose a proposition-spelled requires row when the proposition owns a
 /// transparent Boolean formula. Every other body kind contributes nothing.
 pub(super) fn append_proposition_premises(
     program: &TypedTrees,
-    lookup: &validation::ImmutableBoundLookup<'_>,
+    lookup: &crate::validation::ImmutableBoundLookup<'_>,
     machine: &Machine,
     state: &State,
     fact: Handle<ContractProofFact>,
@@ -77,7 +79,7 @@ pub(super) fn append_proposition_premises(
 /// silently approximate.
 pub(super) fn substitute_bound(
     program: &TypedTrees,
-    lookup: &validation::ImmutableBoundLookup<'_>,
+    lookup: &crate::validation::ImmutableBoundLookup<'_>,
     bound: NormalizedBound,
     parameters: &[StateParameter],
     arguments: &[ExpressionHandle],

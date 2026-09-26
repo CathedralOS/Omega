@@ -1,9 +1,9 @@
 //! Complete store and operand frames preserve exact ranked input paths.
 
-use facts::NormalizedWriteFrame;
-use typed_trees::machine::Machine;
-use typed_trees::statement::StatementNode;
-use validation::CallFrameResolver;
+use crate::fact_plan::NormalizedWriteFrame;
+use crate::validation::CallFrameResolver;
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 
 /// A write frame is preservation evidence only when it is complete -- an
 /// opaque frame admits nothing -- and every caller-relative path it may
@@ -12,7 +12,7 @@ pub(super) fn frame_preserves_path(frame: NormalizedWriteFrame, path: &str) -> b
     frame.into_complete_paths().is_some_and(|paths| {
         paths
             .iter()
-            .all(|written| !validation::frame_paths_overlap(written, path))
+            .all(|written| !crate::validation::frame_paths_overlap(written, path))
     })
 }
 

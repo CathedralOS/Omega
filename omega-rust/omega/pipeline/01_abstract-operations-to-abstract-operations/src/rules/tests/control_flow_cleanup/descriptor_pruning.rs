@@ -5,8 +5,8 @@ use super::super::super::ConstantConditionalFoldRule;
 use crate::RuleAnalysisView;
 use crate::rules::tests::fixtures::control_flow_cleanup::propagated_block_parameter_unit;
 use crate::rules::tests::fixtures::id;
-use abstract_operations::AbstractOperation;
-use optimization_unit::recompute_psi_optimization_unit_identity;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
+use terminal_psi_to_abstract_operations::optimization_unit::recompute_psi_optimization_unit_identity;
 
 #[test]
 fn conditional_fold_does_not_propose_orphaning_descriptor_roots() {
@@ -68,18 +68,19 @@ fn conditional_fold_does_not_propose_orphaning_descriptor_roots() {
     let AbstractOperation::Conditional { when_false, .. } = &mut node.operation else {
         unreachable!()
     };
-    let binding = abstract_operations::AbstractStructuralBinding {
-        parameter: destination,
-        argument: StructuralArgument {
-            place: source,
-            path: Vec::new(),
-            access: StructuralAccess::SharedBorrow,
-        },
-    };
+    let binding =
+        terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding {
+            parameter: destination,
+            argument: StructuralArgument {
+                place: source,
+                path: Vec::new(),
+                access: StructuralAccess::SharedBorrow,
+            },
+        };
     when_false.structural_bindings.push(binding.clone());
     node.successors[1].structural_bindings.push(binding);
     unit.identity = recompute_psi_optimization_unit_identity(&unit);
-    optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+    terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
     let contract = ConstantConditionalFoldRule::contract();
     let mut manager = crate::AnalysisManager::new(&unit);
     let products = manager

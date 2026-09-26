@@ -147,7 +147,7 @@ fn local_move_replay_rejects_changed_receipts_and_source_witnesses() {
             .flat_map(|machine| checked.machine_states(machine))
             .flat_map(|state| checked.statement_table.statements(state.statement_nodes))
             .find_map(|statement| match statement {
-                checked_trees::statement::StatementNode::LocalData(local)
+                typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(local)
                     if local.name.as_str() == name =>
                 {
                     Some(local.symbol)
@@ -160,24 +160,25 @@ fn local_move_replay_rejects_changed_receipts_and_source_witnesses() {
     let keep = local("keep");
     let handle = checked.facts.values.structural_values.nodes.iter().find_map(|(handle, node)| {
         match &node.kind {
-            checked_trees::CheckedStructuralValueKind::Place(argument)
-                if argument.source == checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: first } => Some(handle),
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Place(argument)
+                if argument.source == typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: first } => Some(handle),
             _ => None,
         }
     }).unwrap();
     let mut changed = checked.clone();
-    let checked_trees::CheckedStructuralValueKind::Place(argument) = &mut changed
-        .facts
-        .values
-        .structural_values
-        .nodes
-        .get_mut(handle)
-        .kind
+    let typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Place(argument) =
+        &mut changed
+            .facts
+            .values
+            .structural_values
+            .nodes
+            .get_mut(handle)
+            .kind
     else {
         panic!("move source");
     };
     argument.source =
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: keep };
+        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: keep };
     assert!(
         checked_trees_to_lowered_psi::lower_machine(
             &changed,

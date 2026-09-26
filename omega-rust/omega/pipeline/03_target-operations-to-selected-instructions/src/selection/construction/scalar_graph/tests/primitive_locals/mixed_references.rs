@@ -68,9 +68,9 @@ fn mixed_incoming_primitive_references_and_local_reject_swapped_output_pointers(
                 });
             signature
                 .parameters
-                .push(legalized_operations::LegalizedCallUnitParameter {
+                .push(crate::legalized_operations::LegalizedCallUnitParameter {
                     semantic: declaration.clone(),
-                    target: target_operations::TargetStructuralParameter {
+                    target: abstract_operations_to_target_operations::target_operations::TargetStructuralParameter {
                         place: declaration.place,
                         structural_type: declaration.structural_type,
                         multiplicity: declaration.multiplicity,
@@ -88,10 +88,11 @@ fn mixed_incoming_primitive_references_and_local_reject_swapped_output_pointers(
                     indices: Vec::new(),
                     byte_offset: 0,
                     destination: declaration,
-                    value: abstract_operations::AbstractResult {
-                        value: ValueId::new(if position == 0 { 4 } else { 3 }).unwrap(),
-                        scalar_type: scalar,
-                    },
+                    value:
+                        terminal_psi_to_abstract_operations::abstract_operations::AbstractResult {
+                            value: ValueId::new(if position == 0 { 4 } else { 3 }).unwrap(),
+                            scalar_type: scalar,
+                        },
                     byte_size: 8,
                 },
                 None,
@@ -131,7 +132,7 @@ fn mixed_incoming_primitive_references_and_local_reject_swapped_output_pointers(
             .chain([reference])
             .collect();
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: source

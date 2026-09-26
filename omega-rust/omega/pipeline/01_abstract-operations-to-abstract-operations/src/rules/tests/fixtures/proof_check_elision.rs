@@ -2,20 +2,20 @@
 
 use super::{id, with_synthetic_accepted_obligations};
 use crate::rules::proof_check_elision::{integer_one, integer_zero};
-use abstract_operations::{
-    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperation as O, AbstractOperationPlan, AbstractParameter, AbstractResult,
-};
-use optimization_unit::{
-    OptimizationFact, PsiOptimizationUnit, recompute_psi_optimization_unit_identity,
-    reconstruct_psi_optimization_unit_seed,
-};
-use optimization_unit_semantics::validate_psi_optimization_unit;
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
     ObligationId, OperationId, ScalarType, ValueId,
 };
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperation as O, AbstractOperationPlan, AbstractParameter, AbstractResult,
+};
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    OptimizationFact, PsiOptimizationUnit, recompute_psi_optimization_unit_identity,
+    reconstruct_psi_optimization_unit_seed,
+};
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit;
 pub(crate) fn exact_add_unit() -> PsiOptimizationUnit {
     exact_chain_unit(false)
 }

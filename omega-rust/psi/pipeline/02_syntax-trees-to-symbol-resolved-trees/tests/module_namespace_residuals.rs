@@ -10,16 +10,18 @@
 use source::SourceMap;
 use source_files_to_tokens::Lexer;
 use std::{path::PathBuf, sync::Arc};
-use symbol_resolved_trees::SymbolResolvedTrees;
-use symbol_resolved_trees::data::DataMember;
-use symbol_resolved_trees::domain::ProofFact;
-use symbol_resolved_trees::expression::ExpressionNode;
-use symbol_resolved_trees::types::{TypeConstraint, TypeReference};
-use syntax_trees::SyntaxTrees;
 use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
     GenericDataRequest, normalize_generic_data,
 };
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::SymbolResolvedTrees;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::domain::ProofFact;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::expression::ExpressionNode;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::{
+    TypeConstraint, TypeReference,
+};
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
 
 fn lower_multi(sources: &[(&str, &str)]) -> Result<SymbolResolvedTrees, String> {
     let mut map = SourceMap::default();
@@ -209,8 +211,8 @@ fn signature_free_route_keeps_the_imported_trait_with_an_unimported_competitor()
             .expect("nominal machine binder");
         assert!(matches!(
             parameter.kind,
-            symbol_resolved_trees::data::TypeParameterKind::Machine {
-                contract: symbol_resolved_trees::data::MachineParameterContract::Nominal {
+            syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameterKind::Machine {
+                contract: syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::MachineParameterContract::Nominal {
                     trait_definition: selected_trait, requirement: selected_requirement, ..
                 },
             } if selected_trait == *trait_definition && selected_requirement == *requirement
@@ -467,7 +469,7 @@ fn qualified_case_membership_in_foreign_domain_fact() {
             ProofFact::Membership(_) => None,
         })
         .expect("the domain's fact is an expression");
-    let symbol_resolved_trees::expression::ExpressionNode::Membership(membership) = program
+    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::expression::ExpressionNode::Membership(membership) = program
         .tables
         .bodies
         .expressions

@@ -5,12 +5,14 @@
 //! a later sibling field may otherwise invalidate an earlier field's read.
 
 use super::{ExitScalars, ExpressionHandle, ScalarValue, exit_return_expression, stable_segments};
+use crate::checked_trees::CheckedScalarExpression;
+use crate::fact_plan::PlaceRoot;
 use crate::flow::{self, CanonicalPlace};
-use checked_trees::CheckedScalarExpression;
-use facts::PlaceRoot;
-use typed_trees::expression::{BinaryOperator, ExpressionNode};
-use typed_trees::state::State;
-use typed_trees::types::PrimitiveType;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    BinaryOperator, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
 
 impl ExitScalars<'_, '_> {
     /// Return substitution and call substitution meet in the same scoped solver.
@@ -23,7 +25,7 @@ impl ExitScalars<'_, '_> {
 
     fn return_arithmetic(&self, expression: ExpressionHandle) -> Option<bool> {
         use super::super::super::prover::call_guarantees::{self, arithmetic, callable::Callable};
-        use validation::ScopedArithmeticValue;
+        use crate::validation::ScopedArithmeticValue;
         let entry = self.program.machine_states(self.machine).first()?;
         let state = crate::semantic::calls::find_state_in_machine(
             self.program,
@@ -119,8 +121,8 @@ impl ExitScalars<'_, '_> {
     pub(super) fn result_projection(
         &self,
         expression: ExpressionHandle,
-    ) -> Option<(ExpressionHandle, Vec<facts::PlaceSegment>)> {
-        let place = validation::reserved_result_place(self.program, expression)?;
+    ) -> Option<(ExpressionHandle, Vec<crate::fact_plan::PlaceSegment>)> {
+        let place = crate::validation::reserved_result_place(self.program, expression)?;
         if place.machine_symbol != self.machine.symbol
             || place.segments.is_empty()
             || !stable_segments(&place.segments)
@@ -154,9 +156,9 @@ impl ExitScalars<'_, '_> {
         )?;
         if remaining.is_empty() {
             let reference =
-                validation::reserved_result_place(self.program, expression)?.type_reference;
+                crate::validation::reserved_result_place(self.program, expression)?.type_reference;
             let primitive = self.program.primitive_type_reference(reference)?;
-            if !validation::has_builtin_bound_expression_meaning(
+            if !crate::validation::has_builtin_bound_expression_meaning(
                 self.program,
                 self.machine,
                 Some(state),
@@ -224,9 +226,10 @@ impl ExitScalars<'_, '_> {
             self.machine.symbol,
             self.exit.state_symbol,
         )?;
-        let reference = validation::reserved_result_place(self.program, projected)?.type_reference;
+        let reference =
+            crate::validation::reserved_result_place(self.program, projected)?.type_reference;
         let primitive = self.program.primitive_type_reference(reference)?;
-        let expected_reference = validation::expression_result_type_reference(
+        let expected_reference = crate::validation::expression_result_type_reference(
             self.program,
             self.machine,
             entry,
@@ -240,20 +243,20 @@ impl ExitScalars<'_, '_> {
         // IEEE equality is not reflexive. Boolean compound denotation has a
         // separate owner; this path proves integer computation congruence.
         if !primitive.accepts_integer_literal()
-            || !typed_trees::operator::has_builtin_spelled_expression_meaning(
+            || !symbol_resolved_trees_to_typed_trees::typed_trees::operator::has_builtin_spelled_expression_meaning(
                 self.program,
                 self.machine.symbol,
                 expression,
                 language_core::OperatorSpelling::Equal,
                 &operand_types,
             )
-            || !validation::has_builtin_bound_expression_meaning(
+            || !crate::validation::has_builtin_bound_expression_meaning(
                 self.program,
                 self.machine,
                 Some(entry),
                 expected,
             )
-            || !validation::has_builtin_bound_expression_meaning(
+            || !crate::validation::has_builtin_bound_expression_meaning(
                 self.program,
                 self.machine,
                 Some(state),
@@ -359,7 +362,7 @@ impl ExitScalars<'_, '_> {
                         .get(..self.exit.statement_index)?
                         .iter()
                         .filter_map(|node| {
-                            let typed_trees::statement::StatementNode::LocalData(local) = node
+                            let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) = node
                             else {
                                 return None;
                             };
@@ -419,7 +422,7 @@ impl ExitScalars<'_, '_> {
                 }
                 place.root = PlaceRoot::Symbol(origin.state_parameter);
                 let mut reference = parameter.type_reference;
-                while let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
+                while let symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
                     self.program.type_reference_table.type_reference(reference)
                 {
                     reference = *base_type;
@@ -431,7 +434,7 @@ impl ExitScalars<'_, '_> {
                 // comparing them with caller-substituted invocation inputs.
                 if !matches!(
                     self.program.type_reference_table.type_reference(reference),
-                    typed_trees::types::TypeReferenceNode::Reference { .. }
+                    symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { .. }
                 ) {
                     // Mutable owned scalar inputs have no tracked arrival
                     // origin across entry backedges. Storage identity cannot
@@ -455,12 +458,12 @@ impl ExitScalars<'_, '_> {
         // original record after a loop re-enters with different arguments.
         if !subject.segments.is_empty() && self.program.machine_states(self.machine).iter().any(|state| {
             self.program.statement_table.statements(state.statement_nodes).iter().any(|statement| {
-                let typed_trees::statement::StatementNode::Transition(transition) = statement else { return false; };
+                let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Transition(transition) = statement else { return false; };
                 [transition.target, transition.continuation].iter().any(|target| {
                     target.is_valid() && match self.program.statement_table.transition_target(*target) {
-                        typed_trees::statement::TransitionTargetNode::Named { path, .. } =>
+                        symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Named { path, .. } =>
                             path.symbol == entry.symbol || path.symbol == self.machine.symbol,
-                        typed_trees::statement::TransitionTargetNode::SelfTarget => state.symbol == entry.symbol,
+                        symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::SelfTarget => state.symbol == entry.symbol,
                         _ => false,
                     }
                 })
@@ -493,7 +496,7 @@ impl ExitScalars<'_, '_> {
                 );
                 if matches!(
                     statement,
-                    typed_trees::statement::StatementNode::AssemblyFact(_)
+                    symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::AssemblyFact(_)
                 ) || nodes.iter().any(|node| {
                     matches!(
                         self.program.expression_table.expression(*node),
@@ -502,7 +505,7 @@ impl ExitScalars<'_, '_> {
                 }) || self.facts.operators.uses.iter().any(|(_, selected)| {
                     nodes.contains(&selected.expression)
                         && selected.status
-                            != checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+                            != crate::checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
                 }) {
                     return None;
                 }
@@ -516,7 +519,7 @@ impl ExitScalars<'_, '_> {
                 )?;
                 let mut value_frames =
                     vec![frames.statement_value_write_frame(self.machine, statement)];
-                if let typed_trees::statement::StatementNode::Call(call) = statement {
+                if let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Call(call) = statement {
                     value_frames.push(frames.may_write_frame(self.machine, call));
                 }
                 for frame in value_frames {

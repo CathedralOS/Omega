@@ -1,13 +1,13 @@
 //! Attach service-reach, suspension, and blocking summaries from the service-reach
 //! inference and operational plans to each finished state and call fact, and each
 //! call's operational acknowledgement.
-use checked_trees::{FlowControlFacts, FlowFacts};
+use crate::checked_trees::{FlowControlFacts, FlowFacts};
 use language_semantics::{BlockingSummary, ServiceReachSummary, SuspensionSummary};
 
 pub(super) fn attach_reach_summaries(
     flow: &mut FlowFacts,
-    service_reaches: &flow_effects::ServiceReachInferencePlan,
-    operational: &flow_effects::OperationalPlan,
+    service_reaches: &crate::flow_effects::ServiceReachInferencePlan,
+    operational: &crate::flow_effects::OperationalPlan,
 ) {
     let FlowControlFacts { states, calls, .. } = &mut flow.control;
     states.for_each_mut(|_, state| {

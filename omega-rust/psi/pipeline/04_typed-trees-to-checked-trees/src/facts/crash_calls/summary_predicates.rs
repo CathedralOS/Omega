@@ -1,7 +1,7 @@
 //! Summary crash predicates, guards, buckets and their normalization.
 
+use crate::checked_trees::CrashPredicateExpression;
 use crate::facts::crash_calls::route_substitution::substitute_checked_boolean_expression;
-use checked_trees::CrashPredicateExpression;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum SummaryCrashRouteGuard {
@@ -13,7 +13,7 @@ pub(crate) enum SummaryCrashRouteGuard {
 pub(crate) struct SummaryCrashPredicate {
     pub(crate) identity: CrashPredicateExpression,
     pub(crate) builtin_meaning: bool,
-    pub(crate) scalar: Option<checked_trees::CheckedBooleanExpression>,
+    pub(crate) scalar: Option<crate::checked_trees::CheckedBooleanExpression>,
 }
 
 impl PartialEq for SummaryCrashPredicate {
@@ -41,7 +41,7 @@ impl Ord for SummaryCrashPredicate {
 #[derive(Debug, Clone)]
 pub(crate) struct CallArgumentSubstitution {
     pub(crate) identity: Vec<Option<CrashPredicateExpression>>,
-    pub(crate) scalar: Vec<Option<checked_trees::CheckedScalarExpression>>,
+    pub(crate) scalar: Vec<Option<crate::checked_trees::CheckedScalarExpression>>,
     /// One caller structural root per target parameter, in the callee's
     /// telescope order: `self` rows and actuals that do not resolve to a
     /// frozen parameter-rooted caller place keep `None`. A
@@ -49,7 +49,7 @@ pub(crate) struct CallArgumentSubstitution {
     /// dense scalar namespace, so it re-roots through this channel — the
     /// surviving leaf keeps the caller position and prepends the actual's own
     /// member path.
-    pub(crate) fields: Vec<Option<checked_trees::CheckedStructuralParameterField>>,
+    pub(crate) fields: Vec<Option<crate::checked_trees::CheckedStructuralParameterField>>,
     /// One literal operand per target parameter: the exact value this call's
     /// own entry contexts prove for its actual, `None` where the flow proves
     /// no single value. These decide a retained guard under its own fold
@@ -62,7 +62,9 @@ pub(crate) struct CallArgumentSubstitution {
 /// The predicate identity is domain-free: arithmetic operands stay opaque
 /// here so no caller-selected meaning is silently replaced by builtin laws.
 pub(crate) fn summary_boolean_value(expression: &CrashPredicateExpression) -> Option<bool> {
-    use typed_trees::expression::{BinaryOperator, UnaryOperator};
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+        BinaryOperator, UnaryOperator,
+    };
 
     match expression {
         CrashPredicateExpression::Boolean(value) => Some(*value),
@@ -141,9 +143,9 @@ fn summary_integer_literal(
 /// integer comparison. It is the only annotation form the domain-free identity
 /// cannot fold itself, so it is the only form consulted for discharge.
 pub(crate) fn scalar_guard_is_integer_comparison(
-    expression: &checked_trees::CheckedBooleanExpression,
+    expression: &crate::checked_trees::CheckedBooleanExpression,
 ) -> bool {
-    use checked_trees::CheckedBooleanExpression;
+    use crate::checked_trees::CheckedBooleanExpression;
     match expression {
         CheckedBooleanExpression::IntegerComparison { .. } => true,
         CheckedBooleanExpression::Not(operand) => {
@@ -160,13 +162,13 @@ pub(crate) fn scalar_guard_is_integer_comparison(
 /// from closed concrete operands under the selected domains; `None` leaves
 /// the route conservative and never establishes or erases a cause by itself.
 pub(crate) fn concrete_guard_scalar_value(
-    expression: &checked_trees::CheckedBooleanExpression,
+    expression: &crate::checked_trees::CheckedBooleanExpression,
 ) -> Option<bool> {
     match crate::values::evaluate_checked_scalar(
-        &checked_trees::CheckedScalarExpression::Boolean(Box::new(expression.clone())),
+        &crate::checked_trees::CheckedScalarExpression::Boolean(Box::new(expression.clone())),
         &mut |_| None,
     )? {
-        facts::ScalarValue::Boolean(value) => Some(value),
+        crate::fact_plan::ScalarValue::Boolean(value) => Some(value),
         _ => None,
     }
 }
@@ -182,7 +184,7 @@ pub(crate) fn concrete_guard_scalar_value(
 /// the domain-free identity cannot fold itself.
 pub(crate) fn scalar_guard_proves_false(
     builtin_meaning: bool,
-    scalar: Option<&checked_trees::CheckedBooleanExpression>,
+    scalar: Option<&crate::checked_trees::CheckedBooleanExpression>,
 ) -> bool {
     builtin_meaning
         && scalar.is_some_and(scalar_guard_is_integer_comparison)
@@ -191,12 +193,12 @@ pub(crate) fn scalar_guard_proves_false(
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct SummaryCrashBucket {
-    pub(crate) cause: checked_trees::CrashCause,
+    pub(crate) cause: crate::checked_trees::CrashCause,
     pub(crate) alternative_guards: Vec<SummaryCrashRouteGuard>,
 }
 
 impl SummaryCrashBucket {
-    pub(crate) fn unconditional(cause: checked_trees::CrashCause) -> Self {
+    pub(crate) fn unconditional(cause: crate::checked_trees::CrashCause) -> Self {
         Self {
             cause,
             alternative_guards: vec![SummaryCrashRouteGuard::Truth],
@@ -314,25 +316,25 @@ impl SummaryCrashBucket {
         }
     }
 
-    pub(crate) fn into_checked(self) -> Option<checked_trees::CrashRouteBucket> {
-        checked_trees::CrashRouteBucket::new(
+    pub(crate) fn into_checked(self) -> Option<crate::checked_trees::CrashRouteBucket> {
+        crate::checked_trees::CrashRouteBucket::new(
             self.cause,
             self.alternative_guards
                 .into_iter()
                 .map(|guard| match guard {
-                    SummaryCrashRouteGuard::Truth => checked_trees::CrashRouteGuard::Truth,
+                    SummaryCrashRouteGuard::Truth => crate::checked_trees::CrashRouteGuard::Truth,
                     SummaryCrashRouteGuard::Predicate(predicate) => {
                         let identity = if let Some(scalar) = predicate.scalar {
-                            checked_trees::CrashPredicateIdentity::from_expression_and_scalar(
+                            crate::checked_trees::CrashPredicateIdentity::from_expression_and_scalar(
                                 predicate.identity,
                                 scalar,
                             )
                         } else {
-                            checked_trees::CrashPredicateIdentity::from_expression(
+                            crate::checked_trees::CrashPredicateIdentity::from_expression(
                                 predicate.identity,
                             )
                         };
-                        checked_trees::CrashRouteGuard::Predicate(identity)
+                        crate::checked_trees::CrashRouteGuard::Predicate(identity)
                     }
                 })
                 .collect(),
@@ -368,8 +370,10 @@ pub(crate) fn normalize_summary_guards(guards: &mut Vec<SummaryCrashRouteGuard>)
 pub(crate) fn normalize_summary_buckets(
     buckets: Vec<SummaryCrashBucket>,
 ) -> Vec<SummaryCrashBucket> {
-    let mut grouped =
-        std::collections::BTreeMap::<checked_trees::CrashCause, Vec<SummaryCrashRouteGuard>>::new();
+    let mut grouped = std::collections::BTreeMap::<
+        crate::checked_trees::CrashCause,
+        Vec<SummaryCrashRouteGuard>,
+    >::new();
     for bucket in buckets {
         grouped
             .entry(bucket.cause)

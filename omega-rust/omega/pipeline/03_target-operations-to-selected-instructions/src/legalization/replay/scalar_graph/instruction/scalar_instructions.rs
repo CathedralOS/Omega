@@ -4,17 +4,17 @@
 use super::super::{Error, PsiOptimizationUnit};
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
-use abstract_operations::AbstractOperation;
-use legalized_operations::{
+use crate::legalized_operations::{
     LegalizedExactIntegerOperator, LegalizedScalarComparison, LegalizedScalarInstruction,
     LegalizedScalarInstructionKind,
 };
 use semantic_vocabulary::ScalarType;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
 
 pub(super) fn validate_integer_exact_cast(
     actual: &LegalizedScalarInstruction,
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
     let (
@@ -47,7 +47,7 @@ pub(super) fn validate_integer_exact_cast(
         .ok_or(Error::custody())?;
     if operand != source || source_type != source_integer || obligation != source_obligation || *accepted_fact != fact.identity
         || !optimized.facts.iter().any(|fact| matches!(fact,
-            optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
+            terminal_psi_to_abstract_operations::optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
             if referenced == source_obligation && support == psi_operation)) {
         return Err(invalid);
     }
@@ -59,8 +59,8 @@ pub(super) fn validate_integer_exact_cast(
 /// wrapping defines MIN / -1 and MIN % -1, but not division by zero.
 pub(super) fn validate_wrapping_division(
     actual: &LegalizedScalarInstruction,
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
     let (
@@ -128,7 +128,7 @@ pub(super) fn validate_wrapping_division(
         || obligation != source_obligation
         || *accepted_fact != fact.identity
         || !optimized.facts.iter().any(|fact| matches!(fact,
-            optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
+            terminal_psi_to_abstract_operations::optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
             if referenced == source_obligation && support == psi_operation))
     {
         return Err(invalid);
@@ -138,8 +138,8 @@ pub(super) fn validate_wrapping_division(
 
 pub(super) fn validate_exact_binary(
     actual: &LegalizedScalarInstruction,
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
     let (
@@ -210,7 +210,7 @@ pub(super) fn validate_exact_binary(
     if *operator != expected_operator || left != source_left || right != source_right
             || obligation != source_obligation || *accepted_fact != fact.identity
             || !optimized.facts.iter().any(|fact| matches!(fact,
-                optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
+                terminal_psi_to_abstract_operations::optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
                 if referenced == source_obligation && support == psi_operation)) {
             return Err(invalid);
         }
@@ -222,8 +222,8 @@ pub(super) fn validate_exact_binary(
 /// fact custody every proof-bearing operation keeps.
 pub(super) fn validate_shift(
     actual: &LegalizedScalarInstruction,
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
     let invalid = Error::NonCanonicalLegalizedPlan;
@@ -337,7 +337,7 @@ pub(super) fn validate_shift(
         if obligation != source_obligation
             || *accepted_fact != fact.identity
             || !optimized.facts.iter().any(|fact| matches!(fact,
-                optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
+                terminal_psi_to_abstract_operations::optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
                 if referenced == source_obligation && support == psi_operation))
         {
             return Err(invalid);
@@ -348,8 +348,8 @@ pub(super) fn validate_shift(
 
 pub(super) fn validate_compare(
     actual: &LegalizedScalarInstruction,
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
 ) -> Result<(), LegalizationError> {
     let (
         LegalizedScalarInstructionKind::Compare {

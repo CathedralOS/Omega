@@ -18,12 +18,12 @@ use crate::execution::terminal_unit::types::{
 pub(super) fn exact_single_fused_service_forward_is_supported(
     program: &TypedTrees,
     facts: &CheckFacts,
-    caller_machine: &typed_trees::machine::Machine,
-    caller_state: &typed_trees::state::State,
+    caller_machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    caller_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
-    target_machine: &typed_trees::machine::Machine,
-    target_state: &typed_trees::state::State,
-    call: &checked_trees::FlowCallFact,
+    target_machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    target_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    call: &crate::checked_trees::FlowCallFact,
     arguments: &[CheckedUnitStructuralArgumentPlan],
 ) -> bool {
     if caller_machine.attached_data.is_some()
@@ -52,13 +52,13 @@ pub(super) fn exact_single_fused_service_forward_is_supported(
     let Some(caller_receipt) = caller_parameter.fused_service_erasure.as_ref() else {
         return false;
     };
-    let Ok(Some(caller_carrier)) = typed_trees::service::classify_exact_bound_service_carrier(
+    let Ok(Some(caller_carrier)) = symbol_resolved_trees_to_typed_trees::typed_trees::service::classify_exact_bound_service_carrier(
         program,
         caller_source.type_reference,
     ) else {
         return false;
     };
-    let Ok(Some(target_carrier)) = typed_trees::service::classify_exact_bound_service_carrier(
+    let Ok(Some(target_carrier)) = symbol_resolved_trees_to_typed_trees::typed_trees::service::classify_exact_bound_service_carrier(
         program,
         target_source.type_reference,
     ) else {

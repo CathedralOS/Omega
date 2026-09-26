@@ -39,9 +39,7 @@ PYTHON = "python"
 # "Release matrix". Commands keep the contract's exact invocations; the leading
 # "mbx" resolves to the installed mbx or falls back to cargo at run time.
 PACKAGE_AND_BUILD_PACKAGES = [
-    "build-declarations", "build-evaluation", "package-compilation",
-    "package-source", "resolver-execution", "package-evidence",
-    "package-manager",
+    "omega",
 ]
 
 GATES = {

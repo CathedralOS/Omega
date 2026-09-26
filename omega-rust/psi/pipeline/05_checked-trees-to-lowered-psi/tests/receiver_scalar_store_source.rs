@@ -1,6 +1,8 @@
 //! Source-produced attached receiver stores through canonical Terminal admission.
 
-use checked_trees::CheckedUnitEffectOperationPlan;
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
@@ -8,13 +10,11 @@ use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralValue,
 };
-use terminal_production::{
-    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
-};
 use terminal_psi::{
     OperationKind, OperationResult, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
     StructuralPathSegment, StructuralTypeShape, Terminator,
 };
+use typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan;
 
 #[path = "receiver_scalar_store_source/store_custody.rs"]
 mod store_custody;
@@ -56,15 +56,16 @@ fn receiver_store_sequence_retains_each_write_around_an_ordinary_call() {
         }
     "#;
     let checked = crate::front_end::checked_program(source);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("Pair::replace"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("every authored store and intervening call reaches Terminal")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("Pair::replace"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("every authored store and intervening call reaches Terminal")
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     let profile = proof_admission::AdmissionProfile::default();
@@ -143,7 +144,7 @@ fn receiver_store_sequence_retains_each_write_around_an_ordinary_call() {
     )
     .unwrap();
     let certificate =
-        terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, module.entry).unwrap();
+        omega::terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, module.entry).unwrap();
     let mut meter = terminal_fuel::TerminalFuelMeter::with_allowance(certificate.ceiling_units());
     assert_eq!(
         execution
@@ -178,15 +179,16 @@ fn receiver_field_stores_keep_a_local_snapshot_and_a_fresh_read_across_a_borrowe
         }
     "#;
     let checked = crate::front_end::checked_program(source);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("Pair::replace"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("field stores receive immutable bindings and primitive storage independently")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("Pair::replace"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("field stores receive immutable bindings and primitive storage independently")
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert_eq!(
         terminal_codec::encode_module(&module).unwrap(),
@@ -378,11 +380,11 @@ fn assert_receiver_store_with_access(
     let (source, checked_access) = match access {
         StructuralAccess::MutableBorrow => (
             SOURCE.to_owned(),
-            checked_trees::CheckedStructuralAccess::MutableBorrow,
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow,
         ),
         StructuralAccess::WriteOnlyBorrow => (
             SOURCE.replace("&mut self", "&write self"),
-            checked_trees::CheckedStructuralAccess::WriteOnlyBorrow,
+            typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow,
         ),
         _ => panic!("store fixture requires writable borrowed access"),
     };
@@ -418,15 +420,16 @@ fn assert_receiver_store_with_access(
     assert_eq!(store.statement_index, 0);
     assert_eq!(store.field_identity, "value");
 
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name(machine_name),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("receiver store reaches canonical Terminal through production")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name(machine_name),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("receiver store reaches canonical Terminal through production")
+        .into_artifact();
     drop(checked);
     let module = terminal_codec::decode_module(artifact.semantic_bytes())
         .expect("reload canonical receiver store semantics");
@@ -439,7 +442,7 @@ fn assert_receiver_store_with_access(
     let profile = proof_admission::AdmissionProfile::default();
     let verified = terminal_verifier::verify_module(&module, &proof, &profile)
         .expect("canonical receiver store independently verifies");
-    let certificate = terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, module.entry)
+    let certificate = omega::terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, module.entry)
         .expect("one receiver store has fixed fuel");
     let entry = module
         .machines
@@ -645,15 +648,16 @@ fn shared_receiver_store_rejects_during_source_checking() {
 #[test]
 fn canonical_verifier_rejects_shared_access_substituted_for_mutable_receiver() {
     let checked = crate::front_end::checked_program(SOURCE);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("Pair::direct"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap()
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("Pair::direct"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap()
+        .into_artifact();
     let mut module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let entry = module
         .machines
@@ -680,15 +684,16 @@ fn ranged_field_store_proves_a_nonnegative_bitwise_and_mask() {
         }
     "#;
     let checked = crate::front_end::checked_program(source);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("Cell::mask"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("the mask image proves into the declared range")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("Cell::mask"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("the mask image proves into the declared range")
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     let profile = proof_admission::AdmissionProfile::default();
@@ -743,15 +748,16 @@ fn ranged_field_store_proves_a_guard_bounded_binary_operand() {
         }
     "#;
     let checked = crate::front_end::checked_program(source);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("Main::main"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("the guard-bounded operand proves the sum into the declared range")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("Main::main"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("the guard-bounded operand proves the sum into the declared range")
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     let profile = proof_admission::AdmissionProfile::default();

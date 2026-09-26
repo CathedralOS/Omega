@@ -5,13 +5,13 @@
 
 use super::structural_borrows::source_plan;
 use super::{AbstractOperation, AbstractOperationPlan, AbstractResult, NativeTarget, OperationId};
-use calling_conventions::{CallPlan, ValueClass, ValueShape};
-use semantic_vocabulary::{MachineId, ValueId};
-use target_operations::{
+use crate::calling_conventions::{CallPlan, ValueClass, ValueShape};
+use crate::target_operations::{
     TargetControlSuccessor, TargetControlTerminator, TargetDynamicDescriptorArgument,
     TargetDynamicDescriptorInstanceSource, TargetDynamicDescriptorParameterAbi, TargetFunction,
     TargetOperationPlan, TargetUnitOperation, TargetUnitScalarHomeRequirement,
 };
+use semantic_vocabulary::{MachineId, ValueId};
 
 /// The customer shape: an entry that selects one concrete erased descriptor, a
 /// helper that forwards its own borrowed descriptor parameter once, and a
@@ -154,7 +154,7 @@ fn parameter_dispatch_row(
     function: &TargetFunction,
 ) -> (
     &AbstractResult,
-    &abstract_operations::AbstractParameterDynamicDispatch,
+    &terminal_psi_to_abstract_operations::abstract_operations::AbstractParameterDynamicDispatch,
     &TargetDynamicDescriptorParameterAbi,
     &terminal_psi::TerminalDynamicRequirement,
     &CallPlan,
@@ -387,7 +387,7 @@ fn parameter_forwarding_reuses_caller_words_without_projection() {
 fn mutate_dispatch_row(
     target: &mut TargetOperationPlan,
     f: impl FnOnce(
-        &mut abstract_operations::AbstractParameterDynamicDispatch,
+        &mut terminal_psi_to_abstract_operations::abstract_operations::AbstractParameterDynamicDispatch,
         &mut TargetDynamicDescriptorParameterAbi,
         &mut terminal_psi::TerminalDynamicRequirement,
         &mut CallPlan,

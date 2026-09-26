@@ -77,7 +77,7 @@ pub(super) fn validate(
                 referent_identity,
                 access,
             } => {
-                if *access != checked_trees::CheckedStructuralAccess::MutableBorrow {
+                if *access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow {
                     return unsupported("stored reference type lost its access");
                 }
                 pending.push(referent_identity);
@@ -145,7 +145,7 @@ pub(super) fn validate(
 }
 
 fn retain_fields<'plan>(
-    fields: &'plan [checked_trees::CheckedUnitStructuralFieldPlan],
+    fields: &'plan [typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralFieldPlan],
     pending: &mut Vec<&'plan str>,
 ) {
     for field in fields {

@@ -7,7 +7,7 @@ pub(super) fn lower(
     target_machine: symbols::SymbolHandle,
     target_state: symbols::SymbolHandle,
     caller_state: symbols::SymbolHandle,
-    arguments: &[checked_trees::CheckedScalarComputationStructuralArgument],
+    arguments: &[typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationStructuralArgument],
     bindings: &storage::ScalarBindings,
     arrays: &[arrays::Slot],
     cases: &[cases::Slot],
@@ -36,7 +36,7 @@ pub(super) fn lower(
         .zip(target.structural_parameters())
         .map(|(argument, parameter)| {
             let argument = match argument {
-                checked_trees::CheckedScalarComputationStructuralArgument::Case(subject) => {
+                typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationStructuralArgument::Case(subject) => {
                     let slot = cases
                         .iter()
                         .find(|slot| slot.expression == subject.expression)
@@ -49,7 +49,7 @@ pub(super) fn lower(
                         .ok_or(LoweringError::Unsupported(
                             "computed case formal position is absent",
                         ))?;
-                    if parameter.access != checked_trees::CheckedStructuralAccess::Owned
+                    if parameter.access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
                         || !matches!(
                             parameter.multiplicity,
                             Multiplicity::Affine | Multiplicity::Unrestricted
@@ -76,10 +76,10 @@ pub(super) fn lower(
                         access: StructuralAccess::Owned,
                     });
                 }
-                checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) => {
+                typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) => {
                     argument
                 }
-                checked_trees::CheckedScalarComputationStructuralArgument::Array {
+                typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationStructuralArgument::Array {
                     expression,
                     type_reference,
                     elements,
@@ -105,7 +105,7 @@ pub(super) fn lower(
                         .ok_or(LoweringError::Unsupported(
                             "computed array elements have a stale span",
                         ))?;
-                    if parameter.access != checked_trees::CheckedStructuralAccess::Owned
+                    if parameter.access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
                         || parameter.multiplicity != Multiplicity::Unrestricted
                         || !parameter.qualifications.is_empty()
                         || parameter.fused_service_erasure.is_some()
@@ -144,7 +144,7 @@ pub(super) fn lower(
                     (parameter.access, parameter.multiplicity),
                     (_, Multiplicity::Unrestricted)
                         | (
-                            checked_trees::CheckedStructuralAccess::Owned,
+                            typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned,
                             Multiplicity::Affine
                         )
                 )
@@ -159,8 +159,8 @@ pub(super) fn lower(
                 .ok_or(LoweringError::Unsupported(
                     "computed borrow callee position is absent",
                 ))?;
-            if parameter.access == checked_trees::CheckedStructuralAccess::Owned {
-                let primitive_array = validation::is_closed_primitive_array_type(
+            if parameter.access == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned {
+                let primitive_array = typed_trees_to_checked_trees::validation::is_closed_primitive_array_type(
                     checked,
                     source_parameter.type_reference,
                 );
@@ -170,7 +170,7 @@ pub(super) fn lower(
                             checked
                                 .type_reference_table
                                 .type_reference(source_parameter.type_reference),
-                            checked_trees::types::TypeReferenceNode::Named { .. }
+                            typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Named { .. }
                         ))
                     || (primitive_array && parameter.multiplicity != Multiplicity::Unrestricted)
                     || checked.type_multiplicity(source_parameter.type_reference)
@@ -184,13 +184,13 @@ pub(super) fn lower(
                 }
                 return bindings.owned_argument(argument);
             }
-            let checked_trees::types::TypeReferenceNode::Reference { referee, .. } = checked
+            let typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Reference { referee, .. } = checked
                 .type_reference_table
                 .type_reference(source_parameter.type_reference)
             else {
                 return unsupported("computed structural operand is not a primitive reference");
             };
-            if parameter.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+            if parameter.access == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
                 && checked.primitive_type_reference(*referee).is_none()
             {
                 return bindings.shared_structural_argument(
@@ -201,7 +201,7 @@ pub(super) fn lower(
             }
             if !matches!(
                 checked.type_reference_table.type_reference(*referee),
-                checked_trees::types::TypeReferenceNode::Named { .. }
+                typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Named { .. }
             ) {
                 return unsupported("computed primitive borrow requires an unqualified referent");
             }

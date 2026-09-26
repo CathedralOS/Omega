@@ -2,9 +2,9 @@ use crate::bodies::sequence::{BodyKind, parse_statements};
 use crate::contracts::state_arrival::parse_state_arrival_contracts;
 use crate::input::token_cursor::{Input, ParseResult};
 use crate::parameters::parse_parameters::{parse_optional_parameters, parse_optional_return_type};
-use syntax_trees::SyntaxTrees;
-use syntax_trees::item::State;
-use tokens::PunctuationKind;
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::item::State;
+use source_files_to_tokens::tokens::PunctuationKind;
 
 pub(crate) fn parse_state<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,

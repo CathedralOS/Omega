@@ -1,6 +1,8 @@
 //! Whole parameter returns use the same ordered body as preceding calls and stores.
 
-use checked_trees::{CheckedTrees, CheckedUnitEffectOperationPlan};
+use lowered_psi_to_terminal_psi::terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
@@ -8,9 +10,7 @@ use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralPrimitiveValue, TerminalStructuralValue,
 };
-use terminal_production::{
-    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
-};
+use typed_trees_to_checked_trees::checked_trees::{CheckedTrees, CheckedUnitEffectOperationPlan};
 
 fn fixture(property: &str, carrier: &str, parameters: &str, prefix: &str) -> CheckedTrees {
     let source = format!(
@@ -53,7 +53,7 @@ fn owned_record_calls_compose_without_ambiguous_body_catalogs() {
                     "data Record {property} {{ first: u64; second: u64; third: u64; }}
                      machine identity(value: u64) -> u64 {{ value }} {machines}"
                 ));
-                let artifact = terminal_production::TerminalProductionRequest::new(
+                let artifact = lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                     &checked,
                     TerminalMachineSelection::Name("relay"),
                 )
@@ -131,7 +131,7 @@ fn owned_record_call_replay_rejects_same_type_argument_and_access_substitution()
              machine retain(record: Record) -> Record {{ record }}
              machine relay(left: Record, right: Record) -> Record {{ retain(left) }}"
         ));
-        let _ = terminal_production::TerminalProductionRequest::new(
+        let _ = lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
             &checked,
             TerminalMachineSelection::Name("relay"),
         )
@@ -168,18 +168,18 @@ fn owned_record_call_replay_rejects_same_type_argument_and_access_substitution()
             match mutation {
                 0 => {
                     structural_arguments[0].source =
-                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                             parameter_index: 1,
                         }
                 }
                 1 => {
                     structural_arguments[0].access =
-                        checked_trees::CheckedStructuralAccess::SharedBorrow
+                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
                 }
                 _ => coordinate.call_ordinal += 1,
             }
             assert!(
-                terminal_production::TerminalProductionRequest::new(
+                lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                     &invalid,
                     TerminalMachineSelection::Name("relay")
                 )
@@ -201,15 +201,16 @@ fn structural_return_requires_remaining_affine_input_cleanup_evidence() {
              Record { first: left.first, second: right.second, third: left.third }
          }",
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("combine"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap()
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("combine"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap()
+        .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert!(module.machines.iter().flat_map(|machine| &machine.blocks).any(|block|
         matches!(&block.terminator, terminal_psi::Terminator::ReturnStructural { trivial_affine_discards, .. } if trivial_affine_discards.len() == 2)));
@@ -236,7 +237,7 @@ fn structural_return_requires_remaining_affine_input_cleanup_evidence() {
             .get_mut(exit)
             .machine_symbol = Default::default();
         assert!(
-            terminal_production::TerminalProductionRequest::new(
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                 &invalid,
                 TerminalMachineSelection::Name("combine")
             )
@@ -283,19 +284,20 @@ fn discarded_scalar_invocation_precedes_whole_owned_return() {
                 })
                 && matches!(
                     graph.result,
-                    checked_trees::CheckedControlResultPlan::Structural(_)
+                    typed_trees_to_checked_trees::checked_trees::CheckedControlResultPlan::Structural(_)
                 )
         };
         assert!(has_call_and_result);
-        let artifact = terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("retain"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .unwrap_or_else(|error| panic!("{property} {carrier}: {error:?}"))
-        .into_artifact();
+        let artifact =
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("retain"),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .unwrap_or_else(|error| panic!("{property} {carrier}: {error:?}"))
+            .into_artifact();
         let artifact =
             terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
         drop(checked);
@@ -319,15 +321,16 @@ fn effectful_discarded_call_writes_before_return_across_fuel() {
             "output: &mut u64,",
             "_ = stamp(&mut output, mask); let final_value: u64 = identity(73); _ = stamp(&mut output, final_value);",
         );
-        let artifact = terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("retain"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("effectful prefix shares structural completion")
-        .into_artifact();
+        let artifact =
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("retain"),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .expect("effectful prefix shares structural completion")
+            .into_artifact();
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         let entry = module
             .machines
@@ -406,7 +409,7 @@ fn source_replay_rejects_return_parameter_and_carrier_substitution() {
             &format!("other: {carrier},"),
             "_ = identity(mask);",
         );
-        let _ = terminal_production::TerminalProductionRequest::new(
+        let _ = lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
             &original,
             TerminalMachineSelection::Name("retain"),
         )
@@ -436,7 +439,7 @@ fn source_replay_rejects_return_parameter_and_carrier_substitution() {
                 match mutation {
                     "parameter" => {
                         result.source =
-                            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                            typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                                 parameter_index: 0,
                             };
                     }
@@ -456,11 +459,11 @@ fn source_replay_rejects_return_parameter_and_carrier_substitution() {
                 match mutation {
                     "parameter" => {
                         for state in &mut graph.states {
-                            if let checked_trees::CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result } =
+                            if let typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result } =
                                 &mut state.terminator
                             {
                                 result.source =
-                                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                                         parameter_index: 0,
                                     };
                             }
@@ -469,14 +472,14 @@ fn source_replay_rejects_return_parameter_and_carrier_substitution() {
                     _ => {
                         // Keep the plan's parameter and result consistent with each other,
                         // but substitute a carrier different from the source declaration.
-                        if let checked_trees::CheckedControlResultPlan::Structural(result) =
+                        if let typed_trees_to_checked_trees::checked_trees::CheckedControlResultPlan::Structural(result) =
                             &mut graph.result
                         {
                             result.type_identity = wrong_carrier.into();
                         }
                         for state in &mut graph.states {
                             state.structural_parameters[1].type_identity = wrong_carrier.into();
-                            if let checked_trees::CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result } =
+                            if let typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result } =
                                 &mut state.terminator
                             {
                                 result.type_identity = wrong_carrier.into();
@@ -486,7 +489,7 @@ fn source_replay_rejects_return_parameter_and_carrier_substitution() {
                 }
             }
             assert!(
-                terminal_production::TerminalProductionRequest::new(
+                lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                     &changed,
                     TerminalMachineSelection::Name("retain")
                 )
@@ -516,7 +519,7 @@ fn consumed_affine_parameter_cannot_be_returned() {
 fn source_replay_requires_the_exact_affine_return_transfer() {
     for carrier in ["Record", "[Entry; 3]", "Buffer<Entry>"] {
         let original = fixture("", carrier, "", "_ = identity(mask);");
-        let _ = terminal_production::TerminalProductionRequest::new(
+        let _ = lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
             &original,
             TerminalMachineSelection::Name("retain"),
         )
@@ -562,7 +565,7 @@ fn source_replay_requires_the_exact_affine_return_transfer() {
                 }
             }
             assert!(
-                terminal_production::TerminalProductionRequest::new(
+                lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
                     &changed,
                     TerminalMachineSelection::Name("retain")
                 )
@@ -586,15 +589,16 @@ fn owned_array_call_results_return_without_fabricated_claims() {
              forward(first)
          }",
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("relay"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("a call-produced owned array uses its exact live owner at return")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("relay"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("a call-produced owned array uses its exact live owner at return")
+        .into_artifact();
     let artifact =
         terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
     drop(checked);

@@ -1,15 +1,19 @@
 //! Exact IEEE source identity survives field writes and ordinary Unit-call transport.
-use abstract_operations::{AbstractOperation, AbstractParameter, AbstractResult};
+use abstract_operations_to_target_operations::target_operations::{
+    TargetUnitOperation, TargetUnitScalarArgumentSource as Source,
+};
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IeeeFloatValue, IntegerValue, MachineId, OperationId,
     PlaceId, ScalarType, StructuralFieldId, StructuralTypeId, ValueId,
 };
 use target::NativeTarget;
-use target_operations::{TargetUnitOperation, TargetUnitScalarArgumentSource as Source};
 use terminal_psi::{
     BindingRelevance, StructuralAccess, StructuralFieldDeclaration, StructuralFieldType,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeDeclaration,
     StructuralTypeShape,
+};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractOperation, AbstractParameter, AbstractResult,
 };
 
 use crate::{legalize_target_operations, validate_legalized_operations};
@@ -18,9 +22,9 @@ fn fixture(
     native: NativeTarget,
     literal: IeeeFloatValue,
 ) -> (
-    abstract_operations::AbstractOperationPlan,
-    target_operations::TargetOperationPlan,
-    optimization_unit::PsiOptimizationUnit,
+    terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan,
+    abstract_operations_to_target_operations::target_operations::TargetOperationPlan,
+    terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
 ) {
     let (mut source, _, _) = crate::tests::fixtures::plain_unit::plain_unit_fixture();
     let scalar_type = ScalarType::IeeeFloat(literal.format());
@@ -99,7 +103,7 @@ fn fixture(
         abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
     )
     .unwrap();
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),
     )
@@ -202,7 +206,7 @@ fn ieee_literal_field_and_call_receiving_binds_definition_bits_format_and_order(
                 match mutation {
                     0 => {
                         rows[0].kind =
-                            legalized_operations::LegalizedScalarInstructionKind::Constant(
+                            crate::legalized_operations::LegalizedScalarInstructionKind::Constant(
                                 IntegerValue::Unsigned(0),
                             )
                     }

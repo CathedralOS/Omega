@@ -1,12 +1,14 @@
 use crate::tests::front_end::typed_program;
-use typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
 
 #[test]
 fn stale_frontier_nodes_never_supply_an_empty_result_proof() {
     use crate::borrow::view_link::{
         DeclarationLifetimeFrontier, declaration_lifetime_frontier, substituted_result_is_view_free,
     };
-    use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
+    use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+        FixedArrayLength, TypeReferenceNode,
+    };
     let mut program = typed_program(
         r#"
         data Envelope<T> { value: T; }
@@ -114,7 +116,7 @@ fn exact_static_callable_substitution_allows_only_closed_view_free_results() {
         .statements(state.statement_nodes)
         .iter()
         .find_map(|statement| match statement {
-            typed_trees::statement::StatementNode::LocalData(local)
+            symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local)
                 if local.name.as_str() == "outcome" =>
             {
                 Some(local.symbol)
@@ -129,13 +131,13 @@ fn exact_static_callable_substitution_allows_only_closed_view_free_results() {
         .expect("job")
         .symbol;
     let facts = crate::borrow::build_borrow_facts(&typed);
-    let segment_names = |loan: &checked_trees::BorrowLoanFact| -> Vec<String> {
+    let segment_names = |loan: &crate::checked_trees::BorrowLoanFact| -> Vec<String> {
         facts
             .loan_owner_path(loan)
             .iter()
             .map(|segment| match segment {
-                checked_trees::BorrowLoanOwnerSegment::Field(symbol)
-                | checked_trees::BorrowLoanOwnerSegment::Case(symbol) => {
+                crate::checked_trees::BorrowLoanOwnerSegment::Field(symbol)
+                | crate::checked_trees::BorrowLoanOwnerSegment::Case(symbol) => {
                     typed.symbols.name(*symbol).to_owned()
                 }
                 _ => "?".to_owned(),
@@ -146,7 +148,7 @@ fn exact_static_callable_substitution_allows_only_closed_view_free_results() {
         facts.loans.iter().any(|(_, loan)| {
             loan.owner_symbol == outcome
                 && loan.root_symbol == job
-                && loan.kind == checked_trees::BorrowAccessKind::Read
+                && loan.kind == crate::checked_trees::BorrowAccessKind::Read
                 && segment_names(loan) == ["Rejected", "arguments", "value"]
         }),
         "the view-bearing result loans `job`'s exact `value` leaf backing"
@@ -264,8 +266,10 @@ fn closed_bindings_reject_missing_selection_conflicting_arguments_and_borrow_era
         .expression_table
         .expression_handles(call.arguments)
         .to_vec();
-    let project = |program: &typed_trees::TypedTrees, selected: &[_], arguments: &[_]| {
-        validation::closed_static_call_type_bindings(
+    let project = |program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+                   selected: &[_],
+                   arguments: &[_]| {
+        crate::validation::closed_static_call_type_bindings(
             program, &machine, &state, &signature, selected, arguments,
         )
     };
@@ -280,7 +284,7 @@ fn closed_bindings_reject_missing_selection_conflicting_arguments_and_borrow_era
     ));
     assert!(project(&program, &call.machine_arguments, &[scalar]).is_none());
     let borrowed = program.expression_table.insert(ExpressionNode::Borrow(
-        typed_trees::expression::TableBorrowExpression {
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableBorrowExpression {
             target: arguments[0],
             access: language_semantics::ReferenceAccess::Shared,
         },
@@ -296,7 +300,7 @@ fn closed_bindings_reject_missing_selection_conflicting_arguments_and_borrow_era
         .state_signature_type_parameters(&signature)
         .iter()
         .find_map(|parameter| {
-            let typed_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind else {
+            let symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind else {
                 return None;
             };
             Some(
@@ -311,7 +315,7 @@ fn closed_bindings_reject_missing_selection_conflicting_arguments_and_borrow_era
     let reference = program.state_signature_parameters(&requirement)[0].type_reference;
     program.type_reference_table.substitute_node(
         reference,
-        typed_trees::types::TypeReferenceNode::Named {
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named {
             symbol: foreign,
             name: "Arguments".into(),
         },
@@ -359,7 +363,7 @@ fn closed_bindings_accept_a_plain_carrier_for_a_carry_constrained_parameter() {
         .expression_table
         .expression_handles(call.arguments)
         .to_vec();
-    let substitutions = validation::closed_static_call_type_bindings(
+    let substitutions = crate::validation::closed_static_call_type_bindings(
         &program,
         &machine,
         &state,

@@ -8,11 +8,11 @@
 
 use std::collections::HashMap;
 
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
+use crate::symbol_resolved_trees::domain::DomainDefinition;
 use arena::{Arena, HandleSpan, OrderedRootArena};
 use diagnostics::Diagnostic;
 use source::SourceId;
-use symbol_resolved_trees::SymbolResolvedTrees;
-use symbol_resolved_trees::domain::DomainDefinition;
 
 use crate::selection::signature_free_requirements::same_semantic_name;
 use crate::symbols::NamespaceDeclarations;
@@ -342,7 +342,7 @@ fn explicit_domain_homes(
 fn inferred_domain_homes(
     program: &SymbolResolvedTrees,
     scope: &NamespaceScope,
-    operator: &symbol_resolved_trees::operator::OperatorDefinition,
+    operator: &crate::symbol_resolved_trees::operator::OperatorDefinition,
     domain_names: &[String],
     domain_modules: &[String],
     domain_paths: &[String],
@@ -365,13 +365,13 @@ fn inferred_domain_homes(
 fn collect_type_domain_homes(
     program: &SymbolResolvedTrees,
     scope: &NamespaceScope,
-    type_reference: &symbol_resolved_trees::types::TypeReference,
+    type_reference: &crate::symbol_resolved_trees::types::TypeReference,
     domain_names: &[String],
     domain_modules: &[String],
     domain_paths: &[String],
     matches: &mut Vec<usize>,
 ) {
-    use symbol_resolved_trees::types::{TypeConstraint, TypeReference};
+    use crate::symbol_resolved_trees::types::{TypeConstraint, TypeReference};
 
     match type_reference {
         TypeReference::Reference(reference) => collect_type_domain_homes(
@@ -462,8 +462,8 @@ fn collect_type_domain_homes(
 
 fn domain_accepts_carrier(
     program: &SymbolResolvedTrees,
-    domain: &symbol_resolved_trees::domain::DomainDefinition,
-    carrier: &symbol_resolved_trees::types::TypeReference,
+    domain: &crate::symbol_resolved_trees::domain::DomainDefinition,
+    carrier: &crate::symbol_resolved_trees::types::TypeReference,
     argument_count: usize,
 ) -> bool {
     let parameters = program.data_type_parameters(domain.type_parameters);
@@ -475,24 +475,24 @@ fn domain_accepts_carrier(
     };
     if !matches!(
         parameter.kind,
-        symbol_resolved_trees::data::TypeParameterKind::Type
+        crate::symbol_resolved_trees::data::TypeParameterKind::Type
     ) || argument_count != parameters.len().saturating_sub(1)
     {
         return false;
     }
     matches!(
         &domain.target_type,
-        symbol_resolved_trees::types::TypeReference::Named { name, .. }
+        crate::symbol_resolved_trees::types::TypeReference::Named { name, .. }
             if name.as_str() == parameter.name.as_str()
     )
 }
 
 fn type_references_match(
     program: &SymbolResolvedTrees,
-    left: &symbol_resolved_trees::types::TypeReference,
-    right: &symbol_resolved_trees::types::TypeReference,
+    left: &crate::symbol_resolved_trees::types::TypeReference,
+    right: &crate::symbol_resolved_trees::types::TypeReference,
 ) -> bool {
-    use symbol_resolved_trees::types::TypeReference;
+    use crate::symbol_resolved_trees::types::TypeReference;
 
     match (left, right) {
         (TypeReference::Constrained(left), _) => {
@@ -549,7 +549,7 @@ fn type_references_match(
 
 fn operator_label(
     program: &SymbolResolvedTrees,
-    operator: &symbol_resolved_trees::operator::OperatorDefinition,
+    operator: &crate::symbol_resolved_trees::operator::OperatorDefinition,
 ) -> String {
     program
         .operator_path_members(operator.name)

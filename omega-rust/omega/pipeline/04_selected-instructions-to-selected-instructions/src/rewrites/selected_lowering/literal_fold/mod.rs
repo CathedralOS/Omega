@@ -5,7 +5,7 @@ use crate::ValidatedLiveRanges;
 use crate::ValidatedRecoveryClassifications;
 use crate::ValidatedSelectedAnalysis;
 use crate::ValidatedSpillChoices;
-use register_model::{
+use target_operations_to_selected_instructions::register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile,
@@ -19,6 +19,10 @@ pub(crate) mod validate;
 #[cfg(test)]
 mod tests;
 
+use crate::register_homes::{
+    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, RecoveryClassificationIdentity,
+    SpillChoiceIdentity,
+};
 use identity::encode_terminal_literal_fold_content;
 pub(crate) use identity::literal_fold_identity;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
@@ -28,18 +32,14 @@ pub use pair_rule::{
     PairResultDisposition, PairTailCustody, PairUnitDefRelation, PairUnitEffects,
     SelectedInstructionPairRule,
 };
-use register_homes::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, RecoveryClassificationIdentity,
-    SpillChoiceIdentity,
-};
-use register_model::RegisterConstraintKey;
-pub use selected_instructions::LiteralFoldIdentity;
-use selected_instructions::{
+use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
+pub use target_operations_to_selected_instructions::LiteralFoldIdentity;
+use target_operations_to_selected_instructions::register_model::RegisterConstraintKey;
+use target_operations_to_selected_instructions::{
     LiveRangeIdentity, LiveRangePoint, MachineEffectCatalogIdentity, SelectedBlockId,
     SelectedInstructionId, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
     VirtualRegisterId,
 };
-use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 pub(crate) use validate::validate_literal_fold;
 
 /// Fold one classified incoming literal into its immediately following enabled
@@ -154,7 +154,7 @@ pub(crate) fn fold_selected_incoming_literal<S: ValidatedSelectedAnalysis>(
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
     selected_keys: &TargetRegisterEnvironmentConstraintKeys,
-    effect_catalog: &selected_instructions::ValidatedMachineEffectCatalog,
+    effect_catalog: &target_operations_to_selected_instructions::ValidatedMachineEffectCatalog,
     policy: LiteralFoldPolicy,
     budget: optimization_core::OptimizationWorkBudget,
 ) -> Result<ValidatedLiteralFold, LiteralFoldError> {
@@ -1021,11 +1021,11 @@ fn decode_constraint_key(
     cursor: &mut LiteralFoldCursor<'_>,
 ) -> Result<RegisterConstraintKey, LiteralFoldDecodeError> {
     let family = match cursor.byte()? {
-        0 => register_model::RegisterConstraintFamily::Call,
-        1 => register_model::RegisterConstraintFamily::Return,
-        2 => register_model::RegisterConstraintFamily::SystemCall,
-        3 => register_model::RegisterConstraintFamily::InlineAssembly,
-        4 => register_model::RegisterConstraintFamily::Instruction,
+        0 => target_operations_to_selected_instructions::register_model::RegisterConstraintFamily::Call,
+        1 => target_operations_to_selected_instructions::register_model::RegisterConstraintFamily::Return,
+        2 => target_operations_to_selected_instructions::register_model::RegisterConstraintFamily::SystemCall,
+        3 => target_operations_to_selected_instructions::register_model::RegisterConstraintFamily::InlineAssembly,
+        4 => target_operations_to_selected_instructions::register_model::RegisterConstraintFamily::Instruction,
         tag => return Err(LiteralFoldDecodeError::UnknownConstraintFamily(tag)),
     };
     Ok(RegisterConstraintKey {

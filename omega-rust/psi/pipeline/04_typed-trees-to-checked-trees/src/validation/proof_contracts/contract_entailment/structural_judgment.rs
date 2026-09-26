@@ -1,0 +1,3062 @@
+use super::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, Machine, ProofFact, RESULT_BINDER,
+    SignatureContractKind, StatementNode, SymbolHandle, TraitDefinition, TransitionGuardNode,
+    TransitionTargetNode, TypedTrees, is_arm_pattern_marker, structural_call_machine_name,
+    structural_term, term_contains,
+};
+use crate::validation::proof_contracts::contract_entailment::law_conformance::collect_equality_conjuncts;
+use language_semantics::const_value::boolean_literal_spelling;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle;
+
+pub(super) enum StructuralJudgment {
+    Proven,
+    Refuted,
+    Unknown,
+}
+
+#[derive(Clone)]
+pub(super) struct CaseGuarantee {
+    subject: StructuralTerm,
+    data: SymbolHandle,
+    case: SymbolHandle,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub(super) enum StructuralTerm {
+    Variable(String),
+    /// A completed call's exact local result. Its contract may classify this
+    /// value, but neither its spelling nor its callee's body defines it here.
+    BoundValue(SymbolHandle),
+    /// A field path on the same completed value, never a callee-local spelling.
+    BoundProjection {
+        subject: SymbolHandle,
+        path: String,
+    },
+    /// Exact literal value, independent of radix or authored spelling.
+    Integer(numerics::bignum::BigInt),
+    /// Data name, case name, and complete common/payload fields (sorted by
+    /// field name; empty for a fieldless value like `Nat::Zero`). Payload-carrying
+    /// terms spell as parenthesized case literals in fact position
+    /// (`(Nat::Succ { prev: a })` -- the parens re-enable struct literals in
+    /// the contract grammar), and both lowering fences stand down for
+    /// recursive data so the raw Binary reaches this judge.
+    Constructor {
+        data: String,
+        case: String,
+        fields: Vec<(String, StructuralTerm)>,
+    },
+    /// A FREE call whose arguments all term-ify (`add(Nat::Zero, b)`). Static
+    /// machine selections and target symbols are retained independently of
+    /// diagnostic display, and generic unfolding substitutes their identities.
+    /// Resolution UNFOLDS it when the callee is a single-state proof
+    /// machine of the case-arm shape and the matched argument resolves to
+    /// a constructor -- the compute-mode of N3's operator routing.
+    Application {
+        target: SymbolHandle,
+        selections: Vec<
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::StaticMachineArgument,
+        >,
+        machine: String,
+        arguments: Vec<StructuralTerm>,
+    },
+    /// One validated direct plain-record projection from an exact checked
+    /// call. Symbol identities prevent overloaded textual names from
+    /// collapsing; `machine` retains the complete static application for
+    /// diagnostics and canonical display.
+    CallProjection {
+        selections: Vec<
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::StaticMachineArgument,
+        >,
+        target: SymbolHandle,
+        machine: String,
+        result_type: TypeReferenceHandle,
+        field: SymbolHandle,
+        field_name: String,
+        arguments: Vec<StructuralTerm>,
+    },
+    /// A substituted receiver whose field cannot yet be reduced. Retaining
+    /// the receiver prevents a selected application from becoming display text.
+    Projection {
+        subject: Box<StructuralTerm>,
+        path: String,
+    },
+    /// A selected builtin operation, with substituted operands and original
+    /// carrier/policy meaning. No scalar arithmetic is evaluated by this term.
+    ScalarBinary {
+        operator: BinaryOperator,
+        meaning: [(
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType,
+            numerics::arithmetic::ArithmeticDomain,
+        ); 2],
+        left: Box<StructuralTerm>,
+        right: Box<StructuralTerm>,
+    },
+    /// Anything else, compared by canonical display name only.
+    Opaque(String),
+}
+
+#[cfg(test)]
+mod case_premise_tests {
+    use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
+
+    #[test]
+    fn completed_result_projection_substitution_keeps_its_binding() {
+        let program = crate::validation::front_end::typed_program("machine caller() {}");
+        let subject = program.machines()[0].symbol;
+        let field = StructuralTerm::Opaque("value.marked".to_owned());
+        let substituted = StructuralJudge::substitute_term(
+            &field,
+            &[("value".to_owned(), StructuralTerm::BoundValue(subject))],
+        );
+        assert_ne!(
+            substituted, field,
+            "a callee-local field cannot survive substitution unchanged"
+        );
+        assert_eq!(
+            substituted,
+            StructuralTerm::BoundProjection {
+                subject,
+                path: "marked".to_owned()
+            }
+        );
+        assert_eq!(
+            StructuralJudge::substitute_term(
+                &StructuralTerm::Opaque("alias.child.marked".to_owned()),
+                &[("alias".to_owned(), StructuralTerm::BoundValue(subject),)]
+            ),
+            StructuralTerm::BoundProjection {
+                subject,
+                path: "child.marked".to_owned()
+            }
+        );
+    }
+
+    #[test]
+    fn case_premises_do_not_inherit_legacy_application_resolution() {
+        let source = "data Tree { marked: bool; case Empty; case Node(child: Tree); }
+            machine make() -> Tree { transition { _ -> Tree::Empty } }
+            machine caller(value: Tree) {}";
+        let program = crate::validation::front_end::typed_program(source);
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "caller")
+            .expect("caller");
+        let definition = &program.data_definitions()[0];
+        let case = program
+            .data_members(definition)
+            .iter()
+            .find_map(|member| match member {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
+                    variant,
+                ) if variant.name.as_str() == "Empty" => Some(variant.symbol),
+                _ => None,
+            })
+            .expect("Empty case");
+        let variable = StructuralTerm::Variable("value".to_owned());
+        let alias = StructuralTerm::Variable("alias".to_owned());
+        let application = StructuralTerm::Application {
+            target: program.machine_states(
+                program
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.name.as_str() == "make")
+                    .unwrap(),
+            )[0]
+            .symbol,
+            selections: Vec::new(),
+            machine: "make".to_owned(),
+            arguments: Vec::new(),
+        };
+        let mut judge = StructuralJudge::from_requires(&program, machine, &[]);
+        let constructor = judge.resolve(application.clone());
+        assert!(
+            matches!(constructor, StructuralTerm::Constructor { .. }),
+            "witness that legacy resolution unfolds the application"
+        );
+        judge.intake_case_equation(variable.clone(), application.clone(), 0);
+        judge.intake_equation(variable.clone(), application.clone(), 0);
+        judge.intake_case_equation(alias.clone(), variable.clone(), 0);
+        judge.intake_equation(alias.clone(), variable.clone(), 0);
+        assert_eq!(judge.resolve(alias.clone()), constructor);
+        judge
+            .case_facts
+            .push((application, definition.symbol, case));
+        for subject in [variable.clone(), alias.clone()] {
+            assert!(
+                matches!(
+                    judge.judge_case(subject, definition.symbol, case),
+                    StructuralJudgment::Unknown
+                ),
+                "a previously unfolded equation or tag hypothesis cannot supply exact callable identity"
+            );
+        }
+        judge.intake_case_equation(variable, constructor, 0);
+        assert!(
+            matches!(
+                judge.judge_case(alias, definition.symbol, case),
+                StructuralJudgment::Proven
+            ),
+            "application-free constructor premises still propagate through aliases"
+        );
+    }
+
+    #[test]
+    fn case_premise_environments_do_not_hide_applications_in_local_projections() {
+        let source = "data Tree { case Empty; case Node(child: Tree); }
+            data Holder { tree: Tree; }
+            machine make() -> Holder { transition { _ -> Holder { tree: Tree::Empty } } }
+            machine caller(holder: Holder) -> Tree { holder.tree }";
+        let program = crate::validation::front_end::typed_program(source);
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "caller")
+            .expect("caller");
+        let projection = program
+            .expression_table
+            .expression_entries()
+            .find_map(|(expression, node)| {
+                matches!(node, symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Member(_))
+                    .then_some(expression)
+            })
+            .expect("holder.tree");
+        let environment = vec![(
+            "holder".to_owned(),
+            StructuralTerm::Application {
+                target: program.machine_states(
+                    program
+                        .machines()
+                        .iter()
+                        .find(|machine| machine.name.as_str() == "make")
+                        .unwrap(),
+                )[0]
+                .symbol,
+                selections: Vec::new(),
+                machine: "make".to_owned(),
+                arguments: Vec::new(),
+            },
+        )];
+        let legacy = StructuralJudge::from_requires(&program, machine, &[]);
+        assert!(
+            matches!(
+                legacy.callee_term(projection, &environment, 0),
+                Some(StructuralTerm::Constructor { .. })
+            ),
+            "witness that projection previously erased the application's origin"
+        );
+        let exact = StructuralJudge::from_case_requires(&program, machine, &[]);
+        assert_eq!(
+            exact.callee_term(projection, &environment, 0),
+            None,
+            "local bindings and state arguments must retain unknown application origin"
+        );
+        let alias_environment = vec![(
+            "holder".to_owned(),
+            StructuralTerm::Variable("alias".to_owned()),
+        )];
+        let mut exact = exact.clone();
+        exact
+            .substitutions
+            .push(("alias".to_owned(), environment[0].1.clone()));
+        assert_eq!(
+            exact.callee_term(projection, &alias_environment, 0),
+            Some(StructuralTerm::Opaque("alias.tree".to_owned())),
+            "a legacy binding cannot manufacture a constructor through a forwarded alias"
+        );
+    }
+}
+
+/// REARRANGE-MODE license (settle 2026-07-18, rung C): a carrier EARNS ring
+/// canonicalization over an op through EXPLICIT conformance, never
+/// scope-sniffing. A license exists for op machine `add_machine` when some
+/// trait declares an op slot with BOTH a commutativity law and an
+/// associativity law over it (detected by SHAPE, not by name -- `R(x, y) ==
+/// R(y, x)` and `R(R(x, y), z) == R(x, R(y, z))` with distinct requirement
+/// params), the op slot is conformed by `add_machine`, and BOTH law slots
+/// have satisfiers for the same carrier (whose proofs rung B already
+/// machine-checked against the declared laws).
+#[derive(Clone, Debug)]
+struct RingLicense {
+    add_machine: SymbolHandle,
+}
+
+/// Shape-detected commutativity/associativity law slots one trait declares
+/// over `requirement`. The names are the trait's own law requirement slots;
+/// whether a carrier satisfies them is the supplied conformance's checked
+/// business, not this judgment's.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct DeclaredIndexAlgebraLaws {
+    pub commutativity: Vec<String>,
+    pub associativity: Vec<String>,
+}
+
+/// The trait-level half of the algebra license: `requirement`'s commutativity
+/// (`R(x, y) == R(y, x)`) and associativity (`R(R(x, y), z) == R(x, R(y, z))`)
+/// law slots, detected by shape in the trait's own signatures. A consuming
+/// machine's `Binder: Subject satisfies Trait` conformance bound supplies the
+/// checked evidence for these slots through the ordinary generic-conformance
+/// machinery.
+pub(crate) fn declared_index_algebra_laws(
+    program: &TypedTrees,
+    trait_definition: &TraitDefinition,
+    requirement: &str,
+) -> DeclaredIndexAlgebraLaws {
+    let mut laws = DeclaredIndexAlgebraLaws::default();
+    for law in program.trait_machine_signatures(trait_definition) {
+        let parameters = program
+            .state_signature_parameters(law)
+            .iter()
+            .map(|parameter| parameter.name.as_str().to_owned())
+            .collect::<Vec<_>>();
+        for contract in program.state_signature_contracts(law) {
+            if contract.kind != SignatureContractKind::Ensures {
+                continue;
+            }
+            for fact in program.proof_facts.span_or_empty(contract.facts) {
+                let ProofFact::Expression(expression) = fact else {
+                    continue;
+                };
+                let mut conjuncts = Vec::new();
+                collect_equality_conjuncts(program, *expression, &mut conjuncts);
+                for conjunct in conjuncts {
+                    let ExpressionNode::Binary(binary) =
+                        program.expression_table.expression(conjunct)
+                    else {
+                        continue;
+                    };
+                    let (Some(left), Some(right)) = (
+                        structural_term(program, binary.left),
+                        structural_term(program, binary.right),
+                    ) else {
+                        continue;
+                    };
+                    if commutativity_shape(&left, &right, &parameters).as_deref()
+                        == Some(requirement)
+                    {
+                        laws.commutativity.push(law.name.as_str().to_owned());
+                    }
+                    if associativity_shape(&left, &right, &parameters).as_deref()
+                        == Some(requirement)
+                    {
+                        laws.associativity.push(law.name.as_str().to_owned());
+                    }
+                }
+            }
+        }
+    }
+    laws
+}
+
+/// Tier-2 (full polynomial): the PAIRED license -- an add op and a mul op
+/// each carrying comm+assoc, connected by a conformed DISTRIBUTIVITY law.
+#[derive(Clone)]
+struct SemiringLicense {
+    add_machine: SymbolHandle,
+    mul_machine: SymbolHandle,
+}
+
+/// Each machine's entry-state symbol with the machine's position, sorted by
+/// symbol; an entry state shared by two machines selects neither. Unfolding
+/// looks up one machine per application, and a whole-table scan per unfold
+/// dominated entailment over the core Rat and Nat proofs. Built once per root
+/// judge; arm and site clones share it.
+struct EntryMachines(Vec<((u32, u32), u32)>);
+
+impl EntryMachines {
+    fn of(program: &TypedTrees) -> Self {
+        let key = |symbol: SymbolHandle| (symbol.arena_index(), symbol.generation());
+        let mut entries = program
+            .machines()
+            .iter()
+            .enumerate()
+            .filter_map(|(position, machine)| {
+                let entry = program.machine_states(machine).first()?;
+                Some((key(entry.symbol), u32::try_from(position).ok()?))
+            })
+            .collect::<Vec<_>>();
+        entries.sort_unstable();
+        let mut unique = Vec::with_capacity(entries.len());
+        let mut index = 0;
+        while index < entries.len() {
+            let run = entries[index..]
+                .iter()
+                .take_while(|(symbol, _)| *symbol == entries[index].0)
+                .count();
+            if run == 1 {
+                unique.push(entries[index]);
+            }
+            index += run;
+        }
+        Self(unique)
+    }
+
+    /// The machine whose entry state is `target`, as
+    /// `structural_terms::selected_application_machine` selects it.
+    fn machine<'program>(
+        &self,
+        program: &'program TypedTrees,
+        target: SymbolHandle,
+    ) -> Option<&'program Machine> {
+        if !target.is_valid() {
+            return None;
+        }
+        let key = (target.arena_index(), target.generation());
+        let found = self
+            .0
+            .binary_search_by_key(&key, |(symbol, _)| *symbol)
+            .ok()?;
+        program.machines().get(self.0[found].1 as usize)
+    }
+}
+
+pub(super) struct StructuralJudge<'program> {
+    program: &'program TypedTrees,
+    entry_machines: std::rc::Rc<EntryMachines>,
+    machine_symbol: SymbolHandle,
+    resolve_applications: bool,
+    runtime_body_values: bool,
+    pub(super) substitutions: Vec<(String, StructuralTerm)>,
+    /// Application REWRITES (`add_zero_right(prev) -> prev`): hypothesis
+    /// equations with an application side orient REDUCING -- the inductive
+    /// hypothesis rewrites the self-application away instead of expanding a
+    /// variable into it, which also serves asymmetric goals.
+    rewrites: Vec<(StructuralTerm, StructuralTerm)>,
+    // Tag predicates are not value equations: even a payload-free case may
+    // have common fields. Retain exact classifier identities while ordinary
+    // argument substitution acts only on the observed subject.
+    case_facts: Vec<(StructuralTerm, SymbolHandle, SymbolHandle)>,
+    // Keep raw, application-free equations separate from the legacy value
+    // normalizer, which can unfold a name-selected call before storing it.
+    // Copying its substitutions would already have lost callable identity.
+    case_substitutions: Vec<(String, StructuralTerm)>,
+    pub(super) hypotheses_contradictory: bool,
+    ring_licenses: Vec<RingLicense>,
+    /// Tier-2: paired add/mul licenses with a conformed distributivity law.
+    semiring_licenses: Vec<SemiringLicense>,
+}
+
+impl Clone for StructuralJudge<'_> {
+    fn clone(&self) -> Self {
+        Self {
+            program: self.program,
+            entry_machines: std::rc::Rc::clone(&self.entry_machines),
+            machine_symbol: self.machine_symbol,
+            resolve_applications: self.resolve_applications,
+            runtime_body_values: self.runtime_body_values,
+            substitutions: self.substitutions.clone(),
+            rewrites: self.rewrites.clone(),
+            case_facts: self.case_facts.clone(),
+            case_substitutions: self.case_substitutions.clone(),
+            hypotheses_contradictory: self.hypotheses_contradictory,
+            ring_licenses: self.ring_licenses.clone(),
+            semiring_licenses: self.semiring_licenses.clone(),
+        }
+    }
+}
+
+impl<'program> StructuralJudge<'program> {
+    pub(super) fn from_requires(
+        program: &'program TypedTrees,
+        judged_machine: &Machine,
+        requires: &[ExpressionHandle],
+    ) -> Self {
+        Self::from_requires_with_resolution(program, judged_machine, requires, true)
+    }
+
+    pub(super) fn from_case_requires(
+        program: &'program TypedTrees,
+        judged_machine: &Machine,
+        requires: &[ExpressionHandle],
+    ) -> Self {
+        Self::from_requires_with_resolution(program, judged_machine, requires, false)
+    }
+
+    pub(super) fn has_exact_case_subjects(&self) -> bool {
+        !self.resolve_applications
+    }
+
+    /// Executed calls are values from individual invocations, not applications
+    /// of a mathematical function. Contracts retain their denotational terms;
+    /// body substitution must not identify two independent observations.
+    pub(super) fn from_runtime_requires(
+        program: &'program TypedTrees,
+        judged_machine: &Machine,
+        requires: &[ExpressionHandle],
+    ) -> Self {
+        let mut judge = Self::from_case_requires(program, judged_machine, requires);
+        judge.runtime_body_values = true;
+        judge
+    }
+
+    pub(super) fn has_runtime_body_values(&self) -> bool {
+        self.runtime_body_values
+    }
+
+    fn from_requires_with_resolution(
+        program: &'program TypedTrees,
+        judged_machine: &Machine,
+        requires: &[ExpressionHandle],
+        resolve_applications: bool,
+    ) -> Self {
+        let slot_carriers =
+            crate::validation::machine_calls::effect_inference::plan_scope::memoized_conformance_slot_carriers(
+                program,
+            );
+        let mut judge = Self {
+            program,
+            entry_machines: std::rc::Rc::new(EntryMachines::of(program)),
+            machine_symbol: judged_machine.symbol,
+            resolve_applications,
+            runtime_body_values: false,
+            substitutions: Vec::new(),
+            rewrites: Vec::new(),
+            case_facts: Vec::new(),
+            case_substitutions: Vec::new(),
+            hypotheses_contradictory: false,
+            ring_licenses: compute_ring_licenses(&slot_carriers, program, judged_machine),
+            semiring_licenses: compute_semiring_licenses(&slot_carriers, program, judged_machine),
+        };
+        for fact in requires {
+            judge.intake(program, *fact);
+        }
+        judge
+    }
+
+    pub(super) fn intake(&mut self, program: &TypedTrees, fact: ExpressionHandle) {
+        let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
+            return;
+        };
+        if super::structural_terms::is_case_observation(program, fact) {
+            if !self.is_case_membership(fact, binary) {
+                return;
+            }
+            let Some((definition, variant)) =
+                super::structural_terms::case_classifier(program, binary.right)
+            else {
+                return;
+            };
+            if let Some(subject) = structural_term(program, binary.left) {
+                self.case_facts
+                    .push((subject, definition.symbol, variant.symbol));
+            }
+            // A tag fact alone establishes a complete value only when there
+            // are no common or payload fields. Other arm refinements retain
+            // their symbolic fields at the case-flow owner.
+            if program.data_members(definition).iter().any(|member| {
+                matches!(
+                    member,
+                    symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(_)
+                )
+            }) || !program.data_payload_fields(variant).is_empty()
+            {
+                return;
+            }
+        }
+        match binary.operator {
+            BinaryOperator::And => {
+                self.intake(program, binary.left);
+                self.intake(program, binary.right);
+            }
+            BinaryOperator::Equal => {
+                let (Some(left), Some(right)) = (
+                    structural_term(program, binary.left),
+                    structural_term(program, binary.right),
+                ) else {
+                    return;
+                };
+                self.intake_case_equation(left.clone(), right.clone(), 0);
+                self.intake_equation(left, right, 0);
+            }
+            _ => {}
+        }
+    }
+
+    /// One structural equation: constructor pairs DECOMPOSE (injectivity --
+    /// `Succ(a) == Succ(b)` yields `a == b`), distinct cases of one data
+    /// make the hypotheses contradictory (disjointness), and a variable side
+    /// becomes a directed substitution (first binding wins).
+    pub(super) fn intake_equation(
+        &mut self,
+        left: StructuralTerm,
+        right: StructuralTerm,
+        depth: usize,
+    ) {
+        if depth >= 32 {
+            return;
+        }
+        let left = self.resolve(left);
+        let right = self.resolve(right);
+        match (&left, &right) {
+            (
+                StructuralTerm::Constructor {
+                    data: data_l,
+                    case: case_l,
+                    fields: fields_l,
+                },
+                StructuralTerm::Constructor {
+                    data: data_r,
+                    case: case_r,
+                    fields: fields_r,
+                },
+            ) if data_l == data_r => {
+                if case_l != case_r {
+                    self.hypotheses_contradictory = true;
+                    return;
+                }
+                for (name_l, value_l) in fields_l {
+                    if let Some((_, value_r)) = fields_r.iter().find(|(name_r, _)| name_r == name_l)
+                    {
+                        self.intake_equation(value_l.clone(), value_r.clone(), depth + 1);
+                    }
+                }
+            }
+            (StructuralTerm::Application { .. }, _) => {
+                if !term_contains(&right, &left) {
+                    self.rewrites.push((left, right));
+                }
+            }
+            (_, StructuralTerm::Application { .. }) => {
+                if !term_contains(&left, &right) {
+                    self.rewrites.push((right, left));
+                }
+            }
+            (StructuralTerm::Variable(name), _) => {
+                if left != right {
+                    self.substitutions.push((name.clone(), right));
+                }
+            }
+            (_, StructuralTerm::Variable(name)) => {
+                self.substitutions.push((name.clone(), left));
+            }
+            _ => {}
+        }
+    }
+
+    /// Follow variable substitutions to a fixpoint, depth-capped (a cyclic
+    /// substitution chain resolves to wherever the cap lands, which only
+    /// weakens judgments toward Unknown -- never unsound). Constructor
+    /// fields resolve recursively under the same budget.
+    pub(super) fn resolve(&self, term: StructuralTerm) -> StructuralTerm {
+        self.resolve_at(term, 0)
+    }
+
+    fn resolve_at(&self, mut term: StructuralTerm, depth: usize) -> StructuralTerm {
+        // A call-premise traversal also extracts locals and state arguments.
+        // Keep its entire environment free of name-selected unfolding, not
+        // just the final argument: a projected local could otherwise hide
+        // where its constructor came from before the call-site gate sees it.
+        if !self.resolve_applications {
+            return self
+                .resolve_case_subject(term.clone(), depth)
+                .unwrap_or(term);
+        }
+        if depth >= 32 {
+            return term;
+        }
+        for _ in 0..32 {
+            match term {
+                StructuralTerm::Variable(ref name) => {
+                    let Some((_, replacement)) = self
+                        .substitutions
+                        .iter()
+                        .find(|(variable, _)| variable == name)
+                    else {
+                        return term;
+                    };
+                    term = replacement.clone();
+                }
+                StructuralTerm::Constructor { data, case, fields } => {
+                    return StructuralTerm::Constructor {
+                        data,
+                        case,
+                        fields: fields
+                            .into_iter()
+                            .map(|(name, value)| (name, self.resolve_at(value, depth + 1)))
+                            .collect(),
+                    };
+                }
+                StructuralTerm::Application {
+                    target,
+                    selections,
+                    machine,
+                    arguments,
+                } => {
+                    let arguments: Vec<StructuralTerm> = arguments
+                        .into_iter()
+                        .map(|argument| self.resolve_at(argument, depth + 1))
+                        .collect();
+                    let resolved = StructuralTerm::Application {
+                        target,
+                        selections,
+                        machine,
+                        arguments,
+                    };
+                    // Hypothesis rewrites first (the inductive hypothesis
+                    // reduces the self-application), then unfolding.
+                    if let Some((_, replacement)) = self
+                        .rewrites
+                        .iter()
+                        .find(|(pattern, _)| pattern == &resolved)
+                    {
+                        term = replacement.clone();
+                        continue;
+                    }
+                    let StructuralTerm::Application {
+                        target,
+                        selections,
+                        machine,
+                        arguments,
+                    } = &resolved
+                    else {
+                        unreachable!();
+                    };
+                    if let Some(unfolded) =
+                        self.unfold_application(*target, selections, machine, arguments, depth + 1)
+                    {
+                        term = unfolded;
+                        continue;
+                    }
+                    return resolved;
+                }
+                StructuralTerm::CallProjection {
+                    selections,
+                    target,
+                    machine,
+                    result_type,
+                    field,
+                    field_name,
+                    arguments,
+                } => {
+                    let arguments = arguments
+                        .into_iter()
+                        .map(|argument| self.resolve_at(argument, depth + 1))
+                        .collect::<Vec<_>>();
+                    let resolved = StructuralTerm::CallProjection {
+                        selections,
+                        target,
+                        machine,
+                        result_type,
+                        field,
+                        field_name,
+                        arguments,
+                    };
+                    let StructuralTerm::CallProjection {
+                        selections,
+                        target,
+                        result_type,
+                        field,
+                        arguments,
+                        ..
+                    } = &resolved
+                    else {
+                        unreachable!()
+                    };
+                    if let Some(unfolded) = self.unfold_exact_call_projection(
+                        *target,
+                        selections,
+                        *result_type,
+                        *field,
+                        arguments,
+                        depth + 1,
+                    ) {
+                        term = unfolded;
+                        continue;
+                    }
+                    return resolved;
+                }
+                StructuralTerm::Projection { subject, path } => {
+                    return StructuralTerm::Projection {
+                        subject: Box::new(self.resolve_at(*subject, depth + 1)),
+                        path,
+                    };
+                }
+                StructuralTerm::ScalarBinary {
+                    operator,
+                    meaning,
+                    left,
+                    right,
+                } => {
+                    return StructuralTerm::ScalarBinary {
+                        operator,
+                        meaning,
+                        left: Box::new(self.resolve_at(*left, depth + 1)),
+                        right: Box::new(self.resolve_at(*right, depth + 1)),
+                    };
+                }
+                StructuralTerm::Opaque(_)
+                | StructuralTerm::Integer(_)
+                | StructuralTerm::BoundValue(_)
+                | StructuralTerm::BoundProjection { .. } => return term,
+            }
+        }
+        term
+    }
+
+    /// Unfold one exact checked record-returning call far enough to interpret
+    /// a direct result field. This is proof checking, not public-contract
+    /// derivation: the statement remains coupled to the callee interface,
+    /// while checked body computation or a proven functional ensures supplies
+    /// the value. Reuse application normalization for locals and terminal values.
+    /// The direct-literal shortcut observes only the selected field, preserving
+    /// proofs whose unrelated record fields have no structural normal form.
+    fn unfold_exact_call_projection(
+        &self,
+        target: SymbolHandle,
+        selections: &[symbol_resolved_trees_to_typed_trees::typed_trees::expression::StaticMachineArgument],
+        result_type: TypeReferenceHandle,
+        field: SymbolHandle,
+        arguments: &[StructuralTerm],
+        depth: usize,
+    ) -> Option<StructuralTerm> {
+        if depth >= 32 {
+            return None;
+        }
+        let program = self.program;
+        let matches = program
+            .machines()
+            .iter()
+            .flat_map(|machine| {
+                program
+                    .machine_states(machine)
+                    .iter()
+                    .filter(move |state| state.symbol == target)
+                    .map(move |state| (machine, state))
+            })
+            .collect::<Vec<_>>();
+        let [(machine, state)] = matches.as_slice() else {
+            return None;
+        };
+        if state.return_type != result_type {
+            return None;
+        }
+        // The selected state is authoritative. Its display spelling may be
+        // qualified or aliased and is not an additional declaration identity.
+        let data = crate::validation::value_custody::places::data_definition_for_type(
+            program,
+            result_type,
+        )?;
+        let projected_field = program.data_members(data).iter().find_map(|member| {
+            let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                candidate,
+            ) = member
+            else {
+                return None;
+            };
+            (candidate.symbol == field).then_some(candidate)
+        })?;
+        let direct_literal_field = || {
+            let machine_parameters = program
+                .machine_type_parameters(machine)
+                .iter()
+                .filter(|parameter| {
+                    matches!(
+                        parameter.kind,
+                        symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Machine { .. }
+                    )
+                })
+                .collect::<Vec<_>>();
+            if machine_parameters.len() != selections.len() {
+                return None;
+            }
+            let machine_environment = machine_parameters
+                .iter()
+                .zip(selections)
+                .map(|(parameter, selected)| {
+                    (
+                        parameter.symbol,
+                        parameter.name.as_str().to_owned(),
+                        selected.clone(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            let parameters = program.state_parameters(state);
+            if parameters.len() != arguments.len() {
+                return None;
+            }
+            let environment = parameters
+                .iter()
+                .zip(arguments)
+                .map(|(parameter, argument)| (parameter.name.as_str().to_owned(), argument.clone()))
+                .collect::<Vec<_>>();
+            let [StatementNode::Transition(transition)] =
+                program.statement_table.statements(state.statement_nodes)
+            else {
+                return None;
+            };
+            if !matches!(transition.guard, TransitionGuardNode::Always)
+                || transition.continuation.is_valid()
+            {
+                return None;
+            }
+            let TransitionTargetNode::Value(value) =
+                program.statement_table.transition_target(transition.target)
+            else {
+                return None;
+            };
+            let ExpressionNode::StructLiteral(literal) =
+                program.expression_table.expression(*value)
+            else {
+                return None;
+            };
+            let projected = program
+                .expression_table
+                .struct_fields(literal.fields)
+                .iter()
+                .find(|candidate| candidate.field_symbol == field)?;
+            self.callee_term_with_machines(
+                projected.value,
+                &environment,
+                &machine_environment,
+                depth + 1,
+            )
+        };
+        if let Some(value) = direct_literal_field() {
+            return Some(value);
+        }
+        let result = self.unfold_application(
+            target,
+            selections,
+            machine.name.as_str(),
+            arguments,
+            depth + 1,
+        )?;
+        let StructuralTerm::Constructor {
+            data: result_data,
+            case,
+            fields,
+        } = self.resolve_at(result, depth + 1)
+        else {
+            return None;
+        };
+        // The checked return type fixes the owner; spelling only selects within
+        // that owner's normalized value, after the exact field-handle join.
+        if result_data != data.name.as_str() || !case.is_empty() {
+            return None;
+        }
+        fields
+            .into_iter()
+            .find_map(|(name, value)| (name == projected_field.name.as_str()).then_some(value))
+    }
+
+    /// COMPUTE-MODE unfolding (N3): apply a single-state proof machine of
+    /// the case-arm shape to structural arguments. The desugared arm guard
+    /// is `subject == Data::Case` (membership lowers to that exact Binary at
+    /// parse/lowering time), so arm selection reads the guard directly: the
+    /// matched argument must RESOLVE to a constructor, the arm whose case
+    /// matches fires, and its value expression converts to a term under an
+    /// environment of callee params -> argument terms (payload bindings are
+    /// case-tagged member reads off the subject and resolve to the
+    /// constructor's field terms). Any name outside the environment aborts
+    /// the unfold -- callee-scope names must never leak into caller-scope
+    /// judgments. `None` = no unfold (never unsound; the application just
+    /// stays opaque).
+    fn unfold_application(
+        &self,
+        target: SymbolHandle,
+        selections: &[symbol_resolved_trees_to_typed_trees::typed_trees::expression::StaticMachineArgument],
+        machine_name: &str,
+        arguments: &[StructuralTerm],
+        depth: usize,
+    ) -> Option<StructuralTerm> {
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!("STRUCT unfold? {machine_name} args {arguments:?} depth {depth}");
+        }
+        if depth >= 32 {
+            return None;
+        }
+        let program = self.program;
+        let machine = self.entry_machines.machine(program, target)?;
+        let machine_parameters: Vec<&symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameter> = program
+            .machine_type_parameters(machine)
+            .iter()
+            .filter(|parameter| {
+                matches!(
+                    parameter.kind,
+                    symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Machine { .. }
+                )
+            })
+            .collect();
+        if machine_parameters.len() != selections.len() {
+            return None;
+        }
+        let machine_environment: Vec<(
+            SymbolHandle,
+            String,
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::StaticMachineArgument,
+        )> = machine_parameters
+            .iter()
+            .zip(selections)
+            .map(|(parameter, selected)| {
+                (
+                    parameter.symbol,
+                    parameter.name.as_str().to_owned(),
+                    selected.clone(),
+                )
+            })
+            .collect();
+        let [state] = program.machine_states(machine) else {
+            return None;
+        };
+        let parameters = program.state_parameters(state);
+        if parameters.len() != arguments.len() {
+            return None;
+        }
+        let environment: Vec<(String, StructuralTerm)> = parameters
+            .iter()
+            .zip(arguments.iter())
+            .map(|(parameter, argument)| (parameter.name.as_str().to_owned(), argument.clone()))
+            .collect();
+        // The leading entries are the caller's arguments, which `resolve_at`
+        // resolved before unfolding. Resolving one again as an arm subject
+        // re-attempts every unfold nested inside it, once per arm and per
+        // enclosing unfold, which grows exponentially with the term's depth.
+        let parameter_count = environment.len();
+
+        // CITE the callee's proven ensures first (extraction into consumer
+        // proofs): a lemma with a functional `ensures result == <term>`
+        // abstracts its body, so instantiating that ensures under the call
+        // environment yields the result directly -- and it is the ONLY route
+        // for an INDUCTIVE lemma whose body never finitely unfolds for a
+        // symbolic argument (`add_zero_right(a) == a`). Sound because the
+        // callee's ensures is proven in the same validation batch (a false
+        // one raises its own error, so no compiling program cites an
+        // unproven fact). Prefer it over body unfolding. REQUIRES-bearing
+        // callees are EXCLUDED: their ensures is conditional and this path
+        // has no site to discharge the condition at -- injecting it
+        // unconditioned would be unsound (probed 2026-07-16). Their BODY
+        // still unfolds below (computation is unconditional).
+        let requires_bearing = program.machine_contracts(machine).iter().any(|contract| {
+            matches!(
+                contract.kind,
+                symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Requires
+            ) && !program.proof_facts.span_or_empty(contract.facts).is_empty()
+        });
+        if !requires_bearing {
+            for contract in program.machine_contracts(machine) {
+                if !matches!(
+                    contract.kind,
+                    symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Ensures
+                ) {
+                    continue;
+                }
+                for fact in program.proof_facts.span_or_empty(contract.facts) {
+                    let ProofFact::Expression(expression) = fact else {
+                        continue;
+                    };
+                    if let Some(term) = self.functional_ensures_result(
+                        *expression,
+                        &environment,
+                        &machine_environment,
+                        depth + 1,
+                    ) {
+                        return Some(term);
+                    }
+                }
+            }
+        }
+
+        let mut environment = environment;
+        let statements = program.statement_table.statements(state.statement_nodes);
+        for (index, statement) in statements.iter().enumerate() {
+            // A `let` (spelled, or the lowering's __hoist_N of a call-valued
+            // terminal -- e.g. a definitional wrapper like
+            // `snoc(s, x) = (append(s, [x]))`) BINDS: its initializer
+            // termifies under the environment built so far and the local
+            // joins it, so the terminal's name resolves. Mirrors the
+            // sole-arm and case-arm recognizers.
+            if is_arm_pattern_marker(statement) {
+                continue; // exhaustiveness carrier, not shape
+            }
+            if let StatementNode::LocalData(local) = statement {
+                let term = self.callee_term_with_machines(
+                    local.initial_value,
+                    &environment,
+                    &machine_environment,
+                    depth + 1,
+                )?;
+                environment.push((local.name.as_str().to_owned(), term));
+                continue;
+            }
+            // Ordinary body tails carry the same result value as a terminal
+            // transition. An earlier expression is not a return and cannot
+            // bypass subsequent statements or their effects.
+            if let StatementNode::Expression(expression) = statement {
+                return (index + 1 == statements.len())
+                    .then(|| {
+                        self.callee_term_with_machines(
+                            *expression,
+                            &environment,
+                            &machine_environment,
+                            depth + 1,
+                        )
+                    })
+                    .flatten();
+            }
+            let StatementNode::Transition(transition) = statement else {
+                return None;
+            };
+            if transition.continuation.is_valid() {
+                return None;
+            }
+            let fires = match transition.guard {
+                TransitionGuardNode::Always => true,
+                TransitionGuardNode::When(guard) => {
+                    let ExpressionNode::Binary(comparison) =
+                        program.expression_table.expression(guard)
+                    else {
+                        return None;
+                    };
+                    if !matches!(
+                        comparison.operator,
+                        BinaryOperator::Equal | BinaryOperator::CaseMembership
+                    ) {
+                        return None;
+                    }
+                    let subject = structural_term(program, comparison.left)?;
+                    let StructuralTerm::Variable(subject_name) = subject else {
+                        return None;
+                    };
+                    let (arm_data, arm_case) = super::structural_terms::case_guard_classifier(
+                        program,
+                        machine,
+                        Some(state),
+                        guard,
+                    )?;
+                    let position = environment
+                        .iter()
+                        .position(|(name, _)| name == &subject_name)?;
+                    let local_subject;
+                    let subject_term = if position < parameter_count {
+                        &environment[position].1
+                    } else {
+                        local_subject = self.resolve_at(environment[position].1.clone(), depth + 1);
+                        &local_subject
+                    };
+                    let StructuralTerm::Constructor {
+                        data: got_data,
+                        case: got_case,
+                        ..
+                    } = subject_term
+                    else {
+                        // The matched argument is not (yet) a constructor:
+                        // arm selection is undecidable, no unfold.
+                        return None;
+                    };
+                    got_data == arm_data.name.as_str() && got_case == arm_case.name.as_str()
+                }
+            };
+            if !fires {
+                continue;
+            }
+            let TransitionTargetNode::Value(value) =
+                program.statement_table.transition_target(transition.target)
+            else {
+                return None;
+            };
+            return self.callee_term_with_machines(
+                *value,
+                &environment,
+                &machine_environment,
+                depth + 1,
+            );
+        }
+        None
+    }
+
+    /// If `ensures_fact` is exactly `result == <term>` (either orientation),
+    /// convert `<term>` under the call environment -- the functional-result
+    /// abstraction of a lemma. `None` for any other ensures shape.
+    fn functional_ensures_result(
+        &self,
+        ensures_fact: ExpressionHandle,
+        environment: &[(String, StructuralTerm)],
+        machine_environment: &[(
+            SymbolHandle,
+            String,
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::StaticMachineArgument,
+        )],
+        depth: usize,
+    ) -> Option<StructuralTerm> {
+        let program = self.program;
+        if super::structural_terms::is_case_observation(program, ensures_fact) {
+            return None;
+        }
+        let ExpressionNode::Binary(binary) = program.expression_table.expression(ensures_fact)
+        else {
+            return None;
+        };
+        if binary.operator != BinaryOperator::Equal {
+            return None;
+        }
+        let is_result = |handle: ExpressionHandle| {
+            matches!(
+                program.expression_table.expression(handle),
+                ExpressionNode::Name(path)
+                    if matches!(
+                        program.expression_table.name_path_members(path.members),
+                        [only] if only.as_str() == RESULT_BINDER
+                    )
+            )
+        };
+        let value = if is_result(binary.left) {
+            binary.right
+        } else if is_result(binary.right) {
+            binary.left
+        } else {
+            return None;
+        };
+        self.callee_term_with_machines(value, environment, machine_environment, depth)
+    }
+
+    /// Convert a callee-body expression to a term under the call
+    /// environment. Names must be callee parameters; case-tagged member
+    /// reads (`a.prev`) index the bound constructor's fields; case literals
+    /// and nested free calls recurse. Anything else aborts (None).
+    pub(super) fn callee_term(
+        &self,
+        expression: ExpressionHandle,
+        environment: &[(String, StructuralTerm)],
+        depth: usize,
+    ) -> Option<StructuralTerm> {
+        self.callee_term_with_machines(expression, environment, &[], depth)
+    }
+
+    pub(super) fn local_term(
+        &self,
+        local: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableLocalData,
+        environment: &[(String, StructuralTerm)],
+    ) -> Option<StructuralTerm> {
+        if !self.resolve_applications
+            && matches!(
+                self.program
+                    .expression_table
+                    .expression(local.initial_value),
+                ExpressionNode::Call(_)
+            )
+        {
+            return local
+                .symbol
+                .is_valid()
+                .then_some(StructuralTerm::BoundValue(local.symbol));
+        }
+        self.callee_term(local.initial_value, environment, 0)
+            .or_else(|| {
+                // A saved computation has one identity even when its internal
+                // execution is outside this term language. Preserve aliases
+                // through normal substitution before using that opaque identity.
+                (self.runtime_body_values && local.symbol.is_valid())
+                    .then_some(StructuralTerm::BoundValue(local.symbol))
+            })
+    }
+
+    fn callee_term_with_machines(
+        &self,
+        expression: ExpressionHandle,
+        environment: &[(String, StructuralTerm)],
+        machine_environment: &[(
+            SymbolHandle,
+            String,
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::StaticMachineArgument,
+        )],
+        depth: usize,
+    ) -> Option<StructuralTerm> {
+        if depth >= 32 {
+            return None;
+        }
+        let program = self.program;
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Name(path) => {
+                let members = program.expression_table.name_path_members(path.members);
+                match members {
+                    [single] => environment
+                        .iter()
+                        .find(|(name, _)| name == single.as_str())
+                        .map(|(_, term)| term.clone()),
+                    [_, _, ..] => super::structural_terms::case_value_term(program, expression),
+                    _ => None,
+                }
+            }
+            ExpressionNode::Member(member) => {
+                if let ExpressionNode::Call(call) =
+                    program.expression_table.expression(member.receiver)
+                    && !call.receiver.is_valid()
+                    && call.evidence_arguments.is_empty()
+                    && call.static_requirement_dispatch.is_none()
+                {
+                    if self.runtime_body_values {
+                        return None;
+                    }
+                    let arguments = program
+                        .expression_table
+                        .expression_handles(call.arguments)
+                        .iter()
+                        .map(|argument| {
+                            self.callee_term_with_machines(
+                                *argument,
+                                environment,
+                                machine_environment,
+                                depth + 1,
+                            )
+                        })
+                        .collect::<Option<Vec<_>>>()?;
+                    let matches = program
+                        .machines()
+                        .iter()
+                        .flat_map(|machine| program.machine_states(machine))
+                        .filter(|state| state.symbol == call.target_symbol)
+                        .collect::<Vec<_>>();
+                    let [state] = matches.as_slice() else {
+                        return None;
+                    };
+                    let data_symbol = match program
+                        .type_reference_table
+                        .type_reference(state.return_type)
+                    {
+                        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named { symbol, .. } => *symbol,
+                        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. } => {
+                            *base_symbol
+                        }
+                        _ => return None,
+                    };
+                    let data =
+                        crate::validation::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(program, data_symbol)?;
+                    let field = program.data_members(data).iter().find_map(|candidate| {
+                        let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) = candidate else {
+                            return None;
+                        };
+                        (field.name.as_str() == member.member.as_str()).then_some(field.symbol)
+                    })?;
+                    return Some(StructuralTerm::CallProjection {
+                        target: call.target_symbol,
+                        selections: call.machine_arguments.to_vec(),
+                        machine: structural_call_machine_name(
+                            call.target.as_str(),
+                            &call.machine_arguments,
+                            machine_environment,
+                        ),
+                        result_type: state.return_type,
+                        field,
+                        field_name: member.member.as_str().to_owned(),
+                        arguments,
+                    });
+                }
+                let receiver_term = self.callee_term_with_machines(
+                    member.receiver,
+                    environment,
+                    machine_environment,
+                    depth + 1,
+                )?;
+                match self.resolve_at(receiver_term, depth + 1) {
+                    StructuralTerm::Constructor { fields, .. } => fields
+                        .iter()
+                        .find(|(name, _)| name == member.member.as_str())
+                        .map(|(_, term)| term.clone()),
+                    // A field read off a SYMBOLIC receiver names the caller's
+                    // possibly nested place in the shared Opaque vocabulary --
+                    // exactly how the caller-side termifier spells `a.num.neg`
+                    // (display name), so citations over the same place line up.
+                    StructuralTerm::Variable(name) => Some(StructuralTerm::Opaque(format!(
+                        "{name}.{}",
+                        member.member.as_str()
+                    ))),
+                    StructuralTerm::Opaque(inner) => Some(StructuralTerm::Opaque(format!(
+                        "{inner}.{}",
+                        member.member.as_str()
+                    ))),
+                    StructuralTerm::BoundValue(subject) => Some(StructuralTerm::BoundProjection {
+                        subject,
+                        path: member.member.as_str().to_owned(),
+                    }),
+                    StructuralTerm::BoundProjection { subject, path } => {
+                        Some(StructuralTerm::BoundProjection {
+                            subject,
+                            path: format!("{path}.{}", member.member.as_str()),
+                        })
+                    }
+                    StructuralTerm::Integer(_)
+                    | StructuralTerm::Projection { .. }
+                    | StructuralTerm::ScalarBinary { .. }
+                    | StructuralTerm::Application { .. }
+                    | StructuralTerm::CallProjection { .. } => None,
+                }
+            }
+            ExpressionNode::StructLiteral(literal) => {
+                super::structural_terms::constructor_literal_term(program, literal, |value| {
+                    self.callee_term_with_machines(
+                        value,
+                        environment,
+                        machine_environment,
+                        depth + 1,
+                    )
+                })
+            }
+            ExpressionNode::Integer(value) => value.value_bignum().map(StructuralTerm::Integer),
+            ExpressionNode::ZeroValue(type_reference) => {
+                super::structural_terms::zero_value_structural_term(program, *type_reference)
+            }
+            ExpressionNode::Call(call) => {
+                if self.runtime_body_values
+                    || call.receiver.is_valid()
+                    || !call.evidence_arguments.is_empty()
+                    || call.static_requirement_dispatch.is_some()
+                {
+                    return None;
+                }
+                let selected_target = machine_environment
+                    .iter()
+                    .find(|(symbol, _, _)| *symbol == call.target_symbol)
+                    .map(|(_, _, selected)| selected);
+                // A selected generic/evidence application is retained on the
+                // enclosing term, but this body substitution does not apply
+                // its nested telescope. Refuse unfolding instead of dropping it.
+                if selected_target.is_some_and(|selected| {
+                    selected.application.is_some()
+                        || selected.evidence_projection.is_some()
+                        || selected.type_reference.is_valid()
+                        || selected.const_literal.is_some()
+                }) {
+                    return None;
+                }
+                let mut arguments = Vec::new();
+                for argument in program.expression_table.expression_handles(call.arguments) {
+                    arguments.push(self.callee_term_with_machines(
+                        *argument,
+                        environment,
+                        machine_environment,
+                        depth + 1,
+                    )?);
+                }
+                Some(StructuralTerm::Application {
+                    target: selected_target.map_or(call.target_symbol, |selected| selected.symbol),
+                    selections: call
+                        .machine_arguments
+                        .iter()
+                        .map(|argument| {
+                            machine_environment
+                                .iter()
+                                .find(|(symbol, _, _)| *symbol == argument.symbol)
+                                .map_or_else(
+                                    || argument.clone(),
+                                    |(_, _, selected)| selected.clone(),
+                                )
+                        })
+                        .collect(),
+                    machine: structural_call_machine_name(
+                        call.target.as_str(),
+                        &call.machine_arguments,
+                        machine_environment,
+                    ),
+                    arguments,
+                })
+            }
+            ExpressionNode::Boolean(value) => Some(StructuralTerm::Constructor {
+                data: "bool".to_owned(),
+                case: value.to_string(),
+                fields: Vec::new(),
+            }),
+            ExpressionNode::Binary(binary) => super::structural_terms::binary_term(
+                program,
+                expression,
+                self.callee_term_with_machines(
+                    binary.left,
+                    environment,
+                    machine_environment,
+                    depth + 1,
+                )?,
+                self.callee_term_with_machines(
+                    binary.right,
+                    environment,
+                    machine_environment,
+                    depth + 1,
+                )?,
+            ),
+            _ => None,
+        }
+    }
+
+    /// Substitute variables in a term (used to instantiate the machine's
+    /// own ensures as the INDUCTIVE HYPOTHESIS at a self-call: params -> the
+    /// call's argument terms, `result` -> the application term).
+    pub(super) fn substitute_term(
+        term: &StructuralTerm,
+        map: &[(String, StructuralTerm)],
+    ) -> StructuralTerm {
+        match term {
+            StructuralTerm::Integer(_)
+            | StructuralTerm::BoundValue(_)
+            | StructuralTerm::BoundProjection { .. } => term.clone(),
+            StructuralTerm::Projection { subject, path } => StructuralTerm::Projection {
+                subject: Box::new(Self::substitute_term(subject, map)),
+                path: path.clone(),
+            },
+            StructuralTerm::ScalarBinary {
+                operator,
+                meaning,
+                left,
+                right,
+            } => StructuralTerm::ScalarBinary {
+                operator: *operator,
+                meaning: *meaning,
+                left: Box::new(Self::substitute_term(left, map)),
+                right: Box::new(Self::substitute_term(right, map)),
+            },
+            StructuralTerm::Variable(name) => map
+                .iter()
+                .find(|(variable, _)| variable == name)
+                .map(|(_, replacement)| replacement.clone())
+                .unwrap_or_else(|| term.clone()),
+            StructuralTerm::Constructor { data, case, fields } => StructuralTerm::Constructor {
+                data: data.clone(),
+                case: case.clone(),
+                fields: fields
+                    .iter()
+                    .map(|(name, value)| (name.clone(), Self::substitute_term(value, map)))
+                    .collect(),
+            },
+            StructuralTerm::Application {
+                target,
+                selections,
+                machine,
+                arguments,
+            } => StructuralTerm::Application {
+                target: *target,
+                selections: selections.clone(),
+                machine: machine.clone(),
+                arguments: arguments
+                    .iter()
+                    .map(|argument| Self::substitute_term(argument, map))
+                    .collect(),
+            },
+            StructuralTerm::CallProjection {
+                selections,
+                target,
+                machine,
+                result_type,
+                field,
+                field_name,
+                arguments,
+            } => StructuralTerm::CallProjection {
+                target: *target,
+                selections: selections.clone(),
+                machine: machine.clone(),
+                result_type: *result_type,
+                field: *field,
+                field_name: field_name.clone(),
+                arguments: arguments
+                    .iter()
+                    .map(|argument| Self::substitute_term(argument, map))
+                    .collect(),
+            },
+            StructuralTerm::Opaque(display) => {
+                // Symbolic record member places currently share the Opaque
+                // vocabulary (`p.den`). Citation instantiation must still
+                // alpha-substitute their exact root parameter; otherwise a
+                // cited Rat law leaks callee names into the caller frame.
+                // Restrict the rewrite to an exact `<parameter>.` prefix.
+                // A symbolic static-machine application is also a legitimate
+                // place root (`Middle(index).den`); retain its complete
+                // structural receiver.  A concrete constructor can be
+                // projected structurally.  Arbitrary opaque arithmetic never
+                // gains substring-rewrite semantics.
+                for (parameter, replacement) in map {
+                    let prefix = format!("{parameter}.");
+                    let Some(suffix) = display.strip_prefix(&prefix) else {
+                        continue;
+                    };
+                    return match replacement {
+                        StructuralTerm::BoundValue(subject) => StructuralTerm::BoundProjection {
+                            subject: *subject,
+                            path: suffix.to_owned(),
+                        },
+                        StructuralTerm::BoundProjection { subject, path } => {
+                            StructuralTerm::BoundProjection {
+                                subject: *subject,
+                                path: format!("{path}.{suffix}"),
+                            }
+                        }
+                        StructuralTerm::Variable(root) | StructuralTerm::Opaque(root) => {
+                            StructuralTerm::Opaque(format!("{root}.{suffix}"))
+                        }
+                        StructuralTerm::Integer(_)
+                        | StructuralTerm::Application { .. }
+                        | StructuralTerm::CallProjection { .. }
+                        | StructuralTerm::ScalarBinary { .. }
+                        | StructuralTerm::Projection { .. } => StructuralTerm::Projection {
+                            subject: Box::new(replacement.clone()),
+                            path: suffix.to_owned(),
+                        },
+                        StructuralTerm::Constructor { .. } => suffix
+                            .split('.')
+                            .try_fold(replacement, |subject, field_name| {
+                                let StructuralTerm::Constructor { fields, .. } = subject else {
+                                    return None;
+                                };
+                                fields
+                                    .iter()
+                                    .find_map(|(name, field)| (name == field_name).then_some(field))
+                            })
+                            .cloned()
+                            .unwrap_or_else(|| StructuralTerm::Projection {
+                                // An unresolved path still belongs to the actual
+                                // receiver. Keeping the callee's spelling here
+                                // could alias an unrelated caller parameter.
+                                subject: Box::new(replacement.clone()),
+                                path: suffix.to_owned(),
+                            }),
+                    };
+                }
+                term.clone()
+            }
+        }
+    }
+
+    /// Collect every self-application (calls to `machine_name`) in a term.
+    pub(super) fn self_applications<'term>(
+        term: &'term StructuralTerm,
+        selected_target: SymbolHandle,
+        found: &mut Vec<&'term StructuralTerm>,
+    ) {
+        match term {
+            StructuralTerm::Projection { subject, .. } => {
+                Self::self_applications(subject, selected_target, found)
+            }
+            StructuralTerm::ScalarBinary { left, right, .. } => {
+                Self::self_applications(left, selected_target, found);
+                Self::self_applications(right, selected_target, found);
+            }
+            StructuralTerm::Application {
+                target,
+                selections: _,
+                machine: _,
+                arguments,
+            } => {
+                if *target == selected_target {
+                    found.push(term);
+                }
+                for argument in arguments {
+                    Self::self_applications(argument, selected_target, found);
+                }
+            }
+            StructuralTerm::CallProjection { arguments, .. } => {
+                for argument in arguments {
+                    Self::self_applications(argument, selected_target, found);
+                }
+            }
+            StructuralTerm::Constructor { fields, .. } => {
+                for (_, value) in fields {
+                    Self::self_applications(value, selected_target, found);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    pub(super) fn judge(&self, program: &TypedTrees, fact: ExpressionHandle) -> StructuralJudgment {
+        let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
+            // A boolean-valued proof call is itself a proposition. Resolve a
+            // closed checked application exactly as `call == true`; N6
+            // equivalence laws use this ordinary contract shape.
+            let Some(term) = structural_term(program, fact) else {
+                return StructuralJudgment::Unknown;
+            };
+            return match self.resolve(term) {
+                StructuralTerm::Constructor { data, case, fields }
+                    if data == "bool"
+                        && fields.is_empty()
+                        && boolean_literal_spelling(&case) == Some(true) =>
+                {
+                    StructuralJudgment::Proven
+                }
+                StructuralTerm::Constructor { data, case, fields }
+                    if data == "bool"
+                        && fields.is_empty()
+                        && boolean_literal_spelling(&case) == Some(false) =>
+                {
+                    StructuralJudgment::Refuted
+                }
+                _ => StructuralJudgment::Unknown,
+            };
+        };
+        if super::structural_terms::is_case_observation(program, fact) {
+            if !self.is_case_membership(fact, binary) {
+                return StructuralJudgment::Unknown;
+            }
+            let Some((definition, variant)) =
+                super::structural_terms::case_classifier(program, binary.right)
+            else {
+                return StructuralJudgment::Unknown;
+            };
+            let Some(subject) = structural_term(program, binary.left) else {
+                return StructuralJudgment::Unknown;
+            };
+            // Existing result/guarantee checking retains its value-normalizer
+            // route. Call-premise transport below never uses that route.
+            let resolved = self.resolve(subject.clone());
+            return self.judge_case(
+                if matches!(resolved, StructuralTerm::Constructor { .. }) {
+                    resolved
+                } else {
+                    subject
+                },
+                definition.symbol,
+                variant.symbol,
+            );
+        }
+        match binary.operator {
+            BinaryOperator::And => {
+                match (
+                    self.judge(program, binary.left),
+                    self.judge(program, binary.right),
+                ) {
+                    (StructuralJudgment::Proven, StructuralJudgment::Proven) => {
+                        StructuralJudgment::Proven
+                    }
+                    (StructuralJudgment::Refuted, _) | (_, StructuralJudgment::Refuted) => {
+                        StructuralJudgment::Refuted
+                    }
+                    _ => StructuralJudgment::Unknown,
+                }
+            }
+            BinaryOperator::Equal | BinaryOperator::NotEqual => {
+                if let Some(holds) = crate::validation::proof_contracts::float_projection_bindings::semantic_values::closed_float_meaning_equality(
+                    program, self.machine_symbol, fact,
+                ) {
+                    return if holds { StructuralJudgment::Proven } else { StructuralJudgment::Refuted };
+                }
+                let (Some(left), Some(right)) = (
+                    structural_term(program, binary.left),
+                    structural_term(program, binary.right),
+                ) else {
+                    return StructuralJudgment::Unknown;
+                };
+                let equality = self.judge_equation(self.resolve(left), self.resolve(right), 0);
+                if binary.operator == BinaryOperator::Equal {
+                    equality
+                } else {
+                    match equality {
+                        StructuralJudgment::Proven => StructuralJudgment::Refuted,
+                        StructuralJudgment::Refuted => StructuralJudgment::Proven,
+                        StructuralJudgment::Unknown => StructuralJudgment::Unknown,
+                    }
+                }
+            }
+            _ => StructuralJudgment::Unknown,
+        }
+    }
+
+    fn is_case_membership(
+        &self,
+        expression: ExpressionHandle,
+        comparison: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableBinaryExpression,
+    ) -> bool {
+        self.program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == self.machine_symbol)
+            .is_some_and(|machine| {
+                crate::validation::proof_contracts::bound_expression_meaning::has_exact_case_membership_meaning(
+                    self.program,
+                    machine,
+                    None,
+                    expression,
+                    comparison,
+                )
+            })
+    }
+
+    /// A callee's classifier is checked in its own parameter scope before its
+    /// subject is substituted into the caller. Checking the uninstantiated
+    /// expression against the caller would confuse identically named binders.
+    pub(super) fn instantiated_case_judgment(
+        &self,
+        parameters: &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter],
+        fact: ExpressionHandle,
+        map: &[(String, StructuralTerm)],
+    ) -> StructuralJudgment {
+        let ExpressionNode::Binary(binary) = self.program.expression_table.expression(fact) else {
+            return StructuralJudgment::Unknown;
+        };
+        if !crate::validation::proof_contracts::bound_expression_meaning::has_exact_parameter_case_membership_meaning(
+            self.program, parameters, fact, binary,
+        ) {
+            return StructuralJudgment::Unknown;
+        }
+        let Some((definition, variant)) =
+            super::structural_terms::case_classifier(self.program, binary.right)
+        else {
+            return StructuralJudgment::Unknown;
+        };
+        let Some(subject) = structural_term(self.program, binary.left) else {
+            return StructuralJudgment::Unknown;
+        };
+        self.judge_case(
+            Self::substitute_term(&subject, map),
+            definition.symbol,
+            variant.symbol,
+        )
+    }
+
+    /// Import a checked selected callee's tag guarantee under its own scope.
+    /// The receiver supplies only post-call bindings and has already proved
+    /// the invocation's premises. A tag never contributes a value equation.
+    pub(super) fn instantiated_case_guarantees(
+        &self,
+        callee: &Machine,
+        fact: ExpressionHandle,
+        map: &[(String, StructuralTerm)],
+        guarantees: &mut Vec<CaseGuarantee>,
+    ) {
+        if !self.has_exact_case_subjects() {
+            return;
+        }
+        let ExpressionNode::Binary(binary) = self.program.expression_table.expression(fact) else {
+            return;
+        };
+        if binary.operator == BinaryOperator::And {
+            self.instantiated_case_guarantees(callee, binary.left, map, guarantees);
+            self.instantiated_case_guarantees(callee, binary.right, map, guarantees);
+            return;
+        }
+        if !super::structural_terms::is_case_observation(self.program, fact)
+            || !crate::validation::proof_contracts::bound_expression_meaning::has_exact_case_membership_meaning(
+                self.program,
+                callee,
+                None,
+                fact,
+                binary,
+            )
+        {
+            return;
+        }
+        let Some((definition, variant)) =
+            super::structural_terms::case_classifier(self.program, binary.right)
+        else {
+            return;
+        };
+        let Some(subject) = structural_term(self.program, binary.left) else {
+            return;
+        };
+        let Some(subject) = self.resolve_case_subject(Self::substitute_term(&subject, map), 0)
+        else {
+            return;
+        };
+        guarantees.push(CaseGuarantee {
+            subject,
+            data: definition.symbol,
+            case: variant.symbol,
+        });
+    }
+
+    pub(super) fn intake_case_guarantee(&mut self, guarantee: &CaseGuarantee) {
+        self.case_facts
+            .push((guarantee.subject.clone(), guarantee.data, guarantee.case));
+    }
+
+    fn judge_case(
+        &self,
+        subject: StructuralTerm,
+        data_symbol: SymbolHandle,
+        case_symbol: SymbolHandle,
+    ) -> StructuralJudgment {
+        let Some(subject) = self.resolve_case_subject(subject, 0) else {
+            return StructuralJudgment::Unknown;
+        };
+        if let StructuralTerm::Constructor { data, case, .. } = &subject {
+            // Legacy value terms retain nominal names. Rejoin only a unique
+            // declaration; same-spelled foreign data is not this classifier.
+            let mut definitions = self
+                .program
+                .data_definitions()
+                .iter()
+                .filter(|definition| definition.name.as_str() == data);
+            let Some(definition) = definitions.next() else {
+                return StructuralJudgment::Unknown;
+            };
+            if definitions.next().is_some() || definition.symbol != data_symbol {
+                return StructuralJudgment::Unknown;
+            }
+            let observed = self
+                .program
+                .data_members(definition)
+                .iter()
+                .find_map(|member| match member {
+                    symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant)
+                        if variant.name.as_str() == case =>
+                    {
+                        Some(variant.symbol)
+                    }
+                    _ => None,
+                });
+            return match observed {
+                Some(observed) if observed == case_symbol => StructuralJudgment::Proven,
+                Some(_) => StructuralJudgment::Refuted,
+                None => StructuralJudgment::Unknown,
+            };
+        }
+        // Opaque text and legacy application unfolding are not exact subject
+        // identity. Keep those outside this predicate route until repaired.
+        if !matches!(
+            subject,
+            StructuralTerm::Variable(_) | StructuralTerm::BoundValue(_)
+        ) {
+            return StructuralJudgment::Unknown;
+        }
+        for (known_subject, known_data, known_case) in &self.case_facts {
+            if *known_data == data_symbol
+                && self.resolve_case_subject(known_subject.clone(), 0).as_ref() == Some(&subject)
+            {
+                return if *known_case == case_symbol {
+                    StructuralJudgment::Proven
+                } else {
+                    StructuralJudgment::Refuted
+                };
+            }
+        }
+        StructuralJudgment::Unknown
+    }
+
+    /// Only source premises and checked arm refinements feed this store. In
+    /// particular, legacy citation results and already-unfolded value equations
+    /// are not evidence for new tag judgments. No callable body is interpreted.
+    pub(super) fn intake_case_equation(
+        &mut self,
+        left: StructuralTerm,
+        right: StructuralTerm,
+        depth: usize,
+    ) {
+        if depth >= 32 {
+            return;
+        }
+        let (Some(left), Some(right)) = (
+            self.resolve_case_subject(left, 0),
+            self.resolve_case_subject(right, 0),
+        ) else {
+            return;
+        };
+        match (&left, &right) {
+            (StructuralTerm::Variable(name), _)
+                if left != right && !term_contains(&right, &left) =>
+            {
+                self.case_substitutions.push((name.clone(), right));
+            }
+            (_, StructuralTerm::Variable(name))
+                if left != right && !term_contains(&left, &right) =>
+            {
+                self.case_substitutions.push((name.clone(), left));
+            }
+            (
+                StructuralTerm::Constructor {
+                    data: left_data,
+                    case: left_case,
+                    fields: left_fields,
+                },
+                StructuralTerm::Constructor {
+                    data: right_data,
+                    case: right_case,
+                    fields: right_fields,
+                },
+            ) if left_data == right_data
+                && left_case == right_case
+                && left_fields.len() == right_fields.len() =>
+            {
+                for (name, left) in left_fields {
+                    if let Some((_, right)) = right_fields.iter().find(|(field, _)| field == name) {
+                        self.intake_case_equation(left.clone(), right.clone(), depth + 1);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn resolve_case_subject(&self, term: StructuralTerm, depth: usize) -> Option<StructuralTerm> {
+        if depth >= 32 {
+            return None;
+        }
+        match term {
+            StructuralTerm::Variable(ref name) => match self
+                .case_substitutions
+                .iter()
+                .find(|(variable, _)| variable == name)
+            {
+                Some((_, replacement)) => self.resolve_case_subject(replacement.clone(), depth + 1),
+                None => Some(term),
+            },
+            StructuralTerm::Constructor { data, case, fields } => {
+                Some(StructuralTerm::Constructor {
+                    data,
+                    case,
+                    fields: fields
+                        .into_iter()
+                        .map(|(name, field)| {
+                            Some((name, self.resolve_case_subject(field, depth + 1)?))
+                        })
+                        .collect::<Option<Vec<_>>>()?,
+                })
+            }
+            StructuralTerm::Integer(_) | StructuralTerm::BoundValue(_) => Some(term),
+            StructuralTerm::Application { .. }
+            | StructuralTerm::CallProjection { .. }
+            | StructuralTerm::BoundProjection { .. }
+            | StructuralTerm::Opaque(_)
+            | StructuralTerm::ScalarBinary { .. }
+            | StructuralTerm::Projection { .. } => None,
+        }
+    }
+
+    /// Judge one resolved structural equation: identical terms prove,
+    /// same-case constructors decompose pairwise (all fields prove =>
+    /// proven, any refutes => refuted), distinct cases refute. A stuck
+    /// equation gets the REARRANGE tier before standing down: under a ring
+    /// license, both sides flatten to addend MULTISETS over the licensed op
+    /// (the commutativity + associativity closure the carrier's conformance
+    /// proved) -- equal multisets prove; unequal ones stay Unknown (atoms may
+    /// alias, so rearrangement never refutes).
+    pub(super) fn judge_equation(
+        &self,
+        left: StructuralTerm,
+        right: StructuralTerm,
+        depth: usize,
+    ) -> StructuralJudgment {
+        if depth >= 32 {
+            return StructuralJudgment::Unknown;
+        }
+        if left == right {
+            return StructuralJudgment::Proven;
+        }
+        if matches!(
+            (&left, &right),
+            (StructuralTerm::Integer(_), StructuralTerm::Integer(_))
+        ) {
+            return StructuralJudgment::Refuted;
+        }
+        let (
+            StructuralTerm::Constructor {
+                data: data_l,
+                case: case_l,
+                fields: fields_l,
+            },
+            StructuralTerm::Constructor {
+                data: data_r,
+                case: case_r,
+                fields: fields_r,
+            },
+        ) = (&left, &right)
+        else {
+            // RECORD ETA (product extensionality): a record literal that
+            // rebuilds EVERY declared field of a variable from that same
+            // variable (`IntPair { neg: a.neg, pos: a.pos } == a`) IS the
+            // variable -- the shape identity lemmas reduce to. Field values
+            // must be the variable's own field reads by name; a permuted
+            // rebuild (neg: a.pos) does NOT match.
+            if self.record_eta_matches(&left, &right) || self.record_eta_matches(&right, &left) {
+                return StructuralJudgment::Proven;
+            }
+            if self.ring_rearranged_equal(&left, &right) {
+                return StructuralJudgment::Proven;
+            }
+            return StructuralJudgment::Unknown;
+        };
+        if data_l != data_r {
+            return StructuralJudgment::Unknown;
+        }
+        if case_l != case_r {
+            return StructuralJudgment::Refuted;
+        }
+        // Constructor equality compares complete values, not a left-side
+        // pattern. In particular a case-tag term with no fields cannot prove
+        // equality to a constructed value with common fields or payload.
+        if fields_l.len() != fields_r.len() {
+            return StructuralJudgment::Unknown;
+        }
+        let mut verdict = StructuralJudgment::Proven;
+        for (name_l, value_l) in fields_l {
+            let Some((_, value_r)) = fields_r.iter().find(|(name_r, _)| name_r == name_l) else {
+                verdict = StructuralJudgment::Unknown;
+                continue;
+            };
+            match self.judge_equation(value_l.clone(), value_r.clone(), depth + 1) {
+                StructuralJudgment::Proven => {}
+                StructuralJudgment::Refuted => return StructuralJudgment::Refuted,
+                StructuralJudgment::Unknown => verdict = StructuralJudgment::Unknown,
+            }
+        }
+        verdict
+    }
+
+    /// RECORD ETA: does `constructor` rebuild every declared field of the
+    /// plain-record variable `variable` from that variable's own field
+    /// reads? All fields must be present, matched BY NAME to `{v}.{field}`
+    /// opaques -- a permutation or a partial rebuild does not match.
+    fn record_eta_matches(&self, constructor: &StructuralTerm, variable: &StructuralTerm) -> bool {
+        let StructuralTerm::Constructor { data, case, fields } = constructor else {
+            return false;
+        };
+        if !case.is_empty() {
+            return false;
+        }
+        let StructuralTerm::Variable(name) = variable else {
+            return false;
+        };
+        let Some(definition) = self
+            .program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == data.as_str())
+        else {
+            return false;
+        };
+        let declared: Vec<&str> = self
+            .program
+            .data_members(definition)
+            .iter()
+            .filter_map(|member| match member {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                    field,
+                ) => Some(field.name.as_str()),
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(_) => {
+                    None
+                }
+            })
+            .collect();
+        if declared.is_empty() || declared.len() != fields.len() {
+            return false;
+        }
+        declared.iter().all(|field_name| {
+            fields.iter().any(|(field, value)| {
+                field == field_name
+                    && matches!(
+                        self.resolve(value.clone()),
+                        StructuralTerm::Opaque(opaque)
+                            if opaque == format!("{name}.{field_name}")
+                    )
+            })
+        })
+    }
+
+    /// The rearrange tier's comparison: for each ring license whose op
+    /// appears in the equation, flatten both sides into addend multisets
+    /// (nested applications of the licensed op associate away; everything
+    /// else is a structural atom) and compare. At least two
+    /// addends must appear -- a single atom has nothing to rearrange.
+    fn ring_rearranged_equal(&self, left: &StructuralTerm, right: &StructuralTerm) -> bool {
+        for license in &self.ring_licenses {
+            let op = &license.add_machine;
+            if !term_uses_application(left, op) && !term_uses_application(right, op) {
+                continue;
+            }
+            let mut left_addends = Vec::new();
+            additive_addends(left, op, &mut left_addends);
+            let mut right_addends = Vec::new();
+            additive_addends(right, op, &mut right_addends);
+            if left_addends.len() < 2 {
+                continue;
+            }
+            left_addends.sort_by_key(|term| format!("{term:?}"));
+            right_addends.sort_by_key(|term| format!("{term:?}"));
+            if left_addends.len() == right_addends.len() && left_addends == right_addends {
+                return true;
+            }
+            // HYPOTHESIS EXCHANGE (bounded, depth 2): a requires / citation /
+            // IH equation whose sides flatten over this SAME licensed op
+            // licenses swapping that sub-multiset of addends -- sum(left) ==
+            // sum(left - from + to) because sum(from) == sum(to) is the
+            // hypothesis and the op's comm+assoc closure is exactly what the
+            // license's conformance proved. This is what makes QUOTIENT
+            // lemmas provable: congruence needs ONE exchange (a.pos + a2.neg
+            // exchanges inside a.pos + b.pos + a2.neg + b.neg), transitivity
+            // needs TWO (h1 then h2 inside the cancellation citation's
+            // requires). Whole-term matches were already rewritten during
+            // resolve; this reaches the sub-multisets the rewriter cannot
+            // see. Frontier-capped BFS -- over-refusal past the cap, never
+            // unsound.
+            let mut frontier: Vec<Vec<StructuralTerm>> = vec![left_addends.clone()];
+            for _depth in 0..2 {
+                let mut next: Vec<Vec<StructuralTerm>> = Vec::new();
+                for current in &frontier {
+                    for (pattern, replacement) in &self.rewrites {
+                        for (from, to) in [(pattern, replacement), (replacement, pattern)] {
+                            let mut from_addends = Vec::new();
+                            additive_addends(from, op, &mut from_addends);
+                            let mut to_addends = Vec::new();
+                            additive_addends(to, op, &mut to_addends);
+                            from_addends.sort_by_key(|term| format!("{term:?}"));
+                            let Some(mut candidate) =
+                                sorted_multiset_subtract(current, &from_addends)
+                            else {
+                                continue;
+                            };
+                            candidate.extend(to_addends.iter().cloned());
+                            candidate.sort_by_key(|term| format!("{term:?}"));
+                            if candidate == right_addends {
+                                return true;
+                            }
+                            if next.len() < 64 {
+                                next.push(candidate);
+                            }
+                        }
+                    }
+                }
+                frontier = next;
+                if frontier.is_empty() {
+                    break;
+                }
+            }
+        }
+        // Tier-2 FULL POLYNOMIAL: under a paired license, both sides
+        // normalize by distributing the licensed mul through the licensed
+        // add into a multiset of monomials (each a sorted factor multiset).
+        // The distributivity law is CONFORMED (machine-checked), so the
+        // normal form is exactly what the carrier proved.
+        for license in &self.semiring_licenses {
+            if !term_uses_application(left, &license.mul_machine)
+                && !term_uses_application(right, &license.mul_machine)
+            {
+                continue;
+            }
+            let (Some(mut left_poly), Some(mut right_poly)) = (
+                polynomial_normal_form(left, license),
+                polynomial_normal_form(right, license),
+            ) else {
+                continue;
+            };
+            left_poly.sort_by_key(|term| format!("{term:?}"));
+            right_poly.sort_by_key(|term| format!("{term:?}"));
+            if left_poly == right_poly {
+                return true;
+            }
+            // SCALED-HYPOTHESIS EXCHANGE (tier-2 twin of the addend
+            // exchange): a hypothesis equation polynomial-normalizes to a
+            // monomial-multiset pair (hl, hr), and multiplying BOTH sides by
+            // any monomial factor m keeps it an equation (the semiring's
+            // conformed distributivity is exactly that license), so hl*m
+            // exchanges for hr*m inside the goal's monomials. Factors are
+            // drawn from the goal's own atoms (plus unscaled) -- this is
+            // what proves mul-CONGRUENCE over a quotient: the cross-sum
+            // hypothesis scaled by b.pos and by b.neg equalizes the product
+            // components in two exchanges. Depth-2 frontier-capped BFS.
+            let mut atoms: Vec<StructuralTerm> = left_poly
+                .iter()
+                .chain(right_poly.iter())
+                .flatten()
+                .cloned()
+                .collect();
+            atoms.sort_by_key(|term| format!("{term:?}"));
+            atoms.dedup();
+            let mut scales: Vec<Vec<StructuralTerm>> = vec![Vec::new()];
+            scales.extend(atoms.into_iter().map(|atom| vec![atom]));
+            let mut hypothesis_polys: Vec<(Vec<Vec<StructuralTerm>>, Vec<Vec<StructuralTerm>>)> =
+                Vec::new();
+            for (pattern, replacement) in &self.rewrites {
+                if let (Some(mut hl), Some(mut hr)) = (
+                    polynomial_normal_form(pattern, license),
+                    polynomial_normal_form(replacement, license),
+                ) {
+                    hl.sort_by_key(|term| format!("{term:?}"));
+                    hr.sort_by_key(|term| format!("{term:?}"));
+                    hypothesis_polys.push((hl, hr));
+                }
+            }
+            let scaled = |poly: &[Vec<StructuralTerm>],
+                          scale: &[StructuralTerm]|
+             -> Vec<Vec<StructuralTerm>> {
+                poly.iter()
+                    .map(|monomial| {
+                        let mut product = monomial.clone();
+                        product.extend(scale.iter().cloned());
+                        product.sort_by_key(|term| format!("{term:?}"));
+                        product
+                    })
+                    .collect()
+            };
+            let mut frontier: Vec<Vec<Vec<StructuralTerm>>> = vec![left_poly.clone()];
+            for _depth in 0..2 {
+                let mut next: Vec<Vec<Vec<StructuralTerm>>> = Vec::new();
+                for current in &frontier {
+                    for (hypothesis_left, hypothesis_right) in &hypothesis_polys {
+                        for (from, to) in [
+                            (hypothesis_left, hypothesis_right),
+                            (hypothesis_right, hypothesis_left),
+                        ] {
+                            for scale in &scales {
+                                let from_scaled = scaled(from, scale);
+                                let Some(mut candidate) =
+                                    sorted_multiset_subtract(current, &from_scaled)
+                                else {
+                                    continue;
+                                };
+                                candidate.extend(scaled(to, scale));
+                                candidate.sort_by_key(|term| format!("{term:?}"));
+                                if candidate == right_poly {
+                                    return true;
+                                }
+                                if next.len() < 64 {
+                                    next.push(candidate);
+                                }
+                            }
+                        }
+                    }
+                }
+                frontier = next;
+                if frontier.is_empty() {
+                    break;
+                }
+            }
+        }
+        false
+    }
+}
+
+/// Distribute the licensed mul through the licensed add: a term becomes a
+/// list of MONOMIALS (sorted factor lists). `None` past the size cap (the
+/// cross product is quadratic; a runaway form refuses into the ordinary
+/// path rather than stalling).
+fn polynomial_normal_form(
+    term: &StructuralTerm,
+    license: &SemiringLicense,
+) -> Option<Vec<Vec<StructuralTerm>>> {
+    const MONOMIAL_CAP: usize = 64;
+    if let StructuralTerm::Application {
+        target,
+        selections,
+        machine: _,
+        arguments,
+    } = term
+        && arguments.len() == 2
+    {
+        if *target == license.add_machine && selections.is_empty() {
+            let mut left = polynomial_normal_form(&arguments[0], license)?;
+            let right = polynomial_normal_form(&arguments[1], license)?;
+            left.extend(right);
+            return (left.len() <= MONOMIAL_CAP).then_some(left);
+        }
+        if *target == license.mul_machine && selections.is_empty() {
+            let left = polynomial_normal_form(&arguments[0], license)?;
+            let right = polynomial_normal_form(&arguments[1], license)?;
+            let mut product = Vec::new();
+            for left_monomial in &left {
+                for right_monomial in &right {
+                    let mut monomial = left_monomial.clone();
+                    monomial.extend(right_monomial.iter().cloned());
+                    monomial.sort_by_key(|term| format!("{term:?}"));
+                    product.push(monomial);
+                }
+            }
+            return (product.len() <= MONOMIAL_CAP).then_some(product);
+        }
+    }
+    Some(vec![vec![term.clone()]])
+}
+
+/// `left - from` as multisets; `None` when `from` is not a sub-multiset of
+/// `left` (the exchange does not apply). Generic over the element (tier-1
+/// addend displays, tier-2 monomial factor lists).
+fn sorted_multiset_subtract<T: Clone + PartialEq>(left: &[T], from: &[T]) -> Option<Vec<T>> {
+    let mut remaining = left.to_vec();
+    for item in from {
+        let index = remaining.iter().position(|candidate| candidate == item)?;
+        remaining.remove(index);
+    }
+    Some(remaining)
+}
+
+/// Flatten nested applications of the licensed op into its addend list; any
+/// other term is one addend, compared by complete structural identity.
+fn additive_addends(term: &StructuralTerm, op: &SymbolHandle, out: &mut Vec<StructuralTerm>) {
+    if let StructuralTerm::Application {
+        target,
+        selections,
+        machine: _,
+        arguments,
+    } = term
+        && target == op
+        && selections.is_empty()
+        && arguments.len() == 2
+    {
+        additive_addends(&arguments[0], op, out);
+        additive_addends(&arguments[1], op, out);
+        return;
+    }
+    out.push(term.clone());
+}
+
+fn term_uses_application(term: &StructuralTerm, op: &SymbolHandle) -> bool {
+    match term {
+        StructuralTerm::Projection { subject, .. } => term_uses_application(subject, op),
+        StructuralTerm::ScalarBinary { left, right, .. } => {
+            term_uses_application(left, op) || term_uses_application(right, op)
+        }
+        StructuralTerm::Application {
+            target,
+            selections,
+            machine: _,
+            arguments,
+        } => {
+            (target == op && selections.is_empty())
+                || arguments
+                    .iter()
+                    .any(|argument| term_uses_application(argument, op))
+        }
+        StructuralTerm::Constructor { fields, .. } => fields
+            .iter()
+            .any(|(_, value)| term_uses_application(value, op)),
+        _ => false,
+    }
+}
+
+/// The (trait symbol, bound requirement name) -> conforming (carrier, entry
+/// symbol) index: conformances are fixed for the build, so per-law slot
+/// membership reads this instead of re-scanning every machine per candidate.
+pub(crate) fn conformance_slot_carriers_uncached(
+    program: &TypedTrees,
+) -> std::collections::HashMap<(SymbolHandle, String), Vec<(TypeReferenceHandle, SymbolHandle)>> {
+    let mut slot_carriers = std::collections::HashMap::new();
+    for candidate in program.machines() {
+        for conformance in program.machine_trait_conformances(candidate) {
+            let Some(requirement_name) = bound_requirement_name(conformance, candidate) else {
+                continue;
+            };
+            let Some(candidate_entry) = program.machine_states(candidate).first() else {
+                continue;
+            };
+            let carrier = program
+                .state_parameters(candidate_entry)
+                .first()
+                .map(|parameter| parameter.type_reference)
+                .unwrap_or(candidate_entry.return_type);
+            slot_carriers
+                .entry((conformance.symbol, requirement_name))
+                .or_insert_with(Vec::new)
+                .push((carrier, candidate_entry.symbol));
+        }
+    }
+    slot_carriers
+}
+
+/// Compute the program's REARRANGE licenses (settle 2026-07-18): for every
+/// trait, find op slots carrying BOTH a commutativity law and an
+/// associativity law (matched by SHAPE over the trait's own requirement
+/// names), then license each conforming op machine whose carrier also has
+/// satisfiers for both law slots. Conformance is the license -- rung B
+/// machine-checked those satisfiers against the declared laws, so the
+/// closure the canonicalizer assumes is exactly what the carrier proved.
+///
+/// NO CIRCULAR LICENSING: a machine that itself binds a comm/assoc LAW slot
+/// of a trait gets NO licenses from that trait -- the axiom base always
+/// proves ring-free. This kills self-licensing (add_comm rearranging its own
+/// goal into triviality) AND multi-machine cycles (two comm satisfiers each
+/// licensed by the other's conformance, none carrying a real proof).
+fn compute_ring_licenses(
+    slot_carriers: &std::collections::HashMap<
+        (SymbolHandle, String),
+        Vec<(TypeReferenceHandle, SymbolHandle)>,
+    >,
+    program: &TypedTrees,
+    judged_machine: &Machine,
+) -> Vec<RingLicense> {
+    let mut licenses = Vec::new();
+
+    for trait_definition in program.traits() {
+        // Op slot name -> (has commutativity law named, has associativity law
+        // named): the LAW requirement names matter later (their satisfiers
+        // must exist for the carrier).
+        let mut comm_laws: Vec<(String, String)> = Vec::new(); // (op, law requirement)
+        let mut assoc_laws: Vec<(String, String)> = Vec::new();
+
+        for requirement in program.trait_machine_signatures(trait_definition) {
+            let parameters: Vec<String> = program
+                .state_signature_parameters(requirement)
+                .iter()
+                .map(|parameter| parameter.name.as_str().to_owned())
+                .collect();
+            for contract in program.state_signature_contracts(requirement) {
+                if contract.kind != SignatureContractKind::Ensures {
+                    continue;
+                }
+                for fact in program.proof_facts.span_or_empty(contract.facts) {
+                    let ProofFact::Expression(expression) = fact else {
+                        continue;
+                    };
+                    let mut conjuncts = Vec::new();
+                    collect_equality_conjuncts(program, *expression, &mut conjuncts);
+                    for conjunct in conjuncts {
+                        let ExpressionNode::Binary(binary) =
+                            program.expression_table.expression(conjunct)
+                        else {
+                            continue;
+                        };
+                        let (Some(left), Some(right)) = (
+                            structural_term(program, binary.left),
+                            structural_term(program, binary.right),
+                        ) else {
+                            continue;
+                        };
+                        if let Some(op) = commutativity_shape(&left, &right, &parameters) {
+                            comm_laws.push((op, requirement.name.as_str().to_owned()));
+                        }
+                        if let Some(op) = associativity_shape(&left, &right, &parameters) {
+                            assoc_laws.push((op, requirement.name.as_str().to_owned()));
+                        }
+                    }
+                }
+            }
+        }
+
+        // PER-LICENSE circularity break (refined 2026-07-16 from the old
+        // trait-wide skip): the judged machine is excluded only from
+        // licenses it ITSELF underpins -- the ones whose comm/assoc law
+        // slots it binds FOR THE SAME CARRIER. A law lemma's goal is
+        // exactly the law shape over its own op, so no other carrier's
+        // license can rearrange it -- per-carrier exclusion breaks every
+        // cycle while letting IntPair's mul_comm keep using NAT's earned
+        // licenses (the trait-wide skip wrongly stripped those).
+        let judged_bound_laws: Vec<String> = program
+            .machine_trait_conformances(judged_machine)
+            .iter()
+            .filter(|conformance| conformance.symbol == trait_definition.symbol)
+            .filter_map(|conformance| bound_requirement_name(conformance, judged_machine))
+            .collect();
+        let judged_carrier = program.machine_states(judged_machine).first().map(|entry| {
+            program
+                .state_parameters(entry)
+                .first()
+                .map(|parameter| parameter.type_reference)
+                .unwrap_or(entry.return_type)
+        });
+
+        for (op_slot, comm_law) in &comm_laws {
+            let Some((_, assoc_law)) = assoc_laws.iter().find(|(op, _)| op == op_slot) else {
+                continue;
+            };
+            // Every machine conforming the op slot is a candidate license --
+            // provided its carrier also conformed BOTH law slots.
+            for candidate in program.machines() {
+                for conformance in program.machine_trait_conformances(candidate) {
+                    if conformance.symbol != trait_definition.symbol {
+                        continue;
+                    }
+                    let Some(bound_requirement) = bound_requirement_name(conformance, candidate)
+                    else {
+                        continue;
+                    };
+                    if bound_requirement != *op_slot {
+                        continue;
+                    }
+                    let Some(candidate_entry) = program.machine_states(candidate).first() else {
+                        continue;
+                    };
+                    let carrier = program
+                        .state_parameters(candidate_entry)
+                        .first()
+                        .map(|parameter| parameter.type_reference)
+                        .unwrap_or(candidate_entry.return_type);
+                    let judged_underpins_this_license = judged_bound_laws
+                        .iter()
+                        .any(|law| law == comm_law || law == assoc_law)
+                        && judged_carrier.is_some_and(|judged| {
+                            crate::validation::value_custody::type_references::type_references_match(
+                                program, judged, carrier,
+                            )
+                        });
+                    if judged_underpins_this_license {
+                        continue;
+                    }
+                    if slot_satisfier_exists(
+                        slot_carriers,
+                        program,
+                        trait_definition.symbol,
+                        comm_law,
+                        carrier,
+                    ) && slot_satisfier_exists(
+                        slot_carriers,
+                        program,
+                        trait_definition.symbol,
+                        assoc_law,
+                        carrier,
+                    ) {
+                        licenses.push(RingLicense {
+                            add_machine: candidate_entry.symbol,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    licenses
+}
+
+/// The requirement name a conformance binds: the authored `as Name` alias
+/// when present, else the standalone machine's own name. Attached machines
+/// bind nothing implicitly.
+fn bound_requirement_name(
+    conformance: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::TraitConformance,
+    machine: &Machine,
+) -> Option<String> {
+    conformance
+        .requirement
+        .as_ref()
+        .map(|name| name.as_str().to_owned())
+        .or_else(|| {
+            machine
+                .attached_data
+                .is_none()
+                .then(|| machine.name.as_str().to_owned())
+        })
+}
+
+/// Whether SOME machine conforms `(trait, requirement)` for this carrier.
+fn slot_satisfier_exists(
+    slot_carriers: &std::collections::HashMap<
+        (SymbolHandle, String),
+        Vec<(TypeReferenceHandle, SymbolHandle)>,
+    >,
+    program: &TypedTrees,
+    trait_symbol: SymbolHandle,
+    requirement_name: &str,
+    carrier: TypeReferenceHandle,
+) -> bool {
+    slot_carriers
+        .get(&(trait_symbol, requirement_name.to_owned()))
+        .is_some_and(|rows| {
+            rows.iter().any(|(candidate_carrier, _)| {
+                crate::validation::value_custody::type_references::type_references_match(
+                    program,
+                    *candidate_carrier,
+                    carrier,
+                )
+            })
+        })
+}
+
+/// `R(x, y) == R(y, x)` with `x`/`y` DISTINCT requirement parameters -> the
+/// op slot `R` is declared commutative by this law.
+/// Tier-2: recognize `mul(a, add(b, c)) == add(mul(a, b), mul(a, c))` up
+/// to parameter naming -- returns (mul_op, add_op).
+fn distributivity_shape(
+    left: &StructuralTerm,
+    right: &StructuralTerm,
+    parameters: &[String],
+) -> Option<(String, String)> {
+    if !consistent_operation_selections(left, right) {
+        return None;
+    }
+
+    // left = mul(a, add(b, c))
+    let StructuralTerm::Application {
+        machine: mul_op,
+        arguments: mul_args,
+        ..
+    } = left
+    else {
+        return None;
+    };
+    let [
+        StructuralTerm::Variable(a),
+        StructuralTerm::Application {
+            machine: add_op,
+            arguments: add_args,
+            ..
+        },
+    ] = mul_args.as_slice()
+    else {
+        return None;
+    };
+    let [StructuralTerm::Variable(b), StructuralTerm::Variable(c)] = add_args.as_slice() else {
+        return None;
+    };
+    if mul_op == add_op {
+        return None;
+    }
+    for name in [a, b, c] {
+        if !parameters.contains(name) {
+            return None;
+        }
+    }
+    // right = add(mul(a, b), mul(a, c))
+    let StructuralTerm::Application {
+        machine: outer_add,
+        arguments: outer_args,
+        ..
+    } = right
+    else {
+        return None;
+    };
+    if outer_add != add_op {
+        return None;
+    }
+    let [
+        StructuralTerm::Application {
+            machine: left_mul,
+            arguments: left_args,
+            ..
+        },
+        StructuralTerm::Application {
+            machine: right_mul,
+            arguments: right_args,
+            ..
+        },
+    ] = outer_args.as_slice()
+    else {
+        return None;
+    };
+    if left_mul != mul_op || right_mul != mul_op {
+        return None;
+    }
+    let (
+        [StructuralTerm::Variable(la), StructuralTerm::Variable(lb)],
+        [StructuralTerm::Variable(ra), StructuralTerm::Variable(rc)],
+    ) = (left_args.as_slice(), right_args.as_slice())
+    else {
+        return None;
+    };
+    (la == a && lb == b && ra == a && rc == c).then(|| (mul_op.clone(), add_op.clone()))
+}
+
+/// Tier-2 licensing: a trait carrying comm+assoc for BOTH an add op and a
+/// mul op, plus a DISTRIBUTIVITY law connecting them, licenses each carrier
+/// that conformed ALL FIVE law slots. Same no-circularity rule: the judged
+/// machine binding ANY involved law slot gets nothing from this trait.
+fn compute_semiring_licenses(
+    slot_carriers: &std::collections::HashMap<
+        (SymbolHandle, String),
+        Vec<(TypeReferenceHandle, SymbolHandle)>,
+    >,
+    program: &TypedTrees,
+    judged_machine: &Machine,
+) -> Vec<SemiringLicense> {
+    let mut licenses = Vec::new();
+    for trait_definition in program.traits() {
+        let mut comm_laws: Vec<(String, String)> = Vec::new();
+        let mut assoc_laws: Vec<(String, String)> = Vec::new();
+        let mut dist_laws: Vec<(String, String, String)> = Vec::new(); // (mul, add, law)
+        for requirement in program.trait_machine_signatures(trait_definition) {
+            let parameters: Vec<String> = program
+                .state_signature_parameters(requirement)
+                .iter()
+                .map(|parameter| parameter.name.as_str().to_owned())
+                .collect();
+            for contract in program.state_signature_contracts(requirement) {
+                if contract.kind != SignatureContractKind::Ensures {
+                    continue;
+                }
+                for fact in program.proof_facts.span_or_empty(contract.facts) {
+                    let ProofFact::Expression(expression) = fact else {
+                        continue;
+                    };
+                    let mut conjuncts = Vec::new();
+                    collect_equality_conjuncts(program, *expression, &mut conjuncts);
+                    for conjunct in conjuncts {
+                        let ExpressionNode::Binary(binary) =
+                            program.expression_table.expression(conjunct)
+                        else {
+                            continue;
+                        };
+                        let (Some(left), Some(right)) = (
+                            structural_term(program, binary.left),
+                            structural_term(program, binary.right),
+                        ) else {
+                            continue;
+                        };
+                        if let Some(op) = commutativity_shape(&left, &right, &parameters) {
+                            comm_laws.push((op, requirement.name.as_str().to_owned()));
+                        }
+                        if let Some(op) = associativity_shape(&left, &right, &parameters) {
+                            assoc_laws.push((op, requirement.name.as_str().to_owned()));
+                        }
+                        if let Some((mul_op, add_op)) =
+                            distributivity_shape(&left, &right, &parameters)
+                        {
+                            dist_laws.push((mul_op, add_op, requirement.name.as_str().to_owned()));
+                        }
+                    }
+                }
+            }
+        }
+        for (mul_op, add_op, dist_law) in &dist_laws {
+            let Some((_, add_comm)) = comm_laws.iter().find(|(op, _)| op == add_op) else {
+                continue;
+            };
+            let Some((_, add_assoc)) = assoc_laws.iter().find(|(op, _)| op == add_op) else {
+                continue;
+            };
+            let Some((_, mul_comm)) = comm_laws.iter().find(|(op, _)| op == mul_op) else {
+                continue;
+            };
+            let Some((_, mul_assoc)) = assoc_laws.iter().find(|(op, _)| op == mul_op) else {
+                continue;
+            };
+            let law_slots = [add_comm, add_assoc, mul_comm, mul_assoc, dist_law];
+            // PER-LICENSE circularity break (refined 2026-07-16, mirroring
+            // compute_ring_licenses): the judged machine is excluded only
+            // from paired licenses it underpins -- binding one of the five
+            // law slots FOR THE SAME CARRIER. A law lemma's goal is the law
+            // shape over its own carrier's ops, so other carriers' licenses
+            // cannot rearrange it.
+            let judged_bound_laws: Vec<String> = program
+                .machine_trait_conformances(judged_machine)
+                .iter()
+                .filter(|conformance| conformance.symbol == trait_definition.symbol)
+                .filter_map(|conformance| bound_requirement_name(conformance, judged_machine))
+                .filter(|name| law_slots.iter().any(|law| law.as_str() == name))
+                .collect();
+            let judged_carrier = program.machine_states(judged_machine).first().map(|entry| {
+                program
+                    .state_parameters(entry)
+                    .first()
+                    .map(|parameter| parameter.type_reference)
+                    .unwrap_or(entry.return_type)
+            });
+            // Each carrier conforming BOTH op slots with all five law slots
+            // satisfied earns the paired license.
+            for add_candidate in program.machines() {
+                for conformance in program.machine_trait_conformances(add_candidate) {
+                    if conformance.symbol != trait_definition.symbol {
+                        continue;
+                    }
+                    let Some(bound) = bound_requirement_name(conformance, add_candidate) else {
+                        continue;
+                    };
+                    if bound != *add_op {
+                        continue;
+                    }
+                    let Some(entry) = program.machine_states(add_candidate).first() else {
+                        continue;
+                    };
+                    let carrier = program
+                        .state_parameters(entry)
+                        .first()
+                        .map(|parameter| parameter.type_reference)
+                        .unwrap_or(entry.return_type);
+                    if !judged_bound_laws.is_empty() && judged_carrier.is_some_and(|judged| {
+                        crate::validation::value_custody::type_references::type_references_match(
+                            program, judged, carrier,
+                        )
+                    }) {
+                        continue;
+                    }
+                    if !law_slots.iter().all(|law| {
+                        slot_satisfier_exists(
+                            slot_carriers,
+                            program,
+                            trait_definition.symbol,
+                            law,
+                            carrier,
+                        )
+                    }) {
+                        continue;
+                    }
+                    if let Some(mul_machine) = op_slot_satisfier(
+                        slot_carriers,
+                        program,
+                        trait_definition.symbol,
+                        mul_op,
+                        carrier,
+                    ) {
+                        licenses.push(SemiringLicense {
+                            add_machine: entry.symbol,
+                            mul_machine,
+                        });
+                    }
+                }
+            }
+        }
+    }
+    licenses
+}
+
+/// The NAME of the machine conforming `op_slot` for the given carrier.
+fn op_slot_satisfier(
+    slot_carriers: &std::collections::HashMap<
+        (SymbolHandle, String),
+        Vec<(TypeReferenceHandle, SymbolHandle)>,
+    >,
+    program: &TypedTrees,
+    trait_symbol: SymbolHandle,
+    op_slot: &str,
+    carrier: TypeReferenceHandle,
+) -> Option<SymbolHandle> {
+    slot_carriers
+        .get(&(trait_symbol, op_slot.to_owned()))
+        .and_then(|rows| {
+            rows.iter().find_map(|(candidate_carrier, entry_symbol)| {
+                crate::validation::value_custody::type_references::type_references_match(
+                    program,
+                    *candidate_carrier,
+                    carrier,
+                )
+                .then_some(*entry_symbol)
+            })
+        })
+}
+
+fn commutativity_shape(
+    left: &StructuralTerm,
+    right: &StructuralTerm,
+    parameters: &[String],
+) -> Option<String> {
+    if !consistent_operation_selections(left, right) {
+        return None;
+    }
+
+    let StructuralTerm::Application {
+        machine: op_l,
+        arguments: args_l,
+        ..
+    } = left
+    else {
+        return None;
+    };
+    let StructuralTerm::Application {
+        machine: op_r,
+        arguments: args_r,
+        ..
+    } = right
+    else {
+        return None;
+    };
+    if op_l != op_r || args_l.len() != 2 || args_r.len() != 2 {
+        return None;
+    }
+    let [StructuralTerm::Variable(x), StructuralTerm::Variable(y)] = args_l.as_slice() else {
+        return None;
+    };
+    let [StructuralTerm::Variable(rx), StructuralTerm::Variable(ry)] = args_r.as_slice() else {
+        return None;
+    };
+    let is_parameter = |name: &String| parameters.iter().any(|parameter| parameter == name);
+    (x != y && rx == y && ry == x && is_parameter(x) && is_parameter(y)).then(|| op_l.clone())
+}
+
+/// `R(R(x, y), z) == R(x, R(y, z))` (either orientation) with distinct
+/// requirement parameters -> the op slot `R` is declared associative.
+fn associativity_shape(
+    left: &StructuralTerm,
+    right: &StructuralTerm,
+    parameters: &[String],
+) -> Option<String> {
+    if !consistent_operation_selections(left, right) {
+        return None;
+    }
+
+    for (first, second) in [(left, right), (right, left)] {
+        let StructuralTerm::Application {
+            machine: op_outer,
+            arguments: outer_args,
+            ..
+        } = first
+        else {
+            continue;
+        };
+        if outer_args.len() != 2 {
+            continue;
+        }
+        let StructuralTerm::Application {
+            machine: op_inner,
+            arguments: inner_args,
+            ..
+        } = &outer_args[0]
+        else {
+            continue;
+        };
+        if op_inner != op_outer || inner_args.len() != 2 {
+            continue;
+        }
+        let (StructuralTerm::Variable(x), StructuralTerm::Variable(y), StructuralTerm::Variable(z)) =
+            (&inner_args[0], &inner_args[1], &outer_args[1])
+        else {
+            continue;
+        };
+        let StructuralTerm::Application {
+            machine: op_right,
+            arguments: right_args,
+            ..
+        } = second
+        else {
+            continue;
+        };
+        if op_right != op_outer || right_args.len() != 2 {
+            continue;
+        }
+        let StructuralTerm::Variable(rx) = &right_args[0] else {
+            continue;
+        };
+        let StructuralTerm::Application {
+            machine: op_right_inner,
+            arguments: right_inner_args,
+            ..
+        } = &right_args[1]
+        else {
+            continue;
+        };
+        if op_right_inner != op_outer || right_inner_args.len() != 2 {
+            continue;
+        }
+        let (StructuralTerm::Variable(ry), StructuralTerm::Variable(rz)) =
+            (&right_inner_args[0], &right_inner_args[1])
+        else {
+            continue;
+        };
+        let is_parameter = |name: &String| parameters.iter().any(|parameter| parameter == name);
+        let distinct = x != y && y != z && x != z;
+        if distinct
+            && rx == x
+            && ry == y
+            && rz == z
+            && is_parameter(x)
+            && is_parameter(y)
+            && is_parameter(z)
+        {
+            return Some(op_outer.clone());
+        }
+    }
+    None
+}
+
+/// Law schema names identify slots, but repeated occurrences must retain the
+/// same resolved operation and complete static application before a shape can
+/// license a rewrite.
+fn consistent_operation_selections(left: &StructuralTerm, right: &StructuralTerm) -> bool {
+    fn visit<'term>(
+        term: &'term StructuralTerm,
+        seen: &mut Vec<(
+            &'term str,
+            SymbolHandle,
+            &'term [symbol_resolved_trees_to_typed_trees::typed_trees::expression::StaticMachineArgument],
+        )>,
+    ) -> bool {
+        match term {
+            StructuralTerm::Application {
+                target,
+                selections,
+                machine,
+                arguments,
+            } => {
+                if let Some((_, previous, previous_selections)) =
+                    seen.iter().find(|(name, _, _)| *name == machine)
+                {
+                    if previous != target || *previous_selections != selections.as_slice() {
+                        return false;
+                    }
+                } else {
+                    seen.push((machine, *target, selections));
+                }
+                arguments.iter().all(|argument| visit(argument, seen))
+            }
+            StructuralTerm::Constructor { fields, .. } => {
+                fields.iter().all(|(_, value)| visit(value, seen))
+            }
+            StructuralTerm::CallProjection { arguments, .. } => {
+                arguments.iter().all(|argument| visit(argument, seen))
+            }
+            StructuralTerm::ScalarBinary { left, right, .. } => {
+                visit(left, seen) && visit(right, seen)
+            }
+            StructuralTerm::Projection { subject, .. } => visit(subject, seen),
+            _ => true,
+        }
+    }
+    let mut seen = Vec::new();
+    visit(left, &mut seen) && visit(right, &mut seen)
+}

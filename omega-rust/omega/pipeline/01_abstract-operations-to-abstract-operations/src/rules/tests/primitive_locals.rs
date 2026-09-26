@@ -6,19 +6,7 @@ use super::super::{
 use crate::rules::registry::PsiOptimizationRule;
 use crate::rules::tests::fixtures::id;
 use crate::{AnalysisProduct, RuleAnalysisView, compute_analysis};
-use abstract_operations::{
-    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation as O,
-    AbstractOperationPlan, AbstractResult,
-};
 use optimization_core::AnalysisKind;
-use optimization_unit::{
-    NodeLocation, ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationUnit,
-    PsiRealizationSite, PsiRewriteCandidate, reconstruct_psi_optimization_unit_seed,
-};
-use optimization_unit_semantics::{
-    OptimizationUnitValidationError, validate_dead_scalar_node_candidate,
-    validate_psi_optimization_unit,
-};
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
     OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
@@ -26,6 +14,18 @@ use semantic_vocabulary::{
 use terminal_psi::{
     SemanticFingerprint, StructuralMultiplicity, StructuralOperationResult,
     StructuralTypeDeclaration, StructuralTypeShape, TerminalPsiIdentity, VocabularyMarker,
+};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation as O,
+    AbstractOperationPlan, AbstractResult,
+};
+use terminal_psi_to_abstract_operations::optimization_unit::{
+    NodeLocation, ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationUnit,
+    PsiRealizationSite, PsiRewriteCandidate, reconstruct_psi_optimization_unit_seed,
+};
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::{
+    OptimizationUnitValidationError, validate_dead_scalar_node_candidate,
+    validate_psi_optimization_unit,
 };
 
 fn local_plan(reentry: bool) -> AbstractOperationPlan {
@@ -137,7 +137,7 @@ fn primitive_observations_are_not_constants_or_pure_common_subexpressions() {
     for reentry in [false, true] {
         let unit = local_unit(reentry);
         if reentry {
-            assert_eq!(optimization_unit_semantics::validate_psi_optimization_unit_with_admitted_cycle_machines(&unit, &[unit.entry]), Ok(()));
+            assert_eq!(terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit_with_admitted_cycle_machines(&unit, &[unit.entry]), Ok(()));
         } else {
             assert_eq!(validate_psi_optimization_unit(&unit), Ok(()));
         }
@@ -295,7 +295,7 @@ fn independent_validator_rejects_forged_deletion_of_initialized_reads() {
                 vec![location.block],
                 provenance.clone(),
                 -1,
-                optimization_unit::DeadScalarNodeRewrite {
+                terminal_psi_to_abstract_operations::optimization_unit::DeadScalarNodeRewrite {
                     location,
                     source_operation: psi_operation,
                     result: result.value,
@@ -375,7 +375,7 @@ fn calls_and_reentry_do_not_turn_local_reads_into_scalar_constants() {
         let unit =
             reconstruct_psi_optimization_unit_seed(&plan, FuelScheduleIdentity::new(1).unwrap())
                 .unwrap();
-        assert_eq!(optimization_unit_semantics::validate_psi_optimization_unit_with_admitted_cycle_machines(
+        assert_eq!(terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit_with_admitted_cycle_machines(
             &unit, if reentry { std::slice::from_ref(&unit.entry) } else { &[] }), Ok(()));
         let AnalysisProduct::ScalarConstants(constants) =
             compute_analysis(&unit, AnalysisKind::ScalarConstants).unwrap()

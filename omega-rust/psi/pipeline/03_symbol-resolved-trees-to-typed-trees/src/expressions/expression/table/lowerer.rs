@@ -7,10 +7,10 @@ use crate::expressions::expression::name_paths::{
 };
 use crate::expressions::expression::operators::lower_binary_operator;
 use crate::lowerer::name::lower_name;
+use crate::typed_trees as typed;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::CollectionMeasure;
-use symbol_resolved_trees as resolved;
-use typed_trees as typed;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees as resolved;
 
 #[derive(Clone)]
 struct NullaryErasedInitializer {

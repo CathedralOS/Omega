@@ -23,8 +23,8 @@
 //! `scalars` (scalar Boolean evaluation) are re-exported for the other
 //! contract checks, and `call_guarantees` is also used by `checks::borrows`.
 
-use checked_trees::{FlowCallFact, FlowStateFact};
-use facts::{FactPayload, FactPlace};
+use crate::checked_trees::{FlowCallFact, FlowStateFact};
+use crate::fact_plan::{FactPayload, FactPlace};
 
 mod assigned_values;
 pub(super) use assigned_values::{
@@ -49,14 +49,16 @@ use self::booleans::{
 use super::evaluator::call_site_proves_boolean_contract_expression;
 
 pub(super) fn semantic_contexts_prove_boolean_expression(
-    program: &typed_trees::TypedTrees,
-    semantic: &facts::FactPlan,
-    entry_contexts: &[facts::FactContextHandle],
-    expression: typed_trees::expression::ExpressionHandle,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    semantic: &crate::fact_plan::FactPlan,
+    entry_contexts: &[crate::fact_plan::FactContextHandle],
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> bool {
     matches!(
         program.expression_table.expression(expression),
-        typed_trees::expression::ExpressionNode::Boolean(true)
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Boolean(
+            true
+        )
     ) || entry_contexts.iter().any(|entry_context| {
         semantic_context_proves_boolean_expression(
             program,
@@ -68,13 +70,13 @@ pub(super) fn semantic_contexts_prove_boolean_expression(
 }
 
 pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
-    program: &typed_trees::TypedTrees,
-    facts: &checked_trees::CheckFacts,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    facts: &crate::checked_trees::CheckFacts,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
-    entry_contexts: &[facts::FactContextHandle],
-    expression: typed_trees::expression::ExpressionHandle,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    entry_contexts: &[crate::fact_plan::FactContextHandle],
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> bool {
     let operators = &facts.operators;
     let semantic = &facts.semantic;
@@ -181,10 +183,10 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
 }
 
 pub(super) fn semantic_contexts_prove_contract_fact(
-    program: &typed_trees::TypedTrees,
-    semantic: &facts::FactPlan,
-    entry_contexts: &[facts::FactContextHandle],
-    fact: &facts::Fact,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    semantic: &crate::fact_plan::FactPlan,
+    entry_contexts: &[crate::fact_plan::FactContextHandle],
+    fact: &crate::fact_plan::Fact,
 ) -> bool {
     if !contract_membership_place_is_accessible(program, semantic, entry_contexts, fact) {
         return false;
@@ -275,7 +277,7 @@ pub(super) fn semantic_contexts_prove_contract_fact(
         | FactPayload::ContractBooleanExpression { expression, .. } => {
             matches!(
                 program.expression_table.expression(expression),
-                checked_trees::expression::ExpressionNode::Boolean(true)
+                crate::checked_trees::expression::ExpressionNode::Boolean(true)
             ) || entry_contexts.iter().any(|entry_context| {
                 let context = semantic.contexts.get(*entry_context);
                 semantic_context_proves_boolean_expression(program, semantic, context, expression)
@@ -337,10 +339,10 @@ pub(super) fn semantic_contexts_prove_contract_fact(
 /// Nominal field contracts are checked separately and retain conditional paths
 /// below a whole-sum actual instead of extracting all its alternatives.
 pub(super) fn contract_membership_place_is_accessible(
-    program: &typed_trees::TypedTrees,
-    semantic: &facts::FactPlan,
-    contexts: &[facts::FactContextHandle],
-    fact: &facts::Fact,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    semantic: &crate::fact_plan::FactPlan,
+    contexts: &[crate::fact_plan::FactContextHandle],
+    fact: &crate::fact_plan::Fact,
 ) -> bool {
     if !matches!(
         fact.payload,
@@ -348,7 +350,7 @@ pub(super) fn contract_membership_place_is_accessible(
     ) {
         return true;
     }
-    let facts::ProgramPoint::CallRequires {
+    let crate::fact_plan::ProgramPoint::CallRequires {
         machine_symbol,
         state_symbol,
         statement_index,
@@ -384,10 +386,10 @@ pub(super) fn contract_membership_place_is_accessible(
 /// a runtime `Index`; a finite range covers contained indices -- see
 /// `assigned_values::segments_cover_subject`).
 fn place_covers_subject(
-    program: &typed_trees::TypedTrees,
-    semantic: &facts::FactPlan,
-    candidate: facts::PlaceHandle,
-    subject: facts::PlaceHandle,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    semantic: &crate::fact_plan::FactPlan,
+    candidate: crate::fact_plan::PlaceHandle,
+    subject: crate::fact_plan::PlaceHandle,
 ) -> bool {
     let candidate = semantic.places.get(candidate);
     let subject = semantic.places.get(subject);
@@ -399,7 +401,10 @@ fn place_covers_subject(
         )
 }
 
-pub(super) fn indexed_membership(program: &typed_trees::TypedTrees, payload: FactPayload) -> bool {
+pub(super) fn indexed_membership(
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    payload: FactPayload,
+) -> bool {
     let (FactPayload::DomainMembership { domain_symbol, .. }
     | FactPayload::ContractDomainMembership { domain_symbol, .. }) = payload
     else {
@@ -407,22 +412,25 @@ pub(super) fn indexed_membership(program: &typed_trees::TypedTrees, payload: Fac
     };
     program.domain_definitions().iter().any(|domain| {
         domain.symbol == domain_symbol
-            && !typed_trees::domain::index_parameters(program, domain).is_empty()
+            && !symbol_resolved_trees_to_typed_trees::typed_trees::domain::index_parameters(
+                program, domain,
+            )
+            .is_empty()
     })
 }
 
 /// The caller actual a case test's subject names: the positional argument for
 /// an ordinary formal, or the receiver for `self`.
 fn case_test_subject_actual(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     call_site: &crate::semantic::calls::CallSite<'_>,
-    parameters: &[typed_trees::signature::StateParameter],
-    subject: typed_trees::expression::ExpressionHandle,
+    parameters: &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter],
+    subject: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> Option<(
-    typed_trees::expression::ExpressionHandle,
-    Vec<facts::PlaceSegment>,
+    symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    Vec<crate::fact_plan::PlaceSegment>,
 )> {
-    if let typed_trees::expression::ExpressionNode::Name(path) =
+    if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Name(path) =
         program.expression_table.expression(subject)
         && path.symbol.is_valid()
         && parameters

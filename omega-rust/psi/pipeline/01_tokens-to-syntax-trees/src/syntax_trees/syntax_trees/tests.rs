@@ -1,0 +1,1196 @@
+use super::SyntaxTrees;
+use crate::syntax_trees::expression::{
+    ExpressionHandle, ExpressionNode, TableCallExpression, TableMemberExpression,
+};
+use crate::syntax_trees::identifier::Identifier;
+use crate::syntax_trees::item::{
+    DataDefinition, Item, Machine, State, StateSignature, TraitDefinition,
+};
+use crate::syntax_trees::snapshot::ItemSnapshot;
+use crate::syntax_trees::statement::{
+    StatementNode, TableAssignment, TableCall, TableTransition, TransitionGuardNode,
+    TransitionTargetNode,
+};
+use crate::syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use arena::HandleSpan;
+
+#[test]
+fn integer_range_normalization_copies_with_remapped_constraint_expressions() {
+    use crate::syntax_trees::types::{IntegerRangeNormalization, TypeConstraintNode};
+    use numerics::{bignum::BigInt, literals::IntegerLiteral};
+    let mut original = SyntaxTrees::new(Default::default());
+    let base = original
+        .type_references
+        .insert(TypeReferenceNode::Named(Identifier::generated("u64")));
+    let minimum = original
+        .expressions
+        .insert(ExpressionNode::Integer(IntegerLiteral::from_value(0)));
+    let maximum = original
+        .expressions
+        .insert(ExpressionNode::Integer(IntegerLiteral::from_value(257)));
+    let constraint = original
+        .type_references
+        .append_constraint(TypeConstraintNode::Range {
+            minimum,
+            maximum,
+            end_inclusive: false,
+        });
+    let owner = original
+        .type_references
+        .insert_constrained(base, HandleSpan::from_parts(constraint, 1));
+    let normalized = IntegerRangeNormalization {
+        minimum: BigInt::from_u64(0),
+        maximum: BigInt::from_u64(256),
+    };
+    original
+        .type_references
+        .retain_integer_range_normalization(owner, 0, normalized.clone());
+    let mut copied = SyntaxTrees::new(Default::default());
+    for _ in 0..8 {
+        copied.expressions.insert(ExpressionNode::Boolean(false));
+        copied.type_references.insert(TypeReferenceNode::Unit);
+    }
+    let argument = crate::syntax_trees::expression::StaticMachineArgument {
+        type_reference: TypeReferenceHandle::invalid(),
+        path: vec![Identifier::generated("Family")].into_boxed_slice(),
+        application: Some(Box::new(
+            crate::syntax_trees::expression::StaticSymbolApplication {
+                lifetime_arguments: Box::default(),
+                arguments: vec![crate::syntax_trees::expression::StaticMachineArgument {
+                    type_reference: owner,
+                    path: Box::default(),
+                    application: None,
+                    const_literal: None,
+                    evidence_projection: None,
+                }]
+                .into_boxed_slice(),
+            },
+        )),
+        const_literal: None,
+        evidence_projection: None,
+    };
+    let copied_argument = copied.copy_static_machine_argument(&original, &argument);
+    let copied_owner = copied_argument.application.as_ref().unwrap().arguments[0].type_reference;
+    assert_ne!(copied_owner, owner);
+    assert_eq!(
+        copied
+            .type_references
+            .integer_range_normalization(copied_owner, 0),
+        Some(&normalized)
+    );
+    let TypeReferenceNode::Constrained { constraints, .. } =
+        copied.type_references.type_reference(copied_owner)
+    else {
+        panic!("copied constrained type");
+    };
+    let [
+        TypeConstraintNode::Range {
+            minimum: copied_minimum,
+            maximum: copied_maximum,
+            end_inclusive,
+        },
+    ] = copied.type_references.constraints(*constraints)
+    else {
+        panic!("copied range");
+    };
+    assert_ne!(*copied_minimum, minimum);
+    assert_ne!(*copied_maximum, maximum);
+    assert!(!end_inclusive);
+    assert_eq!(
+        copied.expressions.expression(*copied_minimum),
+        original.expressions.expression(minimum)
+    );
+    assert_eq!(
+        copied.expressions.expression(*copied_maximum),
+        original.expressions.expression(maximum)
+    );
+    assert_eq!(
+        original
+            .type_references
+            .integer_range_normalization(owner, 0),
+        Some(&normalized)
+    );
+}
+
+#[test]
+fn integer_range_normalization_rejects_nonrange_owners_and_stale_constraint_spans() {
+    use crate::syntax_trees::types::{IntegerRangeNormalization, TypeConstraintNode};
+    let mut syntax = SyntaxTrees::new(Default::default());
+    let base = syntax
+        .type_references
+        .insert(TypeReferenceNode::Named(Identifier::generated("u64")));
+    let normalized = IntegerRangeNormalization::default();
+    syntax
+        .type_references
+        .retain_integer_range_normalization(base, 0, normalized.clone());
+    assert!(
+        syntax
+            .type_references
+            .integer_range_normalization(base, 0)
+            .is_none()
+    );
+    let constraint = syntax
+        .type_references
+        .append_constraint(TypeConstraintNode::Range {
+            minimum: ExpressionHandle::invalid(),
+            maximum: ExpressionHandle::invalid(),
+            end_inclusive: true,
+        });
+    let constraints = HandleSpan::from_parts(constraint, 1);
+    let owner = syntax.type_references.insert_constrained(base, constraints);
+    let unrelated_owner = syntax.type_references.insert_constrained(base, constraints);
+    syntax
+        .type_references
+        .retain_integer_range_normalization(owner, 0, normalized.clone());
+    assert!(
+        syntax
+            .type_references
+            .integer_range_normalization(unrelated_owner, 0)
+            .is_none()
+    );
+    syntax
+        .type_references
+        .retain_integer_range_normalization(owner, 1, normalized.clone());
+    assert!(
+        syntax
+            .type_references
+            .integer_range_normalization(owner, 1)
+            .is_none()
+    );
+    let replacement =
+        syntax
+            .type_references
+            .append_constraint(TypeConstraintNode::ArithmeticDomain(
+                numerics::arithmetic::ArithmeticDomain::Exact,
+            ));
+    syntax.type_references.replace_type_reference(
+        owner,
+        TypeReferenceNode::Constrained {
+            base_type: base,
+            constraints: HandleSpan::from_parts(replacement, 1),
+        },
+    );
+    assert!(
+        syntax
+            .type_references
+            .integer_range_normalization(owner, 0)
+            .is_none()
+    );
+    syntax
+        .type_references
+        .retain_integer_range_normalization(owner, 0, normalized);
+    assert!(
+        syntax
+            .type_references
+            .integer_range_normalization(owner, 0)
+            .is_none()
+    );
+    syntax
+        .type_references
+        .replace_type_reference(owner, TypeReferenceNode::Unit);
+    assert!(
+        syntax
+            .type_references
+            .integer_range_normalization(owner, 0)
+            .is_none()
+    );
+}
+
+#[test]
+fn constant_initializer_normalization_survives_copy_and_clone() {
+    let span =
+        |start| source::SourceSpan::new(source::SourceId(3), source::Span::new(start, start + 4));
+    let mut source = SyntaxTrees::new(Default::default());
+    let operand = source.expressions.insert(ExpressionNode::Boolean(false));
+    source.expressions.set_source_span(operand, span(24));
+    let authored_expression = source.expressions.insert(ExpressionNode::Unary(
+        crate::syntax_trees::expression::TableUnaryExpression {
+            operator: crate::syntax_trees::expression::UnaryOperator::LogicalNot,
+            operand,
+        },
+    ));
+    source
+        .expressions
+        .set_source_span(authored_expression, span(20));
+    let value = source.expressions.insert(ExpressionNode::Boolean(true));
+    source.expressions.set_source_span(value, span(20));
+    let normalization = crate::syntax_trees::item::ConstInitializerNormalization {
+        authored_expression,
+        canonical_result_encoding: "boolean4:true".to_owned(),
+        selections: vec![crate::syntax_trees::types::ConstArgumentOrigin {
+            reference: span(24),
+            declaration: span(4),
+            initializer: span(12),
+            canonical_value_encoding: "boolean5:false".to_owned(),
+        }],
+        builtin_operators: vec![span(20)],
+        call_selections: Vec::new(),
+    };
+    let constant = Item::Const(crate::syntax_trees::item::ConstDefinition {
+        name: Identifier::generated("ENABLED"),
+        value,
+        normalization: Some(normalization.clone()),
+        ..Default::default()
+    });
+    source.push_root_item(constant.clone());
+    let mut cloned = source.clone();
+    assert_eq!(cloned, source);
+    cloned
+        .expressions
+        .replace_expression(operand, ExpressionNode::Boolean(true));
+    assert_eq!(
+        source.expressions.expression(operand),
+        &ExpressionNode::Boolean(false)
+    );
+
+    let mut destination = SyntaxTrees::new(Default::default());
+    for _ in 0..8 {
+        destination
+            .expressions
+            .insert(ExpressionNode::Boolean(false));
+    }
+    let first = destination.copy_item_from(&source, &constant);
+    destination.extend_from(&source);
+    let second = destination
+        .root_items()
+        .next()
+        .expect("extended constant")
+        .clone();
+    let mut copied_operands = Vec::new();
+    for copied in [first, second] {
+        let Item::Const(copied) = copied else {
+            panic!("copied constant");
+        };
+        let receipt = copied.normalization.expect("retained normalization");
+        assert_eq!(
+            receipt.canonical_result_encoding,
+            normalization.canonical_result_encoding
+        );
+        assert_eq!(receipt.selections, normalization.selections);
+        assert_eq!(receipt.builtin_operators, normalization.builtin_operators);
+        assert_ne!(copied.value, value);
+        assert_ne!(receipt.authored_expression, authored_expression);
+        assert_ne!(receipt.authored_expression, copied.value);
+        assert_eq!(
+            destination.expressions.expression(copied.value),
+            &ExpressionNode::Boolean(true)
+        );
+        assert_eq!(destination.expressions.source_span(copied.value), span(20));
+        assert_eq!(
+            destination
+                .expressions
+                .source_span(receipt.authored_expression),
+            span(20)
+        );
+        let ExpressionNode::Unary(unary) = destination
+            .expressions
+            .expression(receipt.authored_expression)
+        else {
+            panic!("retained authored unary expression");
+        };
+        assert_eq!(
+            unary.operator,
+            crate::syntax_trees::expression::UnaryOperator::LogicalNot
+        );
+        assert_ne!(unary.operand, operand);
+        assert_eq!(
+            destination.expressions.expression(unary.operand),
+            &ExpressionNode::Boolean(false)
+        );
+        assert_eq!(destination.expressions.source_span(unary.operand), span(24));
+        copied_operands.push(unary.operand);
+    }
+    assert_ne!(copied_operands[0], copied_operands[1]);
+    destination
+        .expressions
+        .replace_expression(copied_operands[0], ExpressionNode::Boolean(true));
+    assert_eq!(
+        destination.expressions.expression(copied_operands[1]),
+        &ExpressionNode::Boolean(false)
+    );
+    assert_eq!(
+        source.expressions.expression(operand),
+        &ExpressionNode::Boolean(false)
+    );
+}
+
+#[test]
+fn normalized_structural_expression_copy_remaps_children_and_preserves_source() {
+    let mut source = SyntaxTrees::new(Default::default());
+    let child = source.expressions.insert(ExpressionNode::Boolean(true));
+    let children = source.expressions.insert_expression_handles([child]);
+    let expression = source
+        .expressions
+        .insert(ExpressionNode::ArrayLiteral(children));
+    let source_span = source::SourceSpan::new(source::SourceId(3), source::Span::new(10, 16));
+    source.expressions.set_source_span(expression, source_span);
+    let argument = source
+        .type_references
+        .insert_named(Identifier::generated("normalized-array"));
+    source.type_references.retain_const_argument_normalization(
+        argument,
+        source_span,
+        "array9:[bool; 1]13:boolean4:true".to_owned(),
+        [],
+        [],
+    );
+    source
+        .type_references
+        .retain_const_argument_expression(argument, expression);
+    let mut destination = SyntaxTrees::new(Default::default());
+    for _ in 0..8 {
+        destination
+            .expressions
+            .insert(ExpressionNode::Boolean(false));
+    }
+    let first = destination.copy_type_reference_handle(&source, argument);
+    let second = destination.copy_type_reference_handle(&source, argument);
+    let mut copied_children = Vec::new();
+    for copied in [first, second] {
+        let copied_expression = destination
+            .type_references
+            .const_argument_normalization(copied)
+            .unwrap()
+            .authored_expression;
+        assert_ne!(copied_expression, expression);
+        assert_eq!(
+            destination.expressions.source_span(copied_expression),
+            source_span
+        );
+        let ExpressionNode::ArrayLiteral(children) =
+            destination.expressions.expression(copied_expression)
+        else {
+            panic!("copied array");
+        };
+        let copied_child = destination.expressions.expression_handles(*children)[0];
+        assert_ne!(copied_child, child);
+        assert!(matches!(
+            destination.expressions.expression(copied_child),
+            ExpressionNode::Boolean(true)
+        ));
+        copied_children.push(copied_child);
+    }
+    assert_ne!(copied_children[0], copied_children[1]);
+}
+
+#[test]
+fn constant_argument_origin_survives_deep_copy_and_root_extension() {
+    let span = |source_id, start| {
+        source::SourceSpan::new(
+            source::SourceId(source_id),
+            source::Span::new(start, start + 4),
+        )
+    };
+    let origin = crate::syntax_trees::types::ConstArgumentOrigin {
+        reference: span(1, 40),
+        declaration: span(2, 12),
+        initializer: span(2, 24),
+        canonical_value_encoding: "integer3:u641:2".to_owned(),
+    };
+    let mut source = SyntaxTrees::new(Default::default());
+    let second = crate::syntax_trees::types::ConstArgumentOrigin {
+        reference: span(1, 48),
+        ..origin.clone()
+    };
+    let origins = [origin.clone(), second];
+    let operators = [span(1, 44), span(1, 52)];
+    let result_encoding = "integer3:u641:4";
+    let argument = source
+        .type_references
+        .insert_named(Identifier::generated("4"));
+    source.type_references.retain_const_argument_normalization(
+        argument,
+        span(1, 40),
+        result_encoding.to_owned(),
+        origins.clone(),
+        operators,
+    );
+    let arguments = source
+        .type_references
+        .insert_type_reference_handles([argument]);
+    let application = source
+        .type_references
+        .insert_generic(Identifier::generated("Buffer"), arguments);
+    let instance = source
+        .type_references
+        .insert_named(Identifier::generated("Buffer<2>"));
+    source
+        .type_references
+        .retain_generic_application_origin(instance, application);
+
+    let mut destination = SyntaxTrees::new(Default::default());
+    for _ in 0..16 {
+        destination.type_references.insert_unit();
+    }
+    let copied = destination.copy_type_reference_handle(&source, instance);
+    let copied_application = destination
+        .type_references
+        .generic_application_origin(copied);
+    let TypeReferenceNode::Generic { arguments, .. } = destination
+        .type_references
+        .type_reference(copied_application)
+    else {
+        panic!("copied application");
+    };
+    let copied_argument = destination
+        .type_references
+        .type_reference_handles(*arguments)[0];
+    assert_ne!(copied_argument, argument);
+    let copied_normalization = destination
+        .type_references
+        .const_argument_normalization(copied_argument)
+        .expect("copied normalization");
+    assert_eq!(
+        copied_normalization.canonical_result_encoding,
+        result_encoding
+    );
+    assert_eq!(
+        destination
+            .type_references
+            .const_argument_builtin_operators(copied_normalization.builtin_operators),
+        &operators
+    );
+    assert_eq!(
+        destination
+            .type_references
+            .const_argument_origins(copied_normalization.selections),
+        &origins
+    );
+
+    source.push_root_item(Item::Data(DataDefinition {
+        name: Identifier::generated("Buffer<2>"),
+        is_public: false,
+        supply_mode: language_core::DataSupplyMode::CheckedShape,
+        lifetime_parameters: Vec::new(),
+        type_parameters: HandleSpan::empty(),
+        generic_instance: Some(application),
+        properties: Default::default(),
+        quotient: None,
+        where_facts: HandleSpan::empty(),
+        members: HandleSpan::empty(),
+    }));
+    destination.extend_from(&source);
+    let Item::Data(data) = destination.root_items().next().expect("extended data") else {
+        panic!("extended data");
+    };
+    let TypeReferenceNode::Generic { arguments, .. } = destination
+        .type_references
+        .type_reference(data.generic_instance.expect("instance application"))
+    else {
+        panic!("extended application");
+    };
+    let extended_argument = destination
+        .type_references
+        .type_reference_handles(*arguments)[0];
+    assert_ne!(extended_argument, copied_argument);
+    let extended_normalization = destination
+        .type_references
+        .const_argument_normalization(extended_argument)
+        .expect("extended normalization");
+    assert_eq!(
+        extended_normalization.canonical_result_encoding,
+        result_encoding
+    );
+    assert_eq!(
+        destination
+            .type_references
+            .const_argument_builtin_operators(extended_normalization.builtin_operators),
+        &operators
+    );
+    assert_eq!(
+        destination
+            .type_references
+            .const_argument_origins(extended_normalization.selections),
+        &origins
+    );
+    let original_normalization = source
+        .type_references
+        .const_argument_normalization(argument)
+        .expect("original normalization");
+    assert_eq!(
+        source
+            .type_references
+            .const_argument_origins(original_normalization.selections),
+        &origins
+    );
+}
+
+#[test]
+#[should_panic]
+fn duplicate_constant_argument_origin_cannot_overwrite_custody() {
+    let mut syntax = SyntaxTrees::new(Default::default());
+    let argument = syntax
+        .type_references
+        .insert_named(Identifier::generated("2"));
+    syntax.type_references.retain_const_argument_normalization(
+        argument,
+        Default::default(),
+        String::new(),
+        [],
+        [],
+    );
+    syntax.type_references.retain_const_argument_normalization(
+        argument,
+        Default::default(),
+        String::new(),
+        [],
+        [],
+    );
+}
+
+#[test]
+fn copying_nested_generic_origins_remaps_handles_and_preserves_occurrence_tokens() {
+    let token = |name: &str, start| {
+        Identifier::new(
+            name,
+            source::SourceSpan::new(
+                Default::default(),
+                source::Span::new(start, start + name.len()),
+            ),
+        )
+    };
+    let mut source = SyntaxTrees::new(Default::default());
+    let secret = source.type_references.insert_named(token("Secret", 40));
+    let arguments = source
+        .type_references
+        .insert_type_reference_handles([secret]);
+    let inner_application = source
+        .type_references
+        .insert_generic(token("Envelope", 30), arguments);
+    let inner = source
+        .type_references
+        .insert_named(token("Envelope<Secret>", 30));
+    source
+        .type_references
+        .retain_generic_application_origin(inner, inner_application);
+    let arguments = source
+        .type_references
+        .insert_type_reference_handles([inner]);
+    let outer_application = source
+        .type_references
+        .insert_generic(token("Envelope", 20), arguments);
+    let outer = source
+        .type_references
+        .insert_named(token("Envelope<Envelope<Secret>>", 20));
+    source
+        .type_references
+        .retain_generic_application_origin(outer, outer_application);
+
+    let mut destination = SyntaxTrees::new(Default::default());
+    for _ in 0..16 {
+        destination.type_references.insert_unit();
+    }
+    let copied = destination.copy_type_reference_handle(&source, outer);
+    assert_ne!(copied, outer);
+    let application = destination
+        .type_references
+        .generic_application_origin(copied);
+    let TypeReferenceNode::Generic {
+        base_name,
+        arguments,
+        ..
+    } = destination.type_references.type_reference(application)
+    else {
+        panic!("outer application");
+    };
+    assert_eq!(base_name.source_span(), token("Envelope", 20).source_span());
+    let inner = destination
+        .type_references
+        .type_reference_handles(*arguments)[0];
+    let application = destination
+        .type_references
+        .generic_application_origin(inner);
+    let TypeReferenceNode::Generic {
+        base_name,
+        arguments,
+        ..
+    } = destination.type_references.type_reference(application)
+    else {
+        panic!("inner application");
+    };
+    assert_eq!(base_name.source_span(), token("Envelope", 30).source_span());
+    let secret = destination
+        .type_references
+        .type_reference_handles(*arguments)[0];
+    let TypeReferenceNode::Named(name) = destination.type_references.type_reference(secret) else {
+        panic!("exact private payload");
+    };
+    assert_eq!(name.as_str(), "Secret");
+    assert_eq!(name.source_span(), token("Secret", 40).source_span());
+    assert!(
+        destination.type_references.generic_nodes().is_empty(),
+        "inert origins are not new synthesis work"
+    );
+}
+
+#[test]
+fn syntax_trees_extend_from_preserves_data_visibility() {
+    let mut file = SyntaxTrees::new(Default::default());
+    file.push_root_item(Item::Data(DataDefinition {
+        name: Identifier::generated("PublicRecord"),
+        is_public: true,
+        supply_mode: language_core::DataSupplyMode::CheckedShape,
+        lifetime_parameters: Vec::new(),
+        type_parameters: HandleSpan::empty(),
+        generic_instance: None,
+        properties: Default::default(),
+        quotient: None,
+        where_facts: HandleSpan::empty(),
+        members: HandleSpan::empty(),
+    }));
+
+    let mut assembled = SyntaxTrees::new(Default::default());
+    assembled.extend_from(&file);
+
+    let Item::Data(data) = assembled.root_items().next().expect("data root") else {
+        panic!("expected data root item");
+    };
+    assert!(data.is_public);
+}
+
+#[test]
+fn syntax_copy_and_snapshot_preserve_generic_instance_origin() {
+    let mut source = SyntaxTrees::new(Default::default());
+    let argument = source
+        .type_references
+        .insert(TypeReferenceNode::Named(Identifier::generated("Message")));
+    let arguments = source
+        .type_references
+        .insert_type_reference_handles([argument]);
+    let origin = source.type_references.insert(TypeReferenceNode::Generic {
+        base_name: Identifier::generated("Carrier"),
+        lifetime_arguments: Vec::new(),
+        arguments,
+    });
+    source.push_root_item(Item::Data(DataDefinition {
+        name: Identifier::generated("irrelevant synthetic name"),
+        is_public: false,
+        supply_mode: language_core::DataSupplyMode::CheckedShape,
+        lifetime_parameters: Vec::new(),
+        type_parameters: HandleSpan::empty(),
+        generic_instance: Some(origin),
+        properties: Default::default(),
+        quotient: None,
+        where_facts: HandleSpan::empty(),
+        members: HandleSpan::empty(),
+    }));
+
+    let mut copied = SyntaxTrees::new(Default::default());
+    copied.extend_from(&source);
+    let Item::Data(data) = copied.root_items().next().expect("copied data") else {
+        panic!("copied root must remain data");
+    };
+    let origin = data.generic_instance.expect("copied generic origin");
+    assert!(matches!(
+        copied.type_references.type_reference(origin),
+        TypeReferenceNode::Generic { base_name, .. } if base_name.as_str() == "Carrier"
+    ));
+
+    let snapshot = copied.snapshot();
+    assert!(matches!(
+        &snapshot.root_items[0],
+        ItemSnapshot::Data {
+            generic_instance: Some(
+                crate::syntax_trees::snapshot::TypeReferenceSnapshot::Generic { .. }
+            ),
+            ..
+        }
+    ));
+}
+
+#[test]
+fn syntax_trees_extend_from_preserves_trait_and_data_visibility() {
+    let mut file = SyntaxTrees::new(Default::default());
+    file.push_root_item(Item::Trait(TraitDefinition {
+        is_boundary: false,
+        is_public: true,
+        name: Identifier::generated("PublicTrait"),
+        lifetime_parameters: Vec::new(),
+        type_parameters: HandleSpan::empty(),
+        conformance_bounds: Vec::new(),
+        parents: HandleSpan::empty(),
+        requires: HandleSpan::empty(),
+        machines: HandleSpan::empty(),
+        refines: None,
+        refinement_clauses: Vec::new(),
+    }));
+    file.push_root_item(Item::Data(DataDefinition {
+        name: Identifier::generated("PublicData"),
+        is_public: true,
+        members: HandleSpan::empty(),
+        supply_mode: language_core::DataSupplyMode::CheckedShape,
+        lifetime_parameters: Vec::new(),
+        type_parameters: arena::HandleSpan::empty(),
+        generic_instance: None,
+        properties: Default::default(),
+        quotient: None,
+        where_facts: arena::HandleSpan::empty(),
+    }));
+
+    let mut assembled = SyntaxTrees::new(Default::default());
+    assembled.extend_from(&file);
+
+    let mut roots = assembled.root_items();
+    let Item::Trait(trait_definition) = roots.next().expect("trait root") else {
+        panic!("expected trait root item");
+    };
+    let Item::Data(data_definition) = roots.next().expect("data root") else {
+        panic!("expected data root item");
+    };
+    assert!(trait_definition.is_public);
+    assert!(data_definition.is_public);
+
+    let snapshot = assembled.snapshot();
+    assert!(matches!(
+        &snapshot.root_items[0],
+        ItemSnapshot::Trait {
+            is_public: true,
+            ..
+        }
+    ));
+    assert!(matches!(
+        &snapshot.root_items[1],
+        ItemSnapshot::Data {
+            is_public: true,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn syntax_trees_collect_state_expression_and_type_payloads() {
+    let mut syntax_trees = SyntaxTrees::new(Default::default());
+    let guard =
+        syntax_trees
+            .expressions
+            .insert(crate::syntax_trees::expression::ExpressionNode::Integer(
+                numerics::literals::IntegerLiteral::from_value(1),
+            ));
+    let target = syntax_trees
+        .statements
+        .insert_transition_target(TransitionTargetNode::Terminal);
+    let statement = syntax_trees
+        .statements
+        .insert(StatementNode::Transition(TableTransition {
+            target,
+            continuation: crate::syntax_trees::statement::TransitionTargetHandle::invalid(),
+            guard: TransitionGuardNode::When(guard),
+            proof_selectors: HandleSpan::empty(),
+            exit: Default::default(),
+            source_span: Default::default(),
+        }));
+    let statement_handle = syntax_trees.items.append_statement_handle(statement);
+    let statements = HandleSpan::from_parts(statement_handle, 1);
+    let return_type = syntax_trees
+        .type_references
+        .insert(TypeReferenceNode::Named(Identifier::generated("i32")));
+    let state = syntax_trees.items.insert_state(&State {
+        name: Identifier::generated("entry"),
+        parameters: HandleSpan::empty(),
+        return_type,
+        contracts: HandleSpan::empty(),
+        statements,
+    });
+    let state_handle = syntax_trees.items.append_state_handle(state);
+
+    syntax_trees.push_root_item(Item::Machine(Machine {
+        name: Identifier::generated("Main"),
+        generic_data_template: Default::default(),
+        where_facts: HandleSpan::empty(),
+        attached_data: None,
+        spelling: None,
+        is_public: false,
+        target: None,
+        boundary: false,
+        is_top_level_boundary_requirement: false,
+        bodyless: false,
+        lifetime_parameters: Vec::new(),
+        type_parameters: HandleSpan::empty(),
+        satisfies: HandleSpan::empty(),
+        conformance_bounds: Vec::new(),
+        terminates_guarantee: false,
+        ranking_subjects: HandleSpan::empty(),
+        ranking_view: HandleSpan::empty(),
+        ranking_view_arguments: HandleSpan::empty(),
+        ranking_range: crate::syntax_trees::expression::ExpressionHandle::invalid(),
+        service_reach_is_installation_bound: false,
+        service_reach_keyword_source_spans: Vec::new(),
+        service_reaches: HandleSpan::empty(),
+        invokes: HandleSpan::empty(),
+        suspends_keyword_source_spans: Vec::new(),
+        blocks_keyword_source_spans: Vec::new(),
+        suspends: false,
+        blocks: false,
+        contracts: HandleSpan::empty(),
+        states: HandleSpan::from_parts(state_handle, 1),
+    }));
+
+    assert_eq!(syntax_trees.root_item_count(), 1);
+    assert_eq!(syntax_trees.type_references.type_reference_count(), 1);
+    assert_eq!(syntax_trees.expressions.expression_count(), 1);
+    assert_eq!(syntax_trees.statements.statement_count(), 1);
+    assert_eq!(syntax_trees.items.machine_count(), 1);
+    assert_eq!(syntax_trees.items.state_count(), 1);
+}
+
+#[test]
+fn syntax_trees_extend_from_preserves_root_payload_handles() {
+    let mut file = SyntaxTrees::new(Default::default());
+    let suspends_keyword_source_span =
+        source::SourceSpan::new(Default::default(), source::Span::new(10, 18));
+    let blocks_keyword_source_span =
+        source::SourceSpan::new(Default::default(), source::Span::new(20, 26));
+    let return_type = file
+        .type_references
+        .insert(TypeReferenceNode::Named(Identifier::generated("i32")));
+    let state = file.items.insert_state(&State {
+        name: Identifier::generated("entry"),
+        parameters: HandleSpan::empty(),
+        return_type,
+        contracts: HandleSpan::empty(),
+        statements: HandleSpan::empty(),
+    });
+    let state = file.items.append_state_handle(state);
+    file.push_root_item(Item::Machine(Machine {
+        name: Identifier::generated("main"),
+        generic_data_template: Default::default(),
+        where_facts: HandleSpan::empty(),
+        attached_data: None,
+        spelling: None,
+        is_public: true,
+        target: None,
+        boundary: false,
+        is_top_level_boundary_requirement: true,
+        bodyless: true,
+        lifetime_parameters: Vec::new(),
+        type_parameters: HandleSpan::empty(),
+        satisfies: HandleSpan::empty(),
+        conformance_bounds: Vec::new(),
+        terminates_guarantee: false,
+        ranking_subjects: HandleSpan::empty(),
+        ranking_view: HandleSpan::empty(),
+        ranking_view_arguments: HandleSpan::empty(),
+        ranking_range: crate::syntax_trees::expression::ExpressionHandle::invalid(),
+        service_reach_is_installation_bound: false,
+        service_reach_keyword_source_spans: Vec::new(),
+        service_reaches: HandleSpan::empty(),
+        invokes: HandleSpan::empty(),
+        suspends_keyword_source_spans: vec![suspends_keyword_source_span],
+        blocks_keyword_source_spans: vec![blocks_keyword_source_span],
+        suspends: true,
+        blocks: true,
+        contracts: HandleSpan::empty(),
+        states: HandleSpan::from_parts(state, 1),
+    }));
+
+    let mut assembled = SyntaxTrees::new(Default::default());
+    assembled.extend_from(&file);
+
+    let Item::Machine(machine) = assembled.root_items().next().expect("machine root") else {
+        panic!("expected machine root item");
+    };
+    assert!(machine.is_public, "syntax assembly must retain visibility");
+    assert!(
+        machine.is_top_level_boundary_requirement,
+        "syntax assembly must retain the explicit top-level requirement kind"
+    );
+    assert!(matches!(
+        &assembled.snapshot().root_items[0],
+        ItemSnapshot::Machine {
+            is_top_level_boundary_requirement: true,
+            ..
+        }
+    ));
+    assert_eq!(
+        machine.suspends_keyword_source_spans,
+        [suspends_keyword_source_span]
+    );
+    assert_eq!(
+        machine.blocks_keyword_source_spans,
+        [blocks_keyword_source_span]
+    );
+    let state_handle = assembled
+        .items
+        .state_handles(machine.states)
+        .first()
+        .copied()
+        .expect("entry state handle");
+    let state = assembled.items.state(state_handle);
+    assert_eq!(state.name.as_str(), "entry");
+    assert!(state.return_type.is_valid());
+}
+
+#[test]
+fn syntax_signature_copy_preserves_operational_keyword_sources() {
+    let mut source = SyntaxTrees::new(Default::default());
+    let suspends_keyword_source_span =
+        source::SourceSpan::new(Default::default(), source::Span::new(30, 38));
+    let blocks_keyword_source_span =
+        source::SourceSpan::new(Default::default(), source::Span::new(40, 46));
+    let signature = source.items.insert_state_signature(&StateSignature {
+        name: Identifier::generated("wait"),
+        spelling: None,
+        lifetime_parameters: Vec::new(),
+        type_parameters: HandleSpan::empty(),
+        is_default: true,
+        parameters: HandleSpan::empty(),
+        native_callback_parameters: Vec::new(),
+        return_type: TypeReferenceHandle::invalid(),
+        service_reach_is_installation_bound: false,
+        service_reach_keyword_source_spans: Vec::new(),
+        service_reaches: HandleSpan::empty(),
+        invokes: HandleSpan::empty(),
+        suspends_keyword_source_spans: vec![suspends_keyword_source_span],
+        blocks_keyword_source_spans: vec![blocks_keyword_source_span],
+        suspends: true,
+        blocks: true,
+        contracts: HandleSpan::empty(),
+        default_body: HandleSpan::empty(),
+        terminates_guarantee: false,
+        where_facts: HandleSpan::empty(),
+    });
+
+    let mut copied_trees = SyntaxTrees::new(Default::default());
+    let copied = copied_trees
+        .copy_state_signature_node_from(&source, source.items.state_signature(signature));
+
+    assert_eq!(
+        copied.suspends_keyword_source_spans,
+        [suspends_keyword_source_span]
+    );
+    assert_eq!(
+        copied.blocks_keyword_source_spans,
+        [blocks_keyword_source_span]
+    );
+    assert!(copied.suspends);
+    assert!(copied.blocks);
+}
+
+#[test]
+fn syntax_trees_extend_from_preserves_statement_call_arguments() {
+    let mut file = SyntaxTrees::new(Default::default());
+    let receiver = file
+        .statements
+        .append_identifier_path_member(Identifier::generated("self"));
+    let receiver = HandleSpan::from_parts(receiver, 1);
+    let argument =
+        file.expressions
+            .insert(crate::syntax_trees::expression::ExpressionNode::Integer(
+                numerics::literals::IntegerLiteral::from_value(0),
+            ));
+    let argument = file.statements.append_expression_handle(argument);
+    let call = file.statements.insert(StatementNode::Call(TableCall {
+        target_is_static: false,
+        receiver,
+        receiver_starts_at_self: true,
+        target: Identifier::generated("take_non_negative"),
+        machine_arguments: Box::default(),
+        arguments: HandleSpan::from_parts(argument, 1),
+        evidence_arguments: Box::default(),
+        operational_acknowledgement: Default::default(),
+        discards_result: false,
+    }));
+    let call = file.items.append_statement_handle(call);
+    let state = file.items.insert_state(&State {
+        name: Identifier::generated("entry"),
+        parameters: HandleSpan::empty(),
+        return_type: TypeReferenceHandle::invalid(),
+        contracts: HandleSpan::empty(),
+        statements: HandleSpan::from_parts(call, 1),
+    });
+    let state = file.items.append_state_handle(state);
+    file.push_root_item(Item::Machine(Machine {
+        name: Identifier::generated("main"),
+        generic_data_template: Default::default(),
+        where_facts: HandleSpan::empty(),
+        attached_data: None,
+        spelling: None,
+        is_public: false,
+        target: None,
+        boundary: false,
+        is_top_level_boundary_requirement: false,
+        bodyless: false,
+        lifetime_parameters: Vec::new(),
+        type_parameters: HandleSpan::empty(),
+        satisfies: HandleSpan::empty(),
+        conformance_bounds: Vec::new(),
+        terminates_guarantee: false,
+        ranking_subjects: HandleSpan::empty(),
+        ranking_view: HandleSpan::empty(),
+        ranking_view_arguments: HandleSpan::empty(),
+        ranking_range: crate::syntax_trees::expression::ExpressionHandle::invalid(),
+        service_reach_is_installation_bound: false,
+        service_reach_keyword_source_spans: Vec::new(),
+        service_reaches: HandleSpan::empty(),
+        invokes: HandleSpan::empty(),
+        suspends_keyword_source_spans: Vec::new(),
+        blocks_keyword_source_spans: Vec::new(),
+        suspends: false,
+        blocks: false,
+        contracts: HandleSpan::empty(),
+        states: HandleSpan::from_parts(state, 1),
+    }));
+
+    let mut assembled = SyntaxTrees::new(Default::default());
+    assembled.extend_from(&file);
+
+    let Item::Machine(machine) = assembled.root_items().next().expect("machine root") else {
+        panic!("expected machine root item");
+    };
+    let state_handle = assembled
+        .items
+        .state_handles(machine.states)
+        .first()
+        .copied()
+        .expect("entry state handle");
+    let state = assembled.items.state(state_handle);
+    let statement_handle = assembled
+        .items
+        .statements(state.statements)
+        .first()
+        .copied()
+        .expect("call statement");
+    let StatementNode::Call(call) = assembled.statements.statement(statement_handle) else {
+        panic!("expected call statement");
+    };
+    assert_eq!(
+        assembled
+            .statements
+            .expression_handles(call.arguments)
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
+    let mut file = SyntaxTrees::new(Default::default());
+    let target_name = file
+        .expressions
+        .append_identifier_path_member(Identifier::generated("xp"));
+    let target = file
+        .expressions
+        .insert(ExpressionNode::Name(HandleSpan::from_parts(target_name, 1)));
+
+    let player_name = file
+        .expressions
+        .append_identifier_path_member(Identifier::generated("player"));
+    let player = file
+        .expressions
+        .insert(ExpressionNode::Name(HandleSpan::from_parts(player_name, 1)));
+    let player_level = file
+        .expressions
+        .insert(ExpressionNode::Member(TableMemberExpression {
+            receiver: player,
+            member: Identifier::generated("level"),
+            case_variant: None,
+        }));
+
+    let self_value = file.expressions.insert(ExpressionNode::SelfValue);
+    let nested_arguments = file.expressions.insert_expression_handles([player_level]);
+    let nested_call = file
+        .expressions
+        .insert(ExpressionNode::Call(TableCallExpression {
+            target_is_static: false,
+            receiver: self_value,
+            target: Identifier::generated("xp_required"),
+            machine_arguments: Box::default(),
+            arguments: nested_arguments,
+            evidence_arguments: Box::default(),
+            operational_acknowledgement: Default::default(),
+        }));
+
+    let zero = file.expressions.insert(ExpressionNode::Integer(
+        numerics::literals::IntegerLiteral::from_value(0),
+    ));
+    let max_arguments = file
+        .expressions
+        .insert_expression_handles([zero, nested_call]);
+    let max_call = file
+        .expressions
+        .insert(ExpressionNode::Call(TableCallExpression {
+            target_is_static: false,
+            receiver: ExpressionHandle::invalid(),
+            target: Identifier::generated("max"),
+            machine_arguments: Box::default(),
+            arguments: max_arguments,
+            evidence_arguments: Box::default(),
+            operational_acknowledgement: Default::default(),
+        }));
+
+    let statement = file
+        .statements
+        .insert(StatementNode::Assignment(TableAssignment {
+            target,
+            value: max_call,
+        }));
+    let statement = file.items.append_statement_handle(statement);
+    let state = file.items.insert_state(&State {
+        name: Identifier::generated("entry"),
+        parameters: HandleSpan::empty(),
+        return_type: TypeReferenceHandle::invalid(),
+        contracts: HandleSpan::empty(),
+        statements: HandleSpan::from_parts(statement, 1),
+    });
+    let state = file.items.append_state_handle(state);
+    file.push_root_item(Item::Machine(Machine {
+        name: Identifier::generated("main"),
+        generic_data_template: Default::default(),
+        where_facts: HandleSpan::empty(),
+        attached_data: None,
+        spelling: None,
+        is_public: false,
+        target: None,
+        boundary: false,
+        is_top_level_boundary_requirement: false,
+        bodyless: false,
+        lifetime_parameters: Vec::new(),
+        type_parameters: HandleSpan::empty(),
+        satisfies: HandleSpan::empty(),
+        conformance_bounds: Vec::new(),
+        terminates_guarantee: false,
+        ranking_subjects: HandleSpan::empty(),
+        ranking_view: HandleSpan::empty(),
+        ranking_view_arguments: HandleSpan::empty(),
+        ranking_range: crate::syntax_trees::expression::ExpressionHandle::invalid(),
+        service_reach_is_installation_bound: false,
+        service_reach_keyword_source_spans: Vec::new(),
+        service_reaches: HandleSpan::empty(),
+        invokes: HandleSpan::empty(),
+        suspends_keyword_source_spans: Vec::new(),
+        blocks_keyword_source_spans: Vec::new(),
+        suspends: false,
+        blocks: false,
+        contracts: HandleSpan::empty(),
+        states: HandleSpan::from_parts(state, 1),
+    }));
+
+    let mut assembled = SyntaxTrees::new(Default::default());
+    assembled.extend_from(&file);
+
+    let Item::Machine(machine) = assembled.root_items().next().expect("machine root") else {
+        panic!("expected machine root item");
+    };
+    let state_handle = assembled
+        .items
+        .state_handles(machine.states)
+        .first()
+        .copied()
+        .expect("entry state handle");
+    let state = assembled.items.state(state_handle);
+    let statement_handle = assembled
+        .items
+        .statements(state.statements)
+        .first()
+        .copied()
+        .expect("assignment statement");
+    let StatementNode::Assignment(assignment) = assembled.statements.statement(statement_handle)
+    else {
+        panic!("expected assignment statement");
+    };
+
+    assert_eq!(
+        assembled.expressions.display_name(assignment.value),
+        "max(0, self.xp_required(player.level))"
+    );
+}

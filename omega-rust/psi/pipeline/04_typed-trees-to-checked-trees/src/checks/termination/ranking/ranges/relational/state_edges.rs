@@ -4,18 +4,20 @@
 use super::super::super::{graph, patterns};
 
 use super::{preserved_entry_prefix, protected_input_paths};
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::machine::Machine;
 
 pub(super) fn prove<'program>(
     program: &'program TypedTrees,
     machine: &'program Machine,
     range: ExpressionHandle,
-    measure: validation::RankingRangeMeasure,
-    frames: Option<&validation::CallFrameResolver<'program>>,
-    premises: validation::RankingRangePremises,
+    measure: crate::validation::RankingRangeMeasure,
+    frames: Option<&crate::validation::CallFrameResolver<'program>>,
+    premises: crate::validation::RankingRangePremises,
     premise_inputs: &[SymbolHandle],
 ) -> bool {
     let states = program.machine_states(machine);
@@ -54,11 +56,11 @@ pub(super) fn prove<'program>(
     let mut preferred = Vec::new();
     let mut record_subject = SymbolHandle::default();
     match measure {
-        validation::RankingRangeMeasure::Single(subject)
-        | validation::RankingRangeMeasure::IncreasingTo { subject, .. } => {
+        crate::validation::RankingRangeMeasure::Single(subject)
+        | crate::validation::RankingRangeMeasure::IncreasingTo { subject, .. } => {
             preferred.extend(ranked_symbol(subject));
         }
-        validation::RankingRangeMeasure::Computed { subject, .. } => {
+        crate::validation::RankingRangeMeasure::Computed { subject, .. } => {
             preferred.extend(ranked_symbol(subject));
             // A scalar view over a member chain reads its root formal's
             // record; the telescope's fresh-literal claim needs that nominal
@@ -70,18 +72,18 @@ pub(super) fn prove<'program>(
                 record_subject = preferred.last().copied().unwrap_or_default();
             }
         }
-        validation::RankingRangeMeasure::Field { subject, .. } => {
+        crate::validation::RankingRangeMeasure::Field { subject, .. } => {
             preferred.extend(ranked_symbol(subject));
             record_subject = preferred.first().copied().unwrap_or_default();
         }
-        validation::RankingRangeMeasure::Distance { lower, upper } => {
+        crate::validation::RankingRangeMeasure::Distance { lower, upper } => {
             preferred.extend(ranked_symbol(lower));
             preferred.extend(ranked_symbol(upper));
         }
         // A slice over projected storage ranks its root formal's record
         // slot: computed and literal arrivals of that record still claim
         // the role through the same carriers a field subject uses.
-        validation::RankingRangeMeasure::SliceLength(subject) => {
+        crate::validation::RankingRangeMeasure::SliceLength(subject) => {
             if matches!(
                 program.expression_table.expression(subject),
                 ExpressionNode::Member(_)
@@ -98,12 +100,12 @@ pub(super) fn prove<'program>(
     // edge judgment enforces, so a duplicated required entry keeps every copy's
     // equality obligation while any other contested claim demotes to a bare
     // forward's unique carrier.
-    let Some(required) =
-        validation::ranking_range_required_symbols(program, machine, range, measure, premises)
-    else {
+    let Some(required) = crate::validation::ranking_range_required_symbols(
+        program, machine, range, measure, premises,
+    ) else {
         return false;
     };
-    let Some(mappings) = validation::discover_state_entry_mappings_preferring(
+    let Some(mappings) = crate::validation::discover_state_entry_mappings_preferring(
         program,
         machine,
         &preferred,
@@ -148,24 +150,27 @@ pub(super) fn prove<'program>(
                     .iter()
                     .map(|guard| (guard.expression, guard.holds))
                     .collect::<Vec<_>>();
-                if !validation::prove_ranking_range_transition(
+                if !crate::validation::prove_ranking_range_transition(
                     program,
                     machine,
                     range,
                     measure,
                     if source_position == 0
                         && entry_is_initial
-                        && matches!(premises, validation::RankingRangePremises::RankInvariant)
+                        && matches!(
+                            premises,
+                            crate::validation::RankingRangePremises::RankInvariant
+                        )
                     {
-                        validation::RankingRangePremises::InitialEntry
+                        crate::validation::RankingRangePremises::InitialEntry
                     } else {
                         premises
                     },
-                    validation::RankingRangeState {
+                    crate::validation::RankingRangeState {
                         state: source,
                         entry_parameters: &mappings[source_position],
                     },
-                    validation::RankingRangeState {
+                    crate::validation::RankingRangeState {
                         state: target,
                         entry_parameters: &mappings[target_position],
                     },

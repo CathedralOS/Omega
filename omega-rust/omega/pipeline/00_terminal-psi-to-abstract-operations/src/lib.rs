@@ -11,20 +11,17 @@
 //! (`provider_installation`) joins provider installation custody to the
 //! admitted artifact.
 
+pub mod abstract_operations;
 mod artifact_admission;
-mod entry_settlement;
 mod lowering;
 mod optimization;
+pub mod optimization_unit;
+pub mod optimization_unit_semantics;
 mod provider_installation;
 
 pub use artifact_admission::{
     AdmittedNativeArtifact, AdmittedOptimizationArtifact, ArtifactLoweringError, ArtifactSections,
     TerminalPlacedViewEstablishment, VerifiedNativeArtifactInput, lower_artifact,
-};
-pub use entry_settlement::{
-    NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
-    ValidatedNativeProgramEntrySettlement, validate_fused_program_entry_establishments,
-    validate_native_program_entry_settlement,
 };
 pub use lowering::LoweringError;
 pub use optimization::{

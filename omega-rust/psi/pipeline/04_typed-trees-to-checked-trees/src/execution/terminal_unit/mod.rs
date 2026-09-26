@@ -74,7 +74,7 @@
 //! its helpers and rejects substituted targets and missing plans;
 //! src/tests/byte_write_loop.rs exercises borrowed buffers and scalar-case returns.
 //! Read those controls when widening a route. The owning source/Terminal coverage
-//! contract is ../../compiler/terminal-production/README.md relative to this crate.
+//! contract is ../../07_lowered-psi-to-terminal-psi/terminal_production.md relative to this crate.
 //!
 //! # Erased parameters
 //!
@@ -123,7 +123,7 @@ use crate::execution::terminal_unit::types::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
-use checked_trees::{
+use crate::checked_trees::{
     CheckFacts, CheckedAffineConstructionElementPlan, CheckedBooleanExpression,
     CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
     CheckedBoundaryScalarReturnMachinePlan, CheckedBoundaryScalarReturnPlans,
@@ -165,8 +165,7 @@ use language_semantics::{
     PermissionEventKind, PermissionEventSource, PermissionProvenance, SemanticDomainId,
     ServiceReachSummary,
 };
-use symbols::{BuiltinFunction, SymbolHandle};
-use typed_trees::{
+use symbol_resolved_trees_to_typed_trees::typed_trees::{
     TypedTrees,
     data::{DataMember, DataShapeKind},
     domain::ProofFact,
@@ -175,6 +174,7 @@ use typed_trees::{
     statement::{StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode},
     types::{PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode},
 };
+use symbols::{BuiltinFunction, SymbolHandle};
 
 mod atomic_operations;
 mod borrowed_windows;
@@ -187,7 +187,7 @@ mod dynamic_scalar_calls;
 mod providers;
 mod receiver_aliases;
 mod receiver_calls;
-use validation::reference_result_custody as reference_results;
+use crate::validation::reference_result_custody as reference_results;
 pub(crate) mod returns;
 mod scalar_locals;
 mod scalar_targets;
@@ -226,7 +226,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
     program: &TypedTrees,
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> CheckedUnitEffectPlans {
     let mut shapes = ShapeCollector::new(program);
     let mut boundary_machines = program
@@ -353,17 +353,19 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
             && plan.structural_result.is_some())
     });
     composed_machines.retain(|graph| {
-        !matches!(graph.result, checked_trees::CheckedControlResultPlan::Unit)
-            || !candidates.iter().any(|plan| {
-                plan.machine == graph.machine
-                    && graph
-                        .states
-                        .first()
-                        .is_some_and(|state| state.state == plan.state)
-                    && plan.structural_result.is_none()
-                    && plan.scalar_result.is_none()
-                    && plan.scalar_control.is_none()
-            })
+        !matches!(
+            graph.result,
+            crate::checked_trees::CheckedControlResultPlan::Unit
+        ) || !candidates.iter().any(|plan| {
+            plan.machine == graph.machine
+                && graph
+                    .states
+                    .first()
+                    .is_some_and(|state| state.state == plan.state)
+                && plan.structural_result.is_none()
+                && plan.scalar_result.is_none()
+                && plan.scalar_control.is_none()
+        })
     });
     omissions.record_dropped(
         &candidates,
@@ -499,66 +501,28 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                     state
                         .operation_dependencies()
                         .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-                        .flat_map(|operation| {
-                            // A call's structural argument carriers — a
-                            // copied `&T` leaf or a `&[T]` view — name
-                            // `ref(...)`/view identities that no result type
-                            // reaches; retain them with the operation.
-                            let mut seeded: Vec<&str> = operation
-                                .call_structural_arguments()
-                                .iter()
-                                .map(|argument| argument.type_identity.as_str())
-                                .collect();
-                            match operation {
-                                CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
-                                    type_identity,
-                                    ..
-                                } => {
-                                    seeded.push(type_identity.as_str());
-                                }
-                                // A state's view subslice may own its view
-                                // type alone: a range over a fixed-array
-                                // field narrows no view an earlier binding
-                                // declared.
-                                CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                                    result,
-                                    ..
-                                }
-                                | CheckedUnitEffectOperationPlan::StructuralCall {
-                                    result, ..
-                                }
-                                | CheckedUnitEffectOperationPlan::EstablishViewSubslice {
-                                    result,
-                                    ..
-                                } => {
-                                    seeded.push(result.type_identity.as_str());
-                                }
-                                CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                                    result,
-                                    value,
-                                    ..
-                                } => {
-                                    seeded.push(result.type_identity.as_str());
-                                    seeded.extend(value_leaf_type_identities(facts, *value));
-                                }
-                                CheckedUnitEffectOperationPlan::StoreStructuralField {
-                                    destination,
-                                    value,
-                                    ..
-                                } => {
-                                    seeded.push(destination.type_identity.as_str());
-                                    seeded.push(value.type_identity.as_str());
-                                }
-                                CheckedUnitEffectOperationPlan::MoveStructuralField {
-                                    result,
-                                    source,
-                                } => {
-                                    seeded.push(result.type_identity.as_str());
-                                    seeded.push(source.type_identity.as_str());
-                                }
-                                _ => {}
+                        .filter_map(|operation| match operation {
+                            CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
+                                type_identity,
+                                ..
+                            } => Some(type_identity.as_str()),
+                            // A state's view subslice may own its view type
+                            // alone: a range over a fixed-array field narrows
+                            // no view an earlier binding declared.
+                            CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                                result,
+                                ..
                             }
-                            seeded
+                            | CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
+                            | CheckedUnitEffectOperationPlan::EstablishViewSubslice {
+                                result,
+                                ..
+                            }
+                            | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                                result,
+                                ..
+                            } => Some(result.type_identity.as_str()),
+                            _ => None,
                         })
                 }))
         }))
@@ -566,7 +530,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
             dynamic_dispatch
                 .calls
                 .iter()
-                .flat_map(checked_trees::CheckedDynamicDispatchPlan::type_identities),
+                .flat_map(crate::checked_trees::CheckedDynamicDispatchPlan::type_identities),
         )
         .collect::<BTreeSet<_>>();
     for operation in candidates
@@ -574,12 +538,6 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         .flat_map(|plan| &plan.operations)
         .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
     {
-        // Every structural argument carrier — a copied `&T` leaf, a `&[T]`
-        // view, a moved source or a stored destination — names an identity
-        // that no result type reaches; retain each with its operation.
-        for argument in operation.call_structural_arguments() {
-            retained_type_identities.insert(argument.type_identity.as_str());
-        }
         match operation {
             CheckedUnitEffectOperationPlan::StructuralCall {
                 target_machine: realization_machine,
@@ -612,16 +570,6 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
             CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, value, .. } => {
                 retained_type_identities.insert(result.type_identity.as_str());
                 retained_type_identities.extend(value_leaf_type_identities(facts, *value));
-            }
-            CheckedUnitEffectOperationPlan::StoreStructuralField {
-                destination, value, ..
-            } => {
-                retained_type_identities.insert(destination.type_identity.as_str());
-                retained_type_identities.insert(value.type_identity.as_str());
-            }
-            CheckedUnitEffectOperationPlan::MoveStructuralField { result, source } => {
-                retained_type_identities.insert(result.type_identity.as_str());
-                retained_type_identities.insert(source.type_identity.as_str());
             }
             _ => {}
         }
@@ -927,7 +875,7 @@ pub(super) fn cleanup_type_is_unit(
 /// off the graph.
 pub(crate) fn structural_scalar_graph_parameter_admission(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
 ) -> bool {
     !program.state_parameters(state).iter().any(|parameter| {
         if parameter.is_self || parameter.relevance.is_erased() {
@@ -939,14 +887,14 @@ pub(crate) fn structural_scalar_graph_parameter_admission(
             .primitive_type_reference(parameter.type_reference)
             .is_some()
         {
-            return !validation::has_plain_owned_contents_with_numeric_constraints(
+            return !crate::validation::has_plain_owned_contents_with_numeric_constraints(
                 program,
                 parameter.type_reference,
             );
         }
         // Whole array payloads include empty dimensions. Their exact recursive
         // type, not the nominal owned-storage classifier below, admits copying.
-        if validation::is_closed_primitive_array_type(program, parameter.type_reference) {
+        if crate::validation::is_closed_primitive_array_type(program, parameter.type_reference) {
             return parameter.is_mutable;
         }
         let reference = match program
@@ -977,7 +925,7 @@ pub(crate) fn structural_scalar_graph_parameter_admission(
                 {
                     return true;
                 }
-                if !validation::has_plain_owned_contents_with_numeric_constraints(
+                if !crate::validation::has_plain_owned_contents_with_numeric_constraints(
                     program,
                     parameter.type_reference,
                 ) {
@@ -996,7 +944,7 @@ pub(crate) fn structural_scalar_graph_parameter_admission(
 /// Reuse ordinary shape ownership for borrowed and no-code owned graph inputs.
 pub(super) fn structural_scalar_graph_signature(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
 ) -> Option<(
     Vec<CheckedUnitStructuralParameterPlan>,
     Vec<CheckedStructuralScalarParameterPlan>,
@@ -1029,7 +977,7 @@ pub(super) fn scalar_case_value_shapes(
 ) -> Option<Vec<CheckedUnitStructuralTypePlan>> {
     let mut shapes = ShapeCollector::new(program);
     // A primitive result owns no structural value shape.
-    if let checked_trees::CheckedControlResultPlan::Scalar { .. } =
+    if let crate::checked_trees::CheckedControlResultPlan::Scalar { .. } =
         state_graph::returns::signature(program, &mut shapes, reference)?
     {
         return None;
@@ -1043,7 +991,7 @@ pub(super) fn scalar_graph_record_shapes(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
 ) -> Option<Vec<CheckedUnitStructuralTypePlan>> {
-    if !validation::has_plain_owned_contents_with_numeric_constraints(program, reference)
+    if !crate::validation::has_plain_owned_contents_with_numeric_constraints(program, reference)
         || !matches!(
             program.type_multiplicity(reference),
             Multiplicity::Affine | Multiplicity::Unrestricted
@@ -1156,36 +1104,42 @@ pub(crate) fn exact_two_field_record_projection(
 /// in a structural value tree: those identities mint their own plans at
 /// value-planning time and must survive `retain_transitive` so the unit's
 /// structural catalog can resolve them.
-fn value_leaf_type_identities(
-    facts: &CheckFacts,
-    value: checked_trees::CheckedStructuralValueHandle,
-) -> Vec<&str> {
+fn value_leaf_type_identities<'a>(
+    facts: &'a CheckFacts,
+    value: crate::checked_trees::CheckedStructuralValueHandle,
+) -> Vec<&'a str> {
     let plans = &facts.values.structural_values;
     let mut pending = vec![value];
     let mut identities = Vec::new();
     while let Some(node) = pending.pop() {
         match &plans.nodes.get(node).kind {
-            checked_trees::CheckedStructuralValueKind::ScalarCasePlace { source, .. }
-            | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
+            crate::checked_trees::CheckedStructuralValueKind::ScalarCasePlace {
+                source, ..
+            }
+            | crate::checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace {
+                source,
+                ..
+            } => {
                 identities.push(source.type_identity.as_str());
             }
-            checked_trees::CheckedStructuralValueKind::Projection { source, .. } => {
+            crate::checked_trees::CheckedStructuralValueKind::Projection { source, .. } => {
                 pending.push(*source);
             }
-            checked_trees::CheckedStructuralValueKind::Record { fields, .. }
-            | checked_trees::CheckedStructuralValueKind::StructuralCase { fields, .. } => {
+            crate::checked_trees::CheckedStructuralValueKind::Record { fields, .. }
+            | crate::checked_trees::CheckedStructuralValueKind::StructuralCase { fields, .. } => {
                 for field in plans.record_fields.span_or_empty(*fields) {
-                    if let checked_trees::CheckedStructuralRecordFieldValue::Structural(nested) =
-                        field.value
+                    if let crate::checked_trees::CheckedStructuralRecordFieldValue::Structural(
+                        nested,
+                    ) = field.value
                     {
                         pending.push(nested);
                     }
                 }
             }
-            checked_trees::CheckedStructuralValueKind::FixedArray { elements } => {
+            crate::checked_trees::CheckedStructuralValueKind::FixedArray { elements } => {
                 pending.extend(elements.iter().copied());
             }
-            checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => {
+            crate::checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => {
                 pending.extend(
                     plans
                         .dispatch_arms

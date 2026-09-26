@@ -4,10 +4,10 @@ use super::{
     STORED_DYNAMIC_INTEGER_SOURCE, STRUCTURAL_INTEGER_STORE_SOURCE, check_dynamic_source,
     sole_direct_dynamic_plan, sole_rebound_dynamic_plan,
 };
+use crate::checked_trees::CheckedDynamicBinding::{Direct, Stored};
+use crate::checked_trees::CheckedDynamicDispatchPlan::Scalar;
 use crate::tests::front_end::{checked_program, checked_program_result};
-use checked_trees::CheckedDynamicBinding::{Direct, Stored};
-use checked_trees::CheckedDynamicDispatchPlan::Scalar;
-use typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 
 #[test]
 fn dynamic_binding_facts_select_latest_preceding_reassignment_for_call_receiver() {
@@ -247,11 +247,11 @@ fn direct_dynamic_plan_retains_the_selected_realization_despite_an_ambient_looka
     );
     assert_eq!(
         plan.source_access,
-        checked_trees::CheckedStructuralAccess::SharedBorrow
+        crate::checked_trees::CheckedStructuralAccess::SharedBorrow
     );
     assert!(matches!(
         plan.source_path.as_slice(),
-        [checked_trees::CheckedUnitStructuralPathSegment::Field(identity)]
+        [crate::checked_trees::CheckedUnitStructuralPathSegment::Field(identity)]
             if !identity.is_empty()
     ));
 
@@ -284,7 +284,7 @@ fn direct_dynamic_plan_retains_the_selected_realization_despite_an_ambient_looka
     );
     assert!(matches!(
         plan.realization_return_expression,
-        checked_trees::CheckedScalarExpression::StructuralParameterField { .. }
+        crate::checked_trees::CheckedScalarExpression::StructuralParameterField { .. }
     ));
 
     let ambient = checked
@@ -310,11 +310,11 @@ fn direct_dynamic_plan_retains_exact_integer_and_boolean_structural_field_stores
     assert_eq!(integer_store.field_identity, "value");
     assert_eq!(
         integer_store.primitive_type,
-        typed_trees::types::PrimitiveType::I32
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::I32
     );
     assert!(matches!(
         integer_store.value.as_pure().unwrap(),
-        checked_trees::CheckedScalarExpression::IntegerLiteral { literal }
+        crate::checked_trees::CheckedScalarExpression::IntegerLiteral { literal }
             if literal.value_i64() == Some(17)
     ));
 
@@ -356,14 +356,14 @@ fn direct_dynamic_plan_retains_exact_integer_and_boolean_structural_field_stores
     assert_eq!(boolean_store.field_identity, "enabled");
     assert_eq!(
         boolean_store.primitive_type,
-        typed_trees::types::PrimitiveType::Bool
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::Bool
     );
     assert!(matches!(
         boolean_store.value.as_pure().unwrap(),
-        checked_trees::CheckedScalarExpression::Boolean(expression)
+        crate::checked_trees::CheckedScalarExpression::Boolean(expression)
             if matches!(
                 expression.as_ref(),
-                checked_trees::CheckedBooleanExpression::Constant(true)
+                crate::checked_trees::CheckedBooleanExpression::Constant(true)
             )
     ));
 }
@@ -383,28 +383,28 @@ fn dynamic_plan_retains_exact_mutating_realization_body() {
     assert_eq!(integer_store.field_identity, "value");
     assert_eq!(
         integer_store.primitive_type,
-        typed_trees::types::PrimitiveType::I32
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::I32
     );
     assert!(matches!(
         integer_store.value.as_pure().unwrap(),
-        checked_trees::CheckedScalarExpression::IntegerLiteral { literal }
+        crate::checked_trees::CheckedScalarExpression::IntegerLiteral { literal }
             if literal.value_i64() == Some(23)
     ));
     assert_eq!(boolean_store.statement_index, 1);
     assert_eq!(boolean_store.field_identity, "enabled");
     assert_eq!(
         boolean_store.primitive_type,
-        typed_trees::types::PrimitiveType::Bool
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::Bool
     );
     assert_eq!(short_store.statement_index, 2);
     assert_eq!(short_store.field_identity, "attempts");
     assert_eq!(
         short_store.primitive_type,
-        typed_trees::types::PrimitiveType::U16
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U16
     );
     assert!(matches!(
         short_store.value.as_pure().unwrap(),
-        checked_trees::CheckedScalarExpression::IntegerLiteral { literal }
+        crate::checked_trees::CheckedScalarExpression::IntegerLiteral { literal }
             if literal.value_i64() == Some(257)
     ));
     let [callable] = plan.realization_callables.as_slice() else {
@@ -412,7 +412,7 @@ fn dynamic_plan_retains_exact_mutating_realization_body() {
     };
     assert_eq!(
         callable.body,
-        checked_trees::CheckedDynamicRealizationBodyPlan::Scalar {
+        crate::checked_trees::CheckedDynamicRealizationBodyPlan::Scalar {
             result_type: plan.result.primitive_type,
             structural_scalar_field_stores: plan.realization_structural_scalar_field_stores.clone(),
             return_expression: plan.realization_return_expression.clone(),
@@ -464,12 +464,15 @@ fn dynamic_plan_retains_nested_mutating_realization_path() {
     assert_eq!(
         store.carrier_path,
         [
-            checked_trees::CheckedUnitStructuralPathSegment::Field("envelope".into()),
-            checked_trees::CheckedUnitStructuralPathSegment::Field("payload".into()),
+            crate::checked_trees::CheckedUnitStructuralPathSegment::Field("envelope".into()),
+            crate::checked_trees::CheckedUnitStructuralPathSegment::Field("payload".into()),
         ]
     );
     assert_eq!(store.field_identity, "value");
-    assert_eq!(store.primitive_type, typed_trees::types::PrimitiveType::U16);
+    assert_eq!(
+        store.primitive_type,
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U16
+    );
 }
 
 #[test]
@@ -489,16 +492,16 @@ fn direct_dynamic_plan_retains_result_control_and_effect_leaves() {
         checked.facts.values.scalar_expressions.expression_at(
             plan.caller_state,
             continuation.when_true.statement_ordinal,
-            checked_trees::CheckedScalarExpressionRole::Guard,
+            crate::checked_trees::CheckedScalarExpressionRole::Guard,
         ),
         Some(&continuation.guard)
     );
     assert!(matches!(
         &continuation.guard,
-        checked_trees::CheckedScalarExpression::Boolean(expression)
+        crate::checked_trees::CheckedScalarExpression::Boolean(expression)
             if matches!(
                 expression.as_ref(),
-                checked_trees::CheckedBooleanExpression::IntegerComparison { .. }
+                crate::checked_trees::CheckedBooleanExpression::IntegerComparison { .. }
             )
     ));
 }
@@ -519,10 +522,10 @@ fn direct_dynamic_result_leaves_retain_nested_scalar_operands() {
     assert_eq!(continuation.leaves.len(), 2);
     for leaf in &continuation.leaves {
         assert!(
-            matches!(leaf.operations.as_slice(), [checked_trees::CheckedUnitEffectOperationPlan::BoundaryCall {
+            matches!(leaf.operations.as_slice(), [crate::checked_trees::CheckedUnitEffectOperationPlan::BoundaryCall {
             coordinate, scalar_arguments, ..
         }] if coordinate.statement_index == 0 && coordinate.call_ordinal == 0
-            && matches!(scalar_arguments.as_slice(), [checked_trees::CheckedCallScalarArgument::Computation(_)]))
+            && matches!(scalar_arguments.as_slice(), [crate::checked_trees::CheckedCallScalarArgument::Computation(_)]))
         );
     }
 }

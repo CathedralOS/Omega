@@ -6,8 +6,8 @@
 //! requirement call's Unit plan consumes, so `settle_checked_execution`
 //! rebuilds the Terminal plan lanes once against the settled facts.
 
+use crate::checked_trees::CheckedTrees;
 use crate::execution::execution_plans::{ExecutionPlans, build_execution_plans};
-use checked_trees::CheckedTrees;
 
 /// Rebuild the three Terminal plan lanes of a checked program whose facts
 /// provider settlement extended. The lanes are published together; a failure
@@ -15,7 +15,7 @@ use checked_trees::CheckedTrees;
 pub fn settle_checked_execution(
     mut checked: CheckedTrees,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    let call_frames = validation::CallFrameResolver::new(&checked.typed);
+    let call_frames = crate::validation::CallFrameResolver::new(&checked.typed);
     let ExecutionPlans {
         boundary_returns,
         unit_effects,

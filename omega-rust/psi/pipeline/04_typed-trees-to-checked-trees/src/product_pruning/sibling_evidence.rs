@@ -6,8 +6,8 @@
 
 use std::collections::HashSet;
 
-use checked_trees::{CheckFacts, CheckedBoundaryOperatorApplicationUseSite};
-use typed_trees::{
+use crate::checked_trees::{CheckFacts, CheckedBoundaryOperatorApplicationUseSite};
+use symbol_resolved_trees_to_typed_trees::typed_trees::{
     TypedTrees,
     domain::ProofFact,
     expression::{ExpressionHandle, ExpressionNode},
@@ -171,7 +171,7 @@ fn collect_expression(
         ExpressionNode::Match(match_expression) => {
             collect_expression(program, expressions, match_expression.subject);
             for arm in program.expression_table.match_arms(match_expression.arms) {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = &arm.pattern {
+                if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) = &arm.pattern {
                     collect_expression(program, expressions, *pattern);
                 }
                 collect_expression(program, expressions, arm.value);

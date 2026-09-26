@@ -53,7 +53,7 @@ impl Bounds {
 }
 
 pub(super) fn updates_preserve_order(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     states: &[State],
     loop_states: &[SymbolHandle],
@@ -106,14 +106,16 @@ pub(super) fn updates_preserve_order(
             if let StatementNode::Assignment(assignment) = statement
                 && assignment_counter_field(program, machine, assignment) == Some(counter)
             {
-                let Some((lower, upper)) = validation::builtin_monotonic_integer_update_bounds(
-                    program,
-                    machine,
-                    state,
-                    assignment.value,
-                    bounds.lower,
-                    bounds.upper,
-                ) else {
+                let Some((lower, upper)) =
+                    crate::validation::builtin_monotonic_integer_update_bounds(
+                        program,
+                        machine,
+                        state,
+                        assignment.value,
+                        bounds.lower,
+                        bounds.upper,
+                    )
+                else {
                     return false;
                 };
                 bounds = Bounds { lower, upper };
@@ -196,7 +198,7 @@ pub(super) fn updates_preserve_order(
 }
 
 fn transition_bounds(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
     guard: TransitionGuardNode,
@@ -212,7 +214,7 @@ fn transition_bounds(
 }
 
 fn guard_bounds(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
     guard: ExpressionHandle,
@@ -221,7 +223,12 @@ fn guard_bounds(
     depth: usize,
 ) -> Bounds {
     if depth >= 128
-        || !validation::has_builtin_decomposed_guard_meaning(program, machine, Some(state), guard)
+        || !crate::validation::has_builtin_decomposed_guard_meaning(
+            program,
+            machine,
+            Some(state),
+            guard,
+        )
     {
         return Bounds::UNKNOWN;
     }

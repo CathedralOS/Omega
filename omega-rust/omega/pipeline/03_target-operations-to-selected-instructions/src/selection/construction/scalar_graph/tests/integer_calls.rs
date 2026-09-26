@@ -16,7 +16,7 @@ fn total_native_widening_normalizes_the_source_and_replays_exact_operands() {
         target::NativeTarget::macos_arm64(),
     ] {
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -117,7 +117,7 @@ fn admitted_exact_casts_normalize_the_destination_integer_type() {
         target::NativeTarget::linux_arm64(),
     ] {
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -202,7 +202,7 @@ fn narrow_integer_call_results_preserve_comparison_types_and_reject_normalizatio
         target::NativeTarget::macos_arm64(),
     ] {
         let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
+            crate::register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -237,7 +237,7 @@ fn narrow_integer_call_results_preserve_comparison_types_and_reject_normalizatio
             let shape = ValueShape::integer(bits / 8, bits / 8);
             let mut source = control::graph(
                 target,
-                legalized_operations::LegalizedScalarComparison::LessThan,
+                crate::legalized_operations::LegalizedScalarComparison::LessThan,
                 false,
             );
             let entry = source

@@ -1,24 +1,28 @@
 //! Read-byte legalization retains exact result, target home and cleanup custody.
+use crate::legalized_operations::LegalizedScalarInstructionKind;
 use crate::{legalize_target_operations, validate_legalized_operations};
-use abstract_operations::{AbstractBoundaryResult, AbstractOperation};
+use abstract_operations_to_target_operations::target_operations::{
+    CompilerBuiltinExecution, TargetUnitOperation,
+};
 use abstract_operations_to_target_operations::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement,
 };
-use legalized_operations::LegalizedScalarInstructionKind;
 use semantic_vocabulary::{
     BoundaryMachineId, FuelScheduleIdentity, IntegerSign, IntegerType, OperationId, PlaceId,
     ScalarType, StructuralCaseId, StructuralFieldId, StructuralTypeId,
 };
 use target::NativeTarget;
-use target_operations::{CompilerBuiltinExecution, TargetUnitOperation};
 use terminal_psi::{StructuralMultiplicity, TerminalAffineCleanupAction};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractBoundaryResult, AbstractOperation,
+};
 
 pub(crate) fn fixture(
     native: NativeTarget,
 ) -> (
-    abstract_operations::AbstractOperationPlan,
-    target_operations::TargetOperationPlan,
-    optimization_unit::PsiOptimizationUnit,
+    terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan,
+    abstract_operations_to_target_operations::target_operations::TargetOperationPlan,
+    terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
 ) {
     let (mut source, _, _) = crate::tests::fixtures::plain_unit::plain_unit_fixture();
     let boundary = BoundaryMachineId::new(1).unwrap();
@@ -114,7 +118,7 @@ pub(crate) fn fixture(
                 execution: AdmittedBoundaryExecution::CompilerBuiltin(
                     CompilerBuiltinExecution::HostedReadByte,
                 ),
-                realization: target_operations::HostedReadByteRealization.into(),
+                realization: abstract_operations_to_target_operations::target_operations::HostedReadByteRealization.into(),
             }],
             installation: None,
             ieee_float_fma: &[],
@@ -122,7 +126,7 @@ pub(crate) fn fixture(
         },
     )
     .unwrap();
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),
     )
@@ -147,16 +151,20 @@ fn read_byte_preserves_structural_result_without_scalar_definition() {
             function.structural.as_ref().unwrap().structural_places,
             unit.functions[0].structural_places
         );
-        let legalized_operations::LegalizedScalarTerminator::Return(returned) =
+        let crate::legalized_operations::LegalizedScalarTerminator::Return(returned) =
             &function.blocks[0].terminator
         else {
             panic!("Unit return")
         };
         assert_eq!(
             returned.ownership,
-            [optimization_unit::OwnershipEvent::Cleanup(vec![
-                TerminalAffineCleanupAction::DiscardRoot(PlaceId::new(1).unwrap())
-            ])]
+            [
+                terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::Cleanup(
+                    vec![TerminalAffineCleanupAction::DiscardRoot(
+                        PlaceId::new(1).unwrap()
+                    )]
+                )
+            ]
         );
     }
 }
@@ -164,9 +172,9 @@ fn read_byte_preserves_structural_result_without_scalar_definition() {
 pub(crate) fn two_results_fixture(
     native: NativeTarget,
 ) -> (
-    abstract_operations::AbstractOperationPlan,
-    target_operations::TargetOperationPlan,
-    optimization_unit::PsiOptimizationUnit,
+    terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan,
+    abstract_operations_to_target_operations::target_operations::TargetOperationPlan,
+    terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
 ) {
     let (mut source, _, _) = fixture(native);
     let mut second = source.functions[0].operations[0].clone();
@@ -200,7 +208,7 @@ pub(crate) fn two_results_fixture(
                 execution: AdmittedBoundaryExecution::CompilerBuiltin(
                     CompilerBuiltinExecution::HostedReadByte,
                 ),
-                realization: target_operations::HostedReadByteRealization.into(),
+                realization: abstract_operations_to_target_operations::target_operations::HostedReadByteRealization.into(),
             }],
             installation: None,
             ieee_float_fma: &[],
@@ -208,7 +216,7 @@ pub(crate) fn two_results_fixture(
         },
     )
     .unwrap();
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),
     )
@@ -220,7 +228,7 @@ pub(crate) fn two_results_fixture(
 fn read_byte_replay_rejects_result_layout_and_custody_substitution() {
     let (source, target, unit) = fixture(NativeTarget::linux_x64());
     let legal = legalize_target_operations(&target, &source, &unit).unwrap();
-    let identity = legalized_operations::legalized_operation_plan_identity(legal.plan());
+    let identity = crate::legalized_operations::legalized_operation_plan_identity(legal.plan());
     for mutation in 0..12 {
         let mut changed = legal.plan().clone();
         let row = &mut changed.scalar_functions[0].blocks[0].instructions[0];
@@ -243,7 +251,7 @@ fn read_byte_replay_rejects_result_layout_and_custody_substitution() {
             7 => row.ownership.clear(),
             8 => row.operation = OperationId::new(2).unwrap(),
             9 => {
-                let legalized_operations::LegalizedScalarTerminator::Return(returned) =
+                let crate::legalized_operations::LegalizedScalarTerminator::Return(returned) =
                     &mut changed.scalar_functions[0].blocks[0].terminator
                 else {
                     unreachable!()
@@ -252,12 +260,12 @@ fn read_byte_replay_rejects_result_layout_and_custody_substitution() {
             }
             10 => row.effect.output += 1,
             11 => {
-                row.result = Some(legalized_operations::LegalizedValueDefinition {
+                row.result = Some(crate::legalized_operations::LegalizedValueDefinition {
                     value: semantic_vocabulary::ValueId::new(1).unwrap(),
                     scalar_type: ScalarType::Integer(
                         IntegerType::new(IntegerSign::Signed, 32).unwrap(),
                     ),
-                    definition_site: optimization_unit::ValueDefinitionSite::Node {
+                    definition_site: terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite::Node {
                         block: semantic_vocabulary::BlockId::new(1).unwrap(),
                         node: 0,
                     },
@@ -266,7 +274,7 @@ fn read_byte_replay_rejects_result_layout_and_custody_substitution() {
             _ => unreachable!(),
         }
         assert_ne!(
-            legalized_operations::legalized_operation_plan_identity(&changed),
+            crate::legalized_operations::legalized_operation_plan_identity(&changed),
             identity
         );
         assert!(
@@ -293,20 +301,20 @@ fn read_byte_target_replay_rejects_home_and_builtin_substitution() {
         };
         match mutation {
             0 => {
-                *execution = target_operations::BoundaryExecutionBinding::CompilerBuiltin(
+                *execution = abstract_operations_to_target_operations::target_operations::BoundaryExecutionBinding::CompilerBuiltin(
                     CompilerBuiltinExecution::HostedWriteByteI32,
                 )
             }
             1 => {
                 *realization =
-                    target_operations::BoundaryRealization::HostedWriteByteI32(Default::default())
+                    abstract_operations_to_target_operations::target_operations::BoundaryRealization::HostedWriteByteI32(Default::default())
             }
-            2 => *result = target_operations::TargetBoundaryResult::Unit,
+            2 => *result = abstract_operations_to_target_operations::target_operations::TargetBoundaryResult::Unit,
             3 | 4 => {
-                let target_operations::TargetBoundaryResult::Structural(home) = result else {
+                let abstract_operations_to_target_operations::target_operations::TargetBoundaryResult::Structural(home) = result else {
                     unreachable!()
                 };
-                let target_operations::TargetStructuralHomeOrigin::OperationResult {
+                let abstract_operations_to_target_operations::target_operations::TargetStructuralHomeOrigin::OperationResult {
                     operation,
                     result,
                 } = &mut home.origin
@@ -321,7 +329,7 @@ fn read_byte_target_replay_rejects_home_and_builtin_substitution() {
             }
             5 => changed.target = NativeTarget::macos_arm64(),
             6 => {
-                let target_operations::TargetControlTerminator::Return {
+                let abstract_operations_to_target_operations::target_operations::TargetControlTerminator::Return {
                     cleanup_actions, ..
                 } = &mut body.blocks[0].terminator
                 else {
@@ -330,10 +338,10 @@ fn read_byte_target_replay_rejects_home_and_builtin_substitution() {
                 cleanup_actions.clear();
             }
             7 => {
-                let target_operations::TargetBoundaryResult::Structural(home) = result else {
+                let abstract_operations_to_target_operations::target_operations::TargetBoundaryResult::Structural(home) = result else {
                     unreachable!()
                 };
-                let target_operations::TargetStructuralHomeLayout::Sum(layout) = &mut home.layout
+                let abstract_operations_to_target_operations::target_operations::TargetStructuralHomeLayout::Sum(layout) = &mut home.layout
                 else {
                     unreachable!()
                 };
@@ -369,7 +377,7 @@ fn read_byte_rejects_same_width_unsigned_payload() {
                 execution: AdmittedBoundaryExecution::CompilerBuiltin(
                     CompilerBuiltinExecution::HostedReadByte,
                 ),
-                realization: target_operations::HostedReadByteRealization.into(),
+                realization: abstract_operations_to_target_operations::target_operations::HostedReadByteRealization.into(),
             }],
             installation: None,
             ieee_float_fma: &[],
@@ -414,7 +422,7 @@ fn read_byte_requires_produced_octets_to_fit_retained_bounds_at_each_native_gate
                     execution: AdmittedBoundaryExecution::CompilerBuiltin(
                         CompilerBuiltinExecution::HostedReadByte,
                     ),
-                    realization: target_operations::HostedReadByteRealization.into(),
+                    realization: abstract_operations_to_target_operations::target_operations::HostedReadByteRealization.into(),
                 }],
                 installation: None,
                 ieee_float_fma: &[],
@@ -426,7 +434,7 @@ fn read_byte_requires_produced_octets_to_fit_retained_bounds_at_each_native_gate
             accepted,
             "target interval {minimum}..{maximum}"
         );
-        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             FuelScheduleIdentity::new(1).unwrap(),
         )

@@ -13,10 +13,10 @@ matching-logic encoding route as well; otherwise that column records
 
 Axis → measured surface:
 
-  checker      ``omega-rust/psi/semantics/proof-admission/src`` — the admission
+  checker      ``omega-rust/psi/proof-admission/src`` — the admission
                kernel that independently re-decides every certificate. This is
                the trusted computing base a different checker would replace.
-  translation  ``omega-rust/psi/semantics/proof/src/checker/certificate*`` and
+  translation  ``omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/proof_engine/checker/certificate*`` and
                ``proof/src/obligations*`` — the producer that encodes a checked
                obligation into ``ProofNode`` certificates and reconstructs the
                verifier's goal. A foreign encoding replaces exactly this layer.
@@ -25,7 +25,7 @@ Axis → measured surface:
                ``ObligationClass`` obligations, ``ProofRuleFoundation``
                classes, and the ``integer_rules`` / ``mathematical_core``
                modules that carry the integer theory.
-  trusted      the rest of ``omega-rust/psi/semantics/proof/src`` — the
+  trusted      the rest of ``omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/proof_engine`` — the
                derivation that still decides every certificate-uncovered leg
                on its own say-so. That remainder is the trusted bridge.
 
@@ -76,16 +76,16 @@ ENCODING_SLICE_CASES = "tools/matching-logic-slice/cases"
 ENCODING_ENCODER_TOOL = "tools/matching-logic-sort-encoding/sort_encoding.py"
 ENCODING_ENCODER_CASES = "tools/matching-logic-sort-encoding/cases"
 
-KERNEL_PATH = "omega-rust/psi/semantics/proof-admission/src"
+KERNEL_PATH = "omega-rust/psi/proof-admission/src"
 TRANSLATION_PATHS = (
-    "omega-rust/psi/semantics/proof/src/checker/certificate.rs",
-    "omega-rust/psi/semantics/proof/src/checker/certificate",
-    "omega-rust/psi/semantics/proof/src/obligations.rs",
-    "omega-rust/psi/semantics/proof/src/obligations",
+    "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/proof_engine/checker/certificate.rs",
+    "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/proof_engine/checker/certificate",
+    "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/proof_engine/obligations.rs",
+    "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/proof_engine/obligations",
 )
-TRUSTED_PATH = "omega-rust/psi/semantics/proof/src"
+TRUSTED_PATH = "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/proof_engine"
 PROOF_BUNDLE_PATH = (
-    "omega-rust/psi/representations/terminal-psi/src/artifacts/proof_bundle"
+    "omega-rust/psi/terminal-psi/src/artifacts/proof_bundle"
 )
 
 # (file, enum name) inventories that together make up the accepted theory
@@ -96,10 +96,10 @@ RULE_INVENTORY = (
     (PROOF_BUNDLE_PATH + "/nodes.rs", "ProofRule"),
     (PROOF_BUNDLE_PATH + "/nodes.rs", "PrimitiveJudgment"),
     (PROOF_BUNDLE_PATH + "/admission.rs", "EvidenceRoute"),
-    ("omega-rust/psi/semantics/proof-admission/src/proof.rs", "AcceptedProofRule"),
-    ("omega-rust/psi/semantics/proof-admission/src/admission/evidence.rs", "ObligationClass"),
-    ("omega-rust/psi/semantics/proof-admission/src/admission/evidence.rs", "AcceptedFactRoute"),
-    ("omega-rust/psi/semantics/proof-admission/src/classicality.rs", "ProofRuleFoundation"),
+    ("omega-rust/psi/proof-admission/src/proof.rs", "AcceptedProofRule"),
+    ("omega-rust/psi/proof-admission/src/admission/evidence.rs", "ObligationClass"),
+    ("omega-rust/psi/proof-admission/src/admission/evidence.rs", "AcceptedFactRoute"),
+    ("omega-rust/psi/proof-admission/src/classicality.rs", "ProofRuleFoundation"),
 )
 
 
@@ -235,18 +235,18 @@ def measure_theory(repo):
         else:
             rules[key] = count
     integer_dir = source_inventory(
-        repo / "omega-rust/psi/semantics/proof-admission/src/integer_rules"
+        repo / "omega-rust/psi/proof-admission/src/integer_rules"
     )
     core_dir = source_inventory(
-        repo / "omega-rust/psi/semantics/proof-admission/src/mathematical_core"
+        repo / "omega-rust/psi/proof-admission/src/mathematical_core"
     )
     core_root = source_inventory(
-        repo / "omega-rust/psi/semantics/proof-admission/src/mathematical_core.rs"
+        repo / "omega-rust/psi/proof-admission/src/mathematical_core.rs"
     )
     theory = {"rule_inventory": rules}
     theory["integer_rules"] = sum_inventories({
         "integer_rules.rs": source_inventory(
-            repo / "omega-rust/psi/semantics/proof-admission/src/integer_rules.rs"),
+            repo / "omega-rust/psi/proof-admission/src/integer_rules.rs"),
         "integer_rules/": integer_dir,
     })
     theory["mathematical_core"] = sum_inventories({
@@ -255,9 +255,9 @@ def measure_theory(repo):
     })
     theory["predicate_denotation"] = sum_inventories({
         "predicate_denotation.rs": source_inventory(
-            repo / "omega-rust/psi/semantics/proof-admission/src/predicate_denotation.rs"),
+            repo / "omega-rust/psi/proof-admission/src/predicate_denotation.rs"),
         "predicate_denotation/": source_inventory(
-            repo / "omega-rust/psi/semantics/proof-admission/src/predicate_denotation"),
+            repo / "omega-rust/psi/proof-admission/src/predicate_denotation"),
     })
     theory["imported_rule_forms"] = {
         "SemanticAxiom": "ProofRule::SemanticAxiom cites one proposition from the "

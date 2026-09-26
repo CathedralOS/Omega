@@ -135,20 +135,20 @@ use reference_spans::{
 /// construction meant: the resolver is unavailable and the site takes its
 /// existing opaque/conservative outcome.
 pub(crate) fn shared_call_frames_or<'program, 'a>(
-    shared: Option<&'a validation::CallFrameResolver<'program>>,
-    program: &'program typed_trees::TypedTrees,
-    owned: &'a mut Option<validation::CallFrameResolver<'program>>,
-) -> Option<&'a validation::CallFrameResolver<'program>> {
+    shared: Option<&'a crate::validation::CallFrameResolver<'program>>,
+    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    owned: &'a mut Option<crate::validation::CallFrameResolver<'program>>,
+) -> Option<&'a crate::validation::CallFrameResolver<'program>> {
     if shared.is_some() {
         return shared;
     }
-    *owned = validation::CallFrameResolver::new(program);
+    *owned = crate::validation::CallFrameResolver::new(program);
     owned.as_ref()
 }
 
 pub(crate) fn resolved_operator_statement_symbol(
-    program: &typed_trees::TypedTrees,
-    call: &typed_trees::statement::TableCall,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    call: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableCall,
 ) -> Option<symbols::SymbolHandle> {
     operator_calls::resolve_operator_statement_call(program, call)
         .map(|resolved| resolved.operator.symbol)

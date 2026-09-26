@@ -8,16 +8,16 @@ use crate::rules::tests::fixtures::control_flow_cleanup::{
     propagated_block_parameter_unit,
 };
 use crate::rules::tests::fixtures::id;
-use abstract_operations::AbstractOperation;
-use optimization_unit::{
+use semantic_vocabulary::{BlockId, ServiceId};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     ConstantConditionalRewrite, IntegerEvaluationWitness, ProvenanceDisposition,
     PsiRealizationSite, PsiRewriteCandidate,
 };
-use optimization_unit_semantics::{
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_constant_conditional_candidate,
     validate_psi_optimization_unit,
 };
-use semantic_vocabulary::{BlockId, ServiceId};
 
 #[test]
 fn constant_conditional_fold_binds_selected_edge_fact_and_fuel() {
@@ -36,7 +36,7 @@ fn constant_conditional_fold_binds_selected_edge_fact_and_fuel() {
             .unwrap();
         assert_eq!(candidates.len(), 1);
         assert_eq!(candidates[0].consumed_facts().len(), 1);
-        let optimization_unit::PsiRewritePatch::FoldConstantConditional(patch) =
+        let terminal_psi_to_abstract_operations::optimization_unit::PsiRewritePatch::FoldConstantConditional(patch) =
             candidates[0].patch()
         else {
             unreachable!()
@@ -66,7 +66,11 @@ fn constant_conditional_fold_binds_selected_edge_fact_and_fuel() {
         );
         assert_eq!(
             realized.sources,
-            [optimization_unit::PsiProvenance::Edge(patch.selected_edge)]
+            [
+                terminal_psi_to_abstract_operations::optimization_unit::PsiProvenance::Edge(
+                    patch.selected_edge
+                )
+            ]
         );
         assert_eq!(
             proven_unreachable.disposition,
@@ -74,7 +78,11 @@ fn constant_conditional_fold_binds_selected_edge_fact_and_fuel() {
         );
         assert_eq!(
             proven_unreachable.sources,
-            [optimization_unit::PsiProvenance::Edge(patch.rejected_edge)]
+            [
+                terminal_psi_to_abstract_operations::optimization_unit::PsiProvenance::Edge(
+                    patch.rejected_edge
+                )
+            ]
         );
         let accepted = validate_constant_conditional_candidate(&unit, &candidates[0]).unwrap();
         assert_eq!(accepted.provenance(), candidates[0].provenance());
@@ -91,14 +99,20 @@ fn constant_conditional_fold_binds_selected_edge_fact_and_fuel() {
         ));
         assert_eq!(
             node.successors[0].provenance,
-            [optimization_unit::PsiProvenance::Edge(patch.selected_edge)]
+            [
+                terminal_psi_to_abstract_operations::optimization_unit::PsiProvenance::Edge(
+                    patch.selected_edge
+                )
+            ]
         );
         assert!(node.provenance.is_empty());
         assert!(node.fuel.is_empty());
         assert_eq!(node.successors[0].fuel.len(), 1);
         assert_eq!(
             node.successors[0].fuel[0].site,
-            optimization_unit::PsiProvenance::Edge(patch.selected_edge)
+            terminal_psi_to_abstract_operations::optimization_unit::PsiProvenance::Edge(
+                patch.selected_edge
+            )
         );
     }
 }
@@ -273,7 +287,7 @@ fn constant_conditional_validator_rejects_edge_and_fuel_corruption() {
         .unwrap()
         .pop()
         .unwrap();
-    let optimization_unit::PsiRewritePatch::FoldConstantConditional(patch) = candidate.patch()
+    let terminal_psi_to_abstract_operations::optimization_unit::PsiRewritePatch::FoldConstantConditional(patch) = candidate.patch()
     else {
         unreachable!()
     };
@@ -291,7 +305,7 @@ fn constant_conditional_validator_rejects_edge_and_fuel_corruption() {
             -1,
             patch,
         ),
-        Err(optimization_unit::PsiRewriteCandidateError::PatchDecisionPointMismatch)
+        Err(terminal_psi_to_abstract_operations::optimization_unit::PsiRewriteCandidateError::PatchDecisionPointMismatch)
     ));
 
     let mut duplicate_source = candidate.provenance().to_vec();
@@ -309,7 +323,7 @@ fn constant_conditional_validator_rejects_edge_and_fuel_corruption() {
             -1,
             patch,
         ),
-        Err(optimization_unit::PsiRewriteCandidateError::NonCanonicalProvenance)
+        Err(terminal_psi_to_abstract_operations::optimization_unit::PsiRewriteCandidateError::NonCanonicalProvenance)
     ));
 
     let mut zero_fuel = candidate.provenance().to_vec();
@@ -324,7 +338,7 @@ fn constant_conditional_validator_rejects_edge_and_fuel_corruption() {
             -1,
             patch,
         ),
-        Err(optimization_unit::PsiRewriteCandidateError::FuelProvenanceMismatch)
+        Err(terminal_psi_to_abstract_operations::optimization_unit::PsiRewriteCandidateError::FuelProvenanceMismatch)
     ));
 
     let selected_site = PsiRealizationSite::Edge {
@@ -413,7 +427,7 @@ fn constant_conditional_validator_rejects_incomplete_prune_custody_and_region() 
         .unwrap()
         .pop()
         .unwrap();
-    let optimization_unit::PsiRewritePatch::FoldConstantConditional(patch) = candidate.patch()
+    let terminal_psi_to_abstract_operations::optimization_unit::PsiRewritePatch::FoldConstantConditional(patch) = candidate.patch()
     else {
         unreachable!()
     };

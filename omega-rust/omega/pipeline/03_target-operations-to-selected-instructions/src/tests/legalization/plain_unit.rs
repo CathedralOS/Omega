@@ -12,9 +12,9 @@ fn plain_unit_catalog_form_is_produced_and_independently_replayed() {
     assert_eq!(legalized.plan().scalar_functions.len(), 1);
     assert!(matches!(
         legalized.plan().scalar_functions[0].blocks[0].terminator,
-        legalized_operations::LegalizedScalarTerminator::Return(
-            legalized_operations::LegalizedScalarReturn {
-                value: legalized_operations::LegalizedScalarReturnValue::Unit,
+        crate::legalized_operations::LegalizedScalarTerminator::Return(
+            crate::legalized_operations::LegalizedScalarReturn {
+                value: crate::legalized_operations::LegalizedScalarReturnValue::Unit,
                 ..
             }
         )
@@ -22,7 +22,7 @@ fn plain_unit_catalog_form_is_produced_and_independently_replayed() {
     assert_eq!(legalized.receipt().function_count(), 1);
 
     let mut wrong_edge = legalized.plan().clone();
-    let legalized_operations::LegalizedScalarTerminator::Return(returned) =
+    let crate::legalized_operations::LegalizedScalarTerminator::Return(returned) =
         &mut wrong_edge.scalar_functions[0].blocks[0].terminator
     else {
         panic!("Unit return");

@@ -6,24 +6,26 @@ use crate::rewrites::unexecuted::peepholes::ValidatedCopiedCallOperand;
 use crate::rewrites::unexecuted::peepholes::fold_selected_copied_call_operand;
 use crate::rewrites::unexecuted::peepholes::validate_copied_call_operand_fold;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
-use optimization_unit::ValueDefinitionSite;
-use register_environment::{
-    ValidatedTargetRegisterEnvironment, baseline_target_register_environment,
-};
-use register_model::{RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess};
-use selected_instructions::{
-    SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedOperand,
-    SelectedTerminator, ValidatedMachineEffectCatalog, VirtualRegister, VirtualRegisterId,
-    VirtualRegisterOrigin,
-};
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, OperationId,
     ScalarType, ValueId,
 };
 use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::{
+    ValidatedTargetRegisterEnvironment, baseline_target_register_environment,
+};
+use target_operations_to_selected_instructions::register_model::{
+    RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess,
+};
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use target_operations_to_selected_instructions::{
+    SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
+    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedOperand,
+    SelectedTerminator, ValidatedMachineEffectCatalog, VirtualRegister, VirtualRegisterId,
+    VirtualRegisterOrigin,
+};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
 fn budget() -> OptimizationWorkBudget {
     OptimizationWorkBudget::new(100, 100, 100_000, 100, 100).unwrap()
@@ -113,7 +115,7 @@ impl Call {
 fn register(
     id: VirtualRegisterId,
     scalar_type: ScalarType,
-    class: register_model::RegisterClassId,
+    class: target_operations_to_selected_instructions::register_model::RegisterClassId,
     origin: VirtualRegisterOrigin,
 ) -> VirtualRegister {
     VirtualRegister {
@@ -702,7 +704,8 @@ fn row_divergence_rejects() {
         Err(CopiedCallOperandError::ConstraintMismatch)
     );
     let source = mutated(target, |function, _| {
-        function.blocks[0].instructions[1].operands[0].class = register_model::RegisterClassId(999);
+        function.blocks[0].instructions[1].operands[0].class =
+            target_operations_to_selected_instructions::register_model::RegisterClassId(999);
     });
     assert_eq!(
         fold(&source, &environment),
@@ -816,7 +819,9 @@ fn class_mismatch_rejects() {
     let environment = baseline_target_register_environment(target).unwrap();
     let source = mutated(target, |function, _| {
         let class = function.blocks[0].instructions[1].operands[0].class;
-        let other = register_model::RegisterClassId(class.0 + 1000);
+        let other = target_operations_to_selected_instructions::register_model::RegisterClassId(
+            class.0 + 1000,
+        );
         let entry = function
             .virtual_registers
             .iter_mut()

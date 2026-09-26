@@ -2,12 +2,12 @@
 //! that `finish` publishes as `FlowFacts` and `discard_output` clears between
 //! sweeps, the incoming state values and dirty set that decide re-sweeps, and memo
 //! tables for lookups that depend only on the program, which survive between sweeps.
-use crate::flow::StateMutationSummaryCache;
-use checked_trees::{
+use crate::checked_trees::{
     BorrowFacts, FlowBorrowLifetimeFacts, FlowBoundaryFacts, FlowContextFacts, FlowControlFacts,
     FlowFacts, FlowInvalidationFacts, FlowOwnershipFacts, ProofFacts,
 };
-use facts::FactPlan;
+use crate::fact_plan::FactPlan;
+use crate::flow::StateMutationSummaryCache;
 use std::collections::HashMap;
 use std::rc::Rc;
 use symbols::SymbolHandle;
@@ -25,7 +25,7 @@ struct SymbolIndex {
 }
 
 impl SymbolIndex {
-    fn build(program: &typed_trees::TypedTrees) -> Self {
+    fn build(program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees) -> Self {
         let mut index = Self {
             machine_index: HashMap::new(),
             state_index_in_machine: HashMap::new(),
@@ -57,10 +57,10 @@ impl SymbolIndex {
 }
 
 pub(super) struct FlowBuildContext<'plans> {
-    pub(super) scalar_expressions: &'plans checked_trees::CheckedScalarExpressionPlans,
-    pub(super) operators: &'plans checked_trees::CheckedOperatorFacts,
-    pub(super) exact_integer_casts: &'plans [validation::ExactIntegerCastFact],
-    pub(super) call_frames: Option<&'plans validation::CallFrameResolver<'plans>>,
+    pub(super) scalar_expressions: &'plans crate::checked_trees::CheckedScalarExpressionPlans,
+    pub(super) operators: &'plans crate::checked_trees::CheckedOperatorFacts,
+    pub(super) exact_integer_casts: &'plans [crate::validation::ExactIntegerCastFact],
+    pub(super) call_frames: Option<&'plans crate::validation::CallFrameResolver<'plans>>,
     pub(super) state_value_inputs: Vec<super::state_values::StateValues>,
     pub(super) dirty_state_value_inputs: Vec<SymbolHandle>,
     #[cfg(test)]
@@ -76,7 +76,7 @@ pub(super) struct FlowBuildContext<'plans> {
     /// rebuilds.
     pub(super) element_store_potentials: Vec<(
         SymbolHandle,
-        Vec<facts::PlaceSegment>,
+        Vec<crate::fact_plan::PlaceSegment>,
         Vec<crate::facts::field_domain::ByteSequencePredicate>,
     )>,
     pub(super) state_mutation_summary_cache: &'plans StateMutationSummaryCache,
@@ -90,14 +90,14 @@ pub(super) struct FlowBuildContext<'plans> {
         Option<crate::semantic::calls::CallSite<'plans>>,
     >,
     pub(super) call_target_parameters:
-        HashMap<SymbolHandle, Option<&'plans [typed_trees::signature::StateParameter]>>,
+        HashMap<SymbolHandle, Option<&'plans [symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter]>>,
     pub(super) call_target_returns:
-        HashMap<SymbolHandle, Option<typed_trees::types::TypeReferenceHandle>>,
+        HashMap<SymbolHandle, Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle>>,
     pub(super) call_result_identities: HashMap<
         SymbolHandle,
         Rc<
             Vec<(
-                Vec<facts::PlaceSegment>,
+                Vec<crate::fact_plan::PlaceSegment>,
                 SymbolHandle,
                 language_semantics::SemanticDomainId,
             )>,
@@ -108,10 +108,10 @@ pub(super) struct FlowBuildContext<'plans> {
     /// across every target returning that type so each distinct result type
     /// pays the scan once rather than each distinct target.
     pub(super) result_identity_domain_rows: HashMap<
-        typed_trees::types::TypeReferenceHandle,
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
         Rc<
             Vec<(
-                Vec<facts::PlaceSegment>,
+                Vec<crate::fact_plan::PlaceSegment>,
                 SymbolHandle,
                 language_semantics::SemanticDomainId,
             )>,
@@ -136,15 +136,15 @@ pub(super) struct FlowBuildContext<'plans> {
     /// provable paths. Keyed by the declared type reference -- the rows are
     /// program-pure on it.
     pub(super) referent_type_paths: HashMap<
-        typed_trees::types::TypeReferenceHandle,
-        Option<Rc<Vec<(Vec<facts::PlaceSegment>, SymbolHandle)>>>,
+        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+        Option<Rc<Vec<(Vec<crate::fact_plan::PlaceSegment>, SymbolHandle)>>>,
     >,
     /// Filtered `(field path, domain)` rows of a machine's seeded
     /// `MachineFieldDomain` facts. The facts are seeded before flow and the
     /// rows hold plain segments/symbols -- no sweep-local arena handles -- so
     /// the answer is stable across passes.
     pub(super) machine_field_rows:
-        HashMap<SymbolHandle, Rc<Vec<(Vec<facts::PlaceSegment>, SymbolHandle)>>>,
+        HashMap<SymbolHandle, Rc<Vec<(Vec<crate::fact_plan::PlaceSegment>, SymbolHandle)>>>,
     /// Lazily built on the first symbol lookup; positions only, so it holds
     /// no typed-tree borrow and survives `discard_output`.
     symbol_index: Option<SymbolIndex>,
@@ -154,7 +154,7 @@ pub(super) struct FlowBuildContext<'plans> {
     /// table's iteration order.
     pub(super) scalar_bindings_by_site: HashMap<
         (SymbolHandle, u32),
-        Vec<arena::Handle<checked_trees::CheckedScalarExpressionBindings>>,
+        Vec<arena::Handle<crate::checked_trees::CheckedScalarExpressionBindings>>,
     >,
     pub(super) scalar_expressions_by_site: HashMap<(SymbolHandle, u32), Vec<usize>>,
     /// Program-pure per-site answers repeated on every pass: canonical
@@ -165,7 +165,7 @@ pub(super) struct FlowBuildContext<'plans> {
         (
             SymbolHandle,
             usize,
-            typed_trees::expression::ExpressionHandle,
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
         ),
         Option<crate::flow::CanonicalPlace>,
     >,
@@ -173,13 +173,13 @@ pub(super) struct FlowBuildContext<'plans> {
         (
             SymbolHandle,
             SymbolHandle,
-            typed_trees::expression::ExpressionHandle,
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
         ),
-        Option<typed_trees::types::TypeReferenceHandle>,
+        Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle>,
     >,
     transition_call_targets: HashMap<
         (SymbolHandle, SymbolHandle, usize, usize),
-        Option<typed_trees::statement::TransitionTargetHandle>,
+        Option<symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetHandle>,
     >,
     entry_origin_chains:
         HashMap<(SymbolHandle, SymbolHandle), Rc<Vec<(SymbolHandle, SymbolHandle)>>>,
@@ -200,17 +200,17 @@ pub(super) struct FlowBuildContext<'plans> {
     /// program-immutable lookup over machines, states, and statement tables.
     pub(super) correspondence_root_types: HashMap<
         (SymbolHandle, SymbolHandle, usize, SymbolHandle),
-        Option<typed_trees::types::TypeReferenceHandle>,
+        Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle>,
     >,
     /// Expression sub-occurrences extracted per operand on every pass --
     /// program-pure walks over the expression table.
     expression_occurrences: HashMap<
-        typed_trees::expression::ExpressionHandle,
-        Rc<Vec<typed_trees::expression::ExpressionHandle>>,
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+        Rc<Vec<symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle>>,
     >,
     proof_fact_occurrences: HashMap<
-        arena::Handle<typed_trees::domain::ProofFact>,
-        Rc<Vec<typed_trees::expression::ExpressionHandle>>,
+        arena::Handle<symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact>,
+        Rc<Vec<symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle>>,
     >,
     /// Sorted unique integer literals authored anywhere in the program -- the
     /// widening thresholds `state_values::fields` consults when a joined bound
@@ -232,10 +232,10 @@ impl<'plans> FlowBuildContext<'plans> {
         borrow: &BorrowFacts,
         proof: &ProofFacts,
         semantic: &FactPlan,
-        scalar_expressions: &'plans checked_trees::CheckedScalarExpressionPlans,
-        operators: &'plans checked_trees::CheckedOperatorFacts,
-        exact_integer_casts: &'plans [validation::ExactIntegerCastFact],
-        call_frames: Option<&'plans validation::CallFrameResolver<'plans>>,
+        scalar_expressions: &'plans crate::checked_trees::CheckedScalarExpressionPlans,
+        operators: &'plans crate::checked_trees::CheckedOperatorFacts,
+        exact_integer_casts: &'plans [crate::validation::ExactIntegerCastFact],
+        call_frames: Option<&'plans crate::validation::CallFrameResolver<'plans>>,
         state_mutation_summary_cache: &'plans StateMutationSummaryCache,
     ) -> Self {
         let mut scalar_bindings_by_site = HashMap::new();
@@ -337,7 +337,10 @@ impl<'plans> FlowBuildContext<'plans> {
         )
     }
 
-    fn symbol_index(&mut self, program: &typed_trees::TypedTrees) -> &SymbolIndex {
+    fn symbol_index(
+        &mut self,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    ) -> &SymbolIndex {
         self.symbol_index
             .get_or_insert_with(|| SymbolIndex::build(program))
     }
@@ -345,7 +348,7 @@ impl<'plans> FlowBuildContext<'plans> {
     /// Position of `machine_symbol` in `program.machines()`.
     pub(super) fn machine_index(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
         machine_symbol: SymbolHandle,
     ) -> Option<usize> {
         self.symbol_index(program)
@@ -357,7 +360,7 @@ impl<'plans> FlowBuildContext<'plans> {
     /// Position of `state_symbol` inside `machine_symbol`'s state list.
     pub(super) fn state_index_in_machine(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
         machine_symbol: SymbolHandle,
         state_symbol: SymbolHandle,
     ) -> Option<usize> {
@@ -371,7 +374,7 @@ impl<'plans> FlowBuildContext<'plans> {
     /// symbol -- the shape the traits x signatures contract scan repeats.
     pub(super) fn signature_location(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
         signature_symbol: SymbolHandle,
     ) -> Option<(usize, usize)> {
         self.symbol_index(program)
@@ -384,7 +387,7 @@ impl<'plans> FlowBuildContext<'plans> {
     /// in the program -- the shape `semantic::calls::find_state` scans for.
     pub(super) fn state_location(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
         state_symbol: SymbolHandle,
     ) -> Option<(usize, usize)> {
         self.symbol_index(program)
@@ -395,10 +398,10 @@ impl<'plans> FlowBuildContext<'plans> {
 
     pub(super) fn canonical_place_at(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
         state_symbol: SymbolHandle,
         statement_index: usize,
-        expression: typed_trees::expression::ExpressionHandle,
+        expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     ) -> Option<crate::flow::CanonicalPlace> {
         self.canonical_places
             .entry((state_symbol, statement_index, expression))
@@ -415,27 +418,30 @@ impl<'plans> FlowBuildContext<'plans> {
 
     pub(super) fn expression_result_type_at(
         &mut self,
-        program: &typed_trees::TypedTrees,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
-        expression: typed_trees::expression::ExpressionHandle,
-    ) -> Option<typed_trees::types::TypeReferenceHandle> {
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+        state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+        expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    ) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
         *self
             .expression_result_types
             .entry((machine.symbol, state.symbol, expression))
             .or_insert_with(|| {
-                validation::expression_result_type_reference(program, machine, state, expression)
+                crate::validation::expression_result_type_reference(
+                    program, machine, state, expression,
+                )
             })
     }
 
     pub(super) fn transition_call_target_at(
         &mut self,
-        program: &typed_trees::TypedTrees,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+        state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
         statement_index: usize,
         call_ordinal: usize,
-    ) -> Option<typed_trees::statement::TransitionTargetHandle> {
+    ) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetHandle>
+    {
         *self
             .transition_call_targets
             .entry((machine.symbol, state.symbol, statement_index, call_ordinal))
@@ -455,9 +461,9 @@ impl<'plans> FlowBuildContext<'plans> {
     /// are all program-immutable.
     pub(super) fn entry_origin_chain_at(
         &mut self,
-        program: &typed_trees::TypedTrees,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+        state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     ) -> Rc<Vec<(SymbolHandle, SymbolHandle)>> {
         if let Some(chain) = self
             .entry_origin_chains
@@ -486,9 +492,10 @@ impl<'plans> FlowBuildContext<'plans> {
 
     pub(super) fn expression_occurrences_at(
         &mut self,
-        program: &typed_trees::TypedTrees,
-        expression: typed_trees::expression::ExpressionHandle,
-    ) -> Rc<Vec<typed_trees::expression::ExpressionHandle>> {
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    ) -> Rc<Vec<symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle>>
+    {
         self.expression_occurrences
             .entry(expression)
             .or_insert_with(|| {
@@ -505,9 +512,10 @@ impl<'plans> FlowBuildContext<'plans> {
 
     pub(super) fn proof_fact_occurrences_at(
         &mut self,
-        program: &typed_trees::TypedTrees,
-        fact: arena::Handle<typed_trees::domain::ProofFact>,
-    ) -> Rc<Vec<typed_trees::expression::ExpressionHandle>> {
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        fact: arena::Handle<symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact>,
+    ) -> Rc<Vec<symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle>>
+    {
         self.proof_fact_occurrences
             .entry(fact)
             .or_insert_with(|| {
@@ -523,7 +531,7 @@ impl<'plans> FlowBuildContext<'plans> {
     /// `BigInt` parsing memoize on first widening demand.
     pub(super) fn integer_literal_thresholds_at(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     ) -> Rc<Vec<numerics::bignum::BigInt>> {
         self.integer_literal_thresholds
             .get_or_insert_with(|| {
@@ -538,7 +546,7 @@ impl<'plans> FlowBuildContext<'plans> {
         &self,
         state_symbol: SymbolHandle,
         statement_ordinal: u32,
-    ) -> &[arena::Handle<checked_trees::CheckedScalarExpressionBindings>] {
+    ) -> &[arena::Handle<crate::checked_trees::CheckedScalarExpressionBindings>] {
         self.scalar_bindings_by_site
             .get(&(state_symbol, statement_ordinal))
             .map(Vec::as_slice)
@@ -558,7 +566,7 @@ impl<'plans> FlowBuildContext<'plans> {
 
     pub(super) fn reference_candidate_places_at(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
         state_symbol: SymbolHandle,
         statement_index: usize,
         root: SymbolHandle,
@@ -585,11 +593,11 @@ impl<'plans> FlowBuildContext<'plans> {
     /// the shared one the whole build carries.
     pub(super) fn statement_storage_writes_at(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
         machine_symbol: SymbolHandle,
         state_symbol: SymbolHandle,
         statement_index: usize,
-        statement: &checked_trees::statement::StatementNode,
+        statement: &crate::checked_trees::statement::StatementNode,
     ) -> Option<Rc<Vec<crate::flow::CanonicalPlace>>> {
         self.statement_storage_writes
             .entry((state_symbol, statement_index))

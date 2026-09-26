@@ -1,11 +1,11 @@
 //! Borrowed-byte edges retain source ranges and exact authored endpoint roles.
 use super::{CheckedScalarExpression, CheckedScalarExpressionRole, PrimitiveType};
-use crate::tests::flow::terminal_unit::checked;
-use crate::tests::flow::terminal_unit::machine_named;
-use checked_trees::{
+use crate::checked_trees::{
     CheckedComposedUnitControlTerminatorPlan, CheckedStructuralControlTransferSourcePlan,
 };
-use typed_trees::expression::ExpressionNode;
+use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::machine_named;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
 
 const SOURCE: &str = r#"
     boundary trait Output { machine write(bytes: &[u8], marker: u8); }
@@ -20,8 +20,8 @@ const SOURCE: &str = r#"
 "#;
 
 fn range_source(
-    checked: &checked_trees::CheckedTrees,
-) -> typed_trees::expression::ExpressionHandle {
+    checked: &crate::checked_trees::CheckedTrees,
+) -> symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle {
     let plan = checked
         .facts
         .flow
@@ -34,7 +34,7 @@ fn range_source(
         panic!("selected edge");
     };
     let CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
-        root: checked_trees::CheckedStorageRoot::Parameter { index: 0 },
+        root: crate::checked_trees::CheckedStorageRoot::Parameter { index: 0 },
         expression,
     } = when_true.transfers[0].source
     else {
@@ -83,7 +83,7 @@ fn guarded_byte_tail_retains_full_source_and_authored_endpoint_positions() {
     for (role, endpoint) in [
         (
             CheckedScalarExpressionRole::SubsliceStart {
-                site: checked_trees::CheckedSubsliceSite::TransitionArgument {
+                site: crate::checked_trees::CheckedSubsliceSite::TransitionArgument {
                     argument_ordinal: 1,
                 },
             },
@@ -91,7 +91,7 @@ fn guarded_byte_tail_retains_full_source_and_authored_endpoint_positions() {
         ),
         (
             CheckedScalarExpressionRole::SubsliceEnd {
-                site: checked_trees::CheckedSubsliceSite::TransitionArgument {
+                site: crate::checked_trees::CheckedSubsliceSite::TransitionArgument {
                     argument_ordinal: 1,
                 },
             },
@@ -113,10 +113,10 @@ fn guarded_byte_tail_retains_full_source_and_authored_endpoint_positions() {
         bindings.expression_at(
             state,
             0,
-            CheckedScalarExpressionRole::SubsliceEnd { site: checked_trees::CheckedSubsliceSite::TransitionArgument { argument_ordinal: 1 } }
+            CheckedScalarExpressionRole::SubsliceEnd { site: crate::checked_trees::CheckedSubsliceSite::TransitionArgument { argument_ordinal: 1 } }
         ),
         Some(CheckedScalarExpression::StructuralParameterByteLength {
-            root: checked_trees::CheckedStorageRoot::Parameter { index: 0 }, path
+            root: crate::checked_trees::CheckedStorageRoot::Parameter { index: 0 }, path
         }) if path.is_empty()
     ));
     assert!(
@@ -125,7 +125,7 @@ fn guarded_byte_tail_retains_full_source_and_authored_endpoint_positions() {
                 state,
                 0,
                 CheckedScalarExpressionRole::SubsliceStart {
-                    site: checked_trees::CheckedSubsliceSite::TransitionArgument {
+                    site: crate::checked_trees::CheckedSubsliceSite::TransitionArgument {
                         argument_ordinal: 0
                     }
                 }
@@ -149,12 +149,12 @@ fn byte_tail_plan_rejects_missing_duplicate_or_drifted_endpoint_custody() {
         .state;
     for role in [
         CheckedScalarExpressionRole::SubsliceStart {
-            site: checked_trees::CheckedSubsliceSite::TransitionArgument {
+            site: crate::checked_trees::CheckedSubsliceSite::TransitionArgument {
                 argument_ordinal: 1,
             },
         },
         CheckedScalarExpressionRole::SubsliceEnd {
-            site: checked_trees::CheckedSubsliceSite::TransitionArgument {
+            site: crate::checked_trees::CheckedSubsliceSite::TransitionArgument {
                 argument_ordinal: 1,
             },
         },
@@ -225,8 +225,11 @@ fn byte_tail_plan_rejects_selected_or_wrong_range_meaning_and_unknown_source() {
             0 => selected.spelling = language_core::OperatorSpelling::Index,
             1 => selected.selected_operator_symbol = machine,
             2 => selected.candidate_count = 1,
-            3 => selected.status = checked_trees::CheckedOperatorResolutionStatus::Resolved,
-            _ => selected.status = checked_trees::CheckedOperatorResolutionStatus::DomainPending,
+            3 => selected.status = crate::checked_trees::CheckedOperatorResolutionStatus::Resolved,
+            _ => {
+                selected.status =
+                    crate::checked_trees::CheckedOperatorResolutionStatus::DomainPending
+            }
         }
         let rebuilt = crate::execution::terminal_unit::build_checked_unit_effect_plans(
             &checked.typed,
@@ -316,7 +319,7 @@ fn whole_byte_view_and_omitted_subslice_endpoints_keep_distinct_transfers() {
                     plan.states[0].state,
                     0,
                     CheckedScalarExpressionRole::SubsliceStart {
-                        site: checked_trees::CheckedSubsliceSite::TransitionArgument {
+                        site: crate::checked_trees::CheckedSubsliceSite::TransitionArgument {
                             argument_ordinal: 1
                         }
                     }
@@ -330,7 +333,7 @@ fn whole_byte_view_and_omitted_subslice_endpoints_keep_distinct_transfers() {
                     plan.states[0].state,
                     0,
                     CheckedScalarExpressionRole::SubsliceEnd {
-                        site: checked_trees::CheckedSubsliceSite::TransitionArgument {
+                        site: crate::checked_trees::CheckedSubsliceSite::TransitionArgument {
                             argument_ordinal: 1
                         }
                     }

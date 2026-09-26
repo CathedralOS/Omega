@@ -1,21 +1,21 @@
 use optimization_core::OptimizationWorkUsage;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
+use semantic_vocabulary::{IntegerSign, ScalarType};
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::{
     SelectedInstruction, SelectedInstructionKind, SelectedTerminator, VirtualRegisterOrigin,
 };
-use semantic_vocabulary::{IntegerSign, ScalarType};
 
+use crate::register_homes::{
+    FunctionRecoveryClassification, NoAdmittedRecoveryReason, PressureRecoveryClassification,
+    RecoveryClassification, RecoveryClassificationPlan, RecoveryClassificationPolicy,
+    RecoveryFutureUse, RecoveryVictimRole, recovery_classification_identity,
+};
 use crate::{
     RecoveryClassificationError, RecoveryClassificationValidationReceipt,
     ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedRecoveryClassifications,
     ValidatedSelectedAnalysis, ValidatedSpillChoices,
 };
-use register_homes::{
-    FunctionRecoveryClassification, NoAdmittedRecoveryReason, PressureRecoveryClassification,
-    RecoveryClassification, RecoveryClassificationPlan, RecoveryClassificationPolicy,
-    RecoveryFutureUse, RecoveryVictimRole, recovery_classification_identity,
-};
-use selected_instructions::VirtualFixedConstraintSite;
+use target_operations_to_selected_instructions::VirtualFixedConstraintSite;
 
 pub fn validate_recovery_classifications<S: ValidatedSelectedAnalysis>(
     selected: &S,
@@ -113,10 +113,10 @@ pub fn validate_recovery_classifications<S: ValidatedSelectedAnalysis>(
 
 fn replay_function(
     function: usize,
-    selected: &selected_instructions::SelectedFunction,
-    ranges: &selected_instructions::FunctionLiveRanges,
-    legality: &register_homes::FunctionAllocationLegality,
-    choices: &register_homes::FunctionSpillChoices,
+    selected: &target_operations_to_selected_instructions::SelectedFunction,
+    ranges: &target_operations_to_selected_instructions::FunctionLiveRanges,
+    legality: &crate::register_homes::FunctionAllocationLegality,
+    choices: &crate::register_homes::FunctionSpillChoices,
 ) -> Result<FunctionRecoveryClassification, RecoveryClassificationError> {
     if selected.machine != ranges.machine
         || selected.machine != legality.machine
@@ -183,17 +183,17 @@ fn replay_function(
 #[cfg(test)]
 pub(crate) fn replay_function_for_test(
     function: usize,
-    selected: &selected_instructions::SelectedFunction,
-    ranges: &selected_instructions::FunctionLiveRanges,
-    legality: &register_homes::FunctionAllocationLegality,
-    choices: &register_homes::FunctionSpillChoices,
+    selected: &target_operations_to_selected_instructions::SelectedFunction,
+    ranges: &target_operations_to_selected_instructions::FunctionLiveRanges,
+    legality: &crate::register_homes::FunctionAllocationLegality,
+    choices: &crate::register_homes::FunctionSpillChoices,
 ) -> Result<FunctionRecoveryClassification, RecoveryClassificationError> {
     replay_function(function, selected, ranges, legality, choices)
 }
 
 fn replay_role(
     function: usize,
-    choice: &register_homes::SpillChoice,
+    choice: &crate::register_homes::SpillChoice,
 ) -> Result<RecoveryVictimRole, RecoveryClassificationError> {
     let selected_rows = choice
         .contenders
@@ -228,11 +228,11 @@ fn replay_role(
 
 fn replay_classification(
     function: usize,
-    selected: &selected_instructions::SelectedFunction,
-    ranges: &selected_instructions::FunctionLiveRanges,
-    choice: &register_homes::SpillChoice,
-    victim: &selected_instructions::VirtualRegister,
-    range: &selected_instructions::VirtualLiveRange,
+    selected: &target_operations_to_selected_instructions::SelectedFunction,
+    ranges: &target_operations_to_selected_instructions::FunctionLiveRanges,
+    choice: &crate::register_homes::SpillChoice,
+    victim: &target_operations_to_selected_instructions::VirtualRegister,
+    range: &target_operations_to_selected_instructions::VirtualLiveRange,
 ) -> Result<RecoveryClassification, RecoveryClassificationError> {
     let ScalarType::Integer(integer) = victim.scalar_type else {
         return replay_no(NoAdmittedRecoveryReason::UnsupportedScalarType);
@@ -260,14 +260,16 @@ fn replay_classification(
     };
     if crate::analyses::liveness::edge_values::has_edge_use(selected, victim.id)
         || range.fragments.as_slice()
-            != [selected_instructions::LiveRangeFragment {
-                block: choice.block,
-                start: range
-                    .fragments
-                    .first()
-                    .map_or(choice.point, |row| row.start),
-                end: range.fragments.first().map_or(choice.point, |row| row.end),
-            }]
+            != [
+                target_operations_to_selected_instructions::LiveRangeFragment {
+                    block: choice.block,
+                    start: range
+                        .fragments
+                        .first()
+                        .map_or(choice.point, |row| row.start),
+                    end: range.fragments.first().map_or(choice.point, |row| row.end),
+                },
+            ]
         || !range.edge_connectors.is_empty()
     {
         return replay_no(NoAdmittedRecoveryReason::UnsupportedRangeShape);
@@ -331,7 +333,9 @@ fn replay_classification(
         || defining.provenance.fuel.is_empty()
         || defining.provenance.fuel.iter().any(|fuel| {
             fuel.site
-                != optimization_unit::PsiProvenance::Operation(defining.provenance.operations[0])
+                != terminal_psi_to_abstract_operations::optimization_unit::PsiProvenance::Operation(
+                    defining.provenance.operations[0],
+                )
         })
         || !integer.admits(value)
     {
@@ -400,7 +404,7 @@ fn replay_classification(
 }
 
 fn replay_block_instructions(
-    block: &selected_instructions::SelectedBlock,
+    block: &target_operations_to_selected_instructions::SelectedBlock,
 ) -> Vec<&SelectedInstruction> {
     let mut instructions = block.instructions.iter().collect::<Vec<_>>();
     instructions.push(match &block.terminator {

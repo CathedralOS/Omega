@@ -12,21 +12,21 @@
 //! with no representable storage origin, leaves the ceiling unrepresentable,
 //! and the caller keeps retiring every live fact as before.
 
+use crate::checked_trees::{BorrowCallFact, BorrowFacts, BorrowLoanOwnerSegment};
+use crate::fact_plan::PlaceRoot;
 use crate::flow::CanonicalPlace;
-use checked_trees::{BorrowCallFact, BorrowFacts, BorrowLoanOwnerSegment};
-use facts::PlaceRoot;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
 use symbols::SymbolHandle;
-use typed_trees::types::TypeReferenceNode;
 
 /// The storage an unknown-frame call may write, with each exclusive actual's
 /// own alias place beside its storage so facts keyed on the alias retire
 /// too. The alias closure runs in the caller (`call_storage_writes`).
 pub(crate) fn signature_ceiling_places(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow_call: &BorrowCallFact,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     signature_ceiling_places_inner(
         program,
@@ -42,12 +42,12 @@ pub(crate) fn signature_ceiling_places(
 /// may carry references resolve to the exact referents of their carried
 /// exclusive loans instead of leaving the ceiling unrepresentable.
 pub(crate) fn signature_ceiling_places_with_loans(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow: &BorrowFacts,
     borrow_call: &BorrowCallFact,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     signature_ceiling_places_inner(
         program,
@@ -60,12 +60,12 @@ pub(crate) fn signature_ceiling_places_with_loans(
 }
 
 fn signature_ceiling_places_inner(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow: Option<&BorrowFacts>,
     borrow_call: &BorrowCallFact,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     let machine = crate::lookup::machine_by_symbol(program, caller_machine_symbol)?;
     let state = crate::semantic::calls::find_state(program, caller_state_symbol)?;
@@ -169,8 +169,8 @@ fn signature_ceiling_places_inner(
 }
 
 pub(super) fn is_exclusive_reference(
-    program: &typed_trees::TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     let mut reference = type_reference;
     while reference.is_valid() {
@@ -190,11 +190,11 @@ pub(super) fn is_exclusive_reference(
 /// declaration. Shared (`&`) loans contribute nothing: a read-only borrow
 /// inside the consumed value reaches no writable caller place.
 fn carried_exclusive_referents(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
-    argument: typed_trees::expression::ExpressionHandle,
+    argument: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> Option<Vec<CanonicalPlace>> {
     let actual = crate::flow::canonical_place_from_expression_in_state(
         program,
@@ -238,9 +238,9 @@ fn carried_exclusive_referents(
 /// Same prefix law as `borrow::last_uses`'s owner-path matching: an absent
 /// or dynamic selector conservatively overlaps its counterpart.
 fn owner_path_overlaps(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     owner_path: &[BorrowLoanOwnerSegment],
-    place_segments: &[facts::PlaceSegment],
+    place_segments: &[crate::fact_plan::PlaceSegment],
 ) -> bool {
     owner_path
         .iter()
@@ -248,23 +248,23 @@ fn owner_path_overlaps(
         .all(|(owner, place)| match (owner, place) {
             (
                 BorrowLoanOwnerSegment::Field(owner_symbol),
-                facts::PlaceSegment::Field {
+                crate::fact_plan::PlaceSegment::Field {
                     symbol: place_symbol,
                 },
             ) => !place_symbol.is_valid() || owner_symbol == place_symbol,
             (
                 BorrowLoanOwnerSegment::Case(owner_variant),
-                facts::PlaceSegment::Case {
+                crate::fact_plan::PlaceSegment::Case {
                     variant: place_variant,
                 },
             ) => owner_variant == place_variant,
             (
                 BorrowLoanOwnerSegment::FixedIndex(owner_index),
-                facts::PlaceSegment::FixedIndex { index: place_index },
+                crate::fact_plan::PlaceSegment::FixedIndex { index: place_index },
             ) => owner_index == place_index,
             (
                 BorrowLoanOwnerSegment::FixedIndex(owner_index),
-                facts::PlaceSegment::Index { expression },
+                crate::fact_plan::PlaceSegment::Index { expression },
             ) => program
                 .expression_table
                 .constant_integer_value(*expression)
@@ -272,7 +272,8 @@ fn owner_path_overlaps(
                 .is_none_or(|place_index| *owner_index == place_index),
             (
                 BorrowLoanOwnerSegment::DynamicIndex,
-                facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. },
+                crate::fact_plan::PlaceSegment::FixedIndex { .. }
+                | crate::fact_plan::PlaceSegment::Index { .. },
             ) => true,
             _ => false,
         })

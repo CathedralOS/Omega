@@ -19,7 +19,7 @@ fn entry_frame(source: &str) -> Option<Vec<String>> {
         .iter()
         .find(|machine| machine.name.as_str() == "Main::run")
         .expect("caller");
-    let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
+    let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolver");
     visible_paths(
         resolver
             .inferred_state_write_frame(machine, &program.machine_states(machine)[0])

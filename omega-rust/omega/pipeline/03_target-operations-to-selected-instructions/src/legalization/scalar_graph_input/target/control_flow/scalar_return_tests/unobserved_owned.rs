@@ -77,14 +77,16 @@ fn owned_fixture(
         else {
             panic!("jump");
         };
-        structural_bindings.push(abstract_operations::AbstractStructuralBinding {
-            parameter: place(2),
-            argument: StructuralArgument {
-                place: place(argument),
-                path: Vec::new(),
-                access: StructuralAccess::Owned,
+        structural_bindings.push(
+            terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding {
+                parameter: place(2),
+                argument: StructuralArgument {
+                    place: place(argument),
+                    path: Vec::new(),
+                    access: StructuralAccess::Owned,
+                },
             },
-        });
+        );
     }
     let AbstractOperation::Return {
         cleanup_actions, ..
@@ -98,7 +100,7 @@ fn owned_fixture(
         abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
     )
     .unwrap();
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &plan,
         FuelScheduleIdentity::new(1).unwrap(),
     )
@@ -210,7 +212,7 @@ fn owned_arrival_field_read_requires_the_matching_native_graph() {
         field: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
     };
     plan.functions[0].operations[1] = observation;
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &plan,
         FuelScheduleIdentity::new(1).unwrap(),
     )
@@ -268,7 +270,7 @@ fn unobserved_owned_unrestricted_arrivals_keep_abi_without_affine_disposal() {
         abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
     )
     .unwrap();
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &plan,
         FuelScheduleIdentity::new(1).unwrap(),
     )
@@ -324,7 +326,7 @@ fn unobserved_owned_arrivals_do_not_supply_missing_arithmetic_authority() {
         abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
     )
     .unwrap();
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &plan,
         FuelScheduleIdentity::new(1).unwrap(),
     )

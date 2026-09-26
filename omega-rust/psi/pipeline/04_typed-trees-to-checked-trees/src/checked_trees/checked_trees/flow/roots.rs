@@ -1,0 +1,414 @@
+use arena::Arena;
+use symbols::SymbolHandle;
+
+use super::{
+    FlowBorrowActivationFact, FlowBorrowWeakeningFact, FlowBoundaryEdgeFact, FlowCallFact,
+    FlowClaimOutcomeEntryFact, FlowClaimOutcomeMapFact, FlowConstraintRef, FlowExitFact,
+    FlowInvalidationFact, FlowPermissionEventFact, FlowSemanticContextRef, FlowStateFact,
+    FlowStatementFact,
+};
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowContextFacts {
+    pub semantic_context_refs: Arena<FlowSemanticContextRef>,
+    pub constraint_refs: Arena<FlowConstraintRef>,
+}
+
+impl FlowContextFacts {
+    pub fn with_roots(
+        semantic_context_refs: Arena<FlowSemanticContextRef>,
+        constraint_refs: Arena<FlowConstraintRef>,
+    ) -> Self {
+        Self {
+            semantic_context_refs,
+            constraint_refs,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowInvalidationFacts {
+    pub segments: Arena<crate::fact_plan::PlaceSegment>,
+    pub events: Arena<FlowInvalidationFact>,
+}
+
+impl FlowInvalidationFacts {
+    pub fn with_roots(
+        segments: Arena<crate::fact_plan::PlaceSegment>,
+        events: Arena<FlowInvalidationFact>,
+    ) -> Self {
+        Self { segments, events }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowBorrowLifetimeFacts {
+    pub activations: Arena<FlowBorrowActivationFact>,
+    pub weakenings: Arena<FlowBorrowWeakeningFact>,
+}
+
+impl FlowBorrowLifetimeFacts {
+    pub fn with_roots(
+        activations: Arena<FlowBorrowActivationFact>,
+        weakenings: Arena<FlowBorrowWeakeningFact>,
+    ) -> Self {
+        Self {
+            activations,
+            weakenings,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowOwnershipFacts {
+    pub segments: Arena<crate::fact_plan::PlaceSegment>,
+    pub permissions: Arena<FlowPermissionEventFact>,
+    pub claim_outcome_entries: Arena<FlowClaimOutcomeEntryFact>,
+    pub claim_outcome_maps: Arena<FlowClaimOutcomeMapFact>,
+    pub claim_join_receipts: Arena<super::FlowClaimJoinReceipt>,
+    pub claim_join_alternatives: Arena<super::FlowClaimJoinAlternative>,
+    pub claim_join_exits: Arena<super::FlowClaimJoinExit>,
+    pub owned_selections: Arena<super::FlowOwnedSelectionReceipt>,
+    pub selection_sources: Arena<super::FlowOwnedSelectionSource>,
+    pub selection_transfers: Arena<super::FlowOwnedSelectionTransfer>,
+    pub selection_transfer_claims: Arena<super::FlowOwnedSelectionClaim>,
+}
+
+impl FlowOwnershipFacts {
+    pub fn with_roots(
+        segments: Arena<crate::fact_plan::PlaceSegment>,
+        permissions: Arena<FlowPermissionEventFact>,
+        claim_outcome_entries: Arena<FlowClaimOutcomeEntryFact>,
+        claim_outcome_maps: Arena<FlowClaimOutcomeMapFact>,
+    ) -> Self {
+        Self {
+            segments,
+            permissions,
+            claim_outcome_entries,
+            claim_outcome_maps,
+            claim_join_receipts: Arena::default(),
+            claim_join_alternatives: Arena::default(),
+            claim_join_exits: Arena::default(),
+            owned_selections: Arena::default(),
+            selection_sources: Arena::default(),
+            selection_transfers: Arena::default(),
+            selection_transfer_claims: Arena::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowBoundaryFacts {
+    pub edges: Arena<FlowBoundaryEdgeFact>,
+}
+
+impl FlowBoundaryFacts {
+    pub fn with_roots(edges: Arena<FlowBoundaryEdgeFact>) -> Self {
+        Self { edges }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowControlFacts {
+    pub operator_invocations: Arena<super::FlowOperatorInvocationFact>,
+    pub operator_operands: Arena<super::FlowOperatorOperandFact>,
+    /// Exact storage an operand's evaluated view carrier denotes, one row per
+    /// resolvable referent; segment payloads live in `operand_referent_segments`
+    /// in the semantic `Place` vocabulary.
+    pub operand_referents: Arena<super::FlowOperandReferent>,
+    pub operand_referent_segments: Arena<crate::fact_plan::PlaceSegment>,
+    pub statements: Arena<FlowStatementFact>,
+    pub calls: Arena<FlowCallFact>,
+    pub exits: Arena<FlowExitFact>,
+    pub exit_parameter_origins: Arena<super::FlowExitParameterOrigin>,
+    pub states: Arena<FlowStateFact>,
+    /// Call rows whose authored call selected execution replaced in the typed
+    /// body after checking. The rows stay in `calls` because borrow
+    /// certificates and computation roots hold their handles; execution
+    /// planning consults this set and skips a retired row.
+    pub retired_calls: Vec<super::RetiredFlowCall>,
+}
+
+impl FlowControlFacts {
+    pub fn with_roots(
+        statements: Arena<FlowStatementFact>,
+        calls: Arena<FlowCallFact>,
+        exits: Arena<FlowExitFact>,
+        states: Arena<FlowStateFact>,
+    ) -> Self {
+        Self {
+            statements,
+            operator_invocations: Arena::default(),
+            operator_operands: Arena::default(),
+            operand_referents: Arena::default(),
+            operand_referent_segments: Arena::default(),
+            calls,
+            exits,
+            exit_parameter_origins: Arena::default(),
+            states,
+            retired_calls: Vec::new(),
+        }
+    }
+
+    /// Whether `call`, a row of `state`, was retired by selected execution.
+    pub fn is_retired(&self, state: SymbolHandle, call: &FlowCallFact) -> bool {
+        self.retired_calls.iter().any(|retired| {
+            retired.state_symbol == state
+                && retired.statement_index == call.statement_index
+                && retired.call_ordinal == call.call_ordinal
+        })
+    }
+
+    /// Retire every call row of `state` at `statement_index` whose authored
+    /// expression is `expression`; with `statement_root`, also the
+    /// statement-level row (ordinal zero, which captures no expression).
+    /// Returns the number of rows newly retired.
+    pub fn retire_calls(
+        &mut self,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        statement_index: usize,
+        expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+        statement_root: bool,
+    ) -> usize {
+        let Some(span) = self.states.iter().find_map(|(_, candidate)| {
+            (candidate.machine_symbol == machine && candidate.state_symbol == state)
+                .then_some(candidate.calls)
+        }) else {
+            return 0;
+        };
+        let mut retired = 0;
+        for call in self.calls.span_or_empty(span) {
+            if call.statement_index != statement_index {
+                continue;
+            }
+            let matches = if call.authored_expression.is_valid() {
+                call.authored_expression == expression
+            } else {
+                statement_root && call.call_ordinal == 0
+            };
+            if !matches || self.is_retired(state, call) {
+                continue;
+            }
+            self.retired_calls.push(super::RetiredFlowCall {
+                state_symbol: state,
+                statement_index: call.statement_index,
+                call_ordinal: call.call_ordinal,
+            });
+            retired += 1;
+        }
+        retired
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowFacts {
+    pub contexts: FlowContextFacts,
+    pub invalidations: FlowInvalidationFacts,
+    pub borrow_lifetimes: FlowBorrowLifetimeFacts,
+    pub ownership: FlowOwnershipFacts,
+    pub boundaries: FlowBoundaryFacts,
+    pub control: FlowControlFacts,
+    /// Exact declaration-level nominal, representation, ownership, and
+    /// compiler-selected cleanup dependencies derived from checked value flow.
+    /// These rows affect artifact/API identity but grant no source authority.
+    pub semantic_dependencies: super::CheckedSemanticDependencies,
+    /// Source-handle-free control topology for the live terminal-Psi scalar
+    /// producer: `machines`, per-state bindings, parameter storage, and the
+    /// successor argument/transfer arenas cover scalar-signature machines
+    /// only — that topology is the bootstrap carrier general terminal
+    /// control replaces. The `guarded_exits`/`guarded_tails` lanes are
+    /// already produced for every machine's guarded tails and consumed by
+    /// composed-Unit, argument-evaluation, and custody lowering, so the
+    /// general carrier inherits those shared lanes rather than discarding
+    /// this record whole.
+    pub terminal_scalar_graphs: super::CheckedScalarGraphPlans,
+    /// Stable machine selection and signature-eligibility rows for terminal
+    /// production.
+    pub terminal_machines: super::CheckedTerminalMachineSelections,
+    /// Optional source presentation retained independently from terminal
+    /// semantic and proof plans.
+    pub terminal_debug: super::CheckedTerminalDebugPlans,
+    /// General source-handle-free structural/Unit effect plans. These are
+    /// populated after checked ownership and carry recording succeeds.
+    pub terminal_unit_effects: super::CheckedUnitEffectPlans,
+    /// Checked-only direct-record-field transfer plus residual Unit-return
+    /// cleanup plans. Terminal consumers intentionally ignore this lane until
+    /// they gain a path-sensitive ownership frontier.
+    pub terminal_partial_affine_unit_cleanups: super::CheckedPartialAffineUnitCleanupPlans,
+    /// Exact whole-root affine returns that require one checked empty nominal
+    /// cleanup machine. This lane stays distinct from no-code disposal.
+    pub terminal_nominal_affine_unit_cleanups: super::CheckedNominalAffineUnitCleanupPlans,
+    /// Whole-parameter no-code cleanup rows for supported ordinary structural
+    /// transitions. These are populated only after multiplicity checking has
+    /// recorded the authoritative state-exit permission events.
+    pub terminal_structural_control_cleanups: super::CheckedStructuralControlCleanupPlans,
+    /// Complete checked input for the first claim-free affine structural Unit
+    /// jump graph accepted by terminal production.
+    pub terminal_structural_unit_controls: super::CheckedStructuralUnitControlPlans,
+    /// Exact attached scalar-return plan for a claim-free affine structural
+    /// entry frontier.
+    pub terminal_structural_scalar_returns: super::CheckedStructuralScalarReturnPlans,
+    /// One result-bearing bodyless boundary call whose successful completion
+    /// consumes the exact structural claim frontier.
+    pub terminal_boundary_scalar_returns: super::CheckedBoundaryScalarReturnPlans,
+    /// Exact whole-root structural transfers and separate zero-input
+    /// payload-less sum-case constructors.
+    pub terminal_structural_returns: super::CheckedStructuralReturnPlans,
+    /// Final direct internal calls whose exact whole-root structural result is
+    /// returned immediately by the caller.
+    pub terminal_structural_call_returns: super::CheckedStructuralCallReturnPlans,
+}
+
+impl FlowFacts {
+    pub fn with_roots(
+        contexts: FlowContextFacts,
+        invalidations: FlowInvalidationFacts,
+        borrow_lifetimes: FlowBorrowLifetimeFacts,
+        ownership: FlowOwnershipFacts,
+        boundaries: FlowBoundaryFacts,
+        control: FlowControlFacts,
+    ) -> Self {
+        Self {
+            contexts,
+            invalidations,
+            borrow_lifetimes,
+            ownership,
+            boundaries,
+            control,
+            semantic_dependencies: super::CheckedSemanticDependencies::default(),
+            terminal_scalar_graphs: super::CheckedScalarGraphPlans::default(),
+            terminal_machines: super::CheckedTerminalMachineSelections::default(),
+            terminal_debug: super::CheckedTerminalDebugPlans::default(),
+            terminal_unit_effects: super::CheckedUnitEffectPlans::default(),
+            terminal_partial_affine_unit_cleanups:
+                super::CheckedPartialAffineUnitCleanupPlans::default(),
+            terminal_nominal_affine_unit_cleanups:
+                super::CheckedNominalAffineUnitCleanupPlans::default(),
+            terminal_structural_control_cleanups:
+                super::CheckedStructuralControlCleanupPlans::default(),
+            terminal_structural_unit_controls: super::CheckedStructuralUnitControlPlans::default(),
+            terminal_structural_scalar_returns: super::CheckedStructuralScalarReturnPlans::default(
+            ),
+            terminal_boundary_scalar_returns: super::CheckedBoundaryScalarReturnPlans::default(),
+            terminal_structural_returns: super::CheckedStructuralReturnPlans::default(),
+            terminal_structural_call_returns: super::CheckedStructuralCallReturnPlans::default(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::checked_trees::{
+        FlowBorrowLifetimeFacts, FlowBoundaryFacts, FlowContextFacts, FlowControlFacts, FlowFacts,
+        FlowInvalidationFacts, FlowOwnershipFacts,
+    };
+
+    #[test]
+    fn flow_facts_constructor_keeps_flow_roots_explicit() {
+        let contexts = FlowContextFacts::default();
+        let invalidations = FlowInvalidationFacts::default();
+        let borrow_lifetimes = FlowBorrowLifetimeFacts::default();
+        let ownership = FlowOwnershipFacts::default();
+        let boundaries = FlowBoundaryFacts::default();
+        let control = FlowControlFacts::default();
+
+        let facts = FlowFacts::with_roots(
+            contexts.clone(),
+            invalidations.clone(),
+            borrow_lifetimes.clone(),
+            ownership.clone(),
+            boundaries.clone(),
+            control.clone(),
+        );
+
+        assert_eq!(facts.contexts, contexts);
+        assert_eq!(facts.invalidations, invalidations);
+        assert_eq!(facts.borrow_lifetimes, borrow_lifetimes);
+        assert_eq!(facts.ownership, ownership);
+        assert_eq!(facts.boundaries, boundaries);
+        assert_eq!(facts.control, control);
+    }
+
+    #[test]
+    fn retiring_a_call_row_keeps_the_arena_and_matches_only_that_coordinate() {
+        use crate::checked_trees::{FlowCallFact, FlowStateFact, RetiredFlowCall};
+        use symbols::SymbolHandle;
+
+        let machine = SymbolHandle::from_parts(1, 1);
+        let state = SymbolHandle::from_parts(2, 1);
+        let other_state = SymbolHandle::from_parts(3, 1);
+        let expression = symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::from_parts(7, 1);
+        let mut control = FlowControlFacts::default();
+        let rows = control.calls.insert_many([
+            FlowCallFact {
+                statement_index: 3,
+                call_ordinal: 0,
+                authored_expression: expression,
+                ..FlowCallFact::default()
+            },
+            FlowCallFact {
+                statement_index: 4,
+                call_ordinal: 0,
+                authored_expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::from_parts(8, 1),
+                ..FlowCallFact::default()
+            },
+            FlowCallFact {
+                statement_index: 5,
+                call_ordinal: 0,
+                ..FlowCallFact::default()
+            },
+        ]);
+        control.states.insert(FlowStateFact {
+            machine_symbol: machine,
+            state_symbol: state,
+            calls: rows,
+            ..FlowStateFact::default()
+        });
+        let before = control.calls.clone();
+
+        assert_eq!(
+            control.retire_calls(machine, other_state, 3, expression, false),
+            0
+        );
+        assert_eq!(
+            control.retire_calls(machine, state, 3, expression, false),
+            1
+        );
+        assert_eq!(
+            control.retire_calls(machine, state, 3, expression, false),
+            0,
+            "retiring twice records one row"
+        );
+        assert_eq!(
+            control.retire_calls(machine, state, 5, expression, false),
+            0,
+            "a statement-level row (no captured expression) needs the statement root"
+        );
+        assert_eq!(control.retire_calls(machine, state, 5, expression, true), 1);
+        assert_eq!(
+            control.retired_calls,
+            vec![
+                RetiredFlowCall {
+                    state_symbol: state,
+                    statement_index: 3,
+                    call_ordinal: 0,
+                },
+                RetiredFlowCall {
+                    state_symbol: state,
+                    statement_index: 5,
+                    call_ordinal: 0,
+                },
+            ]
+        );
+        assert_eq!(control.calls, before, "retirement never rewrites the arena");
+        let calls = control.calls.span_or_empty(rows);
+        assert!(control.is_retired(state, &calls[0]));
+        assert!(!control.is_retired(state, &calls[1]));
+        assert!(control.is_retired(state, &calls[2]));
+        assert!(
+            !control.is_retired(other_state, &calls[0]),
+            "a coordinate is retired for one state only"
+        );
+    }
+}

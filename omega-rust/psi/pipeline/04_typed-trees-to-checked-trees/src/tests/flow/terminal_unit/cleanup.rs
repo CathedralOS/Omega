@@ -19,7 +19,7 @@ fn fixed_cleanup_path(indexes: &[u64]) -> Vec<CheckedUnitStructuralPathSegment> 
 }
 
 fn assert_token_cleanup_partition(
-    checked: &checked_trees::CheckedTrees,
+    checked: &crate::checked_trees::CheckedTrees,
     machine: &str,
     moved_paths: &[Vec<CheckedUnitStructuralPathSegment>],
     residuals: &[(Vec<CheckedUnitStructuralPathSegment>, String)],
@@ -36,7 +36,7 @@ fn assert_token_cleanup_partition(
     };
     assert_eq!(
         parameter.access,
-        checked_trees::CheckedStructuralAccess::Owned,
+        crate::checked_trees::CheckedStructuralAccess::Owned,
         "{machine}"
     );
     assert_eq!(parameter.multiplicity, Multiplicity::Affine, "{machine}");
@@ -75,7 +75,7 @@ fn assert_token_cleanup_partition(
         assert_eq!(argument.source_parameter_index(), Some(0), "{machine}");
         assert_eq!(
             argument.access,
-            checked_trees::CheckedStructuralAccess::Owned,
+            crate::checked_trees::CheckedStructuralAccess::Owned,
             "{machine}"
         );
         assert_eq!(
@@ -104,8 +104,8 @@ fn assert_token_cleanup_partition(
     let expected = residuals
         .iter()
         .map(
-            |(path, type_identity)| checked_trees::CheckedUnitPartialAffineDiscardPlan {
-                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            |(path, type_identity)| crate::checked_trees::CheckedUnitPartialAffineDiscardPlan {
+                source: crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                     parameter_index: 0,
                 },
                 path: path.clone(),

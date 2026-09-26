@@ -41,19 +41,19 @@ use crate::authored_selections::finalization::{
     push_consistent_resolution,
 };
 use crate::authored_selections::selection_collection::collect_checked_transition_target_selections;
-use checked_trees::CheckFacts;
+use crate::checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionLateBinding,
     AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionTarget,
 };
+use symbol_resolved_trees_to_typed_trees::typed_trees::{TypedTrees, expression::ExpressionNode};
 use symbols::SymbolHandle;
-use typed_trees::{TypedTrees, expression::ExpressionNode};
 
 pub(crate) fn derive_checked_nominal_call_target(
     program: &TypedTrees,
     facts: &CheckFacts,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> Option<SymbolHandle> {
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return None;
@@ -97,7 +97,7 @@ pub(crate) fn bind_checked_intrinsic_call_facts(
         };
         if intrinsic_calls
             .iter()
-            .any(|fact: &checked_trees::CheckedIntrinsicCallFact| {
+            .any(|fact: &crate::checked_trees::CheckedIntrinsicCallFact| {
                 fact.expression == expression && fact.intrinsic != intrinsic
             })
         {
@@ -110,7 +110,7 @@ pub(crate) fn bind_checked_intrinsic_call_facts(
             .iter()
             .any(|fact| fact.expression == expression && fact.intrinsic == intrinsic)
         {
-            intrinsic_calls.push(checked_trees::CheckedIntrinsicCallFact {
+            intrinsic_calls.push(crate::checked_trees::CheckedIntrinsicCallFact {
                 expression,
                 intrinsic,
             });
@@ -128,7 +128,7 @@ pub(crate) fn bind_checked_intrinsic_call_facts(
 /// means no exact owner is derivable, never that the spelling is free.
 pub(crate) fn exact_owner_member_declaration(
     program: &TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
 ) -> Option<SymbolHandle> {
     let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
         return None;

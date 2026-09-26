@@ -4,17 +4,17 @@
 use super::super::{AbstractOperationPlan, Error, PsiOptimizationUnit, TargetOperationPlan};
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
-use abstract_operations::AbstractOperation;
-use legalized_operations::LegalizedDynamicParameterCall;
-use legalized_operations::{
+use crate::legalized_operations::LegalizedDynamicParameterCall;
+use crate::legalized_operations::{
     LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarInstructionKind, NativeCallOrigin,
 };
+use abstract_operations_to_target_operations::target_operations::TargetUnitScalarHomeRequirement;
 use semantic_vocabulary::OperationId;
-use target_operations::TargetUnitScalarHomeRequirement;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
 
 pub(super) fn project_call_structural(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
@@ -74,8 +74,8 @@ pub(super) fn project_call_structural(
 }
 
 pub(super) fn project_boundary_call(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     native: &TargetOperationPlan,
     operation: OperationId,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
@@ -92,13 +92,13 @@ pub(super) fn project_boundary_call(
             return Err(Error::custody());
         };
         match scalar_graph_input::hosted_realization(native, optimized.machine, operation)? {
-            target_operations::BoundaryRealization::HostedWriteByteI32(_) => {
+            abstract_operations_to_target_operations::target_operations::BoundaryRealization::HostedWriteByteI32(_) => {
                 LegalizedScalarInstructionKind::HostedWriteByteI32 {
                     boundary: *boundary,
                     source: *source,
                 }
             }
-            target_operations::BoundaryRealization::HostedExitProcessI32(_) => {
+            abstract_operations_to_target_operations::target_operations::BoundaryRealization::HostedExitProcessI32(_) => {
                 LegalizedScalarInstructionKind::HostedExitProcessI32 {
                     boundary: *boundary,
                     source: *source,
@@ -115,15 +115,15 @@ pub(super) fn project_boundary_call(
 /// the unique target row; the scalar and structural argument rows it orders
 /// are the same evidence the input validator re-derives independently.
 pub(super) fn project_normalized_foreign_call(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     native: &TargetOperationPlan,
     operation: OperationId,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::BoundaryCall { boundary, .. } = &node.operation else {
         unreachable!("dispatched project_normalized_foreign_call")
     };
-    let Some(target_operations::TargetUnitOperation::NormalizedForeignCall {
+    let Some(abstract_operations_to_target_operations::target_operations::TargetUnitOperation::NormalizedForeignCall {
         psi_operation,
         boundary: row_boundary,
         provider_execution,
@@ -148,7 +148,7 @@ pub(super) fn project_normalized_foreign_call(
     )?
     .cloned();
     Ok(LegalizedScalarInstructionKind::NormalizedForeignCall(
-        legalized_operations::LegalizedNormalizedForeignCall {
+        crate::legalized_operations::LegalizedNormalizedForeignCall {
             boundary: *boundary,
             provider_execution: *provider_execution,
             binding: binding.clone(),
@@ -161,8 +161,8 @@ pub(super) fn project_normalized_foreign_call(
 }
 
 pub(super) fn project_call_unit(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
@@ -236,7 +236,7 @@ pub(super) fn project_call_unit(
 }
 
 pub(super) fn project_call(
-    node: &optimization_unit::OptimizationNode,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
@@ -280,8 +280,8 @@ pub(super) fn project_call(
 /// signature roster, the dispatch row, and the target ABI — the stored target
 /// operation is never read back here, and its own replay checks equality.
 pub(super) fn project_dynamic_parameter_call(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     native: &TargetOperationPlan,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let (

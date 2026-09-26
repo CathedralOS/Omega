@@ -1,15 +1,15 @@
 //! Resource lifecycle phases, boundaries, events and the ephemeral statuses
 //! the activation and weakening batches update.
 
+use crate::checked_trees::{
+    BorrowLoanFact, CheckedBorrowResourceLifecyclePhase, CheckedReborrowAccessEffect, FlowFacts,
+    FlowInvalidationSource,
+};
 use crate::checks::borrows::resources::reborrow_drafts::{
     CheckedReborrowLoanResourceDraft, ParentResourceIndex,
 };
 use crate::checks::borrows::resources::resource_reconstruction::span_handle;
 use crate::checks::borrows::resources::retained_validation::reborrow_disposition_drift;
-use checked_trees::{
-    BorrowLoanFact, CheckedBorrowResourceLifecyclePhase, CheckedReborrowAccessEffect, FlowFacts,
-    FlowInvalidationSource,
-};
 use diagnostics::Diagnostic;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -40,10 +40,10 @@ pub(crate) struct LifecycleBoundaryKey {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum LifecycleEventKind {
     Activate {
-        activation: arena::Handle<checked_trees::FlowBorrowActivationFact>,
+        activation: arena::Handle<crate::checked_trees::FlowBorrowActivationFact>,
     },
     Weaken {
-        weakening: arena::Handle<checked_trees::FlowBorrowWeakeningFact>,
+        weakening: arena::Handle<crate::checked_trees::FlowBorrowWeakeningFact>,
     },
 }
 
@@ -66,11 +66,11 @@ pub(crate) enum EphemeralResourceStatus {
     },
     RetiredWhileSharedFrozen {
         children: Vec<ParentResourceIndex>,
-        weakening: arena::Handle<checked_trees::FlowBorrowWeakeningFact>,
+        weakening: arena::Handle<crate::checked_trees::FlowBorrowWeakeningFact>,
     },
     RetiredWhileSuspended {
         child: ParentResourceIndex,
-        weakening: arena::Handle<checked_trees::FlowBorrowWeakeningFact>,
+        weakening: arena::Handle<crate::checked_trees::FlowBorrowWeakeningFact>,
     },
     Retired,
 }
@@ -133,8 +133,8 @@ pub(crate) fn exact_resource_lifecycle_handles(
     loan: arena::Handle<BorrowLoanFact>,
 ) -> Result<
     (
-        arena::Handle<checked_trees::FlowBorrowActivationFact>,
-        arena::Handle<checked_trees::FlowBorrowWeakeningFact>,
+        arena::Handle<crate::checked_trees::FlowBorrowActivationFact>,
+        arena::Handle<crate::checked_trees::FlowBorrowWeakeningFact>,
     ),
     Vec<Diagnostic>,
 > {
@@ -182,17 +182,19 @@ pub(crate) fn activation_boundary(
 
 pub(crate) fn weakening_event_boundary(
     source: FlowInvalidationSource,
-    reason: checked_trees::FlowBorrowWeakeningReason,
+    reason: crate::checked_trees::FlowBorrowWeakeningReason,
 ) -> Result<LifecycleBoundaryKey, Vec<Diagnostic>> {
     let FlowInvalidationSource::Statement { statement_index } = source else {
         return Err(reborrow_disposition_drift());
     };
     let phase = match reason {
-        checked_trees::FlowBorrowWeakeningReason::LastUseExpired => LifecyclePhase::LastUseExpired,
-        checked_trees::FlowBorrowWeakeningReason::LocalReassigned => {
+        crate::checked_trees::FlowBorrowWeakeningReason::LastUseExpired => {
+            LifecyclePhase::LastUseExpired
+        }
+        crate::checked_trees::FlowBorrowWeakeningReason::LocalReassigned => {
             LifecyclePhase::LocalReassigned
         }
-        checked_trees::FlowBorrowWeakeningReason::StateExit => LifecyclePhase::StateExit,
+        crate::checked_trees::FlowBorrowWeakeningReason::StateExit => LifecyclePhase::StateExit,
     };
     Ok(LifecycleBoundaryKey {
         statement_index,
@@ -268,7 +270,13 @@ pub(crate) fn apply_activation_batch(
 pub(crate) fn apply_weakening_batch(
     statuses: &mut EphemeralStatuses,
     batch: &[LifecycleEvent],
-) -> Result<Vec<(usize, arena::Handle<checked_trees::FlowBorrowWeakeningFact>)>, Vec<Diagnostic>> {
+) -> Result<
+    Vec<(
+        usize,
+        arena::Handle<crate::checked_trees::FlowBorrowWeakeningFact>,
+    )>,
+    Vec<Diagnostic>,
+> {
     let mut completed = Vec::new();
     for event in batch {
         let LifecycleEventKind::Weaken { weakening } = event.kind else {
@@ -306,15 +314,15 @@ pub(crate) fn apply_weakening_batch(
 
 pub(crate) fn weakening_boundary_key(
     source: FlowInvalidationSource,
-    reason: checked_trees::FlowBorrowWeakeningReason,
+    reason: crate::checked_trees::FlowBorrowWeakeningReason,
 ) -> Option<(usize, u8)> {
     let FlowInvalidationSource::Statement { statement_index } = source else {
         return None;
     };
     let phase = match reason {
-        checked_trees::FlowBorrowWeakeningReason::LastUseExpired => 0,
-        checked_trees::FlowBorrowWeakeningReason::LocalReassigned => 1,
-        checked_trees::FlowBorrowWeakeningReason::StateExit => 2,
+        crate::checked_trees::FlowBorrowWeakeningReason::LastUseExpired => 0,
+        crate::checked_trees::FlowBorrowWeakeningReason::LocalReassigned => 1,
+        crate::checked_trees::FlowBorrowWeakeningReason::StateExit => 2,
     };
     Some((statement_index, phase))
 }

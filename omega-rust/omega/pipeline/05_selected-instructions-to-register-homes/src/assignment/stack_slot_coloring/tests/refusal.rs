@@ -3,7 +3,7 @@ use crate::{
     validate_stack_slot_coloring,
 };
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use register_homes::{
+use selected_instructions_to_selected_instructions::register_homes::{
     LogicalSpillOperationIdentity, StackSlotColoringPlan, StackSlotColoringPolicy,
 };
 

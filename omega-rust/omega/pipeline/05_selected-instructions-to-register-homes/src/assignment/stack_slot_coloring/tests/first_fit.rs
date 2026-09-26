@@ -1,9 +1,11 @@
 use crate::assignment::stack_slot_coloring::compute::{
     StackSlotInterval, color_intervals_first_fit,
 };
-use register_homes::{LogicalSpillStorageClass, LogicalSpillStorageId};
-use selected_instructions::{LiveRangePoint, SelectedBlockId};
+use selected_instructions_to_selected_instructions::register_homes::{
+    LogicalSpillStorageClass, LogicalSpillStorageId,
+};
 use semantic_vocabulary::MachineId;
+use target_operations_to_selected_instructions::{LiveRangePoint, SelectedBlockId};
 
 fn interval(storage: u32, block: u32, from: u32, through: u32) -> StackSlotInterval {
     StackSlotInterval {

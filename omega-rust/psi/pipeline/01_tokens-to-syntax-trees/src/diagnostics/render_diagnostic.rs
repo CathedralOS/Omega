@@ -1,6 +1,6 @@
 use crate::diagnostics::parse_error::ParseError;
 use crate::input::token_cursor::Input;
-use tokens::{CommentKind, KeywordKind, PunctuationKind, Token, TokenKind};
+use source_files_to_tokens::tokens::{CommentKind, KeywordKind, PunctuationKind, Token, TokenKind};
 
 pub(crate) fn unexpected_eof<'tokens, 'source>(
     input: Input<'tokens, 'source>,

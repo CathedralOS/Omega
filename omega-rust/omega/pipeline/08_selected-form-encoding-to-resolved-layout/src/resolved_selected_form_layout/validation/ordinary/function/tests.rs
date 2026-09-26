@@ -4,26 +4,28 @@
 //! selected program and pre-layout rows directly; they do not manufacture
 //! selection authority.
 
-use isa_aarch64::{
-    aarch64_physical_register_model, encode_aarch64_selected_jump_form,
-    encode_aarch64_selected_nonzero_branch_form,
-};
-use machine_code::{
+use post_allocation_machine_to_selected_form_encoding::machine_code::{
     DeferredControlEncodingReason, SelectedFormDecodedFootprint, SelectedFormEncodingRow,
     SelectedFormEncodingState, SelectedFormMachineDisposition,
 };
-use physical_instructions::{
+use register_homes_to_post_allocation_machine::{
     PostAllocationMachineBlock, PostAllocationMachineFunction, PostAllocationMachineInstruction,
 };
-use register_model::{RegisterConstraintFamily, RegisterConstraintKey};
-use selected_instructions::{
+use semantic_vocabulary::{BlockId, EdgeId, MachineId};
+use target::Architecture;
+use target_operations_to_selected_instructions::isa_aarch64::{
+    aarch64_physical_register_model, encode_aarch64_selected_jump_form,
+    encode_aarch64_selected_nonzero_branch_form,
+};
+use target_operations_to_selected_instructions::register_model::{
+    RegisterConstraintFamily, RegisterConstraintKey,
+};
+use target_operations_to_selected_instructions::{
     MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
     MachineAlternativeKey, MachineLatencyKnowledge, MachineSizeKnowledge, SelectedBlock,
     SelectedBlockId, SelectedFunction, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionKind, SelectedSuccessor, SelectedTerminator,
 };
-use semantic_vocabulary::{BlockId, EdgeId, MachineId};
-use target::Architecture;
 
 use super::validate;
 use crate::resolved_selected_form_layout::ordinary::layout;
@@ -52,7 +54,7 @@ fn instruction(block: u32, kind: SelectedInstructionKind) -> SelectedInstruction
 fn successor(target: u32) -> SelectedSuccessor {
     SelectedSuccessor {
         structural_case: None,
-        role: selected_instructions::SelectedSuccessorRole::Semantic,
+        role: target_operations_to_selected_instructions::SelectedSuccessorRole::Semantic,
         structural_bindings: Vec::new(),
         psi_edge: EdgeId::new(u64::from(target) + 1).unwrap(),
         block: SelectedBlockId(target),
@@ -95,7 +97,7 @@ fn block_with(
 ) -> SelectedBlock {
     SelectedBlock {
         id: SelectedBlockId(id),
-        origin: selected_instructions::SelectedBlockOrigin::Source(
+        origin: target_operations_to_selected_instructions::SelectedBlockOrigin::Source(
             BlockId::new(u64::from(id) + 1).unwrap(),
         ),
         instructions,
@@ -121,8 +123,12 @@ fn function(blocks: Vec<SelectedBlock>) -> SelectedFunction {
     }
 }
 
-fn physical() -> register_model::ValidatedPhysicalRegisterModel {
-    register_model::validate_physical_register_model(aarch64_physical_register_model()).unwrap()
+fn physical()
+-> target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel {
+    target_operations_to_selected_instructions::register_model::validate_physical_register_model(
+        aarch64_physical_register_model(),
+    )
+    .unwrap()
 }
 
 fn branch_alternative() -> MachineAlternative {

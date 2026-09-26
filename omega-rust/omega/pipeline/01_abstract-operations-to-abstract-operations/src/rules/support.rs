@@ -7,17 +7,17 @@
 
 use std::collections::BTreeSet;
 
-use abstract_operations::AbstractOperation;
 use optimization_core::{
     AcceptedObligationFactIdentity, AnalysisKind, OptimizationRuleContract,
     ScalarConstantFactIdentity,
 };
-use optimization_unit::{
+use semantic_vocabulary::{BlockId, IntegerValue, MachineId, OperationId, ScalarType, ValueId};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     DeadScalarNodeRewrite, NodeLocation, OptimizationFact, ProvenanceDisposition,
     ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite,
     PsiRewriteCandidate, ValueDefinitionSite,
 };
-use semantic_vocabulary::{BlockId, IntegerValue, MachineId, OperationId, ScalarType, ValueId};
 
 use crate::{
     AnalysisProduct, RuleAnalysisView, RuleProposalError, ScalarConstant, ScalarConstantAnalysis,

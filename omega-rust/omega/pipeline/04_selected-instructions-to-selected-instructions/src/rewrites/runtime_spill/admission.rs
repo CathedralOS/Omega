@@ -1,17 +1,19 @@
 use optimization_core::OptimizationWorkBudget;
-use optimization_unit::ValueDefinitionSite;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use register_model::{RegisterClassId, RegisterInstructionConstraint, RegisterOperandAccess};
-use selected_instructions::{
+use semantic_vocabulary::{
+    EdgeId, IeeeFloatFormat, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, ValueId,
+};
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
+use target_operations_to_selected_instructions::register_model::{
+    RegisterClassId, RegisterInstructionConstraint, RegisterOperandAccess,
+};
+use target_operations_to_selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedBlockOrigin, SelectedCasePayloadTransport,
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
     SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedOperand,
     SelectedStructuralTransport, SelectedSuccessorRole, SelectedTerminator, SelectedValueTransport,
     VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
-use semantic_vocabulary::{
-    EdgeId, IeeeFloatFormat, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, ValueId,
-};
+use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
 use super::{
     BitsConversion, RuntimeSpillError, StorageDefinition, StoragePosition, StructuralArgumentUse,
@@ -508,7 +510,7 @@ pub(super) fn admit<'source>(
                 // closed.
                 if matches!(binding.transport,
                     SelectedStructuralTransport::Address {
-                        base: selected_instructions::SelectedAddressBase::Register(argument),
+                        base: target_operations_to_selected_instructions::SelectedAddressBase::Register(argument),
                         ..
                     } if argument == register)
                 {
@@ -1160,7 +1162,7 @@ pub(super) fn admit<'source>(
     if !structural_uses.is_empty() {
         let mut chunk_loads: std::collections::BTreeMap<
             (EdgeId, PlaceId),
-            Vec<&selected_instructions::SelectedMemoryAccess>,
+            Vec<&target_operations_to_selected_instructions::SelectedMemoryAccess>,
         > = std::collections::BTreeMap::new();
         for access in &function.memory_accesses {
             if let SelectedMemoryAccessOrigin::Edge(edge) = access.origin

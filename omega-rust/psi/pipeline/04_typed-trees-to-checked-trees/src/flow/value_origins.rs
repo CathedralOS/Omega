@@ -1,9 +1,9 @@
 //! Capture exact value origins before local writes, not the last spelling of a slot.
 
+use crate::checked_trees::{FlowCallFact, FlowFacts, FlowStateFact};
+use crate::fact_plan::{PlaceRoot, PlaceSegment};
 use crate::flow::{self, CanonicalPlace};
-use checked_trees::{FlowCallFact, FlowFacts, FlowStateFact};
-use facts::{PlaceRoot, PlaceSegment};
-use typed_trees::{
+use symbol_resolved_trees_to_typed_trees::typed_trees::{
     TypedTrees,
     expression::{ExpressionHandle, ExpressionNode, TableCallExpression},
     machine::Machine,
@@ -27,7 +27,7 @@ pub(crate) fn value_origin_at_call(
     state: &FlowStateFact,
     call: &FlowCallFact,
     place: CanonicalPlace,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<CanonicalPlace> {
     value_origin_at_call_resolving(
         program,
@@ -53,7 +53,7 @@ pub(crate) fn value_origin_before_statement(
     state: &FlowStateFact,
     statement_index: usize,
     place: CanonicalPlace,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<CanonicalPlace> {
     let mut owned_frames = None;
     let frames = flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
@@ -95,7 +95,7 @@ pub(crate) fn value_origin_at_call_resolving<Resolve, Rebase>(
     state: &FlowStateFact,
     call: &FlowCallFact,
     mut place: CanonicalPlace,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
     resolve: Resolve,
     rebase: Rebase,
 ) -> Option<CanonicalPlace>
@@ -126,7 +126,7 @@ pub(crate) fn trace_value_origin_before_statement<Resolve, Rebase>(
     state: &FlowStateFact,
     statement_index: usize,
     mut place: CanonicalPlace,
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &crate::validation::CallFrameResolver<'_>,
     resolve: Resolve,
     rebase: Rebase,
 ) -> Option<CanonicalPlace>
@@ -192,7 +192,7 @@ where
                         .and_then(|storage_target| exact_suffix(&place, storage_target))
                 });
                 if let Some(suffix) = suffix {
-                    let stored_type = validation::declared_place_type_raw(
+                    let stored_type = crate::validation::declared_place_type_raw(
                         program,
                         machine,
                         Some(typed_state),
@@ -416,7 +416,7 @@ fn result_call<'program>(
 /// spelling still fails closed at the first reference-typed declaration.
 fn reference_storage_or_literal(
     program: &TypedTrees,
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &crate::validation::CallFrameResolver<'_>,
     machine: &Machine,
     state: &FlowStateFact,
     index: usize,
@@ -453,8 +453,8 @@ fn preserve_frame(
     state: &FlowStateFact,
     statement_index: usize,
     place: &CanonicalPlace,
-    frame: &facts::NormalizedWriteFrame,
-    call_frames: &validation::CallFrameResolver<'_>,
+    frame: &crate::fact_plan::NormalizedWriteFrame,
+    call_frames: &crate::validation::CallFrameResolver<'_>,
 ) -> Option<()> {
     let writes = flow::frame_storage_writes(
         program,

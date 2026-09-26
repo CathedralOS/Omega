@@ -5,15 +5,15 @@ use crate::lowering::statement::match_subject_hoisting::{
 };
 use crate::lowering::statement::statement_nodes::set_expression;
 use crate::resolution::lowerer::Lowerer;
-use arena::HandleSpan;
-use symbol_resolved_trees::expression::{
+use crate::symbol_resolved_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCastExpression,
     TableIndexedExpression, TableMembershipExpression, TableNamePath, TableRangeExpression,
     TableUnaryExpression,
 };
-use symbol_resolved_trees::name::DiagnosticName;
-use symbol_resolved_trees::statement::{LocalData, LocalDataStorage, Statement};
-use symbol_resolved_trees::types::TypeReference;
+use crate::symbol_resolved_trees::name::DiagnosticName;
+use crate::symbol_resolved_trees::statement::{LocalData, LocalDataStorage, Statement};
+use crate::symbol_resolved_trees::types::TypeReference;
+use arena::HandleSpan;
 use symbols::{BuiltinFunction, SymbolHandle};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -240,7 +240,7 @@ fn is_hoistable_value_cast_call(lowerer: &Lowerer, expression: ExpressionHandle)
 /// an operand, not a declared machine return, so no call-result local can
 /// carry it.
 pub(crate) fn is_scalar_computation_builtin_call(
-    call: &symbol_resolved_trees::expression::TableCallExpression,
+    call: &crate::symbol_resolved_trees::expression::TableCallExpression,
 ) -> bool {
     BuiltinFunction::from_name(call.target.as_str())
         .is_some_and(BuiltinFunction::is_scalar_computation)
@@ -254,7 +254,7 @@ pub(crate) fn is_scalar_computation_builtin_call(
 /// executable uses and any authored same-spelled replacement.
 pub(crate) fn is_integer_embedding_call(
     lowerer: &Lowerer,
-    call: &symbol_resolved_trees::expression::TableCallExpression,
+    call: &crate::symbol_resolved_trees::expression::TableCallExpression,
 ) -> bool {
     !call.receiver.is_valid()
         && call.target.as_str() == symbols::BuiltinFunction::IntegerEmbed.name()

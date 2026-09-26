@@ -22,12 +22,14 @@ use std::collections::{BTreeSet, VecDeque};
 use crate::rewrites::block_edges::{
     block_instructions, terminator_instruction, terminator_successors,
 };
-use register_model::{RegisterOperandAccess, RegisterUnitId};
-use selected_instructions::{
+use semantic_vocabulary::IntegerValue;
+use target_operations_to_selected_instructions::register_model::{
+    RegisterOperandAccess, RegisterUnitId,
+};
+use target_operations_to_selected_instructions::{
     SelectedBlockId, SelectedFunction, SelectedInstruction, SelectedInstructionKind,
     VirtualRegisterId,
 };
-use semantic_vocabulary::IntegerValue;
 
 /// The rejection reasons a shared condition-state resolution can raise;
 /// each consuming rewrite maps them onto its own error vocabulary.

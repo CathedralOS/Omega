@@ -84,18 +84,18 @@
 //! further operand roles — extend this struct rather than re-inlining kind
 //! matches in compute.
 
-use register_model::{
+use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType};
+use target_operations_to_selected_instructions::register_model::{
     RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandConstraint,
     RegisterUnitId, TargetRegisterEnvironmentConstraintKeys,
 };
-use selected_instructions::{
+use target_operations_to_selected_instructions::{
     MachineAlternative, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
     MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
     MachineSemanticKind, MachineTrapBehavior, SaturatingCarrier, SelectedFunction,
     SelectedInstruction, SelectedInstructionKind, SelectedTerminator,
 };
-use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType};
 
 use crate::analyses::machine_effects::machine_semantic_kind;
 use crate::rewrites::block_edges::{block_instructions, terminator_successors};

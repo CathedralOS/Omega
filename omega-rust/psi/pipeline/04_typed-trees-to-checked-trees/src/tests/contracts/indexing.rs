@@ -59,19 +59,24 @@ machine read(candidate: &Dynamic) -> u64 { candidate.entries[31] }
 fn carries_machine_contract_facts_into_checked_proof_facts() {
     let machine_symbol = SymbolHandle::from_arena_index(5);
 
-    let mut program = typed_trees::TypedTrees::default();
-    let expression = program
-        .expression_table
-        .insert(typed_trees::expression::ExpressionNode::Boolean(true));
-    let fact = program
-        .proof_facts
-        .append(typed_trees::domain::ProofFact::Expression(expression));
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
+    let expression = program.expression_table.insert(
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Boolean(
+            true,
+        ),
+    );
+    let fact = program.proof_facts.append(
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
+            expression,
+        ),
+    );
     let mut machine = Machine {
         symbol: machine_symbol,
         name: Identifier::generated("Main::main"),
         attached_data: None,
         attached_data_symbol: symbols::SymbolHandle::invalid(),
-        attached_data_application: typed_trees::types::TypeReferenceHandle::invalid(),
+        attached_data_application:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
         generic_data_template: symbols::SymbolHandle::invalid(),
         spelling: None,
         is_public: false,
@@ -109,7 +114,8 @@ fn carries_machine_contract_facts_into_checked_proof_facts() {
         &mut machine,
         SignatureContract {
             kind: SignatureContractKind::Crashes {
-                cause: typed_trees::signature::CrashCause::Abort,
+                cause:
+                    symbol_resolved_trees_to_typed_trees::typed_trees::signature::CrashCause::Abort,
             },
             keyword_source_span: None,
             binding: None,
@@ -119,7 +125,7 @@ fn carries_machine_contract_facts_into_checked_proof_facts() {
     );
     program.push_machine(machine);
 
-    let proof_plan = proof::obligations::build_proof_plan(&program);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&program);
     let borrow = build_borrow_facts(&program);
     let facts = build_proof_facts(&program, &proof_plan, &borrow);
     let contract_fact = facts
@@ -146,19 +152,24 @@ fn carries_machine_contract_facts_into_checked_proof_facts() {
 fn centralizes_contract_facts_in_semantic_fact_plan() {
     let machine_symbol = SymbolHandle::from_arena_index(5);
 
-    let mut program = typed_trees::TypedTrees::default();
-    let expression = program
-        .expression_table
-        .insert(typed_trees::expression::ExpressionNode::Boolean(true));
-    let fact = program
-        .proof_facts
-        .append(typed_trees::domain::ProofFact::Expression(expression));
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
+    let expression = program.expression_table.insert(
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Boolean(
+            true,
+        ),
+    );
+    let fact = program.proof_facts.append(
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
+            expression,
+        ),
+    );
     let mut machine = Machine {
         symbol: machine_symbol,
         name: Identifier::generated("Main::main"),
         attached_data: None,
         attached_data_symbol: symbols::SymbolHandle::invalid(),
-        attached_data_application: typed_trees::types::TypeReferenceHandle::invalid(),
+        attached_data_application:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
         generic_data_template: symbols::SymbolHandle::invalid(),
         spelling: None,
         is_public: false,
@@ -194,7 +205,7 @@ fn centralizes_contract_facts_in_semantic_fact_plan() {
     );
     program.push_machine(machine);
 
-    let proof_plan = proof::obligations::build_proof_plan(&program);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&program);
     let borrow = build_borrow_facts(&program);
     let proof = build_proof_facts(&program, &proof_plan, &borrow);
     let semantic = build_semantic_facts(&program, &proof);
@@ -209,24 +220,24 @@ fn centralizes_contract_facts_in_semantic_fact_plan() {
         .next()
         .map(|(_, fact)| fact)
         .expect("semantic contract fact");
-    let facts::FactPlace::Place(place) = semantic_fact.place else {
+    let crate::fact_plan::FactPlace::Place(place) = semantic_fact.place else {
         panic!("expected canonical contract fact place");
     };
     assert_eq!(
         semantic.places.get(place).root,
-        facts::PlaceRoot::Expression(expression)
+        crate::fact_plan::PlaceRoot::Expression(expression)
     );
     assert_eq!(
         semantic_fact.payload,
-        facts::FactPayload::ContractBooleanExpression {
-            kind: facts::ContractFactKind::Requires,
+        crate::fact_plan::FactPayload::ContractBooleanExpression {
+            kind: crate::fact_plan::ContractFactKind::Requires,
             fact,
             expression,
             instantiated: arena::Handle::invalid(),
         }
     );
     let context = semantic
-        .contexts_at_point(facts::ProgramPoint::Machine { machine_symbol })
+        .contexts_at_point(crate::fact_plan::ProgramPoint::Machine { machine_symbol })
         .next()
         .expect("machine contract context");
     assert_eq!(context.boolean_facts().count(), 1);
@@ -237,13 +248,17 @@ fn carries_trait_signature_contract_facts_into_checked_proof_facts() {
     let trait_symbol = SymbolHandle::from_arena_index(5);
     let signature_symbol = SymbolHandle::from_arena_index(6);
 
-    let mut program = typed_trees::TypedTrees::default();
-    let expression = program
-        .expression_table
-        .insert(typed_trees::expression::ExpressionNode::Boolean(true));
-    let fact = program
-        .proof_facts
-        .append(typed_trees::domain::ProofFact::Expression(expression));
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
+    let expression = program.expression_table.insert(
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Boolean(
+            true,
+        ),
+    );
+    let fact = program.proof_facts.append(
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
+            expression,
+        ),
+    );
 
     let mut trait_definition = TraitDefinition {
         is_public: false,
@@ -267,7 +282,8 @@ fn carries_trait_signature_contract_facts_into_checked_proof_facts() {
         is_default: false,
         parameters: Default::default(),
         native_callback_parameters: Vec::new(),
-        return_type: typed_trees::types::TypeReferenceHandle::invalid(),
+        return_type:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
         invokes: Default::default(),
         service_reach_row: Default::default(),
         service_reach_is_installation_bound: false,
@@ -292,7 +308,7 @@ fn carries_trait_signature_contract_facts_into_checked_proof_facts() {
     program.push_trait_machine_signature(&mut trait_definition, signature);
     program.push_trait_definition(trait_definition);
 
-    let proof_plan = proof::obligations::build_proof_plan(&program);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&program);
     let borrow = build_borrow_facts(&program);
     let facts = build_proof_facts(&program, &proof_plan, &borrow);
     let contract_fact = facts
@@ -321,20 +337,25 @@ fn indexes_call_contract_facts_by_target_machine() {
     let target_machine_symbol = SymbolHandle::from_arena_index(7);
     let target_state_symbol = SymbolHandle::from_arena_index(8);
 
-    let mut program = typed_trees::TypedTrees::default();
-    let expression = program
-        .expression_table
-        .insert(typed_trees::expression::ExpressionNode::Boolean(true));
-    let fact = program
-        .proof_facts
-        .append(typed_trees::domain::ProofFact::Expression(expression));
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
+    let expression = program.expression_table.insert(
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Boolean(
+            true,
+        ),
+    );
+    let fact = program.proof_facts.append(
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
+            expression,
+        ),
+    );
 
     let mut target_machine = Machine {
         symbol: target_machine_symbol,
         name: Identifier::generated("Target"),
         attached_data: None,
         attached_data_symbol: symbols::SymbolHandle::invalid(),
-        attached_data_application: typed_trees::types::TypeReferenceHandle::invalid(),
+        attached_data_application:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
         generic_data_template: symbols::SymbolHandle::invalid(),
         spelling: None,
         is_public: false,
@@ -374,7 +395,7 @@ fn indexes_call_contract_facts_by_target_machine() {
             symbol: target_state_symbol,
             name: Identifier::generated("run"),
             parameters: Default::default(),
-            return_type: typed_trees::types::TypeReferenceHandle::invalid(),
+            return_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
             contracts: Default::default(),
             statement_nodes: Default::default(),
         },
@@ -386,7 +407,8 @@ fn indexes_call_contract_facts_by_target_machine() {
         name: Identifier::generated("Caller"),
         attached_data: None,
         attached_data_symbol: symbols::SymbolHandle::invalid(),
-        attached_data_application: typed_trees::types::TypeReferenceHandle::invalid(),
+        attached_data_application:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
         generic_data_template: symbols::SymbolHandle::invalid(),
         spelling: None,
         is_public: false,
@@ -414,7 +436,8 @@ fn indexes_call_contract_facts_by_target_machine() {
         symbol: caller_state_symbol,
         name: Identifier::generated("main"),
         parameters: Default::default(),
-        return_type: typed_trees::types::TypeReferenceHandle::invalid(),
+        return_type:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
         contracts: Default::default(),
         statement_nodes: Default::default(),
     };
@@ -444,7 +467,7 @@ fn indexes_call_contract_facts_by_target_machine() {
     program.push_machine_state(&mut caller_machine, caller_state);
     program.push_machine(caller_machine);
 
-    let proof_plan = proof::obligations::build_proof_plan(&program);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&program);
     let borrow = build_borrow_facts(&program);
     let facts = build_proof_facts(&program, &proof_plan, &borrow);
     let contract_call = facts
@@ -477,13 +500,17 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
     let caller_machine_symbol = SymbolHandle::from_arena_index(9);
     let caller_state_symbol = SymbolHandle::from_arena_index(10);
 
-    let mut program = typed_trees::TypedTrees::default();
-    let expression = program
-        .expression_table
-        .insert(typed_trees::expression::ExpressionNode::Boolean(true));
-    let fact = program
-        .proof_facts
-        .append(typed_trees::domain::ProofFact::Expression(expression));
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
+    let expression = program.expression_table.insert(
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Boolean(
+            true,
+        ),
+    );
+    let fact = program.proof_facts.append(
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
+            expression,
+        ),
+    );
 
     let mut trait_definition = TraitDefinition {
         is_public: false,
@@ -507,7 +534,8 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
         is_default: false,
         parameters: Default::default(),
         native_callback_parameters: Vec::new(),
-        return_type: typed_trees::types::TypeReferenceHandle::invalid(),
+        return_type:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
         invokes: Default::default(),
         service_reach_row: Default::default(),
         service_reach_is_installation_bound: false,
@@ -537,7 +565,8 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
         name: Identifier::generated("Sprite"),
         attached_data: None,
         attached_data_symbol: symbols::SymbolHandle::invalid(),
-        attached_data_application: typed_trees::types::TypeReferenceHandle::invalid(),
+        attached_data_application:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
         generic_data_template: symbols::SymbolHandle::invalid(),
         spelling: None,
         is_public: false,
@@ -578,7 +607,7 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
             symbol: target_state_symbol,
             name: Identifier::generated("draw"),
             parameters: Default::default(),
-            return_type: typed_trees::types::TypeReferenceHandle::invalid(),
+            return_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
             contracts: Default::default(),
             statement_nodes: Default::default(),
         },
@@ -590,7 +619,8 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
         name: Identifier::generated("Main"),
         attached_data: None,
         attached_data_symbol: symbols::SymbolHandle::invalid(),
-        attached_data_application: typed_trees::types::TypeReferenceHandle::invalid(),
+        attached_data_application:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
         generic_data_template: symbols::SymbolHandle::invalid(),
         spelling: None,
         is_public: false,
@@ -618,7 +648,8 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
         symbol: caller_state_symbol,
         name: Identifier::generated("main"),
         parameters: Default::default(),
-        return_type: typed_trees::types::TypeReferenceHandle::invalid(),
+        return_type:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
         contracts: Default::default(),
         statement_nodes: Default::default(),
     };
@@ -648,7 +679,7 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
     program.push_machine_state(&mut caller_machine, caller_state);
     program.push_machine(caller_machine);
 
-    let proof_plan = proof::obligations::build_proof_plan(&program);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&program);
     let borrow = build_borrow_facts(&program);
     let facts = build_proof_facts(&program, &proof_plan, &borrow);
     let contract_call = facts
@@ -680,26 +711,30 @@ fn indexes_terminal_state_contract_ensures() {
     let machine_symbol = SymbolHandle::from_arena_index(5);
     let state_symbol = SymbolHandle::from_arena_index(6);
 
-    let mut program = typed_trees::TypedTrees::default();
-    let fact_expression = program
-        .expression_table
-        .insert(typed_trees::expression::ExpressionNode::Boolean(true));
-    let fact = program
-        .proof_facts
-        .append(typed_trees::domain::ProofFact::Expression(fact_expression));
-    let return_expression =
-        program
-            .expression_table
-            .insert(typed_trees::expression::ExpressionNode::Integer(
-                numerics::literals::IntegerLiteral::from_value(0),
-            ));
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
+    let fact_expression = program.expression_table.insert(
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Boolean(
+            true,
+        ),
+    );
+    let fact = program.proof_facts.append(
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
+            fact_expression,
+        ),
+    );
+    let return_expression = program.expression_table.insert(
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Integer(
+            numerics::literals::IntegerLiteral::from_value(0),
+        ),
+    );
 
     let mut machine = Machine {
         symbol: machine_symbol,
         name: Identifier::generated("Main::main"),
         attached_data: None,
         attached_data_symbol: symbols::SymbolHandle::invalid(),
-        attached_data_application: typed_trees::types::TypeReferenceHandle::invalid(),
+        attached_data_application:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
         generic_data_template: symbols::SymbolHandle::invalid(),
         spelling: None,
         is_public: false,
@@ -738,7 +773,8 @@ fn indexes_terminal_state_contract_ensures() {
         symbol: state_symbol,
         name: Identifier::generated("main"),
         parameters: Default::default(),
-        return_type: typed_trees::types::TypeReferenceHandle::invalid(),
+        return_type:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
         contracts: Default::default(),
         statement_nodes: Default::default(),
     };
@@ -749,7 +785,7 @@ fn indexes_terminal_state_contract_ensures() {
     program.push_machine_state(&mut machine, state);
     program.push_machine(machine);
 
-    let proof_plan = proof::obligations::build_proof_plan(&program);
+    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&program);
     let borrow = build_borrow_facts(&program);
     let facts = build_proof_facts(&program, &proof_plan, &borrow);
     let exit = facts

@@ -1,8 +1,10 @@
 use crate::resolution::{ResolutionRequest, resolve};
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
+use crate::symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
+use crate::symbol_resolved_trees::statement::{
+    StatementNode, TransitionGuardNode, TransitionTargetNode,
+};
 use source_files_to_tokens::Lexer;
-use symbol_resolved_trees::SymbolResolvedTrees;
-use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
-use symbol_resolved_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use tokens_to_syntax_trees::parse_syntax_trees;
 
 fn resolved(source: &str) -> SymbolResolvedTrees {
@@ -195,7 +197,7 @@ fn guard_right_call_does_not_hoist_before_a_prior_division() {
     };
     assert!(
         matches!(expressions.expression(comparison.left), ExpressionNode::Binary(binary)
-        if binary.operator == symbol_resolved_trees::expression::BinaryOperator::Divide)
+        if binary.operator == crate::symbol_resolved_trees::expression::BinaryOperator::Divide)
     );
     assert!(matches!(
         expressions.expression(comparison.right),
@@ -218,7 +220,7 @@ fn guard_selective_rhs_retains_its_call_cast() {
     };
     assert_eq!(
         selection.operator,
-        symbol_resolved_trees::expression::BinaryOperator::And
+        crate::symbol_resolved_trees::expression::BinaryOperator::And
     );
     let ExpressionNode::Binary(comparison) = expressions.expression(selection.right) else {
         panic!("selected comparison");

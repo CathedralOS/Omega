@@ -1,0 +1,122 @@
+use arena::HandleSpan;
+use language_semantics::{BlockingSummary, ServiceReachSummary, SuspensionSummary};
+use symbols::SymbolHandle;
+
+use crate::checked_trees::{
+    BorrowArgumentAccessFact, BorrowWritableRootFact, ContractProofFactRef,
+};
+
+use super::{
+    FlowBorrowActivationFact, FlowBorrowWeakeningFact, FlowBoundaryEdgeFact, FlowConstraintRef,
+    FlowInvalidationFact, FlowSemanticContextRef,
+};
+
+/// Preconditions at a spelled, implicit, or named operator invocation, after
+/// operand evaluation and before either comparison branch acquires its own
+/// observations. A spelled or Match-comparison use names its `operator_use`
+/// row; a named `Namespace::requirement(...)` call has no `uses` row, so it
+/// names its `named_use` row instead. Exactly one of the two handles is
+/// valid.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowOperatorInvocationFact {
+    pub operator_use: arena::Handle<crate::checked_trees::CheckedOperatorUseFact>,
+    pub named_use: arena::Handle<crate::checked_trees::CheckedNamedOperatorUseFact>,
+    pub operands: HandleSpan<super::FlowOperatorOperandFact>,
+    pub requires_constraints: HandleSpan<FlowConstraintRef>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowCallFact {
+    pub statement_index: usize,
+    pub call_ordinal: usize,
+    /// Exact expression occurrence captured by the semantic call traversal.
+    /// Statement calls and named transition roots use the zero handle.
+    pub authored_expression:
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    pub receiver_symbol: SymbolHandle,
+    pub target_symbol: SymbolHandle,
+    pub has_receiver: bool,
+    pub accesses: HandleSpan<BorrowArgumentAccessFact>,
+    pub entry_semantic_contexts: HandleSpan<FlowSemanticContextRef>,
+    pub entry_constraints: HandleSpan<FlowConstraintRef>,
+    pub requires_contexts: HandleSpan<FlowSemanticContextRef>,
+    pub requires_constraints: HandleSpan<FlowConstraintRef>,
+    pub exit_semantic_contexts: HandleSpan<FlowSemanticContextRef>,
+    pub exit_constraints: HandleSpan<FlowConstraintRef>,
+    pub invalidations: HandleSpan<FlowInvalidationFact>,
+    pub boundary_edges: HandleSpan<FlowBoundaryEdgeFact>,
+    pub requires: HandleSpan<ContractProofFactRef>,
+    pub ensures: HandleSpan<ContractProofFactRef>,
+    pub service_reach: ServiceReachSummary,
+    pub suspension: SuspensionSummary,
+    pub blocking: BlockingSummary,
+    pub operational_acknowledgement: language_semantics::CallOperationalAcknowledgement,
+    /// Exact authored call location retained while the typed call identity is
+    /// still stable. Provider settlement may later rewrite the typed call.
+    pub authored_source_span: Option<source::SourceSpan>,
+    /// Whether source custody was internally coherent at capture. Ordinary
+    /// compilation need not require package-review provenance, but package
+    /// projection rejects a false value.
+    pub authored_source_custody_valid: bool,
+}
+
+/// Coordinate of a [`FlowCallFact`] whose authored call selected execution
+/// replaced in the typed body: the row is retained for the handles held on
+/// it and skipped by execution planning.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct RetiredFlowCall {
+    pub state_symbol: SymbolHandle,
+    pub statement_index: usize,
+    pub call_ordinal: usize,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowStatementFact {
+    pub statement_index: usize,
+    pub entry_semantic_contexts: HandleSpan<FlowSemanticContextRef>,
+    pub entry_constraints: HandleSpan<FlowConstraintRef>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowExitFact {
+    pub machine_symbol: SymbolHandle,
+    pub state_symbol: SymbolHandle,
+    pub statement_index: usize,
+    pub transition_target:
+        symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetHandle,
+    pub parameter_origins: HandleSpan<FlowExitParameterOrigin>,
+    pub entry_semantic_contexts: HandleSpan<FlowSemanticContextRef>,
+    pub entry_constraints: HandleSpan<FlowConstraintRef>,
+    pub ensures_contexts: HandleSpan<FlowSemanticContextRef>,
+    pub ensures_constraints: HandleSpan<FlowConstraintRef>,
+    pub ensures: HandleSpan<ContractProofFactRef>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowExitParameterOrigin {
+    pub contract:
+        arena::Handle<symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact>,
+    pub entry_parameter: SymbolHandle,
+    /// Invalid when explicit incoming edges do not establish one exact origin.
+    pub state_parameter: SymbolHandle,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowStateFact {
+    pub machine_symbol: SymbolHandle,
+    pub state_symbol: SymbolHandle,
+    pub writable_roots: HandleSpan<BorrowWritableRootFact>,
+    pub mutable_parameter_count: usize,
+    pub entry_semantic_contexts: HandleSpan<FlowSemanticContextRef>,
+    pub entry_constraints: HandleSpan<FlowConstraintRef>,
+    pub invalidations: HandleSpan<FlowInvalidationFact>,
+    pub borrow_activations: HandleSpan<FlowBorrowActivationFact>,
+    pub borrow_weakenings: HandleSpan<FlowBorrowWeakeningFact>,
+    pub boundary_edges: HandleSpan<FlowBoundaryEdgeFact>,
+    pub statements: HandleSpan<FlowStatementFact>,
+    pub calls: HandleSpan<FlowCallFact>,
+    pub exits: HandleSpan<FlowExitFact>,
+    pub service_reach: ServiceReachSummary,
+    pub suspension: SuspensionSummary,
+    pub blocking: BlockingSummary,
+}

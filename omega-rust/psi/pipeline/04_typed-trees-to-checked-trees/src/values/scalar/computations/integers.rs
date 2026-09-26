@@ -146,8 +146,8 @@ impl Builder<'_, '_> {
                         contextual_results.push(arm.value);
                     }
                     match arm.pattern {
-                        typed_trees::expression::MatchPattern::Wildcard => break,
-                        typed_trees::expression::MatchPattern::Value(pattern) => {
+                        symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Wildcard => break,
+                        symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) => {
                             if let ExpressionNode::Boolean(value) =
                                 self.program.expression_table.expression(pattern)
                             {
@@ -343,7 +343,7 @@ impl Builder<'_, '_> {
 
     fn integer_operands(
         &mut self,
-        binary: &typed_trees::expression::TableBinaryExpression,
+        binary: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableBinaryExpression,
         expected: Option<PrimitiveType>,
     ) -> Option<(IntegerOperand, IntegerOperand)> {
         let mut left = self.integer_operand(binary.left, expected);
@@ -433,7 +433,7 @@ impl Builder<'_, '_> {
     pub(super) fn integer_comparison(
         &mut self,
         source_expression: ExpressionHandle,
-        binary: &typed_trees::expression::TableBinaryExpression,
+        binary: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableBinaryExpression,
     ) -> Option<CheckedScalarComputationHandle> {
         // A comparison's result is Boolean, so it offers its operands no
         // carrier; the operands must still establish their own.
@@ -498,7 +498,7 @@ impl Builder<'_, '_> {
     pub(super) fn integer_min_max(
         &mut self,
         source_expression: ExpressionHandle,
-        call: &typed_trees::expression::TableCallExpression,
+        call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
         expected_type: PrimitiveType,
     ) -> Option<CheckedScalarComputationHandle> {
         if !is_integer(expected_type)
@@ -588,7 +588,7 @@ impl Builder<'_, '_> {
                         return true;
                     };
                     for arm in arms {
-                        if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) =
+                        if let crate::checked_trees::CheckedScalarDispatchPattern::Value(pattern) =
                             arm.pattern
                         {
                             pending.push(pattern);
@@ -612,7 +612,7 @@ impl Builder<'_, '_> {
                 }
                 CheckedScalarComputationKind::CaseMembership {
                     subject:
-                        checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
+                        crate::checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
                     ..
                 } => {
                     let Some(fields) = plans.case_fields.span(subject.fields) else {

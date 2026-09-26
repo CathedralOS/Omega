@@ -36,18 +36,20 @@
 //! the selection fact without a body binding would let a later consumer treat
 //! the operand primitives as builtin arithmetic, which the contract forbids.
 
-use checked_trees::{
+use crate::checked_trees::{
     CheckedOperatorOccurrence, CheckedOperatorResolutionStatus, CheckedValueOrigin,
 };
 use diagnostics::Diagnostic;
 use numerics::literals::IntegerLiteral;
-use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::expression::{
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCallExpression,
     TableRangeExpression,
 };
-use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    PrimitiveType, TypeReferenceHandle,
+};
+use symbols::SymbolHandle;
 
 use super::expression_type_reference_for_origin;
 
@@ -288,7 +290,9 @@ fn range_operands(
         return Ok((start, range.end));
     }
     let end_is_integer = expression_type_reference_for_origin(program, range.end, origin)
-        .and_then(|type_reference| validation::unwrapped_type_reference(program, type_reference))
+        .and_then(|type_reference| {
+            crate::validation::unwrapped_type_reference(program, type_reference)
+        })
         .and_then(|type_reference| program.primitive_type_reference(type_reference))
         .is_some_and(PrimitiveType::accepts_integer_literal);
     if !end_is_integer {
@@ -313,8 +317,10 @@ fn range_operands(
 mod tests {
     use crate::tests::front_end::checked_program_result;
 
-    use typed_trees::expression::{BinaryOperator, ExpressionNode, TableCallExpression};
-    use typed_trees::statement::StatementNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+        BinaryOperator, ExpressionNode, TableCallExpression,
+    };
+    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 
     fn source_with_use(index: &str) -> String {
         // `high`'s `requires` bound keeps the synthesized `end + 1` provably
@@ -327,7 +333,7 @@ mod tests {
 
     /// The `Call` `run`'s tail expression was rewritten into, plus the checked
     /// program the call's handles index.
-    fn run_tail_call(source: &str) -> (checked_trees::CheckedTrees, TableCallExpression) {
+    fn run_tail_call(source: &str) -> (crate::checked_trees::CheckedTrees, TableCallExpression) {
         let checked = checked_program_result(source).expect("the range use binds the machine body");
         let run = checked
             .machines()
@@ -350,8 +356,8 @@ mod tests {
     }
 
     fn integer_argument(
-        checked: &checked_trees::CheckedTrees,
-        handle: typed_trees::expression::ExpressionHandle,
+        checked: &crate::checked_trees::CheckedTrees,
+        handle: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     ) -> i64 {
         let ExpressionNode::Integer(literal) = checked.expression_table.expression(handle) else {
             panic!("the operand is the synthesized integer literal");

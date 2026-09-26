@@ -38,18 +38,19 @@ fn stated_disequality_certifies_distinct_mutable_elements() {
             .iter()
             .map(|(_, certificate)| certificate)
             .find(|certificate| {
-                certificate.derivation == checked_trees::BorrowCompatibilityDerivation::Premised
+                certificate.derivation
+                    == crate::checked_trees::BorrowCompatibilityDerivation::Premised
             })
             .expect("element pair consumes disequality");
         assert!(certificate.conclusion.disjoint && certificate.conclusion.non_interfering);
         assert_eq!(
             certificate.conclusion.containment,
-            checked_trees::CapturedPlaceContainment::None
+            crate::checked_trees::CapturedPlaceContainment::None
         );
         assert_eq!(certificate.premises.len(), 1);
         assert_eq!(
             certificate.premises[0].relation,
-            checked_trees::BorrowCompatibilityPremiseRelation::NotEqual
+            crate::checked_trees::BorrowCompatibilityPremiseRelation::NotEqual
         );
         assert!(
             checked
@@ -138,7 +139,8 @@ fn disequality_certificate_rejects_missing_retargeted_and_reordered_evidence() {
             .compatibility_certificates
             .iter()
             .find(|(_, certificate)| {
-                certificate.derivation == checked_trees::BorrowCompatibilityDerivation::Premised
+                certificate.derivation
+                    == crate::checked_trees::BorrowCompatibilityDerivation::Premised
             })
             .expect("premised pair")
             .0;
@@ -154,7 +156,7 @@ fn disequality_certificate_rejects_missing_retargeted_and_reordered_evidence() {
             }
             "relation" => {
                 certificate.premises[0].relation =
-                    checked_trees::BorrowCompatibilityPremiseRelation::Equal;
+                    crate::checked_trees::BorrowCompatibilityPremiseRelation::Equal;
                 "premise tokens drifted"
             }
             "operand" => {
@@ -163,7 +165,7 @@ fn disequality_certificate_rejects_missing_retargeted_and_reordered_evidence() {
             }
             "fact" => {
                 certificate.premises[0].source =
-                    checked_trees::BorrowCompatibilityPremiseSource::Requires(
+                    crate::checked_trees::BorrowCompatibilityPremiseSource::Requires(
                         arena::Handle::invalid(),
                     );
                 "premise tokens drifted"
@@ -173,7 +175,8 @@ fn disequality_certificate_rejects_missing_retargeted_and_reordered_evidence() {
                 "selector snapshot drifted"
             }
             _ => {
-                certificate.conclusion.containment = checked_trees::CapturedPlaceContainment::Same;
+                certificate.conclusion.containment =
+                    crate::checked_trees::CapturedPlaceContainment::Same;
                 "conclusion drifted"
             }
         };
@@ -189,21 +192,23 @@ fn disequality_certificate_rejects_changed_requires() {
         .proof_facts
         .iter()
         .find_map(|(_, fact)| {
-            let typed_trees::domain::ProofFact::Expression(expression) = fact else {
+            let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(expression) = fact else {
                 return None;
             };
             matches!(checked.typed.expression_table.expression(*expression),
-            typed_trees::expression::ExpressionNode::Binary(binary)
-                if binary.operator == typed_trees::expression::BinaryOperator::NotEqual)
+            symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Binary(binary)
+                if binary.operator == symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::NotEqual)
             .then_some(*expression)
         })
         .expect("disequality requirement");
-    let typed_trees::expression::ExpressionNode::Binary(binary) =
-        checked.typed.expression_table.expression_mut(expression)
+    let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Binary(
+        binary,
+    ) = checked.typed.expression_table.expression_mut(expression)
     else {
         panic!("requirement stays binary");
     };
-    binary.operator = typed_trees::expression::BinaryOperator::Equal;
+    binary.operator =
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Equal;
     assert_recording_rejects(&mut checked, "premise tokens drifted");
 }
 
@@ -250,7 +255,7 @@ const CONTAINED_WINDOWS: &str = r#"
     }
 "#;
 
-fn parameter_symbol(checked: &checked_trees::CheckedTrees, name: &str) -> SymbolHandle {
+fn parameter_symbol(checked: &crate::checked_trees::CheckedTrees, name: &str) -> SymbolHandle {
     checked
         .typed
         .machines()
@@ -263,36 +268,36 @@ fn parameter_symbol(checked: &checked_trees::CheckedTrees, name: &str) -> Symbol
 }
 
 fn requires_fact(
-    checked: &checked_trees::CheckedTrees,
-) -> arena::Handle<checked_trees::ContractProofFact> {
+    checked: &crate::checked_trees::CheckedTrees,
+) -> arena::Handle<crate::checked_trees::ContractProofFact> {
     checked
         .facts
         .proof
         .contract_facts
         .iter()
         .find_map(|(handle, row)| {
-            (row.kind == checked_trees::ContractProofFactKind::Requires).then_some(handle)
+            (row.kind == crate::checked_trees::ContractProofFactKind::Requires).then_some(handle)
         })
         .expect("fixture requires contract fact")
 }
 
 fn symbol_value(
-    checked: &checked_trees::CheckedTrees,
+    checked: &crate::checked_trees::CheckedTrees,
     name: &str,
-) -> checked_trees::BorrowCompatibilitySelectorValue {
-    checked_trees::BorrowCompatibilitySelectorValue::Symbol(parameter_symbol(checked, name))
+) -> crate::checked_trees::BorrowCompatibilitySelectorValue {
+    crate::checked_trees::BorrowCompatibilitySelectorValue::Symbol(parameter_symbol(checked, name))
 }
 
-fn integer_value(value: i64) -> checked_trees::BorrowCompatibilitySelectorValue {
-    checked_trees::BorrowCompatibilitySelectorValue::Integer(value)
+fn integer_value(value: i64) -> crate::checked_trees::BorrowCompatibilitySelectorValue {
+    crate::checked_trees::BorrowCompatibilitySelectorValue::Integer(value)
 }
 
 fn premise_tokens(
-    certificate: &checked_trees::CheckedBorrowCompatibilityCertificate,
+    certificate: &crate::checked_trees::CheckedBorrowCompatibilityCertificate,
 ) -> Vec<(
-    checked_trees::BorrowCompatibilityPremiseRelation,
-    checked_trees::BorrowCompatibilitySelectorValue,
-    checked_trees::BorrowCompatibilitySelectorValue,
+    crate::checked_trees::BorrowCompatibilityPremiseRelation,
+    crate::checked_trees::BorrowCompatibilitySelectorValue,
+    crate::checked_trees::BorrowCompatibilitySelectorValue,
 )> {
     certificate
         .premises
@@ -308,7 +313,7 @@ fn premise_tokens(
 }
 
 fn assert_recording_rejects(
-    checked: &mut checked_trees::CheckedTrees,
+    checked: &mut crate::checked_trees::CheckedTrees,
     message: &str,
 ) -> Vec<diagnostics::Diagnostic> {
     let before = checked.facts.borrow.compatibility_certificates.clone();
@@ -353,12 +358,12 @@ fn stated_ordering_premise_certifies_disjoint_symbolic_windows() {
 
     assert_eq!(
         certificate.derivation,
-        checked_trees::BorrowCompatibilityDerivation::Premised
+        crate::checked_trees::BorrowCompatibilityDerivation::Premised
     );
     assert_eq!(
         premise_tokens(&certificate),
         vec![(
-            checked_trees::BorrowCompatibilityPremiseRelation::LessOrEqual,
+            crate::checked_trees::BorrowCompatibilityPremiseRelation::LessOrEqual,
             symbol_value(&checked, "cut"),
             symbol_value(&checked, "last"),
         )],
@@ -366,13 +371,13 @@ fn stated_ordering_premise_certifies_disjoint_symbolic_windows() {
     );
     assert_eq!(
         certificate.premises[0].source,
-        checked_trees::BorrowCompatibilityPremiseSource::Requires(requires_fact(&checked))
+        crate::checked_trees::BorrowCompatibilityPremiseSource::Requires(requires_fact(&checked))
     );
     assert!(certificate.conclusion.disjoint);
     assert!(certificate.conclusion.non_interfering);
     assert_eq!(
         certificate.conclusion.containment,
-        checked_trees::CapturedPlaceContainment::None
+        crate::checked_trees::CapturedPlaceContainment::None
     );
     assert!(
         checked
@@ -389,12 +394,12 @@ fn stated_equality_premise_certifies_same_extent() {
 
     assert_eq!(
         certificate.derivation,
-        checked_trees::BorrowCompatibilityDerivation::Premised
+        crate::checked_trees::BorrowCompatibilityDerivation::Premised
     );
     assert_eq!(
         premise_tokens(&certificate),
         vec![(
-            checked_trees::BorrowCompatibilityPremiseRelation::Equal,
+            crate::checked_trees::BorrowCompatibilityPremiseRelation::Equal,
             symbol_value(&checked, "cut"),
             symbol_value(&checked, "last"),
         )]
@@ -402,7 +407,7 @@ fn stated_equality_premise_certifies_same_extent() {
     assert!(!certificate.conclusion.disjoint);
     assert_eq!(
         certificate.conclusion.containment,
-        checked_trees::CapturedPlaceContainment::Same
+        crate::checked_trees::CapturedPlaceContainment::Same
     );
     assert!(certificate.conclusion.non_interfering);
 }
@@ -414,23 +419,23 @@ fn stated_premises_certify_multi_token_containment() {
 
     assert_eq!(
         certificate.derivation,
-        checked_trees::BorrowCompatibilityDerivation::Premised
+        crate::checked_trees::BorrowCompatibilityDerivation::Premised
     );
     assert_eq!(
         premise_tokens(&certificate),
         vec![
             (
-                checked_trees::BorrowCompatibilityPremiseRelation::StrictlyBefore,
+                crate::checked_trees::BorrowCompatibilityPremiseRelation::StrictlyBefore,
                 symbol_value(&checked, "a"),
                 symbol_value(&checked, "b"),
             ),
             (
-                checked_trees::BorrowCompatibilityPremiseRelation::LessOrEqual,
+                crate::checked_trees::BorrowCompatibilityPremiseRelation::LessOrEqual,
                 integer_value(0),
                 symbol_value(&checked, "a"),
             ),
             (
-                checked_trees::BorrowCompatibilityPremiseRelation::LessOrEqual,
+                crate::checked_trees::BorrowCompatibilityPremiseRelation::LessOrEqual,
                 symbol_value(&checked, "b"),
                 symbol_value(&checked, "outer"),
             ),
@@ -442,7 +447,7 @@ fn stated_premises_certify_multi_token_containment() {
         certificate.conclusion.containment,
         // The forming `[a, b)` window sits inside the already-active
         // `[0, outer)` window.
-        checked_trees::CapturedPlaceContainment::RightContainsLeft
+        crate::checked_trees::CapturedPlaceContainment::RightContainsLeft
     );
     assert!(certificate.conclusion.non_interfering);
 }
@@ -478,7 +483,7 @@ fn unconsulted_requires_leaves_a_structural_certificate() {
 
     assert_eq!(
         certificate.derivation,
-        checked_trees::BorrowCompatibilityDerivation::Structural
+        crate::checked_trees::BorrowCompatibilityDerivation::Structural
     );
     assert!(
         certificate.premises.is_empty(),
@@ -586,7 +591,7 @@ fn rejects_retained_premise_relation_tamper() {
         .compatibility_certificates
         .get_mut(row)
         .premises[0]
-        .relation = checked_trees::BorrowCompatibilityPremiseRelation::Equal;
+        .relation = crate::checked_trees::BorrowCompatibilityPremiseRelation::Equal;
 
     assert_recording_rejects(&mut checked, "premise tokens drifted");
 }
@@ -631,7 +636,7 @@ fn rejects_retained_premise_fact_retarget() {
         .get_mut(row)
         .premises[0]
         .source =
-        checked_trees::BorrowCompatibilityPremiseSource::Requires(arena::Handle::invalid());
+        crate::checked_trees::BorrowCompatibilityPremiseSource::Requires(arena::Handle::invalid());
 
     assert_recording_rejects(&mut checked, "premise tokens drifted");
 }
@@ -727,7 +732,7 @@ fn rejects_structural_derivation_with_retained_ledger() {
         .expect("certificate")
         .0;
     let certificate = checked.facts.borrow.compatibility_certificates.get_mut(row);
-    certificate.derivation = checked_trees::BorrowCompatibilityDerivation::Structural;
+    certificate.derivation = crate::checked_trees::BorrowCompatibilityDerivation::Structural;
 
     assert_recording_rejects(&mut checked, "derivation drifted");
 }
@@ -747,7 +752,7 @@ fn rejects_structural_derivation_with_stripped_ledger() {
         .0;
     let certificate = checked.facts.borrow.compatibility_certificates.get_mut(row);
     certificate.premises.clear();
-    certificate.derivation = checked_trees::BorrowCompatibilityDerivation::Structural;
+    certificate.derivation = crate::checked_trees::BorrowCompatibilityDerivation::Structural;
 
     assert_recording_rejects(&mut checked, "premise tokens drifted");
 }
@@ -764,14 +769,16 @@ fn rejects_stale_requires_that_no_longer_states_the_relation() {
         .proof_facts
         .iter()
         .filter_map(|(_, fact)| match fact {
-            typed_trees::domain::ProofFact::Expression(expression) => Some(*expression),
+            symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
+                expression,
+            ) => Some(*expression),
             _ => None,
         })
         .collect::<Vec<_>>();
     for fact_expression in fact_handles {
         let mut stack = vec![fact_expression];
         while let Some(handle) = stack.pop() {
-            let checked_trees::expression::ExpressionNode::Binary(binary) =
+            let crate::checked_trees::expression::ExpressionNode::Binary(binary) =
                 checked.typed.expression_table.expression(handle)
             else {
                 continue;
@@ -779,20 +786,20 @@ fn rejects_stale_requires_that_no_longer_states_the_relation() {
             let (left, operator, right) = (binary.left, binary.operator, binary.right);
             stack.push(left);
             stack.push(right);
-            if operator != checked_trees::expression::BinaryOperator::LessOrEqual {
+            if operator != crate::checked_trees::expression::BinaryOperator::LessOrEqual {
                 continue;
             }
             let right_is_name = matches!(
                 checked.typed.expression_table.expression(right),
-                checked_trees::expression::ExpressionNode::Name(_)
+                crate::checked_trees::expression::ExpressionNode::Name(_)
             );
             if right_is_name {
-                let checked_trees::expression::ExpressionNode::Binary(binary) =
+                let crate::checked_trees::expression::ExpressionNode::Binary(binary) =
                     checked.typed.expression_table.expression_mut(handle)
                 else {
                     unreachable!("binary node remains binary");
                 };
-                binary.operator = checked_trees::expression::BinaryOperator::GreaterOrEqual;
+                binary.operator = crate::checked_trees::expression::BinaryOperator::GreaterOrEqual;
                 flipped = true;
             }
         }
@@ -818,11 +825,11 @@ const SUMMED_INDEX: &str = r#"
 "#;
 
 fn sum_value(
-    checked: &checked_trees::CheckedTrees,
+    checked: &crate::checked_trees::CheckedTrees,
     first: &str,
     second: &str,
-) -> checked_trees::BorrowCompatibilitySelectorValue {
-    checked_trees::BorrowCompatibilitySelectorValue::SymbolSum {
+) -> crate::checked_trees::BorrowCompatibilitySelectorValue {
+    crate::checked_trees::BorrowCompatibilitySelectorValue::SymbolSum {
         first: parameter_symbol(checked, first),
         second: parameter_symbol(checked, second),
         offset: 0,
@@ -830,8 +837,8 @@ fn sum_value(
 }
 
 fn sole_mutation_certificate(
-    checked: &checked_trees::CheckedTrees,
-) -> checked_trees::CheckedBorrowMutationCertificate {
+    checked: &crate::checked_trees::CheckedTrees,
+) -> crate::checked_trees::CheckedBorrowMutationCertificate {
     let certificates = checked
         .facts
         .borrow
@@ -854,7 +861,7 @@ fn stated_ordering_premise_certifies_summed_index_bounds() {
 
     assert_eq!(
         certificate.derivation,
-        checked_trees::BorrowCompatibilityDerivation::Premised
+        crate::checked_trees::BorrowCompatibilityDerivation::Premised
     );
     assert_eq!(
         certificate
@@ -867,7 +874,7 @@ fn stated_ordering_premise_certifies_summed_index_bounds() {
             ))
             .collect::<Vec<_>>(),
         vec![(
-            checked_trees::BorrowCompatibilityPremiseRelation::StrictlyBefore,
+            crate::checked_trees::BorrowCompatibilityPremiseRelation::StrictlyBefore,
             sum_value(&checked, "i", "j"),
             symbol_value(&checked, "cut"),
         )],
@@ -875,7 +882,7 @@ fn stated_ordering_premise_certifies_summed_index_bounds() {
     );
     assert_eq!(
         certificate.premises[0].source,
-        checked_trees::BorrowCompatibilityPremiseSource::Requires(requires_fact(&checked))
+        crate::checked_trees::BorrowCompatibilityPremiseSource::Requires(requires_fact(&checked))
     );
     assert!(
         checked
@@ -912,7 +919,7 @@ fn rejects_retained_sum_operand_retarget() {
         .expect("certificate")
         .0;
     let certificate = checked.facts.borrow.mutation_certificates.get_mut(row);
-    let checked_trees::BorrowCompatibilitySelectorValue::SymbolSum { first, second, .. } =
+    let crate::checked_trees::BorrowCompatibilitySelectorValue::SymbolSum { first, second, .. } =
         &mut certificate.premises[0].left
     else {
         panic!("the summed premise records a two-symbol bound");
@@ -969,14 +976,16 @@ const DEEPER_PROJECTION_WINDOWS: &str = r#"
     }
 "#;
 
-fn field_symbol(checked: &checked_trees::CheckedTrees, name: &str) -> SymbolHandle {
+fn field_symbol(checked: &crate::checked_trees::CheckedTrees, name: &str) -> SymbolHandle {
     checked
         .typed
         .data_definitions()
         .iter()
         .flat_map(|data| checked.typed.data_members(data))
         .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if field.name.as_str() == name => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field)
+                if field.name.as_str() == name =>
+            {
                 Some(field.symbol)
             }
             _ => None,
@@ -985,13 +994,13 @@ fn field_symbol(checked: &checked_trees::CheckedTrees, name: &str) -> SymbolHand
 }
 
 fn segmented_value(
-    checked: &checked_trees::CheckedTrees,
+    checked: &crate::checked_trees::CheckedTrees,
     name: &str,
     member: &str,
-) -> checked_trees::BorrowCompatibilitySelectorValue {
-    checked_trees::BorrowCompatibilitySelectorValue::Segmented {
+) -> crate::checked_trees::BorrowCompatibilitySelectorValue {
+    crate::checked_trees::BorrowCompatibilitySelectorValue::Segmented {
         symbol: parameter_symbol(checked, name),
-        segments: vec![facts::PlaceSegment::Field {
+        segments: vec![crate::fact_plan::PlaceSegment::Field {
             symbol: field_symbol(checked, member),
         }],
     }
@@ -1016,7 +1025,7 @@ fn projected_stated_premise_certifies_disjoint_window_write() {
 
     assert_eq!(
         certificate.derivation,
-        checked_trees::BorrowCompatibilityDerivation::Premised
+        crate::checked_trees::BorrowCompatibilityDerivation::Premised
     );
     assert_eq!(
         certificate
@@ -1029,7 +1038,7 @@ fn projected_stated_premise_certifies_disjoint_window_write() {
             ))
             .collect::<Vec<_>>(),
         vec![(
-            checked_trees::BorrowCompatibilityPremiseRelation::LessOrEqual,
+            crate::checked_trees::BorrowCompatibilityPremiseRelation::LessOrEqual,
             integer_value(2),
             segmented_value(&checked, "pair", "first"),
         )],
@@ -1037,13 +1046,13 @@ fn projected_stated_premise_certifies_disjoint_window_write() {
     );
     assert_eq!(
         certificate.premises[0].source,
-        checked_trees::BorrowCompatibilityPremiseSource::Requires(requires_fact(&checked))
+        crate::checked_trees::BorrowCompatibilityPremiseSource::Requires(requires_fact(&checked))
     );
     // The held window's range-start row froze the projected bound, not the
     // receiver's whole-value symbol.
     assert!(
         certificate.selector_snapshot.iter().any(|row| row.position
-            == checked_trees::BorrowCompatibilitySelectorPosition::RangeStart
+            == crate::checked_trees::BorrowCompatibilitySelectorPosition::RangeStart
             && row.value == Some(segmented_value(&checked, "pair", "first"))),
         "the range-start snapshot keeps the `pair.first` projection"
     );
@@ -1081,12 +1090,12 @@ fn rejects_retained_projection_retargeted_to_the_other_member() {
         .expect("certificate")
         .0;
     let certificate = checked.facts.borrow.mutation_certificates.get_mut(row);
-    let checked_trees::BorrowCompatibilitySelectorValue::Segmented { segments, .. } =
+    let crate::checked_trees::BorrowCompatibilitySelectorValue::Segmented { segments, .. } =
         &mut certificate.premises[0].right
     else {
         panic!("the projected premise records a segmented bound");
     };
-    *segments = vec![facts::PlaceSegment::Field { symbol: other }];
+    *segments = vec![crate::fact_plan::PlaceSegment::Field { symbol: other }];
 
     assert_recording_rejects(&mut checked, "premise tokens drifted");
 }

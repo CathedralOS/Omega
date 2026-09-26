@@ -1,6 +1,5 @@
 //! Exact singleton structural-return custody and finite affine cleanup tails.
 
-use abstract_operations::{AbstractFunctionResult, AbstractOperation};
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_codec::{encode_module, encode_proof_section};
@@ -10,6 +9,9 @@ use terminal_psi::{
     StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralResultDeclaration,
     StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
     TerminalModule, Terminator, VocabularyMarker,
+};
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractFunctionResult, AbstractOperation,
 };
 use terminal_psi_to_abstract_operations::lower_artifact;
 use terminal_verifier::ProofBundle;

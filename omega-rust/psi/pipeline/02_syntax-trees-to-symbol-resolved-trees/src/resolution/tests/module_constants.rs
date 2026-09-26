@@ -2,7 +2,7 @@ use crate::resolution::{ResolutionRequest, resolve};
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
 use source::{SourceId, SourceSpan, Span};
 use source_files_to_tokens::Lexer;
-use syntax_trees::{
+use tokens_to_syntax_trees::syntax_trees::{
     SyntaxTrees,
     identifier::Identifier,
     types::{ConstArgumentOrigin, TypeReferenceNode},
@@ -96,7 +96,7 @@ fn named_domain_indices_retain_exact_root_module_and_import_selections() {
                 })
                 .expect("exact constant")
                 .symbol;
-            let occurrences = program.authored_declaration_selections().iter().filter(|selection| selection.source_span() == origin.reference && matches!(selection.target(), symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target) if target.selected_symbol() == selected)).collect::<Vec<_>>();
+            let occurrences = program.authored_declaration_selections().iter().filter(|selection| selection.source_span() == origin.reference && matches!(selection.target(), crate::symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target) if target.selected_symbol() == selected)).collect::<Vec<_>>();
             assert!(!occurrences.is_empty());
             let expected = if origin.reference.source_id == SourceId(3) {
                 AuthoredDeclarationSelectionExposure::PublicInterface
@@ -228,7 +228,7 @@ fn normalized_constant_argument_retains_actual_owner_exposure() {
             .symbol;
         let occurrences = program.authored_declaration_selections().iter().filter(|selection| {
             selection.source_span() == origin.reference
-                && matches!(selection.target(), symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target) if target.selected_symbol() == selected)
+                && matches!(selection.target(), crate::symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target) if target.selected_symbol() == selected)
         }).collect::<Vec<_>>();
         assert!(!occurrences.is_empty());
         let expected = if public {
@@ -247,7 +247,7 @@ fn normalized_constant_argument_retains_actual_owner_exposure() {
 
 #[test]
 fn synthetic_instance_exclusion_does_not_hide_independent_same_value_field_origin() {
-    use syntax_trees::item::{DataMember, Item};
+    use tokens_to_syntax_trees::syntax_trees::item::{DataMember, Item};
     let mut syntax = SyntaxTrees::default();
     for (source_id, text) in [
         (SourceId(1), "pub data Buffer<const N: u64> { value: u64; }"),
@@ -324,7 +324,7 @@ fn synthetic_instance_exclusion_does_not_hide_independent_same_value_field_origi
         .symbol;
     let occurrences = program.authored_declaration_selections().iter().filter(|selection| {
         selection.source_span() == independent.reference
-            && matches!(selection.target(), symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target) if target.selected_symbol() == selected)
+            && matches!(selection.target(), crate::symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target) if target.selected_symbol() == selected)
     }).collect::<Vec<_>>();
     assert!(
         !occurrences.is_empty(),
@@ -457,7 +457,7 @@ fn normalized_result_is_independent_of_each_selected_declaration_value() {
     assert_eq!(origins.len(), 2);
     assert_ne!(origins[0].reference, origins[1].reference);
     assert_eq!(origins[0].declaration, origins[1].declaration);
-    let mut table = syntax_trees::types::TypeReferenceTable::new();
+    let mut table = tokens_to_syntax_trees::syntax_trees::types::TypeReferenceTable::new();
     let argument = table.insert_named(Identifier::generated("4"));
     table.retain_const_argument_normalization(
         argument,
@@ -599,7 +599,7 @@ fn normalized_builtin_operators_keep_occurrence_exposure_and_exact_exclusions() 
 
 #[test]
 fn nominal_constant_receiving_slot_rejects_carrier_and_parent_substitution() {
-    use symbol_resolved_trees::types::TypeReference;
+    use crate::symbol_resolved_trees::types::TypeReference;
     let syntax = crate::preparation::generic_data::normalize_generic_data(
         crate::preparation::generic_data::GenericDataRequest::new(domain_index_sources(&[
             (
@@ -711,7 +711,7 @@ fn nominal_constant_receiving_slot_rejects_carrier_and_parent_substitution() {
                                 selection.origin.reference,
                             )
                             .expect("integer carrier"),
-                        name: symbol_resolved_trees::name::DiagnosticName::generated("u64"),
+                        name: crate::symbol_resolved_trees::name::DiagnosticName::generated("u64"),
                     },
                     _ => TypeReference::Unit,
                 };

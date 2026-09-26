@@ -3,8 +3,8 @@
 //! qualified fields inside the selected case so borrow and Terminal consumers
 //! see the same Case/Field path; never repair a conflicting retained identity.
 
+use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use crate::lookup::{data_definition_by_symbol, first_valid_name_path_symbol, machine_by_symbol};
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 
 #[cfg(test)]
@@ -30,9 +30,9 @@ mod tests;
 /// stored rows do not join, because neither is evidence for the other.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum MemberPosition {
-    Reference(typed_trees::types::TypeReferenceHandle),
+    Reference(symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle),
     Declaration(SymbolHandle),
-    Sliced(typed_trees::types::TypeReferenceHandle),
+    Sliced(symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle),
 }
 
 /// The declaration symbol a position's leaf names. Substituted arguments are
@@ -40,7 +40,7 @@ pub(super) enum MemberPosition {
 /// `super::super::project_type_reference_from_segments`, so this is the same
 /// terminal `type_symbol` mapping callers have always observed.
 pub(super) fn position_leaf_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     position: MemberPosition,
 ) -> SymbolHandle {
     match position {
@@ -61,7 +61,7 @@ pub(super) fn position_leaf_symbol(
 /// receiver's already-resolved position: a member chain recomputing it here
 /// would re-walk the whole receiver expression once per hop.
 fn member_type_position(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     receiver_position: Option<MemberPosition>,
     member_symbol: SymbolHandle,
 ) -> Option<MemberPosition> {
@@ -69,7 +69,7 @@ fn member_type_position(
         && let Some(projected) = super::super::project_type_reference_from_segments(
             program,
             reference,
-            &[facts::PlaceSegment::Field {
+            &[crate::fact_plan::PlaceSegment::Field {
                 symbol: member_symbol,
             }],
         )
@@ -102,7 +102,7 @@ enum ContainerOutcome {
 /// trait signatures, operators, machines themselves) are `Unmapped` and the
 /// caller scans.
 fn container_member_type_position(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     parent: SymbolHandle,
     symbol: SymbolHandle,
 ) -> ContainerOutcome {
@@ -124,7 +124,7 @@ fn container_member_type_position(
             let Some(machine) = machine_by_symbol(program, parent) else {
                 return ContainerOutcome::Unmapped;
             };
-            if let Some(field) = validation::exact_attached_field(
+            if let Some(field) = crate::validation::exact_attached_field(
                 program,
                 machine,
                 symbol,
@@ -149,9 +149,11 @@ fn container_member_type_position(
                 .data_members(data)
                 .iter()
                 .find_map(|member| match member {
-                    typed_trees::data::DataMember::Field(field) if field.symbol == symbol => Some(
-                        ContainerOutcome::Position(MemberPosition::Reference(field.type_reference)),
-                    ),
+                    symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                        field,
+                    ) if field.symbol == symbol => Some(ContainerOutcome::Position(
+                        MemberPosition::Reference(field.type_reference),
+                    )),
                     _ => None,
                 })
                 .unwrap_or(ContainerOutcome::MappedMiss)
@@ -170,7 +172,7 @@ fn container_member_type_position(
                 .data_members(data)
                 .iter()
                 .find_map(|member| match member {
-                    typed_trees::data::DataMember::Variant(variant) if variant.symbol == parent => {
+                    symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant) if variant.symbol == parent => {
                         Some(variant)
                     }
                     _ => None,
@@ -235,7 +237,7 @@ fn container_member_type_position(
                 .statements(state.statement_nodes)
                 .iter()
                 .find_map(|statement| match statement {
-                    typed_trees::statement::StatementNode::LocalData(local_data)
+                    symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local_data)
                         if local_data.symbol == symbol =>
                     {
                         Some(ContainerOutcome::Position(MemberPosition::Reference(
@@ -301,7 +303,7 @@ fn container_member_type_position(
 /// `symbol_type_symbol`, this retains the type reference so a generic
 /// application's arguments remain bound for the next member hop.
 pub(super) fn symbol_type_position(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     symbol: SymbolHandle,
 ) -> Option<MemberPosition> {
     if !symbol.is_valid() {
@@ -356,7 +358,7 @@ pub(super) fn symbol_type_position(
 /// The original whole-program member scan: machines and their states, trait
 /// signatures, operators, and data rows, first match wins.
 fn whole_program_member_type_position(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     symbol: SymbolHandle,
 ) -> Option<MemberPosition> {
     for machine in program.machines() {
@@ -364,7 +366,7 @@ fn whole_program_member_type_position(
         // exact declaration type before walking child fields; missing child
         // identities must not make overlapping receiver loans appear disjoint.
         if program.symbols.get(symbol).parent == machine.symbol
-            && let Some(field) = validation::exact_attached_field(
+            && let Some(field) = crate::validation::exact_attached_field(
                 program,
                 machine,
                 symbol,
@@ -391,7 +393,7 @@ fn whole_program_member_type_position(
                 }
             }
             for statement in program.statement_table.statements(state.statement_nodes) {
-                if let typed_trees::statement::StatementNode::LocalData(local_data) = statement
+                if let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local_data) = statement
                     && local_data.symbol == symbol
                 {
                     return Some(MemberPosition::Reference(local_data.type_reference));
@@ -439,10 +441,14 @@ fn whole_program_member_type_position(
     for data in program.data_definitions() {
         for member in program.data_members(data) {
             match member {
-                typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                    field,
+                ) if field.symbol == symbol => {
                     return Some(MemberPosition::Reference(field.type_reference));
                 }
-                typed_trees::data::DataMember::Variant(variant) => {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
+                    variant,
+                ) => {
                     if let Some(field) = program
                         .data_payload_fields(variant)
                         .iter()
@@ -463,7 +469,7 @@ fn whole_program_member_type_position(
 /// arguments bound through member hops so `b.item` under `b: &Box<Context>`
 /// stands on `Context`, not on `Box`'s unbound `T`.
 pub(super) fn expression_type_position(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<MemberPosition> {
     if !expression.is_valid() {
@@ -498,7 +504,7 @@ pub(super) fn expression_type_position(
                     // `values[0..2]` is a slice of `Box<Context>`, not one
                     // element — so the position becomes the window and only
                     // a further index hop resumes at the element.
-                    facts::PlaceSegment::FixedRange { .. } => {
+                    crate::fact_plan::PlaceSegment::FixedRange { .. } => {
                         super::super::collection_element_type_reference(program, reference)
                             .map(MemberPosition::Sliced)
                     }
@@ -512,7 +518,9 @@ pub(super) fn expression_type_position(
                 Some(MemberPosition::Sliced(element)) => match segment {
                     // Re-windowing a window keeps the same element; an index
                     // hop names one element and resumes at its position.
-                    facts::PlaceSegment::FixedRange { .. } => Some(MemberPosition::Sliced(element)),
+                    crate::fact_plan::PlaceSegment::FixedRange { .. } => {
+                        Some(MemberPosition::Sliced(element))
+                    }
                     _ => Some(MemberPosition::Reference(element)),
                 },
                 position => position,
@@ -567,7 +575,7 @@ pub(super) fn expression_type_position(
 /// a declaration leaf, another window — carry no element handle the window
 /// could reuse, so the literal keeps no position there either.
 fn array_literal_position(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     elements: &[ExpressionHandle],
 ) -> Option<MemberPosition> {
     let mut positions = elements
@@ -619,15 +627,15 @@ fn array_literal_position(
 /// slice declares no fields to answer it with. Re-windowing a window keeps
 /// its element.
 pub(super) fn member_position_after_segments(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     position: MemberPosition,
-    segments: &[facts::PlaceSegment],
+    segments: &[crate::fact_plan::PlaceSegment],
 ) -> Option<MemberPosition> {
     let mut position = position;
     for segment in segments {
         position = match segment {
-            facts::PlaceSegment::Case { .. } => position,
-            facts::PlaceSegment::Field { symbol } => match position {
+            crate::fact_plan::PlaceSegment::Case { .. } => position,
+            crate::fact_plan::PlaceSegment::Field { symbol } => match position {
                 MemberPosition::Reference(reference) => {
                     match super::super::project_type_reference_from_segments(
                         program,
@@ -641,20 +649,19 @@ pub(super) fn member_position_after_segments(
                 MemberPosition::Declaration(_) => symbol_type_position(program, *symbol)?,
                 MemberPosition::Sliced(_) => return None,
             },
-            facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. } => {
-                match position {
-                    MemberPosition::Reference(reference) => MemberPosition::Reference(
-                        super::super::project_type_reference_from_segments(
-                            program,
-                            reference,
-                            std::slice::from_ref(segment),
-                        )?,
-                    ),
-                    MemberPosition::Sliced(element) => MemberPosition::Reference(element),
-                    MemberPosition::Declaration(_) => return None,
+            crate::fact_plan::PlaceSegment::FixedIndex { .. }
+            | crate::fact_plan::PlaceSegment::Index { .. } => match position {
+                MemberPosition::Reference(reference) => {
+                    MemberPosition::Reference(super::super::project_type_reference_from_segments(
+                        program,
+                        reference,
+                        std::slice::from_ref(segment),
+                    )?)
                 }
-            }
-            facts::PlaceSegment::FixedRange { .. } => match position {
+                MemberPosition::Sliced(element) => MemberPosition::Reference(element),
+                MemberPosition::Declaration(_) => return None,
+            },
+            crate::fact_plan::PlaceSegment::FixedRange { .. } => match position {
                 MemberPosition::Reference(reference) => MemberPosition::Sliced(
                     super::super::collection_element_type_reference(program, reference)?,
                 ),
@@ -679,10 +686,10 @@ pub(super) fn member_position_after_segments(
 /// place keeps no reference rather than inventing one from a same-shaped
 /// row.
 pub(crate) fn expression_place_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
-    segments: &[facts::PlaceSegment],
-) -> Option<typed_trees::types::TypeReferenceHandle> {
+    segments: &[crate::fact_plan::PlaceSegment],
+) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
     let position = expression_type_position(program, expression)?;
     match member_position_after_segments(program, position, segments)? {
         MemberPosition::Reference(reference) => Some(reference),
@@ -697,8 +704,8 @@ pub(crate) fn expression_place_type_reference(
 /// an arm spelled through a distinct handle to an equal type is that same
 /// disagreement, not a join.
 fn match_result_position(
-    program: &typed_trees::TypedTrees,
-    dispatch: &typed_trees::expression::TableMatchExpression,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    dispatch: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableMatchExpression,
 ) -> Option<MemberPosition> {
     let mut positions = program
         .expression_table
@@ -714,9 +721,9 @@ fn match_result_position(
 }
 
 pub(crate) fn effective_member_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     receiver: ExpressionHandle,
-    member: &typed_trees::expression::TableMemberExpression,
+    member: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableMemberExpression,
 ) -> SymbolHandle {
     effective_member_symbol_from_position(
         program,
@@ -730,10 +737,10 @@ pub(crate) fn effective_member_symbol(
 /// resolved — member-chain walks share one receiver walk between the symbol
 /// answer and the position hop instead of resolving it once per use.
 pub(crate) fn effective_member_symbol_from_position(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     receiver: ExpressionHandle,
     receiver_position: Option<MemberPosition>,
-    member: &typed_trees::expression::TableMemberExpression,
+    member: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableMemberExpression,
 ) -> SymbolHandle {
     // A case-qualified projection must not select the first same-named field
     // in another case. Preserve the selected variant when reconstructing its
@@ -748,7 +755,7 @@ pub(crate) fn effective_member_symbol_from_position(
                         .data_members(declaration)
                         .iter()
                         .find_map(|row| match row {
-                            typed_trees::data::DataMember::Variant(variant)
+                            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant)
                                 if variant.name == *case_name =>
                             {
                                 Some(variant)
@@ -797,7 +804,7 @@ pub(crate) fn effective_member_symbol_from_position(
 /// known; a variant that is absent or declares no such payload field yields
 /// no symbol rather than borrowing a same-shaped row.
 pub(super) fn resolve_case_member_symbol_from_type_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     type_symbol: SymbolHandle,
     case_name: &str,
     member_name: &str,
@@ -807,11 +814,9 @@ pub(super) fn resolve_case_member_symbol_from_type_symbol(
         .data_members(declaration)
         .iter()
         .find_map(|row| match row {
-            typed_trees::data::DataMember::Variant(variant)
-                if variant.name.as_str() == case_name =>
-            {
-                Some(variant)
-            }
+            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
+                variant,
+            ) if variant.name.as_str() == case_name => Some(variant),
             _ => None,
         })?;
     program
@@ -822,24 +827,26 @@ pub(super) fn resolve_case_member_symbol_from_type_symbol(
 }
 
 pub(crate) fn resolve_member_symbol_from_type_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     type_symbol: SymbolHandle,
     member_name: &str,
 ) -> Option<SymbolHandle> {
     if let Some(data) = data_definition_by_symbol(program, type_symbol) {
         for member in program.data_members(data) {
             match member {
-                typed_trees::data::DataMember::Field(field)
-                    if field.name.as_str() == member_name =>
-                {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                    field,
+                ) if field.name.as_str() == member_name => {
                     return Some(field.symbol);
                 }
-                typed_trees::data::DataMember::Variant(variant)
-                    if variant.name.as_str() == member_name =>
-                {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
+                    variant,
+                ) if variant.name.as_str() == member_name => {
                     return Some(variant.symbol);
                 }
-                typed_trees::data::DataMember::Variant(variant) => {
+                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
+                    variant,
+                ) => {
                     if let Some(field) = program
                         .data_payload_fields(variant)
                         .iter()
@@ -857,17 +864,17 @@ pub(crate) fn resolve_member_symbol_from_type_symbol(
         if let Some(data) = program.attached_data_definition(machine) {
             for member in program.data_members(data) {
                 match member {
-                    typed_trees::data::DataMember::Field(field)
+                    symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field)
                         if field.name.as_str() == member_name =>
                     {
                         return Some(field.symbol);
                     }
-                    typed_trees::data::DataMember::Variant(variant)
+                    symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant)
                         if variant.name.as_str() == member_name =>
                     {
                         return Some(variant.symbol);
                     }
-                    typed_trees::data::DataMember::Variant(variant) => {
+                    symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant) => {
                         if let Some(field) = program
                             .data_payload_fields(variant)
                             .iter()
@@ -891,7 +898,7 @@ pub(crate) fn resolve_member_symbol_from_type_symbol(
 }
 
 fn resolve_member_symbol_from_position(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     receiver_position: Option<MemberPosition>,
     member_name: &str,
 ) -> Option<SymbolHandle> {
@@ -900,7 +907,7 @@ fn resolve_member_symbol_from_position(
 }
 
 pub(crate) fn expression_type_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
     expression_type_position(program, expression)
@@ -908,7 +915,7 @@ pub(crate) fn expression_type_symbol(
 }
 
 pub(crate) fn symbol_type_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     symbol: SymbolHandle,
 ) -> Option<SymbolHandle> {
     symbol_type_position(program, symbol).map(|position| position_leaf_symbol(program, position))

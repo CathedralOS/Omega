@@ -1,4 +1,3 @@
-use abstract_operations::AbstractOperation;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
@@ -8,6 +7,7 @@ use terminal_psi::{
     OperationKind, ProofBundle, TerminalModule, TerminalNaturalRankComparison, TerminalRankedScc,
     Terminator,
 };
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
 use terminal_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact};
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::CheckingRequest;

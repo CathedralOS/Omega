@@ -30,8 +30,8 @@
 //! The producer stays: its flag definitions remain published for every
 //! other reader the function still holds.
 
-use register_model::RegisterInstructionConstraint;
-use selected_instructions::{
+use target_operations_to_selected_instructions::register_model::RegisterInstructionConstraint;
+use target_operations_to_selected_instructions::{
     MachineAlternative, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
     MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
@@ -211,7 +211,7 @@ impl TerminatorPairRule {
         terminator: &'terminator SelectedTerminator,
         left: u64,
         right: u64,
-    ) -> Option<&'terminator selected_instructions::SelectedSuccessor> {
+    ) -> Option<&'terminator target_operations_to_selected_instructions::SelectedSuccessor> {
         match (self.consumer, terminator) {
             (
                 MachineSemanticKind::ConditionalBranchNonZero,
@@ -262,9 +262,9 @@ impl TerminatorPairRule {
     /// definitions are preserved.
     pub(crate) fn admits_unit_flow(
         &self,
-        flag_uses: &[register_model::RegisterUnitId],
-        plain_uses: &[register_model::RegisterUnitId],
-        consumer: &selected_instructions::SelectedInstruction,
+        flag_uses: &[target_operations_to_selected_instructions::register_model::RegisterUnitId],
+        plain_uses: &[target_operations_to_selected_instructions::register_model::RegisterUnitId],
+        consumer: &target_operations_to_selected_instructions::SelectedInstruction,
         rewritten: &RegisterInstructionConstraint,
     ) -> bool {
         match self.unit_flow() {

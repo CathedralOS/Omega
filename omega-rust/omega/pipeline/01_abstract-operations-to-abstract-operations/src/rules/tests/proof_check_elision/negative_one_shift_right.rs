@@ -8,16 +8,16 @@ use crate::rules::tests::fixtures::id;
 use crate::rules::tests::fixtures::proof_check_elision::{
     live_exact_signed_negative_one_shift_right_unit, live_proof_binary_identity_unit,
 };
-use abstract_operations::AbstractOperation as O;
 use optimization_core::{OptimizationValidatorIdentity, ScalarConstantFactIdentity};
-use optimization_unit::{
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ValueId};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::{
     OptimizationFact, ProofCertifiedScalarIdentityKind, ProofCertifiedScalarIdentityRewrite,
     PsiRewriteCandidate, PsiRewritePatch, recompute_psi_optimization_unit_identity,
 };
-use optimization_unit_semantics::{
+use terminal_psi_to_abstract_operations::optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_proof_certified_scalar_identity_candidate,
 };
-use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ValueId};
 
 #[test]
 fn proof_certified_exact_signed_negative_one_shift_right_reuses_the_literal() {

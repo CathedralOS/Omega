@@ -11,14 +11,14 @@
 //! flow. `evaluation` evaluates selected scalar operations, `bounds` computes
 //! integer bounds of selected scalar expressions, and `snapshots` reads the
 //! current assigned value, literal, or integer bounds at a place.
-use checked_trees::{
+use crate::checked_trees::{
     CheckedIntegerRange, CheckedValueFact, CheckedValueFacts, CheckedValueOrigin,
     CheckedValueStatementRole,
 };
-use proof::obligations::ProofPlan;
+use crate::proof_engine::obligations::ProofPlan;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::expression::ExpressionHandle;
 
 pub(crate) mod bounds;
 mod evaluation;
@@ -40,9 +40,9 @@ mod transition;
 /// rebinding or the immutable incoming-parameter expression namespace.
 pub(crate) fn mutable_scalar_parameter_type(
     program: &TypedTrees,
-    parameter: &typed_trees::signature::StateParameter,
-) -> Option<typed_trees::types::PrimitiveType> {
-    use typed_trees::types::PrimitiveType;
+    parameter: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter,
+) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType> {
+    use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
     if !parameter.is_mutable
         || parameter.is_self
         || parameter.is_const
@@ -89,7 +89,7 @@ pub(crate) fn build_value_facts(
     program: &TypedTrees,
     proof_plan: &ProofPlan<'_>,
 ) -> CheckedValueFacts {
-    let assignment_ranges = proof::checker::AssignmentRangeContext::new(proof_plan);
+    let assignment_ranges = crate::proof_engine::checker::AssignmentRangeContext::new(proof_plan);
     let mut builder = ValueFactBuilder {
         program,
         proof_plan,
@@ -99,7 +99,7 @@ pub(crate) fn build_value_facts(
 
     for machine in program.machines() {
         if let Some(subjects) =
-            typed_trees::ranking::resolve_machine_witness_subjects(program, machine)
+            symbol_resolved_trees_to_typed_trees::typed_trees::ranking::resolve_machine_witness_subjects(program, machine)
         {
             for (ordinal, expression) in subjects.into_iter().enumerate() {
                 builder.collect_expression(
@@ -141,7 +141,7 @@ pub(crate) fn build_value_facts(
 pub(super) struct ValueFactBuilder<'program, 'plan> {
     pub(super) program: &'program TypedTrees,
     pub(super) proof_plan: &'plan ProofPlan<'program>,
-    pub(super) assignment_ranges: proof::checker::AssignmentRangeContext<'program>,
+    pub(super) assignment_ranges: crate::proof_engine::checker::AssignmentRangeContext<'program>,
     pub(super) facts: CheckedValueFacts,
 }
 
@@ -177,7 +177,9 @@ impl ValueFactBuilder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
         origin: CheckedValueOrigin,
-        expected_primitive: Option<typed_trees::types::PrimitiveType>,
+        expected_primitive: Option<
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType,
+        >,
     ) {
         if !expression.is_valid() {
             return;
@@ -188,7 +190,9 @@ impl ValueFactBuilder<'_, '_> {
             expression,
             origin,
         )
-        .unwrap_or_else(typed_trees::types::TypeReferenceHandle::invalid);
+        .unwrap_or_else(
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid,
+        );
         let primitive_type = self
             .program
             .primitive_type_reference(type_reference)
@@ -203,7 +207,7 @@ impl ValueFactBuilder<'_, '_> {
                     role: CheckedValueStatementRole::CallArgument,
                     ..
                 },
-                typed_trees::expression::ExpressionNode::Integer(literal),
+                symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Integer(literal),
                 Some(_),
             ) => literal.value_bignum().map(|value| CheckedIntegerRange {
                 minimum: value.clone(),
@@ -218,7 +222,7 @@ impl ValueFactBuilder<'_, '_> {
                 },
                 _,
                 _,
-            ) => proof::checker::proved_assignment_integer_range_with_context(
+            ) => crate::proof_engine::checker::proved_assignment_integer_range_with_context(
                 self.proof_plan,
                 machine_symbol,
                 state_symbol,

@@ -2,8 +2,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::BlockId;
+use terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit;
 
 use super::{DominatorAnalysis, FunctionControlFlow, graph::control_flow};
 

@@ -168,7 +168,7 @@ fn lower_static_requirement_dispatch(
     checked: &CheckedTrees,
     terminal_machine: MachineId,
     semantic_module: &TerminalModule,
-    invocation: &checked_trees::ProofOutputCallFact,
+    invocation: &typed_trees_to_checked_trees::checked_trees::ProofOutputCallFact,
     runtime_result: Option<ProofOutputRuntimeResult>,
     runtime_call: Option<ProofOutputRuntimeCall>,
 ) -> Result<Option<StaticRequirementDispatch>, LoweringError> {
@@ -362,17 +362,17 @@ fn lower_static_requirement_dispatch(
 
 pub(crate) fn proof_output_forwarded_source(
     checked: &CheckedTrees,
-    invocation: &checked_trees::ProofOutputCallFact,
-    output: &checked_trees::ProofOutputFact,
-) -> Option<arena::Handle<checked_trees::CheckedEvidenceTerm>> {
+    invocation: &typed_trees_to_checked_trees::checked_trees::ProofOutputCallFact,
+    output: &typed_trees_to_checked_trees::checked_trees::ProofOutputFact,
+) -> Option<arena::Handle<typed_trees_to_checked_trees::checked_trees::CheckedEvidenceTerm>> {
     proof_output_forwarded_argument(checked, invocation, output).map(|argument| argument.source)
 }
 
 fn proof_output_forwarded_argument<'a>(
     checked: &CheckedTrees,
-    invocation: &'a checked_trees::ProofOutputCallFact,
-    output: &checked_trees::ProofOutputFact,
-) -> Option<&'a checked_trees::ProofOutputEvidenceArgumentFact> {
+    invocation: &'a typed_trees_to_checked_trees::checked_trees::ProofOutputCallFact,
+    output: &typed_trees_to_checked_trees::checked_trees::ProofOutputFact,
+) -> Option<&'a typed_trees_to_checked_trees::checked_trees::ProofOutputEvidenceArgumentFact> {
     if invocation.static_requirement_dispatch.is_some() {
         return None;
     }
@@ -386,7 +386,10 @@ fn proof_output_forwarded_argument<'a>(
                 && forwarding.output == output.callee_output)
                 .then_some(&forwarding.source)
         });
-    let Some(checked_trees::EvidenceAssignmentSource::Forwarded { term }) = source else {
+    let Some(typed_trees_to_checked_trees::checked_trees::EvidenceAssignmentSource::Forwarded {
+        term,
+    }) = source
+    else {
         return None;
     };
     invocation
@@ -397,8 +400,8 @@ fn proof_output_forwarded_argument<'a>(
 
 fn proof_output_forwarded_input_position(
     checked: &CheckedTrees,
-    invocation: &checked_trees::ProofOutputCallFact,
-    output: &checked_trees::ProofOutputFact,
+    invocation: &typed_trees_to_checked_trees::checked_trees::ProofOutputCallFact,
+    output: &typed_trees_to_checked_trees::checked_trees::ProofOutputFact,
 ) -> Result<Option<u32>, LoweringError> {
     let Some(argument) = proof_output_forwarded_argument(checked, invocation, output) else {
         return Ok(None);
@@ -412,7 +415,7 @@ fn proof_output_forwarded_input_position(
 
 pub(crate) fn terminal_evidence_term_id(
     term_ids: &[Option<EvidenceTermId>],
-    handle: arena::Handle<checked_trees::CheckedEvidenceTerm>,
+    handle: arena::Handle<typed_trees_to_checked_trees::checked_trees::CheckedEvidenceTerm>,
     error: &'static str,
 ) -> Result<EvidenceTermId, LoweringError> {
     term_ids
@@ -430,7 +433,7 @@ fn terminal_proposition_application_id(
     term_ids: &[Option<EvidenceTermId>],
     declarations: &[PropositionDeclaration],
     applications: &[PropositionApplicationIdentity],
-    application: &checked_trees::CheckedPropositionApplication,
+    application: &typed_trees_to_checked_trees::checked_trees::CheckedPropositionApplication,
 ) -> Result<PropositionId, LoweringError> {
     let declaration_name = checked
         .facts
@@ -517,7 +520,7 @@ fn lower_proof_output_runtime_call(
     selected_machine: symbols::SymbolHandle,
     terminal_machine: MachineId,
     semantic_module: &TerminalModule,
-    invocation: &checked_trees::ProofOutputCallFact,
+    invocation: &typed_trees_to_checked_trees::checked_trees::ProofOutputCallFact,
 ) -> Result<
     (
         Option<ProofOutputRuntimeResult>,
@@ -567,7 +570,7 @@ fn lower_proof_output_runtime_call(
     let mut next_position = 0usize;
     for state in &graph.states {
         for binding in &state.bindings {
-            let checked_trees::CheckedScalarBindingValue::DirectCall {
+            let typed_trees_to_checked_trees::checked_trees::CheckedScalarBindingValue::DirectCall {
                 target_machine,
                 target_state,
                 call_ordinal,
@@ -644,8 +647,8 @@ fn lower_unit_proof_output_runtime_call(
     selected_machine: symbols::SymbolHandle,
     terminal_machine: MachineId,
     semantic_module: &TerminalModule,
-    invocation: &checked_trees::ProofOutputCallFact,
-    runtime_call: checked_trees::ProofOutputRuntimeCallFact,
+    invocation: &typed_trees_to_checked_trees::checked_trees::ProofOutputCallFact,
+    runtime_call: typed_trees_to_checked_trees::checked_trees::ProofOutputRuntimeCallFact,
 ) -> Result<
     (
         Option<ProofOutputRuntimeResult>,
@@ -664,7 +667,7 @@ fn lower_unit_proof_output_runtime_call(
     let mut call_position = 0usize;
     let mut matching_position = None;
     for operation in &plan.operations {
-        let checked_trees::CheckedUnitEffectOperationPlan::CallUnit {
+        let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::CallUnit {
             coordinate,
             target_machine,
             target_state,

@@ -19,8 +19,8 @@ fn assert_order(source: &str, arguments: &[TerminalScalarValue], expected: &[(us
         terminal_verifier::verify_module(&module, &proof_bundle, &AdmissionProfile::default())
             .unwrap();
     let certificate =
-        terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, module.entry).unwrap();
-    terminal_fixed_fuel::validate_fixed_entry_fuel(&verified, &certificate).unwrap();
+        omega::terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, module.entry).unwrap();
+    omega::terminal_fixed_fuel::validate_fixed_entry_fuel(&verified, &certificate).unwrap();
     let caller = module
         .machines
         .iter()

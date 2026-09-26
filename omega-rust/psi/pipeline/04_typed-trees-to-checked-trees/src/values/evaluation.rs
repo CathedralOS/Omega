@@ -1,15 +1,15 @@
 //! Evaluate already-selected scalar operations over caller-owned value facts.
 //! This adapter supplies no source binding, initializer, call, or range premise.
 
-use checked_trees::{
+use crate::checked_trees::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
     CheckedScalarExpression,
 };
 use numerics::{bignum::BigInt, literals::LandedIntegerType};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
-use typed_trees::types::PrimitiveType;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
 
-use facts::ScalarValue;
+use crate::fact_plan::ScalarValue;
 
 mod sources;
 pub(crate) use sources::{BoundScalarValues, ScalarValueSource};

@@ -4,7 +4,7 @@ use crate::unsequenced_spill_stages::{
     AbstractSpillAccessConstraintError, AbstractSpillAccessKind, AbstractSpillAccessPlacement,
     AbstractSpillMemoryEffect, FunctionAbstractSpillMemoryEffects,
 };
-use selected_instructions::LiveRangePoint;
+use target_operations_to_selected_instructions::LiveRangePoint;
 
 pub(super) fn project(
     function: usize,
@@ -97,8 +97,11 @@ fn placement(
 }
 
 fn next_block_ordinal(
-    counts: &mut Vec<(selected_instructions::SelectedBlockId, u32)>,
-    block: selected_instructions::SelectedBlockId,
+    counts: &mut Vec<(
+        target_operations_to_selected_instructions::SelectedBlockId,
+        u32,
+    )>,
+    block: target_operations_to_selected_instructions::SelectedBlockId,
 ) -> Result<u32, AbstractSpillAccessConstraintError> {
     if let Some((_, count)) = counts.iter_mut().find(|(candidate, _)| *candidate == block) {
         let ordinal = *count;
@@ -137,7 +140,10 @@ fn validate_geometry(
 
 fn position(
     effect: AbstractSpillMemoryEffect,
-) -> (selected_instructions::SelectedBlockId, LiveRangePoint) {
+) -> (
+    target_operations_to_selected_instructions::SelectedBlockId,
+    LiveRangePoint,
+) {
     match effect {
         AbstractSpillMemoryEffect::Write { block, point, .. }
         | AbstractSpillMemoryEffect::Read { block, point, .. } => (block, point),

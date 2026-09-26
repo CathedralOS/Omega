@@ -10,9 +10,9 @@ use crate::rules::tests::fixtures::control_flow_cleanup::{
 };
 use crate::rules::tests::fixtures::id;
 use crate::{PsiOptimizationRule, RuleAnalysisView};
-use abstract_operations::AbstractOperation as O;
-use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit;
 
 #[test]
 fn control_rewrites_do_not_offer_to_erase_residual_edge_cleanup() {

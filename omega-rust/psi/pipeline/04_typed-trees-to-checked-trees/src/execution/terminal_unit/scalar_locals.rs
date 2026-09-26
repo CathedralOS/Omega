@@ -7,10 +7,10 @@ use super::{
 pub(super) fn scalar_expression_local_at(
     program: &TypedTrees,
     facts: &CheckFacts,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: u32,
     binding_ordinal: u32,
-    local: &typed_trees::statement::TableLocalData,
+    local: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableLocalData,
 ) -> Option<(CheckedUnitScalarResultBindingPlan, CheckedScalarExpression)> {
     if local.is_mutable
         || !program

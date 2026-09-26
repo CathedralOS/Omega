@@ -1,10 +1,10 @@
 use super::super::FlowBuildContext;
 use super::{CallValues, retains_values_across_unit_call};
+use crate::checked_trees::CheckedTrees;
+use crate::fact_plan::ScalarValue;
 use crate::tests::front_end::checked_program;
-use checked_trees::CheckedTrees;
-use facts::ScalarValue;
-use typed_trees::expression::ExpressionNode;
-use typed_trees::statement::StatementNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 
 const SOURCE: &str = r#"
     machine observe(value: bool) {}
@@ -35,7 +35,7 @@ fn preserves_values(checked: &CheckedTrees) -> bool {
         storage: Vec::new(),
         fields: Vec::new(),
     };
-    let call_frames = validation::CallFrameResolver::new(program);
+    let call_frames = crate::validation::CallFrameResolver::new(program);
     let state_mutation_summary_cache = crate::flow::StateMutationSummaryCache::default();
     let mut context = FlowBuildContext::new(
         &checked.facts.borrow,
@@ -199,7 +199,7 @@ fn unit_call_preservation_admits_selected_scalar_arguments() {
             binding.state == state_symbol
                 && matches!(
                     binding.role,
-                    checked_trees::CheckedScalarExpressionRole::UnitCallArgument {
+                    crate::checked_trees::CheckedScalarExpressionRole::UnitCallArgument {
                         call_ordinal: 0,
                         argument_ordinal: 0,
                     }
@@ -238,7 +238,7 @@ fn range_call_source(body: &str) -> CheckedTrees {
     ))
 }
 
-fn captured_range(checked: &CheckedTrees) -> Option<facts::IntegerRange> {
+fn captured_range(checked: &CheckedTrees) -> Option<crate::fact_plan::IntegerRange> {
     let machine = checked
         .machines()
         .iter()
@@ -269,7 +269,7 @@ fn captured_range(checked: &CheckedTrees) -> Option<facts::IntegerRange> {
         .find(|statement| statement.statement_index == statement_index)
         .expect("call initializer entry")
         .entry_semantic_contexts;
-    let call_frames = validation::CallFrameResolver::new(&checked.typed);
+    let call_frames = crate::validation::CallFrameResolver::new(&checked.typed);
     let state_mutation_summary_cache = crate::flow::StateMutationSummaryCache::default();
     let mut context = FlowBuildContext::new(
         &checked.facts.borrow,
@@ -306,7 +306,7 @@ fn selected_scalar_calls_capture_live_argument_ranges_and_local_snapshots() {
         let checked = range_call_source(body);
         assert_eq!(
             captured_range(&checked),
-            Some(facts::IntegerRange {
+            Some(crate::fact_plan::IntegerRange {
                 minimum: numerics::bignum::BigInt::from_u64(48),
                 maximum: numerics::bignum::BigInt::from_u64(57),
             }),
@@ -317,7 +317,7 @@ fn selected_scalar_calls_capture_live_argument_ranges_and_local_snapshots() {
 
 #[test]
 fn selected_call_ranges_reject_missing_or_substituted_custody() {
-    use checked_trees::CheckedScalarExpressionRole;
+    use crate::checked_trees::CheckedScalarExpressionRole;
 
     let authentic = range_call_source("(value as u8 in Wrapping) as u8");
     assert!(captured_range(&authentic).is_some());
@@ -383,7 +383,7 @@ fn selected_call_ranges_reject_missing_or_substituted_custody() {
     // the returned byte keeps the carrier-wide bound instead of the precise
     // selected one. Corruption can widen the captured range, never narrow it.
     let declared_carrier = || {
-        Some(facts::IntegerRange {
+        Some(crate::fact_plan::IntegerRange {
             minimum: numerics::bignum::BigInt::from_u64(0),
             maximum: numerics::bignum::BigInt::from_u64(255),
         })

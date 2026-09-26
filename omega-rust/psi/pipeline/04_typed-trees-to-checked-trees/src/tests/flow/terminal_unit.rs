@@ -1,10 +1,10 @@
 use crate::tests::front_end::{checked_program, checked_program_result};
 
 use crate::CheckingRequest;
-use crate::lower_typed_trees;
-use checked_trees::{
+use crate::checked_trees::{
     CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole,
 };
+use crate::lower_typed_trees;
 
 mod attached_receiver_shapes;
 mod borrowed_view_returns;
@@ -51,16 +51,16 @@ mod structural_local_bindings;
 mod tail_calls;
 mod whole_view_returns;
 
-use checked_trees::{
+use crate::checked_trees::{
     CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape,
 };
 use language_core::BindingRelevance;
 use language_semantics::Multiplicity;
-use typed_trees::types::PrimitiveType;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
 
-fn checked(source: &str) -> checked_trees::CheckedTrees {
+fn checked(source: &str) -> crate::checked_trees::CheckedTrees {
     let source = format!("boundary trait PortIo {{}}\n{source}");
     checked_program(&source)
 }
@@ -70,7 +70,7 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
 /// erasure authorizations `bind_fixture_fused_service_erasures` supplies.
 /// Boundary traits closed over by a `Binding<R>` field must be declared `pub`
 /// in the fixture.
-fn checked_with_service(source: &str) -> checked_trees::CheckedTrees {
+fn checked_with_service(source: &str) -> crate::checked_trees::CheckedTrees {
     let source = format!("boundary trait PortIo {{}}\n{source}");
     let mut typed = crate::tests::front_end::typed_program_with_core_service(&source);
     crate::tests::bind_fixture_fused_service_erasures(&mut typed);
@@ -82,7 +82,10 @@ fn contextual_cleanup_diagnostics(source: &str) -> Vec<diagnostics::Diagnostic> 
         .expect_err("contextual cleanup requirement-set mismatch must reject at its return edge")
 }
 
-fn machine_named(checked: &checked_trees::CheckedTrees, name: &str) -> symbols::SymbolHandle {
+fn machine_named(
+    checked: &crate::checked_trees::CheckedTrees,
+    name: &str,
+) -> symbols::SymbolHandle {
     checked
         .machines()
         .iter()
@@ -94,7 +97,7 @@ fn machine_named(checked: &checked_trees::CheckedTrees, name: &str) -> symbols::
 }
 
 fn record_fields(
-    shape: &checked_trees::CheckedUnitStructuralTypePlan,
+    shape: &crate::checked_trees::CheckedUnitStructuralTypePlan,
 ) -> &[CheckedUnitStructuralFieldPlan] {
     let CheckedUnitStructuralTypeShape::Record { fields } = &shape.shape else {
         panic!("expected record structural shape")

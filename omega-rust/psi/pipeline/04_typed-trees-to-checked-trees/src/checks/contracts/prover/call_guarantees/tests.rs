@@ -7,16 +7,18 @@
 //! and a segment-scoped row all retire or skip the capture outright.
 
 use super::captured_place;
-use crate::flow::CanonicalPlace;
-use crate::tests::front_end::typed_program;
-use facts::{
+use crate::fact_plan::{
     Fact, FactContextHandle, FactPayload, FactPlace, FactPlan, PlaceRoot, PlaceSegment,
     ProgramPoint, ScalarValue,
 };
+use crate::flow::CanonicalPlace;
+use crate::tests::front_end::typed_program;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
 use symbols::SymbolHandle;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
-fn program() -> typed_trees::TypedTrees {
+fn program() -> symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees {
     typed_program(
         "machine produce() -> u64 { 7 }\n\
          machine caller(slot: &mut u64) {\n\
@@ -26,7 +28,9 @@ fn program() -> typed_trees::TypedTrees {
     )
 }
 
-fn call_expressions(program: &typed_trees::TypedTrees) -> Vec<ExpressionHandle> {
+fn call_expressions(
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+) -> Vec<ExpressionHandle> {
     program
         .expression_table
         .iter_expressions()
@@ -34,7 +38,9 @@ fn call_expressions(program: &typed_trees::TypedTrees) -> Vec<ExpressionHandle> 
         .collect()
 }
 
-fn non_call_expression(program: &typed_trees::TypedTrees) -> ExpressionHandle {
+fn non_call_expression(
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+) -> ExpressionHandle {
     program
         .expression_table
         .iter_expressions()
@@ -45,7 +51,7 @@ fn non_call_expression(program: &typed_trees::TypedTrees) -> ExpressionHandle {
 /// One parameter-rooted place plus the `FactPlace` naming it: the destination
 /// a retained `AssignedValue` row would carry.
 fn parameter_place(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: &mut FactPlan,
 ) -> (SymbolHandle, FactPlace) {
     let machine = program
@@ -76,7 +82,7 @@ fn context(semantic: &mut FactPlan, place: FactPlace, payload: FactPayload) -> F
 }
 
 fn capture(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: &FactPlan,
     contexts: &[FactContextHandle],
     symbol: SymbolHandle,

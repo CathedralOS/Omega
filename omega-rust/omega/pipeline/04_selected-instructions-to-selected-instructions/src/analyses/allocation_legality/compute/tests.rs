@@ -1,27 +1,30 @@
-use register_model::{
+use semantic_vocabulary::MachineId;
+use target::{Architecture, NativeTarget, ObjectFormat};
+use target_operations_to_selected_instructions::register_model::{
     PhysicalRegisterModel, RegisterClass, RegisterClassId, RegisterReservationProfile,
     RegisterUnit, RegisterUnitId, RegisterUnitKind, RegisterView, RegisterViewId,
     RegisterWriteSemantics, TargetRegisterEnvironmentIdentity, validate_physical_register_model,
     validate_register_reservation_profile,
 };
-use selected_instructions::{SelectedBlockId, SelectedInstructionId, VirtualRegisterId};
-use semantic_vocabulary::MachineId;
-use target::{Architecture, NativeTarget, ObjectFormat};
+use target_operations_to_selected_instructions::{
+    SelectedBlockId, SelectedInstructionId, VirtualRegisterId,
+};
 
 use super::function;
-use crate::{AllocatorAvailabilityValidationReceipt, ValidatedAllocatorAvailability};
-use register_homes::{
+use crate::register_homes::{
     AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy, RegisterClassAvailability,
     allocator_availability_identity,
 };
-use selected_instructions::{
+use crate::{AllocatorAvailabilityValidationReceipt, ValidatedAllocatorAvailability};
+use target_operations_to_selected_instructions::{
     DistinctUseDefTie, EarlyClobberConstraint, EarlyClobberUse, FunctionLiveRanges,
     LiveRangeFragment, LiveRangePoint, LivenessPosition, VirtualLiveRange,
 };
 
 mod candidate_reuse;
 
-fn physical() -> register_model::ValidatedPhysicalRegisterModel {
+fn physical()
+-> target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel {
     validate_physical_register_model(PhysicalRegisterModel {
         architecture: Architecture::X86_64,
         units: (0..2)
@@ -56,7 +59,7 @@ fn physical() -> register_model::ValidatedPhysicalRegisterModel {
 }
 
 fn availability(
-    physical: &register_model::ValidatedPhysicalRegisterModel,
+    physical: &target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel,
 ) -> ValidatedAllocatorAvailability {
     let register_environment = TargetRegisterEnvironmentIdentity::from_bytes([1; 32]);
     let plan = AllocatorAvailabilityPlan {

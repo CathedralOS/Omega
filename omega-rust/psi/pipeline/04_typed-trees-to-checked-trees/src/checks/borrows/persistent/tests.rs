@@ -8,8 +8,8 @@ fn empty_static_provenance_does_not_request_a_call_frame() {
     let queries = Cell::new(0);
     let mut paths = Vec::new();
     let retired = retain_static_paths_across_call_frame(
-        &typed_trees::TypedTrees::default(),
-        &typed_trees::state::State::default(),
+        &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default(),
+        &symbol_resolved_trees_to_typed_trees::typed_trees::state::State::default(),
         &[],
         &mut paths,
         &[],
@@ -43,8 +43,8 @@ fn either_static_frontier_still_requires_invalidation() {
     ] {
         let queried = Cell::new(false);
         let retired = retain_static_paths_across_call_frame(
-            &typed_trees::TypedTrees::default(),
-            &typed_trees::state::State::default(),
+            &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default(),
+            &symbol_resolved_trees_to_typed_trees::typed_trees::state::State::default(),
             &[],
             &mut paths,
             &local_places,
@@ -68,12 +68,14 @@ use super::{
 };
 use arena::HandleSpan;
 use numerics::literals::IntegerLiteral;
-use typed_trees::expression::{ExpressionNode, TableNamePath};
-use typed_trees::name::Identifier;
-use typed_trees::signature::StateParameter;
-use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TableLocalData};
-use typed_trees::types::TypeReferenceNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionNode, TableNamePath,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier;
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
+use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{StatementNode, TableLocalData};
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
 
 const FIELD_ITEMS: u32 = 40;
 const PARAM_BOUNDARY: u32 = 41;
@@ -91,10 +93,10 @@ fn sym(index: u32) -> SymbolHandle {
 }
 
 fn name_expression(
-    program: &mut typed_trees::TypedTrees,
+    program: &mut symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     symbol: SymbolHandle,
     name: &'static str,
-) -> typed_trees::expression::ExpressionHandle {
+) -> symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle {
     let members = program.expression_table.reserve_name_path_members(1);
     program.expression_table.set_name_path_member_at_offset(
         members,
@@ -112,7 +114,7 @@ fn name_expression(
 }
 
 fn parameter(
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
     symbol: u32,
     name: &'static str,
     is_mutable: bool,
@@ -132,8 +134,13 @@ fn parameter(
 /// and `computed` binds a literal. A second state `use_held` takes two
 /// immutable parameters; `use_held_mut` takes one mutable parameter.
 /// Transition arguments are supplied per test.
-fn forwarding_fixture() -> (typed_trees::TypedTrees, State, State, State) {
-    let mut program = typed_trees::TypedTrees::default();
+fn forwarding_fixture() -> (
+    symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    State,
+    State,
+    State,
+) {
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let type_reference = program
         .type_reference_table
         .insert(TypeReferenceNode::Named {
@@ -363,7 +370,7 @@ fn immutable_state_index_symbol_rejects_ambiguous_or_mutable_symbols() {
         StatementNode::LocalData(TableLocalData {
             symbol: sym(PARAM_BOUNDARY),
             name: Identifier::generated_static("dup"),
-            type_reference: typed_trees::types::TypeReferenceHandle::invalid(),
+            type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
             initial_value: ambiguous,
             is_mutable: false,
             ..Default::default()

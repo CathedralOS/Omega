@@ -321,11 +321,11 @@ fn later_structural_boundary_rejoins_each_authored_local_and_result_ordinal() {
                 0 => result.binding_ordinal = 0,
                 1 => result.statement_index = 3,
                 2 => *discard_result_on_return = false,
-                3 => {
-                    *source_site = Some(checked_trees::NominalMachineUseSite::Expression(
+                3 => *source_site = Some(
+                    typed_trees_to_checked_trees::checked_trees::NominalMachineUseSite::Expression(
                         first.initial_value,
-                    ))
-                }
+                    ),
+                ),
                 _ => unreachable!(),
             }
         } else {

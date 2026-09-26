@@ -1,11 +1,11 @@
 use crate::resolution::{ExtensionRequest, ResolutionRequest, resolve_extension};
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
+use crate::symbol_resolved_trees::expression::ExpressionNode;
+use crate::symbol_resolved_trees::measure::MeasureDefinition;
 use source::{SourceMap, SourceOrigin, SourceResolutionStratum};
 use source_files_to_tokens::Lexer;
 use std::path::PathBuf;
 use std::sync::Arc;
-use symbol_resolved_trees::SymbolResolvedTrees;
-use symbol_resolved_trees::expression::ExpressionNode;
-use symbol_resolved_trees::measure::MeasureDefinition;
 use symbols::{SymbolHandle, SymbolKind};
 use tokens_to_syntax_trees::{parse_syntax_trees, parse_syntax_trees_with_id};
 
@@ -64,7 +64,7 @@ fn identity_measures_own_distinct_same_spelled_parameters() {
     for measure in &measures {
         assert_parameter_forward(&program, measure);
         let parameter = measure.parameter.as_ref().unwrap();
-        let symbol_resolved_trees::types::TypeReference::Named { symbol, .. } =
+        let crate::symbol_resolved_trees::types::TypeReference::Named { symbol, .. } =
             &parameter.type_reference
         else {
             panic!("named natural carrier")

@@ -31,7 +31,7 @@ pub(in crate::legalization) fn validate_unit_custody(
             }
         }
     }
-    optimization_unit_semantics::validate_psi_optimization_unit_with_admitted_cycle_machines(
+    terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit_with_admitted_cycle_machines(
         unit, &admitted,
     )
     .map_err(|_| LegalizationError::custody())

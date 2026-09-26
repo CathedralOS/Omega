@@ -5,10 +5,9 @@ use super::{
     three_shared_reborrow_restored_call_source, two_shared_reborrow_restored_call_source,
     two_shared_reborrow_restored_call_source_with_observations,
 };
-use crate::TerminalMachineSelection;
-use crate::lower_machine;
-use crate::lowering_error::LoweringError;
-use checked_trees::CheckedUnitEffectOperationPlan;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use checked_trees_to_lowered_psi::lower_machine;
+use typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan;
 
 #[test]
 fn inline_scalar_call_computation_rejects_a_missing_source_occurrence() {
@@ -19,12 +18,14 @@ fn inline_scalar_call_computation_rejects_a_missing_source_occurrence() {
         .root_at(
             state,
             u32::try_from(statement).unwrap(),
-            checked_trees::CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 1 },
+            typed_trees_to_checked_trees::checked_trees::CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 1 },
         )
         .expect("wait initializer computation")
         .root;
-    let checked_trees::CheckedScalarComputationKind::Call { source_call, .. } =
-        &mut computations.nodes.get_mut(root).kind
+    let typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationKind::Call {
+        source_call,
+        ..
+    } = &mut computations.nodes.get_mut(root).kind
     else {
         panic!("wait initializer call")
     };
@@ -50,8 +51,9 @@ fn receiver_free_scalar_suspension_plan_rejoins_parameter_local_and_argument_fro
         .expect("scalar parameter");
     let parameter_symbol = parameter.symbol;
     let parameter_type = parameter.type_reference;
-    let typed_trees::statement::StatementNode::LocalData(local) =
-        &checked.statement_table.statements(state.statement_nodes)[0]
+    let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
+        local,
+    ) = &checked.statement_table.statements(state.statement_nodes)[0]
     else {
         panic!("first statement is the scalar local")
     };
@@ -60,18 +62,20 @@ fn receiver_free_scalar_suspension_plan_rejoins_parameter_local_and_argument_fro
     let (root_symbol, state_symbol, statement_index, call_ordinal, target) =
         scalar_fixture_call_coordinate(&checked);
     assert_eq!((statement_index, call_ordinal), (1, 0));
-    let live = |storage, origin| checked_trees::SuspensionCrossingLiveValueFact {
-        type_reference: local_type,
-        storage,
-        origin,
-        claims: Vec::new(),
-        effective: language_semantics::CarryPolicy::PERMISSIVE,
+    let live = |storage, origin| {
+        typed_trees_to_checked_trees::checked_trees::SuspensionCrossingLiveValueFact {
+            type_reference: local_type,
+            storage,
+            origin,
+            claims: Vec::new(),
+            effective: language_semantics::CarryPolicy::PERMISSIVE,
+        }
     };
     checked
         .facts
         .carry
         .suspension_crossings
-        .push(checked_trees::SuspensionCrossingCarryFact {
+        .push(typed_trees_to_checked_trees::checked_trees::SuspensionCrossingCarryFact {
             machine: root_symbol,
             state: state_symbol,
             statement_index,
@@ -80,10 +84,10 @@ fn receiver_free_scalar_suspension_plan_rejoins_parameter_local_and_argument_fro
             receiver: None,
             effective: language_semantics::CarryPolicy::PERMISSIVE,
             live_values: vec![
-                checked_trees::SuspensionCrossingLiveValueFact {
+                typed_trees_to_checked_trees::checked_trees::SuspensionCrossingLiveValueFact {
                     type_reference: parameter_type,
-                    storage: checked_trees::SuspensionCrossingStorage::Parameter,
-                    origin: checked_trees::SuspensionCrossingValueOrigin::Parameter {
+                    storage: typed_trees_to_checked_trees::checked_trees::SuspensionCrossingStorage::Parameter,
+                    origin: typed_trees_to_checked_trees::checked_trees::SuspensionCrossingValueOrigin::Parameter {
                         symbol: parameter_symbol,
                         position: 0,
                     },
@@ -91,16 +95,16 @@ fn receiver_free_scalar_suspension_plan_rejoins_parameter_local_and_argument_fro
                     effective: language_semantics::CarryPolicy::PERMISSIVE,
                 },
                 live(
-                    checked_trees::SuspensionCrossingStorage::Local,
-                    checked_trees::SuspensionCrossingValueOrigin::Local {
+                    typed_trees_to_checked_trees::checked_trees::SuspensionCrossingStorage::Local,
+                    typed_trees_to_checked_trees::checked_trees::SuspensionCrossingValueOrigin::Local {
                         symbol: local_symbol,
                         statement_index: 0,
                         environment_position: 1,
                     },
                 ),
                 live(
-                    checked_trees::SuspensionCrossingStorage::CallArgument,
-                    checked_trees::SuspensionCrossingValueOrigin::CallArgument { position: 0 },
+                    typed_trees_to_checked_trees::checked_trees::SuspensionCrossingStorage::CallArgument,
+                    typed_trees_to_checked_trees::checked_trees::SuspensionCrossingValueOrigin::CallArgument { position: 0 },
                 ),
             ],
         });
@@ -140,11 +144,8 @@ fn unsupported_receiver_suspension_frontier_fails_closed() {
     let mut checked = checked_scalar_suspension_fixture();
     let (root_symbol, state_symbol, statement_index, call_ordinal, target) =
         scalar_fixture_call_coordinate(&checked);
-    checked
-        .facts
-        .carry
-        .suspension_crossings
-        .push(checked_trees::SuspensionCrossingCarryFact {
+    checked.facts.carry.suspension_crossings.push(
+        typed_trees_to_checked_trees::checked_trees::SuspensionCrossingCarryFact {
             machine: root_symbol,
             state: state_symbol,
             statement_index,
@@ -153,10 +154,11 @@ fn unsupported_receiver_suspension_frontier_fails_closed() {
             receiver: Some(root_symbol),
             effective: language_semantics::CarryPolicy::PERMISSIVE,
             live_values: Vec::new(),
-        });
+        },
+    );
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("root")),
-        Err(LoweringError::Unsupported(
+        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
             "receiver-bearing suspension frontier lacks an exact Terminal receiver place join"
         ))
     ));
@@ -194,7 +196,9 @@ fn unsupported_staged_local_suspension_frontier_fails_closed() {
                 .find(|candidate| candidate.symbol == state)
         })
         .expect("root state");
-    let typed_trees::statement::StatementNode::LocalData(local) = &checked
+    let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
+        local,
+    ) = &checked
         .statement_table
         .statements(root_state.statement_nodes)[0]
     else {
@@ -206,7 +210,7 @@ fn unsupported_staged_local_suspension_frontier_fails_closed() {
         .facts
         .carry
         .suspension_crossings
-        .push(checked_trees::SuspensionCrossingCarryFact {
+        .push(typed_trees_to_checked_trees::checked_trees::SuspensionCrossingCarryFact {
             machine: root,
             state,
             statement_index,
@@ -214,10 +218,10 @@ fn unsupported_staged_local_suspension_frontier_fails_closed() {
             target,
             receiver: None,
             effective: language_semantics::CarryPolicy::PERMISSIVE,
-            live_values: vec![checked_trees::SuspensionCrossingLiveValueFact {
+            live_values: vec![typed_trees_to_checked_trees::checked_trees::SuspensionCrossingLiveValueFact {
                 type_reference: local_type,
-                storage: checked_trees::SuspensionCrossingStorage::Local,
-                origin: checked_trees::SuspensionCrossingValueOrigin::Local {
+                storage: typed_trees_to_checked_trees::checked_trees::SuspensionCrossingStorage::Local,
+                origin: typed_trees_to_checked_trees::checked_trees::SuspensionCrossingValueOrigin::Local {
                     symbol: local_symbol,
                     statement_index: 0,
                     environment_position: 0,
@@ -230,7 +234,7 @@ fn unsupported_staged_local_suspension_frontier_fails_closed() {
     assert!(
         matches!(
             result,
-            Err(LoweringError::Unsupported(
+            Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
                 "suspension frontier source value origin is inexact"
             ))
         ),
@@ -432,7 +436,7 @@ fn terminal_reborrow_restored_call_use_lowers_exclusive_and_sole_shared_children
             .next()
             .expect("checked restored use")
             .1;
-        let checked_trees::FlowInvalidationSource::Statement {
+        let typed_trees_to_checked_trees::checked_trees::FlowInvalidationSource::Statement {
             statement_index: child_end,
         } = checked
             .facts
@@ -509,7 +513,7 @@ fn terminal_reborrow_restored_call_use_lowers_exact_two_member_shared_cohort() {
     assert!(observation_arguments.iter().all(|argument| {
         argument.source_parameter_index() == Some(0)
             && argument.path.is_empty()
-            && argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+            && argument.access == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
     }));
     let [mutation_argument] = mutation_arguments.as_slice() else {
         panic!("one restored whole-parent mutation argument")
@@ -518,7 +522,7 @@ fn terminal_reborrow_restored_call_use_lowers_exact_two_member_shared_cohort() {
     assert!(mutation_argument.path.is_empty());
     assert_eq!(
         mutation_argument.access,
-        checked_trees::CheckedStructuralAccess::MutableBorrow
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow
     );
     let lowered = lower_machine(
         &checked,
@@ -596,7 +600,7 @@ fn terminal_reborrow_restored_call_use_lowers_exact_three_member_shared_cohort()
     assert!(observation_arguments.iter().all(|argument| {
         argument.source_parameter_index() == Some(0)
             && argument.path.is_empty()
-            && argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+            && argument.access == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
     }));
     let [mutation_argument] = mutation_arguments.as_slice() else {
         panic!("one restored whole-parent mutation argument")
@@ -605,7 +609,7 @@ fn terminal_reborrow_restored_call_use_lowers_exact_three_member_shared_cohort()
     assert!(mutation_argument.path.is_empty());
     assert_eq!(
         mutation_argument.access,
-        checked_trees::CheckedStructuralAccess::MutableBorrow
+        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow
     );
 
     let lowered = lower_machine(
@@ -729,7 +733,8 @@ fn terminal_shared_restored_call_use_rejects_checked_cohort_drift() {
         .borrow
         .reborrow_disposition_events
         .get_mut(certificate.disposition)
-        .disposition = checked_trees::CheckedReborrowResourceDisposition::Reactivate;
+        .disposition =
+        typed_trees_to_checked_trees::checked_trees::CheckedReborrowResourceDisposition::Reactivate;
     assert!(
         lower_machine(
             &wrong_disposition,
@@ -744,7 +749,7 @@ fn terminal_shared_restored_call_use_rejects_checked_cohort_drift() {
         .borrow
         .reborrow_containment_certificates
         .get_mut(certificate.containment)
-        .containment = checked_trees::CheckedReborrowContainmentKind::ExclusiveSuspension;
+        .containment = typed_trees_to_checked_trees::checked_trees::CheckedReborrowContainmentKind::ExclusiveSuspension;
     assert!(
         lower_machine(
             &wrong_containment,
@@ -760,7 +765,7 @@ fn terminal_shared_restored_call_use_rejects_checked_cohort_drift() {
         .reborrow_loan_resources
         .get_mut(certificate.child_resource)
         .parent_end_status
-        .status = checked_trees::ParentLexicalStatusAtChildEnd::RetiredWithChild;
+        .status = typed_trees_to_checked_trees::checked_trees::ParentLexicalStatusAtChildEnd::RetiredWithChild;
     assert!(
         lower_machine(
             &wrong_parent_status,
@@ -920,7 +925,7 @@ fn terminal_multihop_root_handoff_rejects_missing_or_reordered_checked_edges() {
         .iter()
         .find(|(_, event)| {
             event.disposition
-                == checked_trees::CheckedReborrowResourceDisposition::StateExitDirectRootHandoff
+                == typed_trees_to_checked_trees::checked_trees::CheckedReborrowResourceDisposition::StateExitDirectRootHandoff
         })
         .expect("multihop root disposition")
         .0;
@@ -960,7 +965,7 @@ fn terminal_reborrow_root_handoff_rejects_tampered_checked_joins() {
         .borrow
         .reborrow_disposition_events
         .get_mut(event_handle)
-        .boundary_phase = checked_trees::CheckedBorrowResourceLifecyclePhase::Activation;
+        .boundary_phase = typed_trees_to_checked_trees::checked_trees::CheckedBorrowResourceLifecyclePhase::Activation;
     assert!(lower_reborrow_rows(&wrong_phase).is_err());
 
     let mut wrong_disposition = baseline.clone();
@@ -969,7 +974,8 @@ fn terminal_reborrow_root_handoff_rejects_tampered_checked_joins() {
         .borrow
         .reborrow_disposition_events
         .get_mut(event_handle)
-        .disposition = checked_trees::CheckedReborrowResourceDisposition::Reactivate;
+        .disposition =
+        typed_trees_to_checked_trees::checked_trees::CheckedReborrowResourceDisposition::Reactivate;
     assert!(lower_reborrow_rows(&wrong_disposition).is_err());
 
     let mut wrong_containment = baseline.clone();
@@ -978,7 +984,8 @@ fn terminal_reborrow_root_handoff_rejects_tampered_checked_joins() {
         .borrow
         .reborrow_containment_certificates
         .get_mut(certificate_handle)
-        .containment = checked_trees::CheckedReborrowContainmentKind::SharedFreeze;
+        .containment =
+        typed_trees_to_checked_trees::checked_trees::CheckedReborrowContainmentKind::SharedFreeze;
     assert!(lower_reborrow_rows(&wrong_containment).is_err());
 
     let child_handle = baseline
@@ -995,7 +1002,8 @@ fn terminal_reborrow_root_handoff_rejects_tampered_checked_joins() {
         .borrow
         .reborrow_loan_resources
         .get_mut(child_handle)
-        .access_effect = checked_trees::CheckedReborrowAccessEffect::SharedFreeze;
+        .access_effect =
+        typed_trees_to_checked_trees::checked_trees::CheckedReborrowAccessEffect::SharedFreeze;
     assert!(lower_reborrow_rows(&wrong_effect).is_err());
 
     let mut missing_event = baseline.clone();

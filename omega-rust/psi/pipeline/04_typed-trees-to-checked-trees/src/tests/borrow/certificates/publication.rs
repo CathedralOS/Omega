@@ -33,7 +33,7 @@ fn published_borrow_certificates_replay_independently() {
     let borrow = &checked.facts.borrow;
     assert!(
         borrow.mutation_certificates.iter().any(|(_, certificate)| {
-            certificate.derivation == checked_trees::BorrowCompatibilityDerivation::Premised
+            certificate.derivation == crate::checked_trees::BorrowCompatibilityDerivation::Premised
         }),
         "the premised write must author a premised mutation certificate"
     );

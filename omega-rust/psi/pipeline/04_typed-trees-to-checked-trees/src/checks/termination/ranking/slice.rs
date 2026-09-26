@@ -1,19 +1,18 @@
-use typed_trees::expression::ExpressionHandle;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
 
 use super::patterns;
 
-pub(super) fn state_has_proven_self_loop<'p>(
-    program: &'p typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+pub(super) fn state_has_proven_self_loop(
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     decreases: ExpressionHandle,
-    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> bool {
     let Some(parameter) = patterns::parameter_matched_by_expression(program, state, decreases)
     else {
         return false;
     };
-    if !validation::state_reference_parameter_binding_is_stable(
+    if !crate::validation::state_reference_parameter_binding_is_stable(
         program,
         machine,
         state,
@@ -36,12 +35,11 @@ pub(super) fn state_has_proven_self_loop<'p>(
                 return false;
             };
 
-            validation::slice_tail_strictly_decreases_with_bound_lookup(
+            crate::validation::slice_tail_strictly_decreases(
                 program,
                 self_loop.guard,
                 argument,
                 parameter,
-                bound_lookup,
             )
         })
 }

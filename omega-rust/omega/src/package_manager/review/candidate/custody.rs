@@ -1,0 +1,162 @@
+use super::{CompileResolvedPackageReviewsError, PackageSourceVerificationPhase};
+use crate::package_manager::declarations::PackageKey;
+use crate::package_manager::resolution::PackageCompilationScope;
+use crate::package_manager::resolution::graph::ResolvedPackageSourceClosure;
+use crate::package_manager::review::timings;
+use crate::package_source::ImmutableSourceResolution;
+use crate::package_source::local::operations::verify_package_source_snapshot;
+use std::collections::BTreeSet;
+use std::path::{Path, PathBuf};
+
+pub(crate) fn verify_transitive_source_custody(
+    closure: &ResolvedPackageSourceClosure,
+    compiling_package: &PackageKey,
+    phase: PackageSourceVerificationPhase,
+) -> Result<(), CompileResolvedPackageReviewsError> {
+    let _stage = timings::stage("source_custody_verification");
+    verify_selected_source_custody(
+        &PackageCompilationScope::new(closure, compiling_package),
+        phase,
+    )
+}
+
+pub(super) fn verify_selected_source_custody(
+    scope: &PackageCompilationScope<'_>,
+    phase: PackageSourceVerificationPhase,
+) -> Result<(), CompileResolvedPackageReviewsError> {
+    let closure = scope.closure();
+    let compiling_package = scope.root();
+    for source_package in scope.packages() {
+        let custody = closure
+            .custody(source_package)
+            .expect("validated source closure retains every reachable custody");
+        verify_package_source_snapshot(
+            custody.snapshot_root(),
+            custody.materialization().content(),
+            custody.source_limits(),
+        )
+        .map_err(|error| CompileResolvedPackageReviewsError::SourceCustody {
+            compiling_package: compiling_package.clone(),
+            source_package: source_package.clone(),
+            phase,
+            error,
+        })?;
+        custody.selection_evidence().revalidate().map_err(|error| {
+            CompileResolvedPackageReviewsError::SourceSelectionCustody {
+                compiling_package: compiling_package.clone(),
+                source_package: source_package.clone(),
+                phase,
+                error,
+            }
+        })?;
+    }
+    Ok(())
+}
+
+pub(super) fn dependency_first_package_order(
+    closure: &ResolvedPackageSourceClosure,
+) -> Vec<PackageKey> {
+    fn visit(
+        closure: &ResolvedPackageSourceClosure,
+        key: &PackageKey,
+        visited: &mut BTreeSet<PackageKey>,
+        ordered: &mut Vec<PackageKey>,
+    ) {
+        if !visited.insert(key.clone()) {
+            return;
+        }
+        let mut dependencies = closure
+            .graph()
+            .package(key)
+            .expect("validated closure contains every traversed package")
+            .dependencies()
+            .iter()
+            .map(|dependency| dependency.target().clone())
+            .collect::<Vec<_>>();
+        dependencies.sort();
+        for dependency in dependencies {
+            visit(closure, &dependency, visited, ordered);
+        }
+        ordered.push(key.clone());
+    }
+
+    let mut visited = BTreeSet::new();
+    let mut ordered = Vec::with_capacity(closure.custodies().len());
+    visit(closure, closure.graph().root(), &mut visited, &mut ordered);
+    ordered
+}
+
+pub(super) fn package_build_root(
+    build_root: &Path,
+    key: &PackageKey,
+    resolution: &ImmutableSourceResolution,
+    purpose: crate::package_manager::declarations::DependencyPurpose,
+) -> PathBuf {
+    // The staging sponsor creates one child of the existing session root.
+    // Encode the occurrence in that child name rather than inventing an
+    // intermediate directory outside the sponsor's creation protocol.
+    build_root.join(format!(
+        "{}-{}-{}",
+        encode_hex(&key.identity().digest()),
+        resolution.content().to_hex(),
+        purpose.name(),
+    ))
+}
+
+fn encode_hex(bytes: &[u8]) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let mut encoded = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        encoded.push(DIGITS[usize::from(byte >> 4)] as char);
+        encoded.push(DIGITS[usize::from(byte & 0x0f)] as char);
+    }
+    encoded
+}
+
+#[cfg(test)]
+mod tests {
+    use super::package_build_root;
+    use crate::package_manager::declarations::{PackageKey, PackageName};
+    use crate::package_source::{ImmutableSourceResolution, SourceContentDigest, SourceLineage};
+    use std::path::Path;
+
+    #[test]
+    fn build_roots_bind_package_and_source_selection() {
+        let key = PackageKey::new(
+            PackageName::parse("arithmetic_kernels").unwrap(),
+            SourceLineage::git("https://github.com/CathedralOS/arithmetic-kernels.git").unwrap(),
+        );
+        let first = ImmutableSourceResolution::workspace(SourceContentDigest::derive(b"a"));
+        let second = ImmutableSourceResolution::workspace(SourceContentDigest::derive(b"b"));
+
+        assert_ne!(
+            package_build_root(
+                Path::new("build"),
+                &key,
+                &first,
+                crate::package_manager::declarations::DependencyPurpose::Product
+            ),
+            package_build_root(
+                Path::new("build"),
+                &key,
+                &second,
+                crate::package_manager::declarations::DependencyPurpose::Product
+            )
+        );
+        let product = package_build_root(
+            Path::new("build"),
+            &key,
+            &first,
+            crate::package_manager::declarations::DependencyPurpose::Product,
+        );
+        let helper = package_build_root(
+            Path::new("build"),
+            &key,
+            &first,
+            crate::package_manager::declarations::DependencyPurpose::Build,
+        );
+        assert_ne!(product, helper);
+        assert_eq!(product.parent(), Some(Path::new("build")));
+        assert_eq!(helper.parent(), Some(Path::new("build")));
+    }
+}

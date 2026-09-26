@@ -1,12 +1,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use selected_instructions::{
+use target::Architecture;
+use target_operations_to_selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionKind, SelectedSuccessor, SelectedTerminator,
 };
-use target::Architecture;
 
-use machine_code::{
+use post_allocation_machine_to_selected_form_encoding::machine_code::{
     DeferredControlEncodingReason, SelectedFormEncodingRow, SelectedFormEncodingState,
     SelectedFormMachineDisposition,
 };

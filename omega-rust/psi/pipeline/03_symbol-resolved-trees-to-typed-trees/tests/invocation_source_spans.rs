@@ -49,14 +49,14 @@ invokes Host;
         .expect("host parameter");
     assert_eq!(
         invocations[0].target,
-        typed_trees::signature::AuthoredInvocationTarget::Parameter {
+        symbol_resolved_trees_to_typed_trees::typed_trees::signature::AuthoredInvocationTarget::Parameter {
             ordinal: 0,
             symbol: host_parameter.symbol,
         }
     );
     assert_eq!(
         invocations[1].target,
-        typed_trees::signature::AuthoredInvocationTarget::Service(host.symbol)
+        symbol_resolved_trees_to_typed_trees::typed_trees::signature::AuthoredInvocationTarget::Service(host.symbol)
     );
     let [ping] = typed.trait_machine_signatures(host) else {
         panic!("one Host requirement")
@@ -71,6 +71,6 @@ invokes Host;
     );
     assert_eq!(
         typed.state_signature_invokes(ping)[0].target,
-        typed_trees::signature::AuthoredInvocationTarget::Service(host.symbol)
+        symbol_resolved_trees_to_typed_trees::typed_trees::signature::AuthoredInvocationTarget::Service(host.symbol)
     );
 }

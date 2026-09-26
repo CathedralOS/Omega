@@ -4,18 +4,18 @@
 use super::super::{AbstractOperationPlan, Error, PsiOptimizationUnit, TargetOperationPlan};
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
-use abstract_operations::AbstractOperation;
-use legalized_operations::{
+use crate::legalized_operations::{
     LegalizedOperationPlan, LegalizedScalarArgument, LegalizedScalarInstruction,
     LegalizedScalarInstructionKind, NativeCallOrigin,
 };
 use semantic_vocabulary::OperationId;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_call(
     actual: &LegalizedScalarInstruction,
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
@@ -110,7 +110,7 @@ pub(super) fn validate_call(
 
 pub(super) fn validate_call_call(
     actual: &LegalizedScalarInstruction,
-    node: &optimization_unit::OptimizationNode,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
@@ -165,8 +165,8 @@ pub(super) fn validate_call_call(
 /// offset, or result home.
 pub(super) fn validate_dynamic_parameter_call(
     actual: &LegalizedScalarInstruction,
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
+    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    optimized: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
     native: &TargetOperationPlan,
     operation: OperationId,
 ) -> Result<(), LegalizationError> {
@@ -229,7 +229,7 @@ pub(super) fn validate_dynamic_parameter_call(
     }
     let expected_home = match &node.operation {
         AbstractOperation::CallDynamicParameterScalar { result, .. } => {
-            Some(target_operations::TargetUnitScalarHomeRequirement {
+            Some(abstract_operations_to_target_operations::target_operations::TargetUnitScalarHomeRequirement {
                 defining_operation: operation,
                 source_value: result.value,
                 scalar_type: result.scalar_type,

@@ -1,4 +1,6 @@
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
 
 /// Return each structural value occurrence referenced by one contract fact.
 ///
@@ -7,18 +9,24 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 /// select which place the fact describes and must therefore participate in
 /// revision invalidation too.
 pub(crate) fn fact_referenced_occurrences(
-    program: &typed_trees::TypedTrees,
-    fact: arena::Handle<typed_trees::domain::ProofFact>,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    fact: arena::Handle<symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact>,
 ) -> Vec<ExpressionHandle> {
     let mut occurrences = Vec::new();
     match program.proof_facts.get(fact) {
-        typed_trees::domain::ProofFact::Expression(expression) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
+            expression,
+        ) => {
             append_expression_occurrences(program, *expression, &mut occurrences);
         }
-        typed_trees::domain::ProofFact::Membership(membership) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(
+            membership,
+        ) => {
             append_expression_occurrences(program, membership.value, &mut occurrences);
         }
-        typed_trees::domain::ProofFact::Proposition(application) => {
+        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(
+            application,
+        ) => {
             for argument in program
                 .expression_table
                 .expression_handles(application.arguments)
@@ -33,7 +41,7 @@ pub(crate) fn fact_referenced_occurrences(
 }
 
 pub(crate) fn append_expression_occurrences(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
     occurrences: &mut Vec<ExpressionHandle>,
 ) {
@@ -44,7 +52,7 @@ pub(crate) fn append_expression_occurrences(
         ExpressionNode::Match(dispatch) => {
             append_expression_occurrences(program, dispatch.subject, occurrences);
             for arm in program.expression_table.match_arms(dispatch.arms) {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                     append_expression_occurrences(program, pattern, occurrences);
                 }
                 append_expression_occurrences(program, arm.value, occurrences);
@@ -116,7 +124,7 @@ pub(crate) fn append_expression_occurrences(
 /// A selected field remains one complete storage dependency, but selectors
 /// beneath its receiver are independent values that can redirect the read.
 fn append_selector_occurrences(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     expression: ExpressionHandle,
     occurrences: &mut Vec<ExpressionHandle>,
 ) {

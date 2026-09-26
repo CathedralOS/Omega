@@ -1,7 +1,7 @@
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use register_model::RegisterViewId;
-use selected_instructions::VirtualRegisterId;
 use semantic_vocabulary::MachineId;
+use target_operations_to_selected_instructions::VirtualRegisterId;
+use target_operations_to_selected_instructions::register_model::RegisterViewId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AllocatedCalleeSavedRequirementError {

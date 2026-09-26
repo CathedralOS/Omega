@@ -1,15 +1,15 @@
 //! Exact machine join between legal and selected functions.
 
 use super::scalar_graph;
+use crate::legalized_operations::LegalizedOperationPlan;
+use crate::selected_instructions::SelectedSelectionConstraints;
 use crate::selection::model::SelectedInstructionError;
-use legalized_operations::LegalizedOperationPlan;
-use selected_instructions::SelectedSelectionConstraints;
 
 pub(super) fn validate(
     target: &LegalizedOperationPlan,
-    functions: &selected_instructions::SelectedFunctions,
+    functions: &crate::selected_instructions::SelectedFunctions,
     constraints: &SelectedSelectionConstraints,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &crate::register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<(), SelectedInstructionError> {
     let catalog = environment.constraints();
     for (function_index, selected) in functions.iter().enumerate() {

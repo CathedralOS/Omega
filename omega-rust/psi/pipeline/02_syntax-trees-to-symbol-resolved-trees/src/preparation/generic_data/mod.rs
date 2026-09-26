@@ -10,14 +10,16 @@ use diagnostics::Diagnostic;
 use language_semantics::const_value::CanonicalConstValue;
 use numerics::literals::IntegerLiteral;
 use std::collections::{HashMap, HashSet};
-use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
-use syntax_trees::identifier::Identifier;
-use syntax_trees::item::{
+use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
+use tokens_to_syntax_trees::syntax_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode,
+};
+use tokens_to_syntax_trees::syntax_trees::identifier::Identifier;
+use tokens_to_syntax_trees::syntax_trees::item::{
     ConstDefinition, DataDefinition, DataMember, Item, ProofFact, TypeParameter, TypeParameterKind,
 };
-use syntax_trees::statement::StatementNode;
-use syntax_trees::types::{
+use tokens_to_syntax_trees::syntax_trees::statement::StatementNode;
+use tokens_to_syntax_trees::syntax_trees::types::{
     FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 
@@ -329,7 +331,7 @@ pub struct GenericDataRequest<'a> {
     /// A generated unit's immutable predecessor, whose retained nominal
     /// arguments the unit may name without owning their syntax. Templates
     /// still come only from this unit. Requires `sources`.
-    pub retained_base: Option<&'a symbol_resolved_trees::SymbolResolvedTrees>,
+    pub retained_base: Option<&'a crate::symbol_resolved_trees::SymbolResolvedTrees>,
 }
 
 impl GenericDataRequest<'_> {

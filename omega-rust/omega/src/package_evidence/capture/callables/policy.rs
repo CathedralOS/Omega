@@ -1,0 +1,196 @@
+//! Complete checked callable policy for one root activation and target.
+
+use super::surface;
+use crate::package_evidence::capture::PackageReviewInput;
+use crate::package_evidence::capture::behavior::policy as behavior;
+use crate::package_evidence::capture::semantics::conformances::policy_callable_identity;
+use crate::package_evidence::capture::semantics::declarations::nominal_identity;
+use crate::package_evidence::record::{
+    PackagePolicyCallable, PackagePolicyCallableRole, PackagePolicyCallables,
+    PackageReviewCallableRole, PackageReviewNominalOwner,
+};
+use diagnostics::Diagnostic;
+use language_semantics::MachineSupplyMode;
+use semantic_vocabulary::PackageKeyIdentity;
+use target::TargetProfile;
+
+/// Capture semantics only; this neither accepts assumptions nor reconstitutes
+/// compiler certificates, build replay, or native authority.
+pub fn project_checked_callable_policy<'a>(
+    input: impl Into<PackageReviewInput<'a>>,
+    target: TargetProfile,
+    package: PackageKeyIdentity,
+) -> Result<PackagePolicyCallables, Vec<Diagnostic>> {
+    let compilation = &input.into();
+    if compilation.custody.package_identity() != Some(package)
+        || compilation.custody.selected_target_profile() != Some(target)
+        || compilation.custody.selected_native_target() != Some(target.native_target())
+    {
+        return Err(rejected(
+            "package or target differs from the checked root activation",
+        ));
+    }
+    let build = compilation.custody.selected_build_machine_symbol();
+    // Selected dispatch changes no checked body, so the settled trees are the
+    // authored source the policy callables classify.
+    let source = &compilation.typed;
+    crate::package_evidence::capture::behavior::policy::validate_call_receiver_roots(
+        source,
+        &compilation.facts,
+    )?;
+    let mutation_resolver =
+        typed_trees_to_checked_trees::validation::CallFrameResolver::new(source)
+            .ok_or_else(|| rejected("checked source has no exact call resolver"))?;
+    let mut projected_build = false;
+    let mut callables = Vec::new();
+    let operational = typed_trees_to_checked_trees::validation::infer_operational_may(compilation);
+    let service_reaches =
+        typed_trees_to_checked_trees::validation::infer_service_reaches(compilation, &operational);
+    let inferred_crash_causes = typed_trees_to_checked_trees::infer_checked_crash_causes(
+        &compilation.typed,
+        &compilation.facts,
+    );
+    for machine in compilation.machines() {
+        let role = if Some(machine.symbol) == build {
+            PackagePolicyCallableRole::Build
+        } else if !machine.is_public && machine.supply_mode == MachineSupplyMode::AdmissionClaim {
+            PackagePolicyCallableRole::PrivateAssumption
+        } else if !machine.is_public
+            && matches!(
+                machine.supply_mode,
+                MachineSupplyMode::ExternalRealization { .. }
+            )
+        {
+            PackagePolicyCallableRole::PrivateExternal
+        } else if machine.supply_mode.is_boundary_declaration() {
+            PackagePolicyCallableRole::Boundary
+        } else if machine.is_public {
+            PackagePolicyCallableRole::Public
+        } else {
+            continue;
+        };
+        let identity = nominal_identity(compilation, machine.symbol)?;
+        match identity.owner {
+            PackageReviewNominalOwner::Package(owner) if owner == package => {}
+            PackageReviewNominalOwner::Package(_)
+            | PackageReviewNominalOwner::ToolchainSource(_) => continue,
+            PackageReviewNominalOwner::Unresolved => {
+                return Err(rejected("selected callable has no exact source owner"));
+            }
+        }
+        let review_role = match role {
+            PackagePolicyCallableRole::Build => PackageReviewCallableRole::Build,
+            PackagePolicyCallableRole::Boundary | PackagePolicyCallableRole::PrivateAssumption => {
+                PackageReviewCallableRole::Boundary
+            }
+            PackagePolicyCallableRole::Public | PackagePolicyCallableRole::PrivateExternal => {
+                PackageReviewCallableRole::Public
+            }
+        };
+        let identity = policy_callable_identity(compilation, machine.symbol)?;
+        crate::package_evidence::capture::source::service_reach::validate_machine_service_reach(
+            compilation,
+            machine,
+            &service_reaches,
+        )?;
+        let projected = surface::project(compilation, machine, review_role, identity, true)?;
+        let capability_flows = behavior::capability_flows(compilation, projected.realized)?;
+        let reachable_capability_flows =
+            behavior::reachable_capability_flows(compilation, projected.realized)?;
+        let mutation = behavior::mutation(
+            compilation,
+            source,
+            &mutation_resolver,
+            machine,
+            projected.entry,
+            projected.realized,
+        )?;
+        let checked_termination =
+            behavior::termination(compilation, machine, projected.entry, projected.realized)?;
+        let declared_termination = behavior::declared_termination(
+            compilation,
+            machine,
+            projected.entry,
+            projected.realized,
+        )?;
+        let checked_crash = behavior::crash(
+            compilation,
+            machine,
+            projected.entry,
+            &projected.binders,
+            projected.realized,
+            &inferred_crash_causes,
+        )?;
+        let surface = projected.surface;
+        let service_reach_dependency = super::reach_dependency::project(
+            compilation,
+            machine,
+            &service_reaches,
+            &surface.policy_type_parameters,
+        )?;
+        let return_type = projected
+            .entry
+            .return_type
+            .is_valid()
+            .then_some(surface.return_type);
+        callables.push(PackagePolicyCallable {
+            role,
+            identity: surface.identity,
+            supply: surface.supply,
+            spelling: surface.spelling,
+            lifetime_parameter_count: surface.lifetime_parameter_count,
+            type_parameters: surface.policy_type_parameters,
+            conformance_bounds: surface.conformance_bounds,
+            parameters: surface.parameters,
+            conformances: surface.policy_conformances,
+            operator_realizations: surface.operator_realizations,
+            contracts: surface.contracts,
+            declared_service_reach: surface.declared_service_reach,
+            service_reach_dependency,
+            checked_service_reach: surface.checked_service_reach,
+            unresolved_installation_reaches: surface.unresolved_installation_reaches,
+            declared_synchronous_invocations: surface.declared_synchronous_invocations,
+            realized_synchronous_invocations: surface.realized_synchronous_invocations,
+            checked_may_suspend: surface.checked_may_suspend,
+            checked_may_block: surface.checked_may_block,
+            return_type,
+            capability_flows,
+            reachable_capability_flows,
+            mutation,
+            checked_termination,
+            declared_termination,
+            declared_may_suspend: surface.declared_may_suspend,
+            declared_may_block: surface.declared_may_block,
+            checked_crash,
+        });
+        projected_build |= role == PackagePolicyCallableRole::Build;
+    }
+    if build.is_some() && !projected_build {
+        return Err(rejected(
+            "selected build machine is not owned by the reviewed root package",
+        ));
+    }
+    callables.sort_by(|left, right| {
+        left.identity
+            .cmp(&right.identity)
+            .then(left.role.cmp(&right.role))
+    });
+    // A source checked in both the product scope and the build scope yields
+    // two machine instances with identical policy facts; the projection is a
+    // fact set, so identical rows collapse. Same identity with different
+    // content still fails canonical-structure validation below.
+    callables.dedup();
+    let policy = PackagePolicyCallables {
+        package,
+        target,
+        callables,
+    };
+    policy.validate_canonical_structure().map_err(rejected)?;
+    Ok(policy)
+}
+
+fn rejected(reason: &str) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(format!(
+        "callable policy rejects {reason}"
+    ))]
+}

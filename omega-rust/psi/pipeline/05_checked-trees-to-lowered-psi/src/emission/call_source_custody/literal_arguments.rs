@@ -1,7 +1,7 @@
 //! Exact literal payload custody under the authored scalar/structural partition.
 use super::{CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError, authored, unsupported};
-use checked_trees::CheckedStructuralAccess;
-use checked_trees::expression::ExpressionNode;
+use typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess;
+use typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode;
 
 pub(super) fn validate(
     checked: &CheckedTrees,
@@ -105,7 +105,7 @@ pub(crate) fn structural_positions(
                     checked
                         .type_reference_table
                         .type_reference(parameter.type_reference),
-                    checked_trees::types::TypeReferenceNode::Reference { .. }
+                    typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Reference { .. }
                 )
         });
     }

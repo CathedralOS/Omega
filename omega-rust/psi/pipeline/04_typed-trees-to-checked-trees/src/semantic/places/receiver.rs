@@ -1,14 +1,14 @@
+use crate::checked_trees::ContractCallFact;
+use crate::fact_plan::FactPlan;
 use crate::lookup::{statement_call_receiver_members, statement_call_receiver_path};
-use checked_trees::ContractCallFact;
-use facts::FactPlan;
 use symbols::SymbolHandle;
 
 pub(crate) fn receiver_place_for_call(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &mut FactPlan,
     call: &ContractCallFact,
     call_site: &super::CallSite<'_>,
-) -> Option<facts::PlaceHandle> {
+) -> Option<crate::fact_plan::PlaceHandle> {
     match call_site {
         super::CallSite::Statement(statement) => {
             if let Some(members) = statement_call_receiver_members(program, statement) {
@@ -40,17 +40,19 @@ pub(crate) fn receiver_place_for_call(
                                 .then_some(statement.receiver_symbol)
                         })
                         .unwrap_or_else(SymbolHandle::invalid);
-                        if let Some(variant) = facts::payload_variant_for_field(program, symbol) {
+                        if let Some(variant) =
+                            crate::fact_plan::payload_variant_for_field(program, symbol)
+                        {
                             place = super::append_place_segment(
                                 facts,
                                 place,
-                                facts::PlaceSegment::Case { variant },
+                                crate::fact_plan::PlaceSegment::Case { variant },
                             );
                         }
                         place = super::append_place_segment(
                             facts,
                             place,
-                            facts::PlaceSegment::Field { symbol },
+                            crate::fact_plan::PlaceSegment::Field { symbol },
                         );
                     }
                     return Some(place);

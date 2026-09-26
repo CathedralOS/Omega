@@ -1,7 +1,7 @@
 use symbols::{SymbolHandle, SymbolKind, SymbolLookup, SymbolTable};
 
 pub(super) fn diagnostic_path_source_span(
-    members: &[symbol_resolved_trees::name::DiagnosticName],
+    members: &[crate::symbol_resolved_trees::name::DiagnosticName],
 ) -> source::SourceSpan {
     let Some(first) = members.first() else {
         return source::SourceSpan::default();
@@ -58,7 +58,7 @@ pub(crate) fn prefer_module_local_domain(
 
 pub(super) fn top_level_type_symbol_for_source(
     symbols: &SymbolTable,
-    name: &symbol_resolved_trees::name::DiagnosticName,
+    name: &crate::symbol_resolved_trees::name::DiagnosticName,
 ) -> SymbolHandle {
     symbols
         .find_top_level_by_name_and_kinds_from_source(
@@ -77,7 +77,7 @@ pub(super) fn top_level_type_symbol_for_source(
 pub(super) fn top_level_symbol_for_source(
     symbols: &SymbolTable,
     kind: SymbolKind,
-    name: &symbol_resolved_trees::name::DiagnosticName,
+    name: &crate::symbol_resolved_trees::name::DiagnosticName,
 ) -> SymbolHandle {
     symbols
         .find_top_level_by_name_and_kinds_from_source(name.as_str(), &[kind], name.source_span())

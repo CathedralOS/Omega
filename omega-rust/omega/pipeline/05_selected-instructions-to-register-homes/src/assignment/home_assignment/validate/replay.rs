@@ -3,13 +3,15 @@
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet};
 
-use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
-use selected_instructions::VirtualRegisterId;
+use target_operations_to_selected_instructions::VirtualRegisterId;
+use target_operations_to_selected_instructions::register_model::{
+    RegisterViewId, ValidatedPhysicalRegisterModel,
+};
 
 use super::{conflicts, domain};
 use crate::{FunctionRegisterHomes, RegisterHomeError, VirtualRegisterHome};
-use register_homes::FunctionAllocationLegality;
-use selected_instructions::{CopyAffinity, FunctionLiveRanges};
+use selected_instructions_to_selected_instructions::register_homes::FunctionAllocationLegality;
+use target_operations_to_selected_instructions::{CopyAffinity, FunctionLiveRanges};
 
 pub(in crate::assignment::home_assignment) fn validate_function(
     function: usize,

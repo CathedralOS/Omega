@@ -12,6 +12,9 @@ pub(crate) mod view_subslice;
 
 use crate::emission::expression_validation::direct_expression_contains_short_circuit;
 use crate::emission::selected_comparison::SelectedComparisonMeaning;
+use crate::lowered_psi::{
+    LoweredSelectedIntegerComparisonOperandOrder, LoweredSelectedIntegerComparisonOperation,
+};
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
 use crate::terminal_identities::value_id;
@@ -21,9 +24,6 @@ pub(crate) use calls::emit_staged_scalar_call_binding;
 use calls::{CallEmissionContext, LoweredDirectCallBinding};
 use expressions::LoweredDirectExpression;
 pub(crate) use expressions::{emit_byte_length, emit_direct_expression};
-use lowered_psi::{
-    LoweredSelectedIntegerComparisonOperandOrder, LoweredSelectedIntegerComparisonOperation,
-};
 use semantic_vocabulary::{QualifiedScalarType, ScalarType, ValueId};
 use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralMultiplicity, StructuralOperationResult,
@@ -109,7 +109,7 @@ pub(crate) fn emit_scalar_binding(
             let (kind, negated) = match occurrence.meaning {
                 SelectedComparisonMeaning::IeeeFloat { comparison, format } => {
                     operations.selected_ieee_float_comparisons.push(
-                        lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence {
+                        crate::lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence {
                             operator_use: occurrence.operator_use,
                             application_site: occurrence.application_site,
                             requirement_operator: occurrence.requirement_operator,
@@ -135,7 +135,7 @@ pub(crate) fn emit_scalar_binding(
                     integer_type,
                 } => {
                     operations.selected_integer_comparisons.push(
-                        lowered_psi::LoweredSelectedIntegerComparisonOccurrence {
+                        crate::lowered_psi::LoweredSelectedIntegerComparisonOccurrence {
                             operator_use: occurrence.operator_use,
                             application_site: occurrence.application_site,
                             requirement_operator: occurrence.requirement_operator,

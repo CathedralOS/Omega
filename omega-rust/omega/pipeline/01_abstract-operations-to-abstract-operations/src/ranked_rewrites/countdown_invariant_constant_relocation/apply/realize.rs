@@ -52,7 +52,7 @@ pub(crate) fn realize(
         let index = usize::try_from(location.node)
             .map_err(|_| CountdownInvariantConstantRelocationError::CoordinateOverflow)?;
         let node = block.nodes.get(index).filter(|node| {
-            node.provenance.first() == Some(&optimization_unit::PsiProvenance::Operation(operation))
+            node.provenance.first() == Some(&terminal_psi_to_abstract_operations::optimization_unit::PsiProvenance::Operation(operation))
         });
         if node.is_none() {
             return Err(CountdownInvariantConstantRelocationError::MissingNode {
@@ -116,7 +116,7 @@ pub(crate) fn operation_location(
                 .enumerate()
                 .filter_map(move |(node, value)| {
                     (value.provenance.first()
-                        == Some(&optimization_unit::PsiProvenance::Operation(operation)))
+                        == Some(&terminal_psi_to_abstract_operations::optimization_unit::PsiProvenance::Operation(operation)))
                     .then_some(NodeLocation {
                         machine: function.machine,
                         block: block.id,
@@ -162,9 +162,11 @@ fn refresh_coordinates_effects_and_facts(
         .flat_map(|block| &block.nodes)
         .enumerate()
         .filter_map(|(position, node)| match node.provenance.first() {
-            Some(optimization_unit::PsiProvenance::Operation(operation)) => {
-                Some((*operation, position))
-            }
+            Some(
+                terminal_psi_to_abstract_operations::optimization_unit::PsiProvenance::Operation(
+                    operation,
+                ),
+            ) => Some((*operation, position)),
             _ => None,
         })
         .collect::<BTreeMap<_, _>>();

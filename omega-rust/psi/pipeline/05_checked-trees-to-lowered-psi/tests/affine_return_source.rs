@@ -1,4 +1,3 @@
-use checked_trees::{CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedStructuralAccess};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use checked_trees_to_lowered_psi::lower_machine;
 use language_semantics::{Multiplicity, SemanticDomainId};
@@ -15,6 +14,9 @@ use terminal_interpreter::{
     TerminalStructuralResult, TerminalStructuralValue,
 };
 use terminal_psi::{StructuralMultiplicity, Terminator};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedStructuralAccess,
+};
 
 #[path = "affine_return_source/aggregates.rs"]
 mod aggregates;
@@ -29,13 +31,13 @@ const ATTACHED_IDENTITY: &str = r#"
     machine Main::forward(value: Value) -> Value { value }
 "#;
 
-fn checked(source: &str) -> checked_trees::CheckedTrees {
+fn checked(source: &str) -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
     let source = format!("data Main {{}} machine Main::run() {{}} {source}");
     crate::front_end::checked_program(&source)
 }
 
 fn identity_plan_mut(
-    checked: &mut checked_trees::CheckedTrees,
+    checked: &mut typed_trees_to_checked_trees::checked_trees::CheckedTrees,
 ) -> &mut CheckedClaimFreeAffineStructuralReturnMachinePlan {
     let [plan] = checked
         .facts

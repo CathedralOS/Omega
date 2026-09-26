@@ -12,8 +12,8 @@ use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
-use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::{BlockId, MachineId};
+use terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit;
 
 use crate::EffectSummaryAnalysis;
 use crate::rules::GLOBAL_VALUE_NUMBERING_PASS_NAME;

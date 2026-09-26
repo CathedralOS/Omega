@@ -6,7 +6,7 @@ mod work;
 use optimization_core::OptimizationWorkBudget;
 
 use crate::LogicalSpillOperationError;
-use register_homes::{
+use selected_instructions_to_selected_instructions::register_homes::{
     FunctionLogicalSpillOperations, LogicalSpillOperationPlan, LogicalSpillOperationPolicy,
 };
 use selected_instructions_to_selected_instructions::{

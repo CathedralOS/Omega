@@ -1,10 +1,10 @@
 //! Independently rejoin a primitive local borrow to its exact checked occurrence.
 
-use checked_trees::{
+use symbols::SymbolHandle;
+use typed_trees_to_checked_trees::checked_trees::{
     BorrowAccessKind, BorrowCallFact, CheckedStructuralAccess, CheckedTrees,
     CheckedUnitCallCoordinate, CheckedUnitEffectMachinePlan,
 };
-use symbols::SymbolHandle;
 
 use crate::lowering_error::LoweringError;
 
@@ -124,7 +124,7 @@ pub(crate) fn validate_shared_argument_at(
         checked,
         call,
         position,
-        &checked_trees::CapturedPlace {
+        &typed_trees_to_checked_trees::checked_trees::CapturedPlace {
             root_symbol: symbol,
             segments: Vec::new(),
         },
@@ -138,7 +138,7 @@ pub(crate) fn validate_shared_place_argument_at(
     checked: &CheckedTrees,
     call: &BorrowCallFact,
     position: usize,
-    place: &checked_trees::CapturedPlace,
+    place: &typed_trees_to_checked_trees::checked_trees::CapturedPlace,
 ) -> Result<(), LoweringError> {
     let borrow = &checked.facts.borrow;
     let accesses =

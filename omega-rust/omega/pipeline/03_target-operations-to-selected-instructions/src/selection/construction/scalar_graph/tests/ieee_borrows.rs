@@ -82,7 +82,7 @@ fn ieee_borrowed_calls_reject_substituted_sources_transfer_widths_and_fixed_view
         for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
             let source = fixture(target, format);
             let environment =
-                register_environment::baseline_target_register_environment(target).unwrap();
+                crate::register_environment::baseline_target_register_environment(target).unwrap();
             let constraints = SelectedSelectionConstraints {
                 keys: environment.selected_keys(),
                 fixed_inputs: source

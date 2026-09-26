@@ -9,17 +9,17 @@
 
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use checked_trees::machine::Machine;
-use checked_trees::signature::StateParameter;
-use checked_trees::state::State;
-use checked_trees::statement::StatementNode;
-use checked_trees::types::TypeReferenceNode;
-use checked_trees::{
+use language_core::ReferenceAccess;
+use typed_trees_to_checked_trees::checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees_to_checked_trees::checked_trees::machine::Machine;
+use typed_trees_to_checked_trees::checked_trees::signature::StateParameter;
+use typed_trees_to_checked_trees::checked_trees::state::State;
+use typed_trees_to_checked_trees::checked_trees::statement::StatementNode;
+use typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode;
+use typed_trees_to_checked_trees::checked_trees::{
     BorrowCallFact, CheckedStructuralAccess, CheckedTrees, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan,
 };
-use language_core::ReferenceAccess;
 
 pub(super) fn validate(
     checked: &CheckedTrees,
@@ -66,7 +66,7 @@ pub(super) fn validate(
                 || argument.path.iter().any(|segment| {
                     !matches!(
                         segment,
-                        checked_trees::CheckedUnitStructuralPathSegment::Field(_)
+                        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field(_)
                     )
                 })
             {
@@ -189,9 +189,15 @@ pub(super) fn validate(
     let reference = if argument.path.is_empty() {
         reference
     } else {
-        validation::declared_place_type_raw(&checked.typed, caller, Some(state), named).ok_or(
-            LoweringError::Unsupported("record projection lost its declared type"),
-        )?
+        typed_trees_to_checked_trees::validation::declared_place_type_raw(
+            &checked.typed,
+            caller,
+            Some(state),
+            named,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "record projection lost its declared type",
+        ))?
     };
     let TypeReferenceNode::Named { symbol, .. } =
         checked.type_reference_table.type_reference(reference)
@@ -206,29 +212,38 @@ pub(super) fn validate(
             "shared nominal operand has no declaration",
         ))?;
     let members = checked.data_members(declaration);
-    if members
-        .iter()
-        .any(|member| matches!(member, checked_trees::data::DataMember::Variant(_)))
-        && (checked.type_multiplicity(reference) == language_semantics::Multiplicity::Linear
-            || !members.iter().all(|member| {
-                let checked_trees::data::DataMember::Variant(case) = member else {
-                    return false;
-                };
-                checked.data_payload_fields(case).iter().all(|field| {
-                    !field.relevance.is_erased()
-                        && matches!(
-                            checked
-                                .type_reference_table
-                                .type_reference(field.type_reference),
-                            TypeReferenceNode::Named { .. }
-                        )
-                })
-            }))
+    if members.iter().any(|member| {
+        matches!(
+            member,
+            typed_trees_to_checked_trees::checked_trees::data::DataMember::Variant(_)
+        )
+    }) && (!argument.path.is_empty()
+        || checked.type_multiplicity(reference) == language_semantics::Multiplicity::Linear
+        || !members.iter().all(|member| {
+            let typed_trees_to_checked_trees::checked_trees::data::DataMember::Variant(case) =
+                member
+            else {
+                return false;
+            };
+            checked.data_payload_fields(case).iter().all(|field| {
+                !field.relevance.is_erased()
+                    && matches!(
+                        checked
+                            .type_reference_table
+                            .type_reference(field.type_reference),
+                        TypeReferenceNode::Named { .. }
+                    )
+                    && checked
+                        .primitive_type_reference(field.type_reference)
+                        .is_some()
+            })
+        }))
     {
-        return unsupported("shared case operand requires a non-erased nominal sum");
+        return unsupported("shared case operand requires a whole scalar sum");
     }
-    if !validation::has_plain_owned_contents_with_numeric_constraints(checked, reference)
-        || checked.normalized_type_identity(reference).as_str() != argument.type_identity
+    if !typed_trees_to_checked_trees::validation::has_plain_owned_contents_with_numeric_constraints(
+        checked, reference,
+    ) || checked.normalized_type_identity(reference).as_str() != argument.type_identity
     {
         return unsupported("record operand changed its declared referent type");
     }

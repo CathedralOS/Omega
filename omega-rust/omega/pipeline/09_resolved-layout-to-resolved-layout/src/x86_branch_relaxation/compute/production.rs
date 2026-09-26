@@ -1,15 +1,15 @@
 //! Production fixed-point scan and short-branch commit mechanics.
 
-use isa_x86_64::{
+use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
+use target_operations_to_selected_instructions::isa_x86_64::{
     encode_x86_64_selected_i64_less_than_branch_form,
     encode_x86_64_selected_short_nonzero_branch_form,
     encode_x86_64_selected_u64_less_than_branch_form,
 };
-use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use register_model::ValidatedPhysicalRegisterModel;
-use selected_instructions::{MachineAlternativeFamily, MachineAlternativeKey};
+use target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel;
+use target_operations_to_selected_instructions::{MachineAlternativeFamily, MachineAlternativeKey};
 
-use machine_code::ResolvedConditionalBranchPredicate;
+use post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedConditionalBranchPredicate;
 use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
 
 use super::super::{
@@ -56,7 +56,7 @@ pub(super) fn compute_trace(
                     let Some(branch) = row
                         .branch
                         .as_deref()
-                        .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
+                        .and_then(post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedBranchEvidence::as_conditional)
                     else {
                         continue;
                     };
@@ -120,7 +120,7 @@ pub(super) fn compute_trace(
         let predicate = old
             .branch
             .as_deref()
-            .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
+            .and_then(post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedBranchEvidence::as_conditional)
             .ok_or(OptimizedX86BranchRelaxationError::MalformedBranch(
                 old.instruction,
             ))?
@@ -174,7 +174,7 @@ pub(super) fn compute_trace(
         let old_displacement = old
             .branch
             .as_deref()
-            .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
+            .and_then(post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedBranchEvidence::as_conditional)
             .ok_or(OptimizedX86BranchRelaxationError::MalformedBranch(
                 old.instruction,
             ))?
@@ -182,7 +182,7 @@ pub(super) fn compute_trace(
         let new_displacement = new
             .branch
             .as_deref()
-            .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
+            .and_then(post_allocation_machine_to_selected_form_encoding::machine_code::ResolvedBranchEvidence::as_conditional)
             .ok_or(OptimizedX86BranchRelaxationError::MalformedBranch(
                 new.instruction,
             ))?

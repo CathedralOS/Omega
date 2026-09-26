@@ -2,7 +2,7 @@
 //! Every structural place is a provider attachment of this function's own
 //! attachment or a byte-sequence literal with its exact establishment row; the
 //! call itself projects through the ordinary call/installed lanes.
-use legalized_operations::{LegalizedScalarFunction, LegalizedScalarInstructionKind};
+use crate::legalized_operations::{LegalizedScalarFunction, LegalizedScalarInstructionKind};
 use semantic_vocabulary::StructuralPlaceKind;
 
 pub(super) fn accepts(source: &LegalizedScalarFunction) -> bool {

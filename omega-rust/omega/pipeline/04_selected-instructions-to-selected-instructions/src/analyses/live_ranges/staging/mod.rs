@@ -18,10 +18,12 @@ use optimization_core::{
     OptimizationWorkBudget, OptimizedAbstractPlanProjectionIdentity,
     PrePhysicalOptimizationManifestIdentity,
 };
-use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{LiveRangeIdentity, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
+use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
+use target_operations_to_selected_instructions::{
+    LiveRangeIdentity, SelectedInstructionPlanIdentity,
+};
 use terminal_psi::TerminalPsiIdentity;
 
 pub fn stage_optimized_live_ranges(
@@ -97,9 +99,9 @@ pub struct StagedOptimizedLiveRangeCustodyReceipt {
     manifest: PrePhysicalOptimizationManifestIdentity,
     optimization_unit: OptimizationUnitIdentity,
     fuel_schedule: FuelScheduleIdentity,
-    register_environment: register_model::TargetRegisterEnvironmentIdentity,
+    register_environment: target_operations_to_selected_instructions::register_model::TargetRegisterEnvironmentIdentity,
     selected: SelectedInstructionPlanIdentity,
-    liveness: selected_instructions::LivenessIdentity,
+    liveness: target_operations_to_selected_instructions::LivenessIdentity,
     ranges: LiveRangeIdentity,
     function_count: usize,
     block_count: usize,
@@ -152,11 +154,14 @@ impl StagedOptimizedLiveRangeCustodyReceipt {
         self.selected
     }
 
-    pub const fn register_environment(self) -> register_model::TargetRegisterEnvironmentIdentity {
+    pub const fn register_environment(
+        self,
+    ) -> target_operations_to_selected_instructions::register_model::TargetRegisterEnvironmentIdentity
+    {
         self.register_environment
     }
 
-    pub const fn liveness(self) -> selected_instructions::LivenessIdentity {
+    pub const fn liveness(self) -> target_operations_to_selected_instructions::LivenessIdentity {
         self.liveness
     }
 

@@ -21,11 +21,11 @@ struct StateParameterLineage {
 
 impl StateParameterLineage {
     fn derive(
-        program: &typed_trees::TypedTrees,
+        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
         flow: &FlowFacts,
-        machine: &typed_trees::machine::Machine,
+        machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
         demand: &ProgressSubject,
-        call_frames: Option<&validation::CallFrameResolver<'_>>,
+        call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
     ) -> Self {
         let Some(demand) = places::partition(program, machine, demand) else {
             return Self { values: Vec::new() };
@@ -135,11 +135,11 @@ impl StateParameterLineage {
 /// Discovery and resolution share one demand. A partial catalogue must never
 /// answer a different subject by falling back to an undiscovered ancestor.
 pub(super) fn resolve(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     flow: &FlowFacts,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     premise: ProgressPremise,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<ProgressPremise>> {
     StateParameterLineage::derive(program, flow, machine, &premise.subject, call_frames)
         .resolve(premise)

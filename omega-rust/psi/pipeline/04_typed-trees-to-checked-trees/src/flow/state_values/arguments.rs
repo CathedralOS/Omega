@@ -1,24 +1,24 @@
 //! Save one completed jump argument while its operand facts are still live.
 use super::{ScalarValue, TransitionTargetNode};
+use crate::checked_trees::CheckedScalarExpressionRole;
+use crate::checked_trees::FlowSemanticContextRef;
+use crate::checked_trees::expression::ExpressionHandle;
+use crate::checked_trees::statement::StatementNode;
+use crate::fact_plan::FactPlan;
 use crate::flow::CanonicalPlace;
 use crate::flow::FlowBuildContext;
 use crate::flow::state_values::literal;
 use arena::HandleSpan;
-use checked_trees::CheckedScalarExpressionRole;
-use checked_trees::FlowSemanticContextRef;
-use checked_trees::expression::ExpressionHandle;
-use checked_trees::statement::StatementNode;
-use facts::FactPlan;
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::flow) fn capture_argument(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     semantic: &FactPlan,
     context: &mut FlowBuildContext,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
-    target: typed_trees::statement::TransitionTargetHandle,
+    target: symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetHandle,
     ordinal: usize,
     argument: ExpressionHandle,
     contexts: HandleSpan<FlowSemanticContextRef>,
@@ -133,9 +133,9 @@ pub(in crate::flow) fn capture_argument(
     if !place.segments.iter().all(|segment| {
         matches!(
             segment,
-            facts::PlaceSegment::Field { .. }
-                | facts::PlaceSegment::Case { .. }
-                | facts::PlaceSegment::FixedIndex { .. }
+            crate::fact_plan::PlaceSegment::Field { .. }
+                | crate::fact_plan::PlaceSegment::Case { .. }
+                | crate::fact_plan::PlaceSegment::FixedIndex { .. }
         )
     }) {
         return ScalarValue::Unknown;

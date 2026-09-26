@@ -1,21 +1,21 @@
 //! Statement permission production, moves and static case selection.
 
+use crate::checked_trees::{CheckFacts, FlowPermissionEventFact};
 use crate::checks::multiplicity::linear_obligations::{ClaimIdentityAllocator, LinearPlace};
 use crate::checks::multiplicity::linear_validation::claim_provenance::written_linear_targets;
 use crate::checks::multiplicity::type_multiplicity::type_carries_linear_obligation;
 use crate::checks::multiplicity::{projected_affine, temporary_results};
 use crate::flow::FlowOwnershipEventSource;
-use checked_trees::{CheckFacts, FlowPermissionEventFact};
 use language_semantics::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
     PermissionEventSource, PermissionProvenance,
 };
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 use symbols::SymbolHandle;
-use typed_trees::statement::StatementNode;
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn apply_statement_permission_production(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &mut CheckFacts,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
@@ -78,7 +78,7 @@ pub(crate) fn apply_statement_permission_production(
         FlowOwnershipEventSource::Statement { .. } => calls.len(),
     });
     for event in statement_moves {
-        if matches!(event.root, facts::PlaceRoot::Expression(_)) {
+        if matches!(event.root, crate::fact_plan::PlaceRoot::Expression(_)) {
             temporary_results::append_whole_affine_transfer(
                 program,
                 facts,
@@ -90,7 +90,7 @@ pub(crate) fn apply_statement_permission_production(
             );
             continue;
         }
-        let facts::PlaceRoot::Symbol(symbol) = event.root else {
+        let crate::fact_plan::PlaceRoot::Symbol(symbol) = event.root else {
             continue;
         };
         let event_path = facts
@@ -135,7 +135,7 @@ pub(crate) fn apply_statement_permission_production(
                 && places[index].case_excluded
                 && !event_path
                     .iter()
-                    .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
+                    .any(|segment| matches!(segment, crate::fact_plan::PlaceSegment::Case { .. }))
             {
                 continue;
             }
@@ -153,9 +153,9 @@ pub(crate) fn apply_statement_permission_production(
                     .path
                     .strip_prefix(event_path.as_slice())
                     .is_some_and(|suffix| {
-                        suffix
-                            .iter()
-                            .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
+                        suffix.iter().any(|segment| {
+                            matches!(segment, crate::fact_plan::PlaceSegment::Case { .. })
+                        })
                     })
             {
                 conditional_carrier_transfers.push(permission_events.len());
@@ -188,7 +188,7 @@ pub(crate) fn apply_statement_permission_production(
     );
 
     for target in written_targets {
-        let facts::PlaceRoot::Symbol(symbol) = target.root else {
+        let crate::fact_plan::PlaceRoot::Symbol(symbol) = target.root else {
             continue;
         };
         let place_index = target.place_index;
@@ -226,7 +226,7 @@ pub(crate) fn apply_statement_permission_production(
                     .claim_identity
                     .unwrap_or(PermissionClaimIdentity::Unknown),
                 provenance: place.provenance.unwrap_or(PermissionProvenance::Unknown),
-                root: facts::PlaceRoot::Symbol(symbol),
+                root: crate::fact_plan::PlaceRoot::Symbol(symbol),
                 segments,
                 obligation_live: false,
             });
@@ -253,21 +253,21 @@ pub(crate) fn apply_statement_permission_production(
             provenance: place
                 .provenance
                 .expect("an established place has explicit provenance"),
-            root: facts::PlaceRoot::Symbol(symbol),
+            root: crate::fact_plan::PlaceRoot::Symbol(symbol),
             segments,
             obligation_live,
         });
     }
 }
 
-fn move_selects_claim(event_path: &[facts::PlaceSegment], claim: &LinearPlace) -> bool {
+fn move_selects_claim(event_path: &[crate::fact_plan::PlaceSegment], claim: &LinearPlace) -> bool {
     claim.path.starts_with(event_path)
         || (claim.conditional && event_path.starts_with(claim.path.as_slice()))
 }
 
 pub(crate) fn select_static_case_alternative(
     symbol: SymbolHandle,
-    event_path: &[facts::PlaceSegment],
+    event_path: &[crate::fact_plan::PlaceSegment],
     places: &mut [LinearPlace],
 ) {
     let Some((case_index, selected_variant)) =
@@ -275,7 +275,7 @@ pub(crate) fn select_static_case_alternative(
             .iter()
             .enumerate()
             .find_map(|(index, segment)| match segment {
-                facts::PlaceSegment::Case { variant } => Some((index, *variant)),
+                crate::fact_plan::PlaceSegment::Case { variant } => Some((index, *variant)),
                 _ => None,
             })
     else {
@@ -286,7 +286,7 @@ pub(crate) fn select_static_case_alternative(
         if place.symbol != symbol
             || place.path.get(..case_index) != Some(prefix)
             || place.path.get(case_index)
-                == Some(&facts::PlaceSegment::Case {
+                == Some(&crate::fact_plan::PlaceSegment::Case {
                     variant: selected_variant,
                 })
         {
@@ -294,7 +294,7 @@ pub(crate) fn select_static_case_alternative(
         }
         if matches!(
             place.path.get(case_index),
-            Some(facts::PlaceSegment::Case { .. })
+            Some(crate::fact_plan::PlaceSegment::Case { .. })
         ) {
             place.live = false;
             place.case_excluded = true;
@@ -341,7 +341,7 @@ pub(crate) fn permission_source(source: FlowOwnershipEventSource) -> PermissionE
 }
 
 pub(crate) fn permission_kind_for_move(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     facts: &CheckFacts,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,

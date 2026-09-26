@@ -165,7 +165,7 @@ Checked helpers must preserve non-observation transitively. A foreign provider
 may physically be able to read the address, so its restriction needs admitted
 provider evidence or enforced isolation. See the [structural access contract](../spec/terminal-psi/structural_access.md#write-only-authority).
 Current source, artifact and native support are distinguished
-[beside Terminal production](../../omega-rust/psi/compiler/terminal-production/README.md#structural-access-and-stores).
+[beside Terminal production](../../omega-rust/psi/pipeline/07_lowered-psi-to-terminal-psi/terminal_production.md#structural-access-and-stores).
 
 ## Reborrow Authority and Restoration
 

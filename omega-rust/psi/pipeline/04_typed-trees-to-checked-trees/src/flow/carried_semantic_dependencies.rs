@@ -3,13 +3,13 @@
 //! call return types, ownership events, and cleanup plans in the complete check
 //! facts. The check pass derives it after execution finalization, not during flow.
 use super::{CanonicalPlace, canonical_place_type_reference, project_type_reference_from_segments};
-use checked_trees::{
+use crate::checked_trees::{
     CheckFacts, CheckedSemanticDependencies, CheckedSemanticDependency,
     CheckedSemanticDependencyExposure as Exposure, CheckedSemanticDependencyKind as Kind,
 };
 use language_semantics::{PermissionEventKind, PermissionEventSource};
+use symbol_resolved_trees_to_typed_trees::typed_trees::{TypedTrees, types::TypeReferenceHandle};
 use symbols::{SymbolHandle, SymbolKind};
-use typed_trees::{TypedTrees, types::TypeReferenceHandle};
 
 /// Rederive the complete canonical semantic-dependency table from compiler
 /// authority rather than trusting a previously retained table.
@@ -113,8 +113,9 @@ pub(crate) fn derive_checked_semantic_dependencies(
     for plan in &facts.flow.terminal_structural_scalar_returns.machines {
         let exposure = machine_signature_exposure(program, plan.machine);
         for cleanup in &plan.cleanup_actions {
-            let checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup) =
-                cleanup
+            let crate::checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(
+                cleanup,
+            ) = cleanup
             else {
                 continue;
             };
@@ -204,11 +205,11 @@ fn event_type_reference(
     program: &TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    root: facts::PlaceRoot,
-    segments: &[facts::PlaceSegment],
+    root: crate::fact_plan::PlaceRoot,
+    segments: &[crate::fact_plan::PlaceSegment],
 ) -> Option<TypeReferenceHandle> {
     match root {
-        facts::PlaceRoot::Symbol(_) => canonical_place_type_reference(
+        crate::fact_plan::PlaceRoot::Symbol(_) => canonical_place_type_reference(
             program,
             state_symbol,
             statement_index,
@@ -217,9 +218,9 @@ fn event_type_reference(
                 segments: segments.to_vec(),
             },
         ),
-        facts::PlaceRoot::Expression(expression) => {
+        crate::fact_plan::PlaceRoot::Expression(expression) => {
             let base = match program.expression_table.expression(expression) {
-                typed_trees::expression::ExpressionNode::Call(call) => {
+                symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(call) => {
                     call_return_type_reference(program, call.target_symbol)
                 }
                 _ => super::expression_type_reference_in_state(
@@ -231,10 +232,10 @@ fn event_type_reference(
             }?;
             project_type_reference_from_segments(program, base, segments)
         }
-        facts::PlaceRoot::TypeReference(type_reference) => {
+        crate::fact_plan::PlaceRoot::TypeReference(type_reference) => {
             project_type_reference_from_segments(program, type_reference, segments)
         }
-        facts::PlaceRoot::Unknown => None,
+        crate::fact_plan::PlaceRoot::Unknown => None,
     }
 }
 
@@ -268,7 +269,7 @@ fn collect_nominal_symbols(
     if !type_reference.is_valid() {
         return;
     }
-    use typed_trees::types::TypeReferenceNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. }
         | TypeReferenceNode::Constrained {
@@ -332,9 +333,9 @@ fn event_exposure(
     program: &TypedTrees,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-    root: facts::PlaceRoot,
+    root: crate::fact_plan::PlaceRoot,
 ) -> Exposure {
-    let facts::PlaceRoot::Symbol(root_symbol) = root else {
+    let crate::fact_plan::PlaceRoot::Symbol(root_symbol) = root else {
         return Exposure::PrivateImplementation;
     };
     let Some(machine) = program.machines().iter().find(|machine| {

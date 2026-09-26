@@ -3,22 +3,26 @@
 use std::collections::BTreeSet;
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use register_model::{
+use target_operations_to_selected_instructions::VirtualRegisterId;
+use target_operations_to_selected_instructions::register_model::{
     RegisterClassId, RegisterView, RegisterViewId, TargetRegisterEnvironmentConstraintKeys,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile, target_register_environment_identity,
 };
-use selected_instructions::VirtualRegisterId;
 
 use crate::unsequenced_spill_stages::{
     SpillRecoveryChoiceError, SpillRecoveryChoicePlan, SpillRecoveryChoicePolicy,
     SpillRecoveryContender, SpillRecoveryResident, SpillRecoveryVictimChoice,
     ValidatedAbstractSpillInsertion, ValidatedSpillRecoveryWorklist,
 };
-use register_homes::{FunctionAllocationLegality, VirtualRegisterAllocationLegality};
-use selected_instructions::{FunctionLiveRanges, LiveRangePoint, VirtualInterference};
+use selected_instructions_to_selected_instructions::register_homes::{
+    FunctionAllocationLegality, VirtualRegisterAllocationLegality,
+};
 use selected_instructions_to_selected_instructions::{
     ValidatedAllocationLegality, ValidatedLiveRanges,
+};
+use target_operations_to_selected_instructions::{
+    FunctionLiveRanges, LiveRangePoint, VirtualInterference,
 };
 
 #[derive(Clone, Copy)]

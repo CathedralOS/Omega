@@ -95,18 +95,20 @@ fn collects_mutable_attached_data_argument_access_roots() {
     let target_symbol = SymbolHandle::from_arena_index(3);
     let player_symbol = SymbolHandle::from_arena_index(4);
 
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let self_name = Expression::Name(NamePath::resolved(
         vec![Identifier::generated("self")],
         machine_symbol,
         machine_symbol,
     ));
-    let player_member = Expression::Member(Box::new(checked_trees::expression::MemberExpression {
-        receiver: self_name,
-        member_symbol: player_symbol,
-        member: Identifier::generated("player"),
-        case_variant: None,
-    }));
+    let player_member = Expression::Member(Box::new(
+        crate::checked_trees::expression::MemberExpression {
+            receiver: self_name,
+            member_symbol: player_symbol,
+            member: Identifier::generated("player"),
+            case_variant: None,
+        },
+    ));
     let player_argument = mutable_borrow(player_member);
     let player_argument = program.expression_table.insert_tree(&player_argument);
 
@@ -120,7 +122,8 @@ fn collects_mutable_attached_data_argument_access_roots() {
         name: Identifier::generated("Main"),
         attached_data: None,
         attached_data_symbol: symbols::SymbolHandle::invalid(),
-        attached_data_application: typed_trees::types::TypeReferenceHandle::invalid(),
+        attached_data_application:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
         generic_data_template: symbols::SymbolHandle::invalid(),
         spelling: None,
         is_public: false,
@@ -148,7 +151,8 @@ fn collects_mutable_attached_data_argument_access_roots() {
         symbol: state_symbol,
         name: Identifier::generated("main"),
         parameters: Default::default(),
-        return_type: typed_trees::types::TypeReferenceHandle::invalid(),
+        return_type:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
         contracts: Default::default(),
         statement_nodes: Default::default(),
     };
@@ -178,7 +182,7 @@ fn collects_mutable_attached_data_argument_access_roots() {
             symbol: target_symbol,
             name: Identifier::generated("heal"),
             parameters: Default::default(),
-            return_type: typed_trees::types::TypeReferenceHandle::invalid(),
+            return_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
             contracts: Default::default(),
             statement_nodes: Default::default(),
         },
@@ -210,31 +214,36 @@ fn collects_disjoint_member_access_segments() {
     let health_symbol = SymbolHandle::from_arena_index(5);
     let stamina_symbol = SymbolHandle::from_arena_index(6);
 
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let self_name = Expression::Name(NamePath::resolved(
         vec![Identifier::generated("self")],
         machine_symbol,
         machine_symbol,
     ));
-    let player_member = Expression::Member(Box::new(checked_trees::expression::MemberExpression {
-        receiver: self_name,
-        member_symbol: player_symbol,
-        member: Identifier::generated("player"),
-        case_variant: None,
-    }));
-    let health_member = Expression::Member(Box::new(checked_trees::expression::MemberExpression {
-        receiver: player_member.clone(),
-        member_symbol: health_symbol,
-        member: Identifier::generated("health"),
-        case_variant: None,
-    }));
-    let stamina_member =
-        Expression::Member(Box::new(checked_trees::expression::MemberExpression {
+    let player_member = Expression::Member(Box::new(
+        crate::checked_trees::expression::MemberExpression {
+            receiver: self_name,
+            member_symbol: player_symbol,
+            member: Identifier::generated("player"),
+            case_variant: None,
+        },
+    ));
+    let health_member = Expression::Member(Box::new(
+        crate::checked_trees::expression::MemberExpression {
+            receiver: player_member.clone(),
+            member_symbol: health_symbol,
+            member: Identifier::generated("health"),
+            case_variant: None,
+        },
+    ));
+    let stamina_member = Expression::Member(Box::new(
+        crate::checked_trees::expression::MemberExpression {
             receiver: player_member,
             member_symbol: stamina_symbol,
             member: Identifier::generated("stamina"),
             case_variant: None,
-        }));
+        },
+    ));
     let health_argument = program
         .expression_table
         .insert_tree(&mutable_borrow(health_member));
@@ -253,7 +262,8 @@ fn collects_disjoint_member_access_segments() {
         name: Identifier::generated("Main"),
         attached_data: None,
         attached_data_symbol: symbols::SymbolHandle::invalid(),
-        attached_data_application: typed_trees::types::TypeReferenceHandle::invalid(),
+        attached_data_application:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
         generic_data_template: symbols::SymbolHandle::invalid(),
         spelling: None,
         is_public: false,
@@ -281,7 +291,8 @@ fn collects_disjoint_member_access_segments() {
         symbol: state_symbol,
         name: Identifier::generated("main"),
         parameters: Default::default(),
-        return_type: typed_trees::types::TypeReferenceHandle::invalid(),
+        return_type:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
         contracts: Default::default(),
         statement_nodes: Default::default(),
     };
@@ -311,7 +322,7 @@ fn collects_disjoint_member_access_segments() {
             symbol: target_symbol,
             name: Identifier::generated("heal"),
             parameters: Default::default(),
-            return_type: typed_trees::types::TypeReferenceHandle::invalid(),
+            return_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
             contracts: Default::default(),
             statement_nodes: Default::default(),
         },
@@ -327,14 +338,14 @@ fn collects_disjoint_member_access_segments() {
     assert_eq!(accesses[0].root_symbol, player_symbol);
     assert_eq!(
         facts.access_segments.span_or_empty(accesses[0].segments),
-        &[facts::PlaceSegment::Field {
+        &[crate::fact_plan::PlaceSegment::Field {
             symbol: health_symbol
         }]
     );
     assert_eq!(accesses[1].root_symbol, player_symbol);
     assert_eq!(
         facts.access_segments.span_or_empty(accesses[1].segments),
-        &[facts::PlaceSegment::Field {
+        &[crate::fact_plan::PlaceSegment::Field {
             symbol: stamina_symbol
         }]
     );
@@ -423,11 +434,9 @@ fn groups_borrow_carrying_owner_paths_in_the_shared_arena() {
                 .data_members(definition)
                 .iter()
                 .find_map(|member| match member {
-                    typed_trees::data::DataMember::Field(field)
-                        if field.name.as_str() == "body" =>
-                    {
-                        Some(field.symbol)
-                    }
+                    symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                        field,
+                    ) if field.name.as_str() == "body" => Some(field.symbol),
                     _ => None,
                 })
         })
@@ -439,11 +448,15 @@ fn groups_borrow_carrying_owner_paths_in_the_shared_arena() {
     assert_eq!(loans.len(), 2);
     assert_eq!(
         facts.loan_owner_path(&loans[0]),
-        &[checked_trees::BorrowLoanOwnerSegment::Field(body_symbol)]
+        &[crate::checked_trees::BorrowLoanOwnerSegment::Field(
+            body_symbol
+        )]
     );
     assert_eq!(
         facts.loan_owner_path(&loans[1]),
-        &[checked_trees::BorrowLoanOwnerSegment::Field(body_symbol)]
+        &[crate::checked_trees::BorrowLoanOwnerSegment::Field(
+            body_symbol
+        )]
     );
     assert_eq!(facts.owner_segments.len(), 2);
 }
@@ -455,7 +468,7 @@ fn collects_unresolved_local_argument_access_roots() {
     let target_symbol = SymbolHandle::from_arena_index(23);
     let local_symbol = SymbolHandle::from_arena_index(24);
 
-    let mut program = typed_trees::TypedTrees::default();
+    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
     let local_name = Expression::Name(NamePath::unresolved(vec![Identifier::generated("value")]));
     let local_argument = program
         .expression_table
@@ -471,7 +484,8 @@ fn collects_unresolved_local_argument_access_roots() {
         name: Identifier::generated("Main"),
         attached_data: None,
         attached_data_symbol: symbols::SymbolHandle::invalid(),
-        attached_data_application: typed_trees::types::TypeReferenceHandle::invalid(),
+        attached_data_application:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
         generic_data_template: symbols::SymbolHandle::invalid(),
         spelling: None,
         is_public: false,
@@ -499,17 +513,18 @@ fn collects_unresolved_local_argument_access_roots() {
         symbol: state_symbol,
         name: Identifier::generated("main"),
         parameters: Default::default(),
-        return_type: typed_trees::types::TypeReferenceHandle::invalid(),
+        return_type:
+            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
         contracts: Default::default(),
         statement_nodes: Default::default(),
     };
     program.statement_table.push_statement(
         &mut state.statement_nodes,
-        StatementNode::LocalData(typed_trees::statement::TableLocalData {
+        StatementNode::LocalData(symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableLocalData {
             symbol: local_symbol,
             name: Identifier::generated("value"),
-            type_reference: typed_trees::types::TypeReferenceHandle::invalid(),
-            initial_value: typed_trees::expression::ExpressionHandle::invalid(),
+            type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
+            initial_value: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid(),
             is_mutable: false,
             type_is_inferred: false,
             relevance: language_core::BindingRelevance::Relevant,
@@ -541,7 +556,7 @@ fn collects_unresolved_local_argument_access_roots() {
             symbol: target_symbol,
             name: Identifier::generated("heal"),
             parameters: Default::default(),
-            return_type: typed_trees::types::TypeReferenceHandle::invalid(),
+            return_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
             contracts: Default::default(),
             statement_nodes: Default::default(),
         },

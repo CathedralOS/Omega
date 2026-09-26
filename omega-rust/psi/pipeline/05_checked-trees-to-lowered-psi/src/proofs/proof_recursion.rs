@@ -2,12 +2,6 @@
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-use checked_trees::{
-    CheckedProofRankingRelation, CheckedProofRecursiveCallSite, CheckedProofRecursiveComponent,
-    CheckedProofRecursiveTransitionLane, CheckedTrees,
-    data::{DataDefinition, DataField, DataMember},
-    types::TypeReferenceHandle,
-};
 use proof_admission::{
     CertificateEnvelope, CertificateObligation, EvidenceRoute, ProofNode, ProofRule,
     ProofSystemMarker, RecursiveComponentCertificate, RecursiveEdgeCertificate,
@@ -23,6 +17,12 @@ use terminal_psi::{
 use terminal_verifier::{
     ProofBundle, RecursiveComponentEvidence, proof_recursive_component_identity,
     reconstruct_proof_recursive_component_obligations,
+};
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedProofRankingRelation, CheckedProofRecursiveCallSite, CheckedProofRecursiveComponent,
+    CheckedProofRecursiveTransitionLane, CheckedTrees,
+    data::{DataDefinition, DataField, DataMember},
+    types::TypeReferenceHandle,
 };
 
 use crate::lowering_error::LoweringError;
@@ -169,7 +169,10 @@ fn proof_machine_dependency_closure(
             .iter()
             .find(|machine| machine.symbol == owner)
             .expect("known machine symbol has a declaration");
-        for dependency in validation::machine_call_dependency_symbols(&checked.typed, machine) {
+        for dependency in typed_trees_to_checked_trees::validation::machine_call_dependency_symbols(
+            &checked.typed,
+            machine,
+        ) {
             if let Some(dependency_owner) = dependency_owners.get(&symbol_key(dependency))
                 && !reached.contains(&symbol_key(*dependency_owner))
             {

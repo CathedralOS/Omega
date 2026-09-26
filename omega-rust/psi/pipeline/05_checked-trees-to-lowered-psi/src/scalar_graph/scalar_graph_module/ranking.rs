@@ -5,12 +5,12 @@ use super::super::BlockId;
 use super::{
     LoweringError, ScalarType, TerminalMachine, Terminator, scalar_source_block, unsupported,
 };
-use checked_trees::CheckedStructuralRankedArgumentPlan;
 use semantic_vocabulary::ValueId;
 use terminal_psi::{
     TerminalBlockNaturalRank, TerminalNaturalCycle, TerminalNaturalRankComparison,
     TerminalNaturalRankEdge, TerminalRankedScc,
 };
+use typed_trees_to_checked_trees::checked_trees::CheckedStructuralRankedArgumentPlan;
 
 /// One SCC member's emitted rank coordinate: the block's own incoming rank
 /// term plus its authored state so covered edges can name it.

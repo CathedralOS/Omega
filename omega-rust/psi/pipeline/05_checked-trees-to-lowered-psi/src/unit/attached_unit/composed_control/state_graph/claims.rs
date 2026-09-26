@@ -19,11 +19,11 @@ use std::collections::BTreeMap;
 use super::super::super::{Multiplicity, unsupported};
 use super::super::{CheckedTrees, LoweringError};
 use super::{CheckedComposedUnitControlMachinePlan, successors};
-use checked_trees::CheckedStructuralControlTransferSourcePlan;
 use language_semantics::{
     CarryPolicy, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
     PermissionEventSource, PermissionProvenance,
 };
+use typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan;
 
 /// Resolved claim custody for one composed machine. `aliased[position][dense]`
 /// names the entry structural parameter whose place that successor parameter
@@ -42,12 +42,12 @@ pub(super) struct ClaimTransport {
 pub(super) fn validate_boundary_consumption(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
-    source: &checked_trees::state::State,
-    state: &checked_trees::CheckedComposedUnitControlStatePlan,
-    coordinate: checked_trees::CheckedUnitCallCoordinate,
+    source: &typed_trees_to_checked_trees::checked_trees::state::State,
+    state: &typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlStatePlan,
+    coordinate: typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate,
     target: symbols::SymbolHandle,
-    arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
-    receipts: &[checked_trees::CheckedUnitClaimTransferPlan],
+    arguments: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan],
+    receipts: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitClaimTransferPlan],
 ) -> Result<(), LoweringError> {
     let events = &checked.facts.flow.ownership;
     let call_source = PermissionEventSource::Call {
@@ -74,7 +74,8 @@ pub(super) fn validate_boundary_consumption(
         .enumerate()
         .flat_map(|(argument_index, argument)| {
             state.entry_claims.iter().filter_map(move |claim| {
-                (argument.access == checked_trees::CheckedStructuralAccess::Owned
+                (argument.access
+                    == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
                     && argument.source_parameter_index() == Some(claim.parameter_index)
                     && argument.path == claim.path)
                     .then_some((argument_index, claim))
@@ -111,10 +112,13 @@ pub(super) fn validate_boundary_consumption(
                 .iter()
                 .filter(|event| {
                     event.claim_identity == claim.claim_identity
-                        && event.root == facts::PlaceRoot::Symbol(source_parameter.symbol)
+                        && event.root
+                            == typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(
+                                source_parameter.symbol,
+                            )
                         && events.segments.span_or_empty(event.segments).len()
                             == event.segments.len()
-                        && validation::structural_claim_path(
+                        && typed_trees_to_checked_trees::validation::structural_claim_path(
                             &checked.typed,
                             source_parameter.type_reference,
                             events.segments.span_or_empty(event.segments),
@@ -214,7 +218,8 @@ pub(super) fn resolve(
                 ))?;
             if claim.carry != CarryPolicy::STRICT
                 || parameter.is_self
-                || parameter.access != checked_trees::CheckedStructuralAccess::Owned
+                || parameter.access
+                    != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
                 || parameter.multiplicity != Multiplicity::Linear
             {
                 return unsupported("Unit graph claim is not exact owned linear custody");
@@ -246,7 +251,7 @@ pub(super) fn resolve(
                         "Unit graph claim transfer source parameter is missing",
                     ))?;
                 if source_parameter.is_self
-                    || source_parameter.access != checked_trees::CheckedStructuralAccess::Owned
+                    || source_parameter.access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
                     || source_parameter.multiplicity != Multiplicity::Linear
                 {
                     return unsupported("Unit graph claim source is not owned linear custody");
@@ -275,11 +280,13 @@ pub(super) fn resolve(
                     .ok_or(LoweringError::Unsupported(
                         "Unit graph claim transfer source is missing",
                     ))?;
-                let root = facts::PlaceRoot::Symbol(if source_parameter_source.is_self {
-                    plan.machine
-                } else {
-                    source_parameter_source.symbol
-                });
+                let root = typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(
+                    if source_parameter_source.is_self {
+                        plan.machine
+                    } else {
+                        source_parameter_source.symbol
+                    },
+                );
                 let mut events = checked
                     .facts
                     .flow
@@ -326,7 +333,7 @@ pub(super) fn resolve(
                         .span_or_empty(event.segments)
                         .len()
                         != event.segments.len()
-                    || validation::structural_claim_path(
+                    || typed_trees_to_checked_trees::validation::structural_claim_path(
                         &checked.typed,
                         source_parameter_source.type_reference,
                         checked

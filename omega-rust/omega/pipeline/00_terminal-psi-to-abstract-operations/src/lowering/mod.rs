@@ -2,7 +2,7 @@
 //! every verified machine operation by operation, and
 //! retain the canonical Terminal-Psi identity.
 
-use abstract_operations::AbstractOperationPlan;
+use crate::abstract_operations::AbstractOperationPlan;
 use terminal_codec::terminal_psi_identity;
 use terminal_verifier::VerifiedTerminalModule;
 mod block_bindings;

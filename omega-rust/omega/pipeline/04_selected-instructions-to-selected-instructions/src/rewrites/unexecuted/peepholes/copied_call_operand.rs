@@ -77,8 +77,10 @@ mod rewrite;
 use std::sync::Arc;
 
 use optimization_core::OptimizationUnitIdentity;
-use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::FuelScheduleIdentity;
+use target_operations_to_selected_instructions::{
+    SelectedInstructionPlan, SelectedInstructionPlanIdentity,
+};
 
 pub use replay::validate_copied_call_operand_fold;
 pub use rewrite::fold_selected_copied_call_operand;

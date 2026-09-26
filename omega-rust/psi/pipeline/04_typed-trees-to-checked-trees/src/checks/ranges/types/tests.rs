@@ -1,9 +1,14 @@
 use super::{ExpressionHandle, ExpressionNode, SymbolHandle};
 use crate::checks::ranges::expression_enforced_declared_range;
 use crate::tests::front_end::typed_program;
-use typed_trees::typed_trees::StaticRequirementDispatch;
+use symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::StaticRequirementDispatch;
 
-fn fixture(source: &str) -> (typed_trees::TypedTrees, ExpressionHandle) {
+fn fixture(
+    source: &str,
+) -> (
+    symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    ExpressionHandle,
+) {
     let program = typed_program(source);
     let call = program
         .expression_table
@@ -16,7 +21,10 @@ fn fixture(source: &str) -> (typed_trees::TypedTrees, ExpressionHandle) {
     (program, call)
 }
 
-fn range(program: &typed_trees::TypedTrees, expression: ExpressionHandle) -> Option<(i64, i64)> {
+fn range(
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<(i64, i64)> {
     let machine = program
         .machines()
         .iter()

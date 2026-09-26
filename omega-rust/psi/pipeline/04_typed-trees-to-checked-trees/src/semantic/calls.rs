@@ -1,9 +1,11 @@
-use checked_trees::expression::ExpressionHandle;
-use checked_trees::name::Identifier;
-use checked_trees::statement::StatementNode;
+use crate::checked_trees::expression::ExpressionHandle;
+use crate::checked_trees::name::Identifier;
+use crate::checked_trees::statement::StatementNode;
 use language_semantics::declaration_selection::{CollectionMeasure, CollectionViewOperation};
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+    TypeReferenceHandle, TypeReferenceNode,
+};
 use symbols::SymbolHandle;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 mod lookup;
 mod traversal;
 
@@ -12,13 +14,13 @@ use traversal::{CallSiteTraversal, find_call_site_in_statement};
 
 #[derive(Clone, Copy)]
 pub(crate) enum CallSite<'program> {
-    Statement(&'program typed_trees::statement::TableCall),
+    Statement(&'program symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableCall),
     Expression {
         expression: ExpressionHandle,
-        call: &'program typed_trees::expression::TableCallExpression,
+        call: &'program symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
     },
     TransitionNamed {
-        path: &'program typed_trees::statement::TableNamePath,
+        path: &'program symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableNamePath,
         arguments: arena::HandleSpan<ExpressionHandle>,
         evidence_arguments: &'program [Identifier],
         source_span: source::SourceSpan,
@@ -31,7 +33,9 @@ pub(crate) enum CallSite<'program> {
 impl CallSite<'_> {
     pub(crate) fn static_requirement_dispatch(
         &self,
-    ) -> Option<&typed_trees::typed_trees::StaticRequirementDispatch> {
+    ) -> Option<
+        &symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::StaticRequirementDispatch,
+    > {
         match self {
             Self::Statement(call) => call.static_requirement_dispatch.as_ref(),
             Self::Expression { call, .. } => call.static_requirement_dispatch.as_ref(),
@@ -72,8 +76,8 @@ impl CallSite<'_> {
 /// `AuthoredDeclarationSelectionIntrinsic::CollectionView`; consumers holding
 /// the selection ledger read the retained identity instead of asking here.
 pub(crate) fn collection_view_call(
-    program: &typed_trees::TypedTrees,
-    call: &typed_trees::expression::TableCallExpression,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
 ) -> Option<CollectionViewOperation> {
     if call.target_symbol.is_valid()
         || !call.receiver.is_valid()
@@ -124,8 +128,8 @@ pub(crate) enum MeasureReceiver {
 /// spelling but no receiver type asks the map directly and keeps its own
 /// narrowing visible at its site.
 pub(crate) fn collection_measure_member(
-    program: &typed_trees::TypedTrees,
-    member: &typed_trees::expression::TableMemberExpression,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    member: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableMemberExpression,
     receiver: MeasureReceiver,
 ) -> Option<CollectionMeasure> {
     if member.case_variant.is_some() {
@@ -146,7 +150,7 @@ pub(crate) fn collection_measure_member(
 /// Whether a declared type reference names a collection carrier: a fixed
 /// array or slice, reached through references and constraint shells.
 pub(crate) fn type_reference_is_collection(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
@@ -166,7 +170,7 @@ pub(crate) fn type_reference_is_collection(
 }
 
 pub(crate) fn find_call_site<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -181,9 +185,9 @@ pub(crate) fn find_call_site<'program>(
 /// callers that own the symbols' storage (e.g. every checked body call of one
 /// state) and must not rescan the program per call.
 pub(crate) fn find_call_site_in_state<'program>(
-    program: &'program typed_trees::TypedTrees,
-    machine: &'program typed_trees::machine::Machine,
-    state: &'program typed_trees::state::State,
+    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &'program symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &'program symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
     call_ordinal: usize,
 ) -> Option<CallSite<'program>> {
@@ -208,9 +212,9 @@ pub(crate) fn find_call_site_in_state<'program>(
 /// Batching per statement keeps per-call work off quadratic re-walks when a
 /// caller (checked-body source binding) needs every site anyway.
 pub(crate) fn collect_call_sites_in_statement<'program>(
-    program: &'program typed_trees::TypedTrees,
-    machine: &'program typed_trees::machine::Machine,
-    state: &'program typed_trees::state::State,
+    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &'program symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &'program symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
 ) -> Vec<CallSite<'program>> {
     let mut collected = Vec::new();
@@ -237,12 +241,12 @@ pub(crate) fn collect_call_sites_in_statement<'program>(
 /// Reuse call-ordinal traversal to distinguish guard evaluation from the two
 /// mutually exclusive target operands of a transition.
 pub(crate) fn transition_call_target(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     statement_index: usize,
     call_ordinal: usize,
-) -> Option<typed_trees::statement::TransitionTargetHandle> {
+) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetHandle> {
     let StatementNode::Transition(transition) = program
         .statement_table
         .statements(state.statement_nodes)
@@ -264,7 +268,7 @@ pub(crate) fn transition_call_target(
 }
 
 pub(crate) fn call_site_argument_expressions<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     call_site: &CallSite<'program>,
 ) -> &'program [ExpressionHandle] {
     lookup::call_site_argument_expressions(program, call_site)

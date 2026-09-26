@@ -1,0 +1,100 @@
+//! Semantic successor provenance and decoded branch evidence.
+
+use semantic_vocabulary::{BlockId, BoundaryMachineId, EdgeId, MachineId};
+use target_operations_to_selected_instructions::register_model::RegisterViewId;
+use target_operations_to_selected_instructions::{MachineEncodedEffects, SelectedBlockId};
+use terminal_psi_to_abstract_operations::abstract_operations::ValueBinding;
+use terminal_psi_to_abstract_operations::optimization_unit::FuelSettlement;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FunctionFragmentBranchEvidence {
+    Conditional(FunctionFragmentConditionalBranchEvidence),
+    Jump(FunctionFragmentJumpEvidence),
+}
+
+impl FunctionFragmentBranchEvidence {
+    pub const fn as_conditional(&self) -> Option<&FunctionFragmentConditionalBranchEvidence> {
+        match self {
+            Self::Conditional(value) => Some(value),
+            Self::Jump(_) => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FunctionFragmentJumpEvidence {
+    pub source_block: SelectedBlockId,
+    pub target_edge: EdgeId,
+    pub target_block: SelectedBlockId,
+    pub target_offset: u64,
+    pub byte_displacement: i64,
+    pub decoded_effects: MachineEncodedEffects,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FunctionFragmentControlProvenance {
+    /// The selected source identity retains the checked guard and frontier;
+    /// this row joins their exact crash site to its terminating bytes.
+    Crash {
+        psi_edge: EdgeId,
+        cause: terminal_psi::CrashCause,
+    },
+    HostedExitProcess {
+        nominal_return_edge: EdgeId,
+    },
+    None,
+    Jump {
+        successor: FunctionFragmentSuccessorProvenance,
+    },
+    DirectInternalCall {
+        callee: MachineId,
+    },
+    /// Direct evaluated normalized foreign call. The `{boundary, ordinal}`
+    /// pair names the selected roster row owning the evaluated locator; the
+    /// unresolved import field rides the foreign fixup channel and binds only
+    /// at object construction.
+    NormalizedForeignCall {
+        boundary: BoundaryMachineId,
+        ordinal: u32,
+    },
+    ConditionalBranch {
+        predicate: FunctionFragmentConditionalBranchPredicate,
+        when_taken: FunctionFragmentSuccessorProvenance,
+        when_fallthrough: FunctionFragmentSuccessorProvenance,
+    },
+    Return {
+        psi_return_edge: EdgeId,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FunctionFragmentConditionalBranchPredicate {
+    NonZeroV1,
+    U64LessThanV1,
+    I64LessThanV1,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FunctionFragmentSuccessorProvenance {
+    pub role: target_operations_to_selected_instructions::SelectedSuccessorRole,
+    pub psi_edge: EdgeId,
+    pub block: SelectedBlockId,
+    pub source_target: BlockId,
+    pub bindings: Vec<ValueBinding>,
+    pub fuel: Vec<FuelSettlement>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FunctionFragmentConditionalBranchEvidence {
+    pub predicate: FunctionFragmentConditionalBranchPredicate,
+    pub source_block: SelectedBlockId,
+    pub when_taken_edge: EdgeId,
+    pub when_taken_block: SelectedBlockId,
+    pub when_taken_offset: u64,
+    pub when_fallthrough_edge: EdgeId,
+    pub when_fallthrough_block: SelectedBlockId,
+    pub when_fallthrough_offset: u64,
+    pub byte_displacement: i64,
+    pub decoded_register_reads: Vec<RegisterViewId>,
+    pub decoded_effects: MachineEncodedEffects,
+}

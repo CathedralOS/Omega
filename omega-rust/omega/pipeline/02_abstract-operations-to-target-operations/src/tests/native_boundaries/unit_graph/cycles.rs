@@ -13,10 +13,12 @@ fn cyclic() -> AbstractOperationPlan {
         bindings: caller.block_entries[1]
             .parameters
             .iter()
-            .map(|parameter| abstract_operations::ValueBinding {
-                argument: parameter.value,
-                parameter: parameter.value,
-                scalar_type: parameter.scalar_type,
+            .map(|parameter| {
+                terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
+                    argument: parameter.value,
+                    parameter: parameter.value,
+                    scalar_type: parameter.scalar_type,
+                }
             })
             .collect(),
         structural_bindings: Vec::new(),
@@ -39,7 +41,7 @@ fn cyclic_unit_graph_preserves_destination_values_and_backedge_without_rank_auth
             .collect::<Vec<_>>(),
         vec![block(1), block(4), block(5), block(6)]
     );
-    let target_operations::TargetControlTerminator::Jump { successor } =
+    let crate::target_operations::TargetControlTerminator::Jump { successor } =
         &graph.blocks[2].terminator
     else {
         panic!("backedge");
@@ -49,7 +51,7 @@ fn cyclic_unit_graph_preserves_destination_values_and_backedge_without_rank_auth
     assert_eq!(successor.bindings[0].argument, value(50));
     assert!(matches!(
         graph.blocks[3].terminator,
-        target_operations::TargetControlTerminator::Return { .. }
+        crate::target_operations::TargetControlTerminator::Return { .. }
     ));
 }
 
@@ -104,13 +106,15 @@ fn descriptor_cycle() -> AbstractOperationPlan {
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
     };
-    let binding = |place| abstract_operations::AbstractStructuralBinding {
-        parameter: current,
-        argument: terminal_psi::StructuralArgument {
-            place,
-            access: terminal_psi::StructuralAccess::SharedBorrow,
-            path: Vec::new(),
-        },
+    let binding = |place| {
+        terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding {
+            parameter: current,
+            argument: terminal_psi::StructuralArgument {
+                place,
+                access: terminal_psi::StructuralAccess::SharedBorrow,
+                path: Vec::new(),
+            },
+        }
     };
     let caller = &mut plan.functions[1];
     caller.structural_parameters.push(parameter.clone());
@@ -144,7 +148,7 @@ fn descriptor_cycle() -> AbstractOperationPlan {
             AbstractOperation::ByteSequenceLength {
                 psi_operation: operation(20),
                 source: current,
-                result: abstract_operations::AbstractResult {
+                result: terminal_psi_to_abstract_operations::abstract_operations::AbstractResult {
                     value: value(20),
                     scalar_type: caller.parameters[2].scalar_type,
                 },
@@ -182,7 +186,7 @@ fn cyclic_unit_graph_retains_fresh_descriptor_observation_and_exact_backedge() {
         semantic_vocabulary::PlaceId::new(61).unwrap()
     );
     assert_eq!(graph.blocks[2].operations.len(), 2);
-    let target_operations::TargetControlTerminator::Jump { successor } =
+    let crate::target_operations::TargetControlTerminator::Jump { successor } =
         &graph.blocks[2].terminator
     else {
         panic!("backedge");

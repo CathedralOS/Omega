@@ -2,13 +2,13 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use calling_conventions::{
+use crate::calling_conventions::{
     CallingPolicy, ConventionalSumLayout, SystemVEightbyteClass, ValueClass, ValueShape,
 };
-use semantic_vocabulary::{IeeeFloatFormat, OperationId, ScalarType, StructuralTypeId};
-use target_operations::{
+use crate::target_operations::{
     TargetStructuralHomeLayout, TargetStructuralHomeOrigin, TargetStructuralHomeRequirement,
 };
+use semantic_vocabulary::{IeeeFloatFormat, OperationId, ScalarType, StructuralTypeId};
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
     StructuralOperationResult, StructuralPathSegment, StructuralTypeDeclaration,
@@ -809,7 +809,7 @@ fn conventional_sum_layout(
                 .collect::<Result<Vec<_>, _>>()
         })
         .collect::<Result<Vec<_>, _>>()?;
-    calling_conventions::evaluate_conventional_sum_layout(&common, &payloads)
+    crate::calling_conventions::evaluate_conventional_sum_layout(&common, &payloads)
         .map_err(|_| InvalidStructuralShape)
 }
 

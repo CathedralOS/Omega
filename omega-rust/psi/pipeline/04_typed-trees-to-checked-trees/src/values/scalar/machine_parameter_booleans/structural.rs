@@ -6,29 +6,31 @@
 
 use super::structural_equality;
 use super::structural_paths::{path_primitive_type, path_type_reference};
+use crate::checked_trees::{
+    CheckedBooleanExpression, CheckedIeeeFloatComparisonKind, CheckedIntegerBinaryKind,
+    CheckedIntegerComparisonKind, CheckedOperatorFacts, CheckedScalarExpression,
+    CheckedStructuralParameterField,
+};
 use crate::values::scalar::expression_facts::{
     checked_integer_binary_kind, combine_arithmetic_domains, is_integer, operator_is_builtin,
     parameter_position, scalar_expression_type,
 };
 use crate::values::scalar::scalar_lowering::landed_for_primitive;
 use crate::values::scalar::structural_fields::{structural_data, structural_parameter_field_path};
-use checked_trees::{
-    CheckedBooleanExpression, CheckedIeeeFloatComparisonKind, CheckedIntegerBinaryKind,
-    CheckedIntegerComparisonKind, CheckedOperatorFacts, CheckedScalarExpression,
-    CheckedStructuralParameterField,
-};
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::literals::IntegerLanding;
-use typed_trees::TypedTrees;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
-use typed_trees::signature::StateParameter;
-use typed_trees::types::PrimitiveType;
+use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
+use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
 
 /// Lower `expression` in the entry parameters' namespace, or `None` when no
 /// structural form describes it.
 pub(super) fn lower(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     operators: &CheckedOperatorFacts,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
@@ -506,7 +508,7 @@ fn lower_structural_float_field(
 
 fn lower_structural_case_membership(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> Option<CheckedBooleanExpression> {
@@ -520,11 +522,15 @@ fn lower_structural_case_membership(
         return None;
     }
     let state = program.machine_states(machine).first()?;
-    if !validation::has_builtin_binary_expression_meaning(program, machine, Some(state), expression)
-    {
+    if !crate::validation::has_builtin_binary_expression_meaning(
+        program,
+        machine,
+        Some(state),
+        expression,
+    ) {
         return None;
     }
-    let membership = validation::has_exact_case_membership_meaning(
+    let membership = crate::validation::has_exact_case_membership_meaning(
         program,
         machine,
         Some(state),
@@ -547,15 +553,22 @@ fn lower_structural_case_membership(
         program.data_definitions().iter().find_map(|data| {
             if literal_owner.is_some_and(|owner| owner != data.symbol)
                 || (!membership
-                    && program
-                        .data_members(data)
-                        .iter()
-                        .any(|member| matches!(member, typed_trees::data::DataMember::Field(_))))
+                    && program.data_members(data).iter().any(|member| {
+                        matches!(
+                        member,
+                        symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
+                            _
+                        )
+                    )
+                    }))
             {
                 return None;
             }
             program.data_members(data).iter().find_map(|member| {
-                let typed_trees::data::DataMember::Variant(variant) = member else {
+                let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
+                    variant,
+                ) = member
+                else {
                     return None;
                 };
                 (variant.symbol == case_symbol

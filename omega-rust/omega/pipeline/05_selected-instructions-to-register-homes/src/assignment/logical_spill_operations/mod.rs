@@ -5,7 +5,7 @@
 //! operand-rewrite obligations for the first supported active-resident
 //! pressure choice, retains the validated output on the produced allocation,
 //! and re-derives it during replay. The durable record, canonical identity,
-//! and versioned transport live in `register_homes::logical_spill_operations`;
+//! and versioned transport live in `selected_instructions_to_selected_instructions::register_homes::logical_spill_operations`;
 //! computation, validation, and replay stay transform-local.
 
 use selected_instructions_to_selected_instructions::{
@@ -20,19 +20,21 @@ mod validate;
 mod tests;
 
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
-pub use register_homes::logical_spill_operations::{
+pub use selected_instructions_to_selected_instructions::register_homes::logical_spill_operations::{
     FunctionLogicalSpillOperations, LogicalReloadValueId, LogicalSpillAction,
     LogicalSpillOperationDecodeError, LogicalSpillOperationIdentity, LogicalSpillOperationPlan,
     LogicalSpillOperationPolicy, LogicalSpillReload, LogicalSpillStorage, LogicalSpillStorageClass,
     LogicalSpillStorageId, LogicalSpillStore, LogicalSpillUseRewrite,
     logical_spill_operation_identity,
 };
-use register_homes::{
+use selected_instructions_to_selected_instructions::register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, SpillChoiceIdentity,
 };
-use register_model::TargetRegisterEnvironmentIdentity;
-use selected_instructions::{LiveRangeIdentity, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::FuelScheduleIdentity;
+use target_operations_to_selected_instructions::register_model::TargetRegisterEnvironmentIdentity;
+use target_operations_to_selected_instructions::{
+    LiveRangeIdentity, SelectedInstructionPlanIdentity,
+};
 pub use validate::validate_logical_spill_operations;
 
 /// Plan target-neutral storage, store, reload, and operand-rewrite obligations

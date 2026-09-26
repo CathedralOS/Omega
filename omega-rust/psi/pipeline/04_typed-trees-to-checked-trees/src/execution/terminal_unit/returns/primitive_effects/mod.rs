@@ -48,7 +48,7 @@ pub(in crate::execution::terminal_unit) fn build_machine(
     program: &TypedTrees,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
 ) -> Option<CheckedStructuralScalarReturnMachinePlan> {
     let [state] = program.machine_states(machine) else {
         return None;
@@ -95,7 +95,7 @@ pub(super) fn is_primitive_reference_plan(plan: &CheckedStructuralScalarReturnMa
 
 pub(in crate::execution::terminal_unit) fn has_plain_primitive_borrows(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
 ) -> bool {
     let mut has_borrow = false;
     program.state_parameters(state).iter().all(|parameter| {
@@ -112,7 +112,7 @@ pub(in crate::execution::terminal_unit) fn has_plain_primitive_borrows(
         // A borrowed byte view is the same unrestricted observation lane a
         // plain `&primitive` rides: the reference carries the borrow and the
         // slice referee carries the byte element.
-        if checked_trees::is_borrowed_view(
+        if crate::checked_trees::is_borrowed_view(
             crate::execution::terminal_unit::types::byte_sequence_carrier(
                 program,
                 parameter.type_reference,
@@ -143,8 +143,8 @@ pub(super) fn build(
     program: &TypedTrees,
     facts: &CheckFacts,
     shapes: &ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     scalar_parameters: &[CheckedStructuralScalarParameterPlan],
 ) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
@@ -230,8 +230,8 @@ fn direct_prefix_store(
     let CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
         path,
         destination:
-            checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
-        value: checked_trees::CheckedCallScalarArgument::Pure(value),
+            crate::checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
+        value: crate::checked_trees::CheckedCallScalarArgument::Pure(value),
         ..
     } = store
     else {
@@ -240,38 +240,41 @@ fn direct_prefix_store(
     let [destination] = structural_parameters else {
         return None;
     };
-    let checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(destination_type) = shapes
-        .types
-        .get(&destination.type_identity)
-        .map(|declaration| &declaration.shape)?
+    let crate::checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(destination_type) =
+        shapes
+            .types
+            .get(&destination.type_identity)
+            .map(|declaration| &declaration.shape)?
     else {
         return None;
     };
     let direct_literal = matches!(
         value,
-        checked_trees::CheckedScalarExpression::IntegerLiteral { .. }
+        crate::checked_trees::CheckedScalarExpression::IntegerLiteral { .. }
     ) || matches!(
         value,
-        checked_trees::CheckedScalarExpression::IeeeFloatLiteral { .. }
+        crate::checked_trees::CheckedScalarExpression::IeeeFloatLiteral { .. }
     ) || matches!(
         value,
-        checked_trees::CheckedScalarExpression::Boolean(expression)
+        crate::checked_trees::CheckedScalarExpression::Boolean(expression)
             if matches!(
                 expression.as_ref(),
-                checked_trees::CheckedBooleanExpression::Constant(_)
+                crate::checked_trees::CheckedBooleanExpression::Constant(_)
             )
     );
     let direct_parameter = match value {
-        checked_trees::CheckedScalarExpression::Parameter {
+        crate::checked_trees::CheckedScalarExpression::Parameter {
             position,
             primitive_type,
         } => Some((*position, *primitive_type)),
-        checked_trees::CheckedScalarExpression::Boolean(expression) => match expression.as_ref() {
-            checked_trees::CheckedBooleanExpression::Parameter { position } => {
-                Some((*position, checked_trees::types::PrimitiveType::Bool))
+        crate::checked_trees::CheckedScalarExpression::Boolean(expression) => {
+            match expression.as_ref() {
+                crate::checked_trees::CheckedBooleanExpression::Parameter { position } => {
+                    Some((*position, crate::checked_trees::types::PrimitiveType::Bool))
+                }
+                _ => None,
             }
-            _ => None,
-        },
+        }
         _ => None,
     };
     let direct_parameter = direct_parameter.is_some_and(|(position, primitive_type)| {

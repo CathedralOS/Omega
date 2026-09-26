@@ -56,7 +56,7 @@ fn omega_retains_and_replays_the_whole_root_structural_provider_call() {
     ));
 
     let mut access_tamper = plan.clone();
-    let abstract_operations::AbstractOperation::BoundaryCall {
+    let terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::BoundaryCall {
         structural_arguments,
         ..
     } = &mut access_tamper.functions[0].operations[0]

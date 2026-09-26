@@ -1,6 +1,6 @@
 use super::super::{CheckedTrees, PrimitiveType, Scalar};
 use super::{CheckedCallScalarArgument, ExpressionNode, LoweringError};
-use checked_trees::CheckedScalarExpressionRole;
+use typed_trees_to_checked_trees::checked_trees::CheckedScalarExpressionRole;
 #[test]
 fn eliminated_extent_preserves_collection_evaluation_bounds_and_selection() {
     // This is the existing composed-Unit scalar extent producer fixture, not
@@ -28,7 +28,7 @@ fn eliminated_extent_preserves_collection_evaluation_bounds_and_selection() {
         .expect("enter");
     let state = &original.machine_states(machine)[0];
     let state_symbol = state.symbol;
-    let checked_trees::statement::StatementNode::LocalData(local) =
+    let typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(local) =
         &original.statement_table.statements(state.statement_nodes)[0]
     else {
         panic!("length initializer");
@@ -106,15 +106,13 @@ fn eliminated_extent_preserves_collection_evaluation_bounds_and_selection() {
     );
 
     let mut changed = original.clone();
-    changed
-        .facts
-        .operators
-        .uses
-        .append(checked_trees::CheckedOperatorUseFact {
+    changed.facts.operators.uses.append(
+        typed_trees_to_checked_trees::checked_trees::CheckedOperatorUseFact {
             expression: projection,
             spelling: language_core::OperatorSpelling::Index,
             ..Default::default()
-        });
+        },
+    );
     assert!(
         validate(&changed).is_err(),
         "eliminated view changed selected spelling"
@@ -303,8 +301,11 @@ fn slice_backed_extent_keeps_the_retained_view_bounds_plan() {
 /// control-transfer sources, and composed successor transfers.
 fn retained_subslice(
     checked: &CheckedTrees,
-) -> Option<(checked_trees::expression::ExpressionHandle, u32)> {
-    use checked_trees::{
+) -> Option<(
+    typed_trees_to_checked_trees::checked_trees::expression::ExpressionHandle,
+    u32,
+)> {
+    use typed_trees_to_checked_trees::checked_trees::{
         CheckedComposedUnitControlTerminatorPlan as Terminator,
         CheckedStructuralControlTransferSourcePlan as Transfer,
         CheckedUnitEffectOperationPlan as Operation,
@@ -312,12 +313,15 @@ fn retained_subslice(
     };
     fn subslice_source(
         source: &Source,
-    ) -> Option<(checked_trees::expression::ExpressionHandle, u32)> {
+    ) -> Option<(
+        typed_trees_to_checked_trees::checked_trees::expression::ExpressionHandle,
+        u32,
+    )> {
         match source {
             Source::ByteSequenceSubslice {
                 expression,
                 root:
-                    checked_trees::CheckedStorageRoot::Parameter {
+                    typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::Parameter {
                         index: parameter_index,
                     },
                 ..
@@ -358,7 +362,7 @@ fn retained_subslice(
         if let Transfer::ByteSequenceSubslice {
             expression,
             root:
-                checked_trees::CheckedStorageRoot::Parameter {
+                typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::Parameter {
                     index: parameter_index,
                 },
         } = transfer.source
@@ -393,7 +397,7 @@ fn retained_subslice(
                     if let Transfer::ByteSequenceSubslice {
                         expression,
                         root:
-                            checked_trees::CheckedStorageRoot::Parameter {
+                            typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::Parameter {
                                 index: parameter_index,
                             },
                     } = transfer.source
@@ -410,7 +414,7 @@ fn retained_subslice(
 /// Every retained `ByteSequenceSubslice` source replaced by the same whole
 /// parameter, erasing the view/bounds custody the extent fold borrows.
 fn drop_subslice_sources(checked: &mut CheckedTrees) {
-    use checked_trees::{
+    use typed_trees_to_checked_trees::checked_trees::{
         CheckedComposedUnitControlTerminatorPlan as Terminator,
         CheckedStructuralControlTransferSourcePlan as Transfer,
         CheckedUnitEffectOperationPlan as Operation,
@@ -419,7 +423,7 @@ fn drop_subslice_sources(checked: &mut CheckedTrees) {
     fn retire_argument(source: &mut Source) {
         if let Source::ByteSequenceSubslice {
             root:
-                checked_trees::CheckedStorageRoot::Parameter {
+                typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::Parameter {
                     index: parameter_index,
                 },
             ..
@@ -452,8 +456,9 @@ fn drop_subslice_sources(checked: &mut CheckedTrees) {
         .iter_mut()
         .flat_map(|machine| machine.states.iter_mut())
     {
-        let mut successors: Vec<&mut checked_trees::CheckedStructuralControlSuccessorPlan> =
-            Vec::new();
+        let mut successors: Vec<
+            &mut typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlSuccessorPlan,
+        > = Vec::new();
         match &mut state.terminator {
             Terminator::Jump { successor } => successors.push(successor),
             Terminator::Conditional {
@@ -475,7 +480,7 @@ fn drop_subslice_sources(checked: &mut CheckedTrees) {
             for transfer in &mut successor.transfers {
                 if let Transfer::ByteSequenceSubslice {
                     root:
-                        checked_trees::CheckedStorageRoot::Parameter {
+                        typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::Parameter {
                             index: parameter_index,
                         },
                     ..
@@ -492,7 +497,7 @@ fn drop_subslice_sources(checked: &mut CheckedTrees) {
     graphs.structural_transfers.for_each_mut(|_, transfer| {
         if let Transfer::ByteSequenceSubslice {
             root:
-                checked_trees::CheckedStorageRoot::Parameter {
+                typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::Parameter {
                     index: parameter_index,
                 },
             ..
@@ -514,9 +519,9 @@ fn drop_subslice_sources(checked: &mut CheckedTrees) {
 }
 
 fn operation_structural_arguments(
-    operation: &checked_trees::CheckedUnitEffectOperationPlan,
-) -> &[checked_trees::CheckedUnitStructuralArgumentPlan] {
-    use checked_trees::CheckedUnitEffectOperationPlan as Operation;
+    operation: &typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan,
+) -> &[typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan] {
+    use typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan as Operation;
     match operation {
         Operation::CallUnit {
             structural_arguments,
@@ -547,9 +552,9 @@ fn operation_structural_arguments(
 }
 
 fn operation_structural_arguments_mut(
-    operation: &mut checked_trees::CheckedUnitEffectOperationPlan,
-) -> &mut [checked_trees::CheckedUnitStructuralArgumentPlan] {
-    use checked_trees::CheckedUnitEffectOperationPlan as Operation;
+    operation: &mut typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan,
+) -> &mut [typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan] {
+    use typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan as Operation;
     match operation {
         Operation::CallUnit {
             structural_arguments,

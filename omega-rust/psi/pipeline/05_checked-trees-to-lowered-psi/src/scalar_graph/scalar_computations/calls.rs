@@ -16,7 +16,7 @@ use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
     LoweredScalarEffect,
 };
 use arena::HandleSpan;
-use checked_trees::CheckedScalarComputationStructuralArgument;
+use typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationStructuralArgument;
 
 enum Operand {
     Scalar(Argument),
@@ -44,7 +44,7 @@ fn consume_pure_call_argument(
     binding_ordinal: u32,
     call_ordinal: u32,
     argument_ordinal: u32,
-    operand: &checked_trees::CheckedScalarExpression,
+    operand: &typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression,
 ) -> Result<(), LoweringError> {
     let operand_expression = bindings.expression(operand)?;
     let plans = &checked.facts.values.scalar_expressions;
@@ -275,7 +275,7 @@ impl Expansion<'_> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn call(
         &mut self,
-        source_call: Handle<checked_trees::FlowCallFact>,
+        source_call: Handle<typed_trees_to_checked_trees::checked_trees::FlowCallFact>,
         target_machine: symbols::SymbolHandle,
         target_state: symbols::SymbolHandle,
         call_ordinal: u32,

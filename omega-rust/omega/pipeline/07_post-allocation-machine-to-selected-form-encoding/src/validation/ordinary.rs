@@ -1,17 +1,17 @@
-use register_model::ValidatedPhysicalRegisterModel;
-use selected_instructions::{SelectedInstruction, SelectedTerminator};
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
+use target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel;
+use target_operations_to_selected_instructions::{SelectedInstruction, SelectedTerminator};
 
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 
 use super::{super::OptimizedSelectedFormEncodingError, row};
-use machine_code::SelectedFormEncodingRow;
+use crate::machine_code::SelectedFormEncodingRow;
 
 pub(super) fn validate<S: ValidatedSelectedAnalysis>(
     selected: &S,
     staged: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
-    frame: Option<&machine_code::TargetFrameLayoutPlan>,
+    frame: Option<&crate::machine_code::TargetFrameLayoutPlan>,
     rows: &[SelectedFormEncodingRow],
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
     let selected_plan = selected.selected_plan();

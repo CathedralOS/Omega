@@ -75,7 +75,7 @@ fn local_alias_chain_unrolling_respects_the_depth_bound() {
     assert_eq!(
         super::super::captures::integer_value_identity(
             &program,
-            &validation::ImmutableBoundLookup::new(&program),
+            &crate::validation::ImmutableBoundLookup::new(&program),
             state,
             cut_expression(&program, state),
         ),
@@ -89,7 +89,7 @@ fn local_alias_chain_unrolling_respects_the_depth_bound() {
     assert_eq!(
         super::super::captures::integer_value_identity(
             &program,
-            &validation::ImmutableBoundLookup::new(&program),
+            &crate::validation::ImmutableBoundLookup::new(&program),
             state,
             cut_expression(&program, state),
         ),

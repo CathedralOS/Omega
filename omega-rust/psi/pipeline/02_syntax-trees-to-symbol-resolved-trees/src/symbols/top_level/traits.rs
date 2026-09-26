@@ -1,6 +1,6 @@
+use crate::symbol_resolved_trees::SymbolResolvedTrees;
 use diagnostics::Diagnostic;
 use std::collections::HashSet;
-use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use crate::symbols::lookup::top_level_symbol_for_source;
@@ -52,7 +52,7 @@ pub(super) fn assign_trait_symbols(
                     .map(|parameter| {
                         matches!(
                             parameter.kind,
-                            symbol_resolved_trees::data::TypeParameterKind::Proposition { .. }
+                            crate::symbol_resolved_trees::data::TypeParameterKind::Proposition { .. }
                         )
                     })
                     .collect::<Vec<_>>(),
@@ -75,8 +75,8 @@ pub(super) fn assign_trait_symbols(
                     .map(|parameter| {
                         matches!(
                             parameter.kind,
-                            symbol_resolved_trees::data::TypeParameterKind::Machine {
-                                contract: symbol_resolved_trees::data::MachineParameterContract::RequirementIdentity
+                            crate::symbol_resolved_trees::data::TypeParameterKind::Machine {
+                                contract: crate::symbol_resolved_trees::data::MachineParameterContract::RequirementIdentity
                             }
                         )
                     })
@@ -102,10 +102,10 @@ pub(super) fn assign_trait_symbols(
             data_type_parameters.span_mut_or_empty(trait_definition.type_parameters)
         {
             let kind = match type_parameter.kind {
-                symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => {
+                crate::symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => {
                     SymbolKind::PropositionParameter
                 }
-                symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
+                crate::symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
                     SymbolKind::MachineParameter
                 }
                 _ => SymbolKind::TypeParameter,
@@ -154,7 +154,7 @@ pub(super) fn assign_trait_symbols(
                 (parameter.symbol, parameter.kind.clone())
             };
             let resolved_kind = match kind {
-                symbol_resolved_trees::data::TypeParameterKind::Const { mut type_reference } => {
+                crate::symbol_resolved_trees::data::TypeParameterKind::Const { mut type_reference } => {
                     assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
                         symbols,
                         child_type_references,
@@ -163,9 +163,9 @@ pub(super) fn assign_trait_symbols(
                         trait_symbol,
                         &mut type_reference,
                     );
-                    symbol_resolved_trees::data::TypeParameterKind::Const { type_reference }
+                    crate::symbol_resolved_trees::data::TypeParameterKind::Const { type_reference }
                 }
-                symbol_resolved_trees::data::TypeParameterKind::Value { mut type_reference } => {
+                crate::symbol_resolved_trees::data::TypeParameterKind::Value { mut type_reference } => {
                     assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
                         symbols,
                         child_type_references,
@@ -174,9 +174,9 @@ pub(super) fn assign_trait_symbols(
                         trait_symbol,
                         &mut type_reference,
                     );
-                    symbol_resolved_trees::data::TypeParameterKind::Value { type_reference }
+                    crate::symbol_resolved_trees::data::TypeParameterKind::Value { type_reference }
                 }
-                symbol_resolved_trees::data::TypeParameterKind::Proposition { mut contract } => {
+                crate::symbol_resolved_trees::data::TypeParameterKind::Proposition { mut contract } => {
                     assign_proposition_parameter_signature_symbols(
                         symbols,
                         state_parameters,
@@ -187,7 +187,7 @@ pub(super) fn assign_trait_symbols(
                         &local_type_parameters,
                         trait_symbol,
                     );
-                    symbol_resolved_trees::data::TypeParameterKind::Proposition { contract }
+                    crate::symbol_resolved_trees::data::TypeParameterKind::Proposition { contract }
                 }
                 other => other,
             };

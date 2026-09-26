@@ -2,9 +2,9 @@ use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
 use crate::parameters::parse_generic_parameters::parse_generic_parameters;
 use crate::parameters::parse_parameters::{parse_optional_parameters, parse_optional_return_type};
+use crate::syntax_trees::SyntaxTrees;
 use arena::HandleSpan;
-use syntax_trees::SyntaxTrees;
-use tokens::{KeywordKind, PunctuationKind};
+use source_files_to_tokens::tokens::{KeywordKind, PunctuationKind};
 
 /// Parse the declaration-site contracts for static machine-symbol parameters.
 /// The parameter list only names symbols (`<machine F>`); every such symbol
@@ -12,7 +12,7 @@ use tokens::{KeywordKind, PunctuationKind};
 /// the executable body's clauses begin. Nothing is inferred from uses.
 pub(crate) fn parse_machine_parameter_contracts<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
-    type_parameters: HandleSpan<syntax_trees::item::TypeParameter>,
+    type_parameters: HandleSpan<crate::syntax_trees::item::TypeParameter>,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ()> {
     parse_machine_parameter_contracts_in(syntax_trees, type_parameters, input, true)
@@ -20,7 +20,7 @@ pub(crate) fn parse_machine_parameter_contracts<'tokens, 'source>(
 
 fn parse_machine_parameter_contracts_in<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
-    type_parameters: HandleSpan<syntax_trees::item::TypeParameter>,
+    type_parameters: HandleSpan<crate::syntax_trees::item::TypeParameter>,
     mut input: Input<'tokens, 'source>,
     reject_unknown_parameter: bool,
 ) -> ParseResult<'tokens, 'source, ()> {
@@ -63,8 +63,8 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
         };
 
         match &syntax_trees.items.type_parameters(type_parameters)[parameter_index].kind {
-            syntax_trees::item::TypeParameterKind::Machine { contract: None } => {}
-            syntax_trees::item::TypeParameterKind::Machine { contract: Some(_) } => {
+            crate::syntax_trees::item::TypeParameterKind::Machine { contract: None } => {}
+            crate::syntax_trees::item::TypeParameterKind::Machine { contract: Some(_) } => {
                 return Err(after_name.error_here(format!(
                     "machine parameter `{}` already has a `where machine` contract",
                     name.as_str()
@@ -118,10 +118,10 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
             };
             let parameter =
                 &mut syntax_trees.items.type_parameters_mut(type_parameters)[parameter_index];
-            parameter.kind = syntax_trees::item::TypeParameterKind::Machine {
-                contract: Some(syntax_trees::item::MachineParameterContract::Nominal {
-                    requirement,
-                }),
+            parameter.kind = crate::syntax_trees::item::TypeParameterKind::Machine {
+                contract: Some(
+                    crate::syntax_trees::item::MachineParameterContract::Nominal { requirement },
+                ),
             };
             input = rest;
             continue;
@@ -174,7 +174,7 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
             rest = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
         }
 
-        let contract = syntax_trees::item::StateSignature {
+        let contract = crate::syntax_trees::item::StateSignature {
             name: name.clone(),
             spelling: None,
             lifetime_parameters: nested_generic_parameters.lifetime_parameters,
@@ -198,10 +198,10 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
         };
         let parameter =
             &mut syntax_trees.items.type_parameters_mut(type_parameters)[parameter_index];
-        parameter.kind = syntax_trees::item::TypeParameterKind::Machine {
-            contract: Some(syntax_trees::item::MachineParameterContract::Structural(
-                contract,
-            )),
+        parameter.kind = crate::syntax_trees::item::TypeParameterKind::Machine {
+            contract: Some(
+                crate::syntax_trees::item::MachineParameterContract::Structural(contract),
+            ),
         };
         input = rest;
     }
@@ -213,7 +213,7 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
         .find(|parameter| {
             matches!(
                 parameter.kind,
-                syntax_trees::item::TypeParameterKind::Machine { contract: None }
+                crate::syntax_trees::item::TypeParameterKind::Machine { contract: None }
             )
         })
     {

@@ -4,18 +4,18 @@ use super::{
     staged_inputs, staged_load8_indexed_inputs, validate,
 };
 use crate::analyses::validated_machine_effect_catalog;
+use crate::register_homes::{RecoveryClassification, RecoveryVictimRole};
 use crate::rewrites::{fold_selected_incoming_literal, validate_literal_fold};
 use crate::{LiteralFoldError, LiteralFoldPolicy};
-use register_environment::baseline_target_register_environment;
-use register_homes::{RecoveryClassification, RecoveryVictimRole};
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
-    MachineEffectCatalogIdentity, SelectedBlockId, SelectedInstructionId, SelectedInstructionKind,
-    SelectedInstructionPlanIdentity, SelectedTerminator, VirtualRegisterId,
-};
 use semantic_vocabulary::{IntegerValue, ObligationId};
 use std::sync::Arc;
 use target::NativeTarget;
+use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
+use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
+use target_operations_to_selected_instructions::{
+    MachineEffectCatalogIdentity, SelectedBlockId, SelectedInstructionId, SelectedInstructionKind,
+    SelectedInstructionPlanIdentity, SelectedTerminator, VirtualRegisterId,
+};
 
 #[test]
 fn load8_indexed_fold_rejects_an_unencodable_byte_offset() {
@@ -131,8 +131,14 @@ fn load8_indexed_fold_rejects_unadmitted_candidate_shapes() {
         match mutation {
             0 => {
                 slot.role = RecoveryVictimRole::ActiveResident {
-                    current_view: register_model::RegisterViewId(0),
-                    reclaimed_view: register_model::RegisterViewId(0),
+                    current_view:
+                        target_operations_to_selected_instructions::register_model::RegisterViewId(
+                            0,
+                        ),
+                    reclaimed_view:
+                        target_operations_to_selected_instructions::register_model::RegisterViewId(
+                            0,
+                        ),
                 }
             }
             // The folded operand is the index position — operand 1; the
@@ -227,7 +233,11 @@ fn load8_indexed_fold_rejects_consumer_operands_carrying_unit_bindings() {
         let mut plan = inputs.selected.transformed().clone();
         let operand = &mut plan.functions[0].blocks[0].instructions[1].operands[0];
         match mutation {
-            0 => operand.fixed_view = Some(register_model::RegisterViewId(0)),
+            0 => {
+                operand.fixed_view = Some(
+                    target_operations_to_selected_instructions::register_model::RegisterViewId(0),
+                )
+            }
             1 => operand.tied_to = Some(0),
             2 => operand.early_clobber = true,
             _ => unreachable!(),
@@ -474,8 +484,14 @@ fn byte_view_address_fold_rejects_unadmitted_candidate_shapes() {
         match mutation {
             0 => {
                 slot.role = RecoveryVictimRole::ActiveResident {
-                    current_view: register_model::RegisterViewId(0),
-                    reclaimed_view: register_model::RegisterViewId(0),
+                    current_view:
+                        target_operations_to_selected_instructions::register_model::RegisterViewId(
+                            0,
+                        ),
+                    reclaimed_view:
+                        target_operations_to_selected_instructions::register_model::RegisterViewId(
+                            0,
+                        ),
                 }
             }
             // The backing position 0 is itself an admitted fold site, but
@@ -584,7 +600,11 @@ fn byte_view_address_fold_rejects_consumer_operands_carrying_unit_bindings() {
         let mut plan = inputs.selected.transformed().clone();
         let operand = &mut plan.functions[0].blocks[0].instructions[1].operands[0];
         match mutation {
-            0 => operand.fixed_view = Some(register_model::RegisterViewId(0)),
+            0 => {
+                operand.fixed_view = Some(
+                    target_operations_to_selected_instructions::register_model::RegisterViewId(0),
+                )
+            }
             1 => operand.tied_to = Some(0),
             2 => operand.early_clobber = true,
             _ => unreachable!(),
@@ -852,8 +872,14 @@ fn byte_view_address_backing_fold_rejects_unadmitted_candidate_shapes() {
         match mutation {
             0 => {
                 slot.role = RecoveryVictimRole::ActiveResident {
-                    current_view: register_model::RegisterViewId(0),
-                    reclaimed_view: register_model::RegisterViewId(0),
+                    current_view:
+                        target_operations_to_selected_instructions::register_model::RegisterViewId(
+                            0,
+                        ),
+                    reclaimed_view:
+                        target_operations_to_selected_instructions::register_model::RegisterViewId(
+                            0,
+                        ),
                 }
             }
             // The offset position 1 is itself an admitted fold site, but
@@ -973,7 +999,11 @@ fn byte_view_address_backing_fold_rejects_consumer_operands_carrying_unit_bindin
         let mut plan = inputs.selected.transformed().clone();
         let operand = &mut plan.functions[0].blocks[0].instructions[1].operands[1];
         match mutation {
-            0 => operand.fixed_view = Some(register_model::RegisterViewId(0)),
+            0 => {
+                operand.fixed_view = Some(
+                    target_operations_to_selected_instructions::register_model::RegisterViewId(0),
+                )
+            }
             1 => operand.tied_to = Some(0),
             2 => operand.early_clobber = true,
             _ => unreachable!(),

@@ -42,22 +42,22 @@ use self::segments::{
 };
 
 pub(super) struct CapturedPlaceCompatibilityEvidence {
-    pub compatibility: checked_trees::CapturedPlaceCompatibility,
-    pub selector_snapshot: Vec<checked_trees::BorrowCompatibilitySelectorSnapshot>,
+    pub compatibility: crate::checked_trees::CapturedPlaceCompatibility,
+    pub selector_snapshot: Vec<crate::checked_trees::BorrowCompatibilitySelectorSnapshot>,
     /// Exact stated requires tokens the judgment consumed, in consult order.
     /// Empty for a purely structural derivation.
-    pub premises: Vec<checked_trees::BorrowCompatibilityPremise>,
+    pub premises: Vec<crate::checked_trees::BorrowCompatibilityPremise>,
 }
 
 pub(super) fn captured_place_compatibility<'p>(
-    program: &'p typed_trees::TypedTrees,
-    left: &checked_trees::CapturedPlace,
-    left_access: &checked_trees::BorrowAccessKind,
-    right: &checked_trees::CapturedPlace,
-    right_access: &checked_trees::BorrowAccessKind,
+    program: &'p symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    left: &crate::checked_trees::CapturedPlace,
+    left_access: &crate::checked_trees::BorrowAccessKind,
+    right: &crate::checked_trees::CapturedPlace,
+    right_access: &crate::checked_trees::BorrowAccessKind,
     premises: &[StatedOrderingPremise],
-    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
-) -> checked_trees::CapturedPlaceCompatibility {
+    bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
+) -> crate::checked_trees::CapturedPlaceCompatibility {
     captured_place_compatibility_with_selector_snapshot(
         program,
         left,
@@ -71,13 +71,13 @@ pub(super) fn captured_place_compatibility<'p>(
 }
 
 pub(super) fn captured_place_compatibility_with_selector_snapshot<'p>(
-    program: &'p typed_trees::TypedTrees,
-    left: &checked_trees::CapturedPlace,
-    left_access: &checked_trees::BorrowAccessKind,
-    right: &checked_trees::CapturedPlace,
-    right_access: &checked_trees::BorrowAccessKind,
+    program: &'p symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    left: &crate::checked_trees::CapturedPlace,
+    left_access: &crate::checked_trees::BorrowAccessKind,
+    right: &crate::checked_trees::CapturedPlace,
+    right_access: &crate::checked_trees::BorrowAccessKind,
     premises: &[StatedOrderingPremise],
-    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
+    bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
 ) -> CapturedPlaceCompatibilityEvidence {
     let roots_valid = left.root_symbol.is_valid() && right.root_symbol.is_valid();
     let same_root = roots_valid && left.root_symbol == right.root_symbol;
@@ -92,7 +92,7 @@ pub(super) fn captured_place_compatibility_with_selector_snapshot<'p>(
     } else {
         (
             false,
-            checked_trees::CapturedPlaceContainment::None,
+            crate::checked_trees::CapturedPlaceContainment::None,
             SelectorSessionClosure {
                 snapshot: Vec::new(),
                 premises: Vec::new(),
@@ -107,11 +107,11 @@ pub(super) fn captured_place_compatibility_with_selector_snapshot<'p>(
             &left.segments,
             &right.segments,
         );
-    let both_shared = matches!(left_access, checked_trees::BorrowAccessKind::Read)
-        && matches!(right_access, checked_trees::BorrowAccessKind::Read);
+    let both_shared = matches!(left_access, crate::checked_trees::BorrowAccessKind::Read)
+        && matches!(right_access, crate::checked_trees::BorrowAccessKind::Read);
 
     CapturedPlaceCompatibilityEvidence {
-        compatibility: checked_trees::CapturedPlaceCompatibility {
+        compatibility: crate::checked_trees::CapturedPlaceCompatibility {
             left: left.clone(),
             right: right.clone(),
             disjoint,
@@ -124,16 +124,16 @@ pub(super) fn captured_place_compatibility_with_selector_snapshot<'p>(
 }
 
 fn captured_place_compatibility_from_selector_snapshot<'p>(
-    program: &'p typed_trees::TypedTrees,
-    left: &checked_trees::CapturedPlace,
-    left_access: &checked_trees::BorrowAccessKind,
-    right: &checked_trees::CapturedPlace,
-    right_access: &checked_trees::BorrowAccessKind,
-    selector_snapshot: &[checked_trees::BorrowCompatibilitySelectorSnapshot],
+    program: &'p symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    left: &crate::checked_trees::CapturedPlace,
+    left_access: &crate::checked_trees::BorrowAccessKind,
+    right: &crate::checked_trees::CapturedPlace,
+    right_access: &crate::checked_trees::BorrowAccessKind,
+    selector_snapshot: &[crate::checked_trees::BorrowCompatibilitySelectorSnapshot],
     premises: &[StatedOrderingPremise],
-    recorded_premises: &[checked_trees::BorrowCompatibilityPremise],
-    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
-) -> Result<checked_trees::CapturedPlaceCompatibility, CompatibilityReplayDrift> {
+    recorded_premises: &[crate::checked_trees::BorrowCompatibilityPremise],
+    bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
+) -> Result<crate::checked_trees::CapturedPlaceCompatibility, CompatibilityReplayDrift> {
     let roots_valid = left.root_symbol.is_valid() && right.root_symbol.is_valid();
     let same_root = roots_valid && left.root_symbol == right.root_symbol;
     let (segments_may_overlap, containment) = if same_root {
@@ -153,7 +153,7 @@ fn captured_place_compatibility_from_selector_snapshot<'p>(
         if !recorded_premises.is_empty() {
             return Err(CompatibilityReplayDrift::Premise);
         }
-        (false, checked_trees::CapturedPlaceContainment::None)
+        (false, crate::checked_trees::CapturedPlaceContainment::None)
     };
     let disjoint = roots_valid && (!same_root || !segments_may_overlap);
     let shares_dependent_fact = same_root
@@ -163,9 +163,9 @@ fn captured_place_compatibility_from_selector_snapshot<'p>(
             &left.segments,
             &right.segments,
         );
-    let both_shared = matches!(left_access, checked_trees::BorrowAccessKind::Read)
-        && matches!(right_access, checked_trees::BorrowAccessKind::Read);
-    Ok(checked_trees::CapturedPlaceCompatibility {
+    let both_shared = matches!(left_access, crate::checked_trees::BorrowAccessKind::Read)
+        && matches!(right_access, crate::checked_trees::BorrowAccessKind::Read);
+    Ok(crate::checked_trees::CapturedPlaceCompatibility {
         left: left.clone(),
         right: right.clone(),
         disjoint,
@@ -179,48 +179,52 @@ fn captured_place_compatibility_from_selector_snapshot<'p>(
 /// roots that cannot name a symbol place at all.
 pub(super) fn canonical_place_for_loan(
     place: &crate::flow::CanonicalPlace,
-    loan: &checked_trees::BorrowLoanFact,
-) -> Option<checked_trees::CapturedPlace> {
+    loan: &crate::checked_trees::BorrowLoanFact,
+) -> Option<crate::checked_trees::CapturedPlace> {
     match place.root {
-        facts::PlaceRoot::Symbol(symbol) => {
+        crate::fact_plan::PlaceRoot::Symbol(symbol) => {
             if symbol == loan.root_symbol {
-                Some(checked_trees::CapturedPlace {
+                Some(crate::checked_trees::CapturedPlace {
                     root_symbol: symbol,
                     segments: place.segments.clone(),
                 })
             } else {
                 match place.segments.split_first() {
                     Some((
-                        facts::PlaceSegment::Field {
+                        crate::fact_plan::PlaceSegment::Field {
                             symbol: field_symbol,
                         },
                         remaining,
-                    )) if *field_symbol == loan.root_symbol => Some(checked_trees::CapturedPlace {
-                        root_symbol: loan.root_symbol,
-                        segments: remaining.to_vec(),
-                    }),
+                    )) if *field_symbol == loan.root_symbol => {
+                        Some(crate::checked_trees::CapturedPlace {
+                            root_symbol: loan.root_symbol,
+                            segments: remaining.to_vec(),
+                        })
+                    }
                     Some((
-                        facts::PlaceSegment::Case { .. },
+                        crate::fact_plan::PlaceSegment::Case { .. },
                         [
-                            facts::PlaceSegment::Field {
+                            crate::fact_plan::PlaceSegment::Field {
                                 symbol: field_symbol,
                             },
                             remaining @ ..,
                         ],
-                    )) if *field_symbol == loan.root_symbol => Some(checked_trees::CapturedPlace {
-                        root_symbol: loan.root_symbol,
-                        segments: remaining.to_vec(),
-                    }),
-                    _ => Some(checked_trees::CapturedPlace {
+                    )) if *field_symbol == loan.root_symbol => {
+                        Some(crate::checked_trees::CapturedPlace {
+                            root_symbol: loan.root_symbol,
+                            segments: remaining.to_vec(),
+                        })
+                    }
+                    _ => Some(crate::checked_trees::CapturedPlace {
                         root_symbol: symbol,
                         segments: place.segments.clone(),
                     }),
                 }
             }
         }
-        facts::PlaceRoot::Unknown
-        | facts::PlaceRoot::Expression(_)
-        | facts::PlaceRoot::TypeReference(_) => None,
+        crate::fact_plan::PlaceRoot::Unknown
+        | crate::fact_plan::PlaceRoot::Expression(_)
+        | crate::fact_plan::PlaceRoot::TypeReference(_) => None,
     }
 }
 
@@ -228,17 +232,17 @@ pub(super) fn canonical_place_for_loan(
 /// active loan: the same left join and spatial judgment admission uses, with
 /// the selector snapshot and consumed premise tokens retained for replay.
 pub(super) fn canonical_place_loan_compatibility_with_selector_snapshot<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     place: &crate::flow::CanonicalPlace,
-    loan: &checked_trees::BorrowLoanFact,
-    borrow: &checked_trees::BorrowFacts,
+    loan: &crate::checked_trees::BorrowLoanFact,
+    borrow: &crate::checked_trees::BorrowFacts,
     premises: &[StatedOrderingPremise],
-    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
+    bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
 ) -> CapturedPlaceCompatibilityEvidence {
     let right = captured_loan_place(borrow, loan);
     let Some(left) = canonical_place_for_loan(place, loan) else {
         return CapturedPlaceCompatibilityEvidence {
-            compatibility: checked_trees::CapturedPlaceCompatibility {
+            compatibility: crate::checked_trees::CapturedPlaceCompatibility {
                 right,
                 ..Default::default()
             },
@@ -249,7 +253,7 @@ pub(super) fn canonical_place_loan_compatibility_with_selector_snapshot<'p>(
     captured_place_compatibility_with_selector_snapshot(
         program,
         &left,
-        &checked_trees::BorrowAccessKind::Mutable,
+        &crate::checked_trees::BorrowAccessKind::Mutable,
         &right,
         &loan.kind,
         premises,
@@ -258,13 +262,13 @@ pub(super) fn canonical_place_loan_compatibility_with_selector_snapshot<'p>(
 }
 
 pub(super) fn canonical_place_loan_compatibility<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     place: &crate::flow::CanonicalPlace,
-    loan: &checked_trees::BorrowLoanFact,
-    borrow: &checked_trees::BorrowFacts,
+    loan: &crate::checked_trees::BorrowLoanFact,
+    borrow: &crate::checked_trees::BorrowFacts,
     premises: &[StatedOrderingPremise],
-    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
-) -> checked_trees::CapturedPlaceCompatibility {
+    bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
+) -> crate::checked_trees::CapturedPlaceCompatibility {
     canonical_place_loan_compatibility_with_selector_snapshot(
         program,
         place,
@@ -280,17 +284,17 @@ pub(super) fn canonical_place_loan_compatibility<'p>(
 /// snapshot. The left side arrives already re-rooted exactly as the retained
 /// certificate judged it; the right side is re-captured from the loan row.
 pub(super) fn captured_place_loan_compatibility_from_selector_snapshot<'p>(
-    program: &'p typed_trees::TypedTrees,
-    left: &checked_trees::CapturedPlace,
-    left_access: &checked_trees::BorrowAccessKind,
-    right: &checked_trees::BorrowLoanFact,
-    right_access: &checked_trees::BorrowAccessKind,
-    borrow: &checked_trees::BorrowFacts,
-    selector_snapshot: &[checked_trees::BorrowCompatibilitySelectorSnapshot],
+    program: &'p symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    left: &crate::checked_trees::CapturedPlace,
+    left_access: &crate::checked_trees::BorrowAccessKind,
+    right: &crate::checked_trees::BorrowLoanFact,
+    right_access: &crate::checked_trees::BorrowAccessKind,
+    borrow: &crate::checked_trees::BorrowFacts,
+    selector_snapshot: &[crate::checked_trees::BorrowCompatibilitySelectorSnapshot],
     premises: &[StatedOrderingPremise],
-    recorded_premises: &[checked_trees::BorrowCompatibilityPremise],
-    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
-) -> Result<checked_trees::CapturedPlaceCompatibility, CompatibilityReplayDrift> {
+    recorded_premises: &[crate::checked_trees::BorrowCompatibilityPremise],
+    bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
+) -> Result<crate::checked_trees::CapturedPlaceCompatibility, CompatibilityReplayDrift> {
     captured_place_compatibility_from_selector_snapshot(
         program,
         left,
@@ -305,10 +309,10 @@ pub(super) fn captured_place_loan_compatibility_from_selector_snapshot<'p>(
 }
 
 fn captured_loan_place(
-    borrow: &checked_trees::BorrowFacts,
-    loan: &checked_trees::BorrowLoanFact,
-) -> checked_trees::CapturedPlace {
-    checked_trees::CapturedPlace {
+    borrow: &crate::checked_trees::BorrowFacts,
+    loan: &crate::checked_trees::BorrowLoanFact,
+) -> crate::checked_trees::CapturedPlace {
+    crate::checked_trees::CapturedPlace {
         root_symbol: loan.root_symbol,
         segments: borrow.loan_segments(loan).to_vec(),
     }
@@ -319,10 +323,10 @@ fn captured_loan_place(
 /// required: mutating the sibling would invalidate the relation that makes the
 /// borrowed projection meaningful while it remains live.
 fn place_segments_share_dependent_fact(
-    program: &typed_trees::TypedTrees,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
     root_symbol: symbols::SymbolHandle,
-    left: &[facts::PlaceSegment],
-    right: &[facts::PlaceSegment],
+    left: &[crate::fact_plan::PlaceSegment],
+    right: &[crate::fact_plan::PlaceSegment],
 ) -> bool {
     let divergence = left
         .iter()
@@ -332,8 +336,8 @@ fn place_segments_share_dependent_fact(
         return false;
     };
     let (
-        facts::PlaceSegment::Field { symbol: left_field },
-        facts::PlaceSegment::Field {
+        crate::fact_plan::PlaceSegment::Field { symbol: left_field },
+        crate::fact_plan::PlaceSegment::Field {
             symbol: right_field,
         },
     ) = (left[divergence], right[divergence])
@@ -345,7 +349,7 @@ fn place_segments_share_dependent_fact(
         return false;
     };
     for segment in &left[..divergence] {
-        if let facts::PlaceSegment::Field { symbol } = segment {
+        if let crate::fact_plan::PlaceSegment::Field { symbol } = segment {
             let Some(next_type) = crate::flow::symbol_type_symbol(program, *symbol) else {
                 return false;
             };
@@ -371,22 +375,30 @@ fn place_segments_share_dependent_fact(
         .span_or_empty(definition.where_facts)
         .iter()
         .any(|fact| match fact {
-            typed_trees::domain::ProofFact::Expression(expression) => {
+            symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
+                expression,
+            ) => {
                 expression_mentions_field(program, *expression, left_name)
                     && expression_mentions_field(program, *expression, right_name)
             }
-            typed_trees::domain::ProofFact::Membership(_) => false,
-            typed_trees::domain::ProofFact::Proposition(_) => false,
+            symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(_) => {
+                false
+            }
+            symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(
+                _,
+            ) => false,
         })
 }
 
 fn data_field_name<'a>(
-    program: &'a typed_trees::TypedTrees,
-    definition: &'a typed_trees::data::DataDefinition,
+    program: &'a symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    definition: &'a symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition,
     symbol: symbols::SymbolHandle,
 ) -> Option<&'a str> {
     program.data_members(definition).iter().find_map(|member| {
-        let typed_trees::data::DataMember::Field(field) = member else {
+        let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) =
+            member
+        else {
             return None;
         };
         (field.symbol == symbol).then_some(field.name.as_str())
@@ -394,11 +406,11 @@ fn data_field_name<'a>(
 }
 
 fn expression_mentions_field(
-    program: &typed_trees::TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
+    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
     field: &str,
 ) -> bool {
-    use typed_trees::expression::ExpressionNode;
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => program
             .expression_table
@@ -419,12 +431,12 @@ fn expression_mentions_field(
 }
 
 pub(super) fn borrow_loan_compatibility_with_selector_snapshot<'p>(
-    program: &'p typed_trees::TypedTrees,
-    facts: &checked_trees::CheckFacts,
-    left: &checked_trees::BorrowLoanFact,
-    right: &checked_trees::BorrowLoanFact,
+    program: &'p symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    facts: &crate::checked_trees::CheckFacts,
+    left: &crate::checked_trees::BorrowLoanFact,
+    right: &crate::checked_trees::BorrowLoanFact,
     premises: &[StatedOrderingPremise],
-    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
+    bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
 ) -> CapturedPlaceCompatibilityEvidence {
     captured_place_compatibility_with_selector_snapshot(
         program,
@@ -438,17 +450,17 @@ pub(super) fn borrow_loan_compatibility_with_selector_snapshot<'p>(
 }
 
 pub(super) fn borrow_loan_compatibility_from_selector_snapshot<'p>(
-    program: &'p typed_trees::TypedTrees,
-    facts: &checked_trees::CheckFacts,
-    left: &checked_trees::BorrowLoanFact,
-    left_access: &checked_trees::BorrowAccessKind,
-    right: &checked_trees::BorrowLoanFact,
-    right_access: &checked_trees::BorrowAccessKind,
-    selector_snapshot: &[checked_trees::BorrowCompatibilitySelectorSnapshot],
+    program: &'p symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    facts: &crate::checked_trees::CheckFacts,
+    left: &crate::checked_trees::BorrowLoanFact,
+    left_access: &crate::checked_trees::BorrowAccessKind,
+    right: &crate::checked_trees::BorrowLoanFact,
+    right_access: &crate::checked_trees::BorrowAccessKind,
+    selector_snapshot: &[crate::checked_trees::BorrowCompatibilitySelectorSnapshot],
     premises: &[StatedOrderingPremise],
-    recorded_premises: &[checked_trees::BorrowCompatibilityPremise],
-    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
-) -> Result<checked_trees::CapturedPlaceCompatibility, CompatibilityReplayDrift> {
+    recorded_premises: &[crate::checked_trees::BorrowCompatibilityPremise],
+    bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
+) -> Result<crate::checked_trees::CapturedPlaceCompatibility, CompatibilityReplayDrift> {
     captured_place_compatibility_from_selector_snapshot(
         program,
         &captured_loan_place(&facts.borrow, left),
@@ -464,20 +476,20 @@ pub(super) fn borrow_loan_compatibility_from_selector_snapshot<'p>(
 
 #[cfg(test)]
 mod tests {
+    use crate::checked_trees::{BorrowAccessKind, CapturedPlace, CapturedPlaceContainment};
     use crate::checks::borrows::overlap::captured_place_compatibility;
-    use checked_trees::{BorrowAccessKind, CapturedPlace, CapturedPlaceContainment};
 
     fn symbol(index: u32) -> symbols::SymbolHandle {
         symbols::SymbolHandle::from_arena_index(index)
     }
 
-    fn field(symbol: symbols::SymbolHandle) -> facts::PlaceSegment {
-        facts::PlaceSegment::Field { symbol }
+    fn field(symbol: symbols::SymbolHandle) -> crate::fact_plan::PlaceSegment {
+        crate::fact_plan::PlaceSegment::Field { symbol }
     }
 
     #[test]
     fn structural_verdicts_preserve_exact_identity_and_direction() {
-        let program = typed_trees::TypedTrees::default();
+        let program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
         let root = symbol(1);
         let left_field = symbol(2);
         let right_field = symbol(3);
@@ -542,7 +554,7 @@ mod tests {
 
     #[test]
     fn shared_reads_are_noninterfering_without_manufacturing_disjointness() {
-        let program = typed_trees::TypedTrees::default();
+        let program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
         let place = CapturedPlace {
             root_symbol: symbol(1),
             segments: vec![field(symbol(2))],
@@ -575,13 +587,13 @@ mod tests {
 
     #[test]
     fn invalid_and_runtime_indexed_places_do_not_gain_spatial_verdicts() {
-        let mut program = typed_trees::TypedTrees::default();
-        let expression = program
-            .expression_table
-            .insert(checked_trees::expression::ExpressionNode::Boolean(true));
+        let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
+        let expression = program.expression_table.insert(
+            crate::checked_trees::expression::ExpressionNode::Boolean(true),
+        );
         let indexed = CapturedPlace {
             root_symbol: symbol(1),
-            segments: vec![facts::PlaceSegment::Index { expression }],
+            segments: vec![crate::fact_plan::PlaceSegment::Index { expression }],
         };
         let indexed_compatibility = captured_place_compatibility(
             &program,

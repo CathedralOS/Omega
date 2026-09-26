@@ -1,0 +1,51 @@
+use super::super::api::conformances::project_public_conformances;
+use super::super::api::constants::project_public_consts;
+use super::super::api::data::projection::project_public_data;
+use super::super::api::domains::projection::project_public_domains;
+use super::super::api::operators::project_public_operators;
+use super::super::api::propositions::project_public_propositions;
+use super::super::api::traits::project_public_traits;
+use super::super::representation::{project_representation_tcb, project_semantic_dependencies};
+use crate::package_evidence::capture::PackageReviewInput;
+use crate::package_evidence::capture::source::{
+    ProjectedReviewRow, ProjectedSemanticDependencyRow,
+};
+use crate::package_evidence::record::{
+    PackageReviewConformanceShape, PackageReviewConstShape, PackageReviewDataShape,
+    PackageReviewDomainShape, PackageReviewOperatorShape, PackageReviewPropositionShape,
+    PackageReviewRepresentationTcb, PackageReviewTraitShape,
+};
+use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
+
+pub(super) struct ProjectedPackageSurface {
+    pub(super) public_traits: Vec<ProjectedReviewRow<PackageReviewTraitShape>>,
+    pub(super) public_conformances: Vec<ProjectedReviewRow<PackageReviewConformanceShape>>,
+    pub(super) public_domains: Vec<ProjectedReviewRow<PackageReviewDomainShape>>,
+    pub(super) public_propositions: Vec<ProjectedReviewRow<PackageReviewPropositionShape>>,
+    pub(super) public_consts: Vec<ProjectedReviewRow<PackageReviewConstShape>>,
+    pub(super) public_operators: Vec<ProjectedReviewRow<PackageReviewOperatorShape>>,
+    pub(super) public_data: Vec<ProjectedReviewRow<PackageReviewDataShape>>,
+    pub(super) representation_tcb: Vec<ProjectedReviewRow<PackageReviewRepresentationTcb>>,
+    pub(super) semantic_dependencies: Vec<ProjectedSemanticDependencyRow>,
+}
+
+pub(super) fn project_package_surface(
+    compilation: &PackageReviewInput<'_>,
+    package: PackageKeyIdentity,
+) -> Result<ProjectedPackageSurface, Vec<Diagnostic>> {
+    let public_conformances = project_public_conformances(compilation, package)?;
+    let representation_tcb =
+        project_representation_tcb(compilation, package, &public_conformances)?;
+    Ok(ProjectedPackageSurface {
+        public_traits: project_public_traits(compilation, package)?,
+        public_conformances,
+        public_domains: project_public_domains(compilation, package)?,
+        public_propositions: project_public_propositions(compilation, package)?,
+        public_consts: project_public_consts(compilation, package)?,
+        public_operators: project_public_operators(compilation, package)?,
+        public_data: project_public_data(compilation, package)?,
+        representation_tcb,
+        semantic_dependencies: project_semantic_dependencies(compilation, package)?,
+    })
+}

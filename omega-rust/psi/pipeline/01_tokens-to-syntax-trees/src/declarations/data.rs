@@ -2,18 +2,18 @@ use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::parameters::binding_properties::parse_binding_relevance_brackets;
 use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
 use crate::parameters::parse_generic_parameters::parse_generic_parameters;
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::item::{
+    DataDefinition, DataField, DataMember, DataProperties, DataVariant, QuotientDefinition,
+    QuotientEquivalenceSelection,
+};
 use crate::type_syntax::parse_type::{
     parse_type_reference_handle, parse_type_reference_handle_allowing_borrow,
 };
 use crate::type_syntax::properties::parse_property_brackets;
 use arena::{Handle, HandleSpan};
+use source_files_to_tokens::tokens::PunctuationKind;
 use std::collections::HashSet;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::item::{
-    DataDefinition, DataField, DataMember, DataProperties, DataVariant, QuotientDefinition,
-    QuotientEquivalenceSelection,
-};
-use tokens::PunctuationKind;
 
 pub(super) fn parse_data_definition<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,

@@ -22,7 +22,7 @@ const SOURCE: &str = r#"
     }
 "#;
 
-fn lower(source: &str) -> lowered_psi::LoweredPsi {
+fn lower(source: &str) -> checked_trees_to_lowered_psi::lowered_psi::LoweredPsi {
     let checked = crate::front_end::checked_program(source);
     checked_trees_to_lowered_psi::lower_machine(
         &checked,
@@ -144,7 +144,9 @@ fn mixed_scalar_and_byte_arguments_keep_their_authored_positions() {
     );
 }
 
-fn root_call_argument(lowered: &mut lowered_psi::LoweredPsi) -> &mut StructuralArgument {
+fn root_call_argument(
+    lowered: &mut checked_trees_to_lowered_psi::lowered_psi::LoweredPsi,
+) -> &mut StructuralArgument {
     let root = lowered
         .semantic_module
         .machines
@@ -164,7 +166,7 @@ fn root_call_argument(lowered: &mut lowered_psi::LoweredPsi) -> &mut StructuralA
         .unwrap()
 }
 
-fn assert_rejected(lowered: &lowered_psi::LoweredPsi) {
+fn assert_rejected(lowered: &checked_trees_to_lowered_psi::lowered_psi::LoweredPsi) {
     assert!(
         terminal_verifier::verify_module(
             &lowered.semantic_module,

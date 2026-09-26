@@ -1,11 +1,13 @@
-use register_model::RegisterViewId;
-use selected_instructions::{SelectedBlockId, SelectedInstructionId, VirtualRegisterId};
+use target_operations_to_selected_instructions::register_model::RegisterViewId;
+use target_operations_to_selected_instructions::{
+    SelectedBlockId, SelectedInstructionId, VirtualRegisterId,
+};
 
 use super::super::compute::scan_reference;
 use super::fixtures::*;
 use super::{compute_function, validate};
 use crate::RegisterHomeError;
-use selected_instructions::{CopyAffinity, FunctionLiveRanges};
+use target_operations_to_selected_instructions::{CopyAffinity, FunctionLiveRanges};
 
 #[test]
 fn flexible_competitors_rank_stably_expire_and_fail_at_exact_pressure() {

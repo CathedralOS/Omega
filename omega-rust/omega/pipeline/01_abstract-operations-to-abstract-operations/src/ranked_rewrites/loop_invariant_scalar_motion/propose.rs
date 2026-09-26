@@ -6,7 +6,7 @@ use super::{
     NodeLocation, OperationId, OptimizationNode, PlaceId, PsiProvenance, ValueDefinitionSite,
     ValueId, VerifiedPsiOptimizationSession, apply, candidate_identity,
 };
-use abstract_operations::AbstractOperation;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
 pub(super) fn all(
     session: &VerifiedPsiOptimizationSession,
     candidate_limit: u64,
@@ -37,7 +37,7 @@ pub(super) fn all(
 /// seed rather than trusting a plan.
 fn component_candidate(
     session: &VerifiedPsiOptimizationSession,
-    component: &optimization_unit::OptimizerCycleComponent,
+    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
     effects: &crate::EffectSummaryAnalysis,
 ) -> Result<Option<LoopInvariantScalarMotionCandidate>, LoopInvariantScalarMotionError> {
     let Some(plan) = component_plan(session, component, effects)? else {
@@ -148,9 +148,10 @@ struct MemberAdmission {
 /// and the transitive effect table call admissions share, computed once per
 /// session by the caller.
 struct PlanEvidence<'a> {
-    functions: &'a [optimization_unit::PsiOptimizationFunction],
-    function: &'a optimization_unit::PsiOptimizationFunction,
-    component: &'a optimization_unit::OptimizerCycleComponent,
+    functions:
+        &'a [terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction],
+    function: &'a terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
+    component: &'a terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
     preheader_source: BlockId,
     insertion: usize,
     guaranteed_entry: bool,
@@ -654,7 +655,7 @@ fn mutable_borrowers_relocate(
 
 pub(super) fn component_plan(
     session: &VerifiedPsiOptimizationSession,
-    component: &optimization_unit::OptimizerCycleComponent,
+    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
     effects: &crate::EffectSummaryAnalysis,
 ) -> Result<Option<ComponentPlan>, LoopInvariantScalarMotionError> {
     let machine = component.id.machine;
@@ -898,7 +899,7 @@ pub(super) fn component_plan(
 /// tail; the general boundary never takes custody of them.
 fn certificate_operations(
     session: &VerifiedPsiOptimizationSession,
-    component: &optimization_unit::OptimizerCycleComponent,
+    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
 ) -> std::collections::BTreeSet<OperationId> {
     session
         .ranking_certificates()

@@ -1,18 +1,18 @@
 //! Source ownership of whole ordinary affine call operands. These assertions
 //! inspect permissions independently of the Terminal Unit planner.
+use crate::checked_trees::FlowPermissionEventFact;
 use crate::tests::front_end::checked_program_result;
-use checked_trees::FlowPermissionEventFact;
 use diagnostics::Diagnostic;
 use language_semantics::Multiplicity;
 use language_semantics::PermissionAccess;
 use language_semantics::PermissionClaimIdentity;
 use language_semantics::PermissionEventKind;
 use language_semantics::PermissionEventSource;
-fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<Diagnostic>> {
+fn check(source: &str) -> Result<crate::checked_trees::CheckedTrees, Vec<Diagnostic>> {
     checked_program_result(source)
 }
 
-fn caller_events(checked: &checked_trees::CheckedTrees) -> Vec<&FlowPermissionEventFact> {
+fn caller_events(checked: &crate::checked_trees::CheckedTrees) -> Vec<&FlowPermissionEventFact> {
     let machine = checked
         .machines()
         .iter()
@@ -83,12 +83,15 @@ fn nested_owned_affine_operands_transfer_once_in_captured_call_order() {
             .iter()
             .find(|parameter| !parameter.is_self)
             .expect("owned caller parameter");
-        assert_eq!(events[0].root, facts::PlaceRoot::Symbol(value.symbol));
+        assert_eq!(
+            events[0].root,
+            crate::fact_plan::PlaceRoot::Symbol(value.symbol)
+        );
         for (event, producer) in events.iter().skip(1).zip(calls) {
             assert!(producer.authored_expression.is_valid());
             assert_eq!(
                 event.root,
-                facts::PlaceRoot::Expression(producer.authored_expression)
+                crate::fact_plan::PlaceRoot::Expression(producer.authored_expression)
             );
         }
         assert!(
@@ -149,7 +152,10 @@ fn call_initialized_affine_local_establishes_before_nested_transfer() {
     assert_eq!(events[2].root, events[1].root);
     assert_claim_free_transfer(events[2]);
     assert_claim_free_transfer(events[3]);
-    assert!(matches!(events[3].root, facts::PlaceRoot::Expression(_)));
+    assert!(matches!(
+        events[3].root,
+        crate::fact_plan::PlaceRoot::Expression(_)
+    ));
 }
 
 #[test]

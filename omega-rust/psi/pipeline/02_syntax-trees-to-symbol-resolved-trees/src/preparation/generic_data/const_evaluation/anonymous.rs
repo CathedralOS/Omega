@@ -3,13 +3,13 @@
 use diagnostics::Diagnostic;
 use numerics::bignum::BigRational;
 use numerics::literals::FloatLiteral;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::BinaryOperator;
-use syntax_trees::expression::ExpressionHandle;
-use syntax_trees::expression::ExpressionNode;
-use syntax_trees::expression::TableBinaryExpression;
-use syntax_trees::item::Item;
-use syntax_trees::operator_spelling::OperatorSpelling;
+use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
+use tokens_to_syntax_trees::syntax_trees::expression::BinaryOperator;
+use tokens_to_syntax_trees::syntax_trees::expression::ExpressionHandle;
+use tokens_to_syntax_trees::syntax_trees::expression::ExpressionNode;
+use tokens_to_syntax_trees::syntax_trees::expression::TableBinaryExpression;
+use tokens_to_syntax_trees::syntax_trees::item::Item;
+use tokens_to_syntax_trees::syntax_trees::operator_spelling::OperatorSpelling;
 
 pub(crate) struct AnonymousNumericValue {
     pub(super) value: BigRational,

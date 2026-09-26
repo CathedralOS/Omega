@@ -1,9 +1,10 @@
 //! Computed boundary operands belong to the selected authored control leaf.
 
-use checked_trees::{CheckedScalarComputationKind, CheckedScalarExpressionRole};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::TerminalStructuralInputs;
@@ -12,8 +13,9 @@ use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalInterpretError, TerminalScalarValue,
     TerminalStructuralValue,
 };
-use typed_trees::expression::ExpressionNode;
-use typed_trees::statement::StatementNode;
+use typed_trees_to_checked_trees::checked_trees::{
+    CheckedScalarComputationKind, CheckedScalarExpressionRole,
+};
 
 const HELPERS: &str = r#"
     machine identity(input: u8) -> u8
@@ -27,7 +29,10 @@ const HELPERS: &str = r#"
     { input }
 "#;
 
-fn encoded(checked: &checked_trees::CheckedTrees, state_count: usize) -> (Vec<u8>, Vec<u8>) {
+fn encoded(
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+    state_count: usize,
+) -> (Vec<u8>, Vec<u8>) {
     let machine = checked
         .typed
         .machines()

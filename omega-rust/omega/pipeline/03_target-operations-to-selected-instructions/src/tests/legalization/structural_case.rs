@@ -1,17 +1,17 @@
 //! Lawful owned read-result case graph shared by producer and receiving tests.
-use abstract_operations::{
-    AbstractBlockEntry, AbstractOperation, AbstractOperationPlan, AbstractParameter,
-    AbstractStructuralCasePayloadBinding, AbstractStructuralCaseSuccessor,
-};
+use abstract_operations_to_target_operations::target_operations::TargetOperationPlan;
 use abstract_operations_to_target_operations::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement,
 };
-use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
     OperationId, PlaceId, ScalarType, StructuralCaseId, StructuralFieldId, ValueId,
 };
-use target_operations::TargetOperationPlan;
+use terminal_psi_to_abstract_operations::abstract_operations::{
+    AbstractBlockEntry, AbstractOperation, AbstractOperationPlan, AbstractParameter,
+    AbstractStructuralCasePayloadBinding, AbstractStructuralCaseSuccessor,
+};
+use terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit;
 
 pub(crate) fn fixture(
     native: ::target::NativeTarget,
@@ -95,7 +95,7 @@ pub(crate) fn fixture(
         AbstractOperation::BoundaryCall {
             psi_operation: OperationId::new(2).unwrap(),
             boundary: BoundaryMachineId::new(2).unwrap(),
-            result: abstract_operations::AbstractBoundaryResult::Unit,
+            result: terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Unit,
             arguments: vec![parameter],
             structural_arguments: Vec::new(),
             completion_claim_sources: Vec::new(),
@@ -117,16 +117,16 @@ pub(crate) fn fixture(
                 AdmittedBoundarySettlement {
                     boundary: BoundaryMachineId::new(1).unwrap(),
                     execution: AdmittedBoundaryExecution::CompilerBuiltin(
-                        target_operations::CompilerBuiltinExecution::HostedReadByte,
+                        abstract_operations_to_target_operations::target_operations::CompilerBuiltinExecution::HostedReadByte,
                     ),
-                    realization: target_operations::HostedReadByteRealization.into(),
+                    realization: abstract_operations_to_target_operations::target_operations::HostedReadByteRealization.into(),
                 },
                 AdmittedBoundarySettlement {
                     boundary: BoundaryMachineId::new(2).unwrap(),
                     execution: AdmittedBoundaryExecution::CompilerBuiltin(
-                        target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
+                        abstract_operations_to_target_operations::target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
                     ),
-                    realization: target_operations::HostedWriteByteI32Realization.into(),
+                    realization: abstract_operations_to_target_operations::target_operations::HostedWriteByteI32Realization.into(),
                 },
             ],
             installation: None,
@@ -135,12 +135,12 @@ pub(crate) fn fixture(
         },
     )
     .expect("case arms can jump to an ordinary returning join in non-topological roster order");
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &plan,
         FuelScheduleIdentity::new(1).unwrap(),
     )
     .unwrap();
-    optimization_unit_semantics::validate_psi_optimization_unit(&unit)
+    terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&unit)
         .expect("case ownership and payload graph");
     (plan, target, unit)
 }
@@ -182,7 +182,10 @@ fn parameter_fixture_for(
     let place = PlaceId::new(1).unwrap();
     let function = &mut plan.functions[0];
     let AbstractOperation::BoundaryCall {
-        result: abstract_operations::AbstractBoundaryResult::Structural(read),
+        result:
+            terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Structural(
+                read,
+            ),
         ..
     } = function.operations.remove(0)
     else {
@@ -258,9 +261,9 @@ fn parameter_fixture_for(
                 settlements: &[AdmittedBoundarySettlement {
                     boundary: BoundaryMachineId::new(2).unwrap(),
                     execution: AdmittedBoundaryExecution::CompilerBuiltin(
-                        target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
+                        abstract_operations_to_target_operations::target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
                     ),
-                    realization: target_operations::HostedWriteByteI32Realization.into(),
+                    realization: abstract_operations_to_target_operations::target_operations::HostedWriteByteI32Realization.into(),
                 }],
                 installation: None,
                 ieee_float_fma: &[],
@@ -269,12 +272,12 @@ fn parameter_fixture_for(
         )
         .expect("an owned sum parameter dispatches without a producer home")
     };
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
         &plan,
         FuelScheduleIdentity::new(1).unwrap(),
     )
     .unwrap();
-    optimization_unit_semantics::validate_psi_optimization_unit(&unit)
+    terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&unit)
         .expect("parameter case ownership and payload graph");
     (plan, target, unit)
 }
@@ -286,64 +289,69 @@ fn mixed_parameter_target(
     plan: &AbstractOperationPlan,
     native: ::target::NativeTarget,
 ) -> TargetOperationPlan {
-    let i32_shape = calling_conventions::ValueShape::integer(4, 4);
-    let layout = calling_conventions::evaluate_conventional_sum_layout(
+    let i32_shape =
+        abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(4, 4);
+    let layout = abstract_operations_to_target_operations::calling_conventions::evaluate_conventional_sum_layout(
         &[i32_shape],
         &[Vec::new(), vec![i32_shape]],
     )
     .unwrap();
     let payload_offset = u32::from(layout.cases[1].fields[0].byte_offset);
-    let policy = calling_conventions::CallingPolicy::native_for_target(native);
-    let call_plan = calling_conventions::evaluate_call_plan(
-        policy,
-        &calling_conventions::CallSignature {
-            parameters: vec![layout.shape],
-            result: None,
-        },
-    )
-    .unwrap();
-    let boundary_plan = calling_conventions::evaluate_call_plan(
-        policy,
-        &calling_conventions::CallSignature {
-            parameters: vec![i32_shape],
-            result: None,
-        },
-    )
-    .unwrap();
+    let policy = abstract_operations_to_target_operations::calling_conventions::CallingPolicy::native_for_target(native);
+    let call_plan =
+        abstract_operations_to_target_operations::calling_conventions::evaluate_call_plan(
+            policy,
+            &abstract_operations_to_target_operations::calling_conventions::CallSignature {
+                parameters: vec![layout.shape],
+                result: None,
+            },
+        )
+        .unwrap();
+    let boundary_plan =
+        abstract_operations_to_target_operations::calling_conventions::evaluate_call_plan(
+            policy,
+            &abstract_operations_to_target_operations::calling_conventions::CallSignature {
+                parameters: vec![i32_shape],
+                result: None,
+            },
+        )
+        .unwrap();
     let place = PlaceId::new(1).unwrap();
-    let parameter = target_operations::TargetStructuralParameter {
-        place,
-        structural_type: semantic_vocabulary::StructuralTypeId::new(7).unwrap(),
-        multiplicity: terminal_psi::StructuralMultiplicity::Affine,
-        access: terminal_psi::StructuralAccess::Owned,
-        projected_qualifications: Vec::new(),
-        shape: layout.shape,
-        placement: call_plan.parameters[0].clone(),
-    };
+    let parameter =
+        abstract_operations_to_target_operations::target_operations::TargetStructuralParameter {
+            place,
+            structural_type: semantic_vocabulary::StructuralTypeId::new(7).unwrap(),
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+            access: terminal_psi::StructuralAccess::Owned,
+            projected_qualifications: Vec::new(),
+            shape: layout.shape,
+            placement: call_plan.parameters[0].clone(),
+        };
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
-    let present_value = target_operations::TargetScalarBlockValue {
-        block: BlockId::new(30).unwrap(),
-        value: ValueId::new(10).unwrap(),
-        scalar_type,
-    };
+    let present_value =
+        abstract_operations_to_target_operations::target_operations::TargetScalarBlockValue {
+            block: BlockId::new(30).unwrap(),
+            value: ValueId::new(10).unwrap(),
+            scalar_type,
+        };
     let discard = terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place);
-    target_operations::TargetOperationPlan {
+    abstract_operations_to_target_operations::target_operations::TargetOperationPlan {
         psi: plan.psi,
         target: native,
         entry: semantic_vocabulary::MachineId::new(1).unwrap(),
-        functions: vec![target_operations::TargetFunction {
+        functions: vec![abstract_operations_to_target_operations::target_operations::TargetFunction {
             machine: semantic_vocabulary::MachineId::new(1).unwrap(),
             attachment: None,
             scalar_abi: None,
             mixed_structural_scalar_abi: None,
-            provenance: target_operations::TerminalPsiProvenance {
+            provenance: abstract_operations_to_target_operations::target_operations::TerminalPsiProvenance {
                 operations: vec![OperationId::new(2).unwrap()],
                 edges: [1, 2, 3, 5, 4]
                     .iter()
                     .map(|edge| EdgeId::new(*edge).unwrap())
                     .collect(),
             },
-            graph: target_operations::TargetControlGraph {
+            graph: abstract_operations_to_target_operations::target_operations::TargetControlGraph {
                 structural_types: plan.structural_types.clone(),
                 call_plan,
                 scalar_parameters: Vec::new(),
@@ -351,20 +359,20 @@ fn mixed_parameter_target(
                 dynamic_parameters: Vec::new(),
                 entry: BlockId::new(1).unwrap(),
                 blocks: vec![
-                    target_operations::TargetControlBlock {
+                    abstract_operations_to_target_operations::target_operations::TargetControlBlock {
                         block: BlockId::new(1).unwrap(),
                         parameters: Vec::new(),
                         structural_parameters: Vec::new(),
                         operations: Vec::new(),
-                        terminator: target_operations::TargetControlTerminator::StructuralCase {
-                            source: target_operations::TargetStructuralCaseSource::Parameter {
+                        terminator: abstract_operations_to_target_operations::target_operations::TargetControlTerminator::StructuralCase {
+                            source: abstract_operations_to_target_operations::target_operations::TargetStructuralCaseSource::Parameter {
                                 parameter,
-                                layout: target_operations::TargetStructuralHomeLayout::Sum(
+                                layout: abstract_operations_to_target_operations::target_operations::TargetStructuralHomeLayout::Sum(
                                     layout,
                                 ),
                             },
                             cases: vec![
-                                target_operations::TargetControlCaseSuccessor {
+                                abstract_operations_to_target_operations::target_operations::TargetControlCaseSuccessor {
                                     psi_edge: EdgeId::new(1).unwrap(),
                                     case: StructuralCaseId::new(1).unwrap(),
                                     case_tag: 0,
@@ -372,13 +380,13 @@ fn mixed_parameter_target(
                                     payloads: Vec::new(),
                                     trivial_affine_discards: Vec::new(),
                                 },
-                                target_operations::TargetControlCaseSuccessor {
+                                abstract_operations_to_target_operations::target_operations::TargetControlCaseSuccessor {
                                     psi_edge: EdgeId::new(2).unwrap(),
                                     case: StructuralCaseId::new(2).unwrap(),
                                     case_tag: 1,
                                     target: BlockId::new(30).unwrap(),
                                     payloads: vec![
-                                        target_operations::TargetControlCasePayload {
+                                        abstract_operations_to_target_operations::target_operations::TargetControlCasePayload {
                                             field: StructuralFieldId::new(1).unwrap(),
                                             field_byte_offset: payload_offset,
                                             parameter: present_value,
@@ -389,13 +397,13 @@ fn mixed_parameter_target(
                             ],
                         },
                     },
-                    target_operations::TargetControlBlock {
+                    abstract_operations_to_target_operations::target_operations::TargetControlBlock {
                         block: BlockId::new(20).unwrap(),
                         parameters: Vec::new(),
                         structural_parameters: Vec::new(),
                         operations: Vec::new(),
-                        terminator: target_operations::TargetControlTerminator::Jump {
-                            successor: target_operations::TargetControlSuccessor {
+                        terminator: abstract_operations_to_target_operations::target_operations::TargetControlTerminator::Jump {
+                            successor: abstract_operations_to_target_operations::target_operations::TargetControlSuccessor {
                                 psi_edge: EdgeId::new(3).unwrap(),
                                 target: BlockId::new(40).unwrap(),
                                 bindings: Vec::new(),
@@ -404,42 +412,42 @@ fn mixed_parameter_target(
                             },
                         },
                     },
-                    target_operations::TargetControlBlock {
+                    abstract_operations_to_target_operations::target_operations::TargetControlBlock {
                         block: BlockId::new(40).unwrap(),
                         parameters: Vec::new(),
                         structural_parameters: Vec::new(),
                         operations: Vec::new(),
-                        terminator: target_operations::TargetControlTerminator::Return {
+                        terminator: abstract_operations_to_target_operations::target_operations::TargetControlTerminator::Return {
                             psi_edge: EdgeId::new(5).unwrap(),
                             cleanup_actions: Vec::new(),
                         },
                     },
-                    target_operations::TargetControlBlock {
+                    abstract_operations_to_target_operations::target_operations::TargetControlBlock {
                         block: BlockId::new(30).unwrap(),
-                        parameters: vec![target_operations::TargetScalarBlockParameter {
+                        parameters: vec![abstract_operations_to_target_operations::target_operations::TargetScalarBlockParameter {
                             value: ValueId::new(10).unwrap(),
                             scalar_type,
                         }],
                         structural_parameters: Vec::new(),
                         operations: vec![
-                            target_operations::TargetUnitOperation::BoundarySettlement {
+                            abstract_operations_to_target_operations::target_operations::TargetUnitOperation::BoundarySettlement {
                                 psi_operation: OperationId::new(2).unwrap(),
                                 boundary: BoundaryMachineId::new(2).unwrap(),
-                                result: target_operations::TargetBoundaryResult::Unit,
+                                result: abstract_operations_to_target_operations::target_operations::TargetBoundaryResult::Unit,
                                 execution:
-                                    target_operations::BoundaryExecutionBinding::CompilerBuiltin(
-                                        target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
+                                    abstract_operations_to_target_operations::target_operations::BoundaryExecutionBinding::CompilerBuiltin(
+                                        abstract_operations_to_target_operations::target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
                                     ),
                                 realization:
-                                    target_operations::BoundaryRealization::HostedWriteByteI32(
-                                        target_operations::HostedWriteByteI32Realization,
+                                    abstract_operations_to_target_operations::target_operations::BoundaryRealization::HostedWriteByteI32(
+                                        abstract_operations_to_target_operations::target_operations::HostedWriteByteI32Realization,
                                     ),
                                 scalar_arguments: Vec::new(),
                                 runtime_scalar_arguments: vec![
-                                    target_operations::TargetUnitScalarCallArgument {
+                                    abstract_operations_to_target_operations::target_operations::TargetUnitScalarCallArgument {
                                         parameter_index: 0,
                                         source:
-                                            target_operations::TargetUnitScalarArgumentSource::BlockParameter(
+                                            abstract_operations_to_target_operations::target_operations::TargetUnitScalarArgumentSource::BlockParameter(
                                                 present_value,
                                             ),
                                         placement: boundary_plan.parameters[0].clone(),
@@ -451,8 +459,8 @@ fn mixed_parameter_target(
                                 completion_receipts: Vec::new(),
                             },
                         ],
-                        terminator: target_operations::TargetControlTerminator::Jump {
-                            successor: target_operations::TargetControlSuccessor {
+                        terminator: abstract_operations_to_target_operations::target_operations::TargetControlTerminator::Jump {
+                            successor: abstract_operations_to_target_operations::target_operations::TargetControlSuccessor {
                                 psi_edge: EdgeId::new(4).unwrap(),
                                 target: BlockId::new(40).unwrap(),
                                 bindings: Vec::new(),

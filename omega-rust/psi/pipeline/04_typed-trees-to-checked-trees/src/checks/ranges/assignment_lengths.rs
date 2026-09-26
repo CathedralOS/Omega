@@ -1,7 +1,11 @@
 //! Whole replacement changes live extent; builtin byte replacement does not.
 
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::{TypedTrees, machine::Machine, state::State};
+use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+    ExpressionHandle, ExpressionNode,
+};
+use symbol_resolved_trees_to_typed_trees::typed_trees::{
+    TypedTrees, machine::Machine, state::State,
+};
 
 use super::{
     arrays::bounded_byte_type_capacity, expressions::expression_indexable_length,
@@ -25,7 +29,7 @@ pub(super) fn value_preserves_indexed_extent<'program>(
     program: &'program TypedTrees,
     machine: &'program Machine,
     state: &State,
-    call_frames: Option<&validation::CallFrameResolver<'program>>,
+    call_frames: Option<&crate::validation::CallFrameResolver<'program>>,
     facts: &mut RangeFacts<'_>,
     target: ExpressionHandle,
     value: ExpressionHandle,
@@ -58,7 +62,7 @@ pub(super) fn value_preserves_indexed_extent<'program>(
         machine.symbol,
         state.symbol,
         facts.statement_index,
-        &facts::NormalizedWriteFrame::complete(paths),
+        &crate::fact_plan::NormalizedWriteFrame::complete(paths),
         call_frames,
     );
     facts.expression_is_disjoint_from_writes(

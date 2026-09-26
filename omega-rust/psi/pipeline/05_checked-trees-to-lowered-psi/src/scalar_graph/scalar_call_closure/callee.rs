@@ -8,7 +8,7 @@ use super::{CheckedTrees, LoweringError, PrimitiveType, unsupported};
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::PreparedScalarMachine;
 
 pub(crate) enum CheckedScalarCallee<'checked> {
-    Graph(&'checked checked_trees::CheckedScalarMachineGraph),
+    Graph(&'checked typed_trees_to_checked_trees::checked_trees::CheckedScalarMachineGraph),
     Boundary(&'checked CheckedBoundaryScalarReturnMachinePlan),
     Structural(&'checked CheckedStructuralScalarReturnMachinePlan),
     /// A Unit-closure body that owns a scalar completion: an ordinary
@@ -107,7 +107,7 @@ impl<'checked> CheckedScalarCallee<'checked> {
                 if let Some(plan) = graph_body.filter(|plan| {
                     matches!(
                         plan.result,
-                        checked_trees::CheckedControlResultPlan::Scalar { .. }
+                        typed_trees_to_checked_trees::checked_trees::CheckedControlResultPlan::Scalar { .. }
                     )
                 }) {
                     return Ok(Self::Operations(
@@ -163,7 +163,9 @@ impl<'checked> CheckedScalarCallee<'checked> {
             || matches!(self, Self::Graph(graph) if graph.states.iter().any(|state| !state.primitive_locals.is_empty() || !state.unit_operations.is_empty()))
     }
 
-    pub(crate) fn entry_claims(&self) -> &[checked_trees::CheckedUnitEntryClaimPlan] {
+    pub(crate) fn entry_claims(
+        &self,
+    ) -> &[typed_trees_to_checked_trees::checked_trees::CheckedUnitEntryClaimPlan] {
         match self {
             Self::Boundary(plan) => &plan.entry_claims,
             Self::Operations(body) => body.entry().map_or(&[][..], |entry| entry.entry_claims),
@@ -220,7 +222,7 @@ impl<'checked> CheckedScalarCallee<'checked> {
     /// pairs in authored order. Empty for callees with no erased roster.
     pub(crate) fn erased_parameters(&self) -> Vec<(u32, PrimitiveType)> {
         fn erased(
-            parameters: &[checked_trees::CheckedStructuralScalarParameterPlan],
+            parameters: &[typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarParameterPlan],
         ) -> Vec<(u32, PrimitiveType)> {
             parameters
                 .iter()
@@ -246,7 +248,7 @@ impl<'checked> CheckedScalarCallee<'checked> {
     /// no erased-proof roster.
     pub(crate) fn erased_proof_parameters(
         &self,
-    ) -> Vec<&checked_trees::CheckedErasedProofParameterPlan> {
+    ) -> Vec<&typed_trees_to_checked_trees::checked_trees::CheckedErasedProofParameterPlan> {
         match self {
             Self::Graph(graph) => graph
                 .states

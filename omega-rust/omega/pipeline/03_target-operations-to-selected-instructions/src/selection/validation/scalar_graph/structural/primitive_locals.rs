@@ -5,9 +5,9 @@ use super::{
     SelectedInstructionProvenance, SelectedMemoryAccessRole, VirtualRegisterId, memory,
 };
 use crate::SelectedInstructionError;
+use crate::selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 use crate::selection::validation::scalar_graph::Replay;
 use crate::selection::validation::scalar_graph::structural::local_storage;
-use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 
 pub(super) fn write(
     source: &LegalizedScalarFunction,
@@ -111,7 +111,7 @@ pub(in crate::selection) fn read(
         .find(|(stored, _)| *stored == place)
         .map(|(_, pointer)| *pointer)
         .ok_or_else(|| replay.invalid())?;
-    let indices: &[legalized_operations::LegalizedRuntimeIndexOperand] = match &row.kind {
+    let indices: &[crate::legalized_operations::LegalizedRuntimeIndexOperand] = match &row.kind {
         LegalizedScalarInstructionKind::PrimitiveScalarRead { indices, .. } => indices,
         _ => &[],
     };
@@ -174,7 +174,7 @@ pub(in crate::selection) fn read(
 /// the memory load carries the authored read's operation and fuel.
 pub(super) fn normalize_signed_load(
     replay: &mut Replay<'_>,
-    definition: legalized_operations::LegalizedValueDefinition,
+    definition: crate::legalized_operations::LegalizedValueDefinition,
     output: VirtualRegisterId,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     if !matches!(definition.scalar_type, ScalarType::Integer(integer)

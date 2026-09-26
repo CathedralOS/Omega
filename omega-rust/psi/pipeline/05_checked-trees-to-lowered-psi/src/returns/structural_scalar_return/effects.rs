@@ -6,7 +6,7 @@ use super::{
     ValueDeclaration, unsupported,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
-use checked_trees::statement::StatementNode;
+use typed_trees_to_checked_trees::checked_trees::statement::StatementNode;
 
 pub(super) fn validate(
     checked: &CheckedTrees,
@@ -22,11 +22,11 @@ pub(super) fn validate(
     let parameters = checked.state_parameters(state);
     let primitive_reference_body = parameters.iter().any(|parameter| {
         matches!(checked.type_reference_table.type_reference(parameter.type_reference),
-            checked_trees::types::TypeReferenceNode::Reference { referee, .. }
+            typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Reference { referee, .. }
                 if checked.primitive_type_reference(*referee).is_some())
     }) || plan.structural_parameters.iter().any(|parameter| {
         parameter.multiplicity == Multiplicity::Unrestricted
-            && parameter.access != checked_trees::CheckedStructuralAccess::Owned
+            && parameter.access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
     });
     if plan.effects.is_empty()
         && !primitive_reference_body
@@ -47,7 +47,7 @@ pub(super) fn validate(
                 CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                     statement_index: 0,
                     destination:
-                        checked_trees::CheckedPrimitiveStoreDestination::Parameter {
+                        typed_trees_to_checked_trees::checked_trees::CheckedPrimitiveStoreDestination::Parameter {
                             parameter_index: 0,
                         },
                     value,
@@ -103,14 +103,14 @@ pub(super) fn validate(
         .any(|reference| {
             let node = checked.type_reference_table.type_reference(reference);
             let node = match node {
-                checked_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+                typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Reference { referee, .. } => {
                     checked.type_reference_table.type_reference(*referee)
                 }
                 _ => node,
             };
             matches!(
                 node,
-                checked_trees::types::TypeReferenceNode::Constrained { .. }
+                typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Constrained { .. }
             )
         })
     {
@@ -134,10 +134,10 @@ pub(super) fn validate(
             .contract_facts
             .iter()
             .any(|(_, fact)| match fact.owner {
-                checked_trees::ContractProofFactOwner::Machine { machine_symbol } => {
+                typed_trees_to_checked_trees::checked_trees::ContractProofFactOwner::Machine { machine_symbol } => {
                     machine_symbol == plan.machine
                 }
-                checked_trees::ContractProofFactOwner::MachineState {
+                typed_trees_to_checked_trees::checked_trees::ContractProofFactOwner::MachineState {
                     machine_symbol,
                     state_symbol,
                 } => machine_symbol == plan.machine && state_symbol == plan.state,
@@ -186,8 +186,10 @@ pub(super) fn validate(
         if parameter.is_self || parameter.is_const {
             return unsupported("primitive reference return has unsupported parameter qualifiers");
         }
-        if let checked_trees::types::TypeReferenceNode::Reference {
-            access, referee, ..
+        if let typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Reference {
+            access,
+            referee,
+            ..
         } = checked
             .type_reference_table
             .type_reference(parameter.type_reference)
@@ -195,7 +197,8 @@ pub(super) fn validate(
             let retained = structural.next().ok_or(LoweringError::Unsupported(
                 "primitive reference return lost a structural parameter",
             ))?;
-            let access = checked_trees::CheckedStructuralAccess::from(*access);
+            let access =
+                typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::from(*access);
             // A borrowed byte view rides the same unrestricted observation
             // lane as a plain `&primitive` referent: the retained parameter's
             // identity and shape name the peeled slice carrier exactly. The
@@ -203,7 +206,7 @@ pub(super) fn validate(
             // slice, so this replay does the same.
             let (identity, expected_shape) = if matches!(
                 checked.type_reference_table.type_reference(*referee),
-                checked_trees::types::TypeReferenceNode::Named { .. }
+                typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Named { .. }
             ) {
                 let primitive = checked.primitive_type_reference(*referee).ok_or(
                     LoweringError::Unsupported(
@@ -212,25 +215,26 @@ pub(super) fn validate(
                 )?;
                 (
                     checked.normalized_type_identity(*referee).into_string(),
-                    checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive),
+                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive),
                 )
             } else {
                 let mut view = *referee;
-                while let checked_trees::types::TypeReferenceNode::Constrained {
+                while let typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Constrained {
                     base_type, ..
                 } = checked.type_reference_table.type_reference(view)
                 {
                     view = *base_type;
                 }
-                let checked_trees::types::TypeReferenceNode::Slice { element_type } =
-                    checked.type_reference_table.type_reference(view)
+                let typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Slice {
+                    element_type,
+                } = checked.type_reference_table.type_reference(view)
                 else {
                     return unsupported(
                         "primitive reference return needs a plain primitive referent",
                     );
                 };
                 if checked.primitive_type_reference(*element_type)
-                    != Some(checked_trees::types::PrimitiveType::U8)
+                    != Some(typed_trees_to_checked_trees::checked_trees::types::PrimitiveType::U8)
                 {
                     return unsupported(
                         "primitive reference return needs a plain primitive referent",
@@ -238,12 +242,12 @@ pub(super) fn validate(
                 }
                 (
                     checked.normalized_type_identity(view).into_string(),
-                    checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
+                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
                         // This shape is matched against the registered view
                         // TYPE, whose identity peels the reference shell, so it
                         // binds no access. The parameter's own `access` above
                         // is what carries it.
-                        checked_trees::CheckedByteSequenceCarrier::BorrowedView { access: None },
+                        typed_trees_to_checked_trees::checked_trees::CheckedByteSequenceCarrier::BorrowedView { access: None },
                     ),
                 )
             };
@@ -290,7 +294,7 @@ pub(super) fn validate(
             return unsupported("primitive store return must retain its one borrowed destination");
         };
         if destination.position != 0
-            || destination.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+            || destination.access == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
             || !parameters[0].is_mutable
         {
             return unsupported(
@@ -339,14 +343,16 @@ pub(super) fn emit(
     for effect in &plan.effects {
         let CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
             destination:
-                checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index },
+                typed_trees_to_checked_trees::checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index },
             value,
             ..
         } = effect
         else {
             return unsupported("scalar return acquired an unsupported prefix effect");
         };
-        let checked_trees::CheckedCallScalarArgument::Pure(value) = value else {
+        let typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(value) =
+            value
+        else {
             return unsupported(
                 "scalar return prefix computation requires ordinary operation emission",
             );

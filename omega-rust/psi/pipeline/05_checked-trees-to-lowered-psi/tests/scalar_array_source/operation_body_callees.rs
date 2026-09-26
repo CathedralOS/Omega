@@ -54,7 +54,7 @@ fn scalar_array_control_rejects_substituted_tail_and_local_custody() {
             .unwrap();
         let state = plan.state;
         let control = plan.scalar_control.as_mut().unwrap();
-        let checked_trees::CheckedScalarStateTerminator::Conditional {
+        let typed_trees_to_checked_trees::checked_trees::CheckedScalarStateTerminator::Conditional {
             guard_statement_ordinal,
             when_true,
             when_false,
@@ -67,7 +67,7 @@ fn scalar_array_control_rejects_substituted_tail_and_local_custody() {
             "guard coordinate" => *guard_statement_ordinal = 0,
             "swapped arms" => std::mem::swap(when_true, when_false),
             "return role" => {
-                let checked_trees::CheckedScalarBranchDestination::Return {
+                let typed_trees_to_checked_trees::checked_trees::CheckedScalarBranchDestination::Return {
                     is_continuation, ..
                 } = when_true
                 else {
@@ -99,11 +99,11 @@ fn scalar_array_control_rejects_substituted_tail_and_local_custody() {
                 // aggregates; the exact authored declaration remains custody.
                 let handle = changed.facts.values.scalar_computations.structural_arguments.iter()
                     .find_map(|(handle, argument)| match argument {
-                        checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)
-                            if matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }) => Some(handle),
+                        typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)
+                            if matches!(argument.source, typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }) => Some(handle),
                         _ => None,
                     }).unwrap();
-                let checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) =
+                let typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) =
                     changed
                         .facts
                         .values
@@ -114,7 +114,7 @@ fn scalar_array_control_rejects_substituted_tail_and_local_custody() {
                     panic!("local argument");
                 };
                 argument.source =
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                         symbol: symbols::SymbolHandle::invalid(),
                     };
             }
@@ -360,10 +360,10 @@ fn transitive_ordered_scalar_body_rejects_source_contract_and_result_corruption(
                     .statement_index = u32::MAX
             }
             "contract fingerprint" => plans[position].contract_report_fingerprint = 0,
-            "contract commitment" => {
-                plans[position].contract_commitment =
-                    checked_trees::MachineContractCommitment::from_digest([0; 32])
-            }
+            "contract commitment" => plans[position].contract_commitment =
+                typed_trees_to_checked_trees::checked_trees::MachineContractCommitment::from_digest(
+                    [0; 32],
+                ),
             "omitted statement" => {
                 plans[position].operations.remove(0);
             }

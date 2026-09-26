@@ -43,7 +43,7 @@ fn signed(bits: u16, value: i128) -> TerminalScalarValue {
     integer(IntegerSign::Signed, bits, IntegerValue::Signed(value))
 }
 
-fn lower(source: &str) -> lowered_psi::LoweredPsi {
+fn lower(source: &str) -> checked_trees_to_lowered_psi::lowered_psi::LoweredPsi {
     let checked = crate::front_end::checked_program(source);
     checked_trees_to_lowered_psi::lower_machine(&checked, TerminalMachineSelection::Name("value"))
         .unwrap_or_else(|error| panic!("{source}: {error:#?}"))

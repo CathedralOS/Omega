@@ -5,13 +5,13 @@ use super::{
     VirtualRegisterId, VirtualRegisterOrigin,
 };
 use crate::SelectedInstructionError;
-use crate::selection::scalar_call_abi::{scalar_shape, scalar_stack_placement};
-use crate::selection::validation::scalar_graph::Replay;
-use calling_conventions::ValuePlacement;
-use legalized_operations::LegalizedScalarInstruction;
-use selected_instructions::{
+use crate::legalized_operations::LegalizedScalarInstruction;
+use crate::selected_instructions::{
     FrameStorageSlotId, OutgoingArgumentSlotId, SelectedOutgoingArgumentSlot,
 };
+use crate::selection::scalar_call_abi::{scalar_shape, scalar_stack_placement};
+use crate::selection::validation::scalar_graph::Replay;
+use abstract_operations_to_target_operations::calling_conventions::ValuePlacement;
 use semantic_vocabulary::IntegerType;
 
 fn address_type() -> Result<ScalarType, SelectedInstructionError> {
@@ -163,7 +163,7 @@ pub(super) fn argument(
         return Err(SelectedInstructionError::custody());
     }
     let slot = OutgoingArgumentSlotId {
-        role: selected_instructions::OutgoingArgumentSlotRole::Argument,
+        role: crate::selected_instructions::OutgoingArgumentSlotRole::Argument,
         operation: operation.operation,
         argument_index: argument_index
             .try_into()

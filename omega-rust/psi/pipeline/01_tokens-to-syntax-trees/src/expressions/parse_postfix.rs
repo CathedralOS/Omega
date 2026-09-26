@@ -1,14 +1,14 @@
 use crate::diagnostics::parse_error::ParseError;
 use crate::expressions::context::ExpressionContext;
 use crate::input::token_cursor::{Input, ParseResult};
-use crate::type_syntax::parse_type::parse_cast_target_type_reference_handle;
-use arena::HandleSpan;
-use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::expression::{
     ExpressionHandle, ExpressionNode, StaticMachineArgument, TableCallExpression,
     TableCastExpression, TableIndexedExpression, TableMemberExpression, TableRangeExpression,
 };
-use tokens::{KeywordKind, PunctuationKind};
+use crate::type_syntax::parse_type::parse_cast_target_type_reference_handle;
+use arena::HandleSpan;
+use source_files_to_tokens::tokens::{KeywordKind, PunctuationKind};
 
 use super::parse_expression::{parse_expression_handle, parse_expression_handle_in};
 use super::primary::parse_primary_expression_handle;
@@ -21,7 +21,7 @@ pub(crate) fn parse_argument_list_after_open_paren_handle<'tokens, 'source>(
     'source,
     (
         HandleSpan<ExpressionHandle>,
-        Box<[syntax_trees::identifier::Identifier]>,
+        Box<[crate::syntax_trees::identifier::Identifier]>,
     ),
 > {
     let mut arguments = Vec::new();
@@ -190,7 +190,7 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
                         .insert(ExpressionNode::Call(TableCallExpression {
                             target_is_static: false,
                             receiver: expression,
-                            target: syntax_trees::identifier::Identifier::new(
+                            target: crate::syntax_trees::identifier::Identifier::new(
                                 format!("accept_boundary#{rendered}"),
                                 member.source_span(),
                             ),
@@ -439,10 +439,9 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
                         .insert(ExpressionNode::Call(TableCallExpression {
                             target_is_static: false,
                             receiver: expression,
-                            target: syntax_trees::identifier::Identifier::generated(format!(
-                                "wire_compatibility#{}",
-                                rendered.join("#")
-                            )),
+                            target: crate::syntax_trees::identifier::Identifier::generated(
+                                format!("wire_compatibility#{}", rendered.join("#")),
+                            ),
                             machine_arguments: Box::default(),
                             arguments: HandleSpan::empty(),
                             evidence_arguments: Box::default(),
@@ -476,7 +475,7 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
                         }
                         input = after_ord.take_punctuation(PunctuationKind::RightParen, ")")?;
                         expression = syntax_trees.expressions.insert(ExpressionNode::Atomic(
-                            syntax_trees::expression::TableAtomicExpression {
+                            crate::syntax_trees::expression::TableAtomicExpression {
                                 value: expression,
                                 result: ExpressionHandle::invalid(),
                                 ordering: language_core::atomic::AtomicOrderingPlan::Load(ordering),
@@ -548,7 +547,7 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
                 .expressions
                 .append_identifier_path_member_to_span(
                     &mut target_label,
-                    syntax_trees::identifier::Identifier::generated(target_label_text),
+                    crate::syntax_trees::identifier::Identifier::generated(target_label_text),
                 );
             input = rest;
             // Optional arithmetic DOMAIN cast suffix (`x as u8 in Saturating`),
@@ -714,7 +713,7 @@ fn build_call_expression_handle(
     expression: ExpressionHandle,
     machine_arguments: Box<[StaticMachineArgument]>,
     arguments: HandleSpan<ExpressionHandle>,
-    evidence_arguments: Box<[syntax_trees::identifier::Identifier]>,
+    evidence_arguments: Box<[crate::syntax_trees::identifier::Identifier]>,
 ) -> Result<ExpressionHandle, ParseError> {
     let expression = syntax_trees.expressions.expression(expression).clone();
     let call = match expression {
@@ -924,7 +923,7 @@ fn try_parse_static_argument<'tokens, 'source>(
         let (literal, rest) = input.take_integer_literal()?;
         return Ok(Some((
             StaticMachineArgument {
-                type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
+                type_reference: crate::syntax_trees::types::TypeReferenceHandle::invalid(),
                 path: Box::default(),
                 application: None,
                 const_literal: Some(literal),
@@ -943,11 +942,11 @@ fn try_parse_static_argument<'tokens, 'source>(
         let (member, rest) = input.take_identifier()?;
         return Ok(Some((
             StaticMachineArgument {
-                type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
+                type_reference: crate::syntax_trees::types::TypeReferenceHandle::invalid(),
                 path: Box::default(),
                 application: None,
                 const_literal: None,
-                evidence_projection: Some(syntax_trees::expression::EvidenceProjection {
+                evidence_projection: Some(crate::syntax_trees::expression::EvidenceProjection {
                     term: first,
                     member,
                 }),
@@ -980,7 +979,7 @@ fn try_parse_static_argument<'tokens, 'source>(
 
     Ok(Some((
         StaticMachineArgument {
-            type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
+            type_reference: crate::syntax_trees::types::TypeReferenceHandle::invalid(),
             path: path.into_boxed_slice(),
             application,
             const_literal: None,
@@ -995,7 +994,7 @@ pub(crate) fn try_parse_static_symbol_application<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> Result<
     Option<(
-        Box<syntax_trees::expression::StaticSymbolApplication>,
+        Box<crate::syntax_trees::expression::StaticSymbolApplication>,
         Input<'tokens, 'source>,
     )>,
     ParseError,
@@ -1035,7 +1034,7 @@ pub(crate) fn try_parse_static_symbol_application<'tokens, 'source>(
             }
             cursor = cursor.take_punctuation(PunctuationKind::Greater, ">")?;
             break Ok(Some((
-                Box::new(syntax_trees::expression::StaticSymbolApplication {
+                Box::new(crate::syntax_trees::expression::StaticSymbolApplication {
                     lifetime_arguments: lifetime_arguments.into_boxed_slice(),
                     arguments: arguments.into_boxed_slice(),
                 }),

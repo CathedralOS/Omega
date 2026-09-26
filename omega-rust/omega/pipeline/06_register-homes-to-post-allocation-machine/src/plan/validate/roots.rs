@@ -1,14 +1,14 @@
-use register_model::{
-    TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
-    ValidatedRegisterConstraintCatalog,
-};
 use selected_instructions_to_register_homes::{
     ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedPostAllocationOptimizationManifest,
     ValidatedRegisterHomes, ValidatedSelectedAnalysis,
 };
+use target_operations_to_selected_instructions::register_model::{
+    TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
+    ValidatedRegisterConstraintCatalog,
+};
 
 use crate::PostAllocationMachineError;
-use physical_instructions::{MachineAlternativeChoiceRule, PostAllocationMachinePlan};
+use crate::physical_instructions::{MachineAlternativeChoiceRule, PostAllocationMachinePlan};
 use selected_instructions_to_register_homes::ValidatedPreAllocationMachineEffects;
 
 #[allow(clippy::too_many_arguments)]

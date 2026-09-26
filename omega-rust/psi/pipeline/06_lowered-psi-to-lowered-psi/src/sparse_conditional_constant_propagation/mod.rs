@@ -24,7 +24,7 @@
 mod folding;
 
 use crate::PsiOptimizationStageError;
-use lowered_psi::LoweredPsi;
+use checked_trees_to_lowered_psi::lowered_psi::LoweredPsi;
 use terminal_verifier::{
     reconstruct_optimizable_terminal_obligations, validate_module_for_optimization,
     validate_sparse_conditional_constant_propagation,

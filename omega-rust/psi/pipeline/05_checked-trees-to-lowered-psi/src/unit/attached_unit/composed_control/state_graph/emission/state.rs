@@ -176,17 +176,17 @@ impl StateGraphEmission<'_, '_> {
                 (false, _) => Some(jump.statement_ordinal),
                 (
                     true,
-                    checked_trees::CheckedConditionalReturnArm::Structural(
+                    typed_trees_to_checked_trees::checked_trees::CheckedConditionalReturnArm::Structural(
                         CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. },
                     ),
                 ) => Some(result.statement_index),
                 (
                     true,
-                    checked_trees::CheckedConditionalReturnArm::Scalar {
+                    typed_trees_to_checked_trees::checked_trees::CheckedConditionalReturnArm::Scalar {
                         statement_ordinal, ..
                     },
                 ) => Some(*statement_ordinal),
-                (true, checked_trees::CheckedConditionalReturnArm::Structural(_)) => None,
+                (true, typed_trees_to_checked_trees::checked_trees::CheckedConditionalReturnArm::Structural(_)) => None,
             },
             _ => None,
         };
@@ -317,7 +317,8 @@ impl StateGraphEmission<'_, '_> {
         // private arm and join blocks stay inside this state.
         let scalar_return = match &state.terminator {
             CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
-                completion: checked_trees::CheckedScalarReturnPlan::Exits(exits),
+                completion:
+                    typed_trees_to_checked_trees::checked_trees::CheckedScalarReturnPlan::Exits(exits),
             } => {
                 let mut calls = self.catalogs.scalar_calls.emission_context();
                 let value = evaluation.scalar_control_result(
@@ -338,7 +339,10 @@ impl StateGraphEmission<'_, '_> {
             // The operation sequence above already bound the returned value;
             // read it from the state's scalar namespace at its ordinal.
             CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
-                completion: checked_trees::CheckedScalarReturnPlan::Binding(binding),
+                completion:
+                    typed_trees_to_checked_trees::checked_trees::CheckedScalarReturnPlan::Binding(
+                        binding,
+                    ),
             } => {
                 let slot = usize::try_from(binding.binding_ordinal)
                     .ok()
@@ -479,14 +483,14 @@ impl StateGraphEmission<'_, '_> {
             )?,
             CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result } => {
                 let returned_claims = match result.source {
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         binding_ordinal,
                     } => case_emission::result(state, binding_ordinal, &operations)?
                         .claims
                         .iter()
                         .map(|binding| binding.claim)
                         .collect::<Vec<_>>(),
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                         parameter_index,
                     } => state
                         .entry_claims
@@ -511,10 +515,10 @@ impl StateGraphEmission<'_, '_> {
                     );
                 }
                 let source = match result.source {
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         binding_ordinal,
                     } => case_emission::result(state, binding_ordinal, &operations)?.place,
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                         parameter_index,
                     } => {
                         state_parameters
@@ -887,9 +891,9 @@ impl StateGraphEmission<'_, '_> {
 /// The whole roots a returning exit of this state disposes: its dying local
 /// results, then the parameters its exit drops.
 pub(super) fn return_root_discards(
-    checked: &checked_trees::CheckedTrees,
-    plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
-    state: &checked_trees::CheckedComposedUnitControlStatePlan,
+    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+    plan: &typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlMachinePlan,
+    state: &typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlStatePlan,
     operations: &OperationBuffer,
     evaluation: &crate::unit::attached_unit::argument_evaluation::Evaluation,
     state_parameters: &[terminal_psi::StructuralParameterDeclaration],
@@ -928,31 +932,44 @@ pub(super) fn return_root_discards(
 /// the edge's transition ordinal: a tested arm consumes its own subject, and
 /// the dispatch's closing `_` arm the subject of the arm before it.
 fn case_subject_consumptions(
-    terminator: &checked_trees::CheckedComposedUnitControlTerminatorPlan,
+    terminator: &typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlTerminatorPlan,
 ) -> Vec<(u32, u32)> {
-    fn subject(guard: &checked_trees::CheckedCallScalarArgument) -> Option<u32> {
+    fn subject(
+        guard: &typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument,
+    ) -> Option<u32> {
         let CheckedScalarExpression::Boolean(guard) = guard.as_pure()? else {
             return None;
         };
         let membership = match guard.as_ref() {
-            checked_trees::CheckedBooleanExpression::Equal { left, right } => {
-                match (left.as_ref(), right.as_ref()) {
-                    (checked_trees::CheckedBooleanExpression::Constant(true), tested)
-                    | (tested, checked_trees::CheckedBooleanExpression::Constant(true)) => tested,
-                    _ => return None,
-                }
-            }
+            typed_trees_to_checked_trees::checked_trees::CheckedBooleanExpression::Equal {
+                left,
+                right,
+            } => match (left.as_ref(), right.as_ref()) {
+                (
+                    typed_trees_to_checked_trees::checked_trees::CheckedBooleanExpression::Constant(
+                        true,
+                    ),
+                    tested,
+                )
+                | (
+                    tested,
+                    typed_trees_to_checked_trees::checked_trees::CheckedBooleanExpression::Constant(
+                        true,
+                    ),
+                ) => tested,
+                _ => return None,
+            },
             tested => tested,
         };
         match membership {
-            checked_trees::CheckedBooleanExpression::StructuralCaseMembership {
+            typed_trees_to_checked_trees::checked_trees::CheckedBooleanExpression::StructuralCaseMembership {
                 subject, ..
             } if subject.path.is_empty() => Some(subject.parameter_position),
             _ => None,
         }
     }
     match terminator {
-        checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {
+        typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {
             guard,
             when_true,
             when_false,
@@ -964,7 +981,7 @@ fn case_subject_consumptions(
                 ]
             })
             .unwrap_or_default(),
-        checked_trees::CheckedComposedUnitControlTerminatorPlan::GuardedJumps {
+        typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlTerminatorPlan::GuardedJumps {
             arms,
             fallback,
         } => {
@@ -986,10 +1003,10 @@ fn case_subject_consumptions(
 /// Whether a successor evaluates any argument from an expression, which may
 /// read a case payload its guard selected. Parameter forwards read none.
 pub(super) fn successor_may_read_payloads(
-    successor: &checked_trees::CheckedStructuralControlSuccessorPlan,
+    successor: &typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlSuccessorPlan,
 ) -> bool {
     successor.scalar_arguments.iter().any(|argument| {
-        argument.source == checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
+        argument.source == typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
     })
 }
 
@@ -1052,7 +1069,8 @@ pub(super) enum ChainGuard {
 /// The state-level facts a short-circuit decision's outcome blocks repeat.
 struct ShortCircuitFrame<'a> {
     erased_scalar_formals: &'a [ValueDeclaration],
-    erased_proof_formals: &'a [checked_trees::CheckedErasedProofParameterPlan],
+    erased_proof_formals:
+        &'a [typed_trees_to_checked_trees::checked_trees::CheckedErasedProofParameterPlan],
     current_rank: Option<semantic_vocabulary::ValueId>,
     /// The byte-length observations the state held before any successor
     /// staging; the decision cannot reuse observations staged after it.

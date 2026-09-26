@@ -1,8 +1,8 @@
 use super::super::constraints::require_key_rows;
+use crate::legalized_operations::LegalizedOperationPlan;
+use crate::register_model::{ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog};
+use crate::selected_instructions::{SelectedInstructionPlan, SelectedSelectionConstraints};
 use crate::selection::model::SelectedInstructionError;
-use legalized_operations::LegalizedOperationPlan;
-use register_model::{ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog};
-use selected_instructions::{SelectedInstructionPlan, SelectedSelectionConstraints};
 
 pub(super) fn validate_initial_roots(
     target: &LegalizedOperationPlan,
@@ -49,7 +49,7 @@ pub(super) fn validate_initial_roots(
                     required.contains(&parameter.value)
                         && matches!(
                             parameter.placement.locations.as_slice(),
-                            [calling_conventions::ValueLocation::Register { .. }]
+                            [abstract_operations_to_target_operations::calling_conventions::ValueLocation::Register { .. }]
                         )
                 })
                 .count()

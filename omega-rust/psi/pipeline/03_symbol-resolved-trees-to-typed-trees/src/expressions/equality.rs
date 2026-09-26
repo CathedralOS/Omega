@@ -23,7 +23,7 @@ use resolved::SymbolResolvedTrees;
 use resolved::data::{DataDefinition, DataMember};
 use resolved::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use resolved::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
-use symbol_resolved_trees as resolved;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees as resolved;
 
 pub(crate) fn validate_equality_operands(program: &SymbolResolvedTrees) -> Result<(), Diagnostic> {
     for machine in &program.machines {

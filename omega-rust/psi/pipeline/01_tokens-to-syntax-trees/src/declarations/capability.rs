@@ -1,14 +1,14 @@
 use crate::contracts::facts::parse_proof_facts_until;
 use crate::input::token_cursor::{Input, ParseResult};
 use crate::parameters::parse_parameters::parse_callable_signature;
-use crate::type_syntax::parse_type::parse_type_reference_handle;
-use arena::{Handle, HandleSpan};
-use syntax_trees::SyntaxTrees;
-use syntax_trees::item::{
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::item::{
     CapabilityContract, CapabilityContractKind, CapabilityDefinition, CapabilityField,
     CapabilityMember, CapabilityState,
 };
-use tokens::{KeywordKind, PunctuationKind};
+use crate::type_syntax::parse_type::parse_type_reference_handle;
+use arena::{Handle, HandleSpan};
+use source_files_to_tokens::tokens::{KeywordKind, PunctuationKind};
 
 pub(super) fn parse_capability_definition<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,

@@ -105,7 +105,7 @@ fn call_produced_boolean_results_need_real_guarantees_and_independent_requires()
 
 #[test]
 fn call_produced_boolean_guarantees_reject_altered_call_and_argument_custody() {
-    use checked_trees::{
+    use crate::checked_trees::{
         CheckedBooleanExpression as Boolean, CheckedScalarComputationKind as Computation,
         CheckedScalarExpression as Scalar, CheckedScalarExpressionRole as Role,
     };
@@ -193,7 +193,7 @@ fn call_produced_boolean_guarantees_reject_altered_call_and_argument_custody() {
             3 => facts.flow.control.calls.get_mut(call_handle).ensures = arena::HandleSpan::empty(),
             4 => {
                 facts.proof.contract_facts.get_mut(guarantee).owner =
-                    checked_trees::ContractProofFactOwner::Machine {
+                    crate::checked_trees::ContractProofFactOwner::Machine {
                         machine_symbol: machine.symbol,
                     }
             }
@@ -291,7 +291,7 @@ fn boolean_computation_graphs_prove_source_normal_guarantees() {
 
 #[test]
 fn boolean_computation_graphs_reject_altered_application_and_call_custody() {
-    use checked_trees::{
+    use crate::checked_trees::{
         CheckedBooleanExpression as Boolean, CheckedScalarComputationKind as Computation,
         CheckedScalarExpression as Scalar, CheckedScalarExpressionRole as Role,
     };
@@ -387,7 +387,7 @@ fn boolean_computation_graphs_reject_altered_application_and_call_custody() {
 
 #[test]
 fn boolean_computation_graphs_reject_altered_short_circuit_custody() {
-    use checked_trees::{
+    use crate::checked_trees::{
         CheckedBooleanExpression as Boolean, CheckedScalarComputationKind as Computation,
         CheckedScalarExpression as Scalar, CheckedScalarExpressionRole as Role,
     };

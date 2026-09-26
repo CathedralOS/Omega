@@ -1,13 +1,13 @@
 use crate::diagnostics::parse_error::ParseError;
 use crate::input::token_cursor::{Input, ParseResult, is_identifier_token_for_parser};
-use arena::{Handle, HandleSpan};
-use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
-use syntax_trees::identifier::Identifier;
-use syntax_trees::statement::{
+use crate::syntax_trees::SyntaxTrees;
+use crate::syntax_trees::expression::{ExpressionHandle, ExpressionNode};
+use crate::syntax_trees::identifier::Identifier;
+use crate::syntax_trees::statement::{
     StatementHandle, StatementNode, TableTransition, TransitionTargetHandle, TransitionTargetNode,
 };
-use tokens::{KeywordKind, PunctuationKind};
+use arena::{Handle, HandleSpan};
+use source_files_to_tokens::tokens::{KeywordKind, PunctuationKind};
 
 use super::guards::{parse_transition_expression_list, parse_transition_guard_node};
 use super::targets::parse_target::parse_transition_block_target_with_bindings;
@@ -66,9 +66,9 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
     // precede every arm statement in the item list -- the returned span
     // must be one contiguous run.
     let mut parsed_arms: Vec<(
-        syntax_trees::statement::TransitionGuardNode,
+        crate::syntax_trees::statement::TransitionGuardNode,
         TransitionTargetHandle,
-        arena::HandleSpan<syntax_trees::statement::TableOutcomeProofSelector>,
+        arena::HandleSpan<crate::syntax_trees::statement::TableOutcomeProofSelector>,
         source::SourceSpan,
     )> = Vec::new();
     // (marker name, subject) per destructure arm. Computed transition subjects
@@ -166,9 +166,9 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
 
     for (name, initial_value) in subject_captures {
         let capture = syntax_trees.statements.insert(StatementNode::LocalData(
-            syntax_trees::statement::TableLocalData {
+            crate::syntax_trees::statement::TableLocalData {
                 name,
-                type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
+                type_reference: crate::syntax_trees::types::TypeReferenceHandle::invalid(),
                 initial_value,
                 is_mutable: false,
                 relevance: language_core::BindingRelevance::Relevant,
@@ -185,9 +185,9 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
 
     for (marker_name, subject_place) in pattern_markers {
         let marker = syntax_trees.statements.insert(StatementNode::LocalData(
-            syntax_trees::statement::TableLocalData {
-                name: syntax_trees::identifier::Identifier::generated(marker_name),
-                type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
+            crate::syntax_trees::statement::TableLocalData {
+                name: crate::syntax_trees::identifier::Identifier::generated(marker_name),
+                type_reference: crate::syntax_trees::types::TypeReferenceHandle::invalid(),
                 initial_value: subject_place,
                 is_mutable: false,
                 relevance: language_core::BindingRelevance::Relevant,
@@ -266,7 +266,7 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
             syntax_trees.statements.replace_statement(
                 *last,
                 StatementNode::Transition(TableTransition {
-                    guard: syntax_trees::statement::TransitionGuardNode::Always,
+                    guard: crate::syntax_trees::statement::TransitionGuardNode::Always,
                     ..transition
                 }),
             );
@@ -287,9 +287,9 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
 /// which must not double-evaluate a call.
 fn expression_is_place(syntax_trees: &SyntaxTrees, expression: ExpressionHandle) -> bool {
     match syntax_trees.expressions.expression(expression) {
-        syntax_trees::expression::ExpressionNode::Name(_)
-        | syntax_trees::expression::ExpressionNode::SelfValue => true,
-        syntax_trees::expression::ExpressionNode::Member(member) => {
+        crate::syntax_trees::expression::ExpressionNode::Name(_)
+        | crate::syntax_trees::expression::ExpressionNode::SelfValue => true,
+        crate::syntax_trees::expression::ExpressionNode::Member(member) => {
             expression_is_place(syntax_trees, member.receiver)
         }
         _ => false,

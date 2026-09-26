@@ -1,5 +1,5 @@
 use diagnostics::Diagnostic;
-use symbol_resolved_trees as resolved;
+use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees as resolved;
 
 #[derive(Debug, Clone)]
 pub(crate) struct ExpandedDomainReference {

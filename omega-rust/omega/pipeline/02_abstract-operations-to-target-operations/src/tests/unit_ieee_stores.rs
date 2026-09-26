@@ -7,9 +7,9 @@ use super::{
     StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, TargetUnitOperation,
     TargetUnitScalarArgumentSource, ValueId, ValueShape, identity,
 };
-use abstract_operations::AbstractParameter;
+use crate::target_operations::TargetUnitWriteOnlyPrimitiveStoreSource;
 use semantic_vocabulary::IeeeFloatFormat;
-use target_operations::TargetUnitWriteOnlyPrimitiveStoreSource;
+use terminal_psi_to_abstract_operations::abstract_operations::AbstractParameter;
 
 mod literals;
 
@@ -268,7 +268,7 @@ fn forwarded_ieee_store_call_keeps_the_parameter_and_borrowed_pointer() {
             assert_eq!(arguments[0].access, StructuralAccess::WriteOnlyBorrow);
             assert_eq!(
                 arguments[0].source,
-                target_operations::TargetStructuralArgumentSource::Placement(
+                crate::target_operations::TargetStructuralArgumentSource::Placement(
                     body.parameters[0].placement.clone()
                 )
             );

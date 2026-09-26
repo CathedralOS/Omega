@@ -13,7 +13,7 @@ use super::{
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::view_subslice::ViewFamily;
 use crate::expression_preparation::bindings::view_locals;
-use checked_trees::{
+use typed_trees_to_checked_trees::checked_trees::{
     CheckedStorageRoot, CheckedSubsliceSite, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan,
 };
@@ -83,7 +83,8 @@ pub(super) fn emit(
     }
     let structural_type = lookup_type_id(type_ids, &argument.type_identity)?;
     if !argument.path.is_empty()
-        || argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow
+        || argument.access
+            != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
     {
         return unsupported("subslice source or result changed immutable byte-view custody");
     }

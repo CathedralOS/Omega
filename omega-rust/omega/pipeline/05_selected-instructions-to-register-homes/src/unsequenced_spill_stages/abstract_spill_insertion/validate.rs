@@ -9,7 +9,7 @@ use crate::unsequenced_spill_stages::{
     ValidatedAbstractSpillInsertion, abstract_spill_insertion_identity,
 };
 use crate::{ValidatedLogicalSpillOperations, ValidatedStackSlotColoring};
-use register_homes::{
+use selected_instructions_to_selected_instructions::register_homes::{
     FunctionLogicalSpillOperations, FunctionStackSlotColoring, LogicalSpillAction,
     StackSlotAssignment,
 };

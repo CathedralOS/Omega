@@ -67,7 +67,7 @@ fn closed_case_graph_rejoins_source_and_rejects_drift() {
             3 => cases[0].successor.transfers.clear(),
             4 => {
                 subject.source =
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         binding_ordinal: u32::MAX,
                     }
             }
@@ -124,7 +124,7 @@ fn closed_case_graph_rejects_missing_or_substituted_local_cleanup() {
         for handle in handles {
             let event = checked.facts.flow.ownership.permissions.get_mut(handle);
             if substitute_root {
-                event.root = facts::PlaceRoot::Unknown;
+                event.root = typed_trees_to_checked_trees::fact_plan::PlaceRoot::Unknown;
             } else {
                 event.source = language_semantics::PermissionEventSource::StateEntry;
             }
@@ -233,7 +233,10 @@ fn owned_result_edges_and_return_rejoin_actual_permission_rows() {
                     permissions.get_mut(handle).segments =
                         arena::HandleSpan::from_parts(arena::Handle::invalid(), 1)
                 }
-                "root" => permissions.get_mut(handle).root = facts::PlaceRoot::Unknown,
+                "root" => {
+                    permissions.get_mut(handle).root =
+                        typed_trees_to_checked_trees::fact_plan::PlaceRoot::Unknown
+                }
                 _ => unreachable!(),
             }
             assert!(

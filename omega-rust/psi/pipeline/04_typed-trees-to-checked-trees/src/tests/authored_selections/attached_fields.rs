@@ -1,8 +1,8 @@
 use super::{AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget};
+use crate::checked_trees::CheckedTrees;
 use crate::tests::front_end::checked_program;
-use checked_trees::CheckedTrees;
+use symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember;
 use symbols::SymbolHandle;
-use typed_trees::data::DataMember;
 
 fn field_symbol(program: &CheckedTrees, owner: &str, name: &str) -> SymbolHandle {
     let definition = program
