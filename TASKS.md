@@ -622,6 +622,18 @@ the complete product bar; focused successes below do not establish that baseline
   Prioritize the actual operation named by `omitted at local construction`,
   not the downstream `rejoins 0 Terminal attachment identities` symptom.
 
+  The fail tier is status-clean: all 435 fixtures reject and none records
+  `checked`. What the gate still reports on a clean checkout is 25 moves
+  against the golden, and they are not one problem. Twenty-two are diagnostic
+  text: `fail/arithmetic/narrowing_signedness_rejected`, for one, still
+  rejects and still carries its fragment, but the message is now
+  **IMPLICIT-STORE-CONVERSION**'s rather than the narrowing-proof rule's.
+  Others gain a diagnostic from bundled library code rather than their own --
+  `fail/modules/ambiguous_imported_data` now also reports
+  `LinuxArm64::extent_shape` storing outside a declared range. Attribute each
+  row to the lane that moved it before re-pinning; a bulk re-record would pin
+  whatever those lanes broke as expected.
+
   Four fail fixtures reject for a reason other than their own subject, so
   they pin nothing. `fail/build/uefi_program_entry_wrong_calling_policy`
   declares its own `UefiApplication` beside the bundled one and refuses at
