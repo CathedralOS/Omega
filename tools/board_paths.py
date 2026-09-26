@@ -121,6 +121,34 @@ def resolves_ignoring_stage_numbers(candidate, files):
     return None
 
 
+def probable_successor(candidate, files):
+    """The one file a dead citation most likely became, or `None`.
+
+    Files move wholesale when crates are split or merged, and the citation
+    keeps naming the old place. Matching the longest tail that still picks
+    out exactly one real file recovers the move without guessing: the full
+    path is tried first and segments are dropped from the front until one
+    file matches. A tail that matches several files is ambiguous, and every
+    shorter tail matches at least as many, so the search stops there rather
+    than offering a coin flip.
+
+    This is a suggestion, not a resolution. The citation is still dead and
+    still counted as dead; only a reader can say whether the claim around it
+    survived the move.
+    """
+    segments = candidate.lstrip("./").split("/")
+    for start in range(len(segments) - 1):
+        tail = "/".join(segments[start:])
+        matches = [
+            path for path in files if path == tail or path.endswith("/" + tail)
+        ]
+        if len(matches) == 1:
+            return matches[0]
+        if len(matches) > 1:
+            return None
+    return None
+
+
 def resolves(candidate, files):
     """A citation resolves when a real file IS it or ENDS WITH it.
 
@@ -142,7 +170,8 @@ def main():
     )
     parser.add_argument(
         "--hints", action="store_true",
-        help="for each dead path, list real files sharing its basename",
+        help="for each dead path, name the file it probably moved to, or "
+        "failing that real files sharing its basename",
     )
     parser.add_argument(
         "--quiet", action="store_true", help="print the counts only",
@@ -208,6 +237,10 @@ def main():
                     print(f"      missing: {alternative}")
             if options.hints:
                 for alternative in missing:
+                    successor = probable_successor(alternative, files)
+                    if successor:
+                        print(f"      probably moved to: {successor}")
+                        continue
                     for hint in by_basename.get(
                         os.path.basename(alternative), []
                     )[:3]:
