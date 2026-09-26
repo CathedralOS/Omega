@@ -981,7 +981,7 @@ invokes
     // Ranged-let witness: the `%` bounds the ranged store flow-insensitively
     // (construction checks see only the let's declared range); it is an
     // identity at runtime (the quotient is < 10^9 by math).
-    let subsecond: u32 [0..=999999999] = subnanos_wide % 1000000000;
+    let subsecond: u32 [0..=999999999] = (subnanos_wide % 1000000000) as u32;
     Instant { seconds: whole_seconds, subsecond_nanoseconds: subsecond }
 }
 
@@ -1008,7 +1008,7 @@ invokes
     let scaled_wrapped: u64 in Wrapping = (remainder as u64 in Wrapping) * 1000000000;
     let scaled: u64 = scaled_wrapped as u64;
     let subnanos_wide: u64 = scaled / units;
-    let subsecond: u32 [0..=999999999] = subnanos_wide % 1000000000;
+    let subsecond: u32 [0..=999999999] = (subnanos_wide % 1000000000) as u32;
     let is_after_epoch: bool = platform_seconds >= offset;
     let unix_wrapped: u64 in Wrapping = (platform_seconds as u64 in Wrapping)
         - (offset as u64 in Wrapping);

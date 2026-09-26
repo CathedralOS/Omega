@@ -17,17 +17,19 @@ data Main {
 
 machine Main::main(&mut self) reaches Console {
     self.maximum = 340282346638528859811704183484516925440.0;
-    self.negative_maximum = 0.0 - self.maximum;
+    self.negative_maximum = (0.0 - self.maximum) as f32 in Saturating;
     self.two = 2.0;
     self.zero = 0.0;
-    self.clamped = self.maximum * self.two;
+    let c: f32 in Finite & Saturating = (self.maximum * self.two) as f32 in Saturating;
+    self.clamped = c;
     transition self.clamped == self.maximum {
         true -> negative()
         _ -> bad(78)
     }
 
     state negative(&mut self) {
-        self.clamped = self.negative_maximum * self.two;
+        let c2: f32 in Finite & Saturating = (self.negative_maximum * self.two) as f32 in Saturating;
+        self.clamped = c2;
         transition self.clamped == self.negative_maximum {
             true -> nested()
             _ -> bad(79)
@@ -42,7 +44,8 @@ machine Main::main(&mut self) reaches Console {
     }
 
     state divide_zero(&mut self) {
-        self.result = self.maximum / self.zero;
+        let r: f32 in Saturating = (self.maximum / self.zero) as f32 in Saturating;
+        self.result = r;
         transition self.result > self.maximum {
             true -> invalid()
             _ -> bad(81)
@@ -50,7 +53,8 @@ machine Main::main(&mut self) reaches Console {
     }
 
     state invalid(&mut self) {
-        self.result = self.zero / self.zero;
+        let r2: f32 in Saturating = (self.zero / self.zero) as f32 in Saturating;
+        self.result = r2;
         transition self.result != self.result {
             true -> good()
             _ -> bad(82)

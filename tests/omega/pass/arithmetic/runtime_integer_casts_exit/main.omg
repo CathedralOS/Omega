@@ -16,16 +16,16 @@ data Main {
 
 machine Main::main(&mut self) reaches Console {
     let a8: i8 = -5;
-    let aw: i32 in Trapping = a8 as i32;
+    let aw: i32 in Trapping = a8 as i32 in Trapping;
     let b8: u8 = 200;
-    let bw: i32 in Trapping = b8 as i32;
+    let bw: i32 in Trapping = b8 as i32 in Trapping;
     let c32: i32 = 200;
     let cn: u8 = c32 as u8;
     let d32: i32 in Trapping = -7;
-    let dw: i64 in Trapping = d32 as i64;
+    let dw: i64 in Trapping = d32 as i64 in Trapping;
     let e16: i16 = 32767;
     let eu: u16 = e16 as u16;
-    let ew: u32 in Trapping = eu as u32;
+    let ew: u32 in Trapping = eu as u32 in Trapping;
 
     transition aw == -5 { true -> ck2(bw, cn, dw, ew) _ -> bad() }
 

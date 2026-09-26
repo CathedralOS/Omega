@@ -328,7 +328,7 @@ pub(crate) fn validate_return_value_range(
         owner,
         diagnostics,
     );
-    if let Some((interval, _)) = validate_anonymous_integer_range(
+    if let Some((interval, _, _)) = validate_anonymous_integer_range(
         program,
         state.return_type,
         return_expression,
@@ -345,7 +345,7 @@ pub(crate) fn validate_return_value_range(
         // fits the type, so the narrowing check adds no rejection here; it is
         // present only for uniformity with the unconstrained branch.
         let before = diagnostics.len();
-        let (interval, source) = validate_value_range(
+        let (interval, source, source_domain) = validate_value_range(
             program,
             machine,
             Some(state),
@@ -357,7 +357,15 @@ pub(crate) fn validate_return_value_range(
             diagnostics,
         );
         if diagnostics.len() == before {
-            check_narrowing_assignment(return_primitive, interval, source, owner, diagnostics);
+            check_narrowing_assignment(
+                return_primitive,
+                return_domain,
+                interval,
+                source,
+                source_domain,
+                owner,
+                diagnostics,
+            );
         }
         enforce_declared_return_range(program, state.return_type, interval, owner, diagnostics);
         return;
@@ -369,7 +377,7 @@ pub(crate) fn validate_return_value_range(
     // its source type but not the return type (`-> i8 { _ -> (300) }`) is a silent
     // truncation.
     let before = diagnostics.len();
-    let (interval, source) = validate_value_range(
+    let (interval, source, source_domain) = validate_value_range(
         program,
         machine,
         Some(state),
@@ -381,7 +389,15 @@ pub(crate) fn validate_return_value_range(
         diagnostics,
     );
     if diagnostics.len() == before {
-        check_narrowing_assignment(return_primitive, interval, source, owner, diagnostics);
+        check_narrowing_assignment(
+            return_primitive,
+            return_domain,
+            interval,
+            source,
+            source_domain,
+            owner,
+            diagnostics,
+        );
     }
 }
 
