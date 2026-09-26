@@ -950,7 +950,7 @@ impl<'program> StructuralJudge<'program> {
         arguments: &[StructuralTerm],
         depth: usize,
     ) -> Option<StructuralTerm> {
-        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        if super::struct_trace() {
             eprintln!("STRUCT unfold? {machine_name} args {arguments:?} depth {depth}");
         }
         if depth >= 32 {
