@@ -72,9 +72,9 @@ pub use register_model::{
     AARCH64_LINUX_SYSTEM_CALL, AARCH64_MATERIALIZE_I64, AARCH64_REQUIRED_REGISTER_CONSTRAINTS,
     AARCH64_SUBTRACT_I64, AARCH64_SUBTRACT_I64_IMMEDIATE,
     Aarch64RegisterConstraintCatalogValidationError, aarch64_fixed_register_view,
-    aarch64_physical_register_model, aarch64_preservation_convention_for_target,
-    aarch64_register_constraint_catalog, aarch64_register_constraint_catalog_for,
-    canonical_aarch64_physical_register_model_identity,
+    aarch64_physical_register_model, aarch64_physical_register_model_ref,
+    aarch64_preservation_convention_for_target, aarch64_register_constraint_catalog,
+    aarch64_register_constraint_catalog_for, canonical_aarch64_physical_register_model_identity,
     validate_aarch64_register_constraint_catalog, validated_aarch64_physical_register_model,
 };
 pub use register_model::{

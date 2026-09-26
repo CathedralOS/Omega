@@ -122,7 +122,22 @@ impl ModelBuilder {
     }
 }
 
+/// The AArch64 physical register model, built once per process. The model is
+/// a fixed table; building it formats every register name and fills two
+/// name maps, and encoders and effect declarations asked for it per
+/// instruction form.
+pub fn aarch64_physical_register_model_ref() -> &'static PhysicalRegisterModel {
+    static MODEL: std::sync::OnceLock<PhysicalRegisterModel> = std::sync::OnceLock::new();
+    MODEL.get_or_init(build_aarch64_physical_register_model)
+}
+
+/// An owned copy of [`aarch64_physical_register_model_ref`] for callers that
+/// consume or edit the model.
 pub fn aarch64_physical_register_model() -> PhysicalRegisterModel {
+    aarch64_physical_register_model_ref().clone()
+}
+
+fn build_aarch64_physical_register_model() -> PhysicalRegisterModel {
     let mut builder = ModelBuilder::new();
     let mut named_units = BTreeMap::<String, RegisterUnitId>::new();
     let mut named_views = BTreeMap::<String, RegisterViewId>::new();
