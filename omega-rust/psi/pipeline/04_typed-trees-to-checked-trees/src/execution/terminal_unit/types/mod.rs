@@ -1556,15 +1556,32 @@ impl<'program> ShapeCollector<'program> {
         machine: &typed_trees::machine::Machine,
         binders: &[(SymbolHandle, String)],
     ) -> Option<String> {
-        if machine.attached_data_application.is_valid() {
-            return self.add_type(machine.attached_data_application, binders, &[]);
-        }
-        let data = self
+        let attached = self
             .program
             .data_definitions()
             .iter()
-            .find(|data| data.symbol == machine.attached_data_symbol)?;
-        self.add_attached_data(data, binders)
+            .find(|data| data.symbol == machine.attached_data_symbol)
+            .or_else(|| {
+                // A compiler-synthesized placed accessor attaches by a
+                // generated name that carries no source-resolved symbol; the
+                // signature builder joins that spelling to the exact shell
+                // declaration in the same way.
+                machine.attached_data.as_ref().and_then(|name| {
+                    self.program
+                        .data_definitions()
+                        .iter()
+                        .find(|data| data.name == *name)
+                })
+            });
+        if let Some(data) = attached
+            && let Some(identity) = self.add_placed_accessor_attachment(data, binders)
+        {
+            return Some(identity);
+        }
+        if machine.attached_data_application.is_valid() {
+            return self.add_type(machine.attached_data_application, binders, &[]);
+        }
+        self.add_attached_data(attached?, binders)
     }
 
     pub(super) fn add_attached_data(
@@ -1572,6 +1589,9 @@ impl<'program> ShapeCollector<'program> {
         data: &typed_trees::data::DataDefinition,
         binders: &[(SymbolHandle, String)],
     ) -> Option<String> {
+        if let Some(identity) = self.add_placed_accessor_attachment(data, binders) {
+            return Some(identity);
+        }
         if !self.program.data_type_parameters(data).is_empty() {
             // A static attached machine does not carry an instantiated type
             // argument tuple. Generic attached data therefore needs a later
@@ -1580,6 +1600,44 @@ impl<'program> ShapeCollector<'program> {
         }
         let identity = closed_data_identity(self.program, data, binders);
         self.add_data_shape(identity, data.clone(), binders, Vec::new())
+    }
+
+    /// A placed-view plan's generated accessor shell stays `BoundaryOpaque`
+    /// to source construction, yet each cloned `read`/`take`/`write` target
+    /// still attaches to it. Admit that attachment through the exact plan
+    /// row — not the generated name — as the empty nominal record the layout
+    /// catalog already assigns the same definition. The shell keeps no
+    /// members a source carrier could construct; this only publishes the
+    /// attachment identity its boundary operations and their callers join.
+    fn add_placed_accessor_attachment(
+        &mut self,
+        data: &typed_trees::data::DataDefinition,
+        binders: &[(SymbolHandle, String)],
+    ) -> Option<String> {
+        if data.supply_mode != language_semantics::DataSupplyMode::BoundaryOpaque
+            || !self
+                .program
+                .placed_view_plans
+                .iter()
+                .flat_map(|view| view.fields.iter())
+                .any(|field| field.accessor_data_symbol == data.symbol)
+        {
+            return None;
+        }
+        let identity = closed_data_identity(self.program, data, binders);
+        let plan = CheckedUnitStructuralTypePlan {
+            identity: identity.clone(),
+            shape: CheckedUnitStructuralTypeShape::Record { fields: Vec::new() },
+        };
+        if self
+            .types
+            .get(&identity)
+            .is_some_and(|existing| *existing != plan)
+        {
+            return None;
+        }
+        self.types.insert(identity.clone(), plan);
+        Some(identity)
     }
 
     fn is_unrestricted_nonatomic_primitive(&self, type_reference: TypeReferenceHandle) -> bool {
