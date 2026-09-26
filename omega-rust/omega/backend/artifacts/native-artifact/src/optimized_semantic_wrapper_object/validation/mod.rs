@@ -1,7 +1,7 @@
 //! Optimizer module role: executable entrance.
 
 use super::StagedValidatedOptimizedProgramStorageSemanticWrapperObject;
-use native_artifact::{
+use crate::{
     OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt,
     decode_optimized_program_storage_semantic_wrapper_object,
     encode_optimized_program_storage_semantic_wrapper_object_preserving_seal,
@@ -11,12 +11,12 @@ use program_entry_plan::validate_optimized_program_storage_semantic_wrapper_enco
 mod entry_contract;
 mod provider_continuation;
 
-pub(crate) use entry_contract::{
+pub use entry_contract::{
     bind_semantic_contract, receiver_layout, replay_semantic_contract, replay_settlement,
     validate_entry_shape,
 };
 pub use provider_continuation::validate_installed_program_storage_continuation_evidence;
-pub(crate) use provider_continuation::validate_retained_installed_provider_continuation;
+pub use provider_continuation::validate_retained_installed_provider_continuation;
 
 use super::error::OptimizedProgramStorageSemanticWrapperObjectError;
 use super::object::construct_object;

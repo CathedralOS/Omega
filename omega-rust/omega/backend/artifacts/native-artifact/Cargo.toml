@@ -32,6 +32,10 @@ semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" 
 terminal-psi = { path = "../../../../psi/representations/terminal-psi" }
 terminal-codec = { path = "../../../../psi/semantics/terminal-codec" }
 sha2 = "0.10.9"
+program-entry-plan = { path = "../../plans/program-entry-plan" }
+legalized-operations = { path = "../../../representations/legalized-operations" }
+terminal-psi-to-abstract-operations = { path = "../../../pipeline/00_terminal-psi-to-abstract-operations" }
+diagnostics = { path = "../../../../psi/foundation/diagnostics" }
 
 [features]
 test-support = ["object-file/test-support"]

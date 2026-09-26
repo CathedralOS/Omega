@@ -13,7 +13,7 @@ use terminal_psi_to_abstract_operations::AdmittedProviderInstallation;
 /// their existing no-installation route, while a real installed child cannot
 /// reach wrapper composition unless its selected call, provider body, claim
 /// completions, and opaque installation are one exact continuation.
-pub(crate) fn validate_retained_installed_provider_continuation(
+pub fn validate_retained_installed_provider_continuation(
     source: &StagedValidatedOptimizedObjectArtifact,
 ) -> Result<(), OptimizedProgramStorageSemanticWrapperObjectError> {
     let Some(installation) = source.provider_installation() else {

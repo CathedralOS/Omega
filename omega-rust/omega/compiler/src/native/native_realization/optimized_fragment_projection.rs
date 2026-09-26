@@ -2,7 +2,7 @@
 
 use diagnostics::Diagnostic;
 
-use crate::native::optimized_semantic_wrapper_object::{bind_semantic_contract, receiver_layout};
+use native_artifact::optimized_semantic_wrapper_object::{bind_semantic_contract, receiver_layout};
 
 pub(super) struct OptimizedFragmentPublicationRequest<'request> {
     /// The canonical Terminal artifact the emitted object seals. The semantic

@@ -4,11 +4,11 @@
 //! relocation-free child, independently replays the join, and grants custody.
 //! The wrapper object's durable records, their construction, shape checks,
 //! and codec belong to their representation owner,
-//! `native_artifact::semantic_wrapper_object`; this stage binds them to the
+//! `crate::semantic_wrapper_object`; this stage binds them to the
 //! settlement, source artifact, and encoding custody it retains.
 
-use crate::native::ValidatedNativeProgramEntrySettlement;
-use native_artifact::{
+use terminal_psi_to_abstract_operations::ValidatedNativeProgramEntrySettlement;
+use crate::{
     OptimizedProgramStorageSemanticWrapperObjectContainer,
     OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt,
     OptimizedProgramStorageSemanticWrapperObjectPlan,
@@ -29,7 +29,7 @@ pub use error::{
     InstalledProgramStorageContinuationEvidenceError,
     OptimizedProgramStorageSemanticWrapperObjectError,
 };
-pub(crate) use validation::{bind_semantic_contract, receiver_layout};
+pub use validation::{bind_semantic_contract, receiver_layout};
 pub use validation::{
     validate_installed_program_storage_continuation_evidence,
     validate_optimized_program_storage_semantic_wrapper_object,

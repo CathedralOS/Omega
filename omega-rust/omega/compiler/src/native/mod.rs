@@ -17,7 +17,6 @@
 mod native_pipeline;
 mod native_product;
 mod native_realization;
-mod optimized_semantic_wrapper_object;
 mod retained_native_product;
 
 pub use abstract_operations_to_target_operations::AdmittedIeeeFloatFmaSettlement;
@@ -81,7 +80,7 @@ pub use native_realization::{
     terminal_authority_policy_with_rows, time_host_mechanism_row, time_host_permission_row,
     time_host_permission_rows,
 };
-pub use optimized_semantic_wrapper_object::{
+pub use native_artifact::optimized_semantic_wrapper_object::{
     InstalledProgramStorageContinuationEvidenceError,
     OptimizedProgramStorageSemanticWrapperObjectError,
     StagedValidatedOptimizedProgramStorageSemanticWrapperObject,
