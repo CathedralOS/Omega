@@ -61,6 +61,30 @@ def cited_paths(text):
     return found
 
 
+def completed_items(text):
+    """Items that record finished work and name none that is left.
+
+    AGENTS.md: the boards are execution boards, not changelogs -- "an item
+    exists only while it names unfinished work and is deleted when acceptance
+    passes". An entry whose whole body is a `Landed:` record has outlived
+    that, and Git already preserves what it says. An entry that records what
+    landed AND still names remaining work is doing its job, so the presence
+    of any such word keeps it.
+    """
+    finished = []
+    for item in re.split(r"\n(?=- \*\*[A-Z])", text):
+        match = re.match(r"- \*\*([A-Z0-9-]+)\.\*\*\s*(.*)", item, re.S)
+        if not match:
+            continue
+        name, body = match.group(1), match.group(2)
+        if not body.lstrip().lower().startswith("landed:"):
+            continue
+        if re.search(r"\b(remaining|acceptance|owed|still needs|todo)\b", body, re.I):
+            continue
+        finished.append(name)
+    return finished
+
+
 def cited_links(text):
     """Every repo-relative markdown link target in one board.
 
@@ -235,6 +259,7 @@ def main():
     dead_total = 0
     stale_total = 0
     broken_total = 0
+    finished_total = 0
     cited_total = 0
     skipped_total = 0
     for board in options.boards or BOARDS:
@@ -304,6 +329,13 @@ def main():
                     )[:3]:
                         print(f"      same name: {hint}")
 
+        finished = completed_items(board_text)
+        finished_total += len(finished)
+        if finished and not options.quiet:
+            print(f"{board}: {len(finished)} completed item(s) still listed")
+            for name in finished:
+                print(f"  {name}")
+
         broken = sorted(
             target
             for target in cited_links(board_text)
@@ -319,9 +351,10 @@ def main():
         f"board_paths: {cited_total} cited, {dead_total} dead, "
         f"{stale_total} stale stage prefix, "
         f"{broken_total} broken link(s), "
+        f"{finished_total} completed item(s), "
         f"{skipped_total} glob citation(s) skipped"
     )
-    return 1 if dead_total or stale_total or broken_total else 0
+    return 1 if dead_total or stale_total or broken_total or finished_total else 0
 
 
 if __name__ == "__main__":

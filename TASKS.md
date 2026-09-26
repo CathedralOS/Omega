@@ -272,29 +272,6 @@ machinery dies instead of porting, and each surviving substep enters its stage
 as a module with a typed `in -> out` signature so later promotion to a numbered
 stage is cheap.
 
-- **FOUNDATION-STRAYS-TO-CONSUMERS.** Landed: `access-plans`, `extents`,
-  `layout-plans`, and `mutation-matrix` folded into their consumers; `psi/foundation/`
-  keeps only universal substrate (arena, symbols, diagnostics,
-  semantic-vocabulary, language-core, language-semantics, numerics, source).
-- **EMISSION-TAIL-REMAINDER.** Landed: `backend/{layout,
-  plans/program-entry-plan}` and `backend/runtime/{runtime-abi}` folded into
-  stage 09; `backend/runtime/{executable-installation,external-roots,
-  component-publication}` into the `omega` binary (post_handoff_writer rides
-  `installed-writer`); `backend/artifacts/*` and `backend/plans/backend-plan`
-  moved into the binary earlier. `omega/backend/` is deleted.
-- **OMEGA-IRS-INTO-STAGES.** Landed: `register-homes` -> stage 04, `effects`
-  -> stage 02, `machine-code` -> stage 07, `boundary-applications` +
-  `representation-selections` -> stage 09; `target`, `optimization-core`,
-  `installation-evidence` relocated to the flat `psi/` boundary layer.
-  `omega/representations/` is deleted.
-- **PSI-FOLD-INTO-STAGES.** Landed: engines
-  (`build-time-evaluation`, `checked-interpreter`, `terminal-fixed-fuel`)
-  fold into the `omega` binary's run paths; judges (`proof-admission`,
-  `terminal-semantics`), `terminal-codec`, `terminal-verifier`,
-  `terminal-interpreter`, and `terminal-fuel` sit at the flat `psi/`
-  boundary layer — each is consumed by psi stages, so binary placement is
-  impossible, not deferred. `psi/semantics/` and `psi/representations/` are
-  deleted; `terminal-psi` stays the lone standalone representation crate.
 - **BINARY-MEGA-FOLD-REMAINDER.** Landed: `omega/compiler`, `omega/build/*`
   (10 crates), `omega/packages/*` (5), `omega/tooling/*` (3),
   `omega/backend/artifacts/*` (2), `omega/backend/plans/backend-plan`,
@@ -304,10 +281,7 @@ stage is cheap.
   crate as `omega::<lib>` modules. Remaining (owned by other items):
   `omega::compiler` vs `omega::compilation` orchestration merging under
   ONE-DRIVER-PER-STAGE/SOURCE-SET-UNION/BUILD-EVALUATES-ONCE.
-- **PIPELINE-PLACEMENT-RULE-REWRITE.** Landed: `omega-rust/pipeline.md`'s
-  placement rule now states the surviving-outside-pipeline test — universal
-  substrate (`psi/foundation/`), the flat `psi/` boundary layer, and the
-  `omega` binary — and the deleted directories are gone from the map.
+
 - **POST-FOLD-REPAIR.** The consolidation landed on main at `912b490c8f` as
   one commit over an advancing upstream, and the tree is not yet compile-green;
   this row owns the tail. `mbx check --workspace` enumerates the damage, which
@@ -6291,7 +6265,6 @@ release acceptance still requires complete coverage. Remaining reported failures
   Include `windows_set_file_time_exit_canary_runs`: SetFileTime followed by
   `_stat64` must read back Unix time 1,500,000,000 and exit 70. Its corrected
   unsigned byte assembly is not evidence that Windows execution passed.
-
 
 - **MACOS-X64-HOST-PROFILE.** Execute the compiler/runtime route on an Intel
   macOS host. Target/provider recognition, exact physical-entry reconstruction,
