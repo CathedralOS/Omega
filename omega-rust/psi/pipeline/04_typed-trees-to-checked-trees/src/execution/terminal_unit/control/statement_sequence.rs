@@ -438,6 +438,36 @@ fn returned_subslice(
     ))
 }
 
+/// A `("bytes")` tail completing a borrowed `&[u8]` view return: the literal
+/// names its own immutable storage, so the result source is the spelled byte
+/// sequence itself — the same source shape a boundary call argument carries.
+/// No parameter, local, or result custody is involved and no reference source
+/// is established: the verifier's literal place kind is self-describing.
+pub(super) fn returned_byte_sequence_literal(
+    program: &TypedTrees,
+    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+) -> Option<CheckedUnitStructuralReturnPlan> {
+    if !crate::execution::terminal_unit::types::borrowed_slice_view(program, state.return_type) {
+        return None;
+    }
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let StatementNode::Expression(expression) = statements.last()? else {
+        return None;
+    };
+    let ExpressionNode::String(bytes) = program.expression_table.expression(*expression) else {
+        return None;
+    };
+    Some(CheckedUnitStructuralReturnPlan {
+        source: CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral {
+            bytes: bytes.to_vec(),
+        },
+        type_identity: program
+            .normalized_type_identity(state.return_type)
+            .into_string(),
+        multiplicity: program.type_multiplicity(state.return_type),
+        reference_sources: Vec::new(),
+    })
+}
 /// A `collection[0..collection.len]` completion re-borrows the carrier itself:
 /// the authored whole view *is* the shared `&` loan, so the result names the
 /// carrier parameter — or, for `self.field[..]`, the projected `&`-field's
@@ -716,7 +746,7 @@ pub(super) fn first_unsupported_statement(
                                 state.return_type,
                             ) && matches!(
                                 program.expression_table.expression(*expression),
-                                ExpressionNode::Indexed(_)
+                                ExpressionNode::Indexed(_) | ExpressionNode::String(_)
                             ))
                             || crate::validation::is_closed_primitive_array_type(
                                 program,

@@ -426,7 +426,7 @@ pub(super) fn emit(
         structural_result_places,
         structural_value_temporaries,
         local_places,
-        literal_places,
+        mut literal_places,
         next_literal_argument,
         subslice_places,
         borrowed_windows,
@@ -603,6 +603,36 @@ pub(super) fn emit(
                             "returned structural parameter is absent",
                         ))?
                         .place
+                }
+                CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { ref bytes } => {
+                    // A literal return establishes its own immutable storage in
+                    // place: the declaration joins the machine's literal roster
+                    // and the establishment runs in this block before the
+                    // terminator forwards the place.
+                    let source = place_id(allocate_dense(&mut next_place)?);
+                    let structural_type = lookup_type_id(type_ids, &result.type_identity)?;
+                    let declaration_ordinal =
+                        crate::emission::next_byte_sequence_literal_ordinal(&literal_places)?;
+                    literal_places.push(StructuralPlaceDeclaration {
+                        id: source,
+                        kind: StructuralPlaceKind::ByteSequenceLiteral {
+                            declaration_ordinal,
+                            structural_type,
+                        },
+                    });
+                    let id = operations.allocate();
+                    operations.push(Operation {
+                        static_reach_binding: None,
+                        suspension_crossing: None,
+                        id,
+                        result: terminal_psi::OperationResult::Unit,
+                        kind: OperationKind::EstablishByteSequenceLiteral {
+                            destination: source,
+                            bytes: bytes.clone(),
+                            qualifications: Vec::new(),
+                        },
+                    });
+                    source
                 }
                 _ => {
                     return unsupported("structural return source is not an owned whole value");

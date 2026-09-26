@@ -1473,6 +1473,7 @@ pass/relevance/erased_parameter_named_transition_forward checked 2ms
 pass/relevance/erased_parameter_proof_only checked 171ms
 pass/relevance/erased_receiver_proof_machine_call checked 1ms
 pass/relevance/erased_record_parameter_exit checked 157ms
+pass/slices/byte_sequence_literal_tail_return_compile checked 724ms
 pass/slices/callee_non_byte_view_len_index_subslice checked 1ms
 pass/slices/disjoint_mut_subslice_windows_compile checked 0ms
 pass/slices/domained_runtime_end_subslice_exit checked 178ms
