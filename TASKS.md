@@ -720,20 +720,29 @@ the complete product bar; focused successes below do not establish that baseline
   `fail/slices/subslice_range_operator_contract_unproven` and
   `fail/providers/checked_boundary_operator_const_application_unselected`
   were each `expected` in the golden until the `operator` introducer's
-  retirement reached their declarations. A token-bearing spelled use records
-  no row in `facts.operators.uses` and routes as an ordinary call, so three
-  readers that watch only the operator path go blind: the ranges seam
-  (`checks/ranges/indexes/validation/selected.rs::obligation` is never
-  reached), `checks/operators/requires.rs` (`uses` is empty), and
-  build-time-evaluation's binary-operator selection authority (const-generic
-  `call_custody` answers instead, though
-  `machine_execution/admission/selection_authority.rs`'s message still
-  exists). Each program still rejects, at a different rung, so this is lost
-  attribution rather than a soundness hole -- what the fixtures lose is the
-  array-bounds phrasing and the clause-by-name form.
-  Whether a token-bearing spelled use must still record an operator-use row,
-  or that single call-contract message is the settled post-migration shape
-  and these four repin, belongs with **OPERATOR-BOUNDARY-CALLS**; the
+  retirement reached their declarations. The cause is PHASE ORDER, not a
+  missing fact: a token-bearing spelled use routes as an ordinary call, the
+  call-contract rung rejects it, and checking stops before the phases that
+  own the other diagnostics run. Measured on
+  `slices/index_operator_contract_unproven`: the bounds walker
+  (`checks/ranges/indexes/validation.rs::is_builtin_scalar_index`) is
+  entered 1124 times for that compilation and not once for `Main::main`,
+  while the same walker does visit user machines throughout `pass/slices`,
+  whose programs reach that phase. Operator-use rows DO exist -- an earlier
+  reading of this that claimed `facts.operators.uses` was empty was wrong,
+  and only holds for a NOMINAL collection, where indexing resolves no
+  spelled declaration at all. `checked_boundary_operator_const_application_unselected`
+  is the same shape one stage over: const-generic `call_custody` answers
+  before the binary-operator selection authority the fixture targets, whose
+  message still exists in
+  `machine_execution/admission/selection_authority.rs`.
+  Each program still rejects, so this is lost attribution rather than a
+  soundness hole -- what the fixtures lose is the array-bounds phrasing and
+  the clause-by-name form, both owned by phases the rejection preempts.
+  So the question is whether a call-contract rejection should preempt the
+  bounds and clause-by-name phases or run beside them, and if it should,
+  whether that single message is the settled post-migration shape and these
+  four repin. That belongs with **OPERATOR-BOUNDARY-CALLS**; the
   ranges-seam bounds diagnostic has no other customer either way.
 
   All six are pinned `unexpected` in the golden rather than hidden.
