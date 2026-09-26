@@ -97,9 +97,34 @@ pub(crate) fn realize(
             // the moved node re-derives the roster from the callee's
             // verifier-owned contract against its just-substituted
             // `arguments`. An admitted pure call carries an empty roster —
-            // nothing to re-derive.
+            // nothing to re-derive. The structural-signature variants route
+            // through the scalar-only-gated helper: admission already proved
+            // the published routes carry no rooted term the verifier's
+            // structural-path substitution could touch, so the scalar
+            // derivation is the exact reconstruction and a forged roster —
+            // or a plan that moved a call the gate would refuse — fails
+            // here instead of spelling unverifiable evidence.
+            let structural_call = matches!(
+                node.operation,
+                O::CallUnit { .. } | O::CallStructuralScalar { .. } | O::CallStructural { .. }
+            );
             let crash_custody = match &node.operation {
                 O::Call {
+                    callee,
+                    crash_continuations,
+                    ..
+                }
+                | O::CallUnit {
+                    callee,
+                    crash_continuations,
+                    ..
+                }
+                | O::CallStructuralScalar {
+                    callee,
+                    crash_continuations,
+                    ..
+                }
+                | O::CallStructural {
                     callee,
                     crash_continuations,
                     ..
@@ -112,20 +137,41 @@ pub(crate) fn realize(
                     .iter()
                     .find(|function| function.machine == callee)
                     .ok_or(LoopInvariantScalarMotionError::CandidateMismatch)?;
-                let O::Call {
-                    arguments,
-                    crash_continuations,
-                    ..
-                } = &mut node.operation
-                else {
-                    return Err(LoopInvariantScalarMotionError::CandidateMismatch);
+                let (arguments, crash_continuations) = match &mut node.operation {
+                    O::Call {
+                        arguments,
+                        crash_continuations,
+                        ..
+                    }
+                    | O::CallUnit {
+                        arguments,
+                        crash_continuations,
+                        ..
+                    }
+                    | O::CallStructuralScalar {
+                        arguments,
+                        crash_continuations,
+                        ..
+                    }
+                    | O::CallStructural {
+                        arguments,
+                        crash_continuations,
+                        ..
+                    } => (arguments, crash_continuations),
+                    _ => return Err(LoopInvariantScalarMotionError::CandidateMismatch),
                 };
-                *crash_continuations =
+                *crash_continuations = if structural_call {
+                    crate::validation::relocation_rewrites::structural_call_crash_continuations(
+                        callee_function,
+                        arguments,
+                    )
+                } else {
                     crate::validation::relocation_rewrites::call_crash_continuations(
                         callee_function,
                         arguments,
                     )
-                    .ok_or(LoopInvariantScalarMotionError::CandidateMismatch)?;
+                }
+                .ok_or(LoopInvariantScalarMotionError::CandidateMismatch)?;
             }
             if let Some((parameter, representative)) = planned.root_rewrite
                 && !crate::validation::relocation_rewrites::substitute_invariant_place_root(

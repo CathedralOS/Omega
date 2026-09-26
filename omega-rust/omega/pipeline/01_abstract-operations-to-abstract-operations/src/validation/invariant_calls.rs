@@ -1,6 +1,12 @@
 //! Loop-invariance admission of member calls: unit, scalar, structural-scalar
 //! and structural calls whose callee the whole-unit effect summary proves
 //! pure and whose arguments land on preheader-visible or run-produced roots.
+//! Every variant may additionally carry crash-route custody: the roster is
+//! re-derived from the callee's verifier-owned contract at the source and
+//! substituted actuals rather than trusted byte-exact — for the
+//! structural-signature variants only when every published crash predicate
+//! is scalar-only, since the optimizer-side reconstruction does not replay
+//! the terminal verifier's canonical structural-path substitution.
 //! `unit_effect_summaries` is the effect product both the proposal and the
 //! relocation freeze replay derive callee purity from.
 
@@ -97,35 +103,22 @@ pub(crate) fn admissible_invariant_crash_continuation_call(
     (!crash_continuations.is_empty()).then_some(callee)
 }
 
-/// Unit-result machine calls — `CallUnit` — are the structural-signature
-/// member of the call family admitted for loop-invariant motion: an exact
-/// internal callee invocation whose scalar arguments ride the shared
-/// substitution and whose structural arguments are borrows. The
-/// node must keep its own operation identity as the first provenance row,
-/// define no scalar (`CallUnit` produces no result — the relocated node
-/// preserves the invocation itself), use exactly its scalar `arguments` in
-/// operand order, carry no successors, and keep no crash-route custody. A
-/// structural argument with `MutableBorrow` or `WriteOnlyBorrow` access hands
-/// the callee write authority over a caller place — admitted only through
-/// [`invariant_unit_call_admission`]'s exclusive member-produced-root
-/// evidence — while `Owned` access admits only when the argument names a
-/// whole root whose declared multiplicity is `Unrestricted`: the verifier
-/// binds argument and callee parameter multiplicities equal, so the copy
-/// shapes the cyclic owned-argument fence recognizes — an unrestricted
-/// owned parameter or an unrestricted claim-free scalar-array result —
-/// copy the payload into the callee's activation rather than moving
-/// custody. An `Owned` argument over an affine or linear root genuinely
-/// transfers the caller's place and stays refused.
-/// `claim_transfers` must be empty: the node then carries exactly one
-/// vacuous `ClaimTransfer` ownership row — the custody mirror of the empty
-/// roster — which relocates byte-exact inside the moved operation.
-/// `requirement_obligations` move byte-exact exactly like a scalar call's:
-/// they were discharged against the argument values and operand substitution
-/// only rebinds a member parameter to the representative every reaching edge
-/// proves equal. Argument-root invariance and the whole-component
-/// place-custody bound are decided separately by
-/// [`invariant_unit_call_admission`].
-pub(crate) fn admissible_invariant_unit_call(node: &OptimizationNode) -> Option<MachineId> {
+/// The source-owned node shape every `CallUnit` lane shares: an exact
+/// `CallUnit` provenance whose node keeps its own operation identity as the
+/// first provenance row, defines no scalar (`CallUnit` produces no result —
+/// the relocated node preserves the invocation itself), uses exactly its
+/// scalar `arguments` in operand order, carries no successors, keeps
+/// `claim_transfers` empty, and carries exactly one vacuous `ClaimTransfer`
+/// ownership row — the custody mirror of the empty roster — which relocates
+/// byte-exact inside the moved operation. `requirement_obligations` move
+/// byte-exact exactly like a scalar call's: they were discharged against the
+/// argument values and operand substitution only rebinds a member parameter
+/// to the representative every reaching edge proves equal. Returns the
+/// callee, the scalar argument operands, and the carried crash-continuation
+/// roster; each lane then decides which continuations it can re-express.
+fn unit_call_shape(
+    node: &OptimizationNode,
+) -> Option<(MachineId, &[ValueId], &[terminal_psi::CrashRouteBucket])> {
     let O::CallUnit {
         psi_operation,
         callee,
@@ -147,37 +140,77 @@ pub(crate) fn admissible_invariant_unit_call(node: &OptimizationNode) -> Option<
             .all(|(value_use, argument)| value_use.value == *argument)
         && node.successors.is_empty()
         && claim_transfers.is_empty()
-        && node.ownership.as_slice() == [OwnershipEvent::ClaimTransfer(Vec::new())]
-        && crash_continuations.is_empty())
-    .then_some(*callee)
+        && node.ownership.as_slice() == [OwnershipEvent::ClaimTransfer(Vec::new())])
+    .then_some((
+        *callee,
+        arguments.as_slice(),
+        crash_continuations.as_slice(),
+    ))
 }
 
-/// Scalar-result structural-signature machine calls — `CallStructuralScalar`
-/// — are the call family's third admitted member: an exact internal callee
-/// invocation carrying both the scalar `arguments` a `Call` spells and the
-/// shared-borrow `structural_arguments` a `CallUnit` spells, and defining
-/// exactly one scalar result. The node must keep its own operation identity
-/// as the first provenance row, define exactly its spelled `result`, use
-/// exactly its scalar `arguments` in operand order, carry no successors, and
-/// keep no crash-route custody. The structural side obeys the unit call's
-/// whitelist verbatim: borrow arguments admit — a `MutableBorrow` or
-/// `WriteOnlyBorrow` argument still needs
-/// [`invariant_structural_scalar_call_admission`]'s exclusive
-/// member-produced-root evidence, and an `Owned` argument admits only over
-/// a whole root whose declared multiplicity is `Unrestricted`, the copy
-/// shapes the cyclic owned-argument fence recognizes — while `claim_transfers` must
-/// be empty, so the node
-/// carries exactly one vacuous `ClaimTransfer` ownership row that relocates
-/// byte-exact inside the moved operation. `requirement_obligations` move
-/// byte-exact exactly like the other call variants': they were discharged
-/// against the argument values and operand substitution only rebinds a
-/// member parameter to the representative every reaching edge proves equal.
-/// Callee purity, member observability, argument-root invariance, and the
-/// whole-component place-custody bound are decided separately by
-/// [`invariant_structural_scalar_call_admission`].
-pub(crate) fn admissible_invariant_structural_scalar_call(
+/// Unit-result machine calls — `CallUnit` — are the structural-signature
+/// member of the call family admitted for loop-invariant motion: an exact
+/// internal callee invocation whose scalar arguments ride the shared
+/// substitution and whose structural arguments are borrows, spelled through
+/// the shared [`unit_call_shape`] with no crash-route custody. A
+/// structural argument with `MutableBorrow` or `WriteOnlyBorrow` access hands
+/// the callee write authority over a caller place — admitted only through
+/// [`invariant_unit_call_admission`]'s exclusive member-produced-root
+/// evidence — while `Owned` access admits only when the argument names a
+/// whole root whose declared multiplicity is `Unrestricted`: the verifier
+/// binds argument and callee parameter multiplicities equal, so the copy
+/// shapes the cyclic owned-argument fence recognizes — an unrestricted
+/// owned parameter or an unrestricted claim-free scalar-array result —
+/// copy the payload into the callee's activation rather than moving
+/// custody. An `Owned` argument over an affine or linear root genuinely
+/// transfers the caller's place and stays refused. A call carrying
+/// `crash_continuations` takes the crash-custody lane
+/// ([`admissible_invariant_crash_continuation_unit_call`]) instead, which
+/// re-derives the roster rather than carrying it byte-exact. Argument-root
+/// invariance and the whole-component place-custody bound are decided
+/// separately by [`invariant_unit_call_admission`].
+pub(crate) fn admissible_invariant_unit_call(node: &OptimizationNode) -> Option<MachineId> {
+    let (callee, _, crash_continuations) = unit_call_shape(node)?;
+    crash_continuations.is_empty().then_some(callee)
+}
+
+/// Unit-result machine calls carrying crash-route custody — a `CallUnit`
+/// whose `crash_continuations` roster is non-empty — are the structural
+/// family's crash-evidence lane: the same source-owned `CallUnit` shape
+/// ([`unit_call_shape`]) with a roster to re-express. The roster is
+/// evidence the relocation re-derives rather than moves:
+/// [`invariant_crash_continuation_unit_call_admission`] requires the
+/// callee's transitive effect summary to stay pure — so the published
+/// routes are a contract ceiling the callee's body never actually
+/// exercises — proves the carried roster is exactly what the callee's
+/// verifier-owned contract derives at these arguments, and the realization
+/// recomputes the moved call's continuations under the substituted
+/// arguments. Because the optimizer-side reconstruction does not reproduce
+/// the terminal verifier's canonical structural-path substitution, the lane
+/// admits only rosters whose predicates are scalar-only — a roster reading
+/// a callee structural parameter stays inside.
+pub(crate) fn admissible_invariant_crash_continuation_unit_call(
     node: &OptimizationNode,
 ) -> Option<MachineId> {
+    let (callee, _, crash_continuations) = unit_call_shape(node)?;
+    (!crash_continuations.is_empty()).then_some(callee)
+}
+
+/// The source-owned node shape every `CallStructuralScalar` lane shares: an
+/// exact `CallStructuralScalar` provenance whose node keeps its own
+/// operation identity as the first provenance row, defines exactly its
+/// spelled `result`, uses exactly its scalar `arguments` in operand order,
+/// carries no successors, keeps `claim_transfers` empty, and carries exactly
+/// one vacuous `ClaimTransfer` ownership row that relocates byte-exact
+/// inside the moved operation. `requirement_obligations` move byte-exact
+/// exactly like the other call variants': they were discharged against the
+/// argument values and operand substitution only rebinds a member parameter
+/// to the representative every reaching edge proves equal. Returns the
+/// callee, the scalar argument operands, and the carried crash-continuation
+/// roster; each lane then decides which continuations it can re-express.
+fn structural_scalar_call_shape(
+    node: &OptimizationNode,
+) -> Option<(MachineId, &[ValueId], &[terminal_psi::CrashRouteBucket])> {
     let O::CallStructuralScalar {
         psi_operation,
         result,
@@ -202,49 +235,86 @@ pub(crate) fn admissible_invariant_structural_scalar_call(
             .all(|(value_use, argument)| value_use.value == *argument)
         && node.successors.is_empty()
         && claim_transfers.is_empty()
-        && node.ownership.as_slice() == [OwnershipEvent::ClaimTransfer(Vec::new())]
-        && crash_continuations.is_empty())
-    .then_some(*callee)
+        && node.ownership.as_slice() == [OwnershipEvent::ClaimTransfer(Vec::new())])
+    .then_some((
+        *callee,
+        arguments.as_slice(),
+        crash_continuations.as_slice(),
+    ))
 }
 
-/// Structural-result machine calls — `CallStructural` — are the call family's
-/// fourth admitted member: an exact internal callee invocation returning a
-/// fresh structural place. The admitted shapes are the ones the cyclic
-/// eligibility fence already confines: an affine, claim-free result the
-/// producing member block dispatches through a `StructuralCase` or returns
-/// outright, so the verifier's per-traversal custody — produce inside the
-/// member, discard on every dispatch edge — is exactly what the relocation
-/// re-expresses; or an unrestricted claim-free result spelling one of the
-/// frontier's plain-source shapes — a copy payload that never enters
-/// `owned_places`, so the relocation re-expresses no custody for it at all
-/// and the persistent preheader place simply reads the same value every
-/// traversal. The node must keep its own operation identity as the first
-/// provenance row, define no scalar, use exactly its scalar `arguments` in
-/// operand order, carry no successors, and keep no crash-route custody.
-/// `claim_transfers` and `returned_claim_transfers` must both be empty — the
-/// node then carries exactly one vacuous `ClaimTransfer` ownership row, which
-/// relocates byte-exact inside the moved operation. `structural_arguments`
-/// obeys the argument whitelist the unit and scalar-result calls share: a
-/// borrow argument lets the callee observe — and for a mutating borrow,
-/// write — a caller place, so
-/// [`invariant_structural_call_admission`] replays the whole-component
-/// place-custody bound and each argument root's landing rule, while an
-/// `Owned` argument admits only over a whole root whose declared
-/// multiplicity is `Unrestricted` — an unrestricted owned parameter or an
-/// unrestricted claim-free scalar-array result copies its payload into the
-/// callee — and an `Owned` argument over an affine or linear root moves the
-/// caller's place outright, custody movement this boundary cannot
-/// re-express, so it stays refused.
-/// `requirement_obligations`, `crash_continuations`, and
-/// `selected_evidence` must be empty: the admitted contract carries
-/// none of them, and a call that does stays inside rather than re-expressing
-/// evidence this family has not reconstructed. Callee purity, member
-/// observability, the place-custody bound, argument-root invariance, and the
-/// result's member-roster containment are decided
-/// separately by [`invariant_structural_call_admission`].
-pub(crate) fn admissible_invariant_structural_call(
+/// Scalar-result structural-signature machine calls — `CallStructuralScalar`
+/// — are the call family's third admitted member: an exact internal callee
+/// invocation carrying both the scalar `arguments` a `Call` spells and the
+/// shared-borrow `structural_arguments` a `CallUnit` spells, and defining
+/// exactly one scalar result, spelled through the shared
+/// [`structural_scalar_call_shape`] with no crash-route custody. The
+/// structural side obeys the unit call's
+/// whitelist verbatim: borrow arguments admit — a `MutableBorrow` or
+/// `WriteOnlyBorrow` argument still needs
+/// [`invariant_structural_scalar_call_admission`]'s exclusive
+/// member-produced-root evidence, and an `Owned` argument admits only over
+/// a whole root whose declared multiplicity is `Unrestricted`, the copy
+/// shapes the cyclic owned-argument fence recognizes.
+/// A call carrying `crash_continuations` takes the crash-custody lane
+/// ([`admissible_invariant_crash_continuation_structural_scalar_call`])
+/// instead, which re-derives the roster rather than carrying it byte-exact.
+/// Callee purity, member observability, argument-root invariance, and the
+/// whole-component place-custody bound are decided separately by
+/// [`invariant_structural_scalar_call_admission`].
+pub(crate) fn admissible_invariant_structural_scalar_call(
     node: &OptimizationNode,
-) -> Option<(MachineId, terminal_psi::StructuralOperationResult)> {
+) -> Option<MachineId> {
+    let (callee, _, crash_continuations) = structural_scalar_call_shape(node)?;
+    crash_continuations.is_empty().then_some(callee)
+}
+
+/// Scalar-result structural calls carrying crash-route custody — a
+/// `CallStructuralScalar` whose `crash_continuations` roster is non-empty —
+/// are the family's crash-evidence lane: the same source-owned
+/// `CallStructuralScalar` shape ([`structural_scalar_call_shape`]) with a
+/// roster to re-express.
+/// [`invariant_crash_continuation_structural_scalar_call_admission`] replays
+/// the whole structural-scalar evidence surface — the pure transitive
+/// callee (so the published routes stay a contract ceiling the body never
+/// exercises), the unobservable member roster, the whole-component
+/// place-custody bound, and each argument root's landing — then adds the
+/// crash halves: the carried roster must equal the callee's verifier-owned
+/// contract derivation at the source actuals, the recomputed roster under
+/// the substituted actuals must stay inside the caller's published crash
+/// ceiling, and — because the optimizer-side reconstruction does not
+/// reproduce the terminal verifier's canonical structural-path substitution
+/// — every crash predicate must be scalar-only, so the moved call's
+/// structural-argument rebind leaves the roster derivation untouched.
+pub(crate) fn admissible_invariant_crash_continuation_structural_scalar_call(
+    node: &OptimizationNode,
+) -> Option<MachineId> {
+    let (callee, _, crash_continuations) = structural_scalar_call_shape(node)?;
+    (!crash_continuations.is_empty()).then_some(callee)
+}
+
+/// The source-owned node shape every `CallStructural` lane shares: an exact
+/// `CallStructural` provenance whose node keeps its own operation identity
+/// as the first provenance row, defines no scalar, uses exactly its scalar
+/// `arguments` in operand order, carries no successors, and returns a
+/// claim-free result whose multiplicity is `Affine` or `Unrestricted` — the
+/// multiplicities the cyclic eligibility fence already confines. Both
+/// `claim_transfers` and `returned_claim_transfers` must be empty, so the
+/// node carries exactly one vacuous `ClaimTransfer` ownership row, which
+/// relocates byte-exact inside the moved operation.
+/// `requirement_obligations` and `selected_evidence` must be empty in every
+/// lane: the admitted contract carries none of them, and a call that does
+/// stays inside rather than re-expressing evidence this family has not
+/// reconstructed. Returns the callee, the result declaration, the scalar
+/// argument operands, and the carried crash-continuation roster; each lane
+/// then decides which continuations it can re-express.
+fn structural_call_shape(
+    node: &OptimizationNode,
+) -> Option<(
+    MachineId,
+    terminal_psi::StructuralOperationResult,
+    &[terminal_psi::CrashRouteBucket],
+)> {
     let O::CallStructural {
         psi_operation,
         result,
@@ -280,10 +350,72 @@ pub(crate) fn admissible_invariant_structural_call(
         && claim_transfers.is_empty()
         && returned_claim_transfers.is_empty()
         && requirement_obligations.is_empty()
-        && crash_continuations.is_empty()
         && selected_evidence.is_empty()
         && node.ownership.as_slice() == [OwnershipEvent::ClaimTransfer(Vec::new())])
-    .then(|| (*callee, result.clone()))
+    .then(|| (*callee, result.clone(), crash_continuations.as_slice()))
+}
+
+/// Structural-result machine calls — `CallStructural` — are the call family's
+/// fourth admitted member: an exact internal callee invocation returning a
+/// fresh structural place, spelled through the shared
+/// [`structural_call_shape`] with no crash-route custody. The admitted
+/// shapes are the ones the cyclic
+/// eligibility fence already confines: an affine, claim-free result the
+/// producing member block dispatches through a `StructuralCase` or returns
+/// outright, so the verifier's per-traversal custody — produce inside the
+/// member, discard on every dispatch edge — is exactly what the relocation
+/// re-expresses; or an unrestricted claim-free result spelling one of the
+/// frontier's plain-source shapes — a copy payload that never enters
+/// `owned_places`, so the relocation re-expresses no custody for it at all
+/// and the persistent preheader place simply reads the same value every
+/// traversal.
+/// `structural_arguments`
+/// obeys the argument whitelist the unit and scalar-result calls share: a
+/// borrow argument lets the callee observe — and for a mutating borrow,
+/// write — a caller place, so
+/// [`invariant_structural_call_admission`] replays the whole-component
+/// place-custody bound and each argument root's landing rule, while an
+/// `Owned` argument admits only over a whole root whose declared
+/// multiplicity is `Unrestricted` — an unrestricted owned parameter or an
+/// unrestricted claim-free scalar-array result copies its payload into the
+/// callee — and an `Owned` argument over an affine or linear root moves the
+/// caller's place outright, custody movement this boundary cannot
+/// re-express, so it stays refused.
+/// A call carrying `crash_continuations` takes the crash-custody lane
+/// ([`admissible_invariant_crash_continuation_structural_call`]) instead,
+/// which re-derives the roster rather than carrying it byte-exact. Callee
+/// purity, member observability, the place-custody bound, argument-root
+/// invariance, and the result's member-roster containment are decided
+/// separately by [`invariant_structural_call_admission`].
+pub(crate) fn admissible_invariant_structural_call(
+    node: &OptimizationNode,
+) -> Option<(MachineId, terminal_psi::StructuralOperationResult)> {
+    let (callee, result, crash_continuations) = structural_call_shape(node)?;
+    crash_continuations.is_empty().then_some((callee, result))
+}
+
+/// Structural-result machine calls carrying crash-route custody — a
+/// `CallStructural` whose `crash_continuations` roster is non-empty — are
+/// the family's crash-evidence lane: the same source-owned `CallStructural`
+/// shape ([`structural_call_shape`]) with a roster to re-express.
+/// [`invariant_crash_continuation_structural_call_admission`] replays the
+/// whole structural-call evidence surface — the pure transitive callee, the
+/// unobservable member roster, the place-custody bound run with the run's
+/// relocating roots plus the call's own affine result tolerated, each
+/// argument root's landing, and the affine result's containment bound — then
+/// adds the crash halves the scalar-custody lane established: the carried
+/// roster must equal the callee's verifier-owned contract derivation at the
+/// source actuals, the recomputed roster under the substituted actuals must
+/// stay inside the caller's published crash ceiling, and every crash
+/// predicate must be scalar-only, since the optimizer-side reconstruction
+/// does not reproduce the terminal verifier's canonical structural-path
+/// substitution — a roster reading a callee structural parameter stays
+/// inside.
+pub(crate) fn admissible_invariant_crash_continuation_structural_call(
+    node: &OptimizationNode,
+) -> Option<(MachineId, terminal_psi::StructuralOperationResult)> {
+    let (callee, result, crash_continuations) = structural_call_shape(node)?;
+    (!crash_continuations.is_empty()).then_some((callee, result))
 }
 
 /// The complete unit-call admission shared by the proposal and the
@@ -448,13 +580,8 @@ pub(crate) fn invariant_structural_call_admission(
     effects: &crate::EffectSummaryAnalysis,
 ) -> Option<(BTreeMap<ValueId, ValueId>, Vec<(PlaceId, PlaceId)>)> {
     let (callee, result) = admissible_invariant_structural_call(node)?;
-    let mut tolerated = relocating_roots.clone();
-    if result.multiplicity == terminal_psi::StructuralMultiplicity::Affine {
-        if !scalar_case_result_contained(function, component, result.place) {
-            return None;
-        }
-        tolerated.insert(result.place);
-    }
+    let tolerated =
+        structural_call_result_tolerated(function, component, &result, relocating_roots)?;
     let O::CallStructural {
         structural_arguments,
         ..
@@ -473,6 +600,248 @@ pub(crate) fn invariant_structural_call_admission(
         &tolerated,
         effects,
     )
+}
+
+/// The member-discard tolerances an admitted `CallStructural` result
+/// contributes to the place-custody bound, shared by both of the call's
+/// roster lanes: the run's relocating roots are always tolerated — their
+/// producers' declared places move byte-exact — and an affine result must
+/// additionally prove the containment bound
+/// ([`scalar_case_result_contained`]) before its place joins the set,
+/// since the relocation keeps that one persistent result live across member
+/// edges where the source discarded a fresh place every traversal. An
+/// unrestricted result adds nothing: a custody-free copy payload enters no
+/// discard roster.
+fn structural_call_result_tolerated(
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    result: &terminal_psi::StructuralOperationResult,
+    relocating_roots: &BTreeSet<PlaceId>,
+) -> Option<BTreeSet<PlaceId>> {
+    let mut tolerated = relocating_roots.clone();
+    if result.multiplicity == terminal_psi::StructuralMultiplicity::Affine {
+        if !scalar_case_result_contained(function, component, result.place) {
+            return None;
+        }
+        tolerated.insert(result.place);
+    }
+    Some(tolerated)
+}
+
+/// The complete crash-custody unit-call admission shared by the proposal
+/// and the relocation freeze replay: `node` must carry the source-owned
+/// crash-continuation `CallUnit` shape
+/// ([`admissible_invariant_crash_continuation_unit_call`]) — which yields
+/// the exact internal callee — and then passes
+/// [`crash_continuation_borrow_call_admission`]'s shared surface: the
+/// carried roster re-derived from the callee's verifier-owned contract at
+/// the source actuals, the unit call's whole structural evidence half
+/// unchanged, the roster recomputed under the substituted actuals, and the
+/// caller's published crash ceiling covering it. The recomputation helper
+/// refuses contracts whose crash predicates are not scalar-only, so a call
+/// whose published routes read a callee structural parameter stays inside.
+pub(crate) fn invariant_crash_continuation_unit_call_admission(
+    functions: &[PsiOptimizationFunction],
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    node: &OptimizationNode,
+    relocating: &BTreeSet<ValueId>,
+    relocating_roots: &BTreeSet<PlaceId>,
+    effects: &crate::EffectSummaryAnalysis,
+) -> Option<(BTreeMap<ValueId, ValueId>, Vec<(PlaceId, PlaceId)>)> {
+    let callee = admissible_invariant_crash_continuation_unit_call(node)?;
+    let O::CallUnit {
+        arguments,
+        structural_arguments,
+        crash_continuations,
+        ..
+    } = &node.operation
+    else {
+        return None;
+    };
+    crash_continuation_borrow_call_admission(
+        functions,
+        function,
+        component,
+        node,
+        callee,
+        arguments,
+        crash_continuations,
+        structural_arguments,
+        relocating,
+        relocating_roots,
+        &BTreeSet::new(),
+        effects,
+    )
+}
+
+/// The complete crash-custody structural-scalar call admission shared by
+/// the proposal and the relocation freeze replay: `node` must carry the
+/// source-owned crash-continuation `CallStructuralScalar` shape
+/// ([`admissible_invariant_crash_continuation_structural_scalar_call`]) —
+/// which yields the exact internal callee — and then passes
+/// [`crash_continuation_borrow_call_admission`]'s shared surface unchanged:
+/// the carried roster re-derived from the callee's verifier-owned contract
+/// at the source actuals, the pure transitive callee, the unobservable
+/// member roster, the whole-component place-custody bound, the shared
+/// scalar-operand substitution, each structural argument's root landing,
+/// the roster recomputed under the substituted actuals, and the caller's
+/// published crash ceiling covering it.
+pub(crate) fn invariant_crash_continuation_structural_scalar_call_admission(
+    functions: &[PsiOptimizationFunction],
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    node: &OptimizationNode,
+    relocating: &BTreeSet<ValueId>,
+    relocating_roots: &BTreeSet<PlaceId>,
+    effects: &crate::EffectSummaryAnalysis,
+) -> Option<(BTreeMap<ValueId, ValueId>, Vec<(PlaceId, PlaceId)>)> {
+    let callee = admissible_invariant_crash_continuation_structural_scalar_call(node)?;
+    let O::CallStructuralScalar {
+        arguments,
+        structural_arguments,
+        crash_continuations,
+        ..
+    } = &node.operation
+    else {
+        return None;
+    };
+    crash_continuation_borrow_call_admission(
+        functions,
+        function,
+        component,
+        node,
+        callee,
+        arguments,
+        crash_continuations,
+        structural_arguments,
+        relocating,
+        relocating_roots,
+        &BTreeSet::new(),
+        effects,
+    )
+}
+
+/// The complete crash-custody structural-result call admission shared by
+/// the proposal and the relocation freeze replay: `node` must carry the
+/// source-owned crash-continuation `CallStructural` shape
+/// ([`admissible_invariant_crash_continuation_structural_call`]) — which
+/// yields the exact internal callee and its claim-free result — then adds
+/// the result's containment half
+/// ([`structural_call_result_tolerated`]) before passing
+/// [`crash_continuation_borrow_call_admission`]'s shared surface: the
+/// carried roster re-derived from the callee's verifier-owned contract at
+/// the source actuals, the pure transitive callee, the unobservable member
+/// roster, the whole-component place-custody bound run with the run's
+/// relocating roots plus the call's own affine result tolerated, each
+/// argument root's landing, the roster recomputed under the substituted
+/// actuals, and the caller's published crash ceiling covering it.
+pub(crate) fn invariant_crash_continuation_structural_call_admission(
+    functions: &[PsiOptimizationFunction],
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    node: &OptimizationNode,
+    relocating: &BTreeSet<ValueId>,
+    relocating_roots: &BTreeSet<PlaceId>,
+    effects: &crate::EffectSummaryAnalysis,
+) -> Option<(BTreeMap<ValueId, ValueId>, Vec<(PlaceId, PlaceId)>)> {
+    let (callee, result) = admissible_invariant_crash_continuation_structural_call(node)?;
+    let tolerated =
+        structural_call_result_tolerated(function, component, &result, relocating_roots)?;
+    let O::CallStructural {
+        arguments,
+        structural_arguments,
+        crash_continuations,
+        ..
+    } = &node.operation
+    else {
+        return None;
+    };
+    crash_continuation_borrow_call_admission(
+        functions,
+        function,
+        component,
+        node,
+        callee,
+        arguments,
+        crash_continuations,
+        structural_arguments,
+        relocating,
+        relocating_roots,
+        &tolerated,
+        effects,
+    )
+}
+
+/// The shared crash-evidence halves every admitted structural-signature
+/// call replays once its shape gate has yielded the exact internal callee
+/// and `tolerated` member discards: the carried `crash_continuations` must
+/// be exactly what the callee's verifier-owned published contract derives
+/// at the source actuals
+/// ([`crate::validation::relocation_rewrites::structural_call_crash_continuations`]
+/// — `None` when no contract survives, when erased formals would substitute
+/// terms this lane does not track, or when a predicate reads structural
+/// evidence the optimizer-side reconstruction cannot replay), so a drifted
+/// or producer-invented roster refuses before any further evidence is
+/// consulted. The call then passes the borrow family's whole admission
+/// unchanged ([`borrow_call_admission`]) — pure transitive callee,
+/// unobservable member roster, place-custody bound, scalar-operand
+/// substitution, and each structural argument's landing — which yields the
+/// substitution the moved roster is recomputed under; the caller's own
+/// published crash ceiling must cover that moved roster
+/// ([`crash_routes_cover`]) — the same canonical coverage the terminal
+/// verifier replays, minus the entry-requirement discharge a producer-only
+/// proof could have relied on.
+fn crash_continuation_borrow_call_admission(
+    functions: &[PsiOptimizationFunction],
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    node: &OptimizationNode,
+    callee: MachineId,
+    arguments: &[ValueId],
+    crash_continuations: &[terminal_psi::CrashRouteBucket],
+    structural_arguments: &[terminal_psi::StructuralArgument],
+    relocating: &BTreeSet<ValueId>,
+    relocating_roots: &BTreeSet<PlaceId>,
+    tolerated: &BTreeSet<PlaceId>,
+    effects: &crate::EffectSummaryAnalysis,
+) -> Option<(BTreeMap<ValueId, ValueId>, Vec<(PlaceId, PlaceId)>)> {
+    let callee_function = functions
+        .iter()
+        .find(|candidate| candidate.machine == callee)?;
+    if crate::validation::relocation_rewrites::structural_call_crash_continuations(
+        callee_function,
+        arguments,
+    )? != *crash_continuations
+    {
+        // The carried roster must be exactly what the callee's contract
+        // derives at the current arguments — evidence drift refuses, so the
+        // moved node never inherits a roster the contract did not produce.
+        return None;
+    }
+    let (substitution, rewrites) = borrow_call_admission(
+        function,
+        component,
+        node,
+        callee,
+        structural_arguments,
+        relocating,
+        relocating_roots,
+        tolerated,
+        effects,
+    )?;
+    let moved_arguments = arguments
+        .iter()
+        .map(|argument| substitution.get(argument).copied().unwrap_or(*argument))
+        .collect::<Vec<_>>();
+    let continuations =
+        crate::validation::relocation_rewrites::structural_call_crash_continuations(
+            callee_function,
+            &moved_arguments,
+        )?;
+    let caller_contract = function.verified_contract.as_ref()?;
+    crash_routes_cover(&caller_contract.crash_routes, &continuations)
+        .then_some((substitution, rewrites))
 }
 
 /// The shared evidence every admitted structural-signature call replays once
