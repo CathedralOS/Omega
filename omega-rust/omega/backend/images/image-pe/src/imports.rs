@@ -3,6 +3,7 @@
 
 use crate::bytes::{write_i32_at, write_u16_at, write_u32_at, write_u64_at};
 use crate::constants::IMAGE_BASE;
+use crate::layout::align_to;
 use calling_conventions::{MachineState, MachineStateSet, RegisterSet, StateFootprintEvidence};
 use diagnostics::Diagnostic;
 use image::{
@@ -10,7 +11,6 @@ use image::{
     FinalImageImportPlan, FinalImageLayout, FinalImageSection, PlacedDataRegionInventory,
     PlacedExecutableRegion, PlacedExecutableRegionInventory,
 };
-use layout::align_to;
 use object_file::SymbolKind;
 use target::{Architecture, ForeignLocatorCandidate, ObjectFormat, TargetProfile};
 

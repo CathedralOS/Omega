@@ -18,7 +18,9 @@ use crate::provider_planning::provenance_replay::{
     DerivedProviderPlan, ProviderPlanProvenance, ProviderSchemaDeclaration,
     SelectedTargetMachineOrigin, satisfies_plan_name,
 };
-use crate::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema, TypedTrees};
+use crate::provider_planning::{
+    ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema, TypedTrees,
+};
 
 pub(crate) fn derive_provider_plans(
     typed: &TypedTrees,

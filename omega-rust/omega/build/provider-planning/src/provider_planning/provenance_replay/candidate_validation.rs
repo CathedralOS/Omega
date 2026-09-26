@@ -13,7 +13,9 @@ use crate::provider_planning::provenance_replay::{
     DerivedProviderPlan, ProviderPlanProvenance, ProviderSchemaDeclaration,
     SelectedTargetMachineOrigin, exact_checked_adapter,
 };
-use crate::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema, TypedTrees};
+use crate::provider_planning::{
+    ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema, TypedTrees,
+};
 
 /// Validate every derived candidate before coverage and selection. A partial
 /// candidate may wait for more conformances, but duplicate/stray rows and

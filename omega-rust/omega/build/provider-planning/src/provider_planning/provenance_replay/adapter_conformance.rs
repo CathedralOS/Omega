@@ -4,7 +4,9 @@
 use crate::provider_planning::provenance_replay::requirement_identities::{
     exact_satisfied_requirement_identity, external_provider_binding, realization_machine_identity,
 };
-use crate::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema, TypedTrees};
+use crate::provider_planning::{
+    ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema, TypedTrees,
+};
 
 pub(crate) fn checked_adapter_has_exact_conformance(
     typed: &TypedTrees,

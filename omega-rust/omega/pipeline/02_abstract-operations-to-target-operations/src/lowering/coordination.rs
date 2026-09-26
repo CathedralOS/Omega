@@ -32,7 +32,6 @@ use super::scalar_abi::{
 };
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::AbstractOperationPlan;
 use abstract_operations::{AbstractOperation, AbstractOperationPlan};
 use installation_evidence::ProviderInstallationEvidence;
 use std::collections::BTreeMap;
