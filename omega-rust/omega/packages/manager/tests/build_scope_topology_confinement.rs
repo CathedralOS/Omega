@@ -1,4 +1,4 @@
-//! Input-confinement control for the `tests/fixtures/packages/
+//! Input-confinement control for the `tests/omega/packages/
 //! build-scope-topology` project: the topology helper reads its admitted
 //! inputs through the caller's `builder.source` facet, so it must never
 //! reach dependency-adjacent artifacts — its own package files — nor
@@ -53,7 +53,7 @@ impl Drop for Fixture {
 fn fixture_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../../..")
-        .join("tests/fixtures/packages/build-scope-topology")
+        .join("tests/omega/packages/build-scope-topology")
         .canonicalize()
         .expect("committed build-scope-topology fixture exists")
 }

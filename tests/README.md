@@ -1,18 +1,17 @@
 # Repository tests
 
-This tree owns validation whose subject is the repository, the Omega language,
-or a multi-package build rather than one Rust crate.
+This tree holds one directory per language, plus `bootstrap/` for tests that
+span more than one bootstrap rung.
 
-- `architecture/` is the test-only Cargo package for cross-crate dependency and
-  semantic-shape guards.
 - `alpha/` contains Alpha conformance and reference tests.
 - `beta/` contains trusted Beta compiler reconstruction and differential tests.
 - `gamma/` contains the Gamma evaluator and compiler-customer gates.
 - `delta/` contains measured candidate-language experiments; it does not define
   a canonical Delta edge.
+- `epsilon/` contains Epsilon checking, evaluation, and runtime gates.
 - `bootstrap/` contains only tests spanning more than one bootstrap rung.
-- `omega/` contains Omega-language pass, fail, pending, and execution cases.
-- `fixtures/` contains reusable package and Terminal Psi inputs.
+- `omega/` contains the Omega language corpus and the package projects the
+  package manager tests build.
 
 Rust tests whose subject is one crate remain beside that crate in its `tests/`
 directory (or its internal `#[cfg(test)]` modules). Those directories are local

@@ -19,7 +19,7 @@ impl Fixture {
     pub(super) fn expected_package(&self, package: &str) -> PathBuf {
         let local_root = local_package_root(package);
         let remote_build = workspace_root()
-            .join("tests/fixtures/package-remotes")
+            .join("tests/omega/package-remotes")
             .join(package)
             .join("build.omg");
         if !remote_build.exists() {

@@ -6,6 +6,9 @@ Compiler cases are organized by outcome first, then by feature area.
 - `fail/`: should be rejected with the expected diagnostic fragment
 - `run/`: ad hoc runnable probes and exploratory cases that are not part of the
   main pass/fail contract suite
+- `packages/`, `package-remotes/`, `package-workspaces/`: multi-package
+  projects read by the package manager's and `omega install`/`update` tests;
+  the corpus gate does not compile them
 
 Inside each bucket, prefer feature folders when a group becomes noisy:
 

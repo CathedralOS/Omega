@@ -6,9 +6,9 @@ fn generated_project() -> Project {
     let project = Project::new();
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
-        .find(|ancestor| ancestor.join("tests/fixtures/packages").is_dir())
+        .find(|ancestor| ancestor.join("tests/omega/packages").is_dir())
         .unwrap()
-        .join("tests/fixtures/packages/generated-table");
+        .join("tests/omega/packages/generated-table");
     for relative in ["build.omg", "main.omg", "inputs/table.txt"] {
         project.write(
             &format!("producer/{relative}"),

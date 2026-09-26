@@ -722,7 +722,7 @@ machine build(builder: &mut Build) {
 fn exact_nested_source_request_changes_question_with_identical_ledgers_and_fresh_match_rejects() {
     let (temporary, _closure, reviews, question) = graph_workbench_question();
     let limits = CanonicalPackageReconstructionQuestionLimits::default();
-    let fixture_root = workspace_root().join("tests/fixtures/packages");
+    let fixture_root = workspace_root().join("tests/omega/packages");
     let alternate_request_spelling = fixture_root.join(".");
     let workspace_lineage = SourceLineage::git("https://github.com/CathedralOS/Omega.git").unwrap();
     let alternate_closure = resolve_workspace_package_closure_from_hardened_base(

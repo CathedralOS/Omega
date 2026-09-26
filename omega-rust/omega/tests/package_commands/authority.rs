@@ -7,12 +7,10 @@ use std::process::Output;
 mod missing_baseline;
 
 const TARGET: target::TargetProfile = target::TargetProfile::LinuxX64;
-const FILE_BUILD: &str = include_str!("../../../../tests/fixtures/packages/file-journal/build.omg");
-const FILE_SOURCE: &str = include_str!("../../../../tests/fixtures/packages/file-journal/main.omg");
-const PROCESS_BUILD: &str =
-    include_str!("../../../../tests/fixtures/packages/process-exit/build.omg");
-const PROCESS_SOURCE: &str =
-    include_str!("../../../../tests/fixtures/packages/process-exit/main.omg");
+const FILE_BUILD: &str = include_str!("../../../../tests/omega/packages/file-journal/build.omg");
+const FILE_SOURCE: &str = include_str!("../../../../tests/omega/packages/file-journal/main.omg");
+const PROCESS_BUILD: &str = include_str!("../../../../tests/omega/packages/process-exit/build.omg");
+const PROCESS_SOURCE: &str = include_str!("../../../../tests/omega/packages/process-exit/main.omg");
 
 pub(super) fn authority_fixture(build: &str, source: &str) -> Fixture {
     let fixture = Fixture::new();
@@ -22,19 +20,19 @@ pub(super) fn authority_fixture(build: &str, source: &str) -> Fixture {
     for (name, contents) in [
         (
             "build.omg",
-            include_str!("../../../../tests/fixtures/packages/host-services/build.omg"),
+            include_str!("../../../../tests/omega/packages/host-services/build.omg"),
         ),
         (
             "main.omg",
-            include_str!("../../../../tests/fixtures/packages/host-services/main.omg"),
+            include_str!("../../../../tests/omega/packages/host-services/main.omg"),
         ),
         (
             "console.omg",
-            include_str!("../../../../tests/fixtures/packages/host-services/console.omg"),
+            include_str!("../../../../tests/omega/packages/host-services/console.omg"),
         ),
         (
             "filesystem_host.omg",
-            include_str!("../../../../tests/fixtures/packages/host-services/filesystem_host.omg"),
+            include_str!("../../../../tests/omega/packages/host-services/filesystem_host.omg"),
         ),
     ] {
         fixture.write(&format!("host-services/{name}"), contents);
@@ -338,7 +336,7 @@ invokes files;
 
 fn generated_authority(source: &str, callable: &str, services: &[&str]) {
     const GENERATED_BUILD: &str =
-        include_str!("../../../../tests/fixtures/packages/generated-table/build.omg");
+        include_str!("../../../../tests/omega/packages/generated-table/build.omg");
     let generated_source = source
         .replace('\\', "\\\\")
         .replace('"', "\\\"")
@@ -356,7 +354,7 @@ fn generated_authority(source: &str, callable: &str, services: &[&str]) {
     fs::create_dir(fixture.path("dependency/inputs")).unwrap();
     fixture.write(
         "dependency/inputs/table.txt",
-        include_str!("../../../../tests/fixtures/packages/generated-table/inputs/table.txt"),
+        include_str!("../../../../tests/omega/packages/generated-table/inputs/table.txt"),
     );
     let before = fixture.accepted_files();
     let output = install(&fixture);

@@ -4,18 +4,18 @@
 //! serve both purposes under two aliases, an import in either scope selects
 //! only that scope's edges, and dropping an edge after publication rejects
 //! only the imports that edge authorized. Fixture packages live in
-//! `tests/fixtures/packages/build-purposes`.
+//! `tests/omega/packages/build-purposes`.
 
 use super::fixture::{Fixture, assert_status};
 
 const ALPHA_BUILD: &str =
-    include_str!("../../../../tests/fixtures/packages/build-purposes/alpha/build.omg");
+    include_str!("../../../../tests/omega/packages/build-purposes/alpha/build.omg");
 const ALPHA_MAIN: &str =
-    include_str!("../../../../tests/fixtures/packages/build-purposes/alpha/main.omg");
+    include_str!("../../../../tests/omega/packages/build-purposes/alpha/main.omg");
 const BETA_BUILD: &str =
-    include_str!("../../../../tests/fixtures/packages/build-purposes/beta/build.omg");
+    include_str!("../../../../tests/omega/packages/build-purposes/beta/build.omg");
 const BETA_MAIN: &str =
-    include_str!("../../../../tests/fixtures/packages/build-purposes/beta/main.omg");
+    include_str!("../../../../tests/omega/packages/build-purposes/beta/main.omg");
 
 const PRODUCT_IMPORT_REJECTION: &str = "a product import may only select product dependencies";
 const BUILD_IMPORT_REJECTION: &str = "a build import may only select build dependencies";

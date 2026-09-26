@@ -18,7 +18,7 @@ fn pinned_ssh_install_and_update_publish_and_import_remote_api() {
 }
 
 fn install_update_and_import(repository: &str) {
-    let pins = include_str!("../../../../tests/fixtures/packages/REMOTE_PINS.md");
+    let pins = include_str!("../../../../tests/omega/packages/REMOTE_PINS.md");
     assert!(
         pins.lines()
             .any(|line| line.contains("`arithmetic-kernels`") && line.contains(REVISION)),

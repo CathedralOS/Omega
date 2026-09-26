@@ -30,7 +30,7 @@ fn workspace_root() -> PathBuf {
         .ancestors()
         .find(|ancestor| {
             ancestor
-                .join("tests/fixtures/packages/REMOTE_PINS.md")
+                .join("tests/omega/packages/REMOTE_PINS.md")
                 .is_file()
         })
         .expect("package-manager should live beneath the Omega workspace")
@@ -39,7 +39,7 @@ fn workspace_root() -> PathBuf {
 
 fn remote_pins() -> Vec<RemotePin> {
     let pins =
-        std::fs::read_to_string(workspace_root().join("tests/fixtures/packages/REMOTE_PINS.md"))
+        std::fs::read_to_string(workspace_root().join("tests/omega/packages/REMOTE_PINS.md"))
             .expect("REMOTE_PINS.md should be readable");
     pins.lines().filter_map(parse_pin_line).collect::<Vec<_>>()
 }
@@ -69,9 +69,7 @@ fn trim_code(value: &str) -> &str {
 }
 
 fn local_package_root(package: &str) -> PathBuf {
-    workspace_root()
-        .join("tests/fixtures/packages")
-        .join(package)
+    workspace_root().join("tests/omega/packages").join(package)
 }
 
 fn ssh_url(pin: &RemotePin) -> String {
@@ -554,7 +552,7 @@ fn create_mirror(
 fn remote_git_dependencies(package: &str) -> Vec<String> {
     use package_manager::declarations::DependencySourceRequest;
     let overrides = workspace_root()
-        .join("tests/fixtures/package-remotes")
+        .join("tests/omega/package-remotes")
         .join(package);
     if !overrides.join("build.omg").is_file() {
         return Vec::new();

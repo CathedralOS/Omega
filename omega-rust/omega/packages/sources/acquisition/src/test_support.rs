@@ -251,7 +251,7 @@ pub(crate) fn add_empty_tree_commit(repository: &Path) -> String {
 pub(crate) fn package_fixtures_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
-        .map(|ancestor| ancestor.join("tests/fixtures/packages"))
+        .map(|ancestor| ancestor.join("tests/omega/packages"))
         .find(|fixtures| fixtures.is_dir())
         .expect("package-source should live beneath the Omega workspace")
 }

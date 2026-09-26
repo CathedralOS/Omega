@@ -31,7 +31,7 @@ static TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
-        .find(|ancestor| ancestor.join("tests/fixtures/packages").is_dir())
+        .find(|ancestor| ancestor.join("tests/omega/packages").is_dir())
         .expect("package-manager should live beneath the Omega workspace")
         .to_path_buf()
 }
@@ -90,7 +90,7 @@ fn graph_workbench_question() -> (
 ) {
     let temporary = temporary_root("graph-workbench");
     std::fs::create_dir_all(&temporary).expect("create temporary root");
-    let fixture_root = workspace_root().join("tests/fixtures/packages");
+    let fixture_root = workspace_root().join("tests/omega/packages");
     let workspace_lineage = SourceLineage::git("https://github.com/CathedralOS/Omega.git").unwrap();
     let closure = resolve_workspace_package_closure_from_hardened_base(
         &workspace_lineage,

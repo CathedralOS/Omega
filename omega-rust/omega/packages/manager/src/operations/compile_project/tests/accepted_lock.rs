@@ -125,9 +125,9 @@ fn native_comparison_observes_generated_candidate_without_reopening_authored_sou
     std::fs::create_dir_all(producer.join("inputs")).unwrap();
     let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
-        .find(|path| path.join("tests/fixtures/packages").is_dir())
+        .find(|path| path.join("tests/omega/packages").is_dir())
         .unwrap()
-        .join("tests/fixtures/packages/generated-table");
+        .join("tests/omega/packages/generated-table");
     for name in ["build.omg", "main.omg", "inputs/table.txt"] {
         std::fs::copy(fixtures.join(name), producer.join(name)).unwrap();
     }

@@ -12,9 +12,9 @@ pub(super) fn generated_workspace(
 ) -> ResolvedPackageSourceClosure {
     let fixtures = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
-        .find(|ancestor| ancestor.join("tests/fixtures/packages").is_dir())
+        .find(|ancestor| ancestor.join("tests/omega/packages").is_dir())
         .expect("package manager lives beneath the repository fixtures")
-        .join("tests/fixtures/packages");
+        .join("tests/omega/packages");
     for relative in [
         "generated-table/build.omg",
         "generated-table/main.omg",

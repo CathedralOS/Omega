@@ -167,7 +167,7 @@ fn assert_recorded_pin(pin: &str) {
         "remote authority fixture pin is still pending: {pin}"
     );
     assert!(
-        include_str!("../../../../tests/fixtures/packages/REMOTE_PINS.md").contains(pin),
+        include_str!("../../../../tests/omega/packages/REMOTE_PINS.md").contains(pin),
         "only reviewed commits recorded in REMOTE_PINS.md may run: {pin}"
     );
 }

@@ -11,10 +11,8 @@ use std::fs;
 use std::path::Path;
 
 const TARGET: target::TargetProfile = target::TargetProfile::MacosArm64;
-const APP_BUILD: &str =
-    include_str!("../../../../tests/fixtures/packages/console-exit-app/build.omg");
-const APP_SOURCE: &str =
-    include_str!("../../../../tests/fixtures/packages/console-exit-app/main.omg");
+const APP_BUILD: &str = include_str!("../../../../tests/omega/packages/console-exit-app/build.omg");
+const APP_SOURCE: &str = include_str!("../../../../tests/omega/packages/console-exit-app/main.omg");
 const STANDARD_LIBRARY_LOCATION: &str = "../../../../source/library/std";
 const EXIT_REQUIREMENT: &str = "path(Console::exit_process)";
 /// Every compiler-intrinsic leaf of the selected std Console provider, with
@@ -32,8 +30,8 @@ fn console_exit_fixture() -> Fixture {
     let standard_library =
         fs::canonicalize(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../source/library/std"))
             .expect("bundled standard library checkout");
-    let checked_in_project = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/fixtures/packages/console-exit-app");
+    let checked_in_project =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/omega/packages/console-exit-app");
     assert_eq!(
         fs::canonicalize(checked_in_project.join(STANDARD_LIBRARY_LOCATION))
             .expect("the checked-in fixture's dependency resolves before it is copied"),
