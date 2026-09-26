@@ -48,8 +48,8 @@ pub fn arrival_integer_expression_bounds(
     {
         return None;
     }
-    let mut environment = incoming_guard_environment(program, machine, state);
     let frames = CallFrameResolver::new(program);
+    let mut environment = incoming_guard_environment(program, machine, state, frames.as_ref());
     seed_state_requirements(program, machine, state, frames.as_ref(), &mut environment);
     let mut walk = ArrivalWalk {
         program,
@@ -255,13 +255,13 @@ fn condition_belongs_to_state(
 pub(super) fn incoming_environments(
     program: &TypedTrees,
     machine: &Machine,
+    frames: Option<&CallFrameResolver>,
 ) -> Vec<(SymbolHandle, ValueEnvironment)> {
     let states = program.machine_states(machine);
     let mut current = states
         .iter()
         .map(|state| (state.symbol, ValueEnvironment::new()))
         .collect::<Vec<_>>();
-    let frames = CallFrameResolver::new(program);
     // One round per state propagates acyclic chains. Cycles also contribute in
     // every round, starting with their full declared parameter domains. There
     // is no assumption that a seed guard is an inductive loop invariant.
@@ -269,17 +269,17 @@ pub(super) fn incoming_environments(
         let mut walk = ArrivalWalk {
             program,
             machine,
-            frames: frames.as_ref(),
+            frames,
             joined: vec![None; states.len()],
         };
         if let Some(entry) = states.first() {
             let mut external = ValueEnvironment::new();
-            seed_state_requirements(program, machine, entry, frames.as_ref(), &mut external);
+            seed_state_requirements(program, machine, entry, frames, &mut external);
             walk.joined[0] = Some(external);
         }
         for (state, (_, environment)) in states.iter().zip(&current) {
             let mut environment = environment.clone();
-            seed_state_requirements(program, machine, state, frames.as_ref(), &mut environment);
+            seed_state_requirements(program, machine, state, frames, &mut environment);
             walk.statements(
                 state,
                 program.statement_table.statements(state.statement_nodes),

@@ -217,13 +217,14 @@ fn fixed_array_length_proves_its_declared_return_range() {
 fn delivered_bounds(source: &str) -> Option<Interval> {
     let program = crate::front_end::typed_program(source);
     let machine = &program.machines()[0];
-    let batch = incoming_guard_environments(&program, machine);
+    let frames = crate::CallFrameResolver::new(&program);
+    let batch = incoming_guard_environments(&program, machine, frames.as_ref());
     assert_eq!(batch.len(), program.machine_states(machine).len());
     for (state, (symbol, environment)) in program.machine_states(machine).iter().zip(&batch) {
         assert_eq!(*symbol, state.symbol);
         assert_eq!(
             *environment,
-            incoming_guard_environment(&program, machine, state),
+            incoming_guard_environment(&program, machine, state, frames.as_ref()),
             "batched arrivals preserve each individual query: {source}",
         );
     }
@@ -232,7 +233,7 @@ fn delivered_bounds(source: &str) -> Option<Interval> {
         .iter()
         .find(|state| state.name.as_str() == "append")
         .unwrap();
-    incoming_guard_environment(&program, machine, state).get("delivered")
+    incoming_guard_environment(&program, machine, state, frames.as_ref()).get("delivered")
 }
 
 #[test]
@@ -441,8 +442,9 @@ fn arrival_bounds_follow_false_continuation_polarity() {
         .iter()
         .find(|state| state.name.as_str() == "append")
         .unwrap();
+    let frames = crate::CallFrameResolver::new(&program);
     assert_eq!(
-        incoming_guard_environment(&program, machine, target).get("delivered"),
+        incoming_guard_environment(&program, machine, target, frames.as_ref()).get("delivered"),
         Some(Interval {
             low: Some(0),
             high: Some(3)
