@@ -45,14 +45,14 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   An isolated validator or retained-but-unused plan does not close the join.
 
 - **WORKSPACE-ROLLOUT.** Keep exact rules opt-in and Experimental in the
-  [rule inventory](omega-rust/omega/representations/optimization-core/rules.md)
+  [rule inventory](omega-rust/psi/optimization-core/rules.md)
   until the frozen-tree command
   `CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 mbx test --workspace --no-fail-fast`
   passes and promotion receives the separate owner decision required by the
   [promotion contract](wiki/spec/build/optimizations.md#release-rollback-and-promotion).
   Do not substitute `--all-targets`, which omits doctests.
 
-  The six [staged promotion records](omega-rust/omega/representations/optimization-core/promotions/)
+  The six [staged promotion records](omega-rust/psi/optimization-core/promotions/)
   contain rollback and Linux measurement evidence; Approved status and Owner
   approval remain PENDING. Review evidence against the contract rather than
   treating populated fields or a schema-gate pass as approval or broader host
@@ -393,7 +393,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   descriptor. `SelectedInstructionPairRule` declares producer, consumer and
   rewritten kinds, operand shape, immediate bound, result disposition, unit
   effects and machine effects, and the
-  [exact-rule inventory](omega-rust/omega/representations/optimization-core/rules.md)
+  [exact-rule inventory](omega-rust/psi/optimization-core/rules.md)
   lists the implemented `SelectedIncoming*` selections. `3e8da4d90e` (macw7)
   showed the descriptor's bound field carries value partitions:
   `PairImmediateBound::EncodingNonZero(4095)` on the immediate pairs versus
@@ -596,7 +596,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   support without weakening positive, negative, boundary, budget, determinism,
   fixed-point, or corruption axes.
 
-  Keep [inventory rows](omega-rust/omega/representations/optimization-core/rules.md)
+  Keep [inventory rows](omega-rust/psi/optimization-core/rules.md)
   resolving to actual optimizer tests. New exact rules land with
   the full [stage-extension matrix](omega-rust/optimization.md#validation-when-extending-a-stage);
   mandatory runtime recovery retains its explicit no-disabled-axis distinction.
