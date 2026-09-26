@@ -3,6 +3,13 @@
 Lane: `leaf/bump-allocator-canary` @ leg HEAD `7a1af0074e`.
 Binary: `target/release/omega` (pre-restructure build; crate logic identical).
 
+Re-verified post-restructure-repair (main `180ac337a8`, lane commit
+`e3e8b86501`):
+`--check` exit 0, corpus pin `checked` green, `omega run` declines at the
+same admission diagnostic, and `omega audit packages --project` reports the
+identical 9 obligations (allocate×3, open, release×2, reset, shrink×2 — all
+`UnrecognizedInductiveBody`).
+
 ## Advancement this leg
 
 `omega --check tests/omega/pass/memory/bump_allocator_canary/main.omg`
