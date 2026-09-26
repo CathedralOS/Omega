@@ -84,7 +84,9 @@ fn exact_mutable_referent(
     let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
     // Method calls pass no expression for the receiver: align the formal list
     // with the authored argument list by dropping `self`, then compare kinds.
-    let formals: Vec<&typed_trees::signature::StateParameter> = parameters
+    let formals: Vec<
+        &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter,
+    > = parameters
         .iter()
         .filter(|parameter| !parameter.is_self)
         .collect();

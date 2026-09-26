@@ -1,4 +1,5 @@
 //! Exact semantic shape, value backing, and ABI custody for aggregates.
+use crate::legalized_operations;
 use crate::legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
 };
@@ -517,12 +518,11 @@ pub(super) fn returned<'a>(
                 parameter.multiplicity,
             )
         }
+        // A returned parameter uses `StructuralParameter`, never this owner.
         // A returned parameter uses `StructuralParameter`, never this owner;
         // a borrowed dispatch source has no local custody slot at all.
-        crate::legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
-        | crate::legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter {
-            ..
-        } => {
+        legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
+        | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { .. } => {
             return None;
         }
     };

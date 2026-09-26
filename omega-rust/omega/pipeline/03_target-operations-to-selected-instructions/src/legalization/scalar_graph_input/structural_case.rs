@@ -4,6 +4,7 @@ use super::{
     PsiProvenance,
 };
 use crate::LegalizationError;
+use crate::legalized_operations;
 use semantic_vocabulary::{OperationId, PlaceId};
 use terminal_psi::StructuralOperationResult;
 
@@ -145,12 +146,12 @@ pub(in crate::legalization) fn case_source(
     match declaration.access {
         terminal_psi::StructuralAccess::SharedBorrow
         | terminal_psi::StructuralAccess::MutableBorrow => Ok(
-            crate::legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter {
+            legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter {
                 declaration: declaration.clone(),
             },
         ),
         terminal_psi::StructuralAccess::Owned if !declaration.is_self => Ok(
-            crate::legalized_operations::LegalizedStructuralCaseSource::Parameter {
+            legalized_operations::LegalizedStructuralCaseSource::Parameter {
                 declaration: declaration.clone(),
             },
         ),

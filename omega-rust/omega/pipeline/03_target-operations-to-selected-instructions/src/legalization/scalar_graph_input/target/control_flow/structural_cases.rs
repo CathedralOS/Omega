@@ -5,6 +5,8 @@ use super::{
     AbstractOperationPlan, PsiOptimizationFunction, TargetControlGraph, TargetUnitOperation,
 };
 use crate::legalization::scalar_graph_input::target::control_flow::sources;
+use abstract_operations_to_target_operations::calling_conventions;
+use abstract_operations_to_target_operations::target_operations;
 use abstract_operations_to_target_operations::target_operations::{
     TargetBoundaryResult, TargetControlCaseSuccessor, TargetStructuralCaseSource,
     TargetStructuralHomeRequirement, TargetStructuralParameter,

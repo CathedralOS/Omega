@@ -3,8 +3,8 @@ use super::{
     MUTATING_REALIZATION_SOURCE, PROJECTED_MUTATING_REALIZATION_SOURCE, direct_dynamic_checked,
     direct_plan, direct_plan_mut, unsupported_message,
 };
+use crate::TerminalMachineSelection;
 use crate::tests::{checked_source_with_core_service, lower_machine};
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use lowered_psi_to_terminal_psi::terminal_production::{
     TerminalProductionCustody, TerminalProductionTimings,
 };

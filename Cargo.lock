@@ -574,6 +574,7 @@ dependencies = [
  "post-allocation-machine-to-selected-form-encoding",
  "proof-admission",
  "register-homes-to-post-allocation-machine",
+ "resolved-layout-to-resolved-layout",
  "selected-form-encoding-to-resolved-layout",
  "selected-instructions-to-register-homes",
  "semantic-vocabulary",

@@ -6,6 +6,7 @@ use super::{
     SelectedTerminator, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use crate::SelectedInstructionError;
+use crate::selected_instructions;
 use crate::selected_instructions::{
     FrameStorageSlotId, SelectedCasePayloadTransport as Transport, SelectedMemoryAccess,
     SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,

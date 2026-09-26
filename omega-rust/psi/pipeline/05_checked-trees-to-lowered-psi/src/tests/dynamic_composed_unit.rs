@@ -1,6 +1,6 @@
 //! Fixtures shared by the dynamic composed unit lowering tests.
 
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use crate::TerminalMachineSelection;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 mod direct_dynamic_units;
 mod finite_family;
@@ -1059,7 +1059,7 @@ fn unsupported_message(
     checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
 ) -> &'static str {
     match lower_machine(checked, TerminalMachineSelection::Name("Main::run")) {
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(message)) => message,
+        Err(crate::LoweringError::Unsupported(message)) => message,
         result => panic!("tampered direct dynamic custody must reject, got {result:?}"),
     }
 }

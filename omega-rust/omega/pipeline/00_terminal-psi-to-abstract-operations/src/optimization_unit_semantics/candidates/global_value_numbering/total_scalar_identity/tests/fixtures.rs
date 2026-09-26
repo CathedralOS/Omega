@@ -560,7 +560,3 @@ pub(super) fn candidate_with_contract_and_cost(
     )
     .unwrap()
 }
-pub(super) fn source(tree: &Tree, main: &str, build: &str) {
-    package(&tree.path("sources/root"), "policy_fixture", build);
-    fs::write(tree.path("sources/root/main.omg"), main).unwrap();
-}

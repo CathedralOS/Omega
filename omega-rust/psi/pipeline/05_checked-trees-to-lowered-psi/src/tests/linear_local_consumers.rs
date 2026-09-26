@@ -2,8 +2,8 @@
 //! them, and the module verifies independently; a plan that drops the
 //! claim transfer its consumer needs is refused rather than lowered.
 use super::lower_machine;
+use crate::TerminalMachineSelection;
 use crate::front_end::checked_program;
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use lowered_psi_to_terminal_psi::terminal_production::{
     TerminalProductionCustody, TerminalProductionTimings,
 };

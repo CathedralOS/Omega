@@ -26,6 +26,7 @@ installation-evidence = { path = "../../../psi/installation-evidence" }
 sha2 = { version = "0.10.9" }
 symbols = { path = "../../../psi/foundation/symbols" }
 terminal-codec = { path = "../../../psi/terminal-codec" }
+terminal-semantics = { path = "../../../psi/terminal-semantics" }
 terminal-psi = { path = "../../../psi/terminal-psi" }
 terminal-semantics = { path = "../../../psi/terminal-semantics" }
 terminal-psi-to-abstract-operations = { path = "../00_terminal-psi-to-abstract-operations" }
@@ -40,6 +41,7 @@ test-support = [
 
 [dev-dependencies]
     arena = { path = "../../../psi/foundation/arena" }
+    resolved-layout-to-resolved-layout = { path = ".", features = ["test-support"] }
     omega = { path = "../.." }
 target-operations-to-selected-instructions = { path = "../03_target-operations-to-selected-instructions" }
 abstract-operations-to-target-operations = { path = "../02_abstract-operations-to-target-operations" }

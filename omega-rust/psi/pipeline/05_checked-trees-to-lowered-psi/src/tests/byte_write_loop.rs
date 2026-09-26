@@ -905,11 +905,9 @@ fn a_receiver_byte_field_read_cycles_without_a_rank() {
         }
     "#;
     let checked = crate::front_end::checked_program(source);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        checked_trees_to_lowered_psi::TerminalMachineSelection::Name("Scan::run"),
-    )
-    .unwrap_or_else(|error| panic!("the byte scan lowers: {error:?}"));
+    let lowered =
+        crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("Scan::run"))
+            .unwrap_or_else(|error| panic!("the byte scan lowers: {error:?}"));
     assert!(
         lowered
             .semantic_module

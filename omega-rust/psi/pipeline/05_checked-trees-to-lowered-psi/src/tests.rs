@@ -75,9 +75,9 @@ mod whole_view_results;
 mod widened_operand_sums;
 
 use crate::LoweringError;
+use crate::TerminalMachineSelection;
+use crate::lower_machine;
 use crate::retention::reborrow_root_handoff;
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use checked_trees_to_lowered_psi::lower_machine;
 use language_semantics::content::ContentFieldSegment;
 use language_semantics::content::{
     ContentAlgebraIdentity as CheckedContentAlgebraIdentity,
@@ -653,7 +653,7 @@ fn mathematical_declarations_refuse_at_terminal_lowering() {
     assert!(
         matches!(
             error,
-            checked_trees_to_lowered_psi::LoweringError::Unsupported(reason) if reason.contains("PROOF-CONTRACT-MIGRATION")
+            crate::LoweringError::Unsupported(reason) if reason.contains("PROOF-CONTRACT-MIGRATION")
         ),
         "unexpected lowering error: {error:?}"
     );

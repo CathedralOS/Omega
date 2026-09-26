@@ -1864,7 +1864,7 @@ fn cross_block_edge_transports_and_terminator_rows_decide() {
     // A case-payload register parameter redefining the carried value rejects.
     let payload = mutated_chained(target, |function, _| {
         crossed_edge(function).structural_case = Some(SelectedStructuralCaseEdge {
-            source: target_operations_to_selected_instructions::structural_case::SelectedCaseDispatchSource::Local {
+            source: target_operations_to_selected_instructions::selected_instructions::SelectedCaseDispatchSource::Local {
                 slot: LocalStorageSlotId::Structural {
                     operation: OperationId::new(9).unwrap(),
                     place: PlaceId::new(2).unwrap(),
@@ -1955,7 +1955,7 @@ fn cross_block_edge_transports_and_terminator_rows_decide() {
     // A trivially discarded case binding on the forwarded place is a write.
     let discarded = mutated_chained(target, |function, _| {
         crossed_edge(function).structural_case = Some(SelectedStructuralCaseEdge {
-            source: target_operations_to_selected_instructions::structural_case::SelectedCaseDispatchSource::Local {
+            source: target_operations_to_selected_instructions::selected_instructions::SelectedCaseDispatchSource::Local {
                 slot: LocalStorageSlotId::Structural {
                     operation: OperationId::new(9).unwrap(),
                     place: PlaceId::new(2).unwrap(),

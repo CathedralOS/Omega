@@ -7,11 +7,15 @@
 //! canonical frame realization.
 
 mod error;
+#[cfg(feature = "test-support")]
+mod input;
 mod model;
 mod phase_selections;
 
 use abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations;
 pub use error::OptimizedVerifiedPhysicalPipelineError;
+#[cfg(feature = "test-support")]
+pub use input::stage_optimized_verified_physical_pipeline_with_provider_executions;
 pub use model::StagedOptimizedVerifiedPhysicalPipeline;
 use optimization_core::PostTerminalOptimizationSelections;
 use phase_selections::validate_physical_selections;

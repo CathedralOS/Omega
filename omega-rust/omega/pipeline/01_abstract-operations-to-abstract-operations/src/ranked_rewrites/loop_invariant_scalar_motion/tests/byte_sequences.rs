@@ -915,11 +915,11 @@ const MUTATED_FIELD_BYTE_READ_SOURCE: &str = r#"
 /// The `StructuralByteSequenceFieldRead` observations inside a component's
 /// member blocks, as `(member block, node)` pairs in member order.
 fn member_field_byte_reads<'function>(
-    function: &'function optimization_unit::PsiOptimizationFunction,
-    component: &optimization_unit::OptimizerCycleComponent,
+    function: &'function terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
+    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
 ) -> Vec<(
-    &'function optimization_unit::OptimizationBlock,
-    &'function optimization_unit::OptimizationNode,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationBlock,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
 )> {
     component
         .members
@@ -949,11 +949,11 @@ fn member_field_byte_reads<'function>(
 /// The `StructuralByteSequenceFieldLength` observations inside a component's
 /// member blocks, as `(member block, node)` pairs in member order.
 fn member_field_lengths<'function>(
-    function: &'function optimization_unit::PsiOptimizationFunction,
-    component: &optimization_unit::OptimizerCycleComponent,
+    function: &'function terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
+    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
 ) -> Vec<(
-    &'function optimization_unit::OptimizationBlock,
-    &'function optimization_unit::OptimizationNode,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationBlock,
+    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
 )> {
     component
         .members

@@ -7,8 +7,8 @@
 //! cannot resolve them — and `CallUnit` arguments are not an admitted scalar
 //! CallArgument namespace.
 use super::checked_scalar_suspension_fixture;
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use checked_trees_to_lowered_psi::lower_machine;
+use crate::TerminalMachineSelection;
+use crate::lower_machine;
 use language_semantics::CarryPolicy;
 use symbols::SymbolHandle;
 use terminal_psi::TerminalSuspensionCallTarget;
@@ -123,7 +123,7 @@ fn push_crossing(
 }
 
 fn expect_single_verified_plan(
-    lowered: &checked_trees_to_lowered_psi::lowered_psi::LoweredPsi,
+    lowered: &crate::lowered_psi::LoweredPsi,
 ) -> &terminal_psi::TerminalSuspensionCallPlan {
     let [site] = lowered.semantic_module.suspension_call_sites.as_slice() else {
         panic!("one exact suspension call site")
@@ -269,7 +269,7 @@ fn unit_call_scalar_argument_frontier_fails_closed() {
     assert!(
         matches!(
             lower_machine(&checked, TerminalMachineSelection::Name("run")),
-            Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(reason))
+            Err(crate::LoweringError::Unsupported(reason))
                 if reason.contains("call argument position is unavailable")
         ),
         "a CallUnit argument frontier fails closed"
@@ -305,7 +305,7 @@ fn unit_call_scalar_environment_frontier_fails_closed() {
     assert!(
         matches!(
             lower_machine(&checked, TerminalMachineSelection::Name("run")),
-            Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(reason))
+            Err(crate::LoweringError::Unsupported(reason))
                 if reason.contains("scalar environment position is unavailable")
         ),
         "a Unit call parameter frontier fails closed"
@@ -325,7 +325,7 @@ fn boundary_call_suspension_frontier_fails_closed_on_target_identity() {
     assert!(
         matches!(
             lower_machine(&checked, TerminalMachineSelection::Name("run")),
-            Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(reason))
+            Err(crate::LoweringError::Unsupported(reason))
                 if reason.contains("cannot resolve its source symbols")
         ),
         "a boundary call crossing fails closed at identity resolution"

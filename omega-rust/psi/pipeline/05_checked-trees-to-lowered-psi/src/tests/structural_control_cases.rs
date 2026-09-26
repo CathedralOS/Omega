@@ -4,11 +4,11 @@ use super::{
     CheckedScalarExpressionRole, CheckedTrees, ScalarType, SymbolHandle,
     checked_source_with_core_service, hard_root_checked_fixture, lower_machine,
 };
+use crate::TerminalMachineSelection;
 use crate::machine_lowering::machine_dispatch::{lower_selected_machine, select_terminal_machine};
 use crate::producer_result::{ConformancePublication, OperandProofCompletion};
 use crate::terminal_identities::{block_id, edge_id, place_id, value_id};
 use crate::unit::structural_unit_control::lower_structural_unit_control_machine;
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use language_semantics::Multiplicity;
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, StructuralFieldId, StructuralPlaceKind,
@@ -78,7 +78,7 @@ fn lowers_conditional_unit_control_with_exact_boundary_effect_leaves() {
             &without_boundary,
             TerminalMachineSelection::Name("Root::enter")
         ),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(_))
+        Err(crate::LoweringError::Unsupported(_))
     ));
 }
 
@@ -150,7 +150,7 @@ fn lowers_closed_guard_and_provider_attachment_as_one_composed_machine() {
             &missing_provider,
             TerminalMachineSelection::Name("Main::main")
         ),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(_))
+        Err(crate::LoweringError::Unsupported(_))
     ));
 }
 
@@ -256,7 +256,7 @@ fn lowers_one_compile_known_u64_binding_and_rejects_checked_drift() {
     };
     assert!(matches!(
         lower_machine(&drifted_fact, TerminalMachineSelection::Name("Root::enter")),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(_))
+        Err(crate::LoweringError::Unsupported(_))
     ));
 
     let mut drifted_retained_initializer = checked.clone();
@@ -279,7 +279,7 @@ fn lowers_one_compile_known_u64_binding_and_rejects_checked_drift() {
             &drifted_retained_initializer,
             TerminalMachineSelection::Name("Root::enter")
         ),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(_))
+        Err(crate::LoweringError::Unsupported(_))
     ));
 
     let mut drifted_binding = checked;
@@ -296,7 +296,7 @@ fn lowers_one_compile_known_u64_binding_and_rejects_checked_drift() {
             &drifted_binding,
             TerminalMachineSelection::Name("Root::enter")
         ),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(_))
+        Err(crate::LoweringError::Unsupported(_))
     ));
 }
 
@@ -1100,7 +1100,7 @@ fn structural_unit_conditional_lowers_independent_transfer_cleanup_frontiers() {
         typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 0 };
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
+        Err(crate::LoweringError::Unsupported(
             "structural Unit scalar successor map changes its checked signature"
         ))
     ));
@@ -1127,7 +1127,7 @@ fn structural_unit_conditional_lowers_independent_transfer_cleanup_frontiers() {
     );
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
+        Err(crate::LoweringError::Unsupported(
             "structural Unit conditional successors are not in canonical order"
         ))
     ));
@@ -1236,7 +1236,7 @@ fn structural_unit_conditional_lowers_after_an_unconditional_prefix() {
     // the arity fences are gone, but the guard-signature invariant still rejects.
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
+        Err(crate::LoweringError::Unsupported(
             "structural Unit conditional must select one Boolean scalar state input"
         ))
     ));
@@ -1438,7 +1438,7 @@ fn structural_unit_diamond_requires_one_exact_join_frontier() {
     when_false.trivial_affine_discard_parameter_positions = vec![0];
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
+        Err(crate::LoweringError::Unsupported(
             "structural Unit join predecessors reconstruct different custody frontiers"
         ))
     ));
@@ -1471,7 +1471,7 @@ fn structural_unit_diamond_requires_one_exact_join_frontier() {
     };
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
+        Err(crate::LoweringError::Unsupported(
             "structural Unit control entry has an incoming edge"
         ))
     ));
@@ -1582,7 +1582,7 @@ fn structural_unit_control_fails_closed_on_stale_cleanup_or_signature() {
     trivial_affine_discard_parameter_positions.clear();
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
+        Err(crate::LoweringError::Unsupported(
             "structural Unit jump transfer and cleanup do not partition its exact frontier"
         ))
     ));
@@ -1604,7 +1604,7 @@ fn structural_unit_control_fails_closed_on_stale_cleanup_or_signature() {
         typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 1 };
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
+        Err(crate::LoweringError::Unsupported(
             "structural Unit scalar successor map changes its checked signature"
         ))
     ));
@@ -1629,7 +1629,7 @@ fn structural_unit_control_fails_closed_on_stale_cleanup_or_signature() {
     assert!(
         matches!(
             &stale_signature,
-            Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
+            Err(crate::LoweringError::Unsupported(
                 "structural Unit transfer changes its checked structural signature"
             ))
         ),

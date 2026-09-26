@@ -1178,10 +1178,6 @@ fn statement_sample(program: &TypedTrees, state: &State, position: usize) -> usi
     }
 }
 
-/// `None` outside a [`RootCurrencyScope`]; inside one, the index built for
-/// the state last consulted. The owner is an address, and a later check pass
-/// can place a different state with matching samples at the same address, so
-/// an index never outlives the pass that built it.
 type RootCurrencySlot = Option<Option<(*const State, usize, RootCurrencyIndex)>>;
 
 thread_local! {

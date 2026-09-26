@@ -1,5 +1,6 @@
 //! Scalar-graph module assembly regressions.
 use super::{ScalarType, SymbolHandle, lower_machine};
+use crate::TerminalMachineSelection;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::proofs::content_conservation::{
@@ -12,7 +13,6 @@ use crate::scalar_graph::scalar_graph_module::build_scalar_graph_module;
 use crate::terminal_identities::{
     TERMINAL_MACHINE_IDENTITY_STRIDE, block_id, contract_id, edge_id, machine_id, value_id,
 };
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use lowered_psi_to_terminal_psi::terminal_production::{
     TerminalProductionCustody, TerminalProductionTimings,
 };
@@ -71,7 +71,7 @@ fn scalar_graph_replays_parameter_qualification_contracts_from_source() {
         assert!(
             matches!(
                 error,
-                checked_trees_to_lowered_psi::LoweringError::Unsupported(
+                crate::LoweringError::Unsupported(
                     "scalar state contract is not carried by its qualified signature"
                 )
             ),

@@ -5,7 +5,7 @@ use super::{
     TerminalEffectResult, TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,
     TerminalStructuralValue, assert_stored_fields, lower_machine,
 };
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use crate::TerminalMachineSelection;
 use lowered_psi_to_terminal_psi::terminal_production::{
     TerminalProductionCustody, TerminalProductionTimings,
 };
@@ -355,7 +355,7 @@ fn checked_provider_empty_path_reborrow_rejects_retained_source_substitution() {
         let result =
             lower_machine(&changed, TerminalMachineSelection::Name("Record::run")).map(|_| ());
         assert!(
-            matches!(&result, Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(message))
+            matches!(&result, Err(crate::LoweringError::Unsupported(message))
             if *message == "boundary byte loan differs from its authored backing"),
             "mutation {mutation} must fail exact authored source custody: {result:?}"
         );

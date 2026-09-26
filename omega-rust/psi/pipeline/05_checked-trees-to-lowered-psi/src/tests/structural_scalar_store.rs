@@ -1,5 +1,5 @@
 use super::{LoweringError, lower_machine};
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use crate::TerminalMachineSelection;
 use lowered_psi_to_terminal_psi::terminal_production::{
     TerminalProductionCustody, TerminalProductionTimings,
 };
@@ -556,7 +556,7 @@ fn rejects_checked_record_field_store_path_corruption() {
     store.carrier_path.clear();
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Sink::nested")),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
+        Err(crate::LoweringError::Unsupported(
             "structural scalar store destination drifted from its authored place"
         ))
     ));
@@ -589,7 +589,7 @@ fn rejects_checked_literal_indexed_store_bound_corruption() {
     *index = 3;
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Sink::indexed")),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
+        Err(crate::LoweringError::Unsupported(
             "structural scalar store destination drifted from its authored place"
         ))
     ));
@@ -714,7 +714,7 @@ fn overwritten_scalar_fields_do_not_discharge_later_field_state_obligations() {
             &checked,
             TerminalMachineSelection::Name("Registers::divide")
         ),
-        Err(checked_trees_to_lowered_psi::LoweringError::OperationProofUnavailable(_))
+        Err(crate::LoweringError::OperationProofUnavailable(_))
     ));
 }
 
@@ -770,7 +770,7 @@ fn scalar_result_reaches_one_projected_store_and_local_drift_rejects() {
     *position = 1;
     assert!(matches!(
         lower_machine(&drifted, TerminalMachineSelection::Name("Root::enter")),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
+        Err(crate::LoweringError::Unsupported(
             "structural scalar store RHS drifted from its selected expression"
         ))
     ));

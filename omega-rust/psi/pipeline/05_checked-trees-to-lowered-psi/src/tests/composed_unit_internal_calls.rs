@@ -1,7 +1,7 @@
 //! Internal Unit-call leaves and exact target replay.
 
 use super::{CheckedTrees, lower_machine};
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use crate::TerminalMachineSelection;
 use terminal_psi::{Operation, OperationKind, OperationResult, Terminator};
 use typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan;
 #[test]
@@ -364,10 +364,7 @@ fn internal_unit_leaf_rejects_target_plan_and_identity_corruption() {
     let rejects = |checked: &CheckedTrees| {
         let result = lower_machine(checked, TerminalMachineSelection::Name("Root::enter"));
         assert!(
-            matches!(
-                result,
-                Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(_))
-            ),
+            matches!(result, Err(crate::LoweringError::Unsupported(_))),
             "unexpected result: {result:?}"
         );
     };
@@ -403,7 +400,7 @@ fn internal_unit_leaf_rejects_target_plan_and_identity_corruption() {
         .retain(|plan| plan.machine != quiet);
     assert!(matches!(
         lower_machine(&missing, TerminalMachineSelection::Name("Root::enter")),
-        Err(checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan { machine, reason, .. })
+        Err(crate::LoweringError::InvalidUnitMachinePlan { machine, reason, .. })
             if machine == "Root::quiet"
                 && reason == "attached Unit closure is missing a checked transitive machine plan"
     ));

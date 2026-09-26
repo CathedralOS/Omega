@@ -245,11 +245,9 @@ fn case_payload_pair_mints_the_case_leaf_copy_channel() {
     // copy place the op produces.
     let (checked, plan) = fixture();
     admission::admit(&checked, &plan).expect("the payload-bearing pair admits");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        checked_trees_to_lowered_psi::TerminalMachineSelection::Name("Root::run"),
-    )
-    .expect("the case-payload channel emits");
+    let lowered =
+        crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("Root::run"))
+            .expect("the case-payload channel emits");
     let machine = lowered
         .semantic_module
         .machines

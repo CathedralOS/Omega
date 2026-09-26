@@ -4,7 +4,7 @@
 //! serve both purposes under two aliases, an import in either scope selects
 //! only that scope's edges, and dropping an edge after publication rejects
 //! only the imports that edge authorized. Fixture packages live in
-//! `tests/fixtures/packages/build-purposes`.
+//! `tests/omega/packages/build-purposes`.
 
 use super::fixture::{Fixture, assert_status};
 

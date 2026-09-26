@@ -15,7 +15,6 @@ use crate::checked_trees::{
     CheckedScalarComputation, CheckedScalarComputationHandle, CheckedScalarComputationKind,
     CheckedScalarComputationPlans, CheckedScalarComputationRoot, FlowFacts, ProofFacts,
 };
-use crate::validation;
 use crate::values::operator_is_builtin;
 use crate::values::scalar::expression_facts::is_integer;
 use crate::values::scalar::expression_plans::ScalarLocal;
@@ -53,7 +52,7 @@ pub(crate) fn build_checked_scalar_computation_plans(
     borrow: &crate::checked_trees::BorrowFacts,
     proof: &ProofFacts,
     pure: &CheckedScalarExpressionPlans,
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
+    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
 ) -> CheckedScalarComputationPlans {
     build_checked_value_computation_plans(
         program,
@@ -74,7 +73,7 @@ pub(crate) fn build_checked_value_computation_plans(
     borrow: &crate::checked_trees::BorrowFacts,
     proof: &ProofFacts,
     pure: &CheckedScalarExpressionPlans,
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
+    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
 ) -> (
     CheckedScalarComputationPlans,
     crate::checked_trees::CheckedStructuralValuePlans,
@@ -148,8 +147,8 @@ pub(crate) fn build_checked_value_computation_plans(
                 // selection arm admits; restricting that admission to LocalData
                 // keeps a returned `&place` on its reference-completion owner.
                 if let Some((expression, expected)) = construction_destination
-                    && (validation::is_scalar_case_value(program, expression, expected)
-                        || (validation::reference_result_custody::parts(program, expected)
+                    && (crate::validation::is_scalar_case_value(program, expression, expected)
+                        || (crate::validation::reference_result_custody::parts(program, expected)
                             .is_none()
                             && matches!(
                                 program.expression_table.expression(expression),
@@ -221,7 +220,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     );
                 }
                 if let Some((expression, expected)) = construction_destination
-                    && let Some(elements) = validation::scalar_array_elements(
+                    && let Some(elements) = crate::validation::scalar_array_elements(
                         program,
                         machine.symbol,
                         expression,
@@ -260,7 +259,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     })
                     .unwrap_or_default()
                 {
-                    let Some(array) = validation::scalar_array_elements(
+                    let Some(array) = crate::validation::scalar_array_elements(
                         program,
                         machine.symbol,
                         construction.expression,
@@ -318,7 +317,7 @@ pub(crate) fn build_checked_value_computation_plans(
                         || program
                             .primitive_type_reference(local.type_reference)
                             .is_none())
-                        && validation::result_initializer_call_is_supported(
+                        && crate::validation::result_initializer_call_is_supported(
                             program,
                             machine,
                             local.initial_value,
@@ -403,7 +402,7 @@ pub(crate) fn build_checked_value_computation_plans(
                         call.target_symbol,
                         program.expression_table.expression_handles(call.arguments),
                     );
-                    if validation::unit_statement_call_is_supported(
+                    if crate::validation::unit_statement_call_is_supported(
                         program,
                         machine,
                         state,
@@ -427,32 +426,32 @@ pub(crate) fn build_checked_value_computation_plans(
                         statement_index,
                         assignment.target,
                     )
-                    .and_then(|reference| validation::unwrapped_type_reference(program, reference))
-                        && (structural_values::is_record_value(program, assignment.value, expected)
-                            || validation::is_scalar_case_value(
-                                program,
-                                assignment.value,
-                                expected,
-                            )
-                            || structural_values::is_structural_case_value(
-                                program,
-                                assignment.value,
-                                expected,
-                            )
-                            || structural_values::is_copied_place_value(
-                                program,
-                                state.symbol,
-                                statement_index,
-                                assignment.value,
-                                expected,
-                            ))
-                        && let Some(root) = builder.structural_value(
-                            assignment.value,
-                            expected,
-                            &mut structural_values,
-                            pure,
-                        )
-                    {
+                    .and_then(|reference| {
+                        crate::validation::unwrapped_type_reference(program, reference)
+                    }) && (structural_values::is_record_value(
+                        program,
+                        assignment.value,
+                        expected,
+                    ) || crate::validation::is_scalar_case_value(
+                        program,
+                        assignment.value,
+                        expected,
+                    ) || structural_values::is_structural_case_value(
+                        program,
+                        assignment.value,
+                        expected,
+                    ) || structural_values::is_copied_place_value(
+                        program,
+                        state.symbol,
+                        statement_index,
+                        assignment.value,
+                        expected,
+                    )) && let Some(root) = builder.structural_value(
+                        assignment.value,
+                        expected,
+                        &mut structural_values,
+                        pure,
+                    ) {
                         structural_values.roots.append(
                             crate::checked_trees::CheckedStructuralValueRoot {
                                 machine: machine.symbol,
@@ -467,7 +466,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     if matches!(
                         program.expression_table.expression(assignment.target),
                         ExpressionNode::Member(_)
-                    ) && let Some(primitive_type) = validation::declared_place_type_raw(
+                    ) && let Some(primitive_type) = crate::validation::declared_place_type_raw(
                         program,
                         machine,
                         Some(state),
@@ -489,7 +488,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     // coordinates for the operands it can carry; a range
                     // index is a subslice endpoint pair, not a selector.
                     for (depth, index) in
-                        validation::assignment_target_selectors(program, assignment.target)
+                        crate::validation::assignment_target_selectors(program, assignment.target)
                             .into_iter()
                             .enumerate()
                     {
@@ -716,7 +715,7 @@ struct Builder<'program, 'plans> {
     operators: &'program CheckedOperatorFacts,
     flow: &'program FlowFacts,
     borrow: &'program crate::checked_trees::BorrowFacts,
-    exact_integer_casts: &'program [validation::ExactIntegerCastFact],
+    exact_integer_casts: &'program [crate::validation::ExactIntegerCastFact],
     machine: SymbolHandle,
     state: SymbolHandle,
     statement_index: usize,
@@ -1019,7 +1018,9 @@ impl Builder<'_, '_> {
                         self.plans.nodes.get_mut(root).authored_root = *argument;
                         computed_arguments.push(root);
                     } else {
-                        if validation::scalar_case_constructor(self.program, *argument).is_some() {
+                        if crate::validation::scalar_case_constructor(self.program, *argument)
+                            .is_some()
+                        {
                             let case = self.case_construction(*argument)?;
                             if parameter.is_mutable
                                 || target_machine.supply_mode
@@ -1028,7 +1029,7 @@ impl Builder<'_, '_> {
                                     != self
                                         .program
                                         .normalized_type_identity(parameter.type_reference)
-                                || !validation::has_plain_owned_contents_with_numeric_constraints(
+                                || !crate::validation::has_plain_owned_contents_with_numeric_constraints(
                                     self.program,
                                     case.type_reference,
                                 )
@@ -1042,7 +1043,7 @@ impl Builder<'_, '_> {
                             );
                             continue;
                         }
-                        if let Some(array) = validation::scalar_array_elements(
+                        if let Some(array) = crate::validation::scalar_array_elements(
                             self.program,
                             self.machine,
                             *argument,

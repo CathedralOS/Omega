@@ -6,6 +6,7 @@
 //! view it transfers. Construction and its validation
 //! replay both ask this one question, so a newly lowered instruction family
 //! cannot be counted as a use in one and missed in the other.
+use crate::legalized_operations;
 use crate::legalized_operations::{
     LegalizedScalarArgument, LegalizedScalarFunction, LegalizedScalarInstructionKind,
 };

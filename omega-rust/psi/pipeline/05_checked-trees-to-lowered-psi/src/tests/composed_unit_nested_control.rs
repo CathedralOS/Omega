@@ -3,7 +3,7 @@
 use super::{
     CheckedScalarExpressionRole, CheckedTrees, checked_source_with_core_service, lower_machine,
 };
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use crate::TerminalMachineSelection;
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{Operation, OperationKind, Terminator};
 use typed_trees_to_checked_trees::checked_trees::{
@@ -326,7 +326,7 @@ fn call_prefixed_control_rejects_coordinate_drift() {
     coordinate.statement_index = 1;
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(_))
+        Err(crate::LoweringError::Unsupported(_))
     ));
 }
 
@@ -368,7 +368,7 @@ fn finite_call_prefix_rejects_operation_reordering() {
         .swap(0, 1);
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(_))
+        Err(crate::LoweringError::Unsupported(_))
     ));
 }
 
@@ -421,7 +421,7 @@ fn boundary_call_prefix_rejects_coordinate_drift() {
     coordinate.statement_index = 1;
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(_))
+        Err(crate::LoweringError::Unsupported(_))
     ));
 }
 
@@ -529,7 +529,7 @@ fn lowers_and_rejoins_a_provider_boundary_prefix_with_implicit_self_edges() {
             &missing_scalar_fact,
             TerminalMachineSelection::Name("Main::main")
         ),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(_))
+        Err(crate::LoweringError::Unsupported(_))
     ));
 
     let mut missing_requirement = checked;
@@ -545,7 +545,7 @@ fn lowers_and_rejoins_a_provider_boundary_prefix_with_implicit_self_edges() {
             &missing_requirement,
             TerminalMachineSelection::Name("Main::main")
         ),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(_))
+        Err(crate::LoweringError::Unsupported(_))
     ));
 }
 
@@ -555,7 +555,7 @@ fn nested_control_rejects_outer_handoff_and_inner_topology_corruption() {
     let rejects = |checked: &CheckedTrees| {
         assert!(matches!(
             lower_machine(checked, TerminalMachineSelection::Name("Root::enter")),
-            Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(_))
+            Err(crate::LoweringError::Unsupported(_))
         ));
     };
 
@@ -704,7 +704,7 @@ fn depth_three_nested_control_rejects_suffix_reordering() {
     when_true.scalar_arguments.swap(0, 1);
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(_))
+        Err(crate::LoweringError::Unsupported(_))
     ));
 }
 
@@ -795,7 +795,7 @@ fn balanced_control_rejects_convergent_edge_drift() {
     when_false.target_state = no;
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(_))
+        Err(crate::LoweringError::Unsupported(_))
     ));
 }
 
@@ -814,6 +814,6 @@ fn balanced_control_rejects_guard_drift() {
     );
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(_))
+        Err(crate::LoweringError::Unsupported(_))
     ));
 }

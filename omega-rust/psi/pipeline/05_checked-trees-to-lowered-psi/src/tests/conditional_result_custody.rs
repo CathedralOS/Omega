@@ -1,5 +1,5 @@
 use super::lower_machine;
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use crate::TerminalMachineSelection;
 
 const SOURCE: &str = r#"
     data Receipt [linear] { code: i32; }
@@ -38,7 +38,7 @@ fn conditional_result_custody_requires_terminal_correspondence_only_when_demande
     assert_eq!(
         lower_machine(&checked, TerminalMachineSelection::Name("consume"))
             .expect_err("Terminal must retain both return origins"),
-        checked_trees_to_lowered_psi::LoweringError::Unsupported(
+        crate::LoweringError::Unsupported(
             "conditional result custody requires Terminal exit-alternative correspondence"
         ),
     );
@@ -53,7 +53,7 @@ fn removing_the_join_receipt_does_not_make_joined_provenance_executable() {
     assert_eq!(
         lower_machine(&checked, TerminalMachineSelection::Name("consume"))
             .expect_err("missing correspondence is not a root"),
-        checked_trees_to_lowered_psi::LoweringError::Unsupported(
+        crate::LoweringError::Unsupported(
             "conditional result custody requires Terminal exit-alternative correspondence"
         ),
     );

@@ -1,7 +1,7 @@
 //! Stored records use exact field identities and current ownership places.
 use super::{SymbolHandle, lower_machine};
+use crate::TerminalMachineSelection;
 use crate::terminal_identities::obligation_id;
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use lowered_psi_to_terminal_psi::terminal_production::{
     TerminalProductionCustody, TerminalProductionTimings,
 };

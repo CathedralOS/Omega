@@ -1019,15 +1019,16 @@ fn affine_sum_receiver_stays_whole_at_shared_call_boundaries() {
         "#,
         BranchForm::Separate,
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("Main::main"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("an affine multi-case sum stays a shared &self receiver")
-    .into_artifact();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("Main::main"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("an affine multi-case sum stays a shared &self receiver")
+        .into_artifact();
     let artifact =
         terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();

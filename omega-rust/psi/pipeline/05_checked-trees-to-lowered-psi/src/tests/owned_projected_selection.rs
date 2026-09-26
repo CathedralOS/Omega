@@ -2,7 +2,7 @@
 //! residual siblings die on the actual selected edge.
 
 use super::{CheckedTrees, lower_machine};
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use crate::TerminalMachineSelection;
 use terminal_psi::Terminator;
 fn projected_selection_source() -> CheckedTrees {
     crate::front_end::checked_program(

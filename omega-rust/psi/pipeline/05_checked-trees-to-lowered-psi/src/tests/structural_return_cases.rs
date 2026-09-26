@@ -1,8 +1,8 @@
 //! Structural scalar-return regression families.
 
 use super::{CheckedTrees, ScalarType, TerminalMachineResult, lower_machine};
+use crate::TerminalMachineSelection;
 use crate::terminal_identities::{block_id, place_id, value_id};
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_psi::{
     Operation, OperationKind, TerminalAffineCleanupAction, Terminator, ValueDeclaration,
 };
@@ -83,7 +83,7 @@ fn structural_scalar_return_fails_closed_on_stale_cleanup() {
 
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
+        Err(crate::LoweringError::Unsupported(
             "structural scalar return cleanup does not consume its exact frontier"
         ))
     ));
@@ -149,7 +149,7 @@ fn structural_scalar_return_reconstructs_closed_exact_expression_proof() {
         };
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
+        Err(crate::LoweringError::Unsupported(
             "scalar read differs from its authored binding or mutable place"
         ))
     ));
@@ -210,7 +210,7 @@ fn structural_scalar_return_materializes_branch_free_local_prefix_before_cleanup
         };
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
+        Err(crate::LoweringError::Unsupported(
             "scalar read differs from its authored binding or mutable place"
         ))
     ));
@@ -413,7 +413,7 @@ fn structural_scalar_return_supports_repeated_carried_short_circuit_local_contin
         .primitive_type = PrimitiveType::I32;
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
+        Err(crate::LoweringError::Unsupported(
             "structural scalar short-circuit binding has a non-Boolean carrier"
         ))
     ));
@@ -488,7 +488,7 @@ fn structural_scalar_return_maps_interleaved_scalar_parameters_before_cleanup() 
         .source_position = 0;
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
+        Err(crate::LoweringError::Unsupported(
             "structural scalar return parameter maps overlap or repeat a source position"
         ))
     ));

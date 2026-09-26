@@ -467,6 +467,7 @@ impl BuildMachineFilesystemScope {
         BuildActivation {
             root_package_identity: self.root_package_identity,
             root_role: self.root_role,
+            selected_target_profile: None,
             build_execution_profile: self.build_execution_profile,
         }
     }

@@ -9,6 +9,7 @@ use super::{
 use crate::legalization::scalar_graph_input::aggregate_results::home_layout;
 use crate::legalization::scalar_graph_input::structural_case;
 use crate::legalization::scalar_graph_input::structural_parameters;
+use crate::legalized_operations;
 pub(super) fn reconstruct(
     argument: &terminal_psi::StructuralArgument,
     position: usize,
@@ -131,10 +132,8 @@ pub(super) fn reconstruct(
                 )
             }
             // `source_owner` never resolves a function parameter.
-            crate::legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
-            | crate::legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter {
-                ..
-            } => {
+            legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
+            | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { .. } => {
                 return Err(LegalizationError::custody());
             }
         }

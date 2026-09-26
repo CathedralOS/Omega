@@ -14,10 +14,11 @@ another item.
 
 ## Host
 
-You are on Linux x86-64. `mbx` is absent here; use `cargo` everywhere AGENTS.md
-says `mbx`. `cargo nextest` is installed. Windows, macOS, and QEMU acceptance
-is unavailable on this host and must be reported as unavailable, never as
-passing.
+You are on Linux x86-64. `mbx` is installed when your snapshot carries the
+blueprint step (run `mbx --version` once; if absent use `cargo` everywhere
+AGENTS.md says `mbx`, per its documented fallback). `cargo nextest` is
+installed. Windows, macOS, and QEMU acceptance is unavailable on this host
+and must be reported as unavailable, never as passing.
 
 ## Coordination
 

@@ -5,8 +5,8 @@ use super::{
     STORED_DYNAMIC_SOURCE, assert_dynamic_unit_artifact_executes,
     assert_stored_dynamic_scalar_artifact_executes, unsupported_message,
 };
+use crate::TerminalMachineSelection;
 use crate::tests::{checked_source_with_core_service, lower_machine};
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use lowered_psi_to_terminal_psi::terminal_production::{
     TerminalProductionCustody, TerminalProductionTimings,
 };

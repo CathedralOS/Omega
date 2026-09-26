@@ -118,7 +118,7 @@ pub fn exact_compiler_intrinsic_boundary_requirement(
 /// binding. `None` when the machine cannot realize an intrinsic boundary.
 fn intrinsic_realization_candidate(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
 ) -> Option<(
     Option<language_semantics::ExternalBindingId>,
     Option<(&'static str, &'static str)>,

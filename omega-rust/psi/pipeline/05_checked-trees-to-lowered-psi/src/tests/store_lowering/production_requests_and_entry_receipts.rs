@@ -1,5 +1,5 @@
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use checked_trees_to_lowered_psi::lower_machine;
+use crate::TerminalMachineSelection;
+use crate::lower_machine;
 
 use lowered_psi_to_terminal_psi::terminal_production::{
     ProgramEntryTerminalReceiptError, TerminalArtifactProductionError,

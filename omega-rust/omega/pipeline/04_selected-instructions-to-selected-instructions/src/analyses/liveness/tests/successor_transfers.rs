@@ -207,7 +207,7 @@ fn case_payload_function() -> SelectedFunction {
     };
     successor.bindings.clear();
     successor.structural_case = Some(SelectedStructuralCaseEdge {
-        source: target_operations_to_selected_instructions::structural_case::SelectedCaseDispatchSource::Local {
+        source: target_operations_to_selected_instructions::selected_instructions::SelectedCaseDispatchSource::Local {
             slot: LocalStorageSlotId::Structural {
                 operation: OperationId::new(1).unwrap(),
                 place: PlaceId::new(1).unwrap(),

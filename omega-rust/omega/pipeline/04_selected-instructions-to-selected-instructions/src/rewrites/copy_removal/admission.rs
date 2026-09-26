@@ -637,10 +637,10 @@ fn lower_successor(
     }
     if let Some(case) = &mut successor.structural_case {
         match &mut case.source {
-            target_operations_to_selected_instructions::structural_case::SelectedCaseDispatchSource::Local { slot } => {
+            target_operations_to_selected_instructions::selected_instructions::SelectedCaseDispatchSource::Local { slot } => {
                 lower_local_slot(slot, removed_register)?;
             }
-            target_operations_to_selected_instructions::structural_case::SelectedCaseDispatchSource::Borrowed { .. } => {}
+            target_operations_to_selected_instructions::selected_instructions::SelectedCaseDispatchSource::Borrowed { .. } => {}
         }
         for payload in &mut case.payloads {
             match &mut payload.transport {

@@ -5,8 +5,8 @@ use super::{
     three_shared_reborrow_restored_call_source, two_shared_reborrow_restored_call_source,
     two_shared_reborrow_restored_call_source_with_observations,
 };
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use checked_trees_to_lowered_psi::lower_machine;
+use crate::TerminalMachineSelection;
+use crate::lower_machine;
 use typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan;
 
 #[test]
@@ -158,7 +158,7 @@ fn unsupported_receiver_suspension_frontier_fails_closed() {
     );
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("root")),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
+        Err(crate::LoweringError::Unsupported(
             "receiver-bearing suspension frontier lacks an exact Terminal receiver place join"
         ))
     ));
@@ -234,7 +234,7 @@ fn unsupported_staged_local_suspension_frontier_fails_closed() {
     assert!(
         matches!(
             result,
-            Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
+            Err(crate::LoweringError::Unsupported(
                 "suspension frontier source value origin is inexact"
             ))
         ),

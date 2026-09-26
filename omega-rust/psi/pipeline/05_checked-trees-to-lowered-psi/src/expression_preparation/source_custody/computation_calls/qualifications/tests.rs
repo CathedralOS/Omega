@@ -4,7 +4,7 @@ use super::{
     CheckedScalarComputationHandle, CheckedTrees, ExpressionNode, LoweringError, PrimitiveType,
     TypeReferenceHandle,
 };
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use crate::TerminalMachineSelection;
 use language_semantics::SemanticDomainId;
 
 fn root(
@@ -150,11 +150,8 @@ fn qualification_match_replays_checked_custody_and_publishes_exact_terminal_memb
     let checked = crate::front_end::checked_program(SOURCE);
     assert_eq!(qualifications(&checked).len(), 2);
     replay(&checked).expect("exact source, membership, and operand custody");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        TerminalMachineSelection::Name("choose"),
-    )
-    .expect("qualified Terminal graph");
+    let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose"))
+        .expect("qualified Terminal graph");
     let catalog = &lowered.semantic_module.scalar_qualifications;
     assert_eq!(catalog.domains.len(), 1);
     assert_eq!(catalog.sets.len(), 1);
@@ -420,11 +417,8 @@ fn indexed_call_replay_rechecks_parameter_contract_instance() {
     ));
     for erase_arguments in [false, true] {
         let mut checked = crate::front_end::checked_program(source);
-        checked_trees_to_lowered_psi::lower_machine(
-            &checked,
-            TerminalMachineSelection::Name("choose"),
-        )
-        .expect("original exact call contract");
+        crate::lower_machine(&checked, TerminalMachineSelection::Name("choose"))
+            .expect("original exact call contract");
         let membership = checked
             .typed
             .proof_facts
@@ -445,11 +439,7 @@ fn indexed_call_replay_rechecks_parameter_contract_instance() {
             membership.semantic_domain = SemanticDomainId::NULL;
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(
-                &checked,
-                TerminalMachineSelection::Name("choose")
-            )
-            .is_err(),
+            crate::lower_machine(&checked, TerminalMachineSelection::Name("choose")).is_err(),
             "erase_arguments={erase_arguments}"
         );
     }

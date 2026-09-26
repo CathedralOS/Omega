@@ -3,9 +3,9 @@
 //! occurrence rejoins its checked use, its checked application and its
 //! emitted operation, and a stale, duplicated or foreign row rejects.
 
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use checked_trees_to_lowered_psi::lower_machine;
-use checked_trees_to_lowered_psi::lowered_psi::{
+use crate::TerminalMachineSelection;
+use crate::lower_machine;
+use crate::lowered_psi::{
     LoweredSelectedIntegerComparisonOperandOrder, LoweredSelectedIntegerComparisonOperation,
 };
 use lowered_psi_to_terminal_psi::terminal_production::{
@@ -117,7 +117,7 @@ fn a_stale_integer_occurrence_rejects() {
             &mut TerminalProductionTimings::default(),
         ))
         .unwrap();
-    let replay = |corrupted: &checked_trees_to_lowered_psi::lowered_psi::LoweredPsi| {
+    let replay = |corrupted: &crate::lowered_psi::LoweredPsi| {
         lowered_psi_to_terminal_psi::checked_boundary_operator_scope(
             &checked,
             produced.artifact(),
@@ -196,7 +196,7 @@ fn a_foreign_integer_occurrence_rejects() {
             &mut TerminalProductionTimings::default(),
         ))
         .unwrap();
-    let replay = |corrupted: &checked_trees_to_lowered_psi::lowered_psi::LoweredPsi| {
+    let replay = |corrupted: &crate::lowered_psi::LoweredPsi| {
         lowered_psi_to_terminal_psi::checked_boundary_operator_scope(
             &checked,
             produced.artifact(),

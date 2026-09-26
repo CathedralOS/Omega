@@ -14,8 +14,8 @@
 //! a completed call result is such a value, so no authored local has to name
 //! it.
 
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use checked_trees_to_lowered_psi::lower_machine;
+use crate::TerminalMachineSelection;
+use crate::lower_machine;
 use terminal_psi::{OperationKind, OperationResult, StructuralPathSegment, TerminalModule};
 
 /// The carrier path of the one field store that reads the one emitted call's
@@ -162,7 +162,7 @@ fn dynamic_indexed_shared_receiver_lane_pends_on_upstream_legs() {
         );
         let checked = crate::front_end::checked_program(&source);
         match lower_machine(&checked, TerminalMachineSelection::Name("run")) {
-            Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(message)) => {
+            Err(crate::LoweringError::Unsupported(message)) => {
                 assert_eq!(message, expected, "{index_decl} {requires}");
             }
             other => panic!(

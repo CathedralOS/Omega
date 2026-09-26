@@ -1,7 +1,7 @@
 //! Composed Unit boundary attachments, receiver custody and corruption replay.
 
 use super::{CheckedTrees, lower_machine};
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use crate::TerminalMachineSelection;
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{
     OperationKind, StructuralAccess, StructuralMultiplicity, StructuralPlaceDeclaration, Terminator,
@@ -161,7 +161,7 @@ fn claim_bearing_composed_unit_rejects_plan_and_fact_corruption() {
         assert!(
             matches!(
                 lower_machine(checked, TerminalMachineSelection::Name("Root::enter")),
-                Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(_))
+                Err(crate::LoweringError::Unsupported(_))
             ),
             "{corruption}"
         );

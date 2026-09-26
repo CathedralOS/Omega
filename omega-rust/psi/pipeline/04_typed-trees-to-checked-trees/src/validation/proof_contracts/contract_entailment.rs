@@ -187,6 +187,14 @@ use structural_terms::{
     structural_call_machine_name, structural_term, term_contains, unfold_constant_applications,
 };
 
+/// Whether `OMEGA_STRUCT_TRACE` asks for structural-judgment tracing. Read
+/// once: each environment lookup takes the process environment lock, and
+/// body unfolding asks once per application.
+fn struct_trace() -> bool {
+    static TRACE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *TRACE.get_or_init(|| std::env::var_os("OMEGA_STRUCT_TRACE").is_some())
+}
+
 /// The reserved binder naming a machine's return value inside `ensures`
 /// facts. Matches the call-site substitution rule in the checked-trees
 /// contract prover: a single-segment `result` that does not shadow a real
