@@ -198,9 +198,10 @@ backend-visible; full corpus runs only at the end of an item.
   [component publication](wiki/spec/build/component_publication.md) place
   erasure in lowering and Terminal replay) and stage 04's selected generic
   operator providers and boundary families (`CheckingRequest`). Moving the
-  provider-body const folds waits on OWNER_QUESTIONS.md Q10
-  (`provider-dependent-constants`): a const application folded through a
-  selected provider gives a type that varies by target. Invert the layering
+  provider-body const folds follows the settled rule in
+  [multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation):
+  every realized target must select the same provider for a folded
+  application, and disagreement rejects it. Invert the layering
   guard `omega_provider_selection_consumes_psi_frontend_directly` so
   `provider-planning` may not depend on `typed-trees` or `validation`. Scalar
   `ensures` of a requirement are not yet retained on its Terminal

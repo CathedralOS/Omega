@@ -157,6 +157,14 @@ representation, grants, behavior exclusions) are rows keyed by target in the
 one evaluated Build. A row for a target outside the realization set is checked
 and retained, not realized.
 
+A constant that folds through a provider (a const application of a boundary
+operator or requirement whose selected realization is a checked body) is part
+of the one checked program, so its value cannot vary by target. Every realized
+target's row must select the same provider for such an application; Psi folds
+it once through that provider. Rows that disagree reject the application and
+name the diverging targets. A compilation realizing one target, or a Build
+that selects one provider for all targets, satisfies the rule trivially.
+
 Realization is per target. The realization set defaults to every deployable
 target profile the toolchain closure provides; an explicit `--target` selection
 narrows realization only and never narrows checking. Omega selects each
