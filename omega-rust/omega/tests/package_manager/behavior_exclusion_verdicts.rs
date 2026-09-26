@@ -10,18 +10,18 @@
 //! `Sink::emit`, and in nothing else.
 
 use crate::accepted_policy_fixture::accepted_policy;
-use package_manager::admission::{
+use omega::package_manager::admission::{
     AcceptedNativeInput, AcceptedNativeRealizationRequest, accept_ordinary_closure_evidence,
     realize_accepted_native_report,
 };
-use package_manager::resolution::graph::{
+use omega::package_manager::resolution::graph::{
     PackageSourceClosureLimits, resolve_workspace_project_closure,
 };
-use package_manager::review::{
+use omega::package_manager::review::{
     CanonicalPackageReconstructionQuestionLimits, ReviewOnlyCapabilityConflictLimits,
     SemanticBindingReview, compile_resolved_package_candidate_for_production,
 };
-use package_source::{
+use omega::package_source::{
     LocalSourceLimits, PrimaryGitChoices, SourceLineage, SourceRelativePath, SourceResolverStorage,
 };
 use std::fs;
@@ -114,12 +114,12 @@ fn realize(workspace: &Path, app: &str) -> Result<(), String> {
     realize_accepted_native_report(
         AcceptedNativeInput::Reviewed {
             candidate: Box::new(candidate),
-            optimization_rollback: &compiler::OptimizationRollback::default(),
+            optimization_rollback: &omega::compiler::OptimizationRollback::default(),
         },
         AcceptedNativeRealizationRequest {
             evidence: &evidence,
             profile: &proof_admission::AdmissionProfile::default(),
-            terminal_authority_policy: compiler::native::current_terminal_authority_policy(),
+            terminal_authority_policy: omega::compiler::native::current_terminal_authority_policy(),
             receiving_terminal_authority_permission_policy: None,
             imports: &[],
         },

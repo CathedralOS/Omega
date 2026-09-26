@@ -25,8 +25,6 @@ pub use entry_settlement::{
     NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
     ValidatedNativeProgramEntrySettlement, validate_native_program_entry_settlement,
 };
-#[cfg(feature = "test-support")]
-pub use native_pipeline::stage_optimized_verified_physical_pipeline_with_provider_executions;
 pub use native_pipeline::{
     EmptyOptimizationSelections, ExplicitOptimizationRequest, OptimizationPipelineError,
     OptimizationPipelineReport, OptimizationPipelineRequest,
@@ -36,8 +34,6 @@ pub use native_pipeline::{
     optimization_pipeline_report_from_ordinary_callable_entry, optimize_artifact_sections,
     optimize_verified_abstract_input, stage_optimized_verified_physical_pipeline,
 };
-#[cfg(feature = "test-support")]
-pub use native_product::NativeInputReuseKey;
 pub use native_product::{
     NativeInputReuse, NativeProductRequest, PreparedNativeCompilation, prepare_native_product,
 };

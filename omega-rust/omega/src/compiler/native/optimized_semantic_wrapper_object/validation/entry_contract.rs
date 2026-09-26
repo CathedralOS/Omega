@@ -1,4 +1,8 @@
 use super::super::error::OptimizedProgramStorageSemanticWrapperObjectError;
+use crate::compiler::native::{
+    NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
+    ValidatedNativeProgramEntrySettlement, validate_native_program_entry_settlement,
+};
 use resolved_layout_to_resolved_layout::object_file::StagedValidatedOptimizedObjectArtifact;
 use resolved_layout_to_resolved_layout::program_entry_plan::{
     OptimizedProgramStorageSemanticCallingApplication,
@@ -11,10 +15,6 @@ use semantic_vocabulary::{IntegerSign, ScalarType, StructuralPlaceKind};
 use terminal_psi::{
     BindingRelevance, ByteSequenceCarrier, StructuralAccess, StructuralFieldType,
     StructuralMultiplicity, StructuralTypeShape, TerminalMachineResult,
-};
-use crate::compiler::native::{
-    NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
-    ValidatedNativeProgramEntrySettlement, validate_native_program_entry_settlement,
 };
 
 pub fn replay_settlement(
