@@ -4008,54 +4008,30 @@ syntax and other terminal services are not prerequisites.
   receiver-only ZII filtering and superseded special cases rather than adding
   stronger facts alongside the old path.
 
-  Measured direction, which is the opposite of "the receiver is exempt". Two
-  bodies differing only in receiver against named argument -- a guarded
-  `buf.line[buf.i] = 46` into a `[u8; 4] in Utf8` followed by a call taking the
-  same place -- split: the `&mut self` form is ACCEPTED, and the
-  `&mut Holder` form reports "cannot prove default-domain field requirement for
-  call done from run::put: parameter buf.line requires `[u8; N]::Utf8`".
-  Changing the receiver form's literal to 200 rejects it, so the receiver path
-  is discharging a provable ASCII byte rather than skipping the obligation. The
-  named path is the deficient one, and consolidation has to adopt the
-  receiver's discharge, not delete it.
+  Measured, and it is not a receiver exception. The two programs earlier
+  recorded here as a controlled pair were not one. A `&mut self` body that
+  writes `self.line[self.i] = 46` into a `[u8; 4] in Utf8` is accepted and the
+  `&mut Holder` twin is refused, but they give the checker different
+  information: the receiver's carrier was assigned the string literal `"    "`
+  in the same machine, and `carrier_proves_predicate` reads that
+  `AssignedValue` fact directly, while the parameter arrives carrying only its
+  declared-domain premise.
 
-  `append_state_parameter_domain_facts` skips `parameter.is_self` when seeding
-  entry field-domain premises, so the receiver reaches its call without them
-  and is still admitted; the named parameter has them and is refused after the
-  write. The asymmetry is therefore in how a write's effect on the domain is
-  evaluated per place, not in the entry seeding.
+  The required predicate is the point. Writing an ASCII byte into a byte
+  carrier emits its `BytePredicate` fact only when the carrier already proves
+  `AsciiOnly`; the declared domain proves `ValidUtf8`, and `ValidUtf8` does not
+  imply `AsciiOnly` -- correctly, since overwriting one byte of a multi-byte
+  sequence breaks it. So the parameter case is a sound refusal on the evidence
+  it has, not an exception the receiver escapes.
 
-  Probed to the exact call. `nominal_inputs.rs` raises the same requirement at
-  the same place for both (`self.line` and `buf.line`, `owner_kind` Machine
-  against Parameter); every receiver call site reports `satisfied=true`, and the
-  named form satisfies its pre-write sites and fails only the call after the
-  element store. Both then take the same prover branch --
-  `domain_requires_provenance` is false for this domain, so
-  `prover::prove_domain_at_place`. Of its three sources,
-  `carried_domain_membership_at_place` and `prove_domain_by_extent_enumeration`
-  agree across the two, and `AssignedValues::domain` is the one that splits:
-  true for every receiver query, false for the named place at the post-write
-  call. Inside it the deciding route is `byte_predicate`, which looks for a
-  `FactPayload::BytePredicate` at the subject; the receiver has one after the
-  element write and the parameter has none.
-
-  The producer is `flow/transfers/byte_sequences.rs`, which emits that fact
-  when `byte_in_class` and `carrier_proves_predicate` both hold.
-  `byte_in_class` is true for both forms -- the literal 46 is ASCII, 3 sites on
-  the receiver and 2 on the parameter -- and `carrier_proves_predicate` is the
-  split: true for `self.line`, false for `buf.line`. It already carries a
-  `DomainMembership` arm that derives the required byte predicate from a
-  declared domain, which is the route a parameter's declared field domain
-  should discharge through, so the remaining question is whether the entry
-  premise for `buf.line` is absent from `active` at that point or present with
-  a place that does not canonicalize onto the carrier. Its `canonical` helper
-  applies `normalize_attached_place_root`, which is receiver-shaped; check that
-  first.
-
-  `checks/contracts/writes.rs::expression_is_self_relative` is NOT the filter,
-  despite looking like one: `recast_source_declared_domain_implies`, the only
-  caller that reaches `domain_admits_zero_value`, is never called for either
-  program. An earlier revision of this note pointed there; it is a dead end.
+  The real asymmetry is fact transport. `ctlC` -- the named form with
+  `buf.line = "    "` assigned in the same machine, then
+  `buf.line[buf.i] = 46` in a state reached by `put(buf)` -- is still refused,
+  so the `AssignedValue` literal fact reaches a receiver's own states through
+  the state graph but does not cross a call argument for a `&mut T` parameter.
+  That is what to repair, and it is transport rather than a domain exception.
+  Two earlier revisions of this note said otherwise; both were written from the
+  uncontrolled pair.
 
   `samples/cli/rendering/dungeon_render` is the sample customer and needs more
   than this: its glyph reaches the carrier as `put(ch: u8)` -> `self.lab` ->
