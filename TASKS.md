@@ -692,6 +692,19 @@ _roots` shows the current shape: `use omega_language_std::targets::uefi_x86_64`
   has no field `cont`". The refusal is right and the verb is wrong; a write
   target should not be reported as a read.
 
+  Do not try to reproduce one of these by writing a small program. Measured
+  three times: `sensor_min_max`'s float field store, a byte-domain field store
+  under a boundary call, and `dutch_flag`'s `self.items[0] = Color::White`
+  each check clean when written on their own -- `data Color { case Red; case
+  White; case Blue; }` with `self.items[0] = Color::White` is accepted, and so
+  is the same store to a plain `Color` field -- while the sample containing the
+  identical statement is refused. Adding the surrounding features one at a time
+  does not find it either: a console call, an index guard, a loop body, a
+  second fold and a `build.omg` with the same root bindings were each tried
+  against one of them and none reproduced. Copy the sample and delete from it
+  instead; that isolated the byte-domain case to a console call plus a literal
+  array fill in four steps.
+
   Method that works, and one cause closed by it (cab36531c8f). The phase the
   message carries is the only pointer: grep it verbatim under
   `execution/terminal_unit/` -- it is a unique `trace.phase(..)` or `arm(..)`
