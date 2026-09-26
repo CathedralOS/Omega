@@ -161,8 +161,7 @@ impl Build {
         let derived = derive_satisfies_plans(
             &typed,
             ProviderPlanDerivation::unevaluated(
-                target::TargetProfile::host_if_supported()
-                    .map(target::TargetProfile::target_name),
+                target::TargetProfile::host_if_supported().map(target::TargetProfile::target_name),
             ),
         );
         assert_eq!(derived.len(), 1, "one exact checked provider plan");

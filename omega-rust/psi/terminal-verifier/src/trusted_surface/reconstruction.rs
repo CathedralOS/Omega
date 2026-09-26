@@ -11,31 +11,36 @@ use crate::ReconstructedTerminalObligationOwner;
 
 use super::{CoveredSurface, EntryBinding, LedgerFamily, SoundnessStatus, TrustedSurfaceEntry};
 
-const RECONSTRUCTION: &str =
-    "omega-rust/psi/terminal-verifier/src/verification/reconstruction.rs";
+const RECONSTRUCTION: &str = "omega-rust/psi/terminal-verifier/src/verification/reconstruction.rs";
 const MACHINE_FLOW: &str =
     "omega-rust/psi/terminal-verifier/src/verification/reconstruction/machine_flow.rs";
 const MACHINE_CONTEXT: &str =
     "omega-rust/psi/terminal-verifier/src/verification/reconstruction/machine_context.rs";
 const PATH_FACTS: &str =
     "omega-rust/psi/terminal-verifier/src/verification/reconstruction/path_facts.rs";
-const PATH_FACTS_CONDITIONS: &str = "omega-rust/psi/terminal-verifier/src/verification/reconstruction/path_facts/conditions.rs";
-const PATH_FACTS_DISCRETE: &str = "omega-rust/psi/terminal-verifier/src/verification/reconstruction/path_facts/discrete.rs";
-const PATH_FACTS_TRANSPORT: &str = "omega-rust/psi/terminal-verifier/src/verification/reconstruction/path_facts/transport.rs";
+const PATH_FACTS_CONDITIONS: &str =
+    "omega-rust/psi/terminal-verifier/src/verification/reconstruction/path_facts/conditions.rs";
+const PATH_FACTS_DISCRETE: &str =
+    "omega-rust/psi/terminal-verifier/src/verification/reconstruction/path_facts/discrete.rs";
+const PATH_FACTS_TRANSPORT: &str =
+    "omega-rust/psi/terminal-verifier/src/verification/reconstruction/path_facts/transport.rs";
 const OPERATION_FACTS: &str =
     "omega-rust/psi/terminal-verifier/src/verification/reconstruction/operation_facts.rs";
 const OP_FACTS_POLARITY: &str = "omega-rust/psi/terminal-verifier/src/verification/reconstruction/operation_facts/boolean_polarity.rs";
 const OP_FACTS_BYTE_EXTENT: &str = "omega-rust/psi/terminal-verifier/src/verification/reconstruction/operation_facts/byte_extent.rs";
-const OP_FACTS_RECORD: &str = "omega-rust/psi/terminal-verifier/src/verification/reconstruction/operation_facts/record.rs";
+const OP_FACTS_RECORD: &str =
+    "omega-rust/psi/terminal-verifier/src/verification/reconstruction/operation_facts/record.rs";
 const OP_FACTS_SCALAR_CASE: &str = "omega-rust/psi/terminal-verifier/src/verification/reconstruction/operation_facts/scalar_case.rs";
 const OP_FACTS_STRUCTURAL_CASE: &str = "omega-rust/psi/terminal-verifier/src/verification/reconstruction/operation_facts/structural_case.rs";
-const TERMINATOR_FACTS: &str = "omega-rust/psi/terminal-verifier/src/verification/reconstruction/terminator_facts.rs";
-const CRASH_FIELD_ORIGINS: &str = "omega-rust/psi/terminal-verifier/src/verification/reconstruction/crash_field_origins.rs";
+const TERMINATOR_FACTS: &str =
+    "omega-rust/psi/terminal-verifier/src/verification/reconstruction/terminator_facts.rs";
+const CRASH_FIELD_ORIGINS: &str =
+    "omega-rust/psi/terminal-verifier/src/verification/reconstruction/crash_field_origins.rs";
 const CRASH_PATHS: &str =
     "omega-rust/psi/terminal-verifier/src/verification/reconstruction/crash_paths.rs";
-const BLOCK_INVARIANTS: &str = "omega-rust/psi/terminal-verifier/src/verification/reconstruction/scalar_block_invariants.rs";
-const SUBSTITUTION: &str =
-    "omega-rust/psi/terminal-verifier/src/verification/substitution.rs";
+const BLOCK_INVARIANTS: &str =
+    "omega-rust/psi/terminal-verifier/src/verification/reconstruction/scalar_block_invariants.rs";
+const SUBSTITUTION: &str = "omega-rust/psi/terminal-verifier/src/verification/substitution.rs";
 const CALL_COMPOSITION: &str =
     "omega-rust/psi/terminal-verifier/src/verification/call_composition.rs";
 const TERMINATION: &str =

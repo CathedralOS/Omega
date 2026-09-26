@@ -11,46 +11,34 @@ use super::{CoveredSurface, EntryBinding, LedgerFamily, SoundnessStatus, Trusted
 const KERNEL: &str = "omega-rust/psi/proof-admission/src/kernel.rs";
 const EVIDENCE: &str = "omega-rust/psi/proof-admission/src/admission/evidence.rs";
 const PROOF: &str = "omega-rust/psi/proof-admission/src/proof.rs";
-const PROPOSITIONAL: &str =
-    "omega-rust/psi/proof-admission/src/proof/propositional_rules.rs";
+const PROPOSITIONAL: &str = "omega-rust/psi/proof-admission/src/proof/propositional_rules.rs";
 const EQUALITY_RULES: &str = "omega-rust/psi/proof-admission/src/proof/equality_rules.rs";
-const INTEGER_ORDER_RULES: &str =
-    "omega-rust/psi/proof-admission/src/proof/integer_order_rules.rs";
-const INTEGER_BOUND_RULES: &str =
-    "omega-rust/psi/proof-admission/src/proof/integer_bound_rules.rs";
+const INTEGER_ORDER_RULES: &str = "omega-rust/psi/proof-admission/src/proof/integer_order_rules.rs";
+const INTEGER_BOUND_RULES: &str = "omega-rust/psi/proof-admission/src/proof/integer_bound_rules.rs";
 const INTEGER_MATH_NORMALIZATION: &str =
     "omega-rust/psi/proof-admission/src/proof/integer_math_normalization.rs";
 const TRAVERSAL: &str = "omega-rust/psi/proof-admission/src/proof/traversal.rs";
 const SUBTRACT_ORDER: &str = "omega-rust/psi/proof-admission/src/proof/subtract_order.rs";
 const ADD_ORDER: &str = "omega-rust/psi/proof-admission/src/proof/add_order.rs";
-const SUBTRACT_ANTITONE: &str =
-    "omega-rust/psi/proof-admission/src/proof/subtract_antitone.rs";
-const ORDER_DISCRETENESS: &str =
-    "omega-rust/psi/proof-admission/src/proof/order_discreteness.rs";
-const STRICT_ORDER: &str =
-    "omega-rust/psi/proof-admission/src/proof/strict_order_transitivity.rs";
-const INTEGER_AFFINE: &str =
-    "omega-rust/psi/proof-admission/src/integer_rules/integer_affine.rs";
+const SUBTRACT_ANTITONE: &str = "omega-rust/psi/proof-admission/src/proof/subtract_antitone.rs";
+const ORDER_DISCRETENESS: &str = "omega-rust/psi/proof-admission/src/proof/order_discreteness.rs";
+const STRICT_ORDER: &str = "omega-rust/psi/proof-admission/src/proof/strict_order_transitivity.rs";
+const INTEGER_AFFINE: &str = "omega-rust/psi/proof-admission/src/integer_rules/integer_affine.rs";
 const AFFINE_BOUND_MAPPING: &str =
     "omega-rust/psi/proof-admission/src/integer_rules/integer_affine/bound_mapping.rs";
 const AFFINE_TRUTH_BOUNDS: &str =
     "omega-rust/psi/proof-admission/src/integer_rules/integer_affine/truth_bounds.rs";
 const AFFINE_WITNESS_CHECKING: &str =
     "omega-rust/psi/proof-admission/src/integer_rules/integer_affine/witness_checking.rs";
-const INTEGER_CAST: &str =
-    "omega-rust/psi/proof-admission/src/integer_rules/integer_cast.rs";
+const INTEGER_CAST: &str = "omega-rust/psi/proof-admission/src/integer_rules/integer_cast.rs";
 const INTEGER_FORBIDDEN: &str =
     "omega-rust/psi/proof-admission/src/integer_rules/integer_forbidden_root.rs";
-const PREDICATE_DENOTATION: &str =
-    "omega-rust/psi/proof-admission/src/predicate_denotation.rs";
+const PREDICATE_DENOTATION: &str = "omega-rust/psi/proof-admission/src/predicate_denotation.rs";
 const VALUE_EQUALITIES: &str =
     "omega-rust/psi/proof-admission/src/predicate_denotation/value_equalities.rs";
-const NODES: &str =
-    "omega-rust/psi/terminal-psi/src/artifacts/proof_bundle/nodes.rs";
-const ADMISSION: &str =
-    "omega-rust/psi/terminal-psi/src/artifacts/proof_bundle/admission.rs";
-const WITNESSES: &str =
-    "omega-rust/psi/terminal-psi/src/artifacts/proof_bundle/witnesses.rs";
+const NODES: &str = "omega-rust/psi/terminal-psi/src/artifacts/proof_bundle/nodes.rs";
+const ADMISSION: &str = "omega-rust/psi/terminal-psi/src/artifacts/proof_bundle/admission.rs";
+const WITNESSES: &str = "omega-rust/psi/terminal-psi/src/artifacts/proof_bundle/witnesses.rs";
 
 const TRUSTED: SoundnessStatus = SoundnessStatus::ExplicitlyTrusted {
     root: "root:rust-reference-verifier",
