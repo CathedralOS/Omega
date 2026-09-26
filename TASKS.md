@@ -137,9 +137,17 @@ backend-visible; full corpus runs only at the end of an item.
   record (one path, bodies keyed by target) that lowering and Terminal Psi
   retain, so `omega inspect-terminal` shows each body under its family with
   its target tag and Omega selects the body at realization
-  (PROVIDER-SELECTION-AFTER-TERMINAL owns the selection move). Known cost:
-  each std check pass now checks six target trees (`cli_mvp` check 36 s ->
-  81 s on the Windows host); BUILD-EVALUATES-ONCE removes the duplicate passes.
+  (PROVIDER-SELECTION-AFTER-TERMINAL owns the selection move). Lowering
+  coverage limits the family record: on `samples/cli/basics/cli_mvp` (Windows
+  host) 714 of the 732 std target-sibling bodies have no Unit plan (for
+  example `Filesystem::read_at::macos_arm64` stops at "state graph: result
+  custody accounting"), so Terminal Psi can carry only the family bodies an
+  artifact's entry closure reaches, and each of those must lower for every
+  target before its family can publish. The family record has no consumer
+  until Omega selects the body per target, so it lands with that selection
+  move rather than ahead of it. Known cost: each std check pass now checks
+  six target trees (`cli_mvp` check 36 s -> 81 s on the Windows host);
+  BUILD-EVALUATES-ONCE removes the duplicate passes.
 
 - **BUILD-EVALUATES-ONCE.** (new-scope) `build.omg` evaluates once per
   compilation and its evaluated configuration carries rows keyed by target:
