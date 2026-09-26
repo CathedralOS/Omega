@@ -990,10 +990,6 @@ pub fn bundled_omega_root() -> PathBuf {
         .join("../../source/library")
         .canonicalize()
         .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../source/library"))
-        .join("../../../../source/library")
-        .unwrap_or_else(|_| {
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../../source/library")
-        })
 }
 
 pub fn bundled_core_root() -> PathBuf {

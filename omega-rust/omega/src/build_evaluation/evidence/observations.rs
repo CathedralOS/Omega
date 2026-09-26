@@ -129,7 +129,6 @@ impl BuildCanonicalSourceMetadataIdentity {
 pub struct BuildActivation {
     pub(crate) root_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub(crate) root_role: Option<crate::package_compilation::BuildDeclarationKind>,
-    pub(crate) selected_target_profile: Option<target::TargetProfile>,
     pub(crate) build_execution_profile: Option<target::TargetProfile>,
 }
 
@@ -143,11 +142,6 @@ impl BuildActivation {
     /// occurrence.
     pub const fn root_role(&self) -> Option<crate::package_compilation::BuildDeclarationKind> {
         self.root_role
-    }
-
-    /// Requested target the activation's build machine could observe.
-    pub const fn selected_target_profile(&self) -> Option<target::TargetProfile> {
-        self.selected_target_profile
     }
 
     /// The admitted build execution profile the activation's build-scope

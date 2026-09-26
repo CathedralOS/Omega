@@ -52,7 +52,7 @@ use tokens_to_syntax_trees::syntax_trees::item::Item;
 /// consumes it exactly once when rebinding the corresponding typed machines.
 /// Each retained name carries its declaring source so two checked instances
 /// of one path rebind to their own typed machine rather than colliding.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SelectedTargetMachineDeclarations {
     provider_default_machine_names: Vec<(String, source::SourceId)>,
     selected_machine_origins: Vec<(String, String, source::SourceId)>,
@@ -73,11 +73,19 @@ struct TargetMachineOrigin {
     selected: bool,
 }
 
-/// The selected target per dependency scope.
+/// The selected target per dependency scope. Product scope selects each
+/// family's canonical body (the first recognized target in name order), so the
+/// frontend is the same program for every realized target; the realized
+/// target's body replaces it before checking
+/// (`SelectedTargetMachineDeclarations::select_product_target`).
 struct ScopeTargets<'a> {
-    product: NativeTarget,
+    product: ProductSelection,
     execution: NativeTarget,
     build_scope_sources: &'a HashSet<source::SourceId>,
+}
+
+enum ProductSelection {
+    Canonical(BTreeMap<String, String>),
 }
 
 impl ScopeTargets<'_> {
@@ -101,9 +109,11 @@ impl ScopeTargets<'_> {
         machine: &tokens_to_syntax_trees::syntax_trees::item::Machine,
         target: &str,
     ) -> bool {
-        let scope_target = match self.scope_of(machine) {
-            source::DependencyScope::Build => self.execution,
-            source::DependencyScope::Product => self.product,
+        let scope_target = match (self.scope_of(machine), &self.product) {
+            (source::DependencyScope::Build, _) => self.execution,
+            (source::DependencyScope::Product, ProductSelection::Canonical(canonical)) => {
+                return canonical.get(machine.name.as_str()).map(String::as_str) == Some(target);
+            }
         };
         NativeTarget::from_omega_target_name(Some(target))
             .is_ok_and(|resolved| resolved == scope_target)
@@ -154,13 +164,17 @@ impl SelectedTargetMachineDeclarations {
         syntax: &mut SyntaxTrees,
         target_name: Option<&str>,
     ) -> Result<Self, Vec<Diagnostic>> {
-        // Generated source is product source: it selects against the
-        // product target only.
+        // Generated source is product source: like the base, it selects each
+        // family's canonical body, and the realized target's body replaces it
+        // before checking. The target is only validated here.
         let selected = NativeTarget::from_omega_target_name(target_name)
             .map_err(|diagnostic| vec![diagnostic])?;
         let no_build_scope = HashSet::new();
         let scopes = ScopeTargets {
-            product: selected,
+            product: ProductSelection::Canonical(canonical_product_targets(
+                syntax,
+                &no_build_scope,
+            )),
             execution: selected,
             build_scope_sources: &no_build_scope,
         };
@@ -265,6 +279,190 @@ impl SelectedTargetMachineDeclarations {
         Ok(())
     }
 
+    /// Replace each product-scope family's canonical body with `target`'s own
+    /// body before checking: calls that resolved to the canonical body move to
+    /// the target's sibling, which loses its sibling marker and so brings its
+    /// own conformances into selection, while the canonical body becomes that
+    /// target's sibling. A family implemented by two or more targets but not by
+    /// `target` rejects; a single-target helper for another target stays an
+    /// inert sibling with its callers.
+    pub fn select_product_target(
+        &mut self,
+        typed: &mut TypedTrees,
+        target: NativeTarget,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let mut families: BTreeMap<&str, Vec<&TargetMachineOrigin>> = BTreeMap::new();
+        for origin in &self.all_machine_origins {
+            if origin.scope == source::DependencyScope::Product {
+                families
+                    .entry(origin.full_name.as_str())
+                    .or_default()
+                    .push(origin);
+            }
+        }
+        let machine_index = |typed: &TypedTrees, name: &str, sibling: Option<&str>, source| {
+            typed.machines().iter().position(|machine| {
+                machine.name.as_str() == name
+                    && machine.target.as_ref().map(|target| target.as_str()) == sibling
+                    && typed
+                        .symbols
+                        .symbol_provenance_source_span(machine.symbol)
+                        .is_some_and(|span| span.source_id == source)
+            })
+        };
+        let mut diagnostics = Vec::new();
+        let mut replacements = Vec::new();
+        let mut swaps = Vec::new();
+        for (name, origins) in &families {
+            let Some(canonical) = origins.iter().find(|origin| origin.selected) else {
+                continue;
+            };
+            if NativeTarget::from_omega_target_name(Some(canonical.target.as_str()))
+                .is_ok_and(|resolved| resolved == target)
+            {
+                continue;
+            }
+            let wanted = origins.iter().find(|origin| {
+                NativeTarget::from_omega_target_name(Some(origin.target.as_str()))
+                    .is_ok_and(|resolved| resolved == target)
+            });
+            let Some(canonical_index) = machine_index(typed, name, None, canonical.source) else {
+                // Provider defaults and other declarations that never reach
+                // typing keep no typed body to swap.
+                continue;
+            };
+            let Some(wanted) = wanted else {
+                let mut providers = origins
+                    .iter()
+                    .map(|origin| origin.target.as_str())
+                    .collect::<Vec<_>>();
+                providers.sort();
+                providers.dedup();
+                if providers.len() >= 2 {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "machine `{name}` has no implementation for the selected target -- \
+                         target-scoped implementations exist for: {} (add this target's \
+                         `<target> machine {name}(..)` in that target package)",
+                        providers.join(", "),
+                    )));
+                }
+                swaps.push((canonical_index, None, (*canonical).clone(), None));
+                continue;
+            };
+            let Some(wanted_index) =
+                machine_index(typed, name, Some(wanted.target.as_str()), wanted.source)
+            else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "target `{}` body of machine `{name}` did not survive typing",
+                    wanted.target,
+                )));
+                continue;
+            };
+            let canonical_machine = &typed.machines()[canonical_index];
+            let wanted_machine = &typed.machines()[wanted_index];
+            let canonical_identity = typed
+                .normalized_machine_overload_identity(canonical_machine)
+                .map(|identity| identity.identity().to_owned());
+            let wanted_identity = typed
+                .normalized_machine_overload_identity(wanted_machine)
+                .map(|identity| identity.identity().to_owned());
+            if canonical_identity != wanted_identity {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{name}` has a different signature for `{}` than for `{}` -- \
+                     every target's body of one machine shares its signature",
+                    wanted.target, canonical.target,
+                )));
+                continue;
+            }
+            let canonical_states = typed.machine_states(canonical_machine);
+            let wanted_states = typed.machine_states(wanted_machine);
+            if let (Some(from), Some(to)) = (canonical_states.first(), wanted_states.first()) {
+                replacements.push((from.symbol, to.symbol));
+            }
+            for from in canonical_states.iter().skip(1) {
+                if let Some(to) = wanted_states.iter().find(|state| state.name == from.name) {
+                    replacements.push((from.symbol, to.symbol));
+                }
+            }
+            swaps.push((
+                canonical_index,
+                Some(wanted_index),
+                (*canonical).clone(),
+                Some((*wanted).clone()),
+            ));
+        }
+        if !diagnostics.is_empty() {
+            return Err(diagnostics);
+        }
+        for (canonical_index, wanted_index, canonical, wanted) in swaps {
+            let canonical_target =
+                symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated(
+                    canonical.target.clone(),
+                );
+            let machines = typed.machines_mut();
+            machines[canonical_index].target = Some(canonical_target);
+            let canonical_symbol = machines[canonical_index].symbol;
+            let demoted_spelling = machines[canonical_index].symbol_spelling().into_owned();
+            let promoted = wanted_index.map(|wanted_index| {
+                machines[wanted_index].target = None;
+                (
+                    machines[wanted_index].symbol,
+                    machines[wanted_index].symbol_spelling().into_owned(),
+                )
+            });
+            // Validation joins each machine to its symbol by spelling, so the
+            // symbol table follows the markers.
+            typed.symbols.rename(canonical_symbol, &demoted_spelling);
+            if let Some((symbol, spelling)) = promoted {
+                typed.symbols.rename(symbol, &spelling);
+            }
+            self.reselect(&canonical, wanted.as_ref());
+        }
+        typed.statement_table.retarget_call_states(&replacements);
+        typed.expression_table.retarget_call_states(&replacements);
+        reject_inert_sibling_callers(typed, target)
+    }
+
+    /// Move the retained selection of one family from its canonical body to
+    /// the realized target's body, or drop it when that target has none.
+    fn reselect(&mut self, canonical: &TargetMachineOrigin, wanted: Option<&TargetMachineOrigin>) {
+        for origin in &mut self.all_machine_origins {
+            if origin.scope != source::DependencyScope::Product
+                || origin.full_name != canonical.full_name
+            {
+                continue;
+            }
+            origin.selected = wanted.is_some_and(|wanted| {
+                origin.target == wanted.target && origin.source == wanted.source
+            });
+        }
+        self.selected_machine_origins
+            .retain(|(name, target, source)| {
+                !(name == &canonical.full_name
+                    && target == &canonical.target
+                    && *source == canonical.source)
+            });
+        let was_provider_default = self
+            .provider_default_machine_names
+            .iter()
+            .any(|(name, source)| name == &canonical.full_name && *source == canonical.source);
+        self.provider_default_machine_names
+            .retain(|(name, source)| {
+                !(name == &canonical.full_name && *source == canonical.source)
+            });
+        if let Some(wanted) = wanted {
+            self.selected_machine_origins.push((
+                wanted.full_name.clone(),
+                wanted.target.clone(),
+                wanted.source,
+            ));
+            if was_provider_default {
+                self.provider_default_machine_names
+                    .push((wanted.full_name.clone(), wanted.source));
+            }
+        }
+    }
+
     pub fn settle_provider_defaults(
         self,
         typed: &mut TypedTrees,
@@ -350,18 +548,54 @@ pub fn filter_target_machines_by_scope(
     execution_profile_name: Option<&str>,
     build_scope_sources: &HashSet<source::SourceId>,
 ) -> Result<SelectedTargetMachineDeclarations, Vec<Diagnostic>> {
-    let product = NativeTarget::from_omega_target_name(product_target_name)
+    // The product target no longer selects before resolution; it is still
+    // validated here so an unknown spelling rejects at admission.
+    NativeTarget::from_omega_target_name(product_target_name)
         .map_err(|diagnostic| vec![diagnostic])?;
     let execution = NativeTarget::from_omega_target_name(execution_profile_name)
         .map_err(|diagnostic| vec![diagnostic])?;
     let scopes = ScopeTargets {
-        product,
+        product: ProductSelection::Canonical(canonical_product_targets(
+            syntax,
+            build_scope_sources,
+        )),
         execution,
         build_scope_sources,
     };
     let origins = target_machine_origins(syntax, &scopes);
     validate_target_machine_origins(&origins)?;
     Ok(select_target_machines(syntax, &scopes, origins))
+}
+
+/// Each product-scope family's canonical target: the first recognized target
+/// in name order among its bodies.
+fn canonical_product_targets(
+    syntax: &SyntaxTrees,
+    build_scope_sources: &HashSet<source::SourceId>,
+) -> BTreeMap<String, String> {
+    let mut canonical: BTreeMap<String, String> = BTreeMap::new();
+    for item in syntax.root_items() {
+        let Item::Machine(machine) = item else {
+            continue;
+        };
+        let Some(target) = &machine.target else {
+            continue;
+        };
+        if build_scope_sources.contains(&machine.name.source_span().source_id)
+            || NativeTarget::from_omega_target_name(Some(target.as_str())).is_err()
+        {
+            continue;
+        }
+        canonical
+            .entry(machine.name.as_str().to_owned())
+            .and_modify(|current| {
+                if target.as_str() < current.as_str() {
+                    *current = target.as_str().to_owned();
+                }
+            })
+            .or_insert_with(|| target.as_str().to_owned());
+    }
+    canonical
 }
 
 fn target_machine_origins(
@@ -514,10 +748,274 @@ fn select_target_machines(
     )
 }
 
+/// A surviving caller of a body this target does not realize.
+///
+/// A family implemented only by other targets keeps its declaration as an
+/// inert sibling with its callers, so the call still resolves. Nothing then
+/// realizes the callee: checking accepts the program and the closure refuses
+/// at `Legs::bump::linux_x86_64 ... selects no terminal machine for it`,
+/// past `omega --check`. A caller that is itself scoped to the sibling's
+/// target goes inert with it and is not reported.
+fn reject_inert_sibling_callers(
+    typed: &TypedTrees,
+    target: NativeTarget,
+) -> Result<(), Vec<Diagnostic>> {
+    // Symbol handles are arena handles, not ordered keys; the sibling set is
+    // small and scanned linearly like the rest of this pass.
+    // A call names the callee's entry state, not its machine, so the index
+    // carries each inert machine's states beside its own symbol.
+    let mut inert: Vec<(symbols::SymbolHandle, &str, &str)> = Vec::new();
+    for machine in typed.machines() {
+        let Some(machine_target) = machine.target.as_ref().map(|target| target.as_str()) else {
+            continue;
+        };
+        // `NativeTarget` carries no canonical name and several spellings can
+        // share one profile, so the comparison is structural -- the same
+        // conversion the rest of this pass uses.
+        if NativeTarget::from_omega_target_name(Some(machine_target))
+            .is_ok_and(|declared| declared == target)
+        {
+            continue;
+        }
+        inert.push((machine.symbol, machine.name.as_str(), machine_target));
+        for state in typed.machine_states(machine) {
+            inert.push((state.symbol, machine.name.as_str(), machine_target));
+        }
+    }
+    if inert.is_empty() {
+        return Ok(());
+    }
+    // `NativeTarget` is a profile, not a name, and more than one spelling can
+    // share it; name every spelling this build realizes rather than guess one.
+    // The conversion is the fallible one: `alpha_bootstrap` has no native
+    // target at all and panics if asked for one directly.
+    let realized = target::TargetProfile::ALL
+        .into_iter()
+        .filter(|profile| {
+            // `cross_platform_cli` and `local_unchecked` resolve to whatever
+            // the host is rather than naming a target of their own, so they
+            // would list the host profile twice more under other names.
+            !matches!(
+                profile,
+                target::TargetProfile::CrossPlatformCli | target::TargetProfile::LocalUnchecked
+            ) && NativeTarget::from_omega_target_name(Some(profile.target_name()))
+                .is_ok_and(|profile| profile == target)
+        })
+        .map(|profile| format!("`{}`", profile.target_name()))
+        .collect::<Vec<_>>()
+        .join(" or ");
+    let mut diagnostics = Vec::new();
+    let mut called = Vec::new();
+    let mut visited = Vec::new();
+    for machine in typed.machines() {
+        let caller_target = machine.target.as_ref().map(|target| target.as_str());
+        for state in typed.machine_states(machine) {
+            called.clear();
+            visited.clear();
+            for statement in typed.statement_table.statements(state.statement_nodes) {
+                collect_statement_callees(typed, statement, &mut visited, &mut called);
+            }
+            for called_symbol in &called {
+                let Some((_, callee, callee_target)) =
+                    inert.iter().find(|(symbol, _, _)| symbol == called_symbol)
+                else {
+                    continue;
+                };
+                if caller_target == Some(*callee_target) {
+                    continue;
+                }
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` state `{}` calls `{callee}`, which is declared only for \
+                     target `{callee_target}`. This build realizes {realized}, so that body \
+                     is an inert sibling and the call has no implementation; scope the \
+                     caller to `{callee_target}` as well, or declare `{callee}` for the \
+                     target being built.",
+                    machine.name.as_str(),
+                    state.name.as_str(),
+                )));
+            }
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
+/// Record one callee once. A state that names the same inert sibling twice
+/// has one defect, and the diagnostic carries no span to tell the two sites
+/// apart, so a second copy would be unreadable noise.
+fn note_callee(called: &mut Vec<symbols::SymbolHandle>, symbol: symbols::SymbolHandle) {
+    if symbol.is_valid() && !called.contains(&symbol) {
+        called.push(symbol);
+    }
+}
+
+/// Every callee one statement can name. The statement-position call is only
+/// one spelling: a value call in an initializer, an argument, a guard, or a
+/// transition argument reaches the same callee, and a walk that matched only
+/// `StatementNode::Call` left those call sites to vanish with their filtered
+/// callee and bind the ZII zero.
+fn collect_statement_callees(
+    typed: &TypedTrees,
+    statement: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode,
+    visited: &mut Vec<
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    >,
+    called: &mut Vec<symbols::SymbolHandle>,
+) {
+    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
+    match statement {
+        StatementNode::Call(call) => {
+            note_callee(called, call.target_symbol);
+            for argument in typed.expression_table.expression_handles(call.arguments) {
+                collect_expression_callees(typed, *argument, visited, called);
+            }
+        }
+        StatementNode::Assignment(assignment) => {
+            collect_expression_callees(typed, assignment.target, visited, called);
+            collect_expression_callees(typed, assignment.value, visited, called);
+        }
+        StatementNode::Expression(expression) => {
+            collect_expression_callees(typed, *expression, visited, called);
+        }
+        StatementNode::LocalData(local) => {
+            collect_expression_callees(typed, local.initial_value, visited, called);
+        }
+        StatementNode::AssemblyFact(fact) => {
+            collect_expression_callees(typed, fact.expression, visited, called);
+        }
+        StatementNode::Transition(transition) => {
+            if let symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionGuardNode::When(guard) = &transition.guard {
+                collect_expression_callees(typed, *guard, visited, called);
+            }
+            for target in [transition.target, transition.continuation] {
+                collect_transition_target_callees(typed, target, visited, called);
+            }
+        }
+        StatementNode::RootBinding(_) => {}
+    }
+}
+
+/// A named transition target is itself a call to a state, so its own symbol
+/// is a callee. Its argument span is walked for the same reason the other
+/// spans are, though typed trees present it empty for the tail-call
+/// spelling, so no fixture here exercises that arm.
+fn collect_transition_target_callees(
+    typed: &TypedTrees,
+    target: symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetHandle,
+    visited: &mut Vec<
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    >,
+    called: &mut Vec<symbols::SymbolHandle>,
+) {
+    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode;
+    if !typed.statement_table.transition_target_is_valid(target) {
+        return;
+    }
+    match typed.statement_table.transition_target(target) {
+        TransitionTargetNode::Named {
+            path, arguments, ..
+        } => {
+            note_callee(called, path.symbol);
+            for argument in typed.expression_table.expression_handles(*arguments) {
+                collect_expression_callees(typed, *argument, visited, called);
+            }
+        }
+        TransitionTargetNode::Value(expression) => {
+            collect_expression_callees(typed, *expression, visited, called);
+        }
+        TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+    }
+}
+
+/// Every callee inside one expression graph. `visited` is the graph's own
+/// shared-subexpression guard: the table is a DAG, not a tree.
+fn collect_expression_callees(
+    typed: &TypedTrees,
+    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    visited: &mut Vec<
+        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    >,
+    called: &mut Vec<symbols::SymbolHandle>,
+) {
+    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+        ExpressionNode, MatchPattern,
+    };
+    if !expression.is_valid() || visited.contains(&expression) {
+        return;
+    }
+    visited.push(expression);
+    match typed.expression_table.expression(expression) {
+        ExpressionNode::Call(call) => {
+            note_callee(called, call.target_symbol);
+            collect_expression_callees(typed, call.receiver, visited, called);
+            for argument in typed.expression_table.expression_handles(call.arguments) {
+                collect_expression_callees(typed, *argument, visited, called);
+            }
+        }
+        ExpressionNode::Match(dispatch) => {
+            collect_expression_callees(typed, dispatch.subject, visited, called);
+            for arm in typed.expression_table.match_arms(dispatch.arms) {
+                if let MatchPattern::Value(value) = arm.pattern {
+                    collect_expression_callees(typed, value, visited, called);
+                }
+                collect_expression_callees(typed, arm.value, visited, called);
+            }
+        }
+        ExpressionNode::ArrayLiteral(values) => {
+            for value in typed.expression_table.expression_handles(*values) {
+                collect_expression_callees(typed, *value, visited, called);
+            }
+        }
+        ExpressionNode::Atomic(atomic) => {
+            collect_expression_callees(typed, atomic.value, visited, called);
+            collect_expression_callees(typed, atomic.result, visited, called);
+        }
+        ExpressionNode::Binary(binary) => {
+            collect_expression_callees(typed, binary.left, visited, called);
+            collect_expression_callees(typed, binary.right, visited, called);
+        }
+        ExpressionNode::Cast(cast) => {
+            collect_expression_callees(typed, cast.value, visited, called);
+        }
+        ExpressionNode::Indexed(indexed) => {
+            collect_expression_callees(typed, indexed.collection, visited, called);
+            collect_expression_callees(typed, indexed.index, visited, called);
+        }
+        ExpressionNode::Member(member) => {
+            collect_expression_callees(typed, member.receiver, visited, called);
+        }
+        ExpressionNode::Borrow(borrow) => {
+            collect_expression_callees(typed, borrow.target, visited, called);
+        }
+        ExpressionNode::Range(range) => {
+            collect_expression_callees(typed, range.start, visited, called);
+            collect_expression_callees(typed, range.end, visited, called);
+        }
+        ExpressionNode::StructLiteral(literal) => {
+            for field in typed.expression_table.struct_fields(literal.fields) {
+                collect_expression_callees(typed, field.value, visited, called);
+            }
+        }
+        ExpressionNode::Unary(unary) => {
+            collect_expression_callees(typed, unary.operand, visited, called);
+        }
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => {}
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        SelectedTargetMachineDeclarations, filter_target_machines, filter_target_machines_by_scope,
+        Diagnostic, NativeTarget, SelectedTargetMachineDeclarations, filter_target_machines,
+        filter_target_machines_by_scope,
     };
     use std::collections::HashSet;
 
@@ -567,22 +1065,119 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(selected_markers, vec![None, Some("windows_x86_64".into())]);
 
-        // The same declarations as product scope keep the product rule: a
-        // contract name implemented only by foreign targets is the loud edge.
+        // The same declarations as product scope select the family's
+        // canonical body (the first target in name order) for every product
+        // target; the realized target's body replaces it before checking.
         let mut product = syntax(7, HELPER);
-        let diagnostics = filter_target_machines_by_scope(
+        let retained = filter_target_machines_by_scope(
             &mut product,
             Some("linux_x86_64"),
             Some("macos_arm64"),
             &HashSet::new(),
         )
-        .expect_err("product-scope declarations still select against the product target");
-        assert!(
-            diagnostics[0]
-                .to_string()
-                .contains("machine `Tool::probe` has no implementation for the selected target"),
-            "{diagnostics:?}"
+        .expect("product-scope declarations select the canonical body");
+        assert_eq!(
+            retained.selected_machine_origins,
+            vec![(
+                "Tool::probe".into(),
+                "macos_arm64".into(),
+                source::SourceId(7)
+            )]
         );
+    }
+
+    /// A build for one target keeps a family declared only for another as an
+    /// inert sibling, and the call into it still resolves. A caller that
+    /// survives the selection must not be left calling a body nothing
+    /// realizes.
+    fn inert_sibling_selection(text: &str) -> Result<(), Vec<Diagnostic>> {
+        let mut sources = source::SourceMap::default();
+        let source_id = sources
+            .add(std::path::PathBuf::from("sibling.omg"), text.to_owned())
+            .source_id;
+        let mut syntax = syntax(source_id.0, text);
+        let mut selected = filter_target_machines_by_scope(
+            &mut syntax,
+            Some("macos_arm64"),
+            Some("macos_arm64"),
+            &HashSet::new(),
+        )
+        .expect("target machines select");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax: &syntax,
+                sources: Some(std::sync::Arc::new(sources)),
+                top_level_bindings: Vec::new(),
+            },
+        )
+        .expect("resolve sibling fixture");
+        let mut typed =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                .expect("type sibling fixture");
+        selected.select_product_target(&mut typed, NativeTarget::macos_arm64())
+    }
+
+    #[test]
+    fn an_unscoped_caller_of_a_foreign_only_machine_rejects() {
+        let diagnostics = inert_sibling_selection(
+            "data Legs { count: i32 in Wrapping; }\n\
+             linux_x86_64 machine Legs::bump(&mut self) { self.count = self.count + 1; }\n\
+             data Rack { legs: Legs; }\n\
+             machine Rack::run(&mut self) { self.legs.bump(); }",
+        )
+        .expect_err("a surviving caller of an unrealized body must reject");
+        let rendered = diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.clone())
+            .collect::<Vec<_>>()
+            .join("\n");
+        for expected in ["Legs::bump", "linux_x86_64", "macos_arm64", "Rack::run"] {
+            assert!(
+                rendered.contains(expected),
+                "refusal should name {expected}: {rendered}"
+            );
+        }
+    }
+
+    /// The value-call spelling reaches the same unrealized body as a
+    /// statement-position call. A walk keyed on `StatementNode::Call` alone
+    /// saw nothing here, so the call site vanished with its filtered callee
+    /// and the initializer silently kept the ZII zero.
+    #[test]
+    fn a_value_call_into_a_foreign_only_machine_rejects() {
+        let diagnostics = inert_sibling_selection(
+            "data Legs { count: i32; }\n\
+             linux_x86_64 machine Legs::measure(&self) -> i32 { transition { _ -> 1 } }\n\
+             data Rack { legs: Legs; total: i32; }\n\
+             machine Rack::run(&mut self) { let n: i32 = self.legs.measure(); self.total = n; }",
+        )
+        .expect_err("a value call into an unrealized body must reject");
+        let rendered = diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.clone())
+            .collect::<Vec<_>>()
+            .join("\n");
+        for expected in ["Legs::measure", "linux_x86_64", "macos_arm64", "Rack::run"] {
+            assert!(
+                rendered.contains(expected),
+                "refusal should name {expected}: {rendered}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_caller_scoped_to_the_same_foreign_target_goes_inert_with_it() {
+        // The filter's own rule: a name implemented by one foreign target is
+        // that target's internal and is filtered with its callers. A caller
+        // scoped to the same target is one of those callers, so it is not a
+        // survivor and must not be reported.
+        inert_sibling_selection(
+            "data Legs { count: i32 in Wrapping; }\n\
+             linux_x86_64 machine Legs::bump(&mut self) { self.count = self.count + 1; }\n\
+             data Rack { legs: Legs; }\n\
+             linux_x86_64 machine Rack::run(&mut self) { self.legs.bump(); }",
+        )
+        .expect("a caller scoped to the callee's own target is inert with it");
     }
 
     #[test]
@@ -787,23 +1382,6 @@ mod tests {
     }
 
     #[test]
-    fn generated_extension_completes_missing_target_validation_across_base_stratum() {
-        let mut base = syntax(0, "windows_x86_64 machine Missing::value() -> u64 { 1 }\n");
-        let retained = filter_target_machines(&mut base, Some("linux_x86_64"))
-            .expect("one foreign-only base row remains an inert target-local helper");
-        let mut extension = syntax(1, "macos_arm64 machine Missing::value() -> u64 { 2 }\n");
-
-        let diagnostics = retained
-            .filter_generated_extension(&mut extension, Some("linux_x86_64"))
-            .expect_err("base and generated rows must form one portable target cohort");
-
-        assert_eq!(diagnostics.len(), 1);
-        assert!(diagnostics[0].message.contains("no implementation"));
-        assert!(diagnostics[0].message.contains("macos_arm64"));
-        assert!(diagnostics[0].message.contains("windows_x86_64"));
-    }
-
-    #[test]
     fn generated_units_reject_a_duplicate_selected_target_row() {
         let mut base = syntax(0, "const BASE: u64 = 1;\n");
         let retained = filter_target_machines(&mut base, Some("linux_x86_64"))
@@ -819,24 +1397,5 @@ mod tests {
         assert_eq!(diagnostics.len(), 1);
         assert!(diagnostics[0].message.contains("implemented twice"));
         assert!(diagnostics[0].message.contains("Duplicate::value"));
-    }
-
-    #[test]
-    fn generated_units_reject_a_portable_cohort_missing_the_selected_target() {
-        let mut base = syntax(0, "const BASE: u64 = 1;\n");
-        let retained = filter_target_machines(&mut base, Some("linux_x86_64"))
-            .expect("base has no target rows");
-        let mut extension = syntax(1, "windows_x86_64 machine Missing::value() -> u64 { 2 }\n");
-        let second = syntax(2, "macos_arm64 machine Missing::value() -> u64 { 3 }\n");
-        extension.extend_from(&second);
-
-        let diagnostics = retained
-            .filter_generated_extension(&mut extension, Some("linux_x86_64"))
-            .expect_err("generated units must expose a complete target cohort");
-
-        assert_eq!(diagnostics.len(), 1);
-        assert!(diagnostics[0].message.contains("no implementation"));
-        assert!(diagnostics[0].message.contains("macos_arm64"));
-        assert!(diagnostics[0].message.contains("windows_x86_64"));
     }
 }
