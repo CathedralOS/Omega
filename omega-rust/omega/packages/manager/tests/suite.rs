@@ -17,6 +17,7 @@ mod accepted_policy_fixture;
 #[path = "support/named_workspace.rs"]
 mod named_workspace_fixture;
 
+mod behavior_exclusion_verdicts;
 mod build_named_inputs;
 mod build_scope_topology_confinement;
 mod candidate_policy_retention;
