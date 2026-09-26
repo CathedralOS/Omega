@@ -617,6 +617,13 @@ the complete product bar; focused successes below do not establish that baseline
 
   Prioritize the actual operation named by `omitted at local construction`,
   not the downstream `rejoins 0 Terminal attachment identities` symptom.
+
+  `corpus_runner`'s pass route requests the Check product targetless and
+  establishes no program entry, so a `_exit` fixture whose unit plan is
+  omitted still records `checked`. Every `pass/recast/*_exit` row is green on
+  that route and refuses under `omega --check`. Realize the fixtures that
+  declare a program-entry root, as `realize_fail_fixture` already does for the
+  fail tier, before reading a pass row as executable.
   Tight starting groups are structural-call bindings in `recast`, pure-source
   field stores in `float`, and conditional guards/call operations in
   `filesystem`. Their shared owner is
@@ -1892,19 +1899,35 @@ syntax and other terminal services are not prerequisites.
   compatibility, not this source-position restriction.
   Carry checked layout/validity, backing identity, lifetime and access through
   ordinary expression sequencing and temporary loans rather than bypassing
-  the recast check. The `tests/omega/{pass,fail}/recast` corpus is
-  green: all 14 pass fixtures check and all 12 fail fixtures reject with their
-  expected fragments. The last pass-tier holdout,
-  `runtime_interior_slice_congruent_offset_exit`, was refused at "cannot bound
-  the recast offset `self.k * 2`" and not at any unit-plan omission; its bound
-  lives in `data Main where k <= 3`, which the leaf bound walk did not read.
-  No fixture named `recast_views` exists. Acceptance: valid inline
-  equivalents of supported shared
+  the recast check. No fixture named `recast_views` exists. Acceptance: valid
+  inline equivalents of supported shared
   and mutable recasts check and execute; incompatible geometry/validity,
   access escalation and conflicting backing use reject at the offending
   location. Preserve precise symbolic/boundary-witness footprint refusals.
-  Migrate stale imports in `recast_position_fenced` before using it as fresh
-  evidence.
+
+  The `tests/omega/{pass,fail}/recast` corpus is green only through the Check
+  product. `corpus_runner`'s pass route compiles targetless and establishes no
+  program entry, so all 14 `_exit` fixtures record `checked` while none has
+  ever been realized; `omega --check` of the same fixture refuses at
+  `statement sequence: local data: structural call binding`.
+
+  This item's source-position premise is inverted. A minimal pair differing
+  only in the recast's position shows the inline operand is the supported one:
+  `transition (&self.flag as &u8) == 1` establishes its entry and reaches
+  realization, while `let bits: &u8 = &self.flag as &u8;` omits the unit plan
+  at state 0, statement 1. That omission is not about recasts -- `let bits:
+  &bool = &self.flag;` omits identically -- and belongs to
+  **STATE-LOCAL-VALUE-FRONTIER**, which owns reference-typed locals bound to a
+  place loan.
+
+  What remains here is the realization refusal the inline form reaches:
+  `runtime field observation changes its declared scalar type` in
+  `05_checked-trees-to-lowered-psi/src/expression_preparation/bindings/structural_fields/`.
+  Checked trees record no re-view -- `recast` appears nowhere under
+  `psi/representations/checked-trees/src` -- so lowering sees a field read
+  whose scalar type disagrees with its declaration and has no relationship to
+  re-verify. Carry the re-view into checked trees and re-derive representation
+  compatibility there; relaxing the equality alone removes a real check.
 
 - **EXTERNAL-DATA-SCHEMA-CONVERSION.** Finish and verify the authored
   preserving-codec customer under the [codec contract](wiki/spec/layouts/codecs.md),
@@ -4176,6 +4199,17 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   `04_typed-trees-to-checked-trees/src/execution/terminal_unit/`, not a historical
   failure histogram. Preserve record-pattern and fresh record/case operand
   support rather than recreating it.
+
+  A traced omission that is general and cheap to reproduce. A reference-typed
+  local bound to a place loan has no producer:
+  `execution/terminal_unit/control/statement_sequence/local_data.rs` routes
+  every structural local through `structural call binding`, which returns
+  `None` unless the initializer is a `Call`. Both `let bits: &bool =
+  &self.flag;` and `let bits: &u8 = &self.flag as &u8;` omit the plan there,
+  while the same read inline in a guard operand plans and reaches realization.
+  This holds every `tests/omega/pass/recast/*_exit` fixture at
+  **RECAST-SOURCE-POSITIONS**. A loan is not a call result; give it its own
+  plan rather than widening the call recognizer.
 
   A traced omission to start from. `samples/cli/collections/matrix_multiply`
   stops at `structural field store: scalar field type` (state 0, statement 0),
