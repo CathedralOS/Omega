@@ -445,6 +445,7 @@ dependencies = [
  "libc",
  "lowered-psi-to-lowered-psi",
  "lowered-psi-to-terminal-psi",
+ "mimalloc",
  "nix",
  "numerics",
  "optimization-core",
