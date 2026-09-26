@@ -82,6 +82,26 @@ pub(super) fn analyze(walk: &ExpressionWalk, expression: ExpressionHandle) -> An
     } else {
         program.arithmetic_domain_for_type_reference(handle)
     };
+    // A domain constraint on a COLLECTION declaration (`[i32; 5] in Wrapping`)
+    // is the element's arithmetic policy: the element type itself is bare
+    // `i32`, so the resolved handle reads Exact while the array declares how
+    // element arithmetic behaves. An element read whose own type carries no
+    // domain inherits the collection's, keeping its carrier across stores
+    // (`let h: i32 in Wrapping = self.coeffs[i]` is a same-carrier move, and
+    // `h as i32` spells the erasure the strict store rule requires). A member
+    // projection (`cells[k].v`) resolves the field's own declared type, so the
+    // collection domain applies only to a direct `Indexed` leaf.
+    let domain = match program.expression_table.expression(expression) {
+        typed_trees::expression::ExpressionNode::Indexed(indexed)
+            if domain == ArithmeticDomain::Exact =>
+        {
+            declared_place_type_raw(program, walk.machine, walk.state, indexed.collection)
+                .map(|collection| program.arithmetic_domain_for_type_reference(collection))
+                .filter(|collection_domain| *collection_domain != ArithmeticDomain::Exact)
+                .unwrap_or(domain)
+        }
+        _ => domain,
+    };
     Analysis {
         domain: Some(domain),
         interval,

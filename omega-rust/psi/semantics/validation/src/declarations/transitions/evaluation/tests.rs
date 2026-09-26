@@ -12,7 +12,10 @@ fn check_typed(typed: &typed_trees::TypedTrees, source: &str, accepted: bool) {
         let diagnostics = result.expect_err("invalidated Exact range must reject");
         assert!(
             diagnostics.iter().any(|diagnostic| {
-                diagnostic.message.contains("overflow") || diagnostic.message.contains("range")
+                diagnostic.message.contains("overflow")
+                    || diagnostic.message.contains("range")
+                    || diagnostic.message.contains("implicitly converts")
+                    || diagnostic.message.contains("not provably representable")
             }),
             "{source}: {diagnostics:#?}"
         );
@@ -113,7 +116,7 @@ fn transition_argument_narrowing_uses_its_own_evaluation_point() {
         (
             "current, replace(&mut current)",
             "first: u8, second: u16",
-            true,
+            false,
         ),
         (
             "current as u8, replace(&mut current)",

@@ -11,7 +11,7 @@ fn lifetime_declared_mut_self_machine_lowers_and_verifies() {
             data Counter { value: u64; }
 
             machine Counter::bump<'a>(&mut self) {
-                self.value = (self.value as u64 in Wrapping) + (1 as u64 in Wrapping);
+                self.value = ((self.value as u64 in Wrapping) + (1 as u64 in Wrapping)) as u64;
             }
         "#,
     );
