@@ -3545,10 +3545,13 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   machine in `typed.machines()`, which includes the dependency's, and std's
   own `windows_x86_64` rows appear in that index when building for macOS.
 
-  What is owed is a corpus fail canary; `tests/omega` has been under a live
-  claim. The witness is `linux_x86_64 machine Legs::bump` called from an
-  unscoped `Main::main`, which rejects, against the same source with
-  `macos_arm64`, which compiles and exits 70.
+  `target_machines`'s own tests pin both halves against typed trees:
+  `an_unscoped_caller_of_a_foreign_only_machine_rejects` and
+  `a_caller_scoped_to_the_same_foreign_target_goes_inert_with_it`. A corpus
+  fail canary is still owed once `tests/omega` clears its claim; the witness
+  is `linux_x86_64 machine Legs::bump` called from an unscoped `Main::main`,
+  which rejects, against the same source with `macos_arm64`, which compiles
+  and exits 70.
 
   Acceptance: a statement call whose callee no declaration in the selected
   program supplies rejects, naming the callee and the selected target, and the
