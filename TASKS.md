@@ -3935,6 +3935,17 @@ syntax and other terminal services are not prerequisites.
   write. The asymmetry is therefore in how a write's effect on the domain is
   evaluated per place, not in the entry seeding.
 
+  Probing `checks/contracts/nominal_inputs.rs` narrows it further: both forms
+  raise the same requirement at the same place (`self.line` and `buf.line`,
+  `owner_kind` Machine against Parameter), and every receiver call site reports
+  `satisfied=true` while the named form satisfies its pre-write sites and fails
+  only the call that follows the element store. So the obligation is raised
+  identically and only the post-write discharge differs. The receiver-only
+  filter the first paragraph asks about is
+  `checks/contracts/writes.rs::expression_is_self_relative`, which admits a
+  domain's zero value only when the fact's name path starts at the receiver;
+  start there rather than in the entry seeding or the obligation loop.
+
   `samples/cli/rendering/dungeon_render` is the sample customer and needs more
   than this: its glyph reaches the carrier as `put(ch: u8)` -> `self.lab` ->
   `self.line[self.c]`, and `u8` carries no range, so no ASCII fact exists to
