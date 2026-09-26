@@ -622,6 +622,22 @@ the complete product bar; focused successes below do not establish that baseline
   Prioritize the actual operation named by `omitted at local construction`,
   not the downstream `rejoins 0 Terminal attachment identities` symptom.
 
+  Four fail fixtures reject for a reason other than their own subject, so
+  they pin nothing. `fail/build/uefi_program_entry_wrong_calling_policy`
+  declares its own `UefiApplication` beside the bundled one and refuses at
+  "requires exactly one loaded `UefiApplication` boundary schema, but found
+  2" before any policy is weighed; whether ambiguity or the policy is the
+  right answer there is the entry-slot owner's call.
+  `fail/calls/value_call_param_effect_arm_rejected` expects "composed scalar
+  call structural actual lost its authored position" from checking and is
+  instead refused at realization by Terminal validation
+  (`InvalidBlockStructuralParameter`), so the checked-stage rule it names
+  goes unexercised. `fail/ranges/index_signed_guard_below_zero` and
+  `fail/ranges/loop_increment_index_unbounded` are masked by
+  **IMPLICIT-STORE-CONVERSION**'s new refusal on a `__hoist_0` local and are
+  recorded there. All four are pinned `unexpected` in the golden rather than
+  hidden.
+
   `corpus_runner`'s pass route requests the Check product targetless and
   establishes no program entry, so a `_exit` fixture whose unit plan is
   omitted still records `checked`. Every `pass/recast/*_exit` row is green on
@@ -3165,6 +3181,16 @@ syntax and other terminal services are not prerequisites.
   widenings -- `u8` to `u16`, `u8` to `u64`, `f32` to `f64` -- are a broader
   refusal than "a typed value keeps its arithmetic policy", and whether the
   rule should reach them is this item's call, not a fixture repair.
+
+  Two corpus fail fixtures are masked the same way and need the same
+  judgement. `fail/ranges/index_signed_guard_below_zero` and
+  `fail/ranges/loop_increment_index_unbounded` each expect a
+  "cannot prove index" refusal and are instead refused at
+  "store in machine `Main::main` state `body` local `__hoist_0` implicitly
+  converts `i32` to `i32 in Trapping`". The conversion is in a compiler-minted
+  hoist local, not authored source, so neither fixture can spell an `as` to
+  restore its subject: the rule reaching a generated local is this item's
+  call.
 
   `call_bounds::tests::widening::argument_widening_does_not_reinterpret_saved\
 _wrapping_computations` is repaired as the worked example: it asserts rejection
