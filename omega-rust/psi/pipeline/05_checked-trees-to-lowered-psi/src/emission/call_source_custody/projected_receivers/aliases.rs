@@ -299,6 +299,17 @@ pub(super) fn parameter_source(
                 receiver_root(checked, assignment.target)?,
                 std::slice::from_ref(&assignment.value),
             ),
+            // The state's own terminator is not a use of the alias unless it
+            // names it. A transition that mentions the owner in a guard,
+            // target value or successor argument would carry the alias into a
+            // successor this pass does not model, so that still refuses; one
+            // that does not mention it simply ends the scan's statement.
+            StatementNode::Transition(transition) => {
+                if transition_mentions_owner(checked, transition, owner) {
+                    return unsupported("receiver alias escapes through a transition");
+                }
+                continue;
+            }
             _ => return unsupported("receiver alias suffix contains a write, local, or escape"),
         };
         if arguments
@@ -540,4 +551,36 @@ fn contains_owner(
         }
     }
     false
+}
+
+/// Whether a transition names `owner` anywhere it could carry it into a
+/// successor: its guard, either target's successor arguments, or a value
+/// target's own expression.
+fn transition_mentions_owner(
+    checked: &CheckedTrees,
+    transition: &checked_trees::statement::TableTransition,
+    owner: SymbolHandle,
+) -> bool {
+    use checked_trees::statement::{TransitionGuardNode, TransitionTargetNode};
+    if let TransitionGuardNode::When(guard) = transition.guard
+        && contains_owner(checked, guard, owner)
+    {
+        return true;
+    }
+    [transition.target, transition.continuation]
+        .into_iter()
+        .filter(|handle| checked.statement_table.transition_target_is_valid(*handle))
+        .any(
+            |handle| match checked.statement_table.transition_target(handle) {
+                TransitionTargetNode::Named { arguments, .. } => checked
+                    .expression_table
+                    .expression_handles(*arguments)
+                    .iter()
+                    .any(|argument| contains_owner(checked, *argument, owner)),
+                TransitionTargetNode::Value(expression) => {
+                    contains_owner(checked, *expression, owner)
+                }
+                TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => false,
+            },
+        )
 }

@@ -1,0 +1,69 @@
+//! An exclusive loan local (`let seen: &mut u8 = &mut self.byte;`) names one
+//! place for its scope: it plans no operation, each write through the name is
+//! the ordinary store of the loaned place, and the state's own terminator is
+//! not a use of it. A transition that does name the alias would carry it into
+//! a successor this pass does not model, and still declines.
+use crate::{TerminalMachineSelection, lower_machine};
+
+#[test]
+fn a_write_through_an_exclusive_loan_local_lowers_and_verifies() {
+    let checked = crate::front_end::checked_program(
+        r#"
+            data Cell { raw: u8; }
+
+            machine Cell::clear(&mut self) {
+                self.raw = 1;
+                let seen: &mut u8 = &mut self.raw;
+                seen = 0;
+                transition self.raw == 0 {
+                    true -> done()
+                    _ -> done()
+                }
+
+                state done(&mut self) { }
+            }
+        "#,
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Cell::clear"))
+        .expect("an exclusive loan local rejoins its loaned place");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the rejoined store verifies");
+}
+
+#[test]
+fn a_transition_naming_the_alias_still_declines() {
+    // The terminator is exempt only when it cannot carry the alias onward;
+    // passing it as a successor argument is exactly the escape this pass
+    // does not model.
+    let checked = crate::front_end::checked_program(
+        r#"
+            data Cell { raw: u8; }
+
+            machine Cell::clear(&mut self) {
+                self.raw = 1;
+                let seen: &mut u8 = &mut self.raw;
+                seen = 0;
+                transition true {
+                    true -> keep(seen)
+                    _ -> keep(seen)
+                }
+
+                state keep(&mut self, held: &mut u8) { held = 2; }
+            }
+        "#,
+    );
+    let error = lower_machine(&checked, TerminalMachineSelection::Name("Cell::clear"))
+        .expect_err("an alias carried into a successor has no source replay here");
+    assert!(
+        matches!(
+            error,
+            crate::lowering_error::LoweringError::InvalidUnitMachinePlan { .. }
+                | crate::lowering_error::LoweringError::Unsupported(_)
+        ),
+        "unexpected error: {error:?}"
+    );
+}

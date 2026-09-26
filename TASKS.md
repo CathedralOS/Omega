@@ -4230,15 +4230,16 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   known place needs no such value, and minting one is dropped by
   `composed_control`'s state graph as an added body effect.
 
-  Native execution of the planned shape stops one stage later, in
-  `emission/call_source_custody/projected_receivers/aliases.rs`. The loan local
-  enters that scan as an alias declaration, and the state's own `Transition`
-  falls to its `_` arm: "receiver alias suffix contains a write, local, or
-  escape" with declaration_index 1, position 3, access Mutable. A terminator is
-  not an escape; the scan needs to weigh a transition's guard and target
-  arguments for the owner instead. Loaning a ranged field (`u8 [0..=1]`) as
-  `&mut u8` reaches "receiver alias changes its referent type" in the same
-  owner, because `normalized_type_identity` equates the two.
+  That shape now executes. `let seen: &mut u8 = &mut self.raw; seen = 0;`
+  realizes to a Mach-O product on macOS AArch64 and exits 70, pinned by
+  `checked-trees-to-lowered-psi`'s `tests::exclusive_loan_locals`.
+
+  One loan shape remains refused past checking: loaning a ranged field
+  (`u8 [0..=1]`) as `&mut u8` reaches "receiver alias changes its referent
+  type" in `projected_receivers/aliases.rs`, because
+  `normalized_type_identity` equates the two while that owner does not. Decide
+  whether the weakening is admissible before widening either side; validation
+  admits the program today.
 
   A traced omission to start from. `samples/cli/collections/matrix_multiply`
   stops at `structural field store: scalar field type` (state 0, statement 0),
