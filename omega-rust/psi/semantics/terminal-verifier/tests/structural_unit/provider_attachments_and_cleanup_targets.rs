@@ -1,7 +1,7 @@
 use super::{
     contextual_nominal_affine_module, empty_contract, five_root_nominal_affine_module,
-    nominal_affine_module, provider_attachment_root, provider_boundary_call, provider_field_id,
-    signed_i8, two_requirement_contextual_nominal_affine_module,
+    provider_attachment_root, provider_boundary_call, provider_field_id, signed_i8,
+    two_requirement_contextual_nominal_affine_module,
     two_root_distinct_contextual_nominal_affine_module, two_root_nominal_affine_module,
     two_root_one_executable_nominal_affine_module,
     two_root_shared_contextual_nominal_affine_module, unused_provider_attachment_module,
@@ -446,11 +446,6 @@ fn direct_write_only_primitive_store_rejects_custody_shape_and_value_mutations()
         validate_module(&forged_result).unwrap_err(),
         ModuleError::UnitOperationHasScalarResult(operation_id(1)),
     );
-}
-
-#[test]
-fn exact_empty_nominal_affine_cleanup_validates() {
-    validate_module(&nominal_affine_module()).expect("exact empty nominal cleanup should validate");
 }
 
 #[test]

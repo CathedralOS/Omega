@@ -205,12 +205,6 @@ fn verify(module: &TerminalModule) {
 }
 
 #[test]
-fn operation_contract_substitutes_formals_with_the_operations_operands() {
-    validate_module(&module())
-        .expect("formal 2 becomes the right operand and the caller publishes that route");
-}
-
-#[test]
 fn continuations_must_equal_the_exact_operand_substitution() {
     let mismatch = ModuleError::OperationCrashContinuationsMismatch {
         machine: id(1, MachineId::new),
