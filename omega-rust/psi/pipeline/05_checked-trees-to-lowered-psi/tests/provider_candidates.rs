@@ -50,25 +50,158 @@ fn checked_closed_operator_candidates() -> typed_trees_to_checked_trees::checked
         }
     "#,
     );
-    // This tests catalog publication from checked applications, not automatic
-    // selection-neutral specialization or native provider-plan installation.
-    let requests = [
-        typed_trees_to_checked_trees::SelectedGenericOperatorProviderSpecialization {
-            requirement_operator: typed.machine_token_bindings()[0].symbol,
-            realization_machine: typed
-                .machines()
-                .iter()
-                .find(|machine| machine.name.as_str() == "Provider::index")
-                .expect("provider template")
-                .symbol,
-        },
-    ];
     typed_trees_to_checked_trees::lower_typed_trees(
         typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled()
-            .with_selected_generic_operator_providers(&requests),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .expect("two checked closed operator applications")
+}
+
+#[test]
+fn closed_token_candidates_are_independent_of_provider_selection() {
+    let typed = crate::front_end::typed_program(
+        r#"
+        data Buffer<Element, const Count: u64> { value: i64; }
+        data Indexing {}
+        boundary machine [] Indexing::index<Element, const Count: u64>(
+            items: Buffer<Element, Count>, offset: i32
+        ) -> Buffer<Element, Count> requires Count == Count;
+        data FirstProvider {}
+        machine FirstProvider::index<Value, const Length: u64>(
+            items: Buffer<Value, Length>, offset: i32
+        ) -> Buffer<Value, Length> satisfies Indexing::index { items }
+        data SecondProvider {}
+        machine SecondProvider::index<Value, const Length: u64>(
+            items: Buffer<Value, Length>, offset: i32
+        ) -> Buffer<Value, Length> satisfies Indexing::index { items }
+        // An equally shaped machine without a satisfaction edge is not a candidate.
+        data Unrelated {}
+        machine Unrelated::index<Value, const Length: u64>(
+            items: Buffer<Value, Length>, offset: i32
+        ) -> Buffer<Value, Length> { items }
+        machine run(four: Buffer<i32, 4>, eight: Buffer<i32, 8>) {
+            let first: Buffer<i32, 4> = four[(0 as i32)];
+            let second: Buffer<i32, 8> = eight[(0 as i32)];
+        }
+    "#,
+    );
+    let mut baseline = None;
+    for selected_name in [
+        None,
+        Some("FirstProvider::index"),
+        Some("SecondProvider::index"),
+    ] {
+        let selections = selected_name
+            .into_iter()
+            .map(|name| {
+                typed_trees_to_checked_trees::SelectedGenericOperatorProviderSpecialization {
+                    requirement_operator: typed.machine_token_bindings()[0].symbol,
+                    realization_machine: typed
+                        .machines()
+                        .iter()
+                        .find(|machine| machine.name.as_str() == name)
+                        .unwrap()
+                        .symbol,
+                }
+            })
+            .collect::<Vec<_>>();
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(
+            typed.clone(),
+            &typed_trees_to_checked_trees::CheckingRequest::settled()
+                .with_selected_generic_operator_providers(&selections),
+        )
+        .expect("all checked candidates materialize from the same closed demands");
+        let artifact =
+            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("run"),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .expect("selection-neutral artifact")
+            .into_artifact();
+        drop(checked);
+        let module = decode_module(artifact.semantic_bytes()).unwrap();
+        assert_eq!(
+            module.provider_candidates.len(),
+            4,
+            "two providers for each tuple"
+        );
+        assert!(module.provider_candidates.iter().all(|candidate| {
+            ["FirstProvider", "SecondProvider"].contains(&candidate.provider_identity.as_str())
+        }));
+        for provider in ["FirstProvider", "SecondProvider"] {
+            let selections = module
+                .provider_candidates
+                .iter()
+                .filter(|candidate| candidate.provider_identity == provider)
+                .map(|candidate| ProviderInstallationSelection {
+                    boundary: candidate.boundary,
+                    provider_identity: candidate.provider_identity.clone(),
+                    candidate: candidate.candidate,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(selections.len(), 2);
+            let installation = admit_provider_installation_from_artifact(
+                artifact.semantic_bytes(),
+                artifact.proof_bytes(),
+                &proof_admission::AdmissionProfile::default(),
+                &selections,
+            )
+            .expect("either complete provider installs from the identical source-free artifact");
+            let entry = module
+                .machines
+                .iter()
+                .find(|machine| machine.id == module.entry)
+                .unwrap();
+            let arguments = entry
+                .structural_parameters
+                .iter()
+                .enumerate()
+                .map(|(position, parameter)| TerminalStructuralValue {
+                    opaque_identity: position as u64 + 1,
+                    structural_type: parameter.structural_type,
+                    qualifications: parameter.qualifications.clone(),
+                    path: Vec::new(),
+                })
+                .collect::<Vec<_>>();
+            let mut execution = TerminalExecution::start_installed_artifact(
+                artifact.semantic_bytes(),
+                artifact.proof_bytes(),
+                &proof_admission::AdmissionProfile::default(),
+                &[],
+                TerminalStructuralInputs {
+                    arguments: &arguments,
+                    ..Default::default()
+                },
+                &installation,
+            )
+            .expect("execute both closed applications after source custody is dropped");
+            assert_eq!(
+                execution
+                    .resume(
+                        &mut TerminalFuelMeter::default(),
+                        &mut AcceptTerminalEffects
+                    )
+                    .unwrap(),
+                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+            );
+            assert!(
+                execution.effects().is_empty(),
+                "both calls execute installed checked bodies"
+            );
+        }
+        let bytes = (
+            artifact.semantic_bytes().to_vec(),
+            artifact.proof_bytes().to_vec(),
+        );
+        if let Some(expected) = &baseline {
+            assert_eq!(&bytes, expected, "selection must not change Psi output");
+        } else {
+            baseline = Some(bytes);
+        }
+    }
 }
 
 #[test]

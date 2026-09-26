@@ -179,7 +179,9 @@ fn lower_typed_trees_uncached(
         selected_boundary_families,
     )?;
     // Keep the authored generic provider templates immutable while ordinary
-    // machine specialization closes caller binders. Selected providers may be
+    // machine specialization closes caller binders. Token candidates are
+    // derived without Build selection; legacy operators still supply explicit
+    // requests to this shared elaborator. Provider bodies may be
     // demanded only by applications copied into those newly concrete bodies,
     // and a newly selected provider may itself expose another ordinary or
     // selected generic application. Alternate the existing elaborators to a
@@ -191,10 +193,13 @@ fn lower_typed_trees_uncached(
     // the program. Otherwise a concrete caller keeps a generic requirement
     // merely because it wrote `items[index]` rather than the named call.
     crate::operators::bind_token_bound_machine_calls(&mut program)?;
-    let selected_provider_templates = crate::monomorphization::SelectedProviderTemplates::prepare(
-        &program,
-        selected_generic_operator_providers,
-    );
+    let provider_candidates =
+        crate::monomorphization::SelectedProviderTemplates::candidate_requests(
+            &program,
+            selected_generic_operator_providers,
+        );
+    let selected_provider_templates =
+        crate::monomorphization::SelectedProviderTemplates::prepare(&program, &provider_candidates);
     let mut static_machine_selections =
         specialize_static_machine_calls_with_selections(&mut program, true)?;
     normalize_open_index_identities(&mut program)?;
@@ -204,7 +209,7 @@ fn lower_typed_trees_uncached(
                 crate::monomorphization::specialize_selected_generic_operator_providers(
                     templates,
                     &mut program,
-                    selected_generic_operator_providers,
+                    &provider_candidates,
                 )?
             }
             None => 0,

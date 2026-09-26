@@ -95,20 +95,42 @@ fn checked_token_requirement_applications() -> crate::checked_trees::CheckedTree
         machine eight(items: [u8; 8]) -> bool { items[(0 as i32)] }
     "#,
     );
-    let selected = [crate::SelectedGenericOperatorProviderSpecialization {
-        requirement_operator: program.machine_token_bindings()[0].symbol,
-        realization_machine: program
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "Provider::measure")
-            .expect("provider")
-            .symbol,
-    }];
-    crate::lower_typed_trees(
-        program,
-        &crate::CheckingRequest::settled().with_selected_generic_operator_providers(&selected),
-    )
-    .expect("token calls specialize their selected providers")
+    crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
+        .expect("token calls specialize all eligible providers without selection")
+}
+
+#[test]
+fn token_candidates_discover_nested_demands_without_build_selection() {
+    let program = typed_program(
+        r#"
+        data Inner {}
+        boundary machine - Inner::identity<Element>(value: Element) -> Element;
+        data InnerProvider {}
+        machine InnerProvider::identity<Value>(value: Value) -> Value
+        satisfies Inner::identity { value }
+        data Outer {}
+        boundary machine + Outer::identity<Element>(value: Element) -> Element;
+        data OuterProvider {}
+        machine OuterProvider::identity<Value>(value: Value) -> Value
+        satisfies Outer::identity { Inner::identity(value) }
+        machine exercise(value: i32) -> i32 { Outer::identity(value) }
+    "#,
+    );
+    WORK.set((0, 0));
+    let checked = crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
+        .expect("nested token requirements reach the shared specialization fixed point");
+    let providers = checked
+        .machine_specializations
+        .iter()
+        .filter(|receipt| !receipt.operator_realizations.is_empty())
+        .collect::<Vec<_>>();
+    assert_eq!(providers.len(), 2);
+    assert_ne!(providers[0].template, providers[1].template);
+    assert_eq!(
+        WORK.get(),
+        (1, 2),
+        "one authored snapshot, one copy per demanded provider"
+    );
 }
 
 #[test]
