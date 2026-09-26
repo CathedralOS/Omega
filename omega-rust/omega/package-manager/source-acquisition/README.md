@@ -37,7 +37,7 @@ src/
 ```
 
 Native process lifecycle, concrete resource limits, and bounded duplex capture
-live in [`bounded-process`](../../tooling/bounded-process/README.md).
+live in [`bounded-process`](../../foundation/bounded-process/README.md).
 `git/git_command.rs` owns the launch sequence for ordinary calls, blob batches,
 and exact-object probes. Callers supply arguments, stdin, and stdout bounds;
 the owner applies command policy, counts the launch, bounds capture, and checks

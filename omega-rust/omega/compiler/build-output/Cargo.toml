@@ -11,5 +11,5 @@ path = "src/lib.rs"
 [dependencies]
 checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
-platform-custody = { path = "../../tooling/platform-custody" }
+platform-custody = { path = "../../foundation/platform-custody" }
 sha2 = "0.10.9"

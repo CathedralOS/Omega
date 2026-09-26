@@ -96,6 +96,7 @@ historical evidence only and must not be implemented.
 | Transformation, rewrite, private scratch and analyses | Owning `pipeline/X-to-Y` or `X-to-X` |
 | ISA, ABI, runtime carriers, object/relocation/image mechanics | Omega `backend/` |
 | Shared target-neutral source/arena/numeric primitives | Psi `foundation/` |
+| Shared host process and filesystem primitives | Omega `foundation/` |
 | Product sequencing, requested outputs and composition policy | Omega `compiler/` and its independent supporting packages |
 | Source acquisition, package operations and review | Omega `package-manager/` and its independent supporting packages |
 | Checked and Terminal Psi execution | Psi `interpreter/` |
@@ -117,7 +118,7 @@ both compilation and package management.
 `source-acquisition`, `resolver-execution`, and `review-evidence` crates beneath
 it. Package operations and evidence capture consume compiler services; the
 compiler does not depend back on package management. Shared process and
-filesystem utilities remain independent packages under `omega/tooling/`.
+filesystem utilities remain independent packages under `omega/foundation/`.
 
 `psi/interpreter/` contains the separate `checked-interpreter` and
 `terminal-interpreter` engines. They execute prepared representations; the
@@ -139,12 +140,15 @@ package-defined topology implementation lives separately at `library/topology/`:
 its graph policies, plan codec, verifier, and installer are ordinary library
 responsibilities, not compiler primitives or backend realization plans.
 
-Omega has no second general foundation bucket: dependency-light native identities
-and carriers belong in its representations; target/runtime primitives belong in
-its backend. Psi must not depend on Omega. A coordinator forwards complete typed
+Omega `foundation/` owns host infrastructure shared by compilation, package
+management and application workflows: bounded process execution and filesystem
+custody. These packages depend on host libraries, never on compiler stages or
+product policy. Psi retains its source/arena/numeric foundations; do not duplicate
+them in Omega. Native identities and carriers remain in representations, and
+target/runtime primitives remain in backend. Psi must not depend on Omega. A coordinator forwards complete typed
 results rather than owning package loading, build evaluation, stage algorithms,
 artifact formatting, or a generic orchestration subsystem. Allocation counters
-and phase-report deltas belong to [artifacts](omega/tooling/artifacts/src/compile_timings/mod.rs),
+and phase-report deltas belong to [artifacts](omega/compiler/artifacts/src/compile_timings/mod.rs),
 not program representations or a dependency-floor core.
 
 Keep `X-to-Y`, `Y-to-Y`, `Y-to-Z` followable on disk and in the executable route.
@@ -254,7 +258,8 @@ namespace. Keep the shipped `omega` package name. Cargo names are unique across
 the workspace; use descriptive ownership names rather than duplicate generic
 names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
 
-- `foundation/` — shared vocabulary, arenas, symbols, diagnostics.
+- Psi `foundation/` — shared vocabulary, arenas, symbols, diagnostics.
+- Omega `foundation/` — shared host process and filesystem primitives.
 - `representations/` — durable IR structs.
 - `pipeline/` — transforms only; crate names read literally as `X-to-Y`
   (`source-files-to-tokens` → `tokens-to-syntax-trees` →

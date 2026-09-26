@@ -9,7 +9,7 @@ name = "trust_model"
 path = "src/lib.rs"
 
 [dependencies]
-artifacts = { path = "../../tooling/artifacts" }
+artifacts = { path = "../artifacts" }
 effects = { path = "../../representations/effects" }
 checked-trees = { path = "../../../psi/representations/checked-trees" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }

@@ -13,7 +13,7 @@ test-support = []
 
 [dependencies]
 arena = { path = "../../../psi/foundation/arena" }
-artifacts = { path = "../../tooling/artifacts" }
+artifacts = { path = "../artifacts" }
 language-core = { path = "../../../psi/foundation/language-core" }
 syntax-trees = { path = "../../../psi/representations/syntax-trees" }
 validation = { path = "../../../psi/semantics/validation" }

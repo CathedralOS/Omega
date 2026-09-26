@@ -9,4 +9,4 @@ name = "resolver_execution"
 path = "src/lib.rs"
 
 [dependencies]
-bounded-process = { path = "../../tooling/bounded-process" }
+bounded-process = { path = "../../foundation/bounded-process" }
