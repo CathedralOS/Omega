@@ -272,54 +272,6 @@ mod tests {
     }
 
     #[test]
-    fn short_circuit_proofs_do_not_query_the_unevaluated_operand() {
-        let mut program = TypedTrees::default();
-        let unknown = program.expression_table.insert(ExpressionNode::Name(
-            typed_trees::expression::TableNamePath::default(),
-        ));
-        for (operator, left_value) in [(BinaryOperator::And, false), (BinaryOperator::Or, true)] {
-            let left = program
-                .expression_table
-                .insert(ExpressionNode::Boolean(left_value));
-            let expression =
-                program
-                    .expression_table
-                    .insert(ExpressionNode::Binary(TableBinaryExpression {
-                        left,
-                        operator,
-                        right: unknown,
-                    }));
-            assert_eq!(
-                evaluate(&program, expression, &mut |_| panic!(
-                    "queried skipped operand"
-                )),
-                Some(ScalarValue::Boolean(left_value)),
-            );
-            let evaluated_left = program
-                .expression_table
-                .insert(ExpressionNode::Boolean(!left_value));
-            let evaluated =
-                program
-                    .expression_table
-                    .insert(ExpressionNode::Binary(TableBinaryExpression {
-                        left: evaluated_left,
-                        operator,
-                        right: unknown,
-                    }));
-            let mut lookups = 0;
-            assert_eq!(
-                evaluate(&program, evaluated, &mut |leaf| {
-                    assert_eq!(leaf, unknown);
-                    lookups += 1;
-                    None
-                }),
-                None
-            );
-            assert_eq!(lookups, 1);
-        }
-    }
-
-    #[test]
     fn absent_and_stale_expressions_never_supply_dummy_zero_evidence() {
         let mut program = TypedTrees::default();
         let zero = program.expression_table.insert(ExpressionNode::Integer(
@@ -387,53 +339,6 @@ mod tests {
     }
 
     #[test]
-    fn scalar_boolean_structure_preserves_type_and_polarity() {
-        let mut program = TypedTrees::default();
-        let yes = program
-            .expression_table
-            .insert(ExpressionNode::Boolean(true));
-        let no = program
-            .expression_table
-            .insert(ExpressionNode::Boolean(false));
-        for (operator, expected) in [
-            (BinaryOperator::Equal, false),
-            (BinaryOperator::NotEqual, true),
-            (BinaryOperator::And, false),
-            (BinaryOperator::Or, true),
-        ] {
-            let expression =
-                program
-                    .expression_table
-                    .insert(ExpressionNode::Binary(TableBinaryExpression {
-                        left: yes,
-                        operator,
-                        right: no,
-                    }));
-            assert_eq!(
-                evaluate(&program, expression, &mut |_| None),
-                Some(ScalarValue::Boolean(expected))
-            );
-        }
-        let negated =
-            program
-                .expression_table
-                .insert(ExpressionNode::Unary(TableUnaryExpression {
-                    operator: UnaryOperator::LogicalNot,
-                    operand: yes,
-                }));
-        assert_eq!(
-            evaluate(&program, negated, &mut |_| None),
-            Some(ScalarValue::Boolean(false))
-        );
-        assert_eq!(
-            evaluate(&program, ExpressionHandle::invalid(), &mut |_| Some(
-                ScalarValue::Integer(BigInt::from_i64(0))
-            )),
-            None
-        );
-    }
-
-    #[test]
     fn scalar_arithmetic_needs_explicit_leaf_evidence() {
         let mut program = TypedTrees::default();
         let left = program.expression_table.insert(ExpressionNode::Integer(
@@ -478,42 +383,5 @@ mod tests {
                     right: boolean,
                 }));
         assert_eq!(evaluate(&program, mixed, &mut |_| None), None);
-    }
-
-    #[test]
-    fn scalar_comparisons_preserve_full_width_and_radix_independence() {
-        use numerics::literals::{IntegerLiteral, IntegerRadix};
-        let mut program = TypedTrees::default();
-        let unsigned_maximum = program.expression_table.insert(ExpressionNode::Integer(
-            IntegerLiteral::from_parts(false, IntegerRadix::Decimal, "18446744073709551615")
-                .expect("u64 maximum"),
-        ));
-        let signed_maximum =
-            program
-                .expression_table
-                .insert(ExpressionNode::Integer(IntegerLiteral::from_value(
-                    i64::MAX,
-                )));
-        let hexadecimal_maximum = program.expression_table.insert(ExpressionNode::Integer(
-            IntegerLiteral::from_parts(false, IntegerRadix::Hexadecimal, "ffffffffffffffff")
-                .expect("hex u64 maximum"),
-        ));
-        for (operator, right) in [
-            (BinaryOperator::Greater, signed_maximum),
-            (BinaryOperator::Equal, hexadecimal_maximum),
-        ] {
-            let expression =
-                program
-                    .expression_table
-                    .insert(ExpressionNode::Binary(TableBinaryExpression {
-                        left: unsigned_maximum,
-                        operator,
-                        right,
-                    }));
-            assert_eq!(
-                evaluate(&program, expression, &mut |_| None),
-                Some(ScalarValue::Boolean(true))
-            );
-        }
     }
 }

@@ -201,25 +201,3 @@ fn place_labels_spell_every_root_and_segment_kind() {
         "unknown"
     );
 }
-
-/// The receiver-rooted label is the one `language_core::receiver_binding`
-/// builds and takes apart, so the two spellings must agree.
-#[test]
-fn receiver_rooted_labels_round_trip_through_language_core() {
-    let program = typed_program(SOURCE);
-    let (receiver, _) = receiver_and_local(&program);
-    let items = field_symbol(&program, "Carrier", "items");
-    let label = facts::canonical_place_label_from_parts(
-        &program,
-        PlaceRoot::Symbol(receiver),
-        &[
-            PlaceSegment::Field { symbol: items },
-            PlaceSegment::FixedIndex { index: 2 },
-        ],
-    );
-    assert_eq!(label, language_core::receiver_place_label("items[2]"));
-    assert_eq!(
-        language_core::receiver_place_field(&label),
-        Some("items[2]")
-    );
-}

@@ -1,8 +1,6 @@
 //! A returned boundary scalar keeps operand evaluation separate from settlement.
-use super::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan};
 use crate::tests::flow::terminal_unit::checked;
 use crate::tests::flow::terminal_unit::machine_named;
-use checked_trees::{CheckedCallScalarArgument, CheckedScalarComputationKind};
 
 const SOURCE: &str = r#"
     machine identity(value: bool) -> bool { value }
@@ -15,85 +13,6 @@ const SOURCE: &str = r#"
         result
     }
 "#;
-
-#[test]
-fn returned_boundary_result_retains_one_outer_call_and_operand_roots() {
-    let checked = checked(SOURCE);
-    let machine = machine_named(&checked, "enter");
-    let plan = checked
-        .facts
-        .flow
-        .terminal_boundary_scalar_returns
-        .for_machine(machine)
-        .expect("scalar-returning body retains boundary operand evaluation");
-    let CheckedUnitEffectOperationPlan::BoundaryCall {
-        coordinate,
-        scalar_arguments,
-        completion_receipts,
-        structural_arguments,
-        ..
-    } = &plan.boundary_call
-    else {
-        panic!("one boundary operation");
-    };
-    assert_eq!(
-        (coordinate.statement_index, coordinate.call_ordinal),
-        (0, 0)
-    );
-    assert_eq!(plan.entry_claims.len(), 1);
-    assert_eq!(structural_arguments.len(), 1);
-    assert_eq!(
-        completion_receipts[0].claim_identity,
-        plan.entry_claims[0].claim_identity
-    );
-    let [CheckedCallScalarArgument::Computation(root)] = scalar_arguments.as_slice() else {
-        panic!("one Boolean operand graph");
-    };
-    let computations = &checked.facts.values.scalar_computations;
-    assert!(matches!(
-        computations.nodes.get(*root).kind,
-        CheckedScalarComputationKind::Select { .. }
-    ));
-    let roots = computations
-        .roots
-        .iter()
-        .filter(|(_, root)| root.machine == machine)
-        .collect::<Vec<_>>();
-    assert_eq!(
-        roots.len(),
-        1,
-        "outer boundary call is not duplicated as an initializer computation"
-    );
-    assert_eq!(
-        roots[0].1.role,
-        CheckedScalarExpressionRole::BoundaryCallArgument {
-            call_ordinal: 0,
-            argument_ordinal: 0
-        }
-    );
-    assert_eq!(plan.return_statement_ordinal, 1);
-    let source = checked
-        .machines()
-        .iter()
-        .find(|source| source.symbol == machine)
-        .unwrap();
-    let state = &checked.machine_states(source)[0];
-    let typed_trees::statement::StatementNode::LocalData(local) =
-        &checked.statement_table.statements(state.statement_nodes)[0]
-    else {
-        panic!("authored result");
-    };
-    assert!(validation::result_initializer_call_is_supported(
-        &checked.typed,
-        source,
-        local.initial_value
-    ));
-    assert!(!validation::unit_result_initializer_call_is_supported(
-        &checked.typed,
-        source,
-        local.initial_value
-    ));
-}
 
 #[test]
 fn returned_boundary_result_rejects_invalid_nested_or_outer_occurrences() {

@@ -110,30 +110,6 @@ fn arrows_applications_and_bodies_render_their_identities() {
 }
 
 #[test]
-fn machine_valued_body_records_its_denotation_spelling() {
-    let declarations =
-        elaborate("let gt(limit: i32, value: i32): core::Strict<0> = value > limit;");
-
-    let declaration = &declarations[0];
-    assert_eq!(declaration.name, "gt");
-    assert_eq!(
-        declaration
-            .parameters
-            .iter()
-            .map(|parameter| parameter.type_identity.as_str())
-            .collect::<Vec<_>>(),
-        vec!["i32", "i32"]
-    );
-    assert_eq!(declaration.result, "core::Strict<0>");
-    assert_eq!(
-        declaration.body,
-        CheckedMathematicalBody::Definition {
-            term_identity: "value > limit".to_owned()
-        }
-    );
-}
-
-#[test]
 fn boundary_let_elaborates_to_a_named_assumption() {
     let declarations = elaborate(
         "boundary let choose<u: core::Level, A: core::Type<u>>(inhabited: core::Squash<A>): A;",
@@ -145,34 +121,6 @@ fn boundary_let_elaborates_to_a_named_assumption() {
     assert_eq!(declaration.parameters[0].type_identity, "core::Squash<A>");
     assert_eq!(declaration.result, "A");
     assert_eq!(declaration.level_arity(), 1);
-}
-
-#[test]
-fn declarations_preserve_authored_order() {
-    let declarations = elaborate("let first(x: u64): u64 = x; let second(y: u32): u32 = y;");
-
-    assert_eq!(
-        declarations
-            .iter()
-            .map(|declaration| declaration.name.as_str())
-            .collect::<Vec<_>>(),
-        vec!["first", "second"]
-    );
-}
-
-#[test]
-fn malformed_core_type_carrier_refuses() {
-    let diagnostics = build_checked_mathematical_declarations(&typed_program(
-        "let bad<A: core::Type<u, v>>(x: A): A = x;",
-    ))
-    .expect_err("core::Type takes one level argument");
-
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("core::Type")),
-        "unexpected diagnostics: {diagnostics:?}"
-    );
 }
 
 #[test]

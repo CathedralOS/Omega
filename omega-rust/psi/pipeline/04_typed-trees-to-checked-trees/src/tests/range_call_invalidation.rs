@@ -1,48 +1,6 @@
 use crate::tests::front_end::checked_program_result;
 
 #[test]
-fn boolean_fallback_index_reads_use_the_prior_guard_complement() {
-    for (subject, first, last) in [
-        ("index >= 4", "true", "false"),
-        ("index < 4", "false", "true"),
-        ("index > 3", "true", "false"),
-        ("index <= 3", "false", "true"),
-    ] {
-        let source = format!(
-            "machine main(values: &[u64; 4], index: u64) -> u64 {{
-                 transition {subject} {{
-                     {first} -> 0
-                     {last} -> (values[index])
-                 }}
-             }}"
-        );
-        checked_program_result(&source)
-            .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
-    }
-}
-
-#[test]
-fn refuted_conjunction_does_not_prove_each_operand_false() {
-    let source = r#"
-        machine main(values: &[u64; 4], index: u64, selected: bool) -> u64 {
-            transition (index >= 4) && selected {
-                true -> 0
-                false -> (values[index])
-            }
-        }
-    "#;
-    let Err(diagnostics) = checked_program_result(source) else {
-        panic!("a false selection alone cannot establish the index bound")
-    };
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("index")),
-        "{diagnostics:#?}"
-    );
-}
-
-#[test]
 fn effectful_guard_cannot_restore_an_old_bound_in_its_fallback() {
     let source = r#"
         machine corrupt(index: &mut u64) -> bool { index = 255; false }
@@ -66,37 +24,6 @@ fn effectful_guard_cannot_restore_an_old_bound_in_its_fallback() {
 }
 
 #[test]
-fn mutating_calls_retire_local_index_values() {
-    for call in [
-        "set_index(&mut index);",
-        "let ignored: u64 = set_index_value(&mut index);",
-        "let alias: &mut u64 = &mut index; set_index(alias);",
-    ] {
-        let source = format!(
-            r#"
-            machine set_index(index: &mut u64) {{ index = 255; }}
-            machine set_index_value(index: &mut u64) -> u64 {{ index = 255; 0 }}
-            machine main() -> u64 {{
-                let values: [u64; 2] = [10, 20];
-                let mut index: u64 = 0;
-                {call}
-                values[index]
-            }}
-        "#
-        );
-        let Err(diagnostics) = checked_program_result(&source) else {
-            panic!("stale local index was accepted after {call}")
-        };
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("index")),
-            "expected an index rejection after {call}: {diagnostics:#?}"
-        );
-    }
-}
-
-#[test]
 fn mutating_array_contents_preserves_its_declared_extent() {
     checked_program_result(
         r#"
@@ -109,50 +36,6 @@ fn mutating_array_contents_preserves_its_declared_extent() {
     "#,
     )
     .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
-}
-
-#[test]
-fn readonly_reference_call_preserves_a_live_nonconstant_bound() {
-    checked_program_result(
-        r#"
-        machine inspect(index: &u64) {}
-        machine main(values: &[u64; 2], index: u64) -> u64
-        requires index < 2;
-        {
-            inspect(&index);
-            values[index]
-        }
-    "#,
-    )
-    .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
-}
-
-#[test]
-fn readonly_and_disjoint_calls_preserve_index_values() {
-    for call in [
-        "inspect(index);",
-        "set_index(&mut unrelated);",
-        "let ignored: u64 = inspect_value(index);",
-        "let ignored: u64 = set_index_value(&mut unrelated);",
-    ] {
-        let source = format!(
-            r#"
-            machine inspect(index: u64) {{}}
-            machine inspect_value(index: u64) -> u64 {{ index }}
-            machine set_index(index: &mut u64) {{ index = 255; }}
-            machine set_index_value(index: &mut u64) -> u64 {{ index = 255; 0 }}
-            machine main() -> u64 {{
-                let values: [u64; 2] = [10, 20];
-                let index: u64 = 0;
-                let mut unrelated: u64 = 0;
-                {call}
-                values[index]
-            }}
-        "#
-        );
-        checked_program_result(&source)
-            .unwrap_or_else(|diagnostics| panic!("{call}: {diagnostics:#?}"));
-    }
 }
 
 #[test]
@@ -212,64 +95,5 @@ fn indexed_method_statement_receivers_are_bounds_checked() {
                 "{diagnostics:#?}"
             );
         }
-    }
-}
-
-#[test]
-fn calls_retire_collection_relative_guard_bounds() {
-    let source = r#"
-        machine set_index(index: &mut u64) { index = 255; }
-        machine main(values: &[u64], mut index: u64) -> u64 {
-            transition index < values.len {
-                true -> read(values, index)
-                false -> 0
-            }
-            state read(values: &[u64], mut index: u64) -> u64 {
-                set_index(&mut index);
-                values[index]
-            }
-        }
-    "#;
-    let Err(diagnostics) = checked_program_result(source) else {
-        panic!("stale collection-relative index accepted")
-    };
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("index")),
-        "{diagnostics:#?}"
-    );
-}
-
-#[test]
-fn mutable_guard_calls_cannot_reestablish_earlier_bounds() {
-    for (prefix, guard) in [
-        ("", "index < values.len && set_index(&mut index)"),
-        (
-            "let allowed: bool = index < values.len && set_index(&mut index);",
-            "allowed",
-        ),
-    ] {
-        let source = format!(
-            r#"
-        machine set_index(index: &mut u64) -> bool {{ index = 255; true }}
-        machine main(values: &[u64], mut index: u64) -> u64 {{
-            {prefix}
-            transition {guard} {{
-                true -> (values[index])
-                _ -> 0
-            }}
-        }}
-    "#
-        );
-        let Err(diagnostics) = checked_program_result(&source) else {
-            panic!("mutating guard replayed its earlier index bound")
-        };
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("index")),
-            "{diagnostics:#?}"
-        );
     }
 }

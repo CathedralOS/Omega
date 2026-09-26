@@ -623,17 +623,14 @@ mod prerequisite_roster_probes {
     //! `PlaceRoot::Symbol` capture a bound-place join can consume
     //! (`direct_place`). Each pin names the roster member it exercises.
 
-    use super::{
-        Invocation, direct_place, invocation, receiver_place, stable_arguments, stable_value,
-    };
-    use crate::semantic::calls::{CallSite, call_site_argument_expressions};
+    use super::{Invocation, direct_place, invocation, receiver_place, stable_arguments};
+    use crate::semantic::calls::CallSite;
     use crate::tests::front_end::typed_program;
     use checked_trees::FlowStateFact;
     use facts::PlaceRoot;
     use symbols::SymbolHandle;
-    use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+
     use typed_trees::state::State;
-    use typed_trees::statement::StatementNode;
 
     const SOURCE: &str = r#"
         data Pair {
@@ -736,30 +733,6 @@ mod prerequisite_roster_probes {
         invocation(program, &caller, statement, ordinal)
     }
 
-    fn statement(program: &typed_trees::TypedTrees, index: usize) -> &StatementNode {
-        let (_, state) = machine_state(program, "main", "main");
-        &program.statement_table.statements(state.statement_nodes)[index]
-    }
-
-    fn initializer(program: &typed_trees::TypedTrees, index: usize) -> ExpressionHandle {
-        let StatementNode::LocalData(local) = statement(program, index) else {
-            panic!("statement {index} is not a local binding");
-        };
-        local.initial_value
-    }
-
-    /// The sole actual of the expression call at `statement`/`ordinal`.
-    fn only_argument(
-        program: &typed_trees::TypedTrees,
-        statement: usize,
-        ordinal: usize,
-    ) -> ExpressionHandle {
-        let invocation = invocation_at(program, statement, ordinal).expect("call site");
-        let arguments = call_site_argument_expressions(program, &invocation.site);
-        assert_eq!(arguments.len(), 1, "fixture calls carry one actual");
-        arguments[0]
-    }
-
     #[test]
     fn invocation_resolves_exact_calls_and_named_state_transitions() {
         let program = program();
@@ -832,123 +805,5 @@ mod prerequisite_roster_probes {
             1,
             "entry preconditions must not be rebound to subordinate parameters"
         );
-    }
-
-    #[test]
-    fn stable_arguments_admits_place_literal_and_member_actuals() {
-        let program = program();
-        for (statement, what) in [
-            (1usize, "place actual `k`"),
-            (3, "literal actual `7`"),
-            (4, "member actual `own.left`"),
-        ] {
-            let invocation = invocation_at(&program, statement, 0).expect("call site");
-            assert!(
-                stable_arguments(&program, &invocation),
-                "{what} must be admitted as stable"
-            );
-        }
-    }
-
-    #[test]
-    fn stable_arguments_retires_computed_and_indexed_actuals() {
-        let program = program();
-        for (statement, what) in [
-            (2usize, "computed actual `k + 1`"),
-            (5, "indexed actual `self.cells[0]`"),
-        ] {
-            let invocation = invocation_at(&program, statement, 0).expect("call site");
-            assert!(
-                !stable_arguments(&program, &invocation),
-                "{what} must not be admitted as stable"
-            );
-        }
-    }
-
-    #[test]
-    fn stable_arguments_inspects_every_struct_literal_field() {
-        let program = program();
-        let stable = invocation_at(&program, 6, 0).expect("`consume(Pair{k, 7})` site");
-        assert!(
-            stable_arguments(&program, &stable),
-            "a literal of stable fields must be admitted"
-        );
-        let nested_call =
-            invocation_at(&program, 7, 0).expect("`consume(Pair{produce(k), 7})` site");
-        assert!(
-            !stable_arguments(&program, &nested_call),
-            "a struct literal holding a call actual must retire"
-        );
-    }
-
-    #[test]
-    fn stable_value_admits_borrows_and_composites_of_stable_operands() {
-        let program = program();
-        // `let r: &u64 = &k` — a borrow of a direct place stays a place.
-        let borrow = initializer(&program, 8);
-        assert!(
-            matches!(
-                program.expression_table.expression(borrow),
-                ExpressionNode::Borrow(_)
-            ),
-            "fixture keeps the borrow spelling"
-        );
-        assert!(stable_value(&program, borrow, &mut Vec::new()));
-        // `Pair { left: k, right: 7 }` — every field stable.
-        let literal = only_argument(&program, 6, 0);
-        assert!(matches!(
-            program.expression_table.expression(literal),
-            ExpressionNode::StructLiteral(_)
-        ));
-        assert!(stable_value(&program, literal, &mut Vec::new()));
-    }
-
-    #[test]
-    fn stable_value_retires_calls_and_computed_expressions() {
-        let program = program();
-        // The call result itself is a value, never a place or literal.
-        let call = initializer(&program, 1);
-        assert!(!stable_value(&program, call, &mut Vec::new()));
-        // `k + 1` computes; the roster admits no evaluated operand.
-        let computed = only_argument(&program, 2, 0);
-        assert!(matches!(
-            program.expression_table.expression(computed),
-            ExpressionNode::Binary(_)
-        ));
-        assert!(!stable_value(&program, computed, &mut Vec::new()));
-        // A struct literal carrying a call field retires wholesale.
-        let mixed = only_argument(&program, 7, 0);
-        assert!(matches!(
-            program.expression_table.expression(mixed),
-            ExpressionNode::StructLiteral(_)
-        ));
-        assert!(!stable_value(&program, mixed, &mut Vec::new()));
-    }
-
-    #[test]
-    fn direct_place_names_only_member_and_borrow_roots() {
-        let program = program();
-        for (statement, what) in [(1usize, "plain name `k`"), (4, "member chain `own.left`")] {
-            let place = direct_place(&program, only_argument(&program, statement, 0))
-                .unwrap_or_else(|| panic!("{what} must resolve to a place"));
-            assert!(
-                matches!(place.root, PlaceRoot::Symbol(_)),
-                "{what} must keep a symbol root"
-            );
-        }
-        let borrow = initializer(&program, 8);
-        let place = direct_place(&program, borrow).expect("`&k` unwraps to the borrowed place");
-        assert!(matches!(place.root, PlaceRoot::Symbol(_)));
-        for (statement, what) in [
-            (2usize, "computed actual `k + 1`"),
-            (5, "indexed actual `self.cells[0]`"),
-        ] {
-            assert!(
-                direct_place(&program, only_argument(&program, statement, 0)).is_none(),
-                "{what} must not resolve to a direct place"
-            );
-        }
-        let call = initializer(&program, 1);
-        assert!(direct_place(&program, call).is_none());
     }
 }

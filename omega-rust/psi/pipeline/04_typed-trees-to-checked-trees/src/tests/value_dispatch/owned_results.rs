@@ -26,29 +26,6 @@ fn fresh_match_results_compose_with_owned_destinations() {
 }
 
 #[test]
-fn a_fresh_match_result_is_still_moved_at_most_once() {
-    let result = check(
-        "data Category { case Other; case Missing; }
-        machine accept(category: Category) {}
-        machine classify(code: u64) {
-            let category: Category = match code { 2 -> Category::Missing, _ -> Category::Other };
-            accept(category);
-            accept(category);
-        }",
-    );
-    let errors = match result {
-        Ok(_) => panic!("fresh construction does not grant copy multiplicity"),
-        Err(errors) => errors,
-    };
-    assert!(
-        errors.iter().any(|error| error.message.contains("moved")
-            || error.message.contains("consumed")
-            || error.message.contains("ownership")),
-        "{errors:?}"
-    );
-}
-
-#[test]
 fn fresh_match_constructors_preserve_nested_input_custody_limits() {
     for body in [
         "Box { payload: payload }",

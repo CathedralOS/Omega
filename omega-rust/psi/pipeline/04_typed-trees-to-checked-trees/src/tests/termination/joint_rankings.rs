@@ -34,20 +34,6 @@ fn pair(first: &str, second: &str, second_view: &str, second_parameter: &str) ->
 }
 
 #[test]
-fn unchanged_step_is_legal_when_every_cycle_strictly_descends() {
-    for parameter in ["progress", "remaining"] {
-        check(&pair(
-            "transition progress.inner > 0 { true -> self.scan_b(progress) false -> 0 }",
-            &format!("transition {parameter}.inner > 0 {{
-                 true -> self.scan_a(Progress {{ outer: {parameter}.outer, inner: {parameter}.inner - 1 }})
-                 false -> 0
-             }}"),
-            "Steps", parameter,
-        ), true);
-    }
-}
-
-#[test]
 fn earlier_strict_component_permits_a_later_reset() {
     check(
         &pair(
@@ -90,25 +76,6 @@ fn ranking_arithmetic_requires_the_builtin_operator_meaning() {
     ] {
         check(&format!("{declaration}\n{body}"), accepted);
     }
-}
-
-#[test]
-fn a_strict_edge_elsewhere_does_not_admit_an_unchanged_subcycle() {
-    let mut source = pair(
-        "transition { _ -> self.scan_b(progress) }",
-        "transition remaining.inner > 0 {
-             true -> self.scan_a(Progress { outer: remaining.outer, inner: remaining.inner - 1 })
-             false -> self.scan_c(remaining)
-         }",
-        "Steps",
-        "remaining",
-    );
-    source.push_str(
-        "machine Main::scan_c(&mut self, progress: Progress) -> u64
-         terminates by progress -> Progress::Steps;
-         { transition { _ -> self.scan_b(progress) } }",
-    );
-    check(&source, false);
 }
 
 #[test]

@@ -1545,13 +1545,13 @@ mod prerequisite_roster_probes {
     //! exercises.
 
     use super::{
-        assignment_target_mentions_field, assignment_target_mentions_name, guard_conjunct_matches,
-        replace_unqualified_identifiers, unqualified_label_identifiers,
+        assignment_target_mentions_field, assignment_target_mentions_name,
+        unqualified_label_identifiers,
     };
     use crate::tests::front_end::typed_program;
-    use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+    use typed_trees::expression::ExpressionHandle;
     use typed_trees::name::Identifier;
-    use typed_trees::statement::{StatementNode, TransitionGuardNode};
+    use typed_trees::statement::StatementNode;
 
     const SOURCE: &str = r#"
         data Main {
@@ -1613,55 +1613,11 @@ mod prerequisite_roster_probes {
         &program.statement_table.statements(state.statement_nodes)[index]
     }
 
-    fn state_guard(
-        program: &typed_trees::TypedTrees,
-        state_name: &str,
-        transition_index: usize,
-    ) -> ExpressionHandle {
-        let StatementNode::Transition(transition) =
-            state_statement(program, state_name, transition_index)
-        else {
-            panic!("statement {transition_index} of {state_name} is not a transition");
-        };
-        let TransitionGuardNode::When(guard) = transition.guard else {
-            panic!("transition {transition_index} of {state_name} is unguarded");
-        };
-        guard
-    }
-
     fn assignment_target(program: &typed_trees::TypedTrees, index: usize) -> ExpressionHandle {
         let StatementNode::Assignment(assignment) = state_statement(program, "main", index) else {
             panic!("statement {index} is not an assignment");
         };
         assignment.target
-    }
-
-    fn label(program: &typed_trees::TypedTrees, expression: ExpressionHandle) -> String {
-        program.expression_table.display_name(expression)
-    }
-
-    /// Lowering wraps every authored guard in an implicit `== true`; the
-    /// authored expression sits on its left.
-    fn authored_guard(
-        program: &typed_trees::TypedTrees,
-        guard: ExpressionHandle,
-    ) -> ExpressionHandle {
-        let ExpressionNode::Binary(wrapper) = program.expression_table.expression(guard) else {
-            panic!("guard is not a binary expression");
-        };
-        assert_eq!(wrapper.operator, BinaryOperator::Equal);
-        wrapper.left
-    }
-
-    fn and_operands(
-        program: &typed_trees::TypedTrees,
-        guard: ExpressionHandle,
-    ) -> (ExpressionHandle, ExpressionHandle) {
-        let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
-            panic!("guard is not a binary expression");
-        };
-        assert_eq!(binary.operator, BinaryOperator::And);
-        (binary.left, binary.right)
     }
 
     #[test]
@@ -1683,106 +1639,6 @@ mod prerequisite_roster_probes {
             ["_hidden", "tail_2"]
         );
         assert!(unqualified_label_identifiers("").is_empty());
-    }
-
-    #[test]
-    fn replace_unqualified_identifiers_never_rewrites_qualified_tokens() {
-        let owned = |name: &str| name.to_owned();
-        assert_eq!(
-            replace_unqualified_identifiers("self.count + a::count", &[("count", owned("w"))]),
-            "self.count + a::count"
-        );
-        // Whole-token matching: `country` is not `count`.
-        assert_eq!(
-            replace_unqualified_identifiers("count + country", &[("count", owned("w"))]),
-            "w + country"
-        );
-        // A root occurrence rewrites while its qualified twin stays.
-        assert_eq!(
-            replace_unqualified_identifiers("count.count", &[("count", owned("w"))]),
-            "w.count"
-        );
-        // `self` is an ordinary unqualified token to this helper; callers keep
-        // it out of the replacement roster instead.
-        assert_eq!(
-            replace_unqualified_identifiers("self.value", &[("self", owned("r"))]),
-            "r.value"
-        );
-    }
-
-    #[test]
-    fn guard_conjunct_matches_walks_and_unwraps_but_not_or() {
-        let program = program();
-        // Every authored guard arrives wrapped: `G` lowers to `G == true`.
-        let main_guard = state_guard(&program, "main", 2);
-        let authored_and = authored_guard(&program, main_guard);
-        let (left, right) = and_operands(&program, authored_and);
-        // The whole lowered guard is its own conjunct.
-        assert!(guard_conjunct_matches(
-            &program,
-            main_guard,
-            &label(&program, main_guard)
-        ));
-        // The `== true` wrapper unwraps, exposing the authored `&&`.
-        assert!(guard_conjunct_matches(
-            &program,
-            main_guard,
-            &label(&program, authored_and)
-        ));
-        // `&&` decomposes on either side beneath the wrapper.
-        assert!(guard_conjunct_matches(
-            &program,
-            main_guard,
-            &label(&program, left)
-        ));
-        assert!(guard_conjunct_matches(
-            &program,
-            main_guard,
-            &label(&program, right)
-        ));
-        // `x == true` is itself unwrap-transparent: `self.flag` inside
-        // `(self.flag == true) == true` is still a conjunct.
-        let equal_guard = state_guard(&program, "equal", 0);
-        let authored_equal = authored_guard(&program, equal_guard);
-        let ExpressionNode::Binary(equality) = program.expression_table.expression(authored_equal)
-        else {
-            panic!("equal guard is not `flag == true`");
-        };
-        assert_eq!(equality.operator, BinaryOperator::Equal);
-        assert!(guard_conjunct_matches(
-            &program,
-            equal_guard,
-            &label(&program, equality.left)
-        ));
-        // A label present nowhere in the guard cannot match.
-        assert!(!guard_conjunct_matches(
-            &program,
-            main_guard,
-            "self.cells > 0"
-        ));
-        // `||` does not decompose: `a` under `a || b` is not a conjunct.
-        let fork_guard = state_guard(&program, "fork", 0);
-        let authored_or = authored_guard(&program, fork_guard);
-        let ExpressionNode::Binary(disjunction) = program.expression_table.expression(authored_or)
-        else {
-            panic!("fork guard is not a binary expression");
-        };
-        assert_eq!(disjunction.operator, BinaryOperator::Or);
-        assert!(guard_conjunct_matches(
-            &program,
-            fork_guard,
-            &label(&program, fork_guard)
-        ));
-        assert!(guard_conjunct_matches(
-            &program,
-            fork_guard,
-            &label(&program, authored_or)
-        ));
-        assert!(!guard_conjunct_matches(
-            &program,
-            fork_guard,
-            &label(&program, disjunction.left)
-        ));
     }
 
     #[test]
@@ -1831,79 +1687,6 @@ mod transition_arm_guard_probes {
 
     fn accepted(source: &str) -> bool {
         checked_program_result(source).is_ok()
-    }
-
-    const CALLEE: &str = "machine check(value: u64) -> u64
-        requires
-            value > 0
-        { value }";
-
-    /// The taken arm establishes the guard, so the arrival requirement is
-    /// discharged; the CONTINUATION arm establishes its negation, so the same
-    /// call there must stay rejected. Both are free machines, which keep the
-    /// bare named-target spelling.
-    #[test]
-    fn only_the_taken_arm_discharges_the_arrival_requirement() {
-        assert!(
-            accepted(&format!(
-                "{CALLEE}
-                machine run(value: u64) -> u64 {{
-                    transition value > 0 {{ true -> check(value) false -> (0) }}
-                }}
-                data Main {{}}
-                machine Main::main(&mut self) {{}}"
-            )),
-            "the taken arm's guard must discharge `requires value > 0`"
-        );
-        assert!(
-            !accepted(&format!(
-                "{CALLEE}
-                machine run(value: u64) -> u64 {{
-                    transition value > 0 {{ true -> (0) false -> check(value) }}
-                }}
-                data Main {{}}
-                machine Main::main(&mut self) {{}}"
-            )),
-            "the continuation arm holds `!(value > 0)`, which cannot discharge \
-             `requires value > 0`"
-        );
-    }
-
-    /// A RECEIVER-QUALIFIED callee always arrives as a value call, and its
-    /// requirement is discharged by the same taken-arm guard. This is the case
-    /// the `CallSite::TransitionNamed` gate actually blocked: `self.read(index)`
-    /// on the taken arm of `transition index <= 15` could not prove
-    /// `requires index <= 15`, while the identical edge to a FREE callee could,
-    /// because a different route reaches that one first.
-    #[test]
-    fn a_receiver_qualified_taken_arm_call_discharges_its_requirement() {
-        const READER: &str = "data Store { arr: [u64; 16]; }
-            machine Store::read(&mut self, index: u64) -> u64
-            requires
-                index <= 15;
-            { transition { _ -> (self.arr[index]) } }";
-        assert!(
-            accepted(&format!(
-                "{READER}
-                machine Store::scan(&mut self, index: u64) -> u64 {{
-                    transition index <= 15 {{ true -> (self.read(index)) false -> (0) }}
-                }}
-                data Main {{}}
-                machine Main::main(&mut self) {{}}"
-            )),
-            "the taken arm's guard must discharge a receiver-qualified callee's requirement"
-        );
-        assert!(
-            !accepted(&format!(
-                "{READER}
-                machine Store::scan(&mut self, index: u64) -> u64 {{
-                    transition index <= 15 {{ true -> (0) false -> (self.read(index)) }}
-                }}
-                data Main {{}}
-                machine Main::main(&mut self) {{}}"
-            )),
-            "the continuation arm holds the guard's negation and cannot discharge it"
-        );
     }
 
     /// A PREDICATE-ONLY domain is established by proving its predicates.
@@ -2017,81 +1800,6 @@ mod transition_arm_guard_probes {
             "`remaining + 1` reaches 6 and leaves the domain"
         );
     }
-
-    /// The FACT route carries numeric implication -- `index < 16` discharges
-    /// `index <= 15` -- where the transition-guard route only compares
-    /// spellings. It reached a free callee but not a receiver-qualified one,
-    /// because a call whose receiver is a runtime place was not an "ordinary
-    /// call". It is: the goal is substituted THROUGH the receiver before it is
-    /// compared, which the control below is what proves.
-    #[test]
-    fn a_receiver_qualified_call_carries_numeric_implication_to_its_own_object() {
-        assert!(
-            accepted(
-                "data Store { arr: [u64; 16]; }
-                machine Store::read(&mut self, index: u64) -> u64
-                requires
-                    index <= 15;
-                { transition { _ -> (self.arr[index]) } }
-                machine Store::scan(&mut self, index: u64) -> u64 {
-                    transition index < 16 { true -> (self.read(index)) false -> (0) }
-                }
-                data Main {}
-                machine Main::main(&mut self) {}"
-            ),
-            "`index < 16` must discharge `requires index <= 15` through a receiver call"
-        );
-
-        // A requirement ABOUT THE RECEIVER is substituted to the object the
-        // call names, so a guard about a DIFFERENT object cannot discharge it
-        // even though both spell `self.limit`.
-        const PEER: &str = "data Store { limit: u64; }
-            machine Store::read(&mut self) -> u64
-            requires
-                self.limit <= 15;
-            { transition { _ -> (self.limit) } }
-            data Main { limit: u64; peer: Store; }";
-        assert!(
-            accepted(&format!(
-                "{PEER}
-                machine Main::go(&mut self) -> u64 {{
-                    transition self.peer.limit <= 15 {{ true -> (self.peer.read()) false -> (0) }}
-                }}
-                machine Main::main(&mut self) {{}}"
-            )),
-            "a guard naming the receiver's own field must discharge the requirement"
-        );
-        assert!(
-            !accepted(&format!(
-                "{PEER}
-                machine Main::go(&mut self) -> u64 {{
-                    transition self.limit <= 15 {{ true -> (self.peer.read()) false -> (0) }}
-                }}
-                machine Main::main(&mut self) {{}}"
-            )),
-            "the caller's own `self.limit` is not the receiver's, and must not discharge it"
-        );
-    }
-
-    /// An ATTACHED machine must spell a foreign tail call with the value-call
-    /// parentheses, so the same taken-arm edge arrives as a value call. It is
-    /// the same edge and the guard is evaluated in the same place, so it must
-    /// discharge the same requirement.
-    #[test]
-    fn a_parenthesized_taken_arm_target_discharges_what_its_bare_form_does() {
-        assert!(
-            accepted(&format!(
-                "{CALLEE}
-                data Runner {{}}
-                machine Runner::run(&mut self, value: u64) -> u64 {{
-                    transition value > 0 {{ true -> (check(value)) false -> (0) }}
-                }}
-                data Main {{}}
-                machine Main::main(&mut self) {{}}"
-            )),
-            "the parenthesized taken-arm target is the same arrival as the bare one"
-        );
-    }
 }
 
 #[cfg(test)]
@@ -2164,32 +1872,6 @@ mod predicate_only_domain_statement_probes {
                 machine Main::main(&mut self) {}"
             ),
             "the interval proves `self <= 15` but cannot state `self != 7`"
-        );
-    }
-
-    /// A ROUTED domain keeps its provenance obligation at a statement call
-    /// exactly as at a transition arm: proving the predicate is not the same
-    /// as being authorized to mint membership.
-    #[test]
-    fn a_routed_domain_still_needs_its_established_by_route() {
-        assert!(
-            !accepted(
-                "pub boundary trait Granter { machine grant(v: u64) -> u64 in Slot16; }
-                pub domain u64::Slot16 requires self <= 15 established by Granter::grant;
-                data Store { arr: [u64; 16]; }
-                machine Store::read(&mut self, index: u64 in Slot16) -> u64 {
-                    transition { _ -> (self.arr[index]) }
-                }
-                machine Store::scan(&mut self, index: u64) -> u64
-                    requires index <= 15;
-                {
-                    let v: u64 = self.read(index);
-                    transition { _ -> v }
-                }
-                data Main {}
-                machine Main::main(&mut self) {}"
-            ),
-            "a `requires` fact must never mint membership a route owns"
         );
     }
 

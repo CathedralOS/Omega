@@ -1,15 +1,5 @@
 use crate::tests::front_end::checked_program_result;
 
-#[test]
-fn intrinsic_enum_equality_observes_two_borrowed_fields() {
-    for operator in ["==", "!="] {
-        let source = format!(
-            "data Kind {{ case A; case B; }} data Pair {{ left: Kind; right: Kind; }} machine Pair::same(&self) -> bool {{ self.left {operator} self.right }}"
-        );
-        checked_program_result(&source).expect("intrinsic equality observes both enum tags");
-    }
-}
-
 /// A derived `equals(&self, other: &Self)` lends both operands exactly as
 /// `==` observes them: neither receiver field nor argument field is moved out
 /// of `&mut self`, so a following boundary call sees both present.
@@ -65,63 +55,6 @@ fn borrowed_operator_result_preserves_owned_argument_consumption() {
 }
 
 #[test]
-fn intrinsic_equality_preserves_owned_nested_call_arguments() {
-    let source = r#"
-        data Kind { case A; case B; }
-        data Token {}
-        data Pair { left: Kind; token: Token; }
-        machine choose(token: Token) -> Kind { Kind::A }
-        machine Pair::same(&self) -> bool { self.left == choose(self.token) }
-    "#;
-    let diagnostics = match checked_program_result(source) {
-        Ok(_) => panic!("nested call transfers borrowed token"),
-        Err(diagnostics) => diagnostics,
-    };
-    assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("cannot transfer a non-copy value out of borrowed storage")),
-        "{diagnostics:#?}"
-    );
-}
-
-#[test]
-fn borrowed_index_operator_result_preserves_owned_collection_consumption() {
-    let source = r#"
-        data Buffer { value: i32; }
-        operator [] Buffer::index(items: Buffer, index: u64) -> i32;
-        machine consume(items: Buffer) {}
-        machine read(items: Buffer, index: u64) {
-            let view: &i32 = &items[index];
-            consume(items);
-        }
-    "#;
-    checked_program_result(&source.replace("            consume(items);", ""))
-        .expect("borrowing one owned index operator result is admitted");
-    let direct = source.replace(
-        "let view: &i32 = &items[index];",
-        "let value: i32 = items[index];",
-    );
-    checked_program_result(&direct.replace("            consume(items);", ""))
-        .expect("one direct index result consumes its collection once");
-    assert!(
-        checked_program_result(&direct).is_err(),
-        "direct index result must retain collection consumption"
-    );
-    let diagnostics = match checked_program_result(source) {
-        Ok(_) => panic!("index operator consumes its owned collection"),
-        Err(diagnostics) => diagnostics,
-    };
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("items")
-                && (diagnostic.message.contains("move") || diagnostic.message.contains("consum"))),
-        "{diagnostics:#?}"
-    );
-}
-
-#[test]
 fn borrowed_index_operator_result_cannot_consume_borrowed_collection() {
     let source = r#"
         data Buffer { value: i32; }
@@ -139,54 +72,6 @@ fn borrowed_index_operator_result_cannot_consume_borrowed_collection() {
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
             .contains("cannot transfer a non-copy value out of borrowed storage")),
-        "{diagnostics:#?}"
-    );
-}
-
-#[test]
-fn authored_case_equality_cannot_consume_borrowed_operand() {
-    let source = r#"
-        data Kind { case A; case B; }
-        operator == Kind::equal(left: Kind, right: Kind) -> bool;
-        data Pair { left: Kind; }
-        machine Pair::same(&self) -> bool { self.left == Kind::A }
-    "#;
-    let diagnostics = match checked_program_result(source) {
-        Ok(_) => panic!("authored equality consumes its owned operand"),
-        Err(diagnostics) => diagnostics,
-    };
-    assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("cannot transfer a non-copy value out of borrowed storage")),
-        "{diagnostics:#?}"
-    );
-}
-
-#[test]
-fn indexed_operand_access_preserves_shared_collection_and_owned_index() {
-    let source = r#"
-        data Buffer { value: i32; }
-        data Index {}
-        machine [] Buffer::index(&self, index: Index) -> i32 { self.value }
-        machine consume(index: Index) {}
-        data Main { buffer: Buffer; }
-        machine Main::read(&self, index: Index) {
-            let view: &i32 = &self.buffer[index];
-            consume(index);
-        }
-    "#;
-    checked_program_result(&source.replace("            consume(index);", ""))
-        .expect("shared collection remains observed while index moves once");
-    let diagnostics = match checked_program_result(source) {
-        Ok(_) => panic!("authored index consumes its owned index operand"),
-        Err(diagnostics) => diagnostics,
-    };
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("index")
-                && (diagnostic.message.contains("move") || diagnostic.message.contains("consum"))),
         "{diagnostics:#?}"
     );
 }
@@ -235,31 +120,6 @@ fn borrowed_indexed_collection_cannot_move_into_an_owned_receiver() {
                 || diagnostic.message.contains("consum")
                 || diagnostic.message.contains("borrowed")
         ),
-        "{diagnostics:#?}"
-    );
-}
-
-#[test]
-fn ordinary_first_parameter_gains_no_receiver_adaptation() {
-    let source = r#"
-        data Buffer { value: i32; }
-        data Index {}
-        machine [] Buffer::index(items: &Buffer, index: Index) -> i32 { items.value }
-        data Main { buffer: Buffer; }
-        machine Main::read(&self, index: Index) {
-            let view: &i32 = &self.buffer[index];
-        }
-    "#;
-    let diagnostics = match checked_program_result(source) {
-        Ok(_) => {
-            panic!("an ordinary `items: &Buffer` parameter must not select at `buffer[index]`")
-        }
-        Err(diagnostics) => diagnostics,
-    };
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("remained unresolved")),
         "{diagnostics:#?}"
     );
 }

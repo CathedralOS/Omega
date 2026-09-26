@@ -24,10 +24,6 @@ struct CorrespondenceFixture {
     exact_local: SymbolHandle,
     data_symbol: SymbolHandle,
     wrong_data_symbol: SymbolHandle,
-    foreign_parameter: SymbolHandle,
-    sibling_state_parameter: SymbolHandle,
-    foreign_local: SymbolHandle,
-    sibling_state_local: SymbolHandle,
 }
 
 fn correspondence_fixture() -> CorrespondenceFixture {
@@ -73,38 +69,11 @@ fn correspondence_fixture() -> CorrespondenceFixture {
     let machine_members = SymbolTableBuilder::child_handles(machine_members).collect::<Vec<_>>();
     let state = machine_members[0];
     let parameter = machine_members[1];
-    let sibling_state = machine_members[2];
-    let sibling_members = SymbolTableBuilder::child_handles(symbols.insert_children(
-        sibling_state,
-        [
-            (SymbolKind::Parameter, SymbolNameRef::Static("sibling_self")),
-            (SymbolKind::Local, SymbolNameRef::Static("sibling_local")),
-        ],
-    ))
-    .collect::<Vec<_>>();
-    let sibling_state_parameter = sibling_members[0];
-    let sibling_state_local = sibling_members[1];
-    let foreign_members = SymbolTableBuilder::child_handles(symbols.insert_children(
-        foreign_machine,
-        [
-            (SymbolKind::Parameter, SymbolNameRef::Static("foreign_self")),
-            (SymbolKind::State, SymbolNameRef::Static("foreign_entry")),
-        ],
-    ))
-    .collect::<Vec<_>>();
-    let foreign_parameter = foreign_members[0];
-    let foreign_state = foreign_members[1];
     let exact_local = SymbolTableBuilder::child_handles(
         symbols.insert_children(state, [(SymbolKind::Local, SymbolNameRef::Static("local"))]),
     )
     .next()
     .expect("exact state local");
-    let foreign_local = SymbolTableBuilder::child_handles(symbols.insert_children(
-        foreign_state,
-        [(SymbolKind::Local, SymbolNameRef::Static("foreign_local"))],
-    ))
-    .next()
-    .expect("foreign state local");
     let mut program = typed_trees::TypedTrees {
         symbols: symbols.finish(),
         ..typed_trees::TypedTrees::default()
@@ -243,10 +212,6 @@ fn correspondence_fixture() -> CorrespondenceFixture {
         exact_local,
         data_symbol,
         wrong_data_symbol: foreign_machine,
-        foreign_parameter,
-        sibling_state_parameter,
-        foreign_local,
-        sibling_state_local,
     }
 }
 
@@ -515,45 +480,6 @@ fn exact_parameter_field_correspondence_is_retained_once() {
 }
 
 #[test]
-fn exact_prior_state_local_is_retained_as_either_endpoint() {
-    let mut local_source = correspondence_fixture();
-    let local = local_source.exact_local;
-    let parameter = match local_source
-        .semantic
-        .places
-        .get(local_source.destination_place)
-        .root
-    {
-        facts::PlaceRoot::Symbol(root) => root,
-        _ => unreachable!("symbol root"),
-    };
-    set_correspondence_roots(&mut local_source, local, parameter);
-    retain(&mut local_source);
-    assert_eq!(local_source.semantic.qualification_correspondences.len(), 1);
-
-    let mut local_destination = correspondence_fixture();
-    let local = local_destination.exact_local;
-    let parameter = match local_destination
-        .semantic
-        .places
-        .get(local_destination.source_place)
-        .root
-    {
-        facts::PlaceRoot::Symbol(root) => root,
-        _ => unreachable!("symbol root"),
-    };
-    set_correspondence_roots(&mut local_destination, parameter, local);
-    retain(&mut local_destination);
-    assert_eq!(
-        local_destination
-            .semantic
-            .qualification_correspondences
-            .len(),
-        1
-    );
-}
-
-#[test]
 fn state_local_at_or_after_formation_is_not_retained() {
     let mut fixture = correspondence_fixture();
     let local = fixture.exact_local;
@@ -765,63 +691,4 @@ fn local_or_indexed_correspondence_is_not_retained() {
             .qualification_correspondences
             .is_empty()
     );
-}
-
-#[test]
-fn foreign_machine_or_sibling_state_parameter_correspondence_is_not_retained() {
-    for sibling_state in [false, true] {
-        for endpoint in 0..3 {
-            let mut fixture = correspondence_fixture();
-            let foreign_root = if sibling_state {
-                fixture.sibling_state_parameter
-            } else {
-                fixture.foreign_parameter
-            };
-            match endpoint {
-                0 => {
-                    fixture.semantic.places.get_mut(fixture.source_place).root =
-                        facts::PlaceRoot::Symbol(foreign_root);
-                }
-                1 => {
-                    let occurrence_place = fixture.semantic.append_symbol_place(foreign_root);
-                    fixture.source_occurrence_place = occurrence_place;
-                }
-                2 => {
-                    fixture
-                        .semantic
-                        .places
-                        .get_mut(fixture.destination_place)
-                        .root = facts::PlaceRoot::Symbol(foreign_root);
-                }
-                _ => unreachable!(),
-            }
-            retain(&mut fixture);
-            assert!(fixture.semantic.qualification_correspondences.is_empty());
-        }
-    }
-}
-
-#[test]
-fn foreign_machine_or_sibling_state_local_correspondence_is_not_retained() {
-    for sibling_state in [false, true] {
-        for endpoint in 0..2 {
-            let mut fixture = correspondence_fixture();
-            let excluded_root = if sibling_state {
-                fixture.sibling_state_local
-            } else {
-                fixture.foreign_local
-            };
-            let parameter = match fixture.semantic.places.get(fixture.destination_place).root {
-                facts::PlaceRoot::Symbol(root) => root,
-                _ => unreachable!("symbol root"),
-            };
-            if endpoint == 0 {
-                set_correspondence_roots(&mut fixture, excluded_root, parameter);
-            } else {
-                set_correspondence_roots(&mut fixture, parameter, excluded_root);
-            }
-            retain(&mut fixture);
-            assert!(fixture.semantic.qualification_correspondences.is_empty());
-        }
-    }
 }

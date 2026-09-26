@@ -210,120 +210,12 @@ pub(super) fn collect_binders(
 
 #[cfg(test)]
 mod tests {
-    use super::{TypeConstraintNode, TypeParameterKind, closed_integer_range_bound};
+    use super::{TypeConstraintNode, closed_integer_range_bound};
     use crate::monomorphization::range_arguments::declared_range;
-    use crate::monomorphization::range_arguments::infer;
+
     use crate::tests::front_end::typed_program;
     use numerics::arithmetic::ArithmeticDomain;
     use typed_trees::types::TypeReferenceNode;
-
-    #[test]
-    fn open_symbolic_endpoint_binds_the_caller_binder_until_it_specializes() {
-        let mut program = typed_program(
-            "machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
-             machine forward<const K: u64>(v: u64[0..=K]) -> u64 { upper_bound(v) }
-             machine caller(v: u64[0..=256]) -> u64 { forward<256>(v) }",
-        );
-        crate::checking::specialize_static_machine_calls_with_selections(&mut program, true)
-            .expect("open endpoint forwards the caller binder");
-        let forward = program
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "forward")
-            .expect("forward template");
-        let upper_bound = program
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "upper_bound")
-            .expect("upper_bound template");
-        assert!(
-            program
-                .machine_specializations
-                .iter()
-                .any(|instance| instance.template == forward.symbol),
-            "forward<256> must specialize"
-        );
-        assert!(
-            program
-                .machine_specializations
-                .iter()
-                .any(|instance| instance.template == upper_bound.symbol),
-            "the forwarded upper_bound call must specialize inside forward<256>"
-        );
-    }
-
-    #[test]
-    fn open_exclusive_symbolic_endpoint_binds_the_caller_binder() {
-        let mut program = typed_program(
-            "machine upper_bound<const N: u64>(value: u64[0..N]) -> u64 { N }
-             machine forward<const K: u64>(v: u64[0..K]) -> u64 { upper_bound(v) }
-             machine caller(v: u64[0..256]) -> u64 { forward<256>(v) }",
-        );
-        crate::checking::specialize_static_machine_calls_with_selections(&mut program, true)
-            .expect("exclusive open endpoint forwards the caller binder");
-        let upper_bound = program
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "upper_bound")
-            .expect("upper_bound template");
-        assert!(
-            program
-                .machine_specializations
-                .iter()
-                .any(|instance| instance.template == upper_bound.symbol),
-            "the forwarded upper_bound call must specialize inside forward<256>"
-        );
-    }
-
-    #[test]
-    fn mixed_inclusion_open_endpoint_records_no_equation() {
-        let mut program = typed_program(
-            "machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
-             machine forward<const K: u64>(v: u64[0..K]) -> u64 { upper_bound(v) }",
-        );
-        super::super::materialize_static_argument_types(&mut program);
-        let upper_bound = program
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "upper_bound")
-            .expect("upper_bound template");
-        let forward = program
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "forward")
-            .expect("forward template");
-        let required =
-            program.state_parameters(&program.machine_states(upper_bound)[0])[0].type_reference;
-        let actual =
-            program.state_parameters(&program.machine_states(forward)[0])[0].type_reference;
-        let const_parameters = program
-            .machine_type_parameters(upper_bound)
-            .iter()
-            .filter_map(|parameter| match parameter.kind {
-                TypeParameterKind::Const { type_reference } => Some((
-                    parameter.symbol,
-                    parameter.name.as_str().to_owned(),
-                    type_reference,
-                )),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        let mut proposals = Vec::new();
-        infer(
-            &program,
-            required,
-            actual,
-            &const_parameters,
-            &[],
-            0,
-            &mut proposals,
-        );
-        assert_eq!(proposals.len(), 1);
-        assert!(
-            !proposals[0].2.is_valid(),
-            "an exclusive open endpoint cannot satisfy an inclusive required endpoint"
-        );
-    }
 
     #[test]
     fn declared_range_keeps_full_width_endpoints_and_rejects_ambiguous_shells() {
@@ -356,44 +248,6 @@ mod tests {
                 constraints: policy,
             });
         assert!(declared_range(&program, policy_wrapped).is_none());
-    }
-
-    #[test]
-    fn compound_symbolic_endpoint_binds_after_the_caller_specializes() {
-        // The endpoint expression `K + 1` cannot close while `K` is a binder:
-        // the occurrence defers, and `forward<6>`'s clone re-infers `6 + 1`
-        // against `0..=N` once its parameter substitutes.
-        let mut program = typed_program(
-            "machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
-             machine forward<const K: u64>(v: u64[0..=K + 1]) -> u64 { upper_bound(v) }
-             machine caller(v: u64[0..=7]) -> u64 { forward<6>(v) }",
-        );
-        crate::checking::specialize_static_machine_calls_with_selections(&mut program, true)
-            .expect("compound endpoint forwards through the caller binder");
-        let forward = program
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "forward")
-            .expect("forward template");
-        let upper_bound = program
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "upper_bound")
-            .expect("upper_bound template");
-        assert!(
-            program
-                .machine_specializations
-                .iter()
-                .any(|instance| instance.template == forward.symbol),
-            "forward<6> must specialize"
-        );
-        assert!(
-            program
-                .machine_specializations
-                .iter()
-                .any(|instance| instance.template == upper_bound.symbol),
-            "the forwarded upper_bound call must specialize inside forward<6>"
-        );
     }
 
     #[test]

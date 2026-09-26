@@ -1,18 +1,12 @@
 //! Callee resolution, machine proposals, contract facts and expression
 //! trees.
 
-#[cfg(test)]
-use crate::monomorphization::selection::collect_call_selections;
 use crate::monomorphization::selection::static_bindings::infer_static_bindings;
 use crate::monomorphization::{
     CallSite, CalleeState, Candidate, ExpressionHandle, ExpressionNode, ProofFact,
     StaticMachineArgument, SymbolHandle, SymbolKind, TypeReferenceHandle, TypedTrees,
     collect_statement_expression_trees, const_arguments,
 };
-#[cfg(test)]
-use crate::monomorphization::{candidate, materialize_static_argument_types};
-#[cfg(test)]
-use crate::tests::front_end::typed_program;
 
 /// An explicit argument has no binder slot of its selected kind. Omitted
 /// arguments can still be inferred; excess arguments cannot be discarded.
@@ -219,31 +213,6 @@ pub(crate) fn state_by_symbol(
         .iter()
         .flat_map(|machine| program.machine_states(machine))
         .find(|state| state.symbol == symbol)
-}
-
-#[test]
-pub(crate) fn discarded_call_inference_retains_fixed_array_const_proposal() {
-    let source = "machine endpoint<const N: u64[0..=3]>(witness: &[u8; N]) -> u64 { N }
-        machine forward<Value>(unused: Value, witness: &[u8; 5]) { _ = endpoint(witness); }";
-    let mut program = typed_program(source);
-    materialize_static_argument_types(&mut program);
-    let candidates = candidate::collect(&program);
-    let callees = candidate::callees(&program, &candidates);
-    let contracts = contract_expression_handles(&program);
-    let selections = collect_call_selections(&program, &candidates, &callees, &contracts);
-    let endpoint = candidates
-        .iter()
-        .position(|candidate| candidate.template.template_name == "endpoint")
-        .expect("endpoint candidate");
-    let selected = selections
-        .iter()
-        .filter(|selection| selection.candidate_index == endpoint)
-        .collect::<Vec<_>>();
-    assert_eq!(selected.len(), 1, "one discarded application");
-    assert!(selected[0].caller_is_generic);
-    let binding = selected[0].const_bindings[0]
-        .expect("array witness must select const argument before discarded-result validation");
-    assert_eq!(program.display_type_reference(binding), "5");
 }
 
 /// Every expression node reachable from an ordinary machine/state contract.

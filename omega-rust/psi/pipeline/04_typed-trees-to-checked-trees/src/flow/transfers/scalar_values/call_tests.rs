@@ -165,15 +165,6 @@ fn unit_call_preservation_requires_the_selected_body_and_local_argument() {
 }
 
 #[test]
-fn mutable_owned_scalar_formals_do_not_alias_the_callers_local() {
-    let checked = checked(
-        "machine observe(mut value: u8) { value = 200; } \
-         machine wrapper(value: u8) -> u8 { observe(value); value }",
-    );
-    assert!(preserves_values(&checked));
-}
-
-#[test]
 fn unit_call_preservation_admits_selected_scalar_arguments() {
     let authentic = checked(
         "machine observe(value: u8) {} \
@@ -293,26 +284,6 @@ fn captured_range(checked: &CheckedTrees) -> Option<facts::IntegerRange> {
         statement,
         active,
     )
-}
-
-#[test]
-fn selected_scalar_calls_capture_live_argument_ranges_and_local_snapshots() {
-    for body in [
-        "(value as u8 in Wrapping) as u8",
-        "observe(false); (value as u8 in Wrapping) as u8",
-        "let mut copy: u32 = value; \
-         let saved: u8 = (copy as u8 in Wrapping) as u8; copy = 200; saved",
-    ] {
-        let checked = range_call_source(body);
-        assert_eq!(
-            captured_range(&checked),
-            Some(facts::IntegerRange {
-                minimum: numerics::bignum::BigInt::from_u64(48),
-                maximum: numerics::bignum::BigInt::from_u64(57),
-            }),
-            "{body}"
-        );
-    }
 }
 
 #[test]

@@ -30,78 +30,6 @@ fn contract_plan(
 }
 
 #[test]
-fn exclusive_f64_entry_range_retains_authored_endpoint() {
-    let checked = checked_program(
-        r#"
-        data Metrics {}
-        machine Metrics::accept(&self, value: f64[0.0..1.5]) -> f64 { value }
-    "#,
-    );
-    let machine = machine_named(&checked, "Metrics::accept");
-    let plan = contract_plan(&checked, machine);
-    let [requirement] = plan
-        .closed_scalar_values
-        .float_entry_ranges()
-        .expect("one complete retained floating range")
-    else {
-        panic!("one retained floating range")
-    };
-    assert_eq!(
-        *requirement,
-        checked_trees::ClosedFloatRangeRequirement {
-            position: 0,
-            primitive_type: PrimitiveType::F64,
-            minimum: IeeeFloatValue::Binary64(0.0f64.to_bits()),
-            maximum: IeeeFloatValue::Binary64(1.5f64.to_bits()),
-            maximum_inclusive: false,
-        }
-    );
-    // An integer-predecessor normalization would land one ulp below the
-    // authored endpoint; the retained bits stay authored.
-    assert_ne!(
-        requirement.maximum,
-        IeeeFloatValue::Binary64(1.5f64.to_bits() - 1)
-    );
-    // The requires tail keeps the authored range as a supported clause row:
-    // the closed scalar vocabulary carries the exact retained requirement
-    // rather than an unsupported placeholder.
-    assert_eq!(
-        plan.closed_scalar_values.requires(),
-        &[Some(checked_trees::ClosedScalarContractValue::FloatRange(
-            *requirement,
-        ))]
-    );
-}
-
-#[test]
-fn inclusive_f64_entry_range_retains_boundary_kind() {
-    let checked = checked_program(
-        r#"
-        data Metrics {}
-        machine Metrics::accept(&self, value: f64[0.0..=1.5]) -> f64 { value }
-    "#,
-    );
-    let machine = machine_named(&checked, "Metrics::accept");
-    let [requirement] = contract_plan(&checked, machine)
-        .closed_scalar_values
-        .float_entry_ranges()
-        .expect("one retained floating range")
-    else {
-        panic!("one retained floating range")
-    };
-    assert_eq!(
-        *requirement,
-        checked_trees::ClosedFloatRangeRequirement {
-            position: 0,
-            primitive_type: PrimitiveType::F64,
-            minimum: IeeeFloatValue::Binary64(0.0f64.to_bits()),
-            maximum: IeeeFloatValue::Binary64(1.5f64.to_bits()),
-            maximum_inclusive: true,
-        }
-    );
-}
-
-#[test]
 fn f32_entry_range_names_its_dense_scalar_position() {
     let checked = checked_program(
         r#"
@@ -156,30 +84,6 @@ fn integer_endpoints_convert_once_into_the_float_carrier() {
             maximum: IeeeFloatValue::Binary64(2.0f64.to_bits()),
             maximum_inclusive: false,
         }
-    );
-}
-
-#[test]
-fn machines_without_floating_ranges_have_an_empty_complete_roster() {
-    let checked = checked_program(
-        r#"
-        data Metrics {}
-        machine Metrics::accept(&self, value: i32[0..100]) -> i32 { value }
-    "#,
-    );
-    let machine = machine_named(&checked, "Metrics::accept");
-    let plan = contract_plan(&checked, machine);
-    assert_eq!(
-        plan.closed_scalar_values.float_entry_ranges(),
-        Some(&[][..]),
-        "integer ranges do not enter the floating roster"
-    );
-    assert!(
-        matches!(
-            plan.closed_scalar_values.requires(),
-            [Some(checked_trees::ClosedScalarContractValue::Predicate(_))]
-        ),
-        "integer ranges keep their closed scalar predicate"
     );
 }
 

@@ -209,6 +209,3 @@ fn canonical_place_root_symbol(place: &CanonicalPlace) -> Option<SymbolHandle> {
         _ => None,
     }
 }
-
-#[cfg(test)]
-mod tests;

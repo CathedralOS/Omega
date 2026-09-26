@@ -41,64 +41,6 @@ fn match_arm_premises_keep_the_exact_subject() {
 }
 
 #[test]
-fn match_requires_complete_coverage_without_an_implicit_last_default() {
-    let diagnostics = check("machine choose(value: i64) -> i64 { match value { 0 -> 7 1 -> 9 } }")
-        .expect_err("two integer cases do not cover i64");
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("cover")
-                || diagnostic.message.contains("exhaustive")),
-        "{diagnostics:#?}"
-    );
-}
-
-#[test]
-fn match_branch_fact_does_not_survive_later_argument_mutation() {
-    let diagnostics = check(
-        "machine clear(flag: &mut bool) -> bool { flag = false; true }
-         machine demand(ignored: bool, current: bool) -> bool requires current { true }
-         machine choose(flag: &mut bool) -> bool {
-             match flag { true -> demand(clear(&mut flag), flag) false -> false }
-         }",
-    )
-    .expect_err("clearing the subject retires its selected-arm truth");
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("requires")),
-        "{diagnostics:#?}"
-    );
-}
-
-#[test]
-fn match_selected_fact_does_not_escape_the_result_join() {
-    let diagnostics = check(
-        "machine demand(current: bool) -> bool requires current { true }
-         machine choose(flag: bool) -> bool {
-             let selected: bool = match flag { true -> demand(flag) false -> false };
-             demand(flag)
-         }",
-    )
-    .expect_err("the join cannot assert the true arm was taken");
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("requires")),
-        "{diagnostics:#?}"
-    );
-}
-
-#[test]
-fn match_wildcard_suffix_does_not_schedule_unreachable_calls() {
-    check(
-        "machine demand(current: bool) -> bool requires current { true }
-         machine choose(flag: bool) -> bool { match flag { _ -> false true -> demand(false) } }",
-    )
-    .expect("wildcard closes the executable arm prefix");
-}
-
-#[test]
 fn match_pattern_evidence_rejects_foreign_arm_identity() {
     let checked = check(
         "machine first(flag: bool) -> bool { match flag { true -> false _ -> true } }

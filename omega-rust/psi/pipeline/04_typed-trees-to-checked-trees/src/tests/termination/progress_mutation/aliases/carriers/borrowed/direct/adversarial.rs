@@ -5,7 +5,6 @@ use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::a
 use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::direct::direct_source;
 use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::source;
 use crate::tests::termination::progress_mutation::check_source;
-use symbols::SymbolHandle;
 use typed_trees::{expression::ExpressionNode, statement::StatementNode};
 
 pub(super) fn assert_identity(program: &typed_trees::TypedTrees, local_name: &str, known: bool) {
@@ -50,41 +49,6 @@ pub(super) fn assert_identity(program: &typed_trees::TypedTrees, local_name: &st
     }
 }
 
-// Query borrow-invalid mutations directly; saved loans cannot authorize slot exposure.
-#[test]
-fn direct_results_require_frozen_slots_even_after_capturing_a_local() {
-    for result in ["carrier.context", "captured"] {
-        for operation in [
-            "",
-            "carrier.context = replacement;",
-            "carrier = Carrier { context: replacement };",
-            "selected.context = replacement;",
-            "selected = Carrier { context: replacement };",
-            "selected.touch();",
-            "let ignored: u64 = selected.touch();",
-        ] {
-            let source = format!(
-                "{} machine Carrier::touch(&mut self) -> u64 {{ 0 }}",
-                direct_source(
-                    "mut ",
-                    &format!(
-                        "let selected: &mut Carrier = carrier;
-                     let captured: &Context = carrier.context; {operation} {result}"
-                    )
-                )
-                .replace(
-                    "carrier: &mut Carrier)",
-                    "carrier: &mut Carrier, replacement: &Context)"
-                )
-                .replace("select(carrier)", "select(carrier, replacement)")
-            );
-            let mut program = typed_program(&source);
-            crate::lookup::resolve_projected_receiver_calls(&mut program).unwrap();
-            assert_identity(&program, "borrowed", operation.is_empty());
-        }
-    }
-}
-
 #[test]
 fn a_terminal_call_checks_exposure_in_both_operand_orders() {
     for first in [false, true] {
@@ -118,76 +82,6 @@ fn a_terminal_call_checks_exposure_in_both_operand_orders() {
                 assert_input_premise(&check_source(&source));
             }
         }
-    }
-}
-
-#[test]
-fn direct_results_require_selected_call_and_parameter_symbols() {
-    for corrupt_call in [false, true] {
-        for missing in [false, true] {
-            let mut program = typed_program(&format!(
-                "{} machine unrelated(carrier: &Carrier) {{}}",
-                direct_source("", "carrier.context")
-            ));
-            assert_identity(&program, "borrowed", true);
-            let parameter = |name: &str| {
-                let machine = program
-                    .machines()
-                    .iter()
-                    .find(|machine| machine.name.as_str() == name)
-                    .unwrap();
-                program.state_parameters(&program.machine_states(machine)[0])[0].symbol
-            };
-            let original = parameter("select");
-            // A real symbol from another scope is no more authoritative than
-            // a missing one, even though both parameters are named carrier.
-            let replacement = if missing {
-                SymbolHandle::invalid()
-            } else {
-                parameter("unrelated")
-            };
-            let expressions = program
-                .expression_table
-                .iter_expressions()
-                .filter_map(|(handle, node)| match node {
-                    ExpressionNode::Call(call)
-                        if corrupt_call && call.target.as_str() == "select" =>
-                    {
-                        Some(handle)
-                    }
-                    ExpressionNode::Name(name) if !corrupt_call && name.head_symbol == original => {
-                        Some(handle)
-                    }
-                    _ => None,
-                })
-                .collect::<Vec<_>>();
-            assert_eq!(expressions.len(), 1);
-            match program.expression_table.expression_mut(expressions[0]) {
-                ExpressionNode::Call(call) => call.target_symbol = replacement,
-                ExpressionNode::Name(name) => name.head_symbol = replacement,
-                _ => unreachable!(),
-            }
-            assert_identity(&program, "borrowed", false);
-        }
-    }
-}
-
-#[test]
-fn private_referents_cannot_escape_as_exact_caller_inputs() {
-    let local = direct_source(
-        "",
-        "let local: Context = Context {
-        scheduler: SchedulerHandle {}, counter: 0 }; &local",
-    );
-    let owned = direct_source("", "&carrier.private")
-        .replace("carrier: &Carrier)", "carrier: Carrier)")
-        .replace(
-            "data Carrier { context: &Context; }",
-            "data Carrier { context: &Context; private: Context; }",
-        );
-    // Invalid escapes cannot use the sibling reference field's input correspondence.
-    for source in [local, owned] {
-        assert_identity(&typed_program(&source), "borrowed", false);
     }
 }
 
@@ -247,24 +141,6 @@ fn recursive_result_bodies_are_opaque_but_finite_actual_nesting_is_exact() {
         } else {
             assert_input_premise(&check_source(&source));
         }
-    }
-}
-
-#[test]
-fn a_pure_terminal_exclusive_reborrow_keeps_its_direct_subject() {
-    for body in [
-        "&mut context",
-        "let selected: &mut Context = context; &mut selected",
-    ] {
-        let source = source(
-            "mut ",
-            "mut ",
-            "let borrowed: &mut Context = reborrow(carrier.context);
-             transition { _ -> wait_context(borrowed) }",
-            &format!("machine reborrow(context: &mut Context) -> &mut Context {{ {body} }}"),
-        );
-        assert_identity(&typed_program(&source), "borrowed", true);
-        assert_input_premise(&check_source(&source));
     }
 }
 

@@ -57,29 +57,6 @@ fn symbolic_adjacency() -> checked_trees::CheckedTrees {
     checked_program(SYMBOLIC_ADJACENCY)
 }
 
-fn direct_read_and_mutable_modes() -> checked_trees::CheckedTrees {
-    checked_program(
-        r#"
-        data Main { readable: i32; mutable: i32; }
-        data Sibling { readable: i32; }
-
-        machine observe(value: &i32) {}
-        machine mutate(value: &mut i32) { value = 1; }
-        machine Main::exercise(&mut self) {
-            let read: &i32 = &self.readable;
-            observe(read);
-            let mutable_loan: &mut i32 = &mut self.mutable;
-            mutate(mutable_loan);
-        }
-
-        machine Sibling::exercise(&self) {
-            let read: &i32 = &self.readable;
-            observe(read);
-        }
-        "#,
-    )
-}
-
 fn direct_reborrow_chain() -> checked_trees::CheckedTrees {
     checked_program(
         r#"
@@ -143,39 +120,6 @@ fn mutable_parent_write_only_child_restored_use() -> checked_trees::CheckedTrees
     )
 }
 
-fn mutable_parent_sole_shared_child_restored_use() -> checked_trees::CheckedTrees {
-    checked_program(
-        r#"
-        data Main { value: i32; }
-        machine observe(value: &i32) {}
-        machine mutate(value: &mut i32) { value = 1; }
-        machine Main::exercise(&mut self) {
-            let parent: &mut i32 = &mut self.value;
-            let child: &i32 = &parent;
-            observe(child);
-            mutate(parent);
-        }
-        "#,
-    )
-}
-
-fn mutable_parent_two_shared_children_restored_use() -> checked_trees::CheckedTrees {
-    checked_program(
-        r#"
-        data Main { value: i32; }
-        machine observe(left: &i32, right: &i32) {}
-        machine mutate(value: &mut i32) { value = 1; }
-        machine Main::exercise(&mut self) {
-            let parent: &mut i32 = &mut self.value;
-            let left: &i32 = &parent;
-            let right: &i32 = &parent;
-            observe(left, right);
-            mutate(parent);
-        }
-        "#,
-    )
-}
-
 fn mutable_parent_three_shared_children_restored_use() -> checked_trees::CheckedTrees {
     checked_program(
         r#"
@@ -189,23 +133,6 @@ fn mutable_parent_three_shared_children_restored_use() -> checked_trees::Checked
             let right: &i32 = &parent;
             observe(left, middle, right);
             mutate(parent);
-        }
-        "#,
-    )
-}
-
-fn sequential_reborrows() -> checked_trees::CheckedTrees {
-    checked_program(
-        r#"
-        data Main { value: i32; }
-        machine write(value: &mut i32) { value = 1; }
-        machine Main::exercise(&mut self) {
-            let parent: &mut i32 = &mut self.value;
-            let first: &mut i32 = &mut parent;
-            write(first);
-            let second: &mut i32 = &mut parent;
-            write(second);
-            write(parent);
         }
         "#,
     )

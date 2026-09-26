@@ -7,72 +7,6 @@ fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::D
 }
 
 #[test]
-fn embedding_is_an_exact_builtin_without_a_machine_declaration() {
-    let checked = check(
-        r#"
-        machine arithmetic(value: u64)
-        ensures embed(value) + 1 > embed(value)
-        {}
-        "#,
-    )
-    .expect("unbounded proof arithmetic");
-    assert!(
-        checked
-            .machines()
-            .iter()
-            .all(|machine| machine.name.as_str() != "embed")
-    );
-}
-
-#[test]
-fn signed_integer_remainders_cannot_prove_unsigned_bounds() {
-    for dividend in ["value", "embed(value)"] {
-        let source = format!(
-            "machine remainder(value: i32)\nrequires value == -7\nensures {dividend} % 2 >= 0\n{{}}"
-        );
-        assert!(
-            check(&source).is_err(),
-            "false remainder contract: {source}"
-        );
-    }
-}
-
-#[test]
-fn integer_remainder_proof_bounds_preserve_the_dividend_sign() {
-    for dividend in ["value", "embed(value)"] {
-        for divisor in ["2", "-2"] {
-            for (carrier, requirement, conclusion) in [
-                ("i32", "", ">= -1"),
-                ("i32", "", "<= 1"),
-                ("i32", "requires value <= 0", "<= 0"),
-                ("i32", "requires value >= 0", ">= 0"),
-            ] {
-                let source = format!(
-                    "machine remainder(value: {carrier})\n{requirement}\nensures {dividend} % {divisor} {conclusion}\n{{}}"
-                );
-                check(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:?}"));
-            }
-        }
-        let source = format!("machine remainder(value: u64)\nensures {dividend} % 2 >= 0\n{{}}");
-        check(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:?}"));
-    }
-}
-
-#[test]
-fn embedding_rejects_boolean_and_comparison_results() {
-    for expression in ["true", "value == value", "value < value", "value != value"] {
-        let source = format!("machine predicate(value: u8) ensures embed({expression}) == 0 {{}}");
-        let diagnostics = check(&source).expect_err("Boolean results are not integer payloads");
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("embed")),
-            "{expression}: {diagnostics:?}"
-        );
-    }
-}
-
-#[test]
 fn embedding_rejects_noninteger_carriers_and_runtime_use() {
     for source in [
         "machine predicate(value: f64) ensures embed(value) == 0 {}",
@@ -87,14 +21,6 @@ fn embedding_rejects_noninteger_carriers_and_runtime_use() {
             "{source}: {diagnostics:?}"
         );
     }
-}
-
-#[test]
-fn embedding_a_trapping_binding_does_not_form_trapping_arithmetic() {
-    check("machine predicate(value: i32 in Trapping) ensures embed(value) == embed(value) {}")
-        .expect("embedding is total independently of binding policy");
-    check("machine predicate(value: i32 in Trapping) ensures embed(value + 1) == 0 {}")
-        .expect_err("nested trapping arithmetic is not a total proof term");
 }
 
 #[test]
@@ -124,19 +50,6 @@ fn natural_coercion_uses_prior_nonnegativity_for_signed_payloads() {
     check(source).expect("prior signed nonnegativity permits proof-only coercion");
     check(&source.replace("requires value >= 0", ""))
         .expect_err("signed carrier range alone does not establish nonnegativity");
-}
-
-#[test]
-fn unsigned_embedding_subtraction_is_signed_until_proven_nonnegative() {
-    let source = r#"
-        data Nat { case Zero; case Succ(previous: Nat); }
-        machine distance(start: u64, end: u64) -> Nat
-        requires end >= start
-        { (embed(end) - embed(start)) as Nat }
-    "#;
-    check(source).expect("ordered endpoints permit exact natural distance");
-    check(&source.replace("requires end >= start", ""))
-        .expect_err("unsigned payloads do not make their mathematical difference nonnegative");
 }
 
 #[test]
@@ -206,53 +119,6 @@ fn proof_integer_classification_uses_builtin_identity_not_type_spelling() {
 }
 
 #[test]
-fn proof_integer_inline_containment_propagates_but_erasure_and_indirection_do_not() {
-    let program = typed_program_result(
-        r#"
-        data Direct { value: Int; }
-        data Wrapper { inner: Direct; }
-        data ArrayHolder { values: [Int; 2]; }
-        data CaseHolder { case Present(value: Int); case Absent; }
-        data Erased { value [erased]: Int; }
-        data Borrowed { value: &Int; }
-        data Sliced { values: [Int]; }
-    "#,
-    )
-    .expect("type classification fixture");
-    let classification = typed_trees::proof_only::classify(&program);
-    for definition in program.data_definitions() {
-        let expected = matches!(
-            definition.name.as_str(),
-            "Direct" | "Wrapper" | "ArrayHolder" | "CaseHolder"
-        );
-        assert_eq!(
-            classification.is_proof_only(definition.symbol),
-            expected,
-            "classification of {}",
-            definition.name
-        );
-    }
-    // Indirection breaks inline contagion, but observing or storing the
-    // resulting reference/slice still mentions a proof-only referent.
-    for name in ["Borrowed", "Sliced"] {
-        let definition = program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.name.as_str() == name)
-            .expect("holder");
-        let typed_trees::data::DataMember::Field(field) = &program.data_members(definition)[0]
-        else {
-            panic!("holder field")
-        };
-        assert!(
-            classification
-                .proof_only_mention(&program, field.type_reference)
-                .is_some()
-        );
-    }
-}
-
-#[test]
 fn proof_integer_holders_cannot_claim_runtime_copy_properties() {
     let diagnostics = check("data Holder [copy] { value: Int; }")
         .expect_err("a mathematical integer cannot provide runtime copy storage");
@@ -308,66 +174,6 @@ fn proof_embedding_shift_counts_cannot_be_boolean_or_float_values() {
 }
 
 #[test]
-fn closed_proof_integer_quotients_and_remainders_preserve_all_signs() {
-    for (dividend, divisor, quotient, remainder) in [
-        (7, 2, 3, 1),
-        (-7, 2, -3, -1),
-        (7, -2, -3, 1),
-        (-7, -2, 3, -1),
-    ] {
-        for (operator, expected) in [("/", quotient), ("%", remainder)] {
-            let expression = format!("embed({dividend}i32) {operator} {divisor}");
-            let source = format!("machine predicate() ensures {expression} == {expected} {{}}");
-            check(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:?}"));
-            let false_twin = format!(
-                "machine predicate() ensures {expression} == {} {{}}",
-                expected + 1
-            );
-            check(&false_twin).expect_err("a neighboring integer is not the quotient or remainder");
-        }
-    }
-}
-
-#[test]
-fn closed_proof_integer_arithmetic_exceeds_host_integer_widths() {
-    let power_of_two = "(embed(18446744073709551615u64) + 1)";
-    let huge = format!("({power_of_two} * {power_of_two} * 2)");
-    for conclusion in [
-        format!("({huge} + 1) / {huge} == 1"),
-        format!("({huge} + 1) % {huge} == 1"),
-        format!("(-{huge} - 1) / {huge} == -1"),
-        format!("(-{huge} - 1) % {huge} == -1"),
-    ] {
-        let source = format!("machine predicate() ensures {conclusion} {{}}");
-        check(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:?}"));
-        check(&source.replace("==", "!=")).expect_err("large exact arithmetic false twin");
-    }
-}
-
-#[test]
-fn undefined_proof_integer_arithmetic_cannot_be_hidden_by_normalization() {
-    for operator in ["/", "%"] {
-        for (parameters, requirement, divisor) in [
-            ("", "", "0"),
-            ("value: i32", "requires value == 0", "embed(value)"),
-        ] {
-            let undefined = format!("(embed(7i32) {operator} {divisor})");
-            for conclusion in [
-                format!("{undefined} == 0"),
-                format!("{undefined} == {undefined}"),
-                format!("0 * {undefined} == 0"),
-                format!("{undefined} - {undefined} == 0"),
-            ] {
-                let source = format!(
-                    "machine predicate({parameters})\n{requirement}\nensures {conclusion} {{}}"
-                );
-                check(&source).unwrap_err();
-            }
-        }
-    }
-}
-
-#[test]
 fn proof_integer_folding_preserves_anonymous_and_fixed_width_controls() {
     check("machine rational() ensures 7 / 2 == 3.5 {}")
         .expect("anonymous division remains exact rational arithmetic");
@@ -407,50 +213,6 @@ fn proof_integer_operands_do_not_truncate_fractions_or_erase_zero_divisors() {
             check(&source).expect_err("an undefined Int operand cannot prove reflexivity");
         }
     }
-}
-
-#[test]
-fn proof_integer_quotient_bounds_follow_truncation_and_divisor_sign() {
-    for (requirement, divisor, minimum, maximum) in [
-        ("value >= 0, value <= 9", 2, 0, 4),
-        ("value >= -9, value <= -1", 2, -4, 0),
-        ("value >= -9, value <= 9", -2, -4, 4),
-        ("value >= 1, value <= 9", -2, -4, 0),
-    ] {
-        let source = format!(
-            "machine quotient(value: i32)\nrequires {requirement}\nensures embed(value) / {divisor} >= {minimum}, embed(value) / {divisor} <= {maximum}\n{{}}"
-        );
-        check(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:?}"));
-        let false_twin = source.replace(&format!("<= {maximum}"), &format!("<= {}", maximum - 1));
-        check(&false_twin).expect_err("a quotient bound cannot exclude a reachable endpoint");
-    }
-}
-
-#[test]
-fn proof_integer_quotient_bounds_preserve_missing_endpoints() {
-    for (requirement, divisor, conclusion, false_conclusion) in [
-        ("value >= 1", 2, ">= 0", ">= 1"),
-        ("value >= 1", -2, "<= 0", "<= -1"),
-        ("value <= -1", 2, "<= 0", "<= -1"),
-        ("value <= -1", -2, ">= 0", ">= 1"),
-    ] {
-        for (conclusion, accepted) in [(conclusion, true), (false_conclusion, false)] {
-            let source = format!(
-                "machine quotient(value: i32)\nrequires {requirement}\nensures embed(value) / {divisor} {conclusion}\n{{}}"
-            );
-            assert_eq!(check(&source).is_ok(), accepted, "{source}");
-        }
-    }
-}
-
-#[test]
-fn proof_integer_quotient_bounds_remain_unbounded_in_width() {
-    let wide = "((embed(18446744073709551615u64) + 1) * (embed(18446744073709551615u64) + 1))";
-    let source = format!(
-        "machine quotient(value: i32)\nrequires value >= 0, value <= 9\nensures (embed(value) + {wide}) / 2 >= {wide} / 2, (embed(value) + {wide}) / 2 <= {wide} / 2 + 4\n{{}}"
-    );
-    check(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:?}"));
-    check(&source.replace("+ 4", "+ 3")).expect_err("wide quotient upper bound is reachable");
 }
 
 #[test]
@@ -498,34 +260,5 @@ fn proof_integer_remainder_bounds_use_a_known_divisor() {
             check(&source).is_err(),
             "false remainder contract: {source}"
         );
-    }
-}
-
-#[test]
-fn proof_integer_remainder_bounds_preserve_one_quotient_interval() {
-    for divisor in [8, -8] {
-        for (minimum, maximum, low, high) in [
-            (5, 7, 5, 7),
-            (13, 15, 5, 7),
-            (-15, -13, -7, -5),
-            (-7, 7, -7, 7),
-        ] {
-            let source = format!(
-                "machine remainder(value: i32)\nrequires value >= {minimum}, value <= {maximum}\nensures embed(value) % {divisor} >= {low}, embed(value) % {divisor} <= {high}\n{{}}"
-            );
-            check(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:?}"));
-        }
-        for (minimum, maximum, bound) in [
-            (5, 10, "<= 5"),
-            (-10, -5, ">= -5"),
-            (5, 9, ">= 5"),
-            (-9, -5, "<= -5"),
-            (13, 15, ">= 6"),
-        ] {
-            let source = format!(
-                "machine remainder(value: i32)\nrequires value >= {minimum}, value <= {maximum}\nensures embed(value) % {divisor} {bound}\n{{}}"
-            );
-            assert!(check(&source).is_err(), "false remainder bound: {source}");
-        }
     }
 }

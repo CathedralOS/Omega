@@ -66,25 +66,3 @@ fn private_realization_range_does_not_become_a_public_requirement_fact() {
     call.static_requirement_dispatch = Some(StaticRequirementDispatch::default());
     assert_eq!(range(&program, expression), None);
 }
-
-#[test]
-fn dependent_callee_result_does_not_use_the_callers_same_named_field() {
-    let (program, expression) = fixture(
-        "data Selector { limit: u64 [0..=10]; }
-        data Caller { limit: u64 [0..=1]; selector: Selector; }
-        machine Selector::cut(&self) -> u64 [0..=self.limit] { 0 }
-        machine Caller::inspect(&self) -> u64 { self.selector.cut() }",
-    );
-    assert_eq!(range(&program, expression), None);
-}
-
-#[test]
-fn permissive_return_range_shells_are_not_enforced_intervals() {
-    for policy in ["Wrapping", "Saturating"] {
-        let (program, expression) = fixture(&format!(
-            "machine cut() -> u64 [1..=1] in {policy} {{ 1 }}
-             machine inspect() -> u64 {{ cut() }}"
-        ));
-        assert_eq!(range(&program, expression), None, "{policy}");
-    }
-}

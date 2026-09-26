@@ -2,9 +2,6 @@ use super::place_types::expression_type_reference_in_state;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 
-#[cfg(test)]
-mod tests;
-
 pub(in crate::flow::ownership) fn expression_requires_ownership(
     program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,

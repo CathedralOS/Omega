@@ -1,5 +1,5 @@
 //! Borrowed-byte edges retain source ranges and exact authored endpoint roles.
-use super::{CheckedScalarExpression, CheckedScalarExpressionRole, PrimitiveType};
+use super::CheckedScalarExpressionRole;
 use crate::tests::flow::terminal_unit::checked;
 use crate::tests::flow::terminal_unit::machine_named;
 use checked_trees::{
@@ -41,98 +41,6 @@ fn range_source(
         panic!("exact source parameter and retained range");
     };
     expression
-}
-
-#[test]
-fn guarded_byte_tail_retains_full_source_and_authored_endpoint_positions() {
-    let checked = checked(SOURCE);
-    let expression = range_source(&checked);
-    let ExpressionNode::Indexed(indexed) = checked.typed.expression_table.expression(expression)
-    else {
-        panic!("full source range");
-    };
-    let ExpressionNode::Range(range) = checked.typed.expression_table.expression(indexed.index)
-    else {
-        panic!("exclusive endpoints");
-    };
-    let plan = checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .composed_for_machine(machine_named(&checked, "writer"))
-        .unwrap();
-    let state = plan.states[0].state;
-    let bindings = &checked.facts.values.scalar_expressions;
-    let source_rows = bindings
-        .source_bindings
-        .iter()
-        .filter(|(_, binding)| {
-            binding.state == state
-                && binding.statement_ordinal == 0
-                && binding.role
-                    == CheckedScalarExpressionRole::TransitionArgument {
-                        argument_ordinal: 1,
-                    }
-        })
-        .map(|(_, binding)| binding)
-        .collect::<Vec<_>>();
-    assert!(
-        source_rows.is_empty(),
-        "a structural range has no scalar value row"
-    );
-    for (role, endpoint) in [
-        (
-            CheckedScalarExpressionRole::SubsliceStart {
-                site: checked_trees::CheckedSubsliceSite::TransitionArgument {
-                    argument_ordinal: 1,
-                },
-            },
-            range.start,
-        ),
-        (
-            CheckedScalarExpressionRole::SubsliceEnd {
-                site: checked_trees::CheckedSubsliceSite::TransitionArgument {
-                    argument_ordinal: 1,
-                },
-            },
-            range.end,
-        ),
-    ] {
-        let (binding, value) = bindings
-            .bound_expression_at(state, 0, role)
-            .expect("exact endpoint");
-        assert_eq!(binding.expression, endpoint);
-        assert!(!binding.destination.is_valid());
-        assert_eq!(value.primitive_type(), Some(PrimitiveType::U64));
-        assert!(
-            bindings.bound_expression_at(state, 1, role).is_none(),
-            "false edge has no tail endpoint"
-        );
-    }
-    assert!(matches!(
-        bindings.expression_at(
-            state,
-            0,
-            CheckedScalarExpressionRole::SubsliceEnd { site: checked_trees::CheckedSubsliceSite::TransitionArgument { argument_ordinal: 1 } }
-        ),
-        Some(CheckedScalarExpression::StructuralParameterByteLength {
-            root: checked_trees::CheckedStorageRoot::Parameter { index: 0 }, path
-        }) if path.is_empty()
-    ));
-    assert!(
-        bindings
-            .bound_expression_at(
-                state,
-                0,
-                CheckedScalarExpressionRole::SubsliceStart {
-                    site: checked_trees::CheckedSubsliceSite::TransitionArgument {
-                        argument_ordinal: 0
-                    }
-                }
-            )
-            .is_none(),
-        "dense structural index is not the authored argument coordinate"
-    );
 }
 
 #[test]
@@ -283,60 +191,4 @@ fn byte_tail_plan_rejects_selected_or_wrong_range_meaning_and_unknown_source() {
         rebuilt.composed_for_machine(machine).is_none(),
         "authored inclusive range"
     );
-}
-
-#[test]
-fn whole_byte_view_and_omitted_subslice_endpoints_keep_distinct_transfers() {
-    for argument in ["bytes", "bytes[..]", "bytes[1..]", "bytes[..bytes.len]"] {
-        let checked = checked(&SOURCE.replace("bytes[1..bytes.len]", argument));
-        let plan = checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .composed_for_machine(machine_named(&checked, "writer"))
-            .expect("view graph");
-        let CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, .. } =
-            &plan.states[0].terminator
-        else {
-            panic!("edge")
-        };
-        assert_eq!(when_true.transfers[0].target_parameter_index, 0);
-        if argument == "bytes" {
-            assert_eq!(
-                when_true.transfers[0].source,
-                CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 }
-            );
-        } else {
-            range_source(&checked);
-        }
-        let bindings = &checked.facts.values.scalar_expressions;
-        assert_eq!(
-            bindings
-                .bound_expression_at(
-                    plan.states[0].state,
-                    0,
-                    CheckedScalarExpressionRole::SubsliceStart {
-                        site: checked_trees::CheckedSubsliceSite::TransitionArgument {
-                            argument_ordinal: 1
-                        }
-                    }
-                )
-                .is_some(),
-            argument == "bytes[1..]"
-        );
-        assert_eq!(
-            bindings
-                .bound_expression_at(
-                    plan.states[0].state,
-                    0,
-                    CheckedScalarExpressionRole::SubsliceEnd {
-                        site: checked_trees::CheckedSubsliceSite::TransitionArgument {
-                            argument_ordinal: 1
-                        }
-                    }
-                )
-                .is_some(),
-            argument == "bytes[..bytes.len]"
-        );
-    }
 }

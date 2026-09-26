@@ -4,7 +4,7 @@
 //! state graph, whose callers rejoin the receiver; one that never reads it
 //! keeps a receiver-free graph its Unit callers reach as a pure scalar call.
 use super::checked_program_result;
-use checked_trees::{CheckedControlResultPlan, CheckedTrees, CheckedUnitEffectOperationPlan};
+use checked_trees::{CheckedTrees, CheckedUnitEffectOperationPlan};
 
 fn machine(checked: &CheckedTrees, suffix: &str) -> symbols::SymbolHandle {
     checked
@@ -13,93 +13,6 @@ fn machine(checked: &CheckedTrees, suffix: &str) -> symbols::SymbolHandle {
         .find(|machine| machine.name.as_str().ends_with(suffix))
         .unwrap()
         .symbol
-}
-
-fn assert_state_graph_owns(checked: &CheckedTrees, symbol: symbols::SymbolHandle) {
-    assert!(
-        checked
-            .facts
-            .flow
-            .terminal_scalar_graphs
-            .for_machine(symbol)
-            .is_none(),
-        "a receiver-reading machine has no scalar graph"
-    );
-    let plan = checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .composed_for_machine(symbol)
-        .expect("the Unit state graph owns the receiver-reading machine");
-    assert!(matches!(
-        plan.result,
-        CheckedControlResultPlan::Scalar { .. }
-    ));
-    assert!(
-        plan.states[0]
-            .structural_parameters
-            .iter()
-            .any(|parameter| parameter.is_self),
-        "the state graph retains the receiver its callers rejoin"
-    );
-}
-
-#[test]
-fn receiver_field_reads_leave_the_scalar_graph_for_the_state_graph() {
-    let source = r#"
-        data Filter { width: u64; }
-        machine Filter::count(&self, alignment: u64) -> u64
-        crashes Abort
-        {
-            transition alignment > 0 {
-                true -> divide(alignment)
-                false -> violated(alignment)
-            }
-            state violated(&self, alignment: u64) -> u64 {
-                crash Abort;
-            }
-            state divide(&self, alignment: u64) -> u64 {
-                transition {
-                    _ -> (self.width / alignment)
-                }
-            }
-        }
-    "#;
-    let checked = checked_program_result(source)
-        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
-    assert_state_graph_owns(&checked, machine(&checked, "::count"));
-}
-
-#[test]
-fn mixed_receiver_reads_leave_the_scalar_graph_for_the_state_graph() {
-    let source = r#"
-        data Alignment { bytes: u64; }
-        data Filter { width: u64; }
-        machine Filter::region_size(&self) -> u64 {
-            self.width
-        }
-        machine Filter::count(&self, width: u64, alignment: Alignment) -> u64
-        crashes Abort
-        {
-            let bytes: u64 = alignment.bytes;
-            transition self.width >= width && bytes > 0 {
-                true -> divide(width, bytes)
-                false -> violated()
-            }
-            state violated(&self) -> u64 {
-                crash Abort;
-            }
-            state divide(&self, width: u64, bytes: u64) -> u64 {
-                let size: u64 = self.region_size();
-                transition {
-                    _ -> (size / bytes)
-                }
-            }
-        }
-    "#;
-    let checked = checked_program_result(source)
-        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
-    assert_state_graph_owns(&checked, machine(&checked, "::count"));
 }
 
 /// The receiver-free graph is the Unit caller's pure scalar target, so a

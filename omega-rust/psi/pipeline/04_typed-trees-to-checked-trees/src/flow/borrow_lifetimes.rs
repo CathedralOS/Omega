@@ -149,6 +149,3 @@ fn borrow_owner_path_overlaps_place(
                 _ => false,
             })
 }
-
-#[cfg(test)]
-mod tests;

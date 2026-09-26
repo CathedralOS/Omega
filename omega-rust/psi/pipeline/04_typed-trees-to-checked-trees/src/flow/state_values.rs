@@ -2,8 +2,6 @@
 use crate::flow::FlowBuildContext;
 use crate::flow::canonical_place_from_semantic_place;
 use crate::semantic::calls::CallSite;
-#[cfg(test)]
-use crate::semantic::calls::find_call_site;
 use arena::HandleSpan;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{BorrowCallFact, FlowSemanticContextRef};

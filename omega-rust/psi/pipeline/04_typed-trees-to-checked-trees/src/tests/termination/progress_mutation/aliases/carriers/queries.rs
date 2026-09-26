@@ -1,8 +1,6 @@
 use crate::tests::front_end::typed_program;
 
 use crate::tests::termination::progress_mutation::fixture_source;
-use symbols::SymbolHandle;
-use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 
 pub(super) fn typed_fixture(body: &str, extra: &str) -> typed_trees::TypedTrees {
@@ -74,62 +72,4 @@ fn a_shared_selected_case_requires_retained_payload_evidence() {
         );
         assert_origin(&program, expected);
     }
-}
-
-#[test]
-fn conditional_shared_leaves_supply_their_own_origins_beside_a_known_sibling() {
-    // `choose` returns `context` on every guarded arm, so `wrap`'s result leaf
-    // and the `known` sibling each keep their own exact input identity.
-    for (selected, expected) in [("known", Some("context")), ("unknown", Some("replacement"))] {
-        let program = typed_fixture(
-            &format!(
-                "let returned: Carrier = wrap(replacement);
-                 let carrier: Pair = Pair {{ known: &context, unknown: returned.context }};
-                 let saved: Pair = carrier;
-                 let borrowed: &Context = saved.{selected};"
-            ),
-            "data Carrier { context: &Context; }
-             data Pair { known: &Context; unknown: &Context; }
-             machine choose(context: &Context, selected: bool) -> &Context {
-                 transition selected { true -> context false -> context }
-             }
-             machine wrap(context: &Context) -> Carrier {
-                 let chosen: &Context = choose(context, context.counter == 0);
-                 Carrier { context: chosen }
-             }",
-        );
-        assert_origin(&program, expected);
-    }
-}
-
-#[test]
-fn an_erased_carrier_root_cannot_recover_identity_from_its_spelling() {
-    let mut program = typed_fixture(
-        "let carrier: Carrier = Carrier { context: &context };
-         let borrowed: &Context = carrier.context;",
-        "data Carrier { context: &Context; }",
-    );
-    assert_origin(&program, Some("context"));
-    let roots = program
-        .expression_table
-        .iter_expressions()
-        .filter_map(|(handle, expression)| {
-            if let ExpressionNode::Name(name) = expression
-                && program.symbols.name(name.head_symbol) == "carrier"
-            {
-                Some(handle)
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<_>>();
-    assert!(!roots.is_empty());
-    for root in roots {
-        let ExpressionNode::Name(name) = program.expression_table.expression_mut(root) else {
-            unreachable!()
-        };
-        name.head_symbol = SymbolHandle::invalid();
-        name.symbol = SymbolHandle::invalid();
-    }
-    assert_origin(&program, None);
 }

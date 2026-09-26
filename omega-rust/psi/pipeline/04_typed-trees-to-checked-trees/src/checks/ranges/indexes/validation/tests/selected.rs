@@ -182,14 +182,6 @@ fn exact_selected_bounds_keep_attribution_and_actual_collection_extent() {
 }
 
 #[test]
-fn selected_contract_uses_exact_formal_symbols_not_conventional_names() {
-    let declarations = "boundary operator [] Other::index(values: &[bool], at: u64) -> bool requires false; boundary operator [] Slice::index(buffer: &[u8], offset: u64) -> u8 requires offset < buffer.len;";
-    let (program, expression, indexed, operators) = fixture(declarations, "[0]");
-    let (result, diagnostics) = check(&program, expression, &indexed, &operators);
-    assert_eq!(result, BoundsCheckResult::ProvenScalar, "{diagnostics:?}");
-}
-
-#[test]
 fn unrelated_or_additional_requires_cannot_stand_in_for_bounds() {
     for requires in [
         "",

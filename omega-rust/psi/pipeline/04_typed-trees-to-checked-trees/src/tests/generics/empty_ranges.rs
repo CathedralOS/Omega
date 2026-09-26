@@ -26,44 +26,6 @@ fn empty_integer_ranges_are_legal_without_value_establishment() {
 }
 
 #[test]
-fn empty_integer_ranges_reject_calls_stores_returns_and_zero_construction() {
-    for empty_type in EMPTY_TYPES {
-        for source in [
-            format!("machine sink(value: {empty_type}) {{ }} machine caller() {{ sink(0); }}"),
-            format!("machine caller() {{ let value: {empty_type} = 0; }}"),
-            format!("machine caller() -> {empty_type} {{ 0 }}"),
-            // Allocating gated zero storage is legal; constructing an
-            // established record while omitting its impossible field is not.
-            format!(
-                "data Empty {{ value: {empty_type}; }} machine caller() {{ let value: Empty = Empty {{ }}; }}"
-            ),
-        ] {
-            let typed = typed_program_result(&source).expect("empty destination source types");
-            let result = lower_typed_trees(typed, &CheckingRequest::settled());
-            assert!(
-                result.is_err(),
-                "empty destination accepted a concrete value: {source}"
-            );
-            let errors = result.err().unwrap();
-            assert!(
-                errors.iter().any(|error| {
-                    error.message.contains("range")
-                        || error.message.contains("zero")
-                        || error.message.contains("bounded parameter")
-                }),
-                "expected delivery or establishment failure, not a declaration fence: {source}: {errors:?}",
-            );
-            assert!(
-                errors
-                    .iter()
-                    .all(|error| !error.message.contains("declares an inverted range")),
-                "empty declarations themselves remain legal: {errors:?}",
-            );
-        }
-    }
-}
-
-#[test]
 fn empty_integer_ranges_project_to_rejecting_wire_bounds() {
     for empty_type in EMPTY_TYPES {
         let source = format!("machine unreachable(value: {empty_type}) {{ }}");

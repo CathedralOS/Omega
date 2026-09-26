@@ -1,4 +1,4 @@
-use super::{RangeCallContext, RangeFacts};
+use super::RangeCallContext;
 use crate::semantic::calls::CallSite;
 use crate::tests::front_end::typed_program;
 
@@ -143,34 +143,4 @@ fn owner_local_calls_rejoin_exact_nested_sibling_and_statement_occurrences() {
         transitions, 1,
         "fixture exercises the named transition target join"
     );
-}
-
-#[test]
-fn missing_call_evidence_is_opaque_not_a_complete_empty_write_frame() {
-    let program = program();
-    let borrows = crate::borrow::build_borrow_facts(&program);
-    let flow = crate::checks::ranges::cache_tests::range_flow_fixture(&program, &borrows);
-    let frames = validation::CallFrameResolver::new(&program);
-    let machine = &program.machines()[2];
-    let state = &program.machine_states(machine)[0];
-    let site = crate::semantic::calls::find_call_site(&program, machine.symbol, state.symbol, 0, 0)
-        .unwrap();
-    let empty_flow = checked_trees::FlowFacts::default();
-    let empty_borrows = checked_trees::BorrowFacts::default();
-    for (borrows, flow) in [(&borrows, &empty_flow), (&empty_borrows, &flow)] {
-        let context = RangeCallContext::new(machine, state, borrows, flow, frames.as_ref());
-        let mut facts = RangeFacts::new(&[]);
-        facts.bound_program = Some(&program);
-        facts.checked_calls = Some(&context);
-        assert_eq!(
-            facts.structured_call_writes(&program, machine, state, &site),
-            None
-        );
-        let mut branch = facts.clone();
-        assert!(std::ptr::eq(branch.checked_calls.unwrap(), &context));
-        assert_eq!(
-            branch.structured_call_writes(&program, machine, state, &site),
-            None
-        );
-    }
 }

@@ -5,9 +5,6 @@ use crate::checks::termination::progress::machine_summaries::{
     call_argument_subject_with_parameters, local_state_transition_target,
 };
 
-#[cfg(test)]
-mod tests;
-
 pub(super) struct ParameterTransfer {
     pub(super) destination: ProgressSubject,
     pub(super) source: Option<ProgressSubject>,

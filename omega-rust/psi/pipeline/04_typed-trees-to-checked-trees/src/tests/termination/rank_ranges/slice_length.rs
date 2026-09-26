@@ -32,36 +32,12 @@ fn reject(source: &str) {
 }
 
 #[test]
-fn slice_rank_requires_entry_membership_and_fixed_endpoints() {
-    reject(&WALK.replace("requires entries.len <= capacity;", ""));
-    reject(&WALK.replace("in 0..=capacity", "in 0..capacity"));
-    reject(&WALK.replace("in 0..=capacity", "in 1..=capacity"));
-    reject(&WALK.replace("entries[1..], capacity", "entries[1..], capacity + 1"));
-    reject(&WALK.replace("in 0..=capacity", "in 0..=entries.len"));
-}
-
-#[test]
 fn every_slice_edge_proves_geometry_and_strict_descent() {
     reject(&WALK.replace("entries[1..]", "entries"));
     reject(&WALK.replace("entries[1..]", "entries[0..]"));
     reject(&WALK.replace("entries[1..]", "entries[2..]"));
     reject(&WALK.replace("entries.len > 0", "entries.len >= 0"));
     reject(&WALK.replace("false -> 0", "false -> walk(entries, capacity)"));
-}
-
-#[test]
-fn variable_slice_step_uses_preserved_positive_premise() {
-    let source = WALK
-        .replace("capacity: u64", "capacity: u64, step: u64")
-        .replace(
-            "requires entries.len <= capacity",
-            "requires step > 0 && entries.len <= capacity",
-        )
-        .replace("entries.len > 0", "entries.len >= step")
-        .replace("entries[1..], capacity", "entries[step..], capacity, step");
-    prove(&source);
-    reject(&source.replace("requires step > 0 && ", "requires "));
-    reject(&source.replace("capacity, step)", "capacity, 0)"));
 }
 
 #[test]

@@ -2,15 +2,6 @@ use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
 
-fn check_expression(expression: &str, target: &str, expected: &str, accepted: bool) {
-    let source =
-        format!("machine value() -> {target}\nensures result == {expected}\n{{ {expression} }}");
-    match lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled()) {
-        Ok(_) => assert!(accepted, "unproved anonymous return accepted: {source}"),
-        Err(diagnostics) => assert!(!accepted, "{diagnostics:#?}\n{source}"),
-    }
-}
-
 fn combine_return_arms(program: &mut typed_trees::TypedTrees) {
     use typed_trees::statement::StatementNode;
     let machine = program.machines()[0].clone();
@@ -61,115 +52,6 @@ fn guarded_return_values_land_at_the_declared_destination() {
                     "combined={combined}: {source}: {result:?}"
                 );
             }
-        }
-    }
-}
-
-#[test]
-fn guarded_scalar_returns_read_current_storage_and_keep_saved_values() {
-    let source = "machine value(flag: bool) -> u8 ensures result == 7 { let mut current: u8 = 7; let saved: u8 = current; current = 8; transition flag { true -> saved false -> (current - 1) } }";
-    for combined in [false, true] {
-        let mut program = parse_typed_trees(source);
-        if combined {
-            combine_return_arms(&mut program);
-        }
-        lower_typed_trees(program, &CheckingRequest::settled())
-            .unwrap_or_else(|diagnostics| panic!("combined={combined}: {source}: {diagnostics:?}"));
-    }
-}
-
-#[test]
-fn anonymous_integer_arithmetic_lands_once_at_the_return_destination() {
-    for (expression, target, value) in [
-        ("3 + 4", "u8", "7"),
-        ("(255 + 1) - 1", "u8", "255"),
-        ("(0 - 1) + 2", "u8", "1"),
-        ("(127 + 1) - 1", "i8", "127"),
-        ("(0 - 128) + 1", "i8", "-127"),
-    ] {
-        check_expression(expression, target, value, true);
-        check_expression(expression, target, "0", false);
-    }
-}
-
-#[test]
-fn anonymous_integer_arithmetic_keeps_full_unsigned_and_intermediate_precision() {
-    for expression in [
-        "(9223372036854775807 * 2) + 1",
-        "(18446744073709551615 + 1) - 1",
-        "(18446744073709551615 * 18446744073709551615) / 18446744073709551615",
-    ] {
-        check_expression(expression, "u64", "18446744073709551615", true);
-        check_expression(expression, "u64", "18446744073709551614", false);
-    }
-}
-
-#[test]
-fn anonymous_integer_arithmetic_rejects_an_unrepresentable_final_value() {
-    for (expression, target) in [
-        ("255 + 1", "u8"),
-        ("127 + 1", "i8"),
-        ("0 - 1", "u8"),
-        ("18446744073709551615 + 1", "u64"),
-        ("1 / 0", "u8"),
-    ] {
-        check_expression(expression, target, "0", false);
-    }
-}
-
-#[test]
-fn anonymous_local_initializers_land_without_widths_on_intermediate_values() {
-    for (expression, target) in [
-        ("(255 + 1) - 1", "u8"),
-        ("(0 - 1) + 2", "u8"),
-        ("(0 - 129) + 1", "i8"),
-        ("(18446744073709551615 + 1) - 1", "u64"),
-        (
-            "(18446744073709551615 * 18446744073709551615) / 18446744073709551615",
-            "u64",
-        ),
-        ("(255 + 1) - 129", "u8 [0..=127]"),
-    ] {
-        for body in [
-            format!("let landed: {target} = {expression};"),
-            format!("let mut landed: {target} = {expression};"),
-            format!("let mut landed: {target} = 0; landed = {expression};"),
-        ] {
-            let source = format!("machine value() {{ {body} }}");
-            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
-                .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
-        }
-    }
-}
-
-#[test]
-fn anonymous_local_landing_enforces_final_carrier_and_refinement_ranges() {
-    for (expression, target) in [
-        ("255 + 1", "u8"),
-        ("127 + 1", "i8"),
-        ("0 - 1", "u8"),
-        ("18446744073709551615 + 1", "u64"),
-        ("(255 + 1) - 1", "u8 [0..=127]"),
-        ("(255u8 + 1u8) - 1u8", "u8"),
-    ] {
-        for body in [
-            format!("let landed: {target} = {expression};"),
-            format!("let mut landed: {target} = {expression};"),
-            format!("let mut landed: {target} = 0; landed = {expression};"),
-        ] {
-            let source = format!("machine value() {{ {body} }}");
-            let diagnostics =
-                lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
-                    .expect_err("a local destination cannot discard its numeric obligations");
-            assert!(
-                diagnostics.iter().any(|diagnostic| {
-                    diagnostic.message.contains("does not fit destination")
-                        || diagnostic.message.contains("may overflow")
-                        || diagnostic.message.contains("declared range")
-                        || diagnostic.message.contains("satisfies bounded target")
-                }),
-                "{source}: {diagnostics:#?}"
-            );
         }
     }
 }

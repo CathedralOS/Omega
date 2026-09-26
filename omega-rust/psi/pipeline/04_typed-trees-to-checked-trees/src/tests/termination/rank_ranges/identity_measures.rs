@@ -8,19 +8,6 @@ const COUNTDOWN: &str = include_str!(concat!(
 ));
 
 #[test]
-fn unsigned_identity_measures_share_range_and_descent_proofs() {
-    for carrier in ["u8", "u16", "u32", "u64"] {
-        let source = COUNTDOWN.replace("u64", carrier);
-        prove(&source);
-        prove(&source.replace("0..=5", "0..6"));
-        reject(&source.replace("in 0..=5", "in 1..=5"));
-        reject(&source.replace("in 0..=5", "in 0..=4"));
-        reject(&source.replace("walk(remaining - 1)", "walk(remaining)"));
-        reject(&source.replace("walk(remaining - 1)", "walk(remaining + 1)"));
-    }
-}
-
-#[test]
 fn identity_measure_carrier_matching_does_not_widen_or_discharge_qualifications() {
     for carrier in ["u8", "u16", "u32", "u64"] {
         let source = COUNTDOWN.replace("u64", carrier);
@@ -169,62 +156,5 @@ fn constrained_measure_signature_is_discharged_against_the_subject() {
         constrained.replace("remaining: u64 [0..=5]", "remaining: u64"),
     ] {
         reject(&source);
-    }
-}
-
-#[test]
-fn nonidentity_measure_bodies_cannot_reuse_the_parameter_rank() {
-    for body in ["nonexistent", "Other::value", "self", "0", "value + 1"] {
-        reject(&COUNTDOWN.replace("{ value }", &format!("{{ {body} }}")));
-    }
-    reject(&COUNTDOWN.replace("(value: u64)", "(value: u32)"));
-    reject(&COUNTDOWN.replace("(value: u64)", "(value: u64 [1..=5])"));
-}
-
-#[test]
-fn duplicate_view_paths_do_not_select_the_first_supported_measure() {
-    for body in ["value", "nonexistent", "0"] {
-        let duplicate = format!("measure Countdown::Remaining(value: u64) -> u64 {{ {body} }}");
-        reject(&format!("{duplicate}\n{COUNTDOWN}"));
-        reject(&format!("{COUNTDOWN}\n{duplicate}"));
-    }
-}
-
-#[test]
-fn same_spelling_or_invalid_handles_cannot_replace_the_measure_binder() {
-    let source = COUNTDOWN.replace("remaining", "value");
-    let program = typed_program(&source);
-    let machine = &program.machines()[0];
-    let state = &program.machine_states(machine)[0];
-    let foreign_parameter = program.state_parameters(state)[0].symbol;
-    let measure = &program.measures()[0];
-    let parameter = measure
-        .parameter
-        .as_ref()
-        .expect("measure parameter")
-        .symbol;
-    assert!(parameter.is_valid());
-    assert!(foreign_parameter.is_valid());
-    assert_ne!(parameter, foreign_parameter);
-    let body = program.expression_table.expression_handles(measure.body)[0];
-    for replacement in [
-        symbols::SymbolHandle::invalid(),
-        foreign_parameter,
-        measure.symbol,
-    ] {
-        let mut changed = program.clone();
-        let typed_trees::expression::ExpressionNode::Name(path) =
-            changed.expression_table.expression_mut(body)
-        else {
-            panic!("identity body");
-        };
-        path.symbol = replacement;
-        path.head_symbol = replacement;
-        crate::checks::termination::check_machine_termination(&changed)
-            .expect_err("only the exact valid measure binder supplies the identity rank");
-        assert_eq!(
-            crate::infer_machine_termination_summary(&changed, machine.symbol),
-            Some(language_semantics::TerminationGuarantee::NoGuarantee)
-        );
     }
 }

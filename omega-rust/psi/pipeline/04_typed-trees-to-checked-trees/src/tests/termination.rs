@@ -1,7 +1,6 @@
 use super::lower_typed_trees;
 
 mod crash_routes;
-mod data_facts;
 mod joint_rankings;
 mod operational_contracts;
 mod progress_lineage;
@@ -23,14 +22,10 @@ mod write_frame_case_results;
 mod write_frame_computed_indexes;
 mod write_frame_computed_reborrows;
 mod write_frame_computed_receivers;
-mod write_frame_conditional_results;
 mod write_frame_contextual_cases;
 mod write_frame_cycles;
 mod write_frame_indexed_calls;
 mod write_frame_literal_moves;
-mod write_frame_moved_aggregates;
-mod write_frame_named_state_transfer;
-mod write_frame_parameter_aggregates;
 mod write_frame_probe_r59;
 mod write_frame_requirement_calls;
 mod write_frame_returned_places;

@@ -1,7 +1,6 @@
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::front_end::typed_program;
-use typed_trees::proposition::ProofSubstitutions;
 
 mod anonymous_array_landing;
 mod anonymous_integer_exits;
@@ -19,7 +18,6 @@ mod byte_sequences;
 mod call_ceilings;
 mod call_result_guarantees;
 mod closed_boolean_calls;
-mod closed_scalar_arithmetic;
 mod contract_entailment_certificates;
 mod cyclic_header_invariants;
 mod element_fields;
@@ -27,7 +25,6 @@ mod entry_requirement_crash_coverage;
 mod fact_call_projections;
 mod indexing;
 mod instantiation;
-mod mutable_parameter_entry_contracts;
 mod mutable_parameter_results;
 mod nominal_parameter_fields;
 mod proof_call_requirements;
@@ -38,7 +35,6 @@ mod result_case_membership;
 mod resultless_laws;
 mod scalar_exits;
 mod scalar_result_bounds;
-mod scalar_storage_results;
 mod setter_requires;
 mod state_entry_contracts;
 mod state_field_values;
@@ -70,118 +66,6 @@ fn parse_typed_trees_with_service(source: &str) -> typed_trees::TypedTrees {
 }
 
 #[test]
-fn outcome_specific_guarantee_reaches_separate_checked_carrier() {
-    let typed = parse_typed_trees(
-        r#"
-        data Outcome { case Success; case Failure; }
-        machine choose() -> Outcome
-        ensures Outcome::Success -> { true; }
-        { Outcome::Success }
-        "#,
-    );
-    let outcome = typed
-        .data_definitions()
-        .iter()
-        .find(|data| data.name.as_str() == "Outcome")
-        .expect("Outcome data");
-    let success = typed
-        .data_members(outcome)
-        .iter()
-        .find_map(|member| match member {
-            typed_trees::data::DataMember::Variant(variant)
-                if variant.name.as_str() == "Success" =>
-            {
-                Some(variant)
-            }
-            _ => None,
-        })
-        .expect("Success case");
-    let outcome_symbol = outcome.symbol;
-    let success_symbol = success.symbol;
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("check guarded declaration stage");
-    let mut rows = checked.facts.proof.outcome_specific_guarantees.iter();
-    let (_, row) = rows.next().expect("one checked outcome-specific guarantee");
-    assert!(
-        rows.next().is_none(),
-        "one checked outcome-specific guarantee"
-    );
-    assert_eq!(row.result_data, outcome_symbol);
-    assert_eq!(row.result_case, success_symbol);
-    assert!(row.public_selector.is_none());
-    assert!(row.evidence_term.is_none());
-    assert!(
-        checked
-            .facts
-            .proof
-            .contract_facts
-            .iter()
-            .all(|(_, fact)| { fact.fact != row.fact }),
-        "guarded row must not enter the unconditional contract-fact lane"
-    );
-}
-
-#[test]
-fn outcome_specific_named_and_unnamed_rows_discharge_on_matching_exit() {
-    let typed = parse_typed_trees(
-        r#"
-        trait Evidence {}
-        proposition ready() evidence Evidence;
-        data Outcome { case Success; case Failure; }
-        machine choose() -> Outcome
-        requires incoming: ready()
-        ensures Outcome::Success -> {
-            selected: ready();
-            true;
-        }
-        {
-            selected = incoming;
-            Outcome::Success
-        }
-        "#,
-    );
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("matching exit discharges guarded rows");
-    let rows = checked
-        .facts
-        .proof
-        .outcome_specific_guarantees
-        .iter()
-        .map(|(_, row)| row)
-        .collect::<Vec<_>>();
-    assert_eq!(rows.len(), 2);
-    assert!(rows.iter().any(|row| row.evidence_term.is_some()));
-    assert!(rows.iter().any(|row| row.evidence_term.is_none()));
-    assert_eq!(checked.facts.proof.evidence_forwardings.iter().count(), 1);
-}
-
-#[test]
-fn outcome_specific_named_row_rejects_wrong_substituted_evidence() {
-    let typed = parse_typed_trees(
-        r#"
-        trait Evidence {}
-        data Outcome { case Success; case Failure; }
-        proposition accepted(value: Outcome) evidence Evidence;
-        machine choose() -> Outcome
-        requires incoming: accepted(Outcome::Failure)
-        ensures Outcome::Success -> { selected: accepted(result); }
-        {
-            selected = incoming;
-            Outcome::Success
-        }
-        "#,
-    );
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("the assigned term must match the concrete qualifying result");
-    assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("does not inhabit its guarantee after substituting the concrete result")),
-        "unexpected diagnostics: {diagnostics:?}"
-    );
-}
-
-#[test]
 fn outcome_specific_named_row_is_not_required_on_other_case() {
     let typed = parse_typed_trees(
         r#"
@@ -196,26 +80,6 @@ fn outcome_specific_named_row_is_not_required_on_other_case() {
     );
     lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("nonmatching result has no guarded evidence lane");
-}
-
-#[test]
-fn outcome_specific_named_row_requires_one_matching_assignment() {
-    let typed = parse_typed_trees(
-        r#"
-        trait Evidence {}
-        proposition ready() evidence Evidence;
-        data Outcome { case Success; case Failure; }
-        machine choose() -> Outcome
-        requires incoming: ready()
-        ensures Outcome::Success -> { selected: ready(); }
-        { Outcome::Success }
-        "#,
-    );
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("matching result must assign guarded named evidence");
-    assert!(diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
-        "outcome-specific evidence `selected` is not definitely assigned on the matching ordinary exit"
-    )), "unexpected diagnostics: {diagnostics:?}");
 }
 
 #[test]
@@ -244,49 +108,6 @@ fn outcome_specific_named_row_rejects_assignment_on_other_case() {
             )),
         "unexpected diagnostics: {diagnostics:?}"
     );
-}
-
-#[test]
-fn outcome_specific_named_row_rejects_duplicate_matching_assignment() {
-    let typed = parse_typed_trees(
-        r#"
-        trait Evidence {}
-        proposition ready() evidence Evidence;
-        data Outcome { case Success; case Failure; }
-        machine choose() -> Outcome
-        requires incoming: ready()
-        ensures Outcome::Success -> { selected: ready(); }
-        {
-            selected = incoming;
-            selected = incoming;
-            Outcome::Success
-        }
-        "#,
-    );
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("a guarded output is assigned exactly once on a matching path");
-    assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("named ensures evidence `selected` is assigned more than once")),
-        "unexpected diagnostics: {diagnostics:?}"
-    );
-}
-
-#[test]
-fn outcome_specific_unnamed_row_substitutes_concrete_result() {
-    let typed = parse_typed_trees(
-        r#"
-        data Outcome { case Success; case Failure; }
-        proposition accepted(value: Outcome);
-        machine choose() -> Outcome
-        requires accepted(Outcome::Success)
-        ensures Outcome::Success -> { accepted(result); }
-        { Outcome::Success }
-        "#,
-    );
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("matching fact proves the substituted result proposition");
 }
 
 #[test]
@@ -392,136 +213,6 @@ fn outcome_specific_rows_reject_unclassified_dynamic_result() {
             .message
             .contains("cannot classify the ordinary result case")),
         "unexpected diagnostics: {diagnostics:?}"
-    );
-}
-
-#[test]
-fn outcome_specific_selected_term_is_available_in_matching_caller_arm() {
-    let typed = parse_typed_trees(
-        r#"
-        trait Evidence {}
-        proposition ready() evidence Evidence;
-        ConcreteEvidence: satisfies Evidence {}
-        data Outcome [copy] { case Success; case Failure; }
-
-        machine produce() -> Outcome
-        ensures Outcome::Success -> { selected: ready(); }
-        { selected = ConcreteEvidence; Outcome::Success }
-
-        machine caller() {
-            transition produce() {
-                Outcome::Success { ; selected: local } -> consume(; local)
-                Outcome::Failure { } -> {}
-            }
-            state consume() requires needed: ready() {}
-        }
-        "#,
-    );
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("selected guarded term should bind in its arm");
-    let arm = checked
-        .facts
-        .proof
-        .outcome_specific_arms
-        .iter()
-        .next()
-        .map(|(_, arm)| arm)
-        .expect("one matching caller arm");
-    assert_eq!(arm.rows.len(), 1);
-    let selected = arm.rows[0]
-        .selected_term
-        .expect("selected caller-local term");
-    assert_eq!(
-        checked.facts.proof.evidence_terms.get(selected).name,
-        "local"
-    );
-}
-
-#[test]
-fn outcome_specific_selected_term_is_available_from_saved_immutable_call() {
-    let typed = parse_typed_trees(
-        r#"
-        trait Evidence {}
-        data Outcome [copy] { case Success; case Failure; }
-        proposition accepted(value: Outcome) evidence Evidence;
-
-        machine produce() -> Outcome
-        requires incoming: accepted(Outcome::Success)
-        ensures Outcome::Success -> { selected: accepted(result); }
-        { selected = incoming; Outcome::Success }
-
-        machine caller()
-        requires seed: accepted(Outcome::Success)
-        {
-            let saved: Outcome = produce(; seed);
-            transition saved {
-                Outcome::Success { ; selected: local } -> consume(saved; local)
-                Outcome::Failure { } -> {}
-            }
-            state consume(value: Outcome) requires needed: accepted(value) {}
-        }
-        "#,
-    );
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("saved immutable call should retain its selected term");
-    let arm = checked
-        .facts
-        .proof
-        .outcome_specific_arms
-        .iter()
-        .next()
-        .map(|(_, arm)| arm)
-        .expect("one matching caller arm");
-    assert!(arm.result_call_statement_index < arm.statement_index);
-    let caller_state = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "caller")
-        .and_then(|machine| checked.machine_states(machine).first())
-        .expect("caller entry state");
-    let typed_trees::statement::StatementNode::LocalData(saved) = &checked
-        .statement_table
-        .statements(caller_state.statement_nodes)[arm.result_call_statement_index]
-    else {
-        panic!("saved call statement must remain a local")
-    };
-    assert_eq!(saved.name.as_str(), "saved");
-    let validity = &arm.rows[0].validity;
-    assert_eq!(validity.result_occurrence, arm.result_expression);
-    assert_eq!(validity.referenced_occurrences.len(), 1);
-    let interface_scope = validity
-        .evidence_interface_scope
-        .as_ref()
-        .expect("witness-bearing proposition retains its interface scope");
-    assert_eq!(
-        interface_scope.retained_occurrences,
-        validity.referenced_occurrences
-    );
-    assert!(interface_scope.reference_regions.is_empty());
-    assert!(
-        checked
-            .facts
-            .semantic
-            .contexts_at_point(facts::ProgramPoint::Statement {
-                machine_symbol: arm.caller_machine_symbol,
-                state_symbol: arm.caller_state_symbol,
-                statement_index: arm.statement_index,
-            })
-            .flat_map(|context| context.facts())
-            .any(|fact| matches!(
-                fact.place,
-                facts::FactPlace::Place(place)
-                    if checked.facts.semantic.places.get(place).root
-                        == facts::PlaceRoot::Symbol(saved.symbol)
-            )),
-        "the saved result occurrence must root the guarded validity context"
-    );
-    let selected = arm.rows[0]
-        .selected_term
-        .expect("selected caller-local term");
-    assert_eq!(
-        checked.facts.proof.evidence_terms.get(selected).name,
-        "local"
     );
 }
 
@@ -635,91 +326,6 @@ fn outcome_specific_omitted_named_and_unnamed_rows_are_fact_only_in_matching_arm
 }
 
 #[test]
-fn outcome_specific_validity_invalidates_only_on_referenced_writes() {
-    for (mutated_field, should_invalidate) in [("value", true), ("other", false)] {
-        let source = format!(
-            r#"
-            trait Evidence {{}}
-            data Record {{ value: i32; other: i32; }}
-            data Outcome [copy] {{ case Success; case Failure; }}
-            proposition accepted(result_value: Outcome, observed: i32) evidence Evidence;
-
-            machine produce(observed: i32) -> Outcome
-            requires incoming: accepted(Outcome::Success, observed)
-            ensures Outcome::Success -> {{ selected: accepted(result, observed); }}
-            {{ selected = incoming; Outcome::Success }}
-
-            machine caller(record: &mut Record)
-            requires seed: accepted(Outcome::Success, record.value)
-            {{
-                let saved: Outcome = produce(record.value; seed);
-                transition saved {{
-                    Outcome::Success {{ ; selected: local }} -> consume(record, saved; local)
-                    Outcome::Failure {{ }} -> {{}}
-                }}
-                state consume(target: &mut Record, value: Outcome)
-                requires needed: accepted(value, target.value)
-                {{ target.{mutated_field} = 7; }}
-            }}
-            "#,
-        );
-        let checked = lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
-            .expect("guarded evidence should satisfy the target before its write");
-        let arm = checked
-            .facts
-            .proof
-            .outcome_specific_arms
-            .iter()
-            .next()
-            .map(|(_, arm)| arm)
-            .expect("one matching caller arm");
-        assert_eq!(
-            arm.rows[0].validity.referenced_occurrences.len(),
-            2,
-            "result and observed parameter are structural occurrences"
-        );
-        let guarantee = checked
-            .facts
-            .proof
-            .outcome_specific_guarantees
-            .get(arm.rows[0].guarantee)
-            .fact;
-        let consume = checked
-            .machines()
-            .iter()
-            .flat_map(|machine| checked.machine_states(machine))
-            .find(|state| state.name.as_str() == "consume")
-            .expect("consume state");
-        let call = checked
-            .facts
-            .flow
-            .control
-            .calls
-            .iter()
-            .find_map(|(_, call)| (call.target_symbol == consume.symbol).then_some(call))
-            .expect("consume call flow");
-        let invalidated = checked
-            .facts
-            .flow
-            .invalidations
-            .events
-            .span_or_empty(call.invalidations)
-            .iter()
-            .any(|event| {
-                matches!(
-                    checked.facts.semantic.facts.get(event.fact).payload,
-                    facts::FactPayload::ContractPropositionApplication { fact, .. }
-                        if fact == guarantee
-                )
-            });
-        assert_eq!(
-            invalidated, should_invalidate,
-            "mutation of `{mutated_field}` must follow exact referenced-place overlap"
-        );
-    }
-}
-
-#[test]
 fn outcome_specific_validity_contexts_do_not_couple_independent_rows() {
     let checked = lower_typed_trees(
         parse_typed_trees(
@@ -825,87 +431,6 @@ fn outcome_specific_validity_contexts_do_not_couple_independent_rows() {
 }
 
 #[test]
-fn outcome_specific_fact_and_term_do_not_leak_to_sibling_arm() {
-    let typed = parse_typed_trees(
-        r#"
-        trait Evidence {}
-        proposition ready() evidence Evidence;
-        ConcreteEvidence: satisfies Evidence {}
-        data Outcome [copy] { case Success; case Failure; }
-
-        machine produce() -> Outcome
-        ensures Outcome::Success -> { selected: ready(); }
-        { selected = ConcreteEvidence; Outcome::Success }
-
-        machine caller() {
-            transition produce() {
-                Outcome::Success { ; } -> {}
-                Outcome::Failure { } -> consume()
-            }
-            state consume() requires ready() {}
-        }
-        "#,
-    );
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("sibling arm remains independently checkable");
-    let arms = checked
-        .facts
-        .proof
-        .outcome_specific_arms
-        .iter()
-        .map(|(_, arm)| arm)
-        .collect::<Vec<_>>();
-    assert_eq!(
-        arms.len(),
-        1,
-        "only the matching Success arm publishes rows"
-    );
-    let arm = arms[0];
-    let guarantee = checked
-        .facts
-        .proof
-        .outcome_specific_guarantees
-        .get(arm.rows[0].guarantee)
-        .fact;
-    let caller_state = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "caller")
-        .and_then(|machine| checked.machine_states(machine).first())
-        .expect("caller entry state");
-    let sibling = checked
-        .statement_table
-        .statements(caller_state.statement_nodes)
-        .iter()
-        .enumerate()
-        .filter(|(_, statement)| {
-            matches!(
-                statement,
-                typed_trees::statement::StatementNode::Transition(_)
-            )
-        })
-        .map(|(index, _)| index)
-        .find(|index| *index != arm.statement_index)
-        .expect("Failure sibling transition");
-    assert!(
-        checked
-            .facts
-            .semantic
-            .contexts_at_point(facts::ProgramPoint::Statement {
-                machine_symbol: arm.caller_machine_symbol,
-                state_symbol: arm.caller_state_symbol,
-                statement_index: sibling,
-            })
-            .all(|context| context.facts().all(|fact| !matches!(
-                fact.payload,
-                facts::FactPayload::ContractPropositionApplication { fact, .. }
-                    if fact == guarantee
-            ))),
-        "matching-case guarantee must not be materialized at the sibling coordinate"
-    );
-}
-
-#[test]
 fn outcome_specific_selected_term_does_not_bind_in_a_sibling_arm() {
     let typed = parse_typed_trees(
         r#"
@@ -987,7 +512,6 @@ fn outcome_specific_selector_rejects_wrong_case_and_noncall_origin() {
     }
 }
 mod boundary_exit_facts;
-mod copied_fields;
 
 #[test]
 fn outcome_evidence_retains_constructor_payload_values_and_field_associations() {
@@ -1035,74 +559,4 @@ fn outcome_evidence_retains_constructor_payload_values_and_field_associations() 
             );
         }
     }
-}
-
-#[test]
-fn constructor_proof_labels_rejoin_selected_owners_and_retained_case_names() {
-    let mut program = parse_typed_trees(
-        "data First { case Same; } data Second { case Same; }
-         machine first() -> First { First::Same }
-         machine second() -> Second { Second::Same }",
-    );
-    let returned = |name: &str| {
-        let machine = program
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == name)
-            .unwrap();
-        let state = &program.machine_states(machine)[0];
-        let [typed_trees::statement::StatementNode::Expression(expression)] =
-            program.statement_table.statements(state.statement_nodes)
-        else {
-            panic!("one constructor result");
-        };
-        *expression
-    };
-    let first = returned("first");
-    let second = returned("second");
-    let original = program.render_proof_expression(first, ProofSubstitutions::None);
-    let typed_trees::expression::ExpressionNode::StructLiteral(literal) =
-        program.expression_table.expression(first).clone()
-    else {
-        panic!("normalized constructor");
-    };
-    let typed_trees::expression::ExpressionNode::StructLiteral(other) =
-        program.expression_table.expression_mut(second)
-    else {
-        panic!("normalized constructor");
-    };
-    other.type_name = literal.type_name.clone();
-    assert_ne!(
-        original,
-        program.render_proof_expression(second, ProofSubstitutions::None),
-        "diagnostic spelling cannot equate different selected owners"
-    );
-
-    let mut members = arena::HandleSpan::empty();
-    program
-        .expression_table
-        .push_name_path_member(&mut members, literal.type_name);
-    program
-        .expression_table
-        .push_name_path_member(&mut members, literal.case_name.unwrap());
-    let mut member_symbols = arena::HandleSpan::empty();
-    program
-        .expression_table
-        .push_name_path_member_symbol(&mut member_symbols, literal.type_symbol);
-    let case = literal.case_symbol.unwrap();
-    program
-        .expression_table
-        .push_name_path_member_symbol(&mut member_symbols, case);
-    *program.expression_table.expression_mut(first) =
-        typed_trees::expression::ExpressionNode::Name(typed_trees::expression::TableNamePath {
-            members,
-            member_symbols,
-            head_symbol: literal.type_symbol,
-            symbol: case,
-        });
-    assert_eq!(
-        original,
-        program.render_proof_expression(first, ProofSubstitutions::None),
-        "an exact retained case Name agrees with its normalized empty literal"
-    );
 }

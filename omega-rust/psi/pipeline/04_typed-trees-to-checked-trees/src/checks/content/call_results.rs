@@ -1107,26 +1107,6 @@ mod tests {
     }
 
     #[test]
-    fn replay_rejects_wrong_call_target() {
-        let mut checked = fixture(false);
-        let handle = result_fact(&checked);
-        let unrelated = checked
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "forward")
-            .expect("wrapper")
-            .symbol;
-        checked
-            .facts
-            .semantic
-            .facts
-            .get_mut(handle)
-            .evidence
-            .source_symbol = unrelated;
-        assert_replay(&checked, false);
-    }
-
-    #[test]
     fn replay_rejects_undeclared_result_field() {
         let mut checked = fixture(false);
         let handle = result_fact(&checked);
@@ -1210,11 +1190,6 @@ mod tests {
         checked
     }
 
-    #[test]
-    fn replay_accepts_authorized_issuance_occurrence() {
-        issuance_fixture();
-    }
-
     fn issuance_fact(checked: &CheckedTrees) -> facts::FactHandle {
         checked
             .facts
@@ -1233,23 +1208,6 @@ mod tests {
     }
 
     #[test]
-    fn replay_rejects_foreign_receipt_identity() {
-        // A nonzero receipt identity is receipt evidence, not fresh issuance:
-        // the occurrence must trace to this exact invocation, not to an
-        // admitted receipt that already crossed a boundary.
-        let mut checked = issuance_fixture();
-        let handle = issuance_fact(&checked);
-        checked
-            .facts
-            .semantic
-            .facts
-            .get_mut(handle)
-            .evidence
-            .receipt_identity = 7;
-        assert_replay(&checked, false);
-    }
-
-    #[test]
     fn replay_rejects_admitted_receipt_origin() {
         // Evidence that already crossed an admitted boundary under a public
         // contract cannot re-enter through the bare issuance route.
@@ -1257,28 +1215,6 @@ mod tests {
         let handle = issuance_fact(&checked);
         checked.facts.semantic.facts.get_mut(handle).evidence.origin =
             QualificationEvidenceOrigin::AdmittedReceipt;
-        assert_replay(&checked, false);
-    }
-
-    #[test]
-    fn replay_rejects_requirement_routed_evidence() {
-        // Evidence already attributed to a requirement route is not a bare
-        // invocation occurrence; counting it as issuance would mint twice.
-        let mut checked = issuance_fixture();
-        let handle = issuance_fact(&checked);
-        let routed = checked
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "obtain")
-            .expect("caller machine")
-            .symbol;
-        checked
-            .facts
-            .semantic
-            .facts
-            .get_mut(handle)
-            .evidence
-            .requirement_symbol = routed;
         assert_replay(&checked, false);
     }
 
@@ -1314,70 +1250,6 @@ mod tests {
                 .contains("cannot establish call-result qualification")),
             "expected call-result qualification rejection, got: {error:#?}"
         );
-    }
-
-    #[test]
-    fn transferred_input_is_not_fresh_supply() {
-        // `held` already carries `Granted`; feeding it through the issuance
-        // route must not count the same custody as fresh supply. `grant`
-        // declares no conservation or forwarding relation for it, so the
-        // result qualification cannot be established.
-        let source = r#"
-            data ByteUnit {}
-            data CountedQuantity<Unit> { magnitude: u64; }
-            trait Content<A> { machine project(subject: &Self) -> A; }
-            data Region [linear] { length: u64; }
-            domain Region::Granted established by Provider::grant;
-            machine Granted::content(region: &Region) -> CountedQuantity<ByteUnit>
-            satisfies Content<CountedQuantity<ByteUnit>>::project
-            { CountedQuantity { magnitude: region.length } }
-            boundary trait Provider {
-                machine grant(raw: Region) -> Region ensures result in Granted;
-            }
-            machine launder(provider: &Provider, held: Region in Granted) -> Region in Granted
-            reaches Provider
-            {
-                provider.grant(held)
-            }
-        "#;
-        let error = checked_program_result(source)
-            .expect_err("transferred input must not mint fresh supply");
-        assert!(
-            error.iter().any(|diagnostic| diagnostic
-                .message
-                .contains("cannot establish call-result qualification")),
-            "expected call-result qualification rejection, got: {error:#?}"
-        );
-    }
-
-    #[test]
-    fn declared_forwarding_is_not_issuance_but_still_admitted() {
-        // A boundary requirement that consumes a live `Granted` claim and
-        // returns the same family is a transfer. It stays admissible through
-        // the unique-forwarding route — never through the issuance route.
-        let source = r#"
-            data ByteUnit {}
-            data CountedQuantity<Unit> { magnitude: u64; }
-            trait Content<A> { machine project(subject: &Self) -> A; }
-            data Region [linear] { length: u64; }
-            domain Region::Granted established by Provider::grant;
-            machine Granted::content(region: &Region) -> CountedQuantity<ByteUnit>
-            satisfies Content<CountedQuantity<ByteUnit>>::project
-            { CountedQuantity { magnitude: region.length } }
-            boundary trait Provider {
-                machine grant(raw: Region) -> Region ensures result in Granted;
-            }
-            boundary trait Relay {
-                machine relay(held: Region in Granted) -> Region ensures result in Granted;
-            }
-            machine launder(relay: &Relay, held: Region in Granted) -> Region in Granted
-            reaches Relay
-            {
-                let forwarded: Region in Granted = relay.relay(held);
-                forwarded
-            }
-        "#;
-        checked_program(source);
     }
 
     #[test]

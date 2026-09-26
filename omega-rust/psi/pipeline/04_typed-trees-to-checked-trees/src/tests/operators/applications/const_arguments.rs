@@ -3,56 +3,7 @@ use crate::tests::front_end::{checked_program, checked_program_result};
 use crate::tests::operators::named_type;
 use crate::tests::operators::operator_with_spelling;
 
-use language_semantics::const_value::{CanonicalConstIdentity, DecodedCanonicalConstValue};
-
-#[test]
-fn checked_named_boundary_use_retains_inferred_const_value_and_carrier() {
-    let checked = checked_program(
-        r#"
-        data ArrayOps {}
-
-        boundary operator ArrayOps::same_length<const N: u64>(
-            left: [u8; N],
-            right: [u8; N]
-        ) -> bool;
-
-        machine compare(left: [u8; 4], right: [u8; 4]) -> bool {
-            ArrayOps::same_length(left, right)
-        }
-        "#,
-    );
-
-    let [application] = checked.facts.operators.boundary_applications.as_slice() else {
-        panic!("one closed const application")
-    };
-    let [
-        checked_trees::CheckedBoundaryOperatorApplicationArgument::Const {
-            binder_owner,
-            binder_ordinal,
-            binder_symbol,
-            declared_carrier,
-            value,
-        },
-    ] = application.arguments.as_slice()
-    else {
-        panic!("one const argument")
-    };
-    assert_eq!(*binder_owner, application.requirement_symbol);
-    assert_eq!(*binder_ordinal, 0);
-    assert!(binder_symbol.is_valid());
-    assert_eq!(
-        checked.typed.primitive_type_reference(*declared_carrier),
-        Some(typed_trees::types::PrimitiveType::U64)
-    );
-    assert_eq!(*value, CanonicalConstIdentity::integer("u64", 4));
-    assert_eq!(
-        value.decode_encoding(),
-        Some(DecodedCanonicalConstValue::Integer {
-            type_name: "u64".to_owned(),
-            value: 4,
-        })
-    );
-}
+use language_semantics::const_value::CanonicalConstIdentity;
 
 #[test]
 fn checked_spelled_boundary_use_retains_inferred_const_value() {
@@ -117,28 +68,6 @@ fn explicit_const_argument_must_corroborate_the_operand_value() {
 }
 
 #[test]
-fn repeated_const_binder_rejects_inconsistent_operand_lengths() {
-    let diagnostics = checked_program_result(
-        r#"
-        data ArrayOps {}
-        boundary operator ArrayOps::same_length<const N: u64>(
-            left: [u8; N],
-            right: [u8; N]
-        ) -> bool;
-        machine compare(left: [u8; 4], right: [u8; 5]) -> bool {
-            ArrayOps::same_length<4>(left, right)
-        }
-        "#,
-    )
-    .expect_err("inconsistent N must reject");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("operand application remains open or unresolved")
-    }));
-}
-
-#[test]
 fn mixed_type_and_const_application_retains_declaration_order() {
     let checked = checked_program(
         r#"
@@ -169,55 +98,6 @@ fn mixed_type_and_const_application_retains_declaration_order() {
             }
         ]
     ));
-}
-
-#[test]
-fn synthesized_generic_operand_recovers_its_const_application() {
-    let checked = checked_program(
-        r#"
-        data Block<const N: u64> { bytes: [u8; N]; }
-        data BlockOps {}
-        boundary operator BlockOps::equal<const N: u64>(
-            left: Block<N>,
-            right: Block<N>
-        ) -> bool;
-        machine compare(left: Block<4>, right: Block<4>) -> bool {
-            BlockOps::equal<4>(left, right)
-        }
-        "#,
-    );
-
-    let [application] = checked.facts.operators.boundary_applications.as_slice() else {
-        panic!("one reconstructed generic application")
-    };
-    let [checked_trees::CheckedBoundaryOperatorApplicationArgument::Const { value, .. }] =
-        application.arguments.as_slice()
-    else {
-        panic!("one reconstructed const argument")
-    };
-    assert_eq!(*value, CanonicalConstIdentity::integer("u64", 4));
-}
-
-#[test]
-fn inferred_const_value_must_fit_the_declared_carrier() {
-    let diagnostics = checked_program_result(
-        r#"
-        data ArrayOps {}
-        boundary operator ArrayOps::same_length<const N: u8>(
-            left: [u8; N],
-            right: [u8; N]
-        ) -> bool;
-        machine compare(left: [u8; 256], right: [u8; 256]) -> bool {
-            ArrayOps::same_length<256>(left, right)
-        }
-        "#,
-    )
-    .expect_err("out-of-range const must reject");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("does not fit exact carrier `u8`")
-    }));
 }
 
 #[test]

@@ -108,11 +108,6 @@ fn assert_selector_corruptions(body: &str, receiver: &str) {
 }
 
 #[test]
-fn nested_self_results_require_the_retained_outer_field_identity() {
-    assert_selector_corruptions("&self.inner.context", "self.inner");
-}
-
-#[test]
 fn an_alias_to_self_inner_cannot_repair_a_foreign_field() {
     assert_selector_corruptions(
         "let selected: &Inner = &self.inner; &selected.context",

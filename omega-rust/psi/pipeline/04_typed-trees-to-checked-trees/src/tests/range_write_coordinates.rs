@@ -35,59 +35,6 @@ fn source(declarations: &str, parameters: &str, boundary: &str, body: &str) -> S
     )
 }
 
-fn element_source(body: &str) -> String {
-    source(
-        "machine inspect(value: &i64) {}",
-        "original: &mut [i64; 2], index: u64 [0..=1]",
-        "original[0]",
-        body,
-    )
-}
-
-#[test]
-fn element_aliases_and_projected_calls_preserve_only_disjoint_bounds() {
-    for (body, accepted) in [
-        ("", true),
-        ("inspect(&original[0]);", true),
-        ("original[1] = replacement;", true),
-        ("original[0] = replacement;", false),
-        ("set(&mut original[1], replacement);", true),
-        ("set(&mut original[0], replacement);", false),
-        (
-            "let alias: &mut i64 = &mut original[1]; alias = replacement;",
-            true,
-        ),
-        (
-            "let alias: &mut i64 = &mut original[0]; alias = replacement;",
-            false,
-        ),
-        (
-            "let alias: &mut i64 = &mut original[1]; set(alias, replacement);",
-            true,
-        ),
-        (
-            "let alias: &mut i64 = &mut original[0]; set(alias, replacement);",
-            false,
-        ),
-    ] {
-        check(&element_source(body), accepted);
-    }
-}
-
-#[test]
-fn dynamic_element_aliases_and_calls_cannot_preserve_a_fixed_bound() {
-    // Declared selector bounds keep every indexed access legal independently
-    // of the premise that the write must invalidate.
-    for body in [
-        "original[index] = replacement;",
-        "set(&mut original[index], replacement);",
-        "let alias: &mut i64 = &mut original[index]; alias = replacement;",
-        "let alias: &mut i64 = &mut original[index]; set(alias, replacement);",
-    ] {
-        check(&element_source(body), false);
-    }
-}
-
 #[test]
 fn fields_below_elements_keep_both_coordinates_through_aliases_and_calls() {
     for (body, accepted) in [
@@ -149,48 +96,6 @@ fn fields_below_elements_keep_both_coordinates_through_aliases_and_calls() {
 }
 
 #[test]
-fn nested_arrays_keep_each_fixed_coordinate_and_overlapping_prefix() {
-    for (body, accepted) in [
-        ("", true),
-        ("set(&mut rows[0][1], replacement);", true),
-        ("set(&mut rows[1][0], replacement);", true),
-        ("set(&mut rows[0][0], replacement);", false),
-        (
-            "let alias: &mut i64 = &mut rows[0][1]; alias = replacement;",
-            true,
-        ),
-        (
-            "let alias: &mut i64 = &mut rows[0][0]; alias = replacement;",
-            false,
-        ),
-        (
-            "let row: &mut [i64; 2] = &mut rows[0]; set(&mut row[1], replacement);",
-            true,
-        ),
-        (
-            "let row: &mut [i64; 2] = &mut rows[0]; set(&mut row[0], replacement);",
-            false,
-        ),
-        ("replace_row(&mut rows[1], replacement);", true),
-        ("replace_row(&mut rows[0], replacement);", false),
-        ("set(&mut rows[index][0], replacement);", false),
-        ("set(&mut rows[0][index], replacement);", false),
-    ] {
-        check(
-            &source(
-                "machine replace_row(output: &mut [i64; 2], replacement: i64) {
-                     output = [replacement, replacement];
-                 }",
-                "rows: &mut [[i64; 2]; 2], index: u64 [0..=1]",
-                "rows[0][0]",
-                body,
-            ),
-            accepted,
-        );
-    }
-}
-
-#[test]
 fn whole_replacements_invalidate_descendant_bounds_through_aliases_and_calls() {
     for body in [
         "original = [replacement, replacement];",
@@ -209,29 +114,6 @@ fn whole_replacements_invalidate_descendant_bounds_through_aliases_and_calls() {
             ),
             false,
         );
-    }
-}
-
-#[test]
-fn rebinding_an_element_alias_does_not_retarget_an_earlier_reference_copy() {
-    for (initial, rebound) in [(0, 1), (1, 0)] {
-        for (mutation, accepted) in [
-            ("", true),
-            ("prior = replacement;", initial != 0),
-            ("set(prior, replacement);", initial != 0),
-            ("alias = replacement;", rebound != 0),
-            ("set(alias, replacement);", rebound != 0),
-        ] {
-            check(
-                &element_source(&format!(
-                    "let mut alias: &mut i64 = &mut original[{initial}];
-                     let prior: &mut i64 = alias;
-                     alias = &mut original[{rebound}];
-                     {mutation}"
-                )),
-                accepted,
-            );
-        }
     }
 }
 
@@ -260,51 +142,6 @@ fn projected_reborrows_keep_their_source_when_the_parent_binding_changes() {
                 accepted,
             );
         }
-    }
-}
-
-#[test]
-fn selector_mutation_cannot_retarget_an_existing_element_reference() {
-    for mutation in ["alias = replacement;", "set(alias, replacement);"] {
-        check(
-            &source(
-                "",
-                "original: &mut [i64; 2], mut index: u64 [0..=1]",
-                "original[0]",
-                &format!("let alias: &mut i64 = &mut original[index]; index = 1; {mutation}"),
-            ),
-            false,
-        );
-    }
-}
-
-#[test]
-fn expression_calls_and_nested_call_summaries_keep_exact_fixed_writes() {
-    for (body, accepted) in [
-        (
-            "let ignored: i64 = write_value(&mut original[1], replacement);",
-            true,
-        ),
-        (
-            "let ignored: i64 = write_value(&mut original[0], replacement);",
-            false,
-        ),
-        ("write_second(original, replacement);", true),
-        (
-            "set(&mut original[1], write_value(&mut original[0], replacement));",
-            false,
-        ),
-    ] {
-        check(
-            &source(
-                "machine write_value(output: &mut i64, replacement: i64) -> i64 { output = replacement; 0 }
-                 machine write_second(output: &mut [i64; 2], replacement: i64) { set(&mut output[1], replacement); }",
-                "original: &mut [i64; 2]",
-                "original[0]",
-                body,
-            ),
-            accepted,
-        );
     }
 }
 

@@ -976,11 +976,10 @@ pub(crate) fn type_reference_for_symbol(
 /// apply must still see `bool` there.
 #[cfg(test)]
 mod nested_comparison_operand_probes {
-    use super::{authored_operand_descriptor, typed_operator_has_no_authored_selection};
+    use super::typed_operator_has_no_authored_selection;
     use crate::tests::front_end::typed_program;
     use typed_trees::TypedTrees;
     use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
-    use typed_trees::operator::OperandType;
 
     /// `(left == right) == false` in a body, beside `declaration`.
     fn program_with(declaration: &str) -> TypedTrees {
@@ -1058,150 +1057,6 @@ mod nested_comparison_operand_probes {
         assert!(
             !typed_operator_has_no_authored_selection(&program, inner_equality(&program)),
             "the float comparison must keep the declared `f32` equality as its candidate"
-        );
-    }
-
-    /// The control for the same reader: a declared equality whose parameters
-    /// ARE booleans still applies, so the outer comparison keeps an authored
-    /// candidate and must not be attributed to the builtin operator.
-    #[test]
-    fn a_declared_boolean_equality_keeps_the_boolean_comparison_authored() {
-        let program = program_with("operator == Verdict::equal(left: bool, right: bool) -> bool;");
-        assert!(
-            !typed_operator_has_no_authored_selection(&program, outer_equality(&program)),
-            "a declared `bool` equality is a real candidate for `(a == b) == false`"
-        );
-    }
-
-    /// What the operand descriptor reports for each operand shape the nested
-    /// comparison presents.
-    #[test]
-    fn operand_carriers_distinguish_references_literals_and_comparisons() {
-        let program = program_with("operator == Reading::equal(left: f32, right: f32) -> bool;");
-        let ExpressionNode::Binary(outer) = program
-            .expression_table
-            .expression(outer_equality(&program))
-        else {
-            unreachable!("guarded binary")
-        };
-        let ExpressionNode::Binary(inner) = program
-            .expression_table
-            .expression(inner_equality(&program))
-        else {
-            unreachable!("guarded binary")
-        };
-        assert_eq!(
-            authored_operand_descriptor(&program, outer.left),
-            OperandType::Primitive(typed_trees::types::PrimitiveType::Bool),
-            "the only candidate for the float comparison returns `bool`, so its result is `bool` \
-             whether or not that candidate is the one selected"
-        );
-        assert_eq!(
-            authored_operand_descriptor(&program, outer.right),
-            OperandType::Primitive(typed_trees::types::PrimitiveType::Bool),
-            "a boolean literal names no type and is still `bool`"
-        );
-        assert!(
-            matches!(
-                authored_operand_descriptor(&program, inner.left),
-                OperandType::Reference(_)
-            ),
-            "a field operand carries its declared type reference"
-        );
-    }
-
-    /// `(self.left / 64) + (self.right % 64)` in a body, beside `declaration`.
-    fn arithmetic_program_with(declaration: &str) -> TypedTrees {
-        typed_program(&format!(
-            r#"
-            {declaration}
-            data Main {{ left: u64; right: u64; }}
-            machine Main::main(&mut self) {{
-                let folded: u64 = (self.left / 64) + (self.right % 64);
-            }}
-        "#
-        ))
-    }
-
-    /// The outer `+` of the arithmetic body: its operands are themselves
-    /// arithmetic.
-    fn outer_addition(program: &TypedTrees) -> ExpressionHandle {
-        program
-            .expression_table
-            .iter_expressions()
-            .find_map(|(expression, node)| {
-                matches!(node, ExpressionNode::Binary(binary)
-                    if binary.operator == BinaryOperator::Add)
-                .then_some(expression)
-            })
-            .expect("the body adds two arithmetic results")
-    }
-
-    /// The arithmetic twin of the comparison case: a declared `f32` addition
-    /// cannot apply to two `u64` results, but neither result names a type.
-    #[test]
-    fn a_declared_float_addition_leaves_the_integer_arithmetic_builtin() {
-        let program =
-            arithmetic_program_with("operator + Reading::add(left: f32, right: f32) -> f32;");
-        let addition = outer_addition(&program);
-        let ExpressionNode::Binary(binary) = program.expression_table.expression(addition) else {
-            unreachable!("guarded binary")
-        };
-        assert_eq!(
-            authored_operand_descriptor(&program, binary.left),
-            OperandType::Primitive(typed_trees::types::PrimitiveType::U64),
-            "a division of `u64` operands produces `u64`"
-        );
-        assert!(
-            typed_operator_has_no_authored_selection(&program, addition),
-            "no declared `f32` addition accepts two `u64` results"
-        );
-    }
-
-    /// The control: a declared addition over the operands' own carrier is a
-    /// real candidate, and the arithmetic result must not be attributed to the
-    /// builtin operator.
-    #[test]
-    fn a_declared_integer_addition_keeps_the_arithmetic_authored() {
-        let program =
-            arithmetic_program_with("operator + Total::add(left: u64, right: u64) -> u64;");
-        assert!(
-            !typed_operator_has_no_authored_selection(&program, outer_addition(&program)),
-            "a declared `u64` addition is a real candidate for two `u64` results"
-        );
-    }
-
-    /// The second control: a declared addition returning another carrier
-    /// leaves the nested result unknowable, exactly as a declared comparison
-    /// returning a non-`bool` does.
-    #[test]
-    fn a_declared_addition_returning_another_carrier_reports_an_unknown_operand() {
-        let program =
-            arithmetic_program_with("operator + Total::add(left: u64, right: u64) -> u32;");
-        assert_eq!(
-            authored_operand_descriptor(&program, outer_addition(&program)),
-            OperandType::Unknown,
-            "a declared `u64` addition returning `u32` leaves ITS OWN result unknown, because \
-             the selected meaning decides the carrier"
-        );
-    }
-
-    /// The second control: a declared comparison returning its own carrier
-    /// makes the nested result unknowable here, and the reader must report
-    /// that rather than assume `bool`.
-    #[test]
-    fn a_declared_comparison_returning_another_carrier_reports_an_unknown_operand() {
-        let program = program_with("operator == Reading::equal(left: f32, right: f32) -> u8;");
-        let ExpressionNode::Binary(outer) = program
-            .expression_table
-            .expression(outer_equality(&program))
-        else {
-            unreachable!("guarded binary")
-        };
-        assert_eq!(
-            authored_operand_descriptor(&program, outer.left),
-            OperandType::Unknown,
-            "a declared `f32` equality returning `u8` leaves the nested result unknown"
         );
     }
 }

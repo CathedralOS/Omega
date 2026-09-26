@@ -36,15 +36,6 @@ pub(crate) struct CheckedProgressSummary {
     pub(crate) build_bound_demands: Vec<BuildBoundProgressDemand>,
 }
 
-#[cfg(test)]
-pub(crate) fn analyze_checked_progress(
-    program: &typed_trees::TypedTrees,
-    flow: &FlowFacts,
-    semantic: &facts::FactPlan,
-) -> Result<Vec<CheckedProgressSummary>, Vec<Diagnostic>> {
-    analyze_checked_progress_with_call_frames(program, flow, semantic, None)
-}
-
 pub(crate) fn analyze_checked_progress_with_call_frames(
     program: &typed_trees::TypedTrees,
     flow: &FlowFacts,

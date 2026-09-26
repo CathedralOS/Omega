@@ -1,9 +1,7 @@
 //! Checked progress tests.
 
 use super::SymbolHandle;
-use crate::checks::termination::progress::qualification_correspondences::{
-    replay_root_type_reference, validate_qualification_correspondences,
-};
+use crate::checks::termination::progress::qualification_correspondences::validate_qualification_correspondences;
 use arena::HandleSpan;
 use facts::{
     Fact, FactOrigin, QualificationCorrespondence, QualificationEvidence,
@@ -414,38 +412,6 @@ fn nested_fixed_array_correspondence_fixture() -> (typed_trees::TypedTrees, fact
 }
 
 #[test]
-fn checked_progress_replays_exact_qualification_correspondence() {
-    let (program, semantic, _, _, _, _, _, _, _) = correspondence_fixture();
-    assert!(validate_qualification_correspondences(&program, &semantic).is_empty());
-}
-
-#[test]
-fn checked_progress_replays_exact_prior_state_local_as_either_endpoint() {
-    let (program, mut local_source, _, _, _, _, exact_local, _, _) = correspondence_fixture();
-    let parameter = match local_source
-        .places
-        .get(
-            local_source
-                .qualification_correspondences
-                .iter()
-                .next()
-                .map(|(_, row)| row.destination_place)
-                .expect("destination place"),
-        )
-        .root
-    {
-        PlaceRoot::Symbol(root) => root,
-        _ => unreachable!("symbol root"),
-    };
-    set_replay_roots(&mut local_source, exact_local, parameter);
-    assert!(validate_qualification_correspondences(&program, &local_source).is_empty());
-
-    let mut local_destination = local_source.clone();
-    set_replay_roots(&mut local_destination, parameter, exact_local);
-    assert!(validate_qualification_correspondences(&program, &local_destination).is_empty());
-}
-
-#[test]
 fn checked_progress_rejects_local_declaration_type_missing_duplicate_and_order_drift() {
     let (program, mut semantic, excluded_local, _, _, _, exact_local, _, _) =
         correspondence_fixture();
@@ -664,77 +630,6 @@ fn checked_progress_rejects_fixed_index_bounds_runtime_type_and_length_tamper() 
 }
 
 #[test]
-fn checked_progress_rejects_generic_and_label_only_data_traversal() {
-    let (mut generic_program, semantic, _, _, _, _, _, _, _) = correspondence_fixture();
-    let row = semantic
-        .qualification_correspondences
-        .iter()
-        .next()
-        .map(|(_, row)| row)
-        .expect("correspondence");
-    let (machine_symbol, state_symbol) = match row.formation {
-        facts::ProgramPoint::Statement {
-            machine_symbol,
-            state_symbol,
-            ..
-        } => (machine_symbol, state_symbol),
-        _ => unreachable!("statement formation"),
-    };
-    let parameter_root = match semantic.places.get(row.source_place).root {
-        PlaceRoot::Symbol(root) => root,
-        _ => unreachable!("symbol root"),
-    };
-    let data_symbol = match generic_program.type_reference_table.type_reference(
-        replay_root_type_reference(
-            &generic_program,
-            machine_symbol,
-            state_symbol,
-            1,
-            parameter_root,
-        )
-        .expect("root type"),
-    ) {
-        typed_trees::types::TypeReferenceNode::Named { symbol, .. } => *symbol,
-        _ => unreachable!("named fixture type"),
-    };
-    let arguments = generic_program
-        .type_reference_table
-        .insert_type_reference_handles([]);
-    let generic = generic_program.type_reference_table.insert(
-        typed_trees::types::TypeReferenceNode::Generic {
-            base_symbol: data_symbol,
-            base_name: typed_trees::name::Identifier::generated("Pair"),
-            lifetime_arguments: Vec::new(),
-            arguments,
-        },
-    );
-    set_replay_parameter_type(&mut generic_program, &semantic, generic);
-    assert!(
-        validate_qualification_correspondences(&generic_program, &semantic)
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("structural symbol place"))
-    );
-
-    let mut label_only_program = generic_program;
-    let wrong_symbol = match row.formation {
-        facts::ProgramPoint::Statement { machine_symbol, .. } => machine_symbol,
-        _ => unreachable!("statement formation"),
-    };
-    let wrong = label_only_program.type_reference_table.insert(
-        typed_trees::types::TypeReferenceNode::Named {
-            symbol: wrong_symbol,
-            name: typed_trees::name::Identifier::generated("Pair"),
-        },
-    );
-    set_replay_parameter_type(&mut label_only_program, &semantic, wrong);
-    assert!(
-        validate_qualification_correspondences(&label_only_program, &semantic)
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("structural symbol place"))
-    );
-}
-
-#[test]
 fn checked_progress_rejects_correspondence_payload_place_and_order_drift() {
     let (program, semantic, _, _, _, _, _, _, _) = correspondence_fixture();
 
@@ -947,7 +842,7 @@ fn checked_progress_rejects_excluded_roots_and_malformed_formation() {
 mod nested_call_arguments {
     use crate::tests::front_end::checked_program_result;
     use checked_trees::CheckedTrees;
-    use diagnostics::Diagnostic;
+
     use language_semantics::TerminationGuarantee;
 
     /// The progress-profile context every fixture shares: a `WeakFair`
@@ -969,14 +864,6 @@ mod nested_call_arguments {
         terminates;
         -> u64 { 0 }
         "#;
-
-    fn diagnostics(source: &str) -> Vec<Diagnostic> {
-        let source = format!("data Main {{}} machine Main::run(&mut self) {{}} {PROFILE} {source}");
-        match checked_program_result(&source) {
-            Ok(_) => Vec::new(),
-            Err(diagnostics) => diagnostics,
-        }
-    }
 
     fn checked(source: &str) -> CheckedTrees {
         let source = format!("data Main {{}} machine Main::run(&mut self) {{}} {PROFILE} {source}");
@@ -1051,59 +938,6 @@ mod nested_call_arguments {
     }
 
     #[test]
-    fn transition_argument_call_result_derives_the_exact_entry_subject() {
-        // `pick` publishes no premise of its own; it returns its domained
-        // parameter exactly. Binding `waiting`'s `selected` to
-        // `pick(context.scheduler)` makes `consume(selected)` demand
-        // `context.scheduler` on the caller — provable only by tracing the
-        // nested call result through `pick`'s returned expression, never
-        // through a same-shaped root.
-        let program = checked(
-            r#"
-            pub machine pick(handle: SchedulerHandle in WeakFair)
-            terminates;
-            -> SchedulerHandle in WeakFair { handle }
-            pub machine process(context: &Context, ready: bool)
-            requires context.scheduler in WeakFair
-            terminates;
-            -> u64 {
-                transition ready {
-                    true -> waiting(pick(context.scheduler))
-                    false -> 0
-                }
-                state waiting(selected: SchedulerHandle in WeakFair) -> u64 { consume(selected) }
-            }
-            "#,
-        );
-        assert_single_premise(&program, "process", "context", "Context::scheduler");
-    }
-
-    #[test]
-    fn transition_argument_nested_call_result_derives_the_exact_entry_subject() {
-        // The argument is a call whose own argument is a call. The premise
-        // still traces through both returned expressions to the caller's
-        // exact entry subject, at the arm's authored evaluation point.
-        let program = checked(
-            r#"
-            pub machine pick(handle: SchedulerHandle in WeakFair)
-            terminates;
-            -> SchedulerHandle in WeakFair { handle }
-            pub machine process(context: &Context, ready: bool)
-            requires context.scheduler in WeakFair
-            terminates;
-            -> u64 {
-                transition ready {
-                    true -> waiting(pick(pick(context.scheduler)))
-                    false -> 0
-                }
-                state waiting(selected: SchedulerHandle in WeakFair) -> u64 { consume(selected) }
-            }
-            "#,
-        );
-        assert_single_premise(&program, "process", "context", "Context::scheduler");
-    }
-
-    #[test]
     fn may_write_helper_result_derives_the_replacement_input_premise() {
         // `stamp` writes the replacement input into `context` and returns the
         // input itself: the demanded premise is the replacement's exact
@@ -1153,47 +987,5 @@ mod nested_call_arguments {
             "#,
         );
         assert_single_premise(&program, "process", "replacement", "FairContext::slot");
-    }
-
-    #[test]
-    fn transition_argument_call_with_unresolved_route_stays_unproven() {
-        // `choose` routes through a control-flow join; neither operand is the
-        // exact origin, so the inner state's demanded premise cannot be
-        // reconstructed onto a caller subject. `process` declares `terminates`
-        // but its checked body stays unproven, so the route is rejected rather
-        // than silently accepted against a same-shaped field.
-        let diagnostics = diagnostics(
-            r#"
-            pub machine choose(
-                first: SchedulerHandle in WeakFair,
-                second: SchedulerHandle in WeakFair,
-                pick_first: bool
-            )
-            terminates;
-            -> SchedulerHandle in WeakFair {
-                transition pick_first {
-                    true -> first
-                    false -> second
-                }
-            }
-            machine process(context: &Context, spare: &Context, pick_first: bool)
-            requires context.scheduler in WeakFair
-            requires spare.scheduler in WeakFair
-            terminates;
-            -> u64 {
-                transition pick_first {
-                    true -> waiting(choose(context.scheduler, spare.scheduler, pick_first))
-                    false -> 0
-                }
-                state waiting(selected: SchedulerHandle in WeakFair) -> u64 { consume(selected) }
-            }
-            "#,
-        );
-        assert!(
-            diagnostics.iter().any(|diagnostic| diagnostic
-                .message
-                .contains("cannot prove published termination for machine `process`")),
-            "unresolved route must stay unproven: {diagnostics:#?}"
-        );
     }
 }

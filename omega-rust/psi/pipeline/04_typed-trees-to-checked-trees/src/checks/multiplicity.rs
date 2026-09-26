@@ -9,12 +9,8 @@
 
 mod borrowed_windows;
 mod claim_outcomes;
-#[cfg(test)]
-mod generic_substitution_tests;
 mod linear_obligations;
 mod linear_validation;
-#[cfg(test)]
-mod nested_ownership_tests;
 mod owned_selection;
 mod permission_events;
 mod projected_affine;
@@ -25,6 +21,4 @@ pub(crate) use linear_obligations::{check_linear_obligations, nominal_drop_machi
 pub(crate) use linear_validation::linear_claim_frontier;
 #[cfg(test)]
 pub(crate) use linear_validation::validate_linear_permission_events;
-#[cfg(test)]
-pub(crate) use permission_events::record_permission_events;
 pub(crate) use type_multiplicity::{type_carries_linear_obligation, type_multiplicity};

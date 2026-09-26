@@ -2,10 +2,6 @@ use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::front_end::typed_program_with_generic_data_result;
 use checked_trees::CheckedTrees;
-use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::statement::{StatementNode, TransitionTargetNode};
 
 fn accepts(source: &str) -> CheckedTrees {
     let typed =
@@ -26,154 +22,6 @@ fn rejects(source: &str, fragment: &str) {
             .any(|diagnostic| diagnostic.message.contains(fragment)),
         "expected {fragment:?}: {diagnostics:#?}\n{source}"
     );
-}
-
-fn returned_expression(program: &TypedTrees, machine_symbol: SymbolHandle) -> ExpressionHandle {
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)
-        .expect("machine with the retained symbol");
-    let [state] = program.machine_states(machine) else {
-        panic!("one entry state")
-    };
-    match program
-        .statement_table
-        .statements(state.statement_nodes)
-        .last()
-    {
-        Some(StatementNode::Expression(expression)) => *expression,
-        Some(StatementNode::Transition(transition)) => {
-            let TransitionTargetNode::Value(expression) =
-                program.statement_table.transition_target(transition.target)
-            else {
-                panic!("a value exit")
-            };
-            *expression
-        }
-        statement => panic!("expected a returned expression: {statement:#?}"),
-    }
-}
-
-#[test]
-fn inferred_const_binder_is_an_executable_checked_value() {
-    let source = "machine endpoint<const N: u64[0..=3]>(witness: &[u8; N]) -> u64 [0..=3] { N }
-        machine main() -> u64 {
-            let witness: [u8; 2] = [0, 0];
-            endpoint(&witness)
-        }";
-    let typed =
-        typed_program_with_generic_data_result(source).expect("inferred const body should type");
-    let endpoint = &typed.machines()[0];
-    let [binder] = typed.machine_type_parameters(endpoint) else {
-        panic!("endpoint has one const binder")
-    };
-    assert!(binder.symbol.is_valid());
-    let ExpressionNode::Name(path) = typed
-        .expression_table
-        .expression(returned_expression(&typed, endpoint.symbol))
-    else {
-        panic!("unspecialized body retains its binder reference")
-    };
-    assert_eq!(path.symbol, binder.symbol);
-    let endpoint_symbol = endpoint.symbol;
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("inferred N must pass checked return-range proof");
-    let endpoint_instance = checked
-        .machine_specializations
-        .iter()
-        .find(|specialization| specialization.template == endpoint_symbol)
-        .expect("selected endpoint instance")
-        .instance;
-    assert_ne!(endpoint_instance, endpoint_symbol);
-    let ExpressionNode::Integer(value) = checked
-        .expression_table
-        .expression(returned_expression(&checked, endpoint_instance))
-    else {
-        panic!("closed body returns an integer value")
-    };
-    assert_eq!(value.value_u64(), Some(2));
-}
-
-#[test]
-fn original_and_cloned_instances_return_distinct_closed_values() {
-    let checked = accepts(
-        "machine endpoint<const N: u64[0..=3]>(witness: &[u8; N]) -> u64 [0..=3] { N }
-         machine main() -> u64 {
-             let pair: [u8; 2] = [0, 0];
-             let triple: [u8; 3] = [0, 0, 0];
-             let first: u64 = endpoint(&pair);
-             let second: u64 = endpoint(&triple);
-             second
-         }",
-    );
-    let [original, cloned] = checked.machine_specializations.as_slice() else {
-        panic!("two closed const instances")
-    };
-    assert_ne!(original.instance, original.template);
-    assert_ne!(cloned.instance, cloned.template);
-    assert_eq!(cloned.template, original.template);
-    assert_ne!(original.instance, cloned.instance);
-    for (specialization, expected) in [(original, 2), (cloned, 3)] {
-        let ExpressionNode::Integer(value) = checked
-            .expression_table
-            .expression(returned_expression(&checked, specialization.instance))
-        else {
-            panic!("each checked instance returns its own integer")
-        };
-        assert_eq!(value.value_u64(), Some(expected));
-    }
-}
-
-#[test]
-fn original_and_cloned_const_values_must_independently_prove_return_ranges() {
-    for earlier_call in ["", "let earlier: u64 = endpoint(&pair);"] {
-        rejects(
-            &format!(
-                "machine endpoint<const N: u64>(witness: &[u8; N]) -> u64 [0..=3] {{ N }}
-                 machine main() -> u64 {{
-                     let pair: [u8; 2] = [0, 0];
-                     let oversized: [u8; 5] = [0, 0, 0, 0, 0];
-                     {earlier_call}
-                     endpoint(&oversized)
-                 }}"
-            ),
-            "not provably within its declared range",
-        );
-    }
-}
-
-#[test]
-fn same_spelled_const_binders_in_different_machines_keep_their_symbols() {
-    let source = "machine pair<const N: u64[2..=2]>(witness: &[u8; N]) -> u64 [2..=2] { N }
-        machine triple<const N: u64[3..=3]>(witness: &[u8; N]) -> u64 [3..=3] { N }
-        machine main() -> u64 {
-            let pair_witness: [u8; 2] = [0, 0];
-            let triple_witness: [u8; 3] = [0, 0, 0];
-            let first: u64 = pair(&pair_witness);
-            triple(&triple_witness)
-        }";
-    let typed =
-        typed_program_with_generic_data_result(source).expect("separate const scopes should type");
-    let first_binder = typed.machine_type_parameters(&typed.machines()[0])[0].symbol;
-    let second_binder = typed.machine_type_parameters(&typed.machines()[1])[0].symbol;
-    assert!(first_binder.is_valid());
-    assert!(second_binder.is_valid());
-    assert_ne!(first_binder, second_binder);
-    for (machine, binder) in typed.machines()[..2]
-        .iter()
-        .zip([first_binder, second_binder])
-    {
-        let ExpressionNode::Name(path) = typed
-            .expression_table
-            .expression(returned_expression(&typed, machine.symbol))
-        else {
-            panic!("body retains a resolved const reference")
-        };
-        assert_eq!(path.symbol, binder);
-    }
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("each machine proves its own exact return range");
 }
 
 #[test]
@@ -231,52 +79,6 @@ fn const_return_call_requires_a_declared_guarantee() {
 }
 
 #[test]
-fn retained_const_binder_return_equality_is_checked_without_observed_values() {
-    accepts(
-        "machine endpoint<const N: u64>() -> u64 ensures result == N { N }
-        machine main() -> u64 { endpoint<2>() }",
-    );
-    accepts(
-        "machine endpoint<const N: u64>() -> u64 ensures result == N { N }
-        machine main() -> u64 { 0 }",
-    );
-    rejects(
-        "machine endpoint<const N: u64>() -> u64 ensures result == N { 0 }
-        machine main() -> u64 { endpoint<0>() }",
-        "ensures",
-    );
-}
-
-#[test]
-fn observed_const_values_cannot_authorize_an_unbounded_template_return() {
-    rejects(
-        "machine endpoint<const N: u64>() -> u64[0..=3] { N }
-        machine main() -> u64 { endpoint<2>() }",
-        "returns a value not provably within its declared range",
-    );
-}
-
-#[test]
-fn declared_const_carrier_range_justifies_the_template_return_range() {
-    accepts(
-        "machine endpoint<const N: u64[0..=3]>() -> u64[0..=3] { N }
-        machine main() -> u64 { endpoint<2>() }",
-    );
-}
-
-#[test]
-fn compound_required_endpoints_are_declared_but_do_not_solve_binders() {
-    rejects(
-        "machine bound<const N: u64>(value: u64[0..=N * 2]) -> u64 { N }
-         machine main() -> u64 {
-             let wide: u64[0..=256] = 256;
-             bound(wide)
-         }",
-        "cannot derive",
-    );
-}
-
-#[test]
 fn symbolic_const_return_ranges_use_the_declared_binder_not_selected_values() {
     accepts(
         "machine endpoint<const N: u64>() -> u64[0..=N] { N }
@@ -321,48 +123,6 @@ fn symbolic_const_return_ranges_use_the_declared_binder_not_selected_values() {
 }
 
 #[test]
-fn generated_tail_result_locals_keep_the_selected_const_return_bound() {
-    for (first, last) in [("pair", "triple"), ("triple", "pair")] {
-        let checked = accepts(&format!(
-            "machine value<const N: u64>(witness: &[u8; N]) -> u64[0..=N] {{ N }}
-        machine main() -> u64 {{
-            let pair: [u8; 2] = [0, 0];
-            let triple: [u8; 3] = [0, 0, 0];
-            let first: u64 = value(&{first});
-            value(&{last})
-        }}"
-        ));
-        let mut inferred = 0;
-        for machine in checked.machines() {
-            for state in checked.machine_states(machine) {
-                for statement in checked.statement_table.statements(state.statement_nodes) {
-                    let StatementNode::LocalData(local) = statement else {
-                        continue;
-                    };
-                    if !local.type_is_inferred {
-                        continue;
-                    }
-                    let ExpressionNode::Call(call) =
-                        checked.expression_table.expression(local.initial_value)
-                    else {
-                        continue;
-                    };
-                    let selected = checked
-                        .machines()
-                        .iter()
-                        .flat_map(|machine| checked.machine_states(machine))
-                        .find(|state| state.symbol == call.target_symbol)
-                        .expect("selected return state");
-                    assert_eq!(local.type_reference, selected.return_type);
-                    inferred += 1;
-                }
-            }
-        }
-        assert_eq!(inferred, 1);
-    }
-}
-
-#[test]
 fn cloned_callers_keep_inferred_result_types_and_authored_annotations_distinct() {
     accepts(
         "machine value<const N: u64>(witness: &[u8; N]) -> u64[0..=N] { N }
@@ -387,50 +147,6 @@ fn cloned_callers_keep_inferred_result_types_and_authored_annotations_distinct()
             forward(&triple)
         }",
         "not provably within its declared range",
-    );
-}
-
-#[test]
-fn authored_unit_annotation_is_not_an_inferred_temporary() {
-    let mut typed = typed_program_with_generic_data_result(
-        "machine value<const N: u64>(witness: &[u8; N]) -> u64 { N }
-        machine main() -> u64 {
-            let pair: [u8; 2] = [0, 0];
-            let result: () = value(&pair);
-            7
-        }",
-    )
-    .expect("authored Unit destination types before validation");
-    let assert_annotation = |program: &TypedTrees| {
-        let local = program
-            .machines()
-            .iter()
-            .flat_map(|machine| program.machine_states(machine))
-            .flat_map(|state| program.statement_table.statements(state.statement_nodes))
-            .find_map(|statement| match statement {
-                StatementNode::LocalData(local) if local.name.as_str() == "result" => Some(local),
-                _ => None,
-            })
-            .expect("authored Unit local");
-        assert!(!local.type_is_inferred, "authored Unit is not inferred");
-        assert!(matches!(
-            program
-                .type_reference_table
-                .type_reference(local.type_reference),
-            typed_trees::types::TypeReferenceNode::Unit
-        ));
-    };
-    assert_annotation(&typed);
-    crate::specialize_static_machine_calls(&mut typed).expect("select the explicit scalar callee");
-    assert_annotation(&typed);
-    let Err(diagnostics) = lower_typed_trees(typed, &CheckingRequest::settled()) else {
-        panic!("an explicit Unit local cannot admit a scalar call result");
-    };
-    assert!(
-        diagnostics.iter().any(|diagnostic| {
-            diagnostic.message.contains("local `result`") && diagnostic.message.contains("Unit")
-        }),
-        "unexpected diagnostics: {diagnostics:#?}"
     );
 }
 

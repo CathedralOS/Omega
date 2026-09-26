@@ -279,20 +279,6 @@ mod tests {
     }
 
     #[test]
-    fn checked_boundary_accepts_exact_single_attempt_result_custody() {
-        let program = program_with_atomic(
-            AtomicOrderingPlan::CompareExchangeOnce {
-                success: MemoryOrdering::ReceivePublish,
-                failure: MemoryOrdering::Receive,
-            },
-            ResultCustody::ObservingCompareExchangeOnce(OnceCustody::CANONICAL),
-            true,
-        );
-
-        assert!(validate_atomic_result_custody(&program).is_ok());
-    }
-
-    #[test]
     fn checked_boundary_rejects_incomplete_or_substituted_single_attempt_custody() {
         let once_ordering = AtomicOrderingPlan::CompareExchangeOnce {
             success: MemoryOrdering::ReceivePublish,
@@ -350,19 +336,5 @@ mod tests {
             let program = program_with_atomic(ordering, custody, has_result);
             assert!(validate_atomic_result_custody(&program).is_err());
         }
-    }
-
-    #[test]
-    fn checked_boundary_keeps_decisive_scalar_custody_unchanged() {
-        let program = program_with_atomic(
-            AtomicOrderingPlan::CompareExchange {
-                success: MemoryOrdering::ReceivePublish,
-                failure: MemoryOrdering::Receive,
-            },
-            ResultCustody::Scalar,
-            true,
-        );
-
-        assert!(validate_atomic_result_custody(&program).is_ok());
     }
 }

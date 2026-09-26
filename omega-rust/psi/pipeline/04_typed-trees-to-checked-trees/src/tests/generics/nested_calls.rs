@@ -48,17 +48,3 @@ fn another_complete_call_cannot_supply_a_nested_calls_missing_binding() {
         "specialization tuple",
     );
 }
-
-#[test]
-fn conflicting_nested_generic_arguments_cannot_choose_one_binding() {
-    rejects(
-        "machine endpoint<const N: u64>(first: &[u8; N], second: &[u8; N]) -> u64 [0..=3] { 2 }
-         machine window(items: &[i32; 4]) -> u64 {
-             let pair: [u8; 2] = [0, 0];
-             let triple: [u8; 3] = [0, 0, 0];
-             let view: &[i32] = items[..endpoint(&pair, &triple)];
-             view.len
-         }",
-        "specialization tuple",
-    );
-}

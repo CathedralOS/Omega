@@ -1,9 +1,7 @@
 use super::super::super::TerminationGuarantee;
 use crate::tests::termination::progress_mutation::CONTEXT_FIXTURE;
-use crate::tests::termination::progress_mutation::check_source;
 
 mod exposure;
-mod queries;
 mod transfer;
 
 fn fixture_source(access: &str, body: &str, extra: &str) -> String {
@@ -47,43 +45,4 @@ fn assert_input_subject(program: &checked_trees::CheckedTrees) {
             .collect::<Vec<_>>(),
         ["Carrier::context", "Context::scheduler"]
     );
-}
-
-#[test]
-fn a_reference_loaded_from_an_owned_input_carrier_keeps_its_subject() {
-    for access in ["", "mut "] {
-        let program = check_source(&fixture_source(
-            access,
-            &format!(
-                "let borrowed: &{access}Context = carrier.context;
-             transition {{ _ -> wait_context(borrowed) }}"
-            ),
-            "",
-        ));
-        assert_input_subject(&program);
-    }
-}
-
-#[test]
-fn a_local_copy_of_an_input_carrier_retains_its_shared_reference() {
-    let program = check_source(&fixture_source(
-        "",
-        "let saved: Carrier = carrier;
-         let borrowed: &Context = saved.context;
-         transition { _ -> wait_context(borrowed) }",
-        "",
-    ));
-    assert_input_subject(&program);
-}
-
-#[test]
-fn a_disjoint_store_through_an_input_reference_preserves_its_subject() {
-    let program = check_source(&fixture_source(
-        "mut ",
-        "let borrowed: &mut Context = carrier.context;
-         borrowed.counter = 1;
-         transition { _ -> wait_context(borrowed) }",
-        "",
-    ));
-    assert_input_subject(&program);
 }

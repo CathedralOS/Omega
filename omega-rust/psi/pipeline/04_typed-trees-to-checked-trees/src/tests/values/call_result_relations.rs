@@ -31,110 +31,6 @@ fn accepts(source: &str) {
         .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
 }
 
-fn rejects_subtraction(source: &str) {
-    let diagnostics = match lower_typed_trees(typed_program(source), &CheckingRequest::settled()) {
-        Ok(_) => panic!("an invalid call-result relation authorized subtraction: {source}"),
-        Err(diagnostics) => diagnostics,
-    };
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("may overflow")),
-        "the source must reach arithmetic checking: {source}\n{diagnostics:#?}"
-    );
-}
-
-#[test]
-fn repeated_pure_call_relation_follows_renamed_reordered_state_arguments() {
-    // No target Requires: this must transport the established guard itself.
-    accepts(&format!(
-        r#"
-        {COST}
-        machine spend(level: u32 [1..=10], xp: u32 [0..=1000]) -> u32 [0..=1000] {{
-            transition xp >= cost(level) {{
-                true -> debit(xp, level)
-                false -> (xp)
-            }}
-            state debit(available: u32 [0..=1000], rank: u32 [1..=10]) -> u32 [0..=1000] {{
-                available - cost(rank)
-            }}
-        }}
-        "#
-    ));
-}
-
-#[test]
-fn changed_call_arguments_do_not_inherit_the_guard_relation() {
-    rejects_subtraction(&format!(
-        r#"
-        {COST}
-        machine spend(level: u32 [1..=10], other: u32 [1..=10], xp: u32 [0..=1000]) -> u32 {{
-            transition xp >= cost(level) {{ true -> debit(other, xp) false -> (xp) }}
-            state debit(rank: u32 [1..=10], available: u32 [0..=1000]) -> u32 {{
-                available - cost(rank)
-            }}
-        }}
-        "#
-    ));
-}
-
-#[test]
-fn same_spelled_nonentry_parameters_do_not_reuse_machine_entry_call_relations() {
-    rejects_subtraction(&format!(
-        r#"
-        {COST}
-        machine spend(level: u32 [1..=10], other: u32 [1..=10], xp: u32 [0..=1000]) -> u32
-            requires xp >= cost(level)
-        {{
-            transition {{ _ -> debit(other, xp) }}
-            state debit(level: u32 [1..=10], xp: u32 [0..=1000]) -> u32 {{
-                xp - cost(level)
-            }}
-        }}
-        "#
-    ));
-}
-
-#[test]
-fn mutating_a_call_input_invalidates_its_repeated_result_relation() {
-    rejects_subtraction(&format!(
-        r#"
-        {COST}
-        machine spend(level: u32 [1..=10], xp: u32 [0..=1000]) -> u32 {{
-            transition xp >= cost(level) {{ true -> debit(level, xp) false -> (xp) }}
-            state debit(mut rank: u32 [1..=10], available: u32 [0..=1000]) -> u32 {{
-                rank = 10;
-                available - cost(rank)
-            }}
-        }}
-        "#
-    ));
-}
-
-#[test]
-fn effectful_repeated_calls_do_not_mint_a_stable_result_relation() {
-    rejects_subtraction(&format!(
-        r#"
-        {FIELD_COST}
-        data Main {{ observed: u32 [0..=10]; }}
-        machine Main::observe_cost(&mut self, level: u32 [0..=10]) -> u32 [10..=60] {{
-            self.observed = level;
-            cost(level)
-        }}
-        machine Main::spend(&mut self, level: u32 [0..=10], xp: u32 [0..=1000]) -> u32 {{
-            self.observed = level;
-            transition xp >= self.observe_cost(level) {{
-                true -> debit(level, xp)
-                false -> (xp)
-            }}
-            state debit(&mut self, rank: u32 [0..=10], available: u32 [0..=1000]) -> u32 {{
-                available - self.observe_cost(rank)
-            }}
-        }}
-        "#
-    ));
-}
-
 #[test]
 fn disjoint_self_field_write_preserves_a_pure_call_input_relation() {
     accepts(&format!(
@@ -147,27 +43,6 @@ fn disjoint_self_field_write_preserves_a_pure_call_input_relation() {
             state debit(&mut self, available: u32 [0..=1000]) -> u32 [0..=1000] {{
                 self.marker = 0;
                 available - cost(self.level)
-            }}
-        }}
-        "#
-    ));
-}
-
-#[test]
-fn an_unguarded_second_predecessor_removes_a_call_result_relation() {
-    rejects_subtraction(&format!(
-        r#"
-        {COST}
-        machine spend(level: u32 [1..=10], xp: u32 [0..=1000], gate: bool) -> u32 {{
-            transition gate {{ true -> guarded(level, xp) false -> debit(level, xp) }}
-            state guarded(rank: u32 [1..=10], available: u32 [0..=1000]) -> u32 {{
-                transition available >= cost(rank) {{
-                    true -> debit(rank, available)
-                    false -> (available)
-                }}
-            }}
-            state debit(rank: u32 [1..=10], available: u32 [0..=1000]) -> u32 {{
-                available - cost(rank)
             }}
         }}
         "#

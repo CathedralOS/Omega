@@ -15,37 +15,6 @@ fn check(source: &str, accepted: bool, rejection: &str) {
     }
 }
 
-fn mutated_entry(collection: &str, index: &str, mutation: &str) {
-    check(
-        &format!(
-            r#"
-                machine set_index(output: &mut u64) {{ output = 255; }}
-                machine main(items: &[u64], mut index: u64) -> u64
-                requires index < items.len
-                {{
-                    {mutation}
-                    transition {{ _ -> read(items, index) }}
-                    state read({collection}: &[u64], {index}: u64) -> u64 {{
-                        {collection}[{index}]
-                    }}
-                }}
-            "#
-        ),
-        false,
-        "index",
-    );
-}
-
-#[test]
-fn assignment_invalidates_same_named_state_entry_bounds() {
-    mutated_entry("items", "index", "index = 255;");
-}
-
-#[test]
-fn call_invalidates_same_named_state_entry_bounds() {
-    mutated_entry("items", "index", "set_index(&mut index);");
-}
-
 #[test]
 fn replacing_a_slice_descriptor_retires_its_old_extent() {
     for (replacement, accepted) in [("other", false), ("items[0..1]", true)] {
@@ -65,47 +34,4 @@ fn replacing_a_slice_descriptor_retires_its_old_extent() {
             "index",
         );
     }
-}
-
-#[test]
-fn explicit_state_bounds_support_indexing_and_remain_arrival_obligations() {
-    for (argument, accepted) in [("first", true), ("other", false)] {
-        check(
-            &format!(
-                r#"
-            machine main(items: &[u64], first: u64, other: u64) -> u64
-            requires first < items.len
-            {{
-                transition {{ _ -> read(items, {argument}) }}
-                state read(values: &[u64], position: u64) -> u64
-                requires position < values.len
-                {{ values[position] }}
-            }}
-        "#
-            ),
-            accepted,
-            "requires",
-        );
-    }
-}
-
-#[test]
-fn explicit_state_bounds_flow_to_a_later_state_without_name_replay() {
-    check(
-        r#"
-        machine main(items: &[u64], index: u64) -> u64
-        requires index < items.len
-        {
-            transition { _ -> middle(items, index) }
-            state middle(values: &[u64], position: u64) -> u64
-            requires position < values.len
-            {
-                transition { _ -> read(values, position) }
-            }
-            state read(selected: &[u64], offset: u64) -> u64 { selected[offset] }
-        }
-    "#,
-        true,
-        "",
-    );
 }

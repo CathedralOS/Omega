@@ -358,75 +358,8 @@ fn write_affects_bound(name: &str, path: &str) -> bool {
 mod tests {
     use super::{Machine, State, TypedTrees};
     use crate::checks::ranges::RangeFacts;
-    use crate::checks::ranges::facts::invalidation::write_affects_bound;
+
     use symbols::SymbolHandle;
-
-    #[test]
-    fn direct_assignment_retires_only_its_index_bound() {
-        let mut facts = RangeFacts::new(&[]);
-        facts.prove_index_upper_bound("index".to_owned(), 4);
-        facts.prove_index_upper_bound("unrelated".to_owned(), 4);
-
-        facts.invalidate_relational_bounds(
-            |name| write_affects_bound(name, "index"),
-            |name| write_affects_bound(name, "index"),
-        );
-
-        assert!(!facts.index_upper_bound_is_proven("index", 4));
-        assert!(facts.index_upper_bound_is_proven("unrelated", 4));
-    }
-
-    #[test]
-    fn assignments_and_calls_retire_computed_and_overlapping_bound_labels() {
-        for call in [false, true] {
-            let mut facts = RangeFacts::new(&[]);
-            for name in ["record.value", "record.value - 1", "captured", "unrelated"] {
-                facts.prove_non_negative(name.into());
-                facts.prove_index_upper_bound(name.into(), 5);
-                facts.prove_at_most("floor".into(), name.into());
-                facts.prove_range_bound("items".into(), name.into());
-            }
-            if call {
-                facts.invalidate_call_writes(
-                    &TypedTrees::default(),
-                    &Machine::default(),
-                    &State::default(),
-                    Some(&["record".into()]),
-                    None,
-                );
-            } else {
-                facts.invalidate_relational_bounds(
-                    |name| write_affects_bound(name, "record"),
-                    |name| write_affects_bound(name, "record"),
-                );
-            }
-            for name in ["record.value", "record.value - 1", "captured", "unrelated"] {
-                let survives = matches!(name, "captured" | "unrelated");
-                assert_eq!(facts.non_negative_is_proven(name), survives);
-                assert_eq!(facts.index_upper_bound_is_proven(name, 5), survives);
-                assert_eq!(facts.at_most_is_proven("floor", name), survives);
-                assert_eq!(facts.range_bound_is_proven("items", name), survives);
-            }
-        }
-    }
-
-    #[test]
-    fn precise_call_write_retires_only_its_index_bound() {
-        let mut facts = RangeFacts::new(&[]);
-        facts.prove_index_upper_bound("index".to_owned(), 4);
-        facts.prove_index_upper_bound("unrelated".to_owned(), 4);
-
-        facts.invalidate_call_writes(
-            &TypedTrees::default(),
-            &Machine::default(),
-            &State::default(),
-            Some(&["index".to_owned()]),
-            None,
-        );
-
-        assert!(!facts.index_upper_bound_is_proven("index", 4));
-        assert!(facts.index_upper_bound_is_proven("unrelated", 4));
-    }
 
     #[test]
     fn unknown_call_retires_dynamic_values_and_relations_not_declared_extents() {

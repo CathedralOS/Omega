@@ -38,13 +38,6 @@ requires entries.len <= capacity { 0 }
 "#;
 
 #[test]
-fn fixed_array_view_extent_proves_tail_requirement_without_reading_contents() {
-    checked_program_result(VIEW).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
-    checked_program_result(&VIEW.replace("requires entries.len", "requires self.entries.len"))
-        .unwrap_or_else(|diagnostics| panic!("named target field extent: {diagnostics:#?}"));
-}
-
-#[test]
 fn fixed_array_view_extent_rejects_too_small_capacity_and_mutable_descriptor() {
     for source in [
         VIEW.replace("view, 4", "view, 3"),

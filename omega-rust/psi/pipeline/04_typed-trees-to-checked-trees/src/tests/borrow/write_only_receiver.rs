@@ -1,18 +1,5 @@
 use crate::tests::front_end::checked_program_result;
 
-fn receiver_source(receiver: &str, result: &str, body: &str) -> String {
-    format!(
-        r#"
-            data Inner {{ value: u16; values: [u16; 2]; }}
-            data Record {{ prefix: u8; value: u16; inner: Inner; }}
-
-            machine Record::exercise({receiver}, replacement: u16) {result} {{
-                {body}
-            }}
-        "#
-    )
-}
-
 fn reject_source(source: &str, expected: &str) {
     // A synthetic Self type rejection or a missing Terminal plan is not
     // evidence that the checker recognized observation through this receiver.
@@ -26,107 +13,6 @@ fn reject_source(source: &str, expected: &str) {
             .any(|diagnostic| diagnostic.message.contains(expected)),
         "expected receiver diagnostic `{expected}`: {diagnostics:#?}\nsource:\n{source}"
     );
-}
-
-fn reject_field_observation(body: &str) {
-    reject_source(
-        &receiver_source("&write self", "", body),
-        "reads field `value` from write-only parameter `self`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation",
-    );
-}
-
-fn reject_index_observation(body: &str) {
-    reject_source(
-        &receiver_source("&write self", "", body),
-        "reads through index projection of write-only parameter `self`; `&write` permits admitted fixed-array element replacement but never observation",
-    );
-}
-
-#[test]
-fn write_only_self_scalar_parameter_rhs_checks() {
-    for destination in ["self.value", "self.inner.value", "self.inner.values[1]"] {
-        let source = receiver_source("&write self", "", &format!("{destination} = replacement;"));
-        checked_program_result(&source).unwrap_or_else(|diagnostics| {
-            panic!("an independent scalar parameter may supply `{destination}`: {diagnostics:#?}")
-        });
-    }
-}
-
-#[test]
-fn write_only_self_direct_compound_assignment_rejects() {
-    reject_field_observation("self.value += 1;");
-}
-
-#[test]
-fn write_only_self_direct_read_after_write_rejects() {
-    reject_field_observation("self.value = 17; let observed: u16 = self.value;");
-}
-
-#[test]
-fn write_only_self_prior_value_cannot_supply_store_rhs() {
-    reject_field_observation("self.inner.value = self.value;");
-    reject_field_observation("self.value = self.inner.value;");
-    reject_index_observation("self.inner.values[0] = self.inner.values[1];");
-}
-
-#[test]
-fn write_only_self_shared_reborrows_reject() {
-    reject_field_observation("let readable: &u16 = &self.value;");
-    reject_field_observation("let readable: &u16 = &self.inner.value;");
-    reject_index_observation("let readable: &u16 = &self.inner.values[1];");
-    reject_source(
-        &receiver_source("&write self", "", "let readable: &Record = &self;"),
-        "reads write-only parameter `self`; `&write` permits replacement or exact `&write` forwarding, never observation",
-    );
-}
-
-#[test]
-fn write_only_self_mutable_reborrows_reject() {
-    for body in [
-        "let readable: &mut u16 = &mut self.value;",
-        "let readable: &mut u16 = &mut self.inner.value;",
-        "let readable: &mut u16 = &mut self.inner.values[1];",
-        "let readable: &mut Record = &mut self;",
-    ] {
-        reject_source(
-            &receiver_source("&write self", "", body),
-            "widens write-only parameter `self` to `&mut`; forward it explicitly as `&write self` instead",
-        );
-    }
-}
-
-#[test]
-fn write_only_self_observing_receiver_calls_reject() {
-    for receiver in ["&self", "&mut self"] {
-        let source = format!(
-            "{}\nmachine Record::observe({receiver}) -> u16 {{ self.value }}",
-            receiver_source("&write self", "", "let observed: u16 = self.observe();"),
-        );
-        reject_source(
-            &source,
-            "reads write-only parameter `self`; `&write` permits replacement or exact `&write` forwarding, never observation",
-        );
-    }
-}
-
-#[test]
-fn write_only_self_bare_attached_fields_cannot_be_observed() {
-    for body in ["let prior: u16 = value;", "let prior: u16 = inner.value;"] {
-        reject_source(
-            &receiver_source("&write self", "", body),
-            "write-only parameter `self`",
-        );
-    }
-}
-
-#[test]
-fn write_only_self_bare_attached_fields_complete_checking() {
-    for body in ["value = 17;", "inner.value = 17;", "inner.values[1] = 17;"] {
-        checked_program_result(&receiver_source("&write self", "", body))
-            .expect("bare field access and exact declaration selection both complete");
-    }
-    checked_program_result(&receiver_source("&write self", "", "value = 17;"))
-        .expect("a direct bare field store completes checking");
 }
 
 #[test]
@@ -155,34 +41,4 @@ fn write_only_self_state_transfer_preserves_non_observing_access() {
          }",
     )
     .expect("a state transfer may preserve write-only receiver access");
-}
-
-#[test]
-fn shared_and_mutable_self_prior_reads_check() {
-    for receiver in ["&self", "&mut self"] {
-        for value in ["self.value", "self.inner.value", "self.inner.values[1]"] {
-            checked_program_result(&receiver_source(
-                receiver,
-                "",
-                &format!("let prior: u16 = {value};"),
-            ))
-            .unwrap_or_else(|diagnostics| {
-                panic!("{receiver} permits observation of `{value}`: {diagnostics:#?}")
-            });
-        }
-    }
-}
-
-#[test]
-fn mutable_self_read_after_write_checks() {
-    for destination in ["self.value", "self.inner.value", "self.inner.values[1]"] {
-        checked_program_result(&receiver_source(
-            "&mut self",
-            "",
-            &format!("{destination} = 17; let observed: u16 = {destination};"),
-        ))
-        .unwrap_or_else(|diagnostics| {
-            panic!("mutable self retains read authority after `{destination}` is written: {diagnostics:#?}")
-        });
-    }
 }

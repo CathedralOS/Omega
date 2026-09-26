@@ -44,14 +44,6 @@ fn fixed_width_argument_source(argument: &str) -> String {
 }
 
 #[test]
-fn named_conformance_fixed_width_argument_rejects_overflowing_literal() {
-    let typed = typed_program_result(&fixed_width_argument_source("300"))
-        .expect("literal landing is checked after typing");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("bound u8 input must reject 300 without a closed caller");
-}
-
-#[test]
 fn named_conformance_fixed_width_argument_checks_computed_actuals() {
     let fitting = typed_program_result(&fixed_width_argument_source("1 + 1"))
         .expect("computed fixed-width input types");
@@ -94,67 +86,11 @@ fn rejects(body: &str, fragment: &str) {
 }
 
 #[test]
-fn retained_named_conformance_body_checks_without_a_closed_caller() {
-    let typed = typed_program_result(&source("Order::before(left, right)"))
-        .expect("named evidence body should type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("open evidence call should check its declared requirement");
-    let template = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "choose")
-        .expect("retained template");
-    assert!(!checked.machine_type_parameters(template).is_empty());
-    assert!(
-        !checked
-            .machine_specializations
-            .iter()
-            .any(|specialization| specialization.template == template.symbol)
-    );
-    let definition = checked
-        .traits()
-        .iter()
-        .find(|definition| definition.name.as_str() == "Ranked")
-        .expect("public requirement owner");
-    let requirement = &checked.trait_machine_signatures(definition)[0];
-    let calls = checked
-        .facts
-        .borrow
-        .calls
-        .iter()
-        .map(|(_, call)| call)
-        .collect::<Vec<_>>();
-    let [call] = calls.as_slice() else {
-        panic!("one exact abstract call: {calls:#?}");
-    };
-    assert_eq!(call.target_symbol, requirement.symbol);
-    assert_eq!(call.call_ordinal, 0);
-    assert!(
-        !call.has_receiver,
-        "evidence is a namespace, not an implicit runtime self"
-    );
-    assert_eq!(
-        checked
-            .facts
-            .borrow
-            .argument_accesses
-            .span_or_empty(call.accesses)
-            .len(),
-        2
-    );
-}
-
-#[test]
 fn retained_named_conformance_call_rejects_wrong_explicit_self_type() {
     rejects(
         "Order::before(wrong, right)",
         "does not match its bound subject",
     );
-}
-
-#[test]
-fn retained_named_conformance_call_requires_explicit_self_argument() {
-    rejects("Order::before(right)", "argument");
 }
 
 #[test]

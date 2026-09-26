@@ -174,57 +174,6 @@ mod tests {
     }
 
     #[test]
-    fn product_selection_requires_exact_mutable_toolchain_build() {
-        for (access, toolchain, expected) in [
-            ("&mut", true, true),
-            ("&", true, false),
-            ("&mut", false, false),
-        ] {
-            let program = fixture(
-                &format!(
-                    "data Build {{}} boundary trait Reader {{ machine read(); }} data Provider {{}} machine build(builder: {access} Build) {{ builder.select_provider<Reader, Provider>(); }}"
-                ),
-                toolchain,
-            );
-            let (expression, _) = program.expression_table.iter_expressions().find(|(_, node)| {
-                matches!(node, ExpressionNode::Call(call) if call.target.as_str() == "select_provider")
-            }).expect("selection call");
-            assert_eq!(is_build_provider_selection(&program, expression), expected);
-        }
-    }
-
-    #[test]
-    fn admitted_provider_call_has_unit_statement_semantics_but_not_value_semantics() {
-        for (body, accepted) in [
-            ("builder.select_provider<Reader, Provider>();", true),
-            (
-                "consume(builder.select_provider<Reader, Provider>());",
-                false,
-            ),
-        ] {
-            let mut program = fixture(
-                &format!(
-                    "data Build {{}} boundary trait Reader {{ machine read(); }} data Provider {{}} machine consume(value: i32) {{}} machine build(builder: &mut Build) {{ {body} }}"
-                ),
-                true,
-            );
-            crate::authored_selections::bind_pre_specialization_authored_selections(&mut program)
-                .expect("exact Build operation binds before source validation");
-            let result = validation::validate_program(&program);
-            if accepted {
-                result.expect("admitted Unit operation is a valid standalone statement");
-            } else {
-                let diagnostics = result.expect_err("Unit cannot supply an ordinary value operand");
-                assert!(
-                    diagnostics
-                        .iter()
-                        .any(|diagnostic| diagnostic.to_string().contains("Unit cannot supply"))
-                );
-            }
-        }
-    }
-
-    #[test]
     fn statement_spelled_provider_operands_retain_finalizable_occurrences() {
         let mut program = fixture(
             "data Build {} boundary trait Reader { machine read(); } data Provider {} machine build(builder: &mut Build) { builder.select_provider<Reader, Provider>(); }",

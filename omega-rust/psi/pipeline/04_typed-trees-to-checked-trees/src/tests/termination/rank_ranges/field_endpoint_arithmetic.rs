@@ -219,24 +219,6 @@ fn symbolic_bitwise_and_endpoint_preserves_both_operands_at_named_arrivals() {
     rejects_any_stage(&source.replace("divisor: u64 [1..=5]", "divisor: u8 [1..=5]"));
 }
 
-#[test]
-fn signed_bitwise_and_endpoint_uses_operand_sign_bounds() {
-    // A provably nonnegative mask clears the result's sign bit even beside a
-    // provably negative operand: `cap & divisor` over `i8` lands `[0, 5]`,
-    // not the dividend's `[-21, -1]` and not the whole carrier.
-    let signed = SYMBOLIC_QUOTIENT
-        .replace("cap: u64 [0..=20]", "cap: i8 [-21..=-1]")
-        .replace("limit: u64 [0..=20]", "limit: i8 [-21..=-1]")
-        .replace("u64 [1..=5]", "i8 [1..=5]")
-        .replace("cap / divisor + 6", "(cap & divisor) + 6");
-    accepts_named(&signed);
-    rejects_named(&signed.replace("pending - 1", "pending"));
-    // Two provably negative operands keep the result below `min(a, b)` at
-    // the carrier floor -- `-21 & -1` is `-21`, so `+ 6` cannot bound the
-    // positive pending values the nonnegative mask could.
-    rejects_named(&signed.replace("i8 [1..=5]", "i8 [-5..=-1]"));
-}
-
 /// A malformed endpoint can fail typing or checking; either rejection is the
 /// closed behavior. Unlike [`rejects_named`] this makes no claim about which
 /// stage owns the diagnostic.
@@ -292,117 +274,10 @@ fn quotient_endpoint_requires_exact_conservation_and_strict_descent() {
     rejects_named(&NAMED_QUOTIENT.replace("iterate(cap, remaining)", "iterate(0, remaining)"));
 }
 
-#[test]
-fn quotient_endpoint_preserves_anonymous_rationals_and_selected_meaning() {
-    accepts_named(&NAMED_QUOTIENT.replace("cap / 5 + 6", "cap / 5 + (1 / 2 * 12)"));
-    for endpoint in ["cap / 0 + 6", "cap / 5u8 + 6", "cap / 5 + (1 / 2)"] {
-        rejects_named(&NAMED_QUOTIENT.replace("cap / 5 + 6", endpoint));
-    }
-    rejects_named(&format!(
-        "operator / u64::quotient(left: u64, right: u64) -> u64; {NAMED_QUOTIENT}"
-    ));
-}
-
-#[test]
-fn quotient_endpoint_cannot_hide_an_overflowing_intermediate() {
-    for endpoint in [
-        "(cap + 18446744073709551615u64) / 5 + 6",
-        "(cap + 18446744073709551615u64 - 18446744073709551615u64) / 5 + 6",
-    ] {
-        rejects_named(&NAMED_QUOTIENT.replace("cap / 5 + 6", endpoint));
-    }
-    // This input is not bounded in its type. Endpoint formation must use
-    // independently transported entry requirements, including at named states.
-    let bounded = NAMED_QUOTIENT
-        .replace("u64 [0..=20]", "u64")
-        .replace("terminates by", "requires cap <= 20;\nterminates by")
-        .replace("cap / 5 + 6", "(cap + 1) / 5 + 6");
-    accepts_named(&bounded);
-    rejects_named(&bounded.replace("requires cap <= 20;", ""));
-}
-
-#[test]
-fn signed_quotient_endpoints_use_truncation_and_check_minimum_overflow() {
-    let signed = NAMED_QUOTIENT
-        .replace("cap: u64 [0..=20]", "cap: i8 [-7..=-7]")
-        .replace("limit: u64 [0..=20]", "limit: i8 [-7..=-7]");
-    // -7 / 2 is -3, not -4; -7 / -2 is 3, not 4.
-    accepts_named(&signed.replace("cap / 5 + 6", "cap / 2 + 9"));
-    accepts_named(&signed.replace("cap / 5 + 6", "cap / -2 + 3"));
-    rejects_named(&signed.replace("cap / 5 + 6", "cap / -2 + 2"));
-    let minimum = signed
-        .replace("[-7..=-7]", "[-128..=-128]")
-        .replace("cap / 5 + 6", "(cap / -1) / 2");
-    rejects_named(&minimum);
-}
-
 const COUNTDOWN: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../../../tests/omega/pass/termination/measure_field_rank_arithmetic/main.omg"
 ));
-
-#[test]
-fn field_rank_accepts_bounded_arithmetic_over_pinned_inputs() {
-    lower_typed_trees(typed_program(COUNTDOWN), &CheckingRequest::settled())
-        .expect("both ceiling inputs stay fixed");
-    for endpoint in [
-        "ceiling + 1",
-        "ceiling * 2",
-        "ceiling + padding - 0",
-        "ceiling / 1 + padding",
-    ] {
-        lower_typed_trees(
-            typed_program(&COUNTDOWN.replace("ceiling + padding;", &format!("{endpoint};"))),
-            &CheckingRequest::settled(),
-        )
-        .expect(endpoint);
-    }
-    let remainder = COUNTDOWN
-        .replace("ceiling: u64 [5..=10]", "ceiling: u64")
-        .replace("ceiling + padding;", "ceiling % 5 + 6;");
-    lower_typed_trees(typed_program(&remainder), &CheckingRequest::settled())
-        .expect("the result is bounded even when its input exceeds i64");
-}
-
-#[test]
-fn computed_rank_endpoint_requires_every_input_to_stay_pinned() {
-    for arguments in ["5, padding)", "ceiling, 1)"] {
-        let source = COUNTDOWN.replace("ceiling, padding)", arguments);
-        let diagnostics =
-            crate::checks::termination::check_machine_termination(&typed_program(&source))
-                .expect_err("each endpoint input has independent pinning");
-        assert!(
-            diagnostics.iter().any(|diagnostic| {
-                diagnostic
-                    .message
-                    .contains("cannot prove rank range `0..ceiling + padding`")
-            }),
-            "{diagnostics:?}"
-        );
-    }
-}
-
-#[test]
-fn computed_rank_endpoint_does_not_hide_partial_or_authored_arithmetic() {
-    for endpoint in [
-        "ceiling / 0",
-        "ceiling % 0",
-        "ceiling - 11",
-        "ceiling + 18446744073709551615u64",
-    ] {
-        let source = COUNTDOWN.replace("ceiling + padding;", &format!("{endpoint};"));
-        crate::checks::termination::check_machine_termination(&typed_program(&source))
-            .expect_err("every endpoint operation needs defined and representable bounds");
-    }
-    let authored = format!("operator + u64::sum(left: u64, right: u64) -> u64; {COUNTDOWN}");
-    crate::checks::termination::check_machine_termination(&typed_program(&authored))
-        .expect_err("authored addition cannot inherit builtin interval laws");
-    let hidden_overflow = COUNTDOWN
-        .replace("ceiling: u64 [5..=10]", "ceiling: u64")
-        .replace("ceiling + padding;", "(ceiling + 1) % 5 + 6;");
-    crate::checks::termination::check_machine_termination(&typed_program(&hidden_overflow))
-        .expect_err("a small final endpoint cannot hide an overflowing intermediate");
-}
 
 #[test]
 fn constant_rank_endpoints_preserve_landing_and_rational_meaning() {

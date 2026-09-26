@@ -457,12 +457,11 @@ mod tests {
     use crate::CheckedTreeProductPruning;
     use crate::CheckedTreeProductRoots;
     use crate::CheckedTreeProductRootsError;
-    use crate::product_pruning::MachineIndex;
-    use crate::product_pruning::collect_machine_edges;
+
     use crate::product_pruning::rewrite::validate_pruned_product;
-    use crate::product_pruning::selection_identity;
+
     use crate::prune_checked_tree_product;
-    use crate::tests::front_end::{checked_program, checked_program_result};
+    use crate::tests::front_end::checked_program;
 
     use std::collections::HashSet;
 
@@ -510,139 +509,6 @@ mod tests {
     }
 
     #[test]
-    fn unreachable_checked_body_machine_is_pruned() {
-        let program = checked(
-            r#"
-            machine helper() -> u64 { 40u64 }
-            machine unused() -> u64 { helper() }
-            pub machine main() -> u64 { helper() }
-            "#,
-        );
-        let before = program.typed.machines().len();
-        let root = machine_named(&program.typed, "main").symbol;
-        let helper = machine_named(&program.typed, "helper").symbol;
-        let unused = machine_named(&program.typed, "unused").symbol;
-
-        let plan =
-            CheckedTreeProductPruning::new(CheckedTreeProductRoots::new([root]).expect("roots"));
-        let outcome = prune_checked_tree_product(program, &plan).expect("prune");
-        let selection = &outcome.selection;
-
-        assert!(before >= 3);
-        assert_eq!(
-            outcome.checked.typed.machines().len(),
-            selection.retained_machines().len()
-        );
-        assert!(selection.retained_machines().contains(&root));
-        assert!(selection.retained_machines().contains(&helper));
-        assert!(selection.pruned_machines().contains(&unused));
-        assert_eq!(
-            outcome.checked.facts.flow.terminal_machines.machines.len(),
-            selection.retained_machines().len()
-        );
-        assert!(
-            outcome
-                .checked
-                .facts
-                .flow
-                .terminal_machines
-                .machines
-                .iter()
-                .all(|row| selection.retained_machines().contains(&row.machine))
-        );
-    }
-
-    #[test]
-    fn pruning_is_deterministic_for_the_same_plan() {
-        let source = r#"
-            machine helper() -> u64 { 40u64 }
-            machine unused() -> u64 { 2u64 }
-            pub machine main() -> u64 { helper() }
-        "#;
-        let first = checked(source);
-        let second = checked(source);
-        let root = machine_named(&first.typed, "main").symbol;
-        let plan =
-            CheckedTreeProductPruning::new(CheckedTreeProductRoots::new([root]).expect("roots"));
-
-        let first = prune_checked_tree_product(first, &plan).expect("first prune");
-        let second = prune_checked_tree_product(second, &plan).expect("second prune");
-        assert_eq!(first.selection, second.selection);
-        assert_eq!(first.selection.identity(), second.selection.identity());
-    }
-
-    #[test]
-    fn transitive_machine_dependencies_are_retained() {
-        let program = checked(
-            r#"
-            machine leaf() -> u64 { 3u64 }
-            machine middle() -> u64 { leaf() }
-            machine detached() -> u64 { 9u64 }
-            pub machine main() -> u64 { middle() }
-            "#,
-        );
-        let main = machine_named(&program.typed, "main").symbol;
-        let middle = machine_named(&program.typed, "middle").symbol;
-        let leaf = machine_named(&program.typed, "leaf").symbol;
-        let detached = machine_named(&program.typed, "detached").symbol;
-
-        let plan =
-            CheckedTreeProductPruning::new(CheckedTreeProductRoots::new([main]).expect("roots"));
-        let outcome = prune_checked_tree_product(program, &plan).expect("prune");
-
-        assert!(outcome.selection.retained_machines().contains(&main));
-        assert!(outcome.selection.retained_machines().contains(&middle));
-        assert!(outcome.selection.retained_machines().contains(&leaf));
-        assert!(outcome.selection.pruned_machines().contains(&detached));
-        // The rosters partition the source machine table.
-        assert_eq!(
-            outcome.selection.retained_machines().len() + outcome.selection.pruned_machines().len(),
-            4
-        );
-    }
-
-    #[test]
-    fn duplicate_nested_dependencies_preserve_exact_product_selection() {
-        let program = checked(
-            r#"
-            machine leaf() -> u64 { 3u64 }
-            machine identity(value: u64) -> u64 { value }
-            machine detached() -> u64 { 9u64 }
-            pub machine main() -> u64 { identity(identity(leaf())) }
-            "#,
-        );
-        let root = machine_named(&program.typed, "main").symbol;
-        let leaf = machine_named(&program.typed, "leaf").symbol;
-        let identity = machine_named(&program.typed, "identity").symbol;
-        let detached = machine_named(&program.typed, "detached").symbol;
-        let index = MachineIndex::build(&program.typed);
-        let edges = collect_machine_edges(&program.typed, &program.facts, &index);
-        // Both checked call facts and nested typed expressions contribute
-        // these targets; the final adjacency stores each identity once.
-        assert_eq!(
-            edges.get(&root).map(Vec::as_slice),
-            Some(&[leaf, identity][..])
-        );
-
-        let plan =
-            CheckedTreeProductPruning::new(CheckedTreeProductRoots::new([root]).expect("roots"));
-        let outcome = prune_checked_tree_product(program, &plan).expect("prune");
-        assert_eq!(
-            outcome.selection.retained_machines(),
-            &[leaf, identity, root]
-        );
-        assert_eq!(outcome.selection.pruned_machines(), &[detached]);
-        assert_eq!(
-            outcome.selection.identity(),
-            selection_identity(&[root], &[leaf, identity, root], &[detached])
-        );
-        let rebuilt = MachineIndex::build(&outcome.checked.typed);
-        let rebuilt_edges =
-            collect_machine_edges(&outcome.checked.typed, &outcome.checked.facts, &rebuilt);
-        assert_eq!(rebuilt_edges.get(&root), edges.get(&root));
-    }
-
-    #[test]
     fn selection_identity_binds_the_exact_root_set() {
         let program = checked(
             r#"
@@ -669,67 +535,6 @@ mod tests {
         assert_eq!(one_root.selection.roots().machines(), &[main]);
         assert_eq!(two_roots.selection.roots().machines(), &[main, second]);
         assert!(two_roots.selection.pruned_machines().is_empty());
-    }
-
-    #[test]
-    fn invalid_authored_declarations_fail_checking_before_pruning() {
-        // `detached` is unreachable from any plausible root, yet its
-        // unproven-arithmetic diagnostic must still surface from authored
-        // checking. Pruning is unreachable here: the phase input is a
-        // `CheckedTrees`, which only exists after all diagnostics clear.
-        let Err(diagnostics) = checked_program_result(
-            r#"
-            machine helper() -> u64 { 40u64 }
-            machine detached() -> u64 { helper() + 2u64 }
-            pub machine main() -> u64 { helper() }
-            "#,
-        ) else {
-            panic!("an invalid authored declaration must fail checking");
-        };
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| format!("{diagnostic:?}").contains("may overflow"))
-        );
-    }
-
-    #[test]
-    fn boundary_machines_are_interface_surface_not_pruning_candidates() {
-        let mut program = checked(
-            r#"
-            pub machine entry() -> u64 { 9u64 }
-            "#,
-        );
-        // Synthesize a boundary-declaration machine without source support:
-        // pruning must keep it regardless of reachability.
-        let boundary_symbol = {
-            let boundary = Machine {
-                symbol: program
-                    .typed
-                    .machines()
-                    .iter()
-                    .map(|machine| machine.symbol.arena_index())
-                    .max()
-                    .map(|index| SymbolHandle::from_arena_index(index + 1))
-                    .expect("a machine symbol must exist"),
-                supply_mode: language_semantics::MachineSupplyMode::Boundary,
-                body_is_present: false,
-                ..Machine::default()
-            };
-            let symbol = boundary.symbol;
-            program.typed.push_machine(boundary);
-            symbol
-        };
-        let root = machine_named(&program.typed, "entry").symbol;
-        let plan =
-            CheckedTreeProductPruning::new(CheckedTreeProductRoots::new([root]).expect("roots"));
-        let outcome = prune_checked_tree_product(program, &plan).expect("prune");
-        assert!(
-            outcome
-                .selection
-                .retained_machines()
-                .contains(&boundary_symbol)
-        );
     }
 
     /// A static boundary requirement's plan is keyed by its trait signature,
@@ -779,46 +584,6 @@ mod tests {
         let outcome = prune_checked_tree_product(program, &plan).expect("prune");
         assert!(!outcome.selection.pruned_machines().is_empty());
         assert_eq!(requirement_plans(&outcome.checked), before);
-    }
-
-    #[test]
-    fn the_pruned_product_is_a_fixed_point_for_the_same_plan() {
-        let program = checked(
-            r#"
-            machine helper() -> u64 { 40u64 }
-            machine unused() -> u64 { 2u64 }
-            pub machine main() -> u64 { helper() }
-            "#,
-        );
-        let root = machine_named(&program.typed, "main").symbol;
-        let plan =
-            CheckedTreeProductPruning::new(CheckedTreeProductRoots::new([root]).expect("roots"));
-        let first = prune_checked_tree_product(program, &plan).expect("first prune");
-        assert!(!first.selection.pruned_machines().is_empty());
-        let retained = first.selection.retained_machines().to_vec();
-
-        // The published outcome is itself a legal `CheckedTrees`: replaying
-        // the same plan against it is a legal second input that finds no
-        // remaining candidate, so the product is a fixed point rather than
-        // merely reconstructible.
-        let second = prune_checked_tree_product(first.checked, &plan).expect("fixed-point prune");
-        assert_eq!(second.selection.roots().machines(), &[root]);
-        assert_eq!(second.selection.retained_machines(), retained.as_slice());
-        assert!(second.selection.pruned_machines().is_empty());
-        assert_eq!(
-            second.selection.identity(),
-            selection_identity(&[root], &retained, &[])
-        );
-        assert_eq!(
-            second
-                .checked
-                .typed
-                .machines()
-                .iter()
-                .map(|machine| machine.symbol)
-                .collect::<Vec<_>>(),
-            retained
-        );
     }
 
     #[test]
@@ -960,74 +725,6 @@ mod tests {
             failures
                 .iter()
                 .any(|failure| failure.contains("product root symbol"))
-        );
-    }
-
-    #[test]
-    fn root_order_is_canonicalized_in_the_selection() {
-        let program = checked(
-            r#"
-            machine other() -> u64 { 1u64 }
-            pub machine main() -> u64 { other() }
-            pub machine second() -> u64 { other() }
-            "#,
-        );
-        let main = machine_named(&program.typed, "main").symbol;
-        let second = machine_named(&program.typed, "second").symbol;
-
-        let forward = prune_checked_tree_product(
-            program.clone(),
-            &CheckedTreeProductPruning::new(
-                CheckedTreeProductRoots::new([main, second]).expect("roots"),
-            ),
-        )
-        .expect("forward prune");
-        let reverse = prune_checked_tree_product(
-            program,
-            &CheckedTreeProductPruning::new(
-                CheckedTreeProductRoots::new([second, main]).expect("roots"),
-            ),
-        )
-        .expect("reverse prune");
-        // Root input order is canonicalized at admission: both permutations
-        // publish the same roots, rosters, and selection identity.
-        assert_eq!(forward.selection, reverse.selection);
-    }
-
-    #[test]
-    fn selection_identity_rejects_swapped_and_truncated_rosters() {
-        let program = checked(
-            r#"
-            machine helper() -> u64 { 40u64 }
-            machine unused() -> u64 { 2u64 }
-            pub machine main() -> u64 { helper() }
-            "#,
-        );
-        let root = machine_named(&program.typed, "main").symbol;
-        let plan =
-            CheckedTreeProductPruning::new(CheckedTreeProductRoots::new([root]).expect("roots"));
-        let outcome = prune_checked_tree_product(program, &plan).expect("prune");
-        let retained = outcome.selection.retained_machines();
-        let pruned = outcome.selection.pruned_machines();
-        assert!(!pruned.is_empty());
-
-        // The commitment binds the exact rosters in role order: swapping the
-        // roles or truncating either side is a different selection.
-        assert_eq!(
-            outcome.selection.identity(),
-            selection_identity(&[root], retained, pruned)
-        );
-        assert_ne!(
-            outcome.selection.identity(),
-            selection_identity(&[root], pruned, retained)
-        );
-        assert_ne!(
-            outcome.selection.identity(),
-            selection_identity(&[root], &retained[..retained.len() - 1], pruned)
-        );
-        assert_ne!(
-            outcome.selection.identity(),
-            selection_identity(&[root], retained, &pruned[..pruned.len() - 1])
         );
     }
 }

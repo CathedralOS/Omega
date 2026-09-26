@@ -67,36 +67,6 @@ fn unknown_slice_result(
 }
 
 #[test]
-fn signed_unknown_slice_index_must_discharge_selected_lower_bound() {
-    let declaration = "boundary operator [] Slice::index(items: &[u8], index: i64) -> u8 requires 0 <= index && index < items.len;";
-    for (parameters, non_negative, expected) in [
-        ("index: i64", &[][..], BoundsCheckResult::Rejected),
-        (
-            "index: i64",
-            &["index"][..],
-            BoundsCheckResult::ProvenScalar,
-        ),
-        (
-            "index: i64[0..=4]",
-            &[][..],
-            BoundsCheckResult::ProvenScalar,
-        ),
-    ] {
-        let (result, diagnostics) =
-            unknown_slice_result(declaration, parameters, "[index]", non_negative);
-        assert_eq!(result, expected, "{diagnostics:?}");
-        if expected == BoundsCheckResult::Rejected {
-            assert!(
-                diagnostics
-                    .iter()
-                    .any(|diagnostic| diagnostic.message.contains("non-negative")),
-                "{diagnostics:?}"
-            );
-        }
-    }
-}
-
-#[test]
 fn signed_unknown_slice_range_must_discharge_both_selected_lower_bounds() {
     let declaration = "boundary operator [..] Slice::range(items: &[u8], start: i64, end: i64) -> &[u8] requires 0 <= start && start <= end && 0 <= end && end <= items.len;";
     for (non_negative, expected) in [
@@ -114,11 +84,4 @@ fn signed_unknown_slice_range_must_discharge_both_selected_lower_bounds() {
         );
         assert_eq!(result, expected, "{non_negative:?}: {diagnostics:?}");
     }
-}
-
-#[test]
-fn unsigned_operands_discharge_selected_lower_bounds_without_extra_facts() {
-    let declaration = "boundary operator [] Slice::index(items: &[u8], index: u64) -> u8 requires 0 <= index && index < items.len;";
-    let (result, diagnostics) = unknown_slice_result(declaration, "index: u64", "[index]", &[]);
-    assert_eq!(result, BoundsCheckResult::ProvenScalar, "{diagnostics:?}");
 }

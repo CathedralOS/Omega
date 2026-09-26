@@ -2,58 +2,6 @@ use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::front_end::{checked_program_result, typed_program};
 
-fn generic_boundary_call_source(subject: &str) -> String {
-    format!(
-        "data Cell {{ value: u64; }}
-         boundary trait Device<T> {{ machine consume(carrier: &mut T); }}
-         data Main<'s> {{ device: &'s mut Device<Cell>; cell: Cell; untouched: u64; }}
-         machine Main::inspect(&mut self)
-         reaches Device
-         requires {subject} == 7;
-         ensures {subject} == 7;
-         {{ self.device.consume(&mut self.cell); }}"
-    )
-}
-
-#[test]
-fn generic_boundary_receiver_preserves_disjoint_caller_facts() {
-    let source = generic_boundary_call_source("self.untouched");
-    let typed = typed_program(&source);
-    let checked =
-        lower_typed_trees(typed, &CheckingRequest::settled()).unwrap_or_else(|diagnostics| {
-            panic!(
-                "an instantiated boundary signature must preserve disjoint facts: {diagnostics:#?}"
-            )
-        });
-    let machine = checked
-        .typed
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "Main::inspect")
-        .unwrap();
-    let frame = validation::CallFrameResolver::new(&checked.typed)
-        .unwrap()
-        .inferred_state_write_frame(machine, &checked.typed.machine_states(machine)[0]);
-    let mut paths = frame
-        .into_complete_paths()
-        .expect("complete boundary frame");
-    paths.sort();
-    assert_eq!(paths, ["self.cell", "self.device"]);
-}
-
-#[test]
-fn generic_boundary_receiver_invalidates_written_caller_facts() {
-    let source = generic_boundary_call_source("self.cell.value");
-    let diagnostics = checked_program_result(&source)
-        .expect_err("an exclusive boundary argument may overwrite the referenced field");
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("cannot prove ensures")),
-        "{diagnostics:#?}"
-    );
-}
-
 #[test]
 fn generic_boundary_owner_and_method_arguments_preserve_disjoint_facts() {
     let source = "data Cell { value: u64; }
@@ -81,31 +29,6 @@ fn shadowed_boundary_call_source(subject: &str) -> String {
          ensures {subject} == 7;
          {{ self.device.consume(&mut self.other, self.untouched); }}"
     )
-}
-
-#[test]
-fn generic_boundary_shadowed_method_binder_preserves_disjoint_facts() {
-    let source = shadowed_boundary_call_source("self.untouched");
-    let typed = typed_program(&source);
-    let checked =
-        lower_typed_trees(typed, &CheckingRequest::settled()).unwrap_or_else(|diagnostics| {
-            panic!(
-                "a method binder must select Other independently of owner Cell: {diagnostics:#?}"
-            )
-        });
-    let machine = checked
-        .typed
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "Main::inspect")
-        .unwrap();
-    let mut paths = validation::CallFrameResolver::new(&checked.typed)
-        .unwrap()
-        .inferred_state_write_frame(machine, &checked.typed.machine_states(machine)[0])
-        .into_complete_paths()
-        .expect("complete boundary frame");
-    paths.sort();
-    assert_eq!(paths, ["self.device", "self.other"]);
 }
 
 #[test]

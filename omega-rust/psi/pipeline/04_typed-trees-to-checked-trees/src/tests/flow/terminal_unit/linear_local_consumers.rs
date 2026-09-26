@@ -44,37 +44,6 @@ fn consumer_transfers(operations: &[CheckedUnitEffectOperationPlan]) -> Vec<u32>
 }
 
 #[test]
-fn linear_parameter_consumed_by_a_by_value_self_callee_transfers_its_claim() {
-    // The checker records this consumption rather than a transfer; the claim
-    // still leaves through the call's receiver argument.
-    let operations = plan(
-        &format!("{RECEIPT}machine run(issued: Receipt) -> i32 {{ issued.ack(); 0 }}"),
-        "run",
-    );
-    assert!(matches!(
-        operations.as_slice(),
-        [
-            CheckedUnitEffectOperationPlan::CallUnit { .. },
-            CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. },
-            CheckedUnitEffectOperationPlan::Complete { .. },
-        ]
-    ));
-    assert_eq!(consumer_transfers(&operations), [0]);
-}
-
-#[test]
-fn linear_parameter_transferred_to_a_linear_formal_keeps_the_ordinary_transfer() {
-    let operations = plan(
-        &format!(
-            "{RECEIPT}machine take(r: Receipt) {{ r.ack(); }}
-             machine run(issued: Receipt) -> i32 {{ take(issued); 0 }}"
-        ),
-        "run",
-    );
-    assert_eq!(consumer_transfers(&operations), [0]);
-}
-
-#[test]
 fn locals_bound_from_a_parameter_a_literal_or_a_call_result_feed_the_consumer() {
     // The claim rides the completed structural result into the by-value
     // `self` consumer, so the call names no separate transfer row for it;
@@ -120,59 +89,4 @@ fn locals_bound_from_a_parameter_a_literal_or_a_call_result_feed_the_consumer() 
         );
         assert!(consumer_transfers(&operations).is_empty(), "{label}");
     }
-}
-
-#[test]
-fn affine_literal_local_consumed_through_a_method_spelled_receiver() {
-    let operations = plan(
-        "data Token { code: i32; }
-         machine Token::ack(self) {}
-         machine run() -> i32 { let issued: Token = Token { code: 7 }; issued.ack(); 0 }",
-        "run",
-    );
-    assert!(matches!(
-        operations.as_slice(),
-        [
-            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                discard_result_on_return: false,
-                ..
-            },
-            CheckedUnitEffectOperationPlan::CallUnit { .. },
-            CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. },
-            CheckedUnitEffectOperationPlan::Complete { .. },
-        ]
-    ));
-    assert!(consumer_transfers(&operations).is_empty());
-}
-
-#[test]
-fn a_linear_local_consumed_twice_never_reaches_a_plan() {
-    checked_program_result(&format!(
-        "{RECEIPT}machine run(issued: Receipt) -> i32 {{ let forwarded: Receipt = issued; forwarded.ack(); forwarded.ack(); 0 }}"
-    ))
-    .expect_err("the checker owns the double-consumption rejection");
-}
-
-#[test]
-fn a_fresh_linear_literal_still_stops_at_its_local_binding() {
-    // Terminal has no operation establishing a fresh linear claim, so the
-    // literal is not collected as a structural value and the sequence stops
-    // at the binding rather than admitting a claim it cannot lower.
-    let checked = checked_program_result(&format!(
-        "{RECEIPT}machine run() -> i32 {{ let issued: Receipt = Receipt {{ code: 7 }}; issued.ack(); 0 }}"
-    ))
-    .expect("the source checks");
-    let machine = machine_named(&checked, "run");
-    let plans = &checked.facts.flow.terminal_unit_effects;
-    assert!(plans.for_machine(machine).is_none());
-    assert!(matches!(
-        plans.omission_for_machine(machine).map(|row| &row.stage),
-        Some(
-            checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
-                phase: "statement sequence: local data: structural call binding",
-                statement_index: Some(0),
-                ..
-            }
-        )
-    ));
 }

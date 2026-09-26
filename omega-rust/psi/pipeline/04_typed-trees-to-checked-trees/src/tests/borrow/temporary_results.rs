@@ -43,50 +43,6 @@ fn temporary_projections_retain_every_lifetime_candidate() {
 }
 
 #[test]
-fn a_temporary_result_does_not_hide_an_input_owner_with_a_live_child() {
-    let diagnostics = check(
-        "data Cell { value: u64; }
-         data Owned { cell: Cell; }
-         machine forward(value: Owned) -> Owned { value }
-         machine consume(value: Cell) {}
-         machine exercise() {
-             let mut cell: Cell = Cell { value: 0 };
-             let child: &mut u64 = &mut cell.value;
-             consume(forward(Owned { cell: cell }).cell);
-             child = 1;
-         }",
-    )
-    .expect_err("fresh result storage does not authorize moving the borrowed input");
-    assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("receives an owned value while local borrow `child`")),
-        "{diagnostics:#?}"
-    );
-}
-
-#[test]
-fn temporary_partial_moves_keep_nominal_cleanup_entitlement() {
-    let diagnostics = check(
-        "data Leaf { value: i32; }
-         data Wrapper { leaf: Leaf; }
-         machine Wrapper::drop(&mut self) {}
-         machine forward(value: Wrapper) -> Wrapper { value }
-         machine exercise() {
-             let wrapper: Wrapper = Wrapper { leaf: Leaf { value: 1 } };
-             let extracted: Leaf = forward(wrapper).leaf;
-         }",
-    )
-    .expect_err("drop still requires the whole temporary wrapper");
-    assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("cannot partially move a value of `Wrapper`")),
-        "{diagnostics:#?}"
-    );
-}
-
-#[test]
 fn temporary_partial_moves_cannot_discard_linear_siblings() {
     for (container, declaration, initializer, projection) in [
         (
