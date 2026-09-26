@@ -688,9 +688,19 @@ fn validate_structural_arguments(
             });
             if matches!(presentation, StructuralArgumentPresentation::Boundary)
                 || !plain_source
-                || argument.access != terminal_psi::StructuralAccess::Owned
+                // A shared borrow passes the payload through in place; the
+                // argument still names the caller-owned result storage.
+                || !matches!(
+                    (argument.access, expected.access),
+                    (
+                        terminal_psi::StructuralAccess::Owned,
+                        terminal_psi::StructuralAccess::Owned
+                    ) | (
+                        terminal_psi::StructuralAccess::SharedBorrow,
+                        terminal_psi::StructuralAccess::SharedBorrow
+                    )
+                )
                 || !argument.path.is_empty()
-                || expected.access != terminal_psi::StructuralAccess::Owned
                 || expected.multiplicity != StructuralMultiplicity::Unrestricted
                 || !expected.qualifications.is_empty()
                 || !expected.projected_qualifications.is_empty()

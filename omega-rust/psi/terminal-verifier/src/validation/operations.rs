@@ -51,11 +51,18 @@ pub(super) fn validate_operation_operands(
         _ => &[],
     };
     for argument in structural_arguments {
+        // A shared borrow reads the payload in place rather than substituting
+        // opaque metadata for it; the structural-argument resolution arm
+        // still requires the exact producing operation and an empty path.
+        let payload_admitted = !matches!(operation.kind, OperationKind::BoundaryCall { .. })
+            && argument.path.is_empty()
+            && super::scalar::array::plain_return_source(module, machine, argument.place)
+            && matches!(
+                argument.access,
+                StructuralAccess::Owned | StructuralAccess::SharedBorrow
+            );
         if super::scalar::array::owned_payload_source(module, machine, argument.place)
-            && (matches!(operation.kind, OperationKind::BoundaryCall { .. })
-                || argument.access != StructuralAccess::Owned
-                || !argument.path.is_empty()
-                || !super::scalar::array::plain_return_source(module, machine, argument.place))
+            && !payload_admitted
         {
             return Err(ModuleError::ScalarArrayResultMismatch(operation.id));
         }
