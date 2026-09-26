@@ -3451,6 +3451,26 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   already threaded there. Carry the filtered names into that pass, match calls
   whose `target_symbol` is invalid against them, and reject naming both.
 
+  The obvious form of that check is refuted, and the reason names a missing
+  dependency. Rejecting every statement call whose `target_symbol` is invalid
+  at `admit_provider_default_calls` -- on the item's own reasoning that an
+  undeclared spelling already rejects by name earlier, so a survivor here is
+  the filtered case -- turns 22 passing corpus fixtures red. The legitimate
+  shapes that reach that point unresolved are trait static dispatch
+  (`pass/traits/trait_generic_bound_static_dispatch`), provider adapters
+  (`pass/core/{carry_permission,extent_root}_provider_adapter`), every
+  `pass/wire/*` codec, the optimizer-component fixtures, the interrupt-table
+  and secondary-processor canaries, and
+  `pass/control_flow/nested_parameter_receiver_call`; eight `fail/` rows also
+  lose their expected fragment to the extra diagnostic. So the check must
+  match the filtered names specifically, which needs the receiver's owner
+  type -- and that is what build-evaluation does not have. `TypedTrees`
+  exposes no public symbol-to-declared-type lookup, and the one that exists,
+  `04_typed-trees-to-checked-trees`'s `resolution::symbol_type_position`,
+  is the wrong direction for an Omega-side crate to depend on. Supply a
+  receiver-type lookup on `TypedTrees` first, or have the syntax-level filter
+  record enough to rejoin its removed declarations without one.
+
   There is no separable Psi half. Measured on a1dcb8dc48 (revision not on main): an undeclared name
   already rejects by name in both call positions before any authored-selection
   check runs -- `missing_helper()` as a value call reports "does not resolve to
