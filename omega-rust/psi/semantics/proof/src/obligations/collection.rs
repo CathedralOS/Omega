@@ -1011,16 +1011,35 @@ fn display_name_path(path: &[Identifier]) -> Identifier {
     Identifier::generated(display)
 }
 
+/// A state symbol's retained parent names its owning machine, so that
+/// machine's rows answer first. The whole-program scan remains for a state
+/// whose retained parent disagrees with its storage and for a symbol the
+/// table cannot resolve. Symbols of other resolved kinds, and states under a
+/// trait (requirement signatures), never name stored state rows.
 fn state_by_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<&State> {
     if !symbol.is_valid() {
         return None;
     }
-
+    let entry = program.symbols.get(symbol);
+    if !matches!(
+        entry.kind,
+        symbols::SymbolKind::State | symbols::SymbolKind::Unknown
+    ) || program.symbols.get(entry.parent).kind == symbols::SymbolKind::Trait
+    {
+        return None;
+    }
+    let states_of = |machine: &Machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.symbol == symbol)
+    };
     program
         .machines()
         .iter()
-        .flat_map(|machine| program.machine_states(machine).iter())
-        .find(|state| state.symbol == symbol)
+        .find(|machine| machine.symbol == entry.parent)
+        .and_then(states_of)
+        .or_else(|| program.machines().iter().find_map(states_of))
 }
 
 fn incoming_state_guard(
