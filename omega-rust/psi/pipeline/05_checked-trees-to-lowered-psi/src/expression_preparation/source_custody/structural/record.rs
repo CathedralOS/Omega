@@ -130,6 +130,7 @@ pub(super) fn validate(
                 || !matches!(
                     plans.nodes.get(value).kind,
                     CheckedStructuralValueKind::ZeroedScalarArray { .. }
+                        | CheckedStructuralValueKind::ZeroedStructural { .. }
                 )
             {
                 return unsupported("record establishment omitted a non-zeroable member");

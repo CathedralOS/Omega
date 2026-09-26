@@ -1801,6 +1801,7 @@ fn consume_value_places(
             | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. }
             | checked_trees::CheckedStructuralValueKind::ViewElementCopy { .. }
             | checked_trees::CheckedStructuralValueKind::ZeroedScalarArray { .. }
+            | checked_trees::CheckedStructuralValueKind::ZeroedStructural { .. }
             | checked_trees::CheckedStructuralValueKind::Case(_) => {}
         }
     }

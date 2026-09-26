@@ -604,5 +604,49 @@ pub fn unwrapped_type_reference(
     }
 }
 
+/// Whether a declared type is wholly zero-constructible: a primitive scalar,
+/// a fixed array of literal extent whose element qualifies, or a named
+/// record whose fields all qualify recursively. Bounded integers (the
+/// restriction may exclude 0), sums, references, byte sequences, and erased
+/// members reject — matching the terminal-level `zeroed_structural_shape`
+/// admission rule.
+pub fn zeroed_structural_parts(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
+    let mut pending = vec![type_reference];
+    while let Some(current) = pending.pop() {
+        let Some(reference) = unwrapped_type_reference(program, current) else {
+            return false;
+        };
+        if program.primitive_type_reference(reference).is_some() {
+            continue;
+        }
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length: typed_trees::types::FixedArrayLength::Literal(_),
+            } => pending.push(*element_type),
+            TypeReferenceNode::Named { symbol, .. } => {
+                let Some(data) = program
+                    .data_definitions()
+                    .iter()
+                    .find(|data| data.symbol == *symbol)
+                else {
+                    return false;
+                };
+                for member in program.data_members(data) {
+                    let typed_trees::data::DataMember::Field(field) = member else {
+                        return false;
+                    };
+                    if field.relevance.is_erased() {
+                        return false;
+                    }
+                    pending.push(field.type_reference);
+                }
+            }
+            _ => return false,
+        }
+    }
+    true
+}
+
 #[cfg(test)]
 mod owner_tests;

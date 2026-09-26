@@ -491,7 +491,7 @@ fn scalar_array_field_record_result_composes_with_zeroed_omission() {
 }
 
 #[test]
-fn nested_record_field_record_result_still_declines_composed() {
+fn nested_record_field_record_result_composes_with_zeroed_omission() {
     let checked = checked(
         r#"
         data Inner { value: u64; }
@@ -512,8 +512,8 @@ fn nested_record_field_record_result_still_declines_composed() {
             .flow
             .terminal_unit_effects
             .composed_for_machine(machine_named(&checked, "choose_framed"))
-            .is_none(),
-        "an omitted non-scalar structural field stays outside the composed result signature"
+            .is_some(),
+        "an omitted all-scalar-leaf record field composes through the zeroed fill"
     );
 }
 

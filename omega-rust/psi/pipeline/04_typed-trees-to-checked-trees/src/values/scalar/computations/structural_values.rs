@@ -1677,6 +1677,7 @@ impl Builder<'_, '_> {
                 })
                 || omitted.iter().any(|field| {
                     zeroed_scalar_array_parts(self.program, field.type_reference).is_none()
+                        && !validation::zeroed_structural_parts(self.program, field.type_reference)
                 }))
         {
             return None;
@@ -1763,6 +1764,21 @@ impl Builder<'_, '_> {
             });
         }
         for field in omitted {
+            if zeroed_scalar_array_parts(self.program, field.type_reference).is_none() {
+                // Structural members carry no element roster: the emitted
+                // EstablishZeroedStructural owns the whole shape's zeros.
+                let node = values.nodes.append(CheckedStructuralValue {
+                    expression,
+                    kind: CheckedStructuralValueKind::ZeroedStructural {},
+                });
+                fields.push(checked_trees::CheckedStructuralRecordField {
+                    field: field.symbol,
+                    expression,
+                    type_reference: field.type_reference,
+                    value: checked_trees::CheckedStructuralRecordFieldValue::Structural(node),
+                });
+                continue;
+            }
             let (primitive_type, element_count) =
                 zeroed_scalar_array_parts(self.program, field.type_reference)?;
             let zero = zeroed_integer_literal(primitive_type)?;

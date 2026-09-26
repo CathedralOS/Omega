@@ -129,6 +129,17 @@ pub(super) fn append_operation(
     }
     if matches!(
         operation.kind,
+        OperationKind::EstablishZeroedStructural { .. }
+    ) {
+        crate::validation::structural::operations::validate_establish_zeroed_structural(
+            module, machine, operation,
+        )?;
+        // Whole-root zeroed initialization is a total validation judgment;
+        // the fresh result place has no prior observations to invalidate.
+        return Ok(());
+    }
+    if matches!(
+        operation.kind,
         OperationKind::StructuralLeafCopy { .. } | OperationKind::StructuralCaseLeafCopy { .. }
     ) {
         // A leaf copy publishes no scalar fact: freshness of the result and

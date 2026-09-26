@@ -489,6 +489,17 @@ pub(crate) fn validate(
                     return unsupported("zeroed scalar array changed its zero leaf");
                 }
             }
+            CheckedStructuralValueKind::ZeroedStructural { .. } => {
+                // The synthesized zero's whole contract is the declared
+                // member carrier itself being zero-constructible.
+                let expected = validation::unwrapped_type_reference(&checked.typed, reference)
+                    .ok_or(LoweringError::Unsupported(
+                        "zeroed structural carrier missing",
+                    ))?;
+                if !validation::zeroed_structural_parts(&checked.typed, expected) {
+                    return unsupported("zeroed structural substituted its carrier");
+                }
+            }
             CheckedStructuralValueKind::Reference { source: argument } => {
                 if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
                     // A `&T` selection leaf replays its authored `&place`

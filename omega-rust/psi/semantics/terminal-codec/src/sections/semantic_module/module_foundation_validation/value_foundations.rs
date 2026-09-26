@@ -231,8 +231,10 @@ pub(super) fn validate_establish_zeroed_structural(
     let Some(result) = operation.result.structural() else {
         return malformed("zeroed structural establishment has no structural result");
     };
-    if result.multiplicity != StructuralMultiplicity::Unrestricted
-        || !result.qualifications.is_empty()
+    if !matches!(
+        result.multiplicity,
+        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+    ) || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()
         || !result.qualification_establishments.is_empty()

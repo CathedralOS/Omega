@@ -10,7 +10,9 @@ mod local_establishments;
 mod structural_calls;
 mod unit_calls;
 
-pub(crate) use local_establishments::validate_establish_trivial_affine_local;
+pub(crate) use local_establishments::{
+    validate_establish_trivial_affine_local, validate_establish_zeroed_structural,
+};
 
 use crate::validation::structural::operations::claim_transfers::validate_service_reach;
 use crate::validation::structural::operations::contract_places::validate_unit_call_contract_places;
@@ -53,9 +55,7 @@ pub(crate) fn validate_unit_operation_static(
             crate::validation::scalar::array::shape(module, machine, operation)?;
         }
         OperationKind::EstablishZeroedStructural { .. } => {
-            local_establishments::validate_establish_zeroed_structural(
-                module, machine, operation,
-            )?;
+            local_establishments::validate_establish_zeroed_structural(module, machine, operation)?;
         }
         OperationKind::WriteOnlyPrimitiveStore {
             destination, path, ..

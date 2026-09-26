@@ -19,6 +19,24 @@ pub enum ZeroedStructuralLeaf {
     },
 }
 
+impl ZeroedStructuralLeaf {
+    /// The leaf's canonical static path below the established root.
+    pub fn path(&self) -> &[StructuralPathSegment] {
+        match self {
+            ZeroedStructuralLeaf::RecordField { path, .. }
+            | ZeroedStructuralLeaf::ArrayScalar { path, .. } => path,
+        }
+    }
+
+    /// The leaf's plain scalar storage type.
+    pub fn scalar_type(&self) -> ScalarType {
+        match self {
+            ZeroedStructuralLeaf::RecordField { scalar_type, .. }
+            | ZeroedStructuralLeaf::ArrayScalar { scalar_type, .. } => *scalar_type,
+        }
+    }
+}
+
 /// Resolve whether a structural type's whole storage may begin zero: every
 /// leaf a plain primitive scalar and every aggregate a record or fixed array.
 /// References, views, byte sequences, sums, bounded integers, and erased
@@ -89,8 +107,7 @@ pub fn zeroed_structural_leaves<'types>(
                         }
                         StructuralFieldType::Structural(member) => {
                             let mut member_path = path.clone();
-                            member_path
-                                .push(StructuralPathSegment::Field(field.identity.clone()));
+                            member_path.push(StructuralPathSegment::Field(field.identity.clone()));
                             pending.push((*member, member_path));
                         }
                         _ => return None,

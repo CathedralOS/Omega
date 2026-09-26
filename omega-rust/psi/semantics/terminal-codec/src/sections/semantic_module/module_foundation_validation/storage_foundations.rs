@@ -985,6 +985,7 @@ pub(super) fn validate_integer_structural_field(
             matches!(
                 producer.kind,
                 OperationKind::EstablishRecord { .. }
+                    | OperationKind::EstablishZeroedStructural { .. }
                     | OperationKind::CallStructural { .. }
                     | OperationKind::CallStructuralWithScalarArguments { .. }
                     | OperationKind::StructuralLeafCopy { .. }

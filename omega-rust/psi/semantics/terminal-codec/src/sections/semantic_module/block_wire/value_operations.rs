@@ -117,9 +117,7 @@ pub(super) fn decode_establish_byte_sequence_literal(
     })
 }
 
-pub(super) fn encode_establish_zeroed_structural(
-    writer: &mut Writer,
-) -> Result<(), CodecError> {
+pub(super) fn encode_establish_zeroed_structural(writer: &mut Writer) -> Result<(), CodecError> {
     writer.u8(operation_tags::ESTABLISH_ZEROED_STRUCTURAL);
     Ok(())
 }

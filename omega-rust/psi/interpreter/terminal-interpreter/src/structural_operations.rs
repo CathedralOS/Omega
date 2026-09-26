@@ -541,10 +541,7 @@ impl TerminalExecution {
                         zero(*scalar_type).ok_or_else(invalid)?,
                     );
                 }
-                terminal_semantics::ZeroedStructuralLeaf::ArrayScalar {
-                    path,
-                    scalar_type,
-                } => {
+                terminal_semantics::ZeroedStructuralLeaf::ArrayScalar { path, scalar_type } => {
                     self.structural_primitive_storage.insert(
                         StructuralRuntimePlace {
                             opaque_identity: value.opaque_identity,

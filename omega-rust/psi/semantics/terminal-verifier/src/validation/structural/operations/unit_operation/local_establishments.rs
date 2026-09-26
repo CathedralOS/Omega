@@ -53,10 +53,10 @@ pub(in crate::validation) fn validate_establish_byte_sequence_literal(
 }
 
 /// A zeroed structural establishment declares no operands: its structural
-/// result must be an unrestricted operation result over a type whose whole
-/// storage is zero-constructible (recursively plain-scalar leaves under
-/// records and fixed arrays).
-pub(in crate::validation) fn validate_establish_zeroed_structural(
+/// result must be an unrestricted or affine operation result over a type
+/// whose whole storage is zero-constructible (recursively plain-scalar
+/// leaves under records and fixed arrays).
+pub(crate) fn validate_establish_zeroed_structural(
     module: &TerminalModule,
     machine: &TerminalMachine,
     operation: &terminal_psi::Operation,
@@ -67,8 +67,11 @@ pub(in crate::validation) fn validate_establish_zeroed_structural(
     let Some(result) = operation.result.structural() else {
         return Err(ModuleError::ZeroedStructuralResultMismatch(operation.id));
     };
-    if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
-        || !result.qualifications.is_empty()
+    if !matches!(
+        result.multiplicity,
+        terminal_psi::StructuralMultiplicity::Unrestricted
+            | terminal_psi::StructuralMultiplicity::Affine
+    ) || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()
         || !matches!(
