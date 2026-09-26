@@ -64,9 +64,7 @@ fn structural_rosters_fingerprint(
     program: &TypedTrees,
     machines: &[typed_trees::machine::Machine],
 ) -> usize {
-    let mut fingerprint = (program as *const TypedTrees as usize)
-        ^ (machines.as_ptr() as usize)
-        ^ machines.len().rotate_left(7)
+    let mut fingerprint = machines.len().rotate_left(7)
         ^ program.tables.machine_states.len().rotate_left(13)
         ^ program.tables.state_parameters.len().rotate_left(19)
         ^ program.statement_table.statement_count().rotate_left(23)
@@ -99,7 +97,7 @@ fn structural_rosters_fingerprint(
 
 thread_local! {
     static STRUCTURAL_ROSTERS: std::cell::RefCell<
-        Option<(*const TypedTrees, usize, StructuralRosters)>,
+        Option<(typed_trees::ProgramIdentity, usize, StructuralRosters)>,
     > = const { std::cell::RefCell::new(None) };
 }
 
@@ -111,9 +109,9 @@ fn with_structural_rosters<R>(
         let mut slot = slot.borrow_mut();
         let machines = program.machines();
         let fingerprint = structural_rosters_fingerprint(program, machines);
-        let fresh = slot
-            .as_ref()
-            .is_some_and(|(owner, seen, _)| std::ptr::eq(*owner, program) && *seen == fingerprint);
+        let fresh = slot.as_ref().is_some_and(|(owner, seen, _)| {
+            owner.get() == program.identity.get() && *seen == fingerprint
+        });
         if !fresh {
             let mut rosters = StructuralRosters {
                 machines: std::collections::HashMap::with_capacity(machines.len()),
@@ -206,7 +204,7 @@ fn with_structural_rosters<R>(
                     }
                 }
             }
-            *slot = Some((program, fingerprint, rosters));
+            *slot = Some((program.identity, fingerprint, rosters));
         }
         reader(&slot.as_ref().expect("rosters just populated").2)
     })
