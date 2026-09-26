@@ -1,8 +1,8 @@
-use crate::native::native_realization::providers::AdmittedTerminalMechanism;
-use crate::native::native_realization::realization_request::{
-    NativeRealizationInput, NativeRealizationRequest,
+use crate::provider_admission::AdmittedTerminalMechanism;
+use crate::provider_admission::{
+    NativeRealizationInput, ProviderAdmissionRequest,
 };
-use abstract_operations_to_target_operations::{
+use crate::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement,
 };
 use diagnostics::Diagnostic;
@@ -14,7 +14,7 @@ use target_operations::{
 
 pub(super) fn settle_compiler_builtins<'request>(
     input: &NativeRealizationInput,
-    request: &NativeRealizationRequest<'request>,
+    request: &ProviderAdmissionRequest<'request>,
 ) -> Result<
     (
         Vec<AdmittedBoundarySettlement<'request>>,

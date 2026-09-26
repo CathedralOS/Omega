@@ -3775,7 +3775,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   Filesystem cohort emitters also have production callers:
   `providers/settlements/source_imports.rs` emits mechanism classifications;
   `packages/manager/src/review/candidate/semantic_bindings.rs` attaches
-  consumer permission rows. The merge in `native_realization/providers/mod.rs`
+  consumer permission rows. The merge in `abstract-operations-to-target-operations/src/provider_admission/mod.rs`
   is a **mechanism-classification** policy, separate from the optional receiver
   permission policy; preserve both exact identities.
 
@@ -3844,7 +3844,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   shipped program's lifecycle.
 
   The native policy helpers in
-  `native-realization/src/native_realization/terminal_authority_policy/filesystem.rs`
+  `abstract-operations-to-target-operations/src/provider_admission/terminal_authority_policy/filesystem.rs`
   already bind an occurrence commitment into syscall/foreign-import mechanism
   identities and emit a constrained empty row, but only tests call them.
   Implement the checked-flow derivation, retained Terminal evidence and independent

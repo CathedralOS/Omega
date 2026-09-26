@@ -15,6 +15,7 @@
 //! slice (TASKS.md PLAN-LAID-VIEWS).
 
 mod lowering;
+pub mod provider_admission;
 mod validation;
 
 pub use lowering::model::{

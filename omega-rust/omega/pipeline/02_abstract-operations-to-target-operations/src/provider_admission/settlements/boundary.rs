@@ -1,23 +1,23 @@
+use installation_evidence::ProviderExecutionEvidence;
 use super::{
     exact_plan::selected_plan_from_exact_evidence,
     normalized_foreign_call::rejoin_normalized_foreign_call,
 };
-use crate::native::native_realization::realization_request::{
+use crate::provider_admission::{
     NativeBoundaryRealization, NativeProviderSettlement, NativeRealizationInput,
-    NativeRealizationRequest,
+    ProviderAdmissionRequest,
 };
-use abstract_operations_to_target_operations::AdmittedBoundarySettlement;
+use crate::AdmittedBoundarySettlement;
 use diagnostics::Diagnostic;
-use native_artifact::NativeProviderExecution;
 
 pub(super) fn settle_boundary<'request>(
     input: &NativeRealizationInput,
-    request: &NativeRealizationRequest<'request>,
+    request: &ProviderAdmissionRequest<'request>,
     settlement: &NativeProviderSettlement<'request>,
 ) -> Result<
     (
         AdmittedBoundarySettlement<'request>,
-        NativeProviderExecution,
+        &'request dyn ProviderExecutionEvidence,
     ),
     Vec<Diagnostic>,
 > {
@@ -74,11 +74,11 @@ pub(super) fn settle_boundary<'request>(
         AdmittedBoundarySettlement {
             boundary: boundary.id,
             execution:
-                abstract_operations_to_target_operations::AdmittedBoundaryExecution::Provider(
+                crate::AdmittedBoundaryExecution::Provider(
                     evidence,
                 ),
             realization,
         },
-        NativeProviderExecution::from_evidence(evidence),
+        evidence,
     ))
 }
