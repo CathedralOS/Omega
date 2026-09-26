@@ -783,9 +783,10 @@ _roots` shows the current shape: `use omega_language_std::targets::uefi_x86_64`
     algorithm and run `runtime_stdin_command_branch_exit_canary_runs`.
   - `host/runtime_console_bounded_line_exit`: finish other-host native coverage
     of the full result and mutable field windows, including zero capacity.
-    `providers_float_and_console/console_reader.rs::bounded_line_window_results_run_natively_with_zero_extent_nonconsumption`
-    now exercises the unchanged customer on macOS ARM64/Linux; Windows is
-    explicitly skipped. Run the Linux hosts and connect the Windows witness
+    `providers_float_and_console/console_reader.rs::bounded_line_window_results\
+_run_natively_with_zero_extent_nonconsumption` was the coverage claimed here,
+    and both the test and its file are gone with `c60792d7bd`, so macOS
+    ARM64/Linux are not in fact exercised by it. Run the Linux hosts and connect the Windows witness
     through the supported-host realization work. Require exact exits/output,
     non-consumption and untouched-tail behavior, not discard-result execution.
   - `text/runtime_stdin_line_buffering_exit`: both `echo_line` calls already
@@ -1983,7 +1984,13 @@ syntax and other terminal services are not prerequisites.
   Exercise request-on/request-off replacement and retry through
   `stage_exact_bytes` / `install_staged_products`. Preserve
   `executable_publication.rs::a_failed_pair_member_leaves_the_previous_pair_intact`;
-  receiver mismatch rejection is separate from publication atomicity.
+  receiver mismatch rejection is separate from publication atomicity. That test
+  no longer exists -- `c60792d7bd` ("repo: the compiler is tested through the
+  corpus gate alone") removed it, and only
+  `omega/compiler/src/report/executable_publication.rs` remains -- so the
+  atomicity it guarded is currently unguarded and this instruction cannot be
+  followed as written. Re-establish the guard as part of this item rather than
+  assuming it still holds.
 
 - **PSIIR.** Complete source-free Terminal execution and logical-work bounds
   across canonical encoding, independent reconstruction, interpretation,
