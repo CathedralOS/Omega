@@ -58,6 +58,7 @@ pub(crate) mod termination;
 
 use diagnostics::Diagnostic;
 pub(crate) use operators::{named_operator_route_is_false, operator_route_is_false};
+use symbols::SymbolHandle;
 
 pub(crate) use multiplicity::{
     nominal_drop_machine_symbol, type_carries_linear_obligation, type_multiplicity,
@@ -151,6 +152,7 @@ pub(crate) fn check_checked_facts_recording(
         true,
         &crate::flow::StateMutationSummaryCache::default(),
         &IncomingGuardIndexCache::default(),
+        &[],
     )
 }
 
@@ -163,6 +165,7 @@ pub(crate) fn check_checked_facts_recording_with_mutation_summaries(
     facts: &mut checked_trees::CheckFacts,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
     guard_index: &IncomingGuardIndexCache,
+    proven_machine_contracts: &[(SymbolHandle, Vec<typed_trees::expression::ExpressionHandle>)],
 ) -> Result<(), Vec<Diagnostic>> {
     check_checked_facts_recording_with_crash_admission(
         program,
@@ -170,6 +173,7 @@ pub(crate) fn check_checked_facts_recording_with_mutation_summaries(
         true,
         mutation_summaries,
         guard_index,
+        proven_machine_contracts,
     )
 }
 
@@ -184,6 +188,7 @@ pub(crate) fn check_checked_facts_recording_without_crash_admission(
         false,
         &crate::flow::StateMutationSummaryCache::default(),
         &IncomingGuardIndexCache::default(),
+        &[],
     )
 }
 
@@ -193,6 +198,7 @@ fn check_checked_facts_recording_with_crash_admission(
     enforce_crash_admission: bool,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
     guard_index: &IncomingGuardIndexCache,
+    proven_machine_contracts: &[(SymbolHandle, Vec<typed_trees::expression::ExpressionHandle>)],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let call_frames = validation::CallFrameResolver::new(program);
@@ -212,9 +218,13 @@ fn check_checked_facts_recording_with_crash_admission(
         diagnostics.append(&mut borrow_diagnostics);
     }
 
-    if let Err(mut contract_diagnostics) =
-        contracts::check_flow_call_contracts(program, facts, incoming_guards, call_frames.as_ref())
-    {
+    if let Err(mut contract_diagnostics) = contracts::check_flow_call_contracts(
+        program,
+        facts,
+        incoming_guards,
+        call_frames.as_ref(),
+        proven_machine_contracts,
+    ) {
         diagnostics.append(&mut contract_diagnostics);
     }
 

@@ -12,6 +12,8 @@ pub(super) struct ProvenExitExpressions<'program, 'frames> {
     program: &'program TypedTrees,
     classification: &'program typed_trees::proof_only::ProofOnlyClassification,
     resolver: Option<&'frames validation::CallFrameResolver<'program>>,
+    /// Postconditions validation already proved on this program, by machine.
+    validated: &'frames [(SymbolHandle, Vec<ExpressionHandle>)],
     machines: Vec<MachineEntailmentOutcome>,
 }
 
@@ -29,11 +31,13 @@ impl<'program, 'frames> ProvenExitExpressions<'program, 'frames> {
         program: &'program TypedTrees,
         classification: &'program typed_trees::proof_only::ProofOnlyClassification,
         resolver: Option<&'frames validation::CallFrameResolver<'program>>,
+        validated: &'frames [(SymbolHandle, Vec<ExpressionHandle>)],
     ) -> Self {
         Self {
             program,
             classification,
             resolver,
+            validated,
             machines: Vec::new(),
         }
     }
@@ -56,7 +60,17 @@ impl<'program, 'frames> ProvenExitExpressions<'program, 'frames> {
                     self.resolver,
                 );
                 let mut expressions = if entry_premises_preserved {
-                    validation::proven_machine_contract_expressions(self.program, machine_symbol)
+                    match self
+                        .validated
+                        .iter()
+                        .find(|(symbol, _)| *symbol == machine_symbol)
+                    {
+                        Some((_, proven)) => proven.clone(),
+                        None => validation::proven_machine_contract_expressions(
+                            self.program,
+                            machine_symbol,
+                        ),
+                    }
                 } else {
                     Vec::new()
                 };
