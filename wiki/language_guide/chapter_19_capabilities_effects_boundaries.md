@@ -200,6 +200,72 @@ supplies selected implementations without giving the script ambient access to
 everything the host can do. Native and interpreted providers retain the same
 requirement and lifecycle contracts.
 
+## Root-Assumed Binding Contracts
+
+Ordinary provider selection requires a checked conformance. A root can instead
+explicitly assume a relationship between two compatible boundary contracts:
+
+```omega
+machine build(builder: &mut Build) {
+    builder.application("memory_editor");
+    builder.select_provider<RangeSupplier, EchoSupplier>();
+    builder.assume_binding_contract<WritableMemory::claim, RangeSupplier::supply>();
+}
+```
+
+For example, a library can declare these two views of the same runtime data:
+
+```omega
+pub boundary trait WritableMemory {
+    machine claim(region: Range) -> Range in Writable;
+}
+
+pub boundary trait RangeSupplier {
+    machine supply(region: Range) -> Range;
+}
+
+pub data EchoSupplier { }
+
+machine EchoSupplier::supply(region: Range) -> Range
+satisfies RangeSupplier::supply
+{
+    region
+}
+
+data App { memory: Binding<WritableMemory>; }
+
+machine App::claim_memory(&mut self, region: Range) -> Range in Writable
+reaches WritableMemory;
+{
+    self.memory.claim(region)
+}
+```
+
+Here the library's `Range`/`Writable` contract includes valid backing, write
+authority, lifetime and aliasing requirements, with the claim operation as an
+authorized issuer. Those definitions are not replaced by the names in this
+example. Numeric geometry alone supplies none of that authority.
+
+The supplier body honestly checks as an identity operation. The root's admission
+supplies the missing qualification at the caller-facing crossing; calling the
+supplier directly still returns an unqualified range. An input-side difference
+can similarly supply a qualification the implementation requires. Both directions
+retain their exact subjects and owner-authorized establishment evidence.
+
+Arguments/results must match in runtime carrier, order, representation, passing
+mode and lifetime/ownership relationships. Operational contracts stay checked.
+Different shapes need an ordinary checked adapter, not a same-size bit cast.
+Neither `satisfies` nor assembly gains an unchecked mode. If the root's external
+claim is false, the consumer's conditional safety guarantee no longer applies.
+
+Package tools label this **Extremely high risk - assumed binding contract**,
+including through wrappers and dependencies. The exact relationship and selected
+implementation require explicit project acceptance; a changed implementation
+invalidates that approval. The root can register it for runtime, but build code,
+generators, constants and automatic tests cannot execute it or use its assumptions.
+See the [complete contract](../spec/build/assumed_binding_contracts.md); the
+existing veto on checker-refutable claims is not silently removed.
+
 ## Service Reach And Operational Clauses
 
 `reaches` declares a `+`-separated set of boundary services. Direct boundary
@@ -789,7 +855,7 @@ The call omits `procedure`: no runtime function-pointer value is passed. The
 compiler privately realizes the callback and relocation. Calling policy places
 that declared entry; it cannot invent a trailing argument or retarget the binder.
 
-`ApplicationHook as addr` separately observes an executable entry address under
+`address_of<ApplicationHook>()` separately observes an executable entry address under
 [address exposure](chapter_20_memory_layout_abi.md#exposing-addresses). It does not
 expose this private ABI slot or replace the callback requirement, calling plan,
 or registration custody with a number.

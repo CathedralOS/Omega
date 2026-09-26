@@ -119,6 +119,13 @@ does not undo writes to a real filesystem or make foreign code safe.
 
 ## Enablement and results
 
+Build-time tests cannot call a root-assumed binding relationship or rely on its
+assumptions, including through helpers, fixtures or providers. Runtime approval
+and a genuine host-service grant do not override this exclusion. An independently
+checked supplier may still be tested without the assumed relationship; otherwise
+use a separately executed runtime harness under its own acceptance. See
+[assumed contracts](../spec/build/assumed_binding_contracts.md#runtime-only).
+
 Registered groups are enabled by default. Build configuration may set
 `memory.disabled = true;` or `builder.tests.disabled = true;` using ordinary
 admitted computation and explicit inputs. Disabled means not run, never passed.

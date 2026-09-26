@@ -75,6 +75,35 @@ line, algorithm-work, trace-memory, and output limits. Binary/non-UTF-8 changes
 remain commitment-visible but incomplete for model review; recommend standalone
 audit. Exceeding a packet limit rejects rather than silently truncating evidence.
 
+## Assumed binding contract acceptance
+
+An explicit [assumed binding contract](../build/assumed_binding_contracts.md)
+is an **Extremely high risk - assumed binding contract** finding, including
+when reached only through dependencies or wrappers. Install, update and audit
+show both contracts, the actual selected provider/implementation, the exact
+admitted difference and any authority introduced, runtime scope, dependency
+path, and old/new acceptance. It is never an ordinary provider-selection change
+that merely recommends review.
+
+Root authorization is not itself package acceptance. Require an explicit project
+decision for the exact relationship and its selected implementation/dependency
+identity. Changed contracts, mapping, selected code or semantic dependency closure
+invalidate that acceptance even when the public signature is unchanged. This is
+a risk-bearing assumption row, so the ordinary resolution-only preservation rule
+does not preserve a changed row. Identical accepted rows need no repeated prompt;
+the high-risk classification remains visible.
+
+Retain the compact readable relationship and exact commitments in `omega.lock`;
+reconstruct complete findings from the candidate. No old-source compiler pass,
+full provider-plan dump, or separate approval file is needed. Missing or stale
+acceptance prevents use of the assumed relationship. Dependency locks cannot
+grant it on behalf of the consumer, and receivers may refuse it independently.
+
+This decision is runtime-only. It cannot authorize execution of the relationship
+or use of its assumptions by build code, generators, semantic evaluation or
+automatic build-time tests. That rejection is not a pending restricted-build
+request that broader host permissions can satisfy.
+
 ## Restricted-build acceptance
 
 `omega install`, `omega update`, and package audit expose restricted build-time

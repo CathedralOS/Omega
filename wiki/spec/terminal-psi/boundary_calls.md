@@ -146,6 +146,24 @@ path without dropping sibling sources. Replay access attenuation and linear
 multiplicity separately. Path, receipt, provider, type, or qualification drift
 rejects. Claim transfer alone cannot prove residual content geometry.
 
+## Assumed runtime relationships
+
+A root-selected [assumed binding contract](../build/assumed_binding_contracts.md)
+is not a checked-provider conformance row. Retain the original requirement,
+the supplied requirement and selected checked implementation, exact argument/
+result correspondence, admitted entry/exit facts, authority receipts and full
+assumption closure. Verify runtime-shape, operational and custody compatibility
+independently of the assumed semantic relationship. A result fact is established
+only for the actual successful return; direct calls to the supplied implementation
+do not acquire caller-facing qualifications. Entry qualifications are scoped to
+that exact admitted crossing, not added to arbitrary caller values.
+
+The interpreter and native installation consume the same relationship. Neither
+may rewrite it into proved conformance, hide the selected implementation, or
+fabricate a successful result after a failed/suspended call. Build and automatic
+test execution reject these relationships and their assumption-dependent helpers
+before execution, even if the runtime root accepted them.
+
 ## Host result validation
 
 An embedding handler distinguishes Unit, exactly typed scalar, and opaque

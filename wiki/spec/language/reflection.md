@@ -60,8 +60,10 @@ There is no second offset calculator or interpretation of a semantic member inde
 as its byte offset.
 
 Geometry may be queried only after the selected [layout plan](../layouts/plans.md)
-is validated. A layout cannot inspect its own unfinished result; dependency
-cycles reject. Erased fields have no physical field key or access decision.
+is validated. Core `size_of<T>()` and `align_of<T>()` consume that same plan,
+not a second interpretation of semantic schema fields. A layout cannot inspect
+its own unfinished result; dependency cycles reject. Erased fields have no
+physical field key or access decision.
 Target-independent description does not silently acquire target geometry
 dependencies; consumers that use geometry retain them explicitly.
 

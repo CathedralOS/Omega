@@ -17,6 +17,15 @@ supplied terminal permissions, and accepted restricted build requests, scoped
 to their reviewed purpose, execution profile, and product target where applicable.
 Every retained row preserves its complete readable meaning, not only a digest.
 
+[Assumed binding relationships](../build/assumed_binding_contracts.md) are
+risk-bearing assumption rows: retain the required/supplied contract identities,
+positional mapping, admitted semantic difference, runtime/root scope, and exact
+selected implementation and semantic-dependency commitment. These are not the
+ordinary selected-provider tables excluded below. A changed relationship or
+implementation invalidates its acceptance; retaining a friendly provider name
+or unchanged permission list is insufficient. The lock never authorizes use of
+these assumptions during build execution.
+
 Restricted-build rows bind the exact package and permission meaning, operation,
 logical resource scope, bounds, and applicable context. They record the consuming
 project's explicit acceptance, not authority supplied by a dependency's own lock.

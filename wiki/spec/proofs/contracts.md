@@ -304,6 +304,14 @@ A boundary claim that the checker can refute against established bounds, domains
 or accepted statements rejects even when granted. This veto is not a proof that
 the complete assumption set is consistent.
 
+Root [assumed binding contracts](../build/assumed_binding_contracts.md) record
+an unproved relationship between two runtime boundary contracts, not a checked
+`satisfies` edge or an exemption for either body. Their exact premises survive
+through the normal assumption closure, including statements and erased evidence.
+They are inadmissible for build-time computation. The possible exception to the
+refutable-claim veto is the `assumed-binding-refutable-claim` owner decision;
+registration does not silently repeal it or permit malformed derivations.
+
 ### Admission and runtime diagnostics
 
 An admitted claim is trusted without mandatory runtime checking. Runtime

@@ -55,6 +55,21 @@ Missing old source still permits policy comparison, but limits the code diff and
 calls for auditing the candidate directly. Keep the lock under the project's
 normal review controls: it records your decisions, not a certificate of safety.
 
+### Assumed binding contracts are extremely high risk
+
+`builder.assume_binding_contract<Required::operation, Supplied::operation>()`
+asks the root to accept a semantic relationship that ordinary conformance
+checking has not proved. Audit shows both contracts, the actual implementation,
+the missing guarantees/authority and the transitive dependency path. Install and
+update require explicit acceptance for that exact relationship and implementation;
+an unchanged public signature does not preserve approval of changed selected code.
+The lock retains a compact readable risk row, not a full provider-plan dump.
+
+This runtime permission cannot authorize build-time execution or use of those
+assumptions, even through a helper or automatic test. The build may register
+the relationship for its output only. See
+[root-assumed bindings](chapter_19_capabilities_effects_boundaries.md#root-assumed-binding-contracts).
+
 ### Build-time requests are part of the audit
 
 Build code is confined by default to its admitted inputs, private staged outputs,

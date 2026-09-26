@@ -13,6 +13,15 @@ supplies, accepted assumptions, and relevant build/generated-source facts.
 An unused dangerous public API remains reviewable independently of actual
 selected-program reach.
 
+[Assumed binding contracts](../build/assumed_binding_contracts.md) retain their
+**Extremely high risk - assumed binding contract** classification transitively.
+Show the exact contracts and selected implementation, the assumed entry/exit
+facts and authority, consuming root/runtime scope, dependency path and acceptance
+status. A checked supplier body does not make its caller-facing relationship
+proved. Wrapping, inlining and erasing the evidence cannot remove this finding;
+the selected implementation remains visible rather than being reported as an
+ordinary checked satisfier of the stronger requirement.
+
 This full fresh report is distinct from retained project acceptance. The lock
 keeps only exact admission-claim/external-realization callable rows, external
 supplies, dangerous capabilities, terminal permissions, and accepted restricted

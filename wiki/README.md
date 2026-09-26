@@ -35,6 +35,8 @@ beside code; completed work belongs in Git, not current reference material.
   [constants](spec/language/constants.md), [numeric values and bounds](spec/language/numeric_values.md),
   and [counts, indices, and addresses](spec/language/counts_and_addresses.md).
 - Representation policies: [layout plans](spec/layouts/plans.md),
+  [size and alignment queries](spec/layouts/plans.md#size-and-alignment-queries),
+  [native code regions](spec/language/counts_and_addresses.md#native-code-layout-queries),
   [recasts](spec/layouts/recasts.md), and [codecs](spec/layouts/codecs.md).
 - Mathematical proofs: [foundation and checking judgments](spec/proofs/foundation.md),
   [mathematical bindings and logical hypotheses](spec/proofs/mathematical_bindings.md),
@@ -85,6 +87,7 @@ beside code; completed work belongs in Git, not current reference material.
   [foreign storage and lifetime](spec/build/foreign_storage.md),
   [machine-state evidence](spec/build/machine_state_evidence.md),
   [provider selection](spec/build/provider_selection.md),
+  [root-assumed binding contracts](spec/build/assumed_binding_contracts.md),
   [embedding and interpreted components](spec/build/embedding.md),
   [task activation and lifecycle](spec/build/task_runtime.md),
   [service permissions](spec/build/permissions.md),

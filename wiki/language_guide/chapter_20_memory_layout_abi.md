@@ -148,9 +148,29 @@ separate pointer/length arguments, a particular descriptor record, or a
 terminated string. A checked adapter exposes the safe Omega view while the
 native leaf declares the actual [foreign shape](../spec/build/boundary_shapes.md#foreign-declarations).
 
+## Size And Alignment
+
+Use the compiler-known core queries on a data type:
+
+```omega
+const player_bytes: u64 = size_of<Player>();
+const player_alignment: u64 = align_of<Player>();
+```
+
+They report the selected target's validated layout, including padding in the
+size. Erased fields occupy no storage. A collection's own representation is not
+the total size of its allocations, and measuring a reference does not measure
+its referent. Fixed size and known alignment are separate requirements; a
+variable-length encoding needs an ordinary sizing machine given the value.
+
+These names are not keywords or casts. No `usize` or alignment carrier is needed.
+Interpretation uses the selected target layout, not the size of an interpreter
+object. A proof-only type without a runtime layout does not receive a fake zero
+size. See [layout queries](../spec/layouts/plans.md#size-and-alignment-queries).
+
 ## Exposing Addresses
 
-Use `as addr` to observe an executable machine's entry or borrowed storage:
+Use `address_of` to observe an executable machine's entry or borrowed storage:
 
 ```omega
 machine identity<T>(value: T) -> T {
@@ -159,16 +179,17 @@ machine identity<T>(value: T) -> T {
 
 machine addresses() {
     let value: u32 = 7;
-    let code_address = identity<u32> as addr;
-    let storage_address = (&value) as addr;
+    let code_address = address_of<identity<u32>>();
+    let storage_address = address_of(&value);
 }
 ```
 
-The machine needs no `&`: its selected declaration already names the entry.
+The static machine argument needs no `&`: its declaration already names the entry.
 `<u32>` chooses a concrete application, not the ordinary `value` argument.
 Nothing is invoked, and an attached machine's address captures no receiver.
-The storage conversion observes `value`'s location, not a temporary borrow
-descriptor. This is a compiler-supported conversion, not an equal-size recast.
+The storage query observes `value`'s location, not a temporary borrow
+descriptor. These are compiler-known core queries, not new keywords or casts.
+Machine/reference `as addr` is not an alternate spelling.
 
 A retained address request is enough to keep an executable entry even if
 nothing calls that machine. Native realization supplies its entry address;
@@ -197,6 +218,32 @@ Nor is this necessarily compile-time arithmetic: local addresses depend on the
 running invocation, and final native entry bits may be fixed only at loading.
 A relocation is not an evaluated integer, and evaluator IDs cannot be baked into
 ordinary constants. This feature does not settle interpreted inline assembly.
+
+## Inspecting Emitted Code
+
+An exact native realization has more useful information than a total byte count:
+
+```omega
+let code = code_layout<identity<u32>>();
+```
+
+The description contains its entry address and code regions, each with a base
+and byte length. Split regions need not be adjacent; shared instructions do not
+become exclusive property of the queried machine. Called machines, padding and
+data pools are not automatically part of its code. `size_of<identity<u32>>()`
+rejects because a machine declaration is not a data type.
+
+These regions are finalized after lowering/layout, with addresses resolved by
+linking/loading where needed. They are not constants that can determine that
+same program's types or layout. A purely interpreted body has no native code
+regions; an entry ID is not a bytecode pointer.
+
+For a native memory editor, `Extent { base: address_of<identity<u32>>(), length: 2048 }`
+describes a window, not the machine's actual size. Its nonwrapping geometry and
+backing/write authority remain separate obligations. Code metadata grants no
+patch permission and does not stop other calls from inlining. See
+[code-layout queries](../spec/language/counts_and_addresses.md#native-code-layout-queries)
+and [root-assumed contracts](chapter_19_capabilities_effects_boundaries.md#root-assumed-binding-contracts).
 
 ## Calling Conventions
 

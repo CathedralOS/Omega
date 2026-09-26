@@ -203,16 +203,23 @@ Toolchain operations have designated product operands:
 ```omega
 builder.roots.bind(windows_x86_64::ProgramEntry, Application::start);
 builder.select_provider<windows_x86_64::Console, TestConsole>();
+builder.assume_binding_contract<WritableMemory::claim, RangeSupplier::supply>();
 _ = builder.tests.group<Tests::memory>();
 ```
 
 Only those declaration-reference operands are resolved in the product context,
 using the occurrence's package authority, exact target, and complete expected
-slot/requirement signature. The `bind`/`select_provider` operations themselves run
+slot/requirement signature. The `bind`, `select_provider` and
+`assume_binding_contract` operations themselves run
 as admitted Build operations. No product receiver, function body, initializer,
 or provider is executed. A user-defined same-named method or generic helper gets
 no special resolution. This extends the existing "selection is not invocation"
 rule, not general syntax quotation or an exception to ordinary call checking.
+
+The assumed-binding operation registers a root-authorized runtime relationship
+only. Neither its implementation nor its admitted facts become build-executable;
+the [runtime-only prohibition](assumed_binding_contracts.md#runtime-only) applies
+independently of product-reference resolution.
 
 [Test-group registration](testing.md#registration-and-discovery) selects one exact
 product requirement; its group-scoped `service` operands select ordinary

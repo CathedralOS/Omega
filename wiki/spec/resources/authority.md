@@ -132,7 +132,11 @@ a selected case payload of the owned result carrier under the spelling above,
 or an exact non-`self` parameter with the domain's carrier. A routed result binds
 the selected occurrence; a parameter introduction requires an installed
 external-root invocation. At an ordinary call that parameter remains a
-precondition. The receipt retains boundary trait, exact requirement/signature,
+precondition. An explicit root-assumed runtime relationship may instead introduce
+an authorized input qualification at its exact crossing under the
+[assumed-binding rules](../build/assumed_binding_contracts.md#compatibility-and-direction);
+this is not an ordinary checked call or a new domain issuer. The receipt retains
+boundary trait, exact requirement/signature,
 subject position, selected provider, and installation/invocation evidence.
 
 A checked adapter realizing a boundary requirement does not acquire the same

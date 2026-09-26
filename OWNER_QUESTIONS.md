@@ -6,7 +6,7 @@ and deliberately deferred research live in `TASKS.md`. Questions are numbered
 consecutively; pruning or adding one requires updating every repository
 reference in the same change.
 
-Five owner-level decisions remain. Only the affected behavior below awaits a
+Six owner-level decisions remain. Only the affected behavior below awaits a
 ruling; other work on the same task may proceed under existing contracts.
 
 | Named decision | Affected work |
@@ -16,6 +16,7 @@ ruling; other work on the same task may proceed under existing contracts.
 | `borrowed-service-suspension-carrier` | Suspension/transfer semantics in RC-BUILD-AND-PACKAGES; refresh the witness first |
 | `linear-carrier-vacuous-qualification` | Qualification/custody boundary for BUMP-ALLOCATOR-CANARY and placed access |
 | `mixed-integer-comparison` | Mixed typed-integer guards in the five text samples named below |
+| `assumed-binding-refutable-claim` | Whether ASSUMED-BINDING-CONTRACTS may override a checker-refutable semantic claim |
 
 Question numbers are mutable queue positions, not permanent decision identities.
 Code, canaries, and settled documentation must cite a stable named decision or
@@ -90,10 +91,15 @@ state, or the correspondence evidence needed for port I/O, idle, and external
 entry. Only the assembly-dependent part of **INTERPRETED-CATHEDRAL** is blocked.
 
 [Address exposure](wiki/spec/language/counts_and_addresses.md#address-exposure)
-is settled separately: machine/reference casts to `addr`, executable-entry
-demand, and noncolliding interpreted code/storage identities. Those IDs do not
+is settled separately: `address_of` queries, executable-entry demand, and
+noncolliding interpreted code/storage identities. Native code-region descriptions
+and data `size_of`/`align_of` queries are also settled. Interpreted IDs do not
 establish native byte geometry or execute instructions. This does not select an
 answer to the assembly/environment question.
+
+Root [assumed binding contracts](wiki/spec/build/assumed_binding_contracts.md)
+likewise do not weaken checked assembly or provide an interpreter for it. Their
+runtime-only trust relationship is separate from this execution-model question.
 
 **Proposed solution:** Admit a bounded set of instruction contracts against an
 explicit target-state/environment model. Preserve authority, memory, registers,
@@ -276,6 +282,38 @@ its unsigned promotion.
   the five samples declare `u64` cursors or cast after proving non-negativity.
 - Adopt the interpreter's promotion to unsigned. This is C's rule and silently
   answers wrongly for negative operands.
+
+### Q6 - May an assumed runtime binding override a checker-refutable claim?
+
+Named decision: `assumed-binding-refutable-claim`.
+
+**Context:** The root may now
+[assume a binding contract](wiki/spec/build/assumed_binding_contracts.md) across
+compatible signatures without proving semantic refinement. Both bodies remain
+checked, audit classifies the relationship as extremely high risk, and build-time
+execution/use rejects. This permits deliberately false external claims about
+backing and write authority. [Contracts](wiki/spec/proofs/contracts.md#axioms-and-receiving-policy)
+separately require rejection when the checker can refute an admitted claim.
+
+**Problem:** The discussion identified that veto but did not choose an exception.
+A concrete distinction is linking a supplied `value() -> u32` guaranteeing
+`result == 0` to a caller-facing requirement guaranteeing `result == 1`.
+The runtime representation matches, but the semantic contradiction is known.
+An unknown claim about physical backing need not be refutable in that way.
+The low-level memory-editor/patching customer motivates deliberate trust; this
+decision determines whether exposing more checked implementation facts can
+prevent a root's intended runtime-only assumption.
+
+**Proposed solution:** Permit the contradiction only at an explicitly accepted
+`assume_binding_contract` relationship. Preserve both statements and the
+contradiction in its exact risk/trust record. Structural representation, ABI,
+ownership mapping and the build-time ban remain checked; the exception supplies
+no checked theorem or guarantee after its false runtime premise is used.
+
+**Alternative:** Keep the veto even here. Roots may accept statements whose truth
+is unknown, including false external claims, but may not override a demonstrated
+contradiction. That is the current fail-closed rule until a ruling. Do not remove
+the veto globally or silently treat an ordinary failed proof as refutation.
 
 Settled mathematical binding and proof rules live in the
 [mathematical source contract](wiki/spec/proofs/mathematical_bindings.md) and
