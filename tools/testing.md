@@ -37,10 +37,10 @@ A crate's own tests run by package and name filter:
 mbx nextest run -p terminal-verifier boundary_requires
 ```
 
-The `compiler` crate has no Rust test targets besides `corpus_runner`. Its
-behavior is tested end to end: a fixture under `tests/omega/{pass,fail,run}` is
-the test, and the corpus gate below runs it. Add a fixture, not a Rust test
-file; see `omega-rust/omega/compiler/tests/README.md`.
+The `omega` binary's compiler surface has no Rust test targets besides
+`corpus_runner`. Its behavior is tested end to end: a fixture under
+`tests/omega/{pass,fail,run}` is the test, and the corpus gate below runs it.
+Add a fixture, not a Rust test file; see `omega-rust/omega/tests/README.md`.
 
 ## Corpus outcome gate
 

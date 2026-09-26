@@ -139,7 +139,7 @@ The customer outcome is a clearer route to a named operation, not a set of small
 files. Before editing, identify that operation, its crate entry, and the point
 where sequencing or ownership becomes hard to follow. Compare the route with
 [main.rs](../../../omega-rust/omega/src/main.rs) and
-[compiler.rs](../../../omega-rust/omega/compiler/src/compiler.rs).
+[compiler.rs](../../../omega-rust/omega/src/compiler.rs).
 
 Keep high-level orchestration visible at the crate entry and at subordinate
 multi-step owners; do not stop at the crate root and leave its sibling folders as

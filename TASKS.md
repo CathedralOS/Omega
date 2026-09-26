@@ -308,6 +308,28 @@ stage is cheap.
   placement rule now states the surviving-outside-pipeline test — universal
   substrate (`psi/foundation/`), the flat `psi/` boundary layer, and the
   `omega` binary — and the deleted directories are gone from the map.
+- **POST-FOLD-REPAIR.** The consolidation landed on main at `912b490c8f` as
+  one commit over an advancing upstream, and the tree is not yet compile-green;
+  this row owns the tail. `mbx check --workspace` enumerates the damage, which
+  is mechanical: files that landed with main's newer logic still spell the old
+  extern-crate names, and a few definitions kept the older signature while
+  their callers moved ahead. Rewrite dead-crate spellings to the owning stage
+  (`typed_trees` → `symbol_resolved_trees_to_typed_trees::typed_trees`,
+  `checked_trees`/`fact_plan`/`flow_effects` → `crate::` inside stage 04,
+  `lowered_psi` → `crate::lowered_psi` inside stage 05,
+  `effects`/`calling_conventions` → `abstract_operations_to_target_operations::`,
+  `register_homes` → `selected_instructions_to_register_homes::`,
+  `machine_code` → `post_allocation_machine_to_selected_form_encoding::`,
+  `layout`/`runtime_abi`/`representation_selections`/`program_entry_plan`/`boundary_applications`
+  → `resolved_layout_to_resolved_layout::`, and the compiler/build/packages/
+  tooling surface → `omega::`), and where a caller/callee pair disagrees take
+  main's definition — the fold changed paths, not semantics. One deliberate
+  divergence from upstream `e081a6857b`: `entry_settlement` stays in the
+  binary (`omega::compiler::native::entry_settlement`), because its plan
+  vocabulary is produced by stage 09 and provider planning; stage-00 hosting
+  would need a forward dependency. Acceptance: `mbx check --workspace` green
+  with no crate resurrected outside `pipeline/`, `psi/foundation/`, the flat
+  `psi/` boundary layer, or the `omega` binary.
 
 ## Immediate product closure
 
