@@ -11,7 +11,7 @@ use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
-    arr: [i32; 4] in Trapping;
+    arr: [i32; 4];
     idx: u64;
     flag: bool;
     r: i32 in Trapping;
@@ -47,7 +47,7 @@ machine Main::main(&mut self) reaches Console {
 
     // Multi-predecessor join: the meet carries `idx < 4` here without a re-guard.
     state merge(&mut self) {
-        self.r = self.arr[self.idx];
+        self.r = self.arr[self.idx] as i32 in Trapping;
         transition self.r == 30 { true -> good() _ -> bad() }
     }
 

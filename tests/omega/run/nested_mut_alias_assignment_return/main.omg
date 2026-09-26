@@ -14,7 +14,7 @@ machine Random::seed(
     value: u64,
     state: &mut RandomState
 ) {
-    state.seed = value;
+    state.seed = value as u64 in Wrapping;
     state.calls = 0;
 }
 

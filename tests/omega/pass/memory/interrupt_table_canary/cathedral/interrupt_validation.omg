@@ -353,7 +353,7 @@ pub data MemberFacts {
 
 pub data MemberAdmissionVerdict {
     case Admitted;
-    case Rejected(vector: u8, reason: u8);
+    case Rejected(vector: u64, reason: u8);
 }
 
 pub data TableMemberAdmission {
@@ -394,7 +394,7 @@ pub machine TableMemberAdmission::admit(
         }
     }
 
-    state reject(vector: u8, reason: u8) -> MemberAdmissionVerdict {
+    state reject(vector: u64, reason: u8) -> MemberAdmissionVerdict {
         MemberAdmissionVerdict::Rejected { vector: vector, reason: reason }
     }
 }
