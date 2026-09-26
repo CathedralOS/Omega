@@ -24,14 +24,14 @@ fn records_checked_float_policy_adapters_from_operand_domains() {
             trapped: f64 in Trapping,
             quiet: f32
         ) {
-            let saturated_result: f32 = saturated + 1.0f32;
-            let trapped_result: f64 = trapped + 1.0;
+            let saturated_result: f32 = (saturated + 1.0f32) as f32;
+            let trapped_result: f64 = (trapped + 1.0) as f64;
             let reversed_trapped: f64 = 0.0 - trapped;
-            let nested_saturated: f32 = (saturated * saturated) + 1.0f32;
+            let nested_saturated: f32 = ((saturated * saturated) + 1.0f32) as f32;
             let quiet_result: f32 = quiet + 1.0f32;
-            self.trapped_field = 0.0 - self.trapped_field;
+            self.trapped_field = (0.0 - self.trapped_field) as f64 in Trapping;
             self.saturated_field =
-                (self.saturated_field * self.saturated_field) + 1.0f32;
+                ((self.saturated_field * self.saturated_field) + 1.0f32) as f32 in Saturating;
         }
 
         machine Main::main(&mut self) {}
@@ -107,8 +107,8 @@ fn records_checked_named_float_policy_adapters() {
             quiet: f32
         ) {
             let saturated_result: f32 =
-                F32::multiply_then_add(saturated, saturated, saturated);
-            let trapped_result: f64 = F64::negate(trapped);
+                F32::multiply_then_add(saturated, saturated, saturated) as f32;
+            let trapped_result: f64 = F64::negate(trapped) as f64;
             let classification: bool = F32::is_finite(quiet);
         }
 

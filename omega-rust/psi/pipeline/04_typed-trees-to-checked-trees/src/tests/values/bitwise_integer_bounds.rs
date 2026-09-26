@@ -205,8 +205,8 @@ fn literal_suffixes_keep_nested_complement_arithmetic_in_their_carrier() {
         );
     }
     accepts("machine run() -> u8 [0..=0] { ~(254u8 + 1u8) }");
-    accepts("machine run() -> u16 [0..=0] { ~(254u8 + 1u8) }");
-    accepts("machine run() -> u16 [255..=255] { ~0u8 }");
+    accepts("machine run() -> u16 [0..=0] { (~(254u8 + 1u8)) as u16 }");
+    accepts("machine run() -> u16 [255..=255] { (~0u8) as u16 }");
 }
 
 #[test]
@@ -218,7 +218,7 @@ fn wider_destinations_do_not_widen_suffixed_bitwise_arithmetic() {
             "may overflow",
         );
         accepts(&format!(
-            "machine run() -> u16 [255..=255] {{ (254u8 {operator} {operand}) + 1u8 }}"
+            "machine run() -> u16 [255..=255] {{ ((254u8 {operator} {operand}) + 1u8) as u16 }}"
         ));
     }
 }

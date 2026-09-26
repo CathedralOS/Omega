@@ -733,7 +733,7 @@ fn member_index_guards_meet_guard_and_state_bounds() {
                 transition self.pos < 64 { true -> store() false -> out() }
                 state store(&mut self) -> u64 {
                     self.control[self.pos] = 1;
-                    self.control[self.pos]
+                    self.control[self.pos] as u64
                 }
                 state out(&mut self) -> u64 { 0 }
             }",
@@ -744,7 +744,7 @@ fn member_index_guards_meet_guard_and_state_bounds() {
             "control: [u8; 64]; pos: u64;",
             "machine Queryer::probe(&mut self) -> u64 {
                 transition self.pos <= 63 { true -> read() false -> out() }
-                state read(&mut self) -> u64 { self.control[self.pos] }
+                state read(&mut self) -> u64 { self.control[self.pos] as u64 }
                 state out(&mut self) -> u64 { 0 }
             }",
             true,
@@ -771,7 +771,7 @@ fn member_index_guards_meet_guard_and_state_bounds() {
             "pos: u64;",
             "machine Queryer::probe(&mut self, table: &[u8]) -> u64 {
                 transition self.pos < table.len { true -> read(table) false -> out() }
-                state read(&mut self, table: &[u8]) -> u64 { table[self.pos] }
+                state read(&mut self, table: &[u8]) -> u64 { table[self.pos] as u64 }
                 state out(&mut self) -> u64 { 0 }
             }",
             true,
@@ -793,7 +793,7 @@ fn member_index_guards_meet_guard_and_state_bounds() {
             "control: [u8; 64];",
             "machine Queryer::probe(&mut self) -> u64 {
                 transition { _ -> read(12) }
-                state read(&mut self, i: u64 [0..64]) -> u64 { self.control[i] }
+                state read(&mut self, i: u64 [0..64]) -> u64 { self.control[i] as u64 }
             }",
             true,
         ),
@@ -813,7 +813,7 @@ fn member_index_guards_meet_guard_and_state_bounds() {
             "control: [u8; 64]; pos: u64;",
             "machine Queryer::probe(&mut self, fuel: u64) -> u64 {
                 transition fuel > 1 && self.pos < 64 { true -> read() false -> out() }
-                state read(&mut self) -> u64 { self.control[self.pos] }
+                state read(&mut self) -> u64 { self.control[self.pos] as u64 }
                 state out(&mut self) -> u64 { 0 }
             }",
             true,
@@ -825,7 +825,7 @@ fn member_index_guards_meet_guard_and_state_bounds() {
             "control: [u8; 64]; pos: u64;",
             "machine Queryer::probe(&mut self, fuel: u64) -> u64 {
                 transition fuel > 1 && self.pos < 64 { true -> out() false -> read() }
-                state read(&mut self) -> u64 { self.control[self.pos] }
+                state read(&mut self) -> u64 { self.control[self.pos] as u64 }
                 state out(&mut self) -> u64 { 0 }
             }",
             false,
@@ -851,13 +851,13 @@ fn member_index_guards_meet_guard_and_state_bounds() {
     for source in [
         "machine Queryer::probe(&mut self, arr: &[u8], i: u64) -> u64 {
             transition i < arr.len { true -> read(arr, i) false -> out() }
-            state read(&mut self, arr: &[u8], i: u64) -> u64 { arr[i] }
+            state read(&mut self, arr: &[u8], i: u64) -> u64 { arr[i] as u64 }
             state out(&mut self) -> u64 { 0 }
         }",
         "data Queryer { pos: u64; }
         machine Queryer::probe(&mut self, arr: &[u8]) -> u64 {
             transition self.pos < arr.len { true -> read(arr) false -> out() }
-            state read(&mut self, arr: &[u8]) -> u64 { arr[self.pos] }
+            state read(&mut self, arr: &[u8]) -> u64 { arr[self.pos] as u64 }
             state out(&mut self) -> u64 { 0 }
         }",
     ] {
