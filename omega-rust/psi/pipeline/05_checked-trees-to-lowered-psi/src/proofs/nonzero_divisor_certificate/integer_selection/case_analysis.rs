@@ -49,53 +49,51 @@ fn eliminate_cases(
     cases: &[ProjectedFact<'_>],
     ordinary: &mut impl FnMut(&[Proposition]) -> Option<ProofNode>,
 ) -> Option<ProofNode> {
-    for (index, fact) in cases.iter().enumerate() {
-        let Proposition::Disjunction(disjuncts) = fact.proposition else {
-            unreachable!("only retained disjunctions become cases")
-        };
-        let branches = disjuncts
-            .iter()
-            .map(|disjunct| {
-                let mut branch_assumptions = assumptions.to_vec();
-                branch_assumptions.push(disjunct.clone());
-                // The assumed alternative can carry alternatives of its own
-                // (a nested computation's negative polarity, for example).
-                // They are facts only inside this branch, so they extend this
-                // branch's roster rather than the ambient case list; the
-                // remaining shared cases still keep their citation order.
-                let mut branch_cases = cases[index + 1..].to_vec();
-                for nested in super::super::integer_evidence::nested_case_facts(
-                    assumptions.len(),
-                    branch_assumptions
-                        .last()
-                        .expect("branch assumption pushed above"),
-                ) {
-                    if !branch_cases
-                        .iter()
-                        .any(|case| case.proposition == nested.proposition)
-                    {
-                        branch_cases.push(nested);
-                    }
+    let fact = cases.first()?;
+    let Proposition::Disjunction(disjuncts) = fact.proposition else {
+        unreachable!("only retained disjunctions become cases")
+    };
+    let branches = disjuncts
+        .iter()
+        .map(|disjunct| {
+            let mut branch_assumptions = assumptions.to_vec();
+            branch_assumptions.push(disjunct.clone());
+            // The assumed alternative can carry alternatives of its own
+            // (a nested computation's negative polarity, for example).
+            // They are facts only inside this branch, so they extend this
+            // branch's roster rather than the ambient case list; the
+            // remaining shared cases still keep their citation order.
+            let mut branch_cases = cases[1..].to_vec();
+            for nested in super::super::integer_evidence::nested_case_facts(
+                assumptions.len(),
+                branch_assumptions
+                    .last()
+                    .expect("branch assumption pushed above"),
+            ) {
+                if !branch_cases
+                    .iter()
+                    .any(|case| case.proposition == nested.proposition)
+                {
+                    branch_cases.push(nested);
                 }
-                prove_branch(goal, &branch_assumptions, &branch_cases, ordinary)
-            })
-            .collect::<Option<Vec<_>>>();
-        if let Some(branches) = branches {
-            return Some(ProofNode {
-                conclusion: goal.clone(),
-                rule: ProofRule::DisjunctionElimination {
-                    disjunction: Box::new(fact.proof()),
-                    branches,
-                },
-            });
-        }
-        // Splitting on this case first loses nothing: a proof that splits
-        // on a later case first is still available inside each of this
-        // case's branches, whose extra assumption the monotone builder
-        // tolerates, and one of those branches already failed. So every later
-        // case fails too; trying them costs 2^n builder searches and never
-        // changes the answer.
-        return None;
+            }
+            prove_branch(goal, &branch_assumptions, &branch_cases, ordinary)
+        })
+        .collect::<Option<Vec<_>>>();
+    if let Some(branches) = branches {
+        return Some(ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::DisjunctionElimination {
+                disjunction: Box::new(fact.proof()),
+                branches,
+            },
+        });
     }
-    None
+    // Splitting on this case first loses nothing: a proof that splits
+    // on a later case first is still available inside each of this
+    // case's branches, whose extra assumption the monotone builder
+    // tolerates, and one of those branches already failed. So every later
+    // case fails too; trying them costs 2^n builder searches and never
+    // changes the answer.
+    return None;
 }
