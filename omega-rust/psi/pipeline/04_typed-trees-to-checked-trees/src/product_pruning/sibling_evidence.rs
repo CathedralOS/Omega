@@ -6,9 +6,7 @@
 
 use std::collections::HashSet;
 
-use checked_trees::{
-    CheckFacts, CheckedBoundaryOperatorApplicationUseSite,
-};
+use checked_trees::{CheckFacts, CheckedBoundaryOperatorApplicationUseSite};
 use typed_trees::{
     TypedTrees,
     domain::ProofFact,

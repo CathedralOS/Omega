@@ -154,7 +154,7 @@ const SELECTED_FLOAT_GUARD: &str = r#"
 "#;
 
 fn selected_float_guard() -> checked_trees::CheckedTrees {
-        crate::front_end::checked_program(SELECTED_FLOAT_GUARD)
+    crate::front_end::checked_program(SELECTED_FLOAT_GUARD)
 }
 
 fn computed_guard(
