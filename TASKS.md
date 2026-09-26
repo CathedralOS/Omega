@@ -4000,9 +4000,22 @@ syntax and other terminal services are not prerequisites.
   `carried_domain_membership_at_place` and `prove_domain_by_extent_enumeration`
   agree across the two, and `AssignedValues::domain` is the one that splits:
   true for every receiver query, false for the named place at the post-write
-  call. It proves the domain from the literal assigned at the place, through
-  `literal_at_place`, so the question is why that resolves an assigned literal
-  under a receiver root and not under a parameter root.
+  call. Inside it the deciding route is `byte_predicate`, which looks for a
+  `FactPayload::BytePredicate` at the subject; the receiver has one after the
+  element write and the parameter has none.
+
+  The producer is `flow/transfers/byte_sequences.rs`, which emits that fact
+  when `byte_in_class` and `carrier_proves_predicate` both hold.
+  `byte_in_class` is true for both forms -- the literal 46 is ASCII, 3 sites on
+  the receiver and 2 on the parameter -- and `carrier_proves_predicate` is the
+  split: true for `self.line`, false for `buf.line`. It already carries a
+  `DomainMembership` arm that derives the required byte predicate from a
+  declared domain, which is the route a parameter's declared field domain
+  should discharge through, so the remaining question is whether the entry
+  premise for `buf.line` is absent from `active` at that point or present with
+  a place that does not canonicalize onto the carrier. Its `canonical` helper
+  applies `normalize_attached_place_root`, which is receiver-shaped; check that
+  first.
 
   `checks/contracts/writes.rs::expression_is_self_relative` is NOT the filter,
   despite looking like one: `recast_source_declared_domain_implies`, the only
