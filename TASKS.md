@@ -132,6 +132,26 @@ backend-visible; full corpus runs only at the end of an item.
   provider signature compares `is_self` flags that differ between requirement
   receiver and adapter); add a native fixture for it or record the limit here.
 
+  Moving a spelled use onto the call route also moves it onto a STRICTER
+  borrow rule, which is a correctness gain that surfaces as breakage.
+  Measured with three nine-line programs and no `std`: a plain read of
+  `source.count` while `view = &mut source` is live is ACCEPTED; the same
+  place passed to an ordinary call is REJECTED ("state `same` receives
+  `source.count` while local borrow `view` is still active"); and `f32 ==`
+  rejects identically once `core::float_operations` is imported, because the
+  operand becomes an argument to `Float::equal`. Ownership settles which is
+  right -- `&mut T` is "Exclusive observation and mutation", and
+  "Exclusivity prevents reading old contents through a second alias" -- so
+  the call route is correct and the operand read is the lenient outlier.
+  `pass/recast/runtime_mutable_equivalent_record_recast_exit` was written
+  against the lenient path and read both spellings inside one guard; it is
+  repaired here to observe through the view first, ending the loan at its
+  last use, which keeps its subject. Expect other authored code to need the
+  same shape as more spellings migrate. Closing the remaining hole -- making
+  a plain operand read enforce exclusivity too -- is spec-correct but would
+  reject code that compiles today, so it wants its own survey rather than
+  riding this item.
+
 - **SOURCE-SET-UNION.** (split-of:PSI-TARGET-FAMILIES) The assembled source set
   is target-neutral: one union of physical sources, every target's program-entry
   contract source, package imports and dependency-generated sources. Assembly
