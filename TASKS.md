@@ -331,6 +331,23 @@ stage is cheap.
   with no crate resurrected outside `pipeline/`, `psi/foundation/`, the flat
   `psi/` boundary layer, or the `omega` binary.
 
+  SILENT REVERSIONS. Compile-green is not the whole tail: the fold kept older
+  copies of files that 44 commits between `74902921fe` and `5d93a065f5`
+  changed, so about 1,100 of their added lines are absent from the folded
+  tree, most of them without a compile error (an older definition that still
+  builds). Found by checking each commit's added lines, with crate-path
+  prefixes stripped, against the folded file. Largest: `6989c2c0ac` (target
+  family bodies, 121 lines), `f7c5c878a0`, `01d0b17404`, `30865be33d`,
+  `e6421496a0` (inert-sibling admission in `build_evaluation/admission/
+  target_machines.rs`), `b8fee6a36d`, `67fb78a6e5`, `3ac66b7cb2`,
+  `dfef3aad41`, `520653aa2d`, `4359371ede`, `930514ffda`, `e206ac13a8`,
+  `324d47bf4f` (check-pass memos and indexes in stage 04), `bcc2dab848` and
+  `ebc356fe9d` (repository build-declaration tests, older copy), `bb4b693db9`,
+  `dc29e8c817`, `5ab0dab7e8` (shared builds in `compiler.rs`), `59becf45ab`,
+  `67a83704c8`, `8286328570`, `62716b74ec`, `db39f38a74`. Restore each by
+  replaying its diff under the new paths; the fold's own path rewrites are
+  the only intended difference.
+
 ## Immediate product closure
 
 Prioritize unchanged customer programs reaching native execution over additional
