@@ -109,7 +109,7 @@ fn lower_terminal_selection(
     // gates in expression_preparation/source_custody. Both refusals name the
     // same root cause (checked facts alone cannot supply authored occurrence
     // custody); the earlier one fires first on a fully checked program only
-    // when the typed frontend was dropped. terminal_psi_source pins the order.
+    // when the typed frontend was dropped.
     attached_unit::validate_direct_unit_parameter_custody(checked)?;
     let LoweredSelectedMachine {
         terminal: mut lowered,

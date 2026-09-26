@@ -21,7 +21,7 @@ it is installed and through Cargo otherwise, per AGENTS.md.
 
     python3 tools/release/release_record.py plan
     python3 tools/release/release_record.py run --target linux_x86_64 \
-        --native-execution "mbx nextest run -p omega-native-differential-test"
+        --native-execution "python3 tools/corpus_gate.py --native"
     python3 tools/release/release_record.py run --target linux_arm64 \
         --emulator "qemu-aarch64 9.0.0" --gate RC-NATIVE-MATRIX \
         --native-execution "qemu-aarch64 <emitted-elf>"
@@ -119,8 +119,6 @@ GATES = {
                       "provider settlement, and observable execution on its "
                       "matching host.",
         "commands": [
-            "mbx nextest run -p omega-native-differential-test "
-            "--all-targets --no-fail-fast",
             "python tools/corpus_gate.py --native",
         ],
         "per_host": True,

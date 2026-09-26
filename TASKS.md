@@ -281,9 +281,9 @@ the complete product bar; focused successes below do not establish that baseline
   or establishment route has an independent semantic purpose.
 
   Update the specification, guide, compiler documentation, bundled libraries,
-  samples, product/compiler source, bootstrap Omega parser, native-differential
-  fixtures, and corpus. Delete the suffix parser and syntax/resolved/typed Range
-  representation only after all source positions use their canonical clauses.
+  samples, product/compiler source, bootstrap Omega parser, and corpus. Delete
+  the suffix parser and syntax/resolved/typed Range representation only after
+  all source positions use their canonical clauses.
   Preserve interval proof transport, invalidation, and source-free replay as
   proposition behavior rather than structural scalar-type identity.
 
@@ -2521,18 +2521,17 @@ syntax and other terminal services are not prerequisites.
   Consult the [parked IEEE recovery record](wiki/drafts/designs/write_only_borrow_ieee_store_branch.md)
   before duplicating work; its unpublished tip is not available in this checkout.
 
-  Acceptance: move repaired `terminal_psi_indexed_receivers/frontier_pins`
-  limitations to caller-storage execution controls. Cover exact width, untouched
-  neighbors, runtime signed/Boolean/floating sources, restoration/return custody,
-  non-observation and independent replay. Reject reads, bare write-only
-  forwarding, readable widening and overlapping exclusive arguments. General
-  replacement must preserve displaced custody and whole-value validity, not
-  merely decompose more source patterns. Observe computed stores in the original
-  caller, not a copied frame home. Run
-  `mbx nextest run -p omega-native-differential-test --test terminal_psi_indexed_receivers --no-fail-fast --no-tests fail`
-  on matching hosts, including both Linux targets and Windows/macOS; the
-  recorded macOS ARM64 run requires `RUST_MIN_STACK=67108864`.
-  Cross-publication is not execution.
+  Acceptance: express repaired limitations as runnable `write_only` corpus
+  cases (the `run` tier or `*_exit`) executing against caller storage. Cover
+  exact width, untouched neighbors, runtime signed/Boolean/floating sources,
+  restoration/return custody, non-observation and independent replay. Reject
+  reads, bare write-only forwarding, readable widening and overlapping
+  exclusive arguments. General replacement must preserve displaced custody and
+  whole-value validity, not merely decompose more source patterns. Observe
+  computed stores in the original caller, not a copied frame home. Run
+  `python3 tools/corpus_gate.py --native --filter write_only` on matching hosts,
+  including both Linux targets and Windows/macOS. Cross-publication is not
+  execution.
 
 - **STRUCTURAL-BORROW-IDENTITY.** Complete source-owner/projection routes under
   [structural access](wiki/spec/terminal-psi/structural_access.md), retaining
@@ -2556,9 +2555,9 @@ syntax and other terminal services are not prerequisites.
   synchronized shared observations and register/stack reference passing.
   Reject copied borrowed homes and substituted access/type/projection/placement
   evidence; shape equality does not create authority or a standalone field
-  type. Preserve `terminal_psi_indexed_receivers` and `primitive_store_return`.
-  Complete matching-host coverage, especially the unrecorded Linux AArch64 and
-  Windows legs; another callee observing a staged copy is not caller writeback.
+  type. Complete matching-host coverage, especially the unrecorded Linux
+  AArch64 and Windows legs; another callee observing a staged copy is not
+  caller writeback.
 
   Preserve declared borrowed-receiver custody when an attached scalar-returning
   callee does not read `self`: the scalar Graph signature still omits it, while
@@ -3358,11 +3357,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   - Complete native shared-reference joins beyond plain shared referents.
     Shared joins over primitive scalars and plain records
     (`abstract_operations::control_flow::address_joins`) lower, replay and
-    execute natively: both arms of
-    `borrowed_results::{PRIMITIVE,RECORD}_CALL_SOURCE` run on macOS ARM64
-    and publish on four targets
-    (`mbx nextest run -p omega-native-differential-test --test shared_borrow_joins`).
-    Remaining: exclusive and write-only joins (coordinate with
+    execute natively. Remaining: exclusive and write-only joins (coordinate with
     **WRITE-ONLY-BORROW**), referents that carry references or descriptors,
     reads and projections through a join place, primitive-local origins, and
     loan ends at the view's last use (Omega currently pins origins over the
@@ -3389,7 +3384,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   remaining limitation.
 
   Acceptance: close the `checked-trees-to-lowered-psi --test suite value_dispatch`
-  gaps and native `scalar_case_results` /
+  gaps and
   [float Match customers](wiki/drafts/reference/float_realization.md#operation-and-control-custody).
   Preserve effects, skipped trapping arms, overlapping patterns, full coverage,
   and independent replay. Retain `match_anonymous_result_landing`,
@@ -3552,13 +3547,11 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   `nominal`, `constant_attachments`, `value_dispatch`, `machine_initializers`),
   `compiler --test constant_float_tables`,
   `terminal-psi-to-abstract-operations --test suite scalar_array_construction`
-  (that package has one `suite` target; the module is a filter, not a target),
-  and native-differential `scalar_array_results` / `scalar_case_results`.
-  Measured 2026-09-24: those four are green -- 82 of 82 across `nominal`,
-  `constant_attachments`, `value_dispatch` and `machine_initializers`, 3 of 3
-  in `scalar_array_construction`, 161 of 161 in the two native-differential
-  targets -- so the remaining work above, not the acceptance run, is what
-  keeps this row open. `module_machine_indices` fails only
+  (that package has one `suite` target; the module is a filter, not a target).
+  Measured 2026-09-24: 82 of 82 across `nominal`, `constant_attachments`,
+  `value_dispatch` and `machine_initializers` and 3 of 3 in
+  `scalar_array_construction` are green, so the remaining work above, not the
+  acceptance run, is what keeps this row open. `module_machine_indices` fails only
   `indexed_domains::separate_packages_cannot_exchange_mutable_domain_qualifications`,
   on an open default-domain invariant window that belongs to the
   foreign-domain mutable recast row.
@@ -4396,14 +4389,13 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
     only move them from checked-only to natively red, so bind them in the same
     change that lands the landing block.
   - Reject reads through consumed owners using ordinary ownership/access
-    checking, not a special case for `drop`. Re-witness
-    `frontend_drop_expectations::core_drop_use_after_consume_is_currently_admitted`:
-    it currently expects `g.handle` after `drop(g)` to compile and return 7.
+    checking, not a special case for `drop`: a read of `g.handle` after
+    `drop(g)` must reject.
     `flow/ownership/moves/observations.rs` does not record a read of the base
     name, while `linear_validation/recorded_events.rs` checks dead custody on
-    transfers/consumption. Replace the admitted-read expectation; include an
-    ordinary consuming helper and a valid snapshot copied before consumption.
-    The fixture has not been rerun during this board audit.
+    transfers/consumption. Witness the rejection with a `fail/drops` corpus
+    case, and an ordinary consuming helper and a valid snapshot copied before
+    consumption with `pass/drops` cases.
   - Compose contextual requirements and dying local owners through ordinary
     cleanup edges. `05_checked-trees-to-lowered-psi/src/unit/unit_cleanup.rs::patch_nominal_cleanup_member`
     still excludes nonempty caller/hook prerequisites, and
@@ -4427,9 +4419,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   prerequisites and an erased-field control producing no runtime cleanup.
   Missing/forged hook identity or premises, duplicate consumption and reads
   after consumption reject. Preserve ordinary helper calls and reserved-hook
-  selection rejection. `tests/native-differential/tests/frontend_drop_expectations.rs`
-  uses the checked-tree interpreter and explicitly does not observe hook
-  effects; its compile/interpret successes are not native cleanup acceptance.
+  selection rejection.
 
 - **TR3-TR8.** Connect activation planning and lifecycle accounting to a
   selected runtime executing ordinary named machines under the
@@ -5591,14 +5581,13 @@ but report the missing runtime leg explicitly; it does not close that host row.
   checks alone do not close it.
 
 For each native host task below, run all of RC-NATIVE-MATRIX
-(`mbx nextest run -p omega-native-differential-test --all-targets --no-fail-fast`),
+(`python tools/corpus_gate.py --native`),
 RC-SOURCE-SEMANTICS (`mbx nextest run -p compiler --all-targets --no-fail-fast`)
 and RC-REPRESENTATIVE-PROGRAMS
 (`mbx nextest run -p compiler --test samples_compile --no-fail-fast`).
-Include `terminal_psi_source` and `terminal_psi_source_payloadless_optimizer`;
-old baseline exclusions do not remove them from the full native matrix.
-Unset canary/sample filters. Verify emitted programs' required exit/output
-observations and publish the host record at the agreed release commit.
+Unset corpus/canary/sample filters. Verify emitted programs' required
+exit/output observations and publish the host record at the agreed release
+commit.
 Cross-target emission does not substitute for execution. These are independently
 deliverable host runs, not four implementations of the gate.
 
@@ -5652,11 +5641,9 @@ release acceptance still requires complete coverage. Remaining reported failures
   Acceptance: same-commit full-gate results with native observations and exact
   expected skips; Linux emission evidence cannot close this task.
 
-  All three gates are now measured on the matching host.
-  `omega-native-differential-test --all-targets` at `0e64720850`: 1158 run,
-  1140 passed, 18 failed, 1 skipped (2498.6 s). `-p compiler --all-targets`
-  (RC-SOURCE-SEMANTICS) at `04d2099ae1`: 3281 run, 2014 passed, 1267 failed,
-  0 skipped (22583.2 s) — the `samples_compile` leg inside it
+  The corpus native leg has no checked-in macOS ARM64 golden.
+  `-p compiler --all-targets` (RC-SOURCE-SEMANTICS) at `04d2099ae1`: 3281 run,
+  2014 passed, 1267 failed, 0 skipped (22583.2 s) — the `samples_compile` leg inside it
   (RC-REPRESENTATIVE-PROGRAMS) read 33 run, 11 passed, 22 failed. The full
   1215-name failure list and dominant diagnostic classes are in
   [macos_arm64_rc_gates](wiki/drafts/measurements/macos_arm64_rc_gates.md):

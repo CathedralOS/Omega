@@ -13,10 +13,9 @@
 //! validated but unsequenced: runtime-spill recovery rewrites physical
 //! victims directly, so no executable route produces their plans.
 //!
-//! They are exercised by the native-differential `register_allocation` tests
-//! and the architecture ladders, and machine emission's non-authoritative
-//! spill-frame requirements accept the access-constraint output, but no
-//! executable route produces these facts. Sequencing one means calling it from
+//! They are exercised by the architecture ladders, and machine emission's
+//! non-authoritative spill-frame requirements accept the access-constraint
+//! output, but no executable route produces these facts. Sequencing one means calling it from
 //! `stage_register_allocation`, not re-declaring it beside the live stages.
 
 pub mod abstract_spill_access_constraints;

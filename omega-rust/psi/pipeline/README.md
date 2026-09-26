@@ -106,10 +106,9 @@ closed indices. Predicate/routed evidence and erasure, plus shared structural
 qualification transport, remain separate obligations, not bare-carrier fallbacks.
 
 `cargo run -p omega -- inspect-terminal --machine choose --target macos_arm64 tests/omega/pass/expressions/explicit_scalar_tag_erasure/main.omg`
-publishes an explicitly erased qualified Match/call result. The native regression
-`cargo nextest run -p omega-native-differential-test --test scalar_array_results tag_erasure --no-fail-fast`
-checks canonical replay, four-target publication, and matching-host execution.
-No runtime tag is introduced: ordinary jumps carry fresh values, and Boolean
+publishes an explicitly erased qualified Match/call result;
+`python3 tools/corpus_gate.py --native --filter expressions/explicit_scalar_tag_erasure`
+records its host build outcome. No runtime tag is introduced: ordinary jumps carry fresh values, and Boolean
 pattern equality uses the existing comparison and branch machinery.
 
 `cargo run -p omega -- --check tests/omega/pass/expressions/declared_operator_match_result/main.omg`
@@ -388,9 +387,6 @@ Typed alias validation applies each constituent family to the alias's subject
 under its exact binder scope, without equating unrelated same-named types.
 Alias-owned carrier bounds and indices remain fenced until their application
 evidence survives expansion; compiler-owned alias atoms still need typed evidence.
-`omega-native-differential-test --test scalar_case_results -E 'test(generic_aliases)'`
-exercises a constrained scalar constant through ordinary source compilation,
-source-free Terminal replay, four-target native emission, and host execution.
 Trait-default preparation retains the source
 map and import bindings when it rechecks these declarations, so that later
 pass cannot merge equal logical domain paths from distinct packages.
@@ -611,9 +607,8 @@ Detached initializer recipes retain the authored target and static argument tupl
 receiving replay validates that custody before independently specializing and
 evaluating a private probe. Specialization commitments do not authorize replacing
 the recipe with another instance of the same template. The
-`module_machine_indices::machine_initializers` and native
-`scalar_case_results::generic_constants` tests carry these results through
-source-free artifacts and matching-host execution. Selected provider applications,
+`module_machine_indices::machine_initializers` tests carry these results through
+source-free Terminal execution. Selected provider applications,
 aggregate-producing expressions,
 selected floating operations, aggregate floating values and public NaN
 initializers still need their complete evaluation and

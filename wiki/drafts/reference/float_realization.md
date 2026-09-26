@@ -50,7 +50,6 @@ The native build runs through the corpus gate:
 
 ```text
 python tools/corpus_gate.py --native --filter expressions/match_float_patterns
-mbx nextest run -p omega-native-differential-test --test ieee_comparisons --no-fail-fast
 ```
 
 Native comparison selection uses signed and unsigned ordering of the IEEE bit
@@ -83,12 +82,8 @@ ProgramEntry API still rejects comparison occurrence custody it cannot consume.
 Physical comparison children cover every attributed instruction interval and
 independently replayed private spill gaps, without absorbing another authored
 operation or control edge. Their machine, object, and final-image bytes agree.
-The [native comparison tests](../../../tests/native-differential/tests/ieee_comparisons.rs)
-exercise the unchanged call-bearing match and all six relations in both formats;
-matching-host execution and cross-target byte replay remain separate checks.
-The internal stack-argument test enters through one C register argument, then
-uses generated ten-argument calls. Internal AAPCS64 transport is not a claim
-that private symbols implement Darwin C's differently packed stack arguments.
+Internal AAPCS64 transport is not a claim that private symbols implement Darwin
+C's differently packed stack arguments.
 
 A supported source lane carries independent landed-literal FMA locals through
 Terminal raw-bit constants and FMA operations. Exact per-occurrence proposals

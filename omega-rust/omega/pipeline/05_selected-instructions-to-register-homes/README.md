@@ -150,9 +150,8 @@ sequences plus two validated boundaries no executable route calls: the
 [logical spill-operation boundary](src/assignment/logical_spill_operations/mod.rs)
 and [stack-slot coloring](src/assignment/stack_slot_coloring/mod.rs).
 Runtime-spill recovery selects and rewrites physical victims directly rather
-than planning over their logical actions, so the native-differential
-`register_allocation` tests — not a sequenced caller — exercise them beside
-the remaining compiler-private recursive-recovery, pseudo, and
+than planning over their logical actions, so no sequenced caller exercises them;
+they sit beside the remaining compiler-private recursive-recovery, pseudo, and
 access-constraint boundaries under
 [unsequenced spill stages](src/unsequenced_spill_stages/mod.rs). The
 architecture ladders validate them all. These

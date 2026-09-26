@@ -145,9 +145,7 @@ The ordinary native graph realizes fixed 8/16/32/64-bit integer, Boolean, and
 IEEE binary32/binary64 locals, exact-width fresh reads, and borrowed calls.
 [`primitive_local_unit_calls.rs`](../../pipeline/05_checked-trees-to-lowered-psi/tests/primitive_local_unit_calls.rs)
 checks source/borrow substitutions, crash-route arguments, read access, and
-canonical interpretation with one-unit fuel pauses. Native width and protected-page
-controls live in the
-[`primitive_locals` tests](../../../../tests/native-differential/tests/primitive_locals.rs).
+canonical interpretation with one-unit fuel pauses.
 Checked computation calls retain whole primitive borrows alongside dense scalar
 operands and use the same shared callee closure. Nested calls in ordinary Unit
 operands preserve earlier scalar snapshots, later reads of mutated locals, and
@@ -199,12 +197,7 @@ contract custody and rejects mutations without selecting a fallback plan.
 [`scalar_unit_calls.rs`](../../pipeline/05_checked-trees-to-lowered-psi/tests/scalar_unit_calls.rs)
 exercises this composition and rejects omitted, duplicated, reordered, and
 substituted call custody under canonical replay and one-unit fuel suspension.
-The Boolean-local branch in
-[`primitive_locals/boolean_control.rs`](../../../../tests/native-differential/tests/primitive_locals/boolean_control.rs)
-uses both Unit-returning and scalar-returning helpers through native publication
-and matching-host execution, including negated conditions after mutable and
-write-only borrowed calls. The branch consumes the fresh read's exact value;
-the native receiving checks still reject substituted or unavailable read homes.
+The native receiving checks reject substituted or unavailable read homes.
 
 Immutable whole owned inputs retain their authored Affine or Unrestricted
 multiplicity alongside scalar and primitive-borrow formals. Graph discovery
@@ -330,41 +323,14 @@ keeps proof checking mandatory and fixed-work evidence separate; termination
 alone cannot supply a work ceiling. Here the `Limits` field reads occur only
 in erased ranking expressions; this customer does not require runtime field
 loads. Unobserved plain owned block arrivals retain their exact semantic transfers
-and value ABI through native publication without payload copies or homes. The
-[`owned_control_cycles`](../../../../tests/native-differential/tests/owned_control_cycles.rs)
-companions exercise those arrivals with the same ranking-only field reads, a
-selected scalar call, and two-owner backedge swaps. They do not replace this
-customer's acceptance. The unchanged source is retained in the
-[`primitive_locals` native regressions](../../../../tests/native-differential/tests/primitive_locals.rs):
-its initialized local, selected structural-scalar call and owned arrivals pass
-the ordinary target/selected path and object, image, installation and native
-artifact replay on all four hosted targets. Matching-host execution is verified
-on macOS AArch64; Linux runtime and Windows runtime remain separate checks.
+and value ABI through native publication without payload copies or homes.
 
-```sh
-cargo nextest run -p omega-native-differential-test --test primitive_locals --no-fail-fast
-```
+The exact `reset` callee retains the caller's pointer and a separate scalar
+result through the ordinary control graph, mixed ABI, and
+object/image/installation replay. That is a callee prerequisite, not execution
+of this complete loop.
 
-The exact `reset` callee is exercised independently through native publication
-and execution by
-[`primitive_store_return`](../../../../tests/native-differential/tests/primitive_store_return.rs).
-It retains the caller's pointer and a separate scalar result through the ordinary
-control graph, mixed ABI, and object/image/installation replay. Its acceptance is
-a callee prerequisite, not execution of this complete loop.
-
-The [native scalar-cycle companions](../../../../tests/native-differential/tests/scalar_control_cycles.rs)
-retain the loop, selected scalar call, and scalar return without replacing this
-customer's acceptance. They also exercise simultaneous backedge swaps and an
-unranked counterpart through four-target publication and matching-host execution:
-
-```sh
-cargo nextest run -p omega-native-differential-test --test scalar_control_cycles --no-fail-fast
-```
-
-Its separate `count_up` control proves the addition's upper bound with a
-current-iteration guard; it has no ranking annotation.
 The unchanged range-only addition fixture still rejects: the invocation range
 cannot constrain a later header value without checked invariant establishment
 and preservation. Natural descent is not that invariant. This implementation
-dependency remains on `STATE-LOCAL-VALUE-FRONTIER`; the guarded control does not
-close it.
+dependency remains on `STATE-LOCAL-VALUE-FRONTIER`.

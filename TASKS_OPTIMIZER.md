@@ -39,8 +39,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   remain with their native owners, not another wrapper implementation.
 
   Audit surviving public entrances using qualified identities and repository-wide
-  consumers, including native-differential tests; a common name such as
-  `encode` does not identify a caller. Acceptance: the connected route has no
+  consumers; a common name such as `encode` does not identify a caller. Acceptance: the connected route has no
   competing entrances or orphan outputs, coordinators sequence typed stages,
   and retained plans constrain the physical operations they describe.
   An isolated validator or retained-but-unused plan does not close the join.
@@ -117,12 +116,10 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   Hand-written `*_rejects_every_one_field_substitution` matrices remain in the
   Terminal codec artifact tests (float meaning, proof section, proposition
   vocabulary, recursive component, and both reborrow families), the
-  native-differential `pipeline_ownership` stage matrices over the plain
-  `*FieldForTest` inventories of Omega stages 03-06, the `compiler` crate's
-  custody tests, `image`, `image-emission`, the `native-artifact` semantic
-  wrapper object, `component-description`, `external-roots` root admission,
-  `build-output`, `selected-dispatch` source edits, package review evidence,
-  and the component-era receipts in `effects`. Component-publication's
+  `compiler` crate's custody tests, `image`, `image-emission`, the
+  `native-artifact` semantic wrapper object, `component-description`,
+  `external-roots` root admission, `build-output`, `selected-dispatch` source
+  edits, package review evidence, and the component-era receipts in `effects`. Component-publication's
   `installed_runnable_component_rejects_every_one_field_substitution` exercises
   lifecycle joins, not one-field substitutions.
   The topology owner-request `request_custody_fields.rs` is an existing
@@ -187,11 +184,11 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   authenticated cyclic components frozen under optimization; retired
   countdown-only custody is not a fallback.
 
-  `tests/native-differential/tests/terminal_psi_indexed_receivers/cyclic_receivers.rs`
-  already compiles nested `root.child.walk`, surrounding caller stores,
-  ranked/unranked backedges, four-target object publication and composed
-  caller/callee stack demand, executing on its matching host. Retain this as
-  the positive control, not an unimplemented whole-entry-only limitation.
+  The corpus case `termination/ranked_callee_projected_receiver_compile`
+  composes a ranked callee entered through a projected receiver with a
+  caller-visible write;
+  `python3 tools/corpus_gate.py --native --filter termination/ranked_callee_projected_receiver`
+  records its host build outcome.
 
   Close the remaining acceptance coverage: conflicting parent access,
   missing/invalid callee ranking, exact argument identity, return/cleanup replay,
@@ -305,18 +302,17 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   holds an unvalidated drain checkpoint — in-flight edits in
   `assignment/runtime_spill/{mod,recovery,replay}.rs`, `output/retained.rs`,
   `register_allocation.rs`, `analyses/spill_choice/compute.rs`, plus two
-  `tests/native-differential` fixture files; aimed at the composition-admission
-  bullet above. Resume by reviewing or discarding the checkpoint.
+  fixture files in the removed Rust native test crate; aimed at the
+  composition-admission bullet above. Resume by reviewing or discarding the checkpoint.
 
   Acceptance: slot reuse is not double-counted; changed allocation or frame
   realization invalidates stale demand; insufficient supply rejects before
   execution; and generated loads and stores independently replay their
   physical geometry and value lineage without adding source crash routes. A
   byte ceiling alone does not stand in for valid stack backing. Keep
-  `WRITE-ONLY-BORROW`'s source-backed three-call regression
-  (`tests/native-differential/tests/terminal_psi_indexed_receivers/primitive_stores.rs`)
-  as the hosted execution control, with its installed-image demand replay and
-  stale-frame rejection (`terminal_psi_indexed_receivers/stack_pointers/`).
+  `WRITE-ONLY-BORROW`'s write-only corpus cases in the native leg
+  (`python3 tools/corpus_gate.py --native --filter borrow/write_only`) as the
+  hosted build control.
 
   Flag: the remaining `unsequenced_spill_stages/` families have test,
   architecture and non-authoritative frame-planning consumers, not an

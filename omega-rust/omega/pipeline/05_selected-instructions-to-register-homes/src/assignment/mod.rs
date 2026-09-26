@@ -7,10 +7,9 @@
 //! route publishes. `logical_spill_operations` and `stack_slot_coloring`
 //! remain validated boundaries with no sequenced caller: runtime-spill
 //! recovery selects and rewrites physical victims directly rather than
-//! planning over them, so only the native-differential boundary tests and
-//! the `crate::unsequenced_spill_stages` compositions consuming their
-//! receipts exercise them. The crate root re-exports each owner's public
-//! names by module.
+//! planning over them, so only the `crate::unsequenced_spill_stages`
+//! compositions consuming their receipts exercise them. The crate root
+//! re-exports each owner's public names by module.
 
 pub(crate) mod baseline;
 pub(crate) mod home_assignment;

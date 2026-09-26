@@ -45,9 +45,7 @@ quotient, including rejection of signed `MIN % -1`. Normalized operands use the
 existing Exact signed division instructions except for full-width unsigned
 operands, which retain their unsigned realization. x86-64 zero/sign high-half
 preparation retains explicit scratch constraints and adds no source operation or
-fuel charge. The
-[arithmetic controls](../../../../tests/native-differential/tests/scalar_case_results/u64_kernels.rs)
-exercise full-width values, proof substitution and four-target publication.
+fuel charge.
 
 Fresh scalar sums use activation-local carriers in this graph. Construction
 initializes the complete carrier, including padding and inactive payload bytes,
@@ -90,9 +88,6 @@ Register inputs used only for whole-value transport retain fragment-only storage
 Independent replay reconstructs the input slot, extent, writes and every observation.
 Shared calls on constructed or call-returned sums similarly use their original
 operation-result home; copyability does not authorize lending a payload snapshot.
-The [source/native parameter cases](../../../../tests/native-differential/tests/scalar_case_results/record_reads/parameters.rs)
-cover full-width values across calls, signed and Boolean subfields, and inline
-stack input backing.
 
 Inline stack inputs already have activation-lived owned value storage. Entry
 retains its exact incoming frame address, and later observations, calls, nested
@@ -105,8 +100,7 @@ no second record copy or borrowed access is introduced. Entry captures pointer
 bits from the exact register or incoming stack slot before authored operations.
 The caller's payload-copy offset is not the incoming pointer-slot offset. Field
 reads and nested constructor operands consume this backing, even without an
-earlier field observation. Source/native controls cover both pointer placements,
-calls, nested results, and installation reload. Published pointer homes preserve
+earlier field observation. Published pointer homes preserve
 owned versus borrowed identity; the full call plan and independent graph replay
 remain required. Whole-parameter returns consume the same current backing under
 their independently selected result ABI, including hidden result storage.
@@ -117,12 +111,6 @@ slot. The slot roles distinguish the payload from its pointer without inventing
 another argument ordinal. Microsoft x64 payload copies retain 16-byte alignment;
 odd tails use the same exact-width loads/stores as direct aggregate fragments.
 Construction and receiving replay independently reconstruct these transports.
-The source-to-native control is
-`cargo nextest run -p omega-native-differential-test --test scalar_case_results --no-fail-fast record_reads::parameters`.
-It covers affine/copyable records, distinct stack pointers and payload copies,
-constructed/call-produced inputs, odd-width arrays, padded record arrays and their
-generic wrappers, and mixed borrowed outputs;
-cross-target publication does not substitute for matching-host execution.
 
 Whole record arrays use the same recursive size/alignment and aggregate homes as
 records. Their call/return transport respects padded element strides and field offsets;
@@ -165,16 +153,9 @@ provenance prefixes the next instruction in the same block, including a terminat
 independent replay reconstructs that ordered prefix. Empty-result calls and returns
 reuse physical Unit instructions without changing their structural contracts.
 Indirect owned entry arguments retain their incoming value-copy pointer, just
-like records. Zero physical size never erases the semantic array type. The native differential
-`scalar_array_results` target covers full publication and matching-host execution;
-its 17-byte SysV mixed-call case exercises independently verified runtime spills
-through the high-pressure acyclic graph. That case publishes on any development
-host and explicitly skips execution unless the host is Linux x86-64. Inline
+like records. Zero physical size never erases the semantic array type. Inline
 stack admission is not a claim that allocation can realize every graph.
-Its packed cases cover 3/5/6/7-byte tails in one- and two-fragment calls and returns
-on the three direct-register targets. Its floating cases preserve binary32/binary64
-payloads, including signed zeros and NaN payloads. Array results keep their
-integer-fragment aggregate ABI; they are
+Array results keep their integer-fragment aggregate ABI; they are
 not foreign C homogeneous-floating aggregates. Scalar floating inputs use the
 ordinary float-bank transfers before bit-preserving graph and array storage.
 Calls to array-producing machines reuse the mixed-bank argument constraints,
@@ -215,9 +196,7 @@ owned value ABI survive; selection emits no payload pointer, descriptor slot,
 memory access, or edge copy. Bounded integer fields use their integer carrier's
 layout while retaining the complete range declaration. Layout eligibility does
 not authorize restricted-field writes; source replay rejects altered bounds even
-when the physical layout is unchanged. The
-[ranked primitive-local regression](../../../../tests/native-differential/tests/primitive_locals/walk.omg)
-composes such an unused record with a borrowed local on the ordinary cyclic graph.
+when the physical layout is unchanged.
 The bounded input gate independently rejects
 observations, call actuals, projections, and escapes of those owned places, and
 executable cleanup. Independently established primitive locals may be observed
@@ -227,9 +206,8 @@ calls and simultaneous scalar transfers continue through the ordinary graph.
 Edge preparation and independent replay count only active transports, including
 when unused owned bindings accompany scalar copies. Object/image publication
 must separately retain this custody and validate omitted physical homes.
-The [owned control-cycle regressions](../../../../tests/native-differential/tests/owned_control_cycles.rs)
-exercise this full continuation; local projection tests also reject invented
-descriptor homes and changed binding transports.
+Local projection tests reject invented descriptor homes and changed binding
+transports.
 
 Observed plain-owned scalar sums use `SelectedStructuralTransport::WholeValue`
 with the exact source pointer, destination block-parameter slot, byte extent,
@@ -402,8 +380,6 @@ removing only those result write units from the unknown clobbers. Physical
 operands are ordered GPR inputs, IEEE inputs, then result fragments; the authored
 argument roster and each ABI's fixed positions remain unchanged. This is the
 integer-fragment Omega array ABI, not a foreign homogeneous-float aggregate ABI.
-The `scalar_array_results::floating` native regressions exercise construction,
-owned forwarding, interleaved input banks, and two-fragment transport.
 
 Integer and Boolean stack arguments use the same transport. Incoming loads and
 outgoing stores preserve the exact 1/2/4/8-byte payload width independently of

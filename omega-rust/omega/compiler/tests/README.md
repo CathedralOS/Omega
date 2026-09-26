@@ -29,4 +29,4 @@ result is the exit code.
 Do not add per-feature Rust test files to this directory. The crate sets
 `autotests = false`, so a new file here is not a test target, and each extra
 target would link the whole compiler again. `support/` holds the package-input
-helpers the runner and `tests/native-differential` share.
+helpers the runner uses.

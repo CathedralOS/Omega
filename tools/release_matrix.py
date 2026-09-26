@@ -108,8 +108,6 @@ GATES = {
                       "provider settlement, and observable execution on its "
                       "matching host.",
         "commands": [
-            [MBX, "nextest", "run", "-p", "omega-native-differential-test",
-             "--all-targets", "--no-fail-fast"],
             [PYTHON, "tools/corpus_gate.py", "--native"],
         ],
     },

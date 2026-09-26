@@ -78,8 +78,8 @@ pub use proofs::entry_requirement_certificates::{
     CrashRosterError, EntryRequirementCertificate, check_entry_requirement_certificate,
     produce_crash_obligation_evidence, produce_entry_requirement_certificates,
 };
-// The native-differential optimizer corpus proves trap obligations through
-// the checked canonical certificate producer from outside this crate.
+// Exported for callers outside this crate that prove trap obligations through
+// the checked canonical certificate producer; no other workspace crate calls it.
 pub use proofs::nonzero_divisor_certificate::produce_checked_canonical_integer_proof;
 
 // The front-end pipeline the tests run, shared with the `suite` integration
