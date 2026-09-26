@@ -17,14 +17,14 @@ mod lowering;
 mod optimization;
 mod provider_installation;
 
-pub use entry_settlement::{
-    NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
-    ValidatedNativeProgramEntrySettlement, validate_native_program_entry_settlement,
-    validate_fused_program_entry_establishments,
-};
 pub use artifact_admission::{
     AdmittedNativeArtifact, AdmittedOptimizationArtifact, ArtifactLoweringError, ArtifactSections,
     TerminalPlacedViewEstablishment, VerifiedNativeArtifactInput, lower_artifact,
+};
+pub use entry_settlement::{
+    NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
+    ValidatedNativeProgramEntrySettlement, validate_fused_program_entry_establishments,
+    validate_native_program_entry_settlement,
 };
 pub use lowering::LoweringError;
 pub use optimization::{
