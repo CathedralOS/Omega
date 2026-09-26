@@ -5,7 +5,8 @@ use crate::validation::structural::operations::claim_transfers::{
 };
 use crate::validation::structural::operations::crash_continuations::validate_unit_call_crash_continuations;
 use crate::validation::structural::operations::structural_arguments::{
-    StructuralArgumentSourcePolicy, is_unrestricted_mutable_subloan, validate_structural_arguments,
+    StructuralArgumentSourcePolicy, is_unrestricted_mutable_subloan,
+    is_unrestricted_shared_subloan, validate_structural_arguments,
 };
 use crate::validation::{
     BTreeMap, MachineId, ModuleError, OperationKind, StructuralMultiplicity, StructuralPlaceKind,
@@ -131,6 +132,7 @@ pub(crate) fn validate_primitive_structural_call(
         .all(|(argument, expected)| {
             argument.path.is_empty()
                 || is_unrestricted_mutable_subloan(module, machine, expected, argument)
+                || is_unrestricted_shared_subloan(module, machine, expected, argument)
         });
     validate_structural_arguments(
         module,
