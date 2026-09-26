@@ -4033,6 +4033,16 @@ syntax and other terminal services are not prerequisites.
   Two earlier revisions of this note said otherwise; both were written from the
   uncontrolled pair.
 
+  Where to look, and where not to.
+  `flow/transfers/context_transport.rs` already transports `AssignedValue`
+  beside `AssignedCase`, `AssignedScalarValue` and `BytePredicate`, but it
+  transports them for a WRITE, keyed on `write.source_place`, so it is not the
+  path a transition argument takes. `flow/transfers/projected.rs` copies
+  literal `AssignedValue` leaves for field predicates, also not that path. The
+  remaining candidates are the state-entry side, `flow/state.rs` and
+  `flow/entry_origins.rs`, which is where an arriving edge's arguments seed the
+  target state's facts.
+
   `samples/cli/rendering/dungeon_render` is the sample customer and needs more
   than this: its glyph reaches the carrier as `put(ch: u8)` -> `self.lab` ->
   `self.line[self.c]`, and `u8` carries no range, so no ASCII fact exists to
