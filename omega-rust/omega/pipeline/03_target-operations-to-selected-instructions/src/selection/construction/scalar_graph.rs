@@ -386,6 +386,7 @@ fn select_function(
                     LegalizedScalarInstructionKind::EstablishRecord { .. }
                     | LegalizedScalarInstructionKind::EstablishScalarCase { .. }
                     | LegalizedScalarInstructionKind::EstablishScalarArray { .. }
+                    | LegalizedScalarInstructionKind::EstablishZeroedStructural { .. }
                     | LegalizedScalarInstructionKind::StructuralLeafCopy { .. }
                     | LegalizedScalarInstructionKind::StoreStructuralField { .. }
                     | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }

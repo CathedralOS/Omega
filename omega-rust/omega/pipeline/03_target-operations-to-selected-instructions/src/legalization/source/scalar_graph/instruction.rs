@@ -104,6 +104,13 @@ pub(super) fn project(
         AbstractOperation::ReleaseReference { source, .. } => {
             LegalizedScalarInstructionKind::ReleaseReference { source: *source }
         }
+        AbstractOperation::EstablishZeroedStructural { result, .. } => {
+            LegalizedScalarInstructionKind::EstablishZeroedStructural {
+                result: result.clone(),
+                shape: scalar_graph_input::aggregate_results::home_layout(result, plan)?
+                    .shape(),
+            }
+        }
         AbstractOperation::EstablishRecord { result, fields, .. } => {
             LegalizedScalarInstructionKind::EstablishRecord {
                 result: result.clone(),

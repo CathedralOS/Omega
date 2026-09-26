@@ -380,6 +380,16 @@ pub(super) fn lower_operation(
             operations,
             provenance,
         ),
+        AbstractOperation::EstablishZeroedStructural { .. } => {
+            super::records::establish_zeroed_structural(
+                operation,
+                function,
+                structural_types,
+                live,
+                operations,
+                provenance,
+            )
+        }
         AbstractOperation::EstablishTrivialAffineLocal { .. } => {
             super::records::establish_trivial_affine_local(
                 operation,

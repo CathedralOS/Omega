@@ -713,6 +713,7 @@ pub(crate) fn derive_component_inventory(
                     | OperationKind::EstablishScalarArray { .. }
                     | OperationKind::EstablishPrimitiveLocal { .. }
                     | OperationKind::EstablishTrivialAffineLocal { .. }
+                    | OperationKind::EstablishZeroedStructural { .. }
                     | OperationKind::EstablishRecord { .. }
                     | OperationKind::EstablishScalarCase { .. }
                     | OperationKind::EstablishStructuralCase { .. }

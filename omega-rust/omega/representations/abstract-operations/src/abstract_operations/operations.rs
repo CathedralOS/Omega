@@ -312,6 +312,13 @@ pub enum AbstractOperation {
         place: StructuralPlaceDeclaration,
         structural_type: StructuralTypeDeclaration,
     },
+    /// Atomically establish an owned structural place whose every scalar leaf
+    /// begins zero. The result names the whole zero-constructible type; no
+    /// operand roster exists. Target lowering assigns its physical home.
+    EstablishZeroedStructural {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+    },
     /// Atomically establish a complete record from declaration-ordered scalar
     /// values and owned child records. The result retains exact semantic custody;
     /// target lowering assigns its physical home before use.
@@ -920,6 +927,7 @@ impl AbstractOperation {
             | Self::EstablishScalarCase { psi_operation, .. }
             | Self::EstablishByteSequenceLiteral { psi_operation, .. }
             | Self::EstablishTrivialAffineLocal { psi_operation, .. }
+            | Self::EstablishZeroedStructural { psi_operation, .. }
             | Self::EstablishRecord { psi_operation, .. }
             | Self::EstablishReference { psi_operation, .. }
             | Self::ReleaseReference { psi_operation, .. }

@@ -379,6 +379,15 @@ pub(super) fn validate(
         ) => {
             aggregate_results::validate(actual, node, optimized, native, plan, unit, custody)?;
         }
+        (
+            LegalizedScalarInstructionKind::EstablishZeroedStructural { result, shape },
+            AbstractOperation::EstablishZeroedStructural {
+                result: expected, ..
+            },
+        ) if result == expected
+            && *shape
+                == scalar_graph_input::aggregate_results::home_layout(result, plan)?.shape() => {
+        }
         // A window move replays as the leaf-copy byte copy of the vacated
         // field and its store as the inverse copy; both re-resolve the field
         // extent from the abstract row.

@@ -28,6 +28,7 @@ mod scalar_call_abi;
 mod silent_boundary_input;
 mod validation;
 pub(crate) mod value_transport;
+mod zeroed_structural_input;
 
 pub use model::{
     SelectedInstructionError, SelectedInstructionValidationReceipt, ValidatedSelectedInstructions,

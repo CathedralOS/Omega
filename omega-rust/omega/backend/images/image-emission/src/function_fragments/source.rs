@@ -43,6 +43,7 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
                 | AbstractOperation::EstablishScalarCase { .. }
                 | AbstractOperation::EstablishRecord { .. }
                 | AbstractOperation::EstablishScalarArray { .. }
+                | AbstractOperation::EstablishZeroedStructural { .. }
                 | AbstractOperation::CallStructural { .. }
                 | AbstractOperation::ReturnStructural { .. }
                 | AbstractOperation::PrimitiveLocalStore { .. }
@@ -260,6 +261,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | AbstractOperation::EstablishReference { .. }
                 | AbstractOperation::ReleaseReference { .. }
                 | AbstractOperation::EstablishScalarArray { .. }
+                | AbstractOperation::EstablishZeroedStructural { .. }
                 | AbstractOperation::CallStructural { .. }
                 | AbstractOperation::ReturnStructural { .. } => aggregate_results::operation(operation, targeted, selected),
                 AbstractOperation::EstablishPrimitiveLocal { .. }

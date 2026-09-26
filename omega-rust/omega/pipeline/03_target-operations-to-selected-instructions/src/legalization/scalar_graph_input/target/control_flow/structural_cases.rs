@@ -41,6 +41,9 @@ pub(super) fn home_available(
                         | TargetUnitOperation::EstablishRecord {
                             result_home: home, ..
                         }
+                        | TargetUnitOperation::EstablishZeroedStructural {
+                            result_home: home, ..
+                        }
                         | TargetUnitOperation::EstablishScalarArray {
                             result_home: home, ..
                         }

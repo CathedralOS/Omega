@@ -125,6 +125,22 @@ pub(super) fn lower(
                 structural_type: declaration,
             }
         }
+        OperationKind::EstablishZeroedStructural { .. } => {
+            let Some(result) = operation.result.structural().cloned() else {
+                return Err(LoweringError::UnsupportedStructuralReturn {
+                    machine: machine.id,
+                    edge: block
+                        .terminator
+                        .edges()
+                        .next()
+                        .expect("every terminator carries an edge"),
+                });
+            };
+            AbstractOperation::EstablishZeroedStructural {
+                psi_operation: operation.id,
+                result,
+            }
+        }
         OperationKind::EstablishRecord { fields } => {
             let Some(result) = operation.result.structural().cloned() else {
                 return Err(LoweringError::UnsupportedStructuralReturn {

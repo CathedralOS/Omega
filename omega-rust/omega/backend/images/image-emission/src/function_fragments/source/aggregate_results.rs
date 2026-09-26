@@ -113,6 +113,12 @@ pub(super) fn operation(
                     if retained == psi_operation && retained_place == place && retained_type == structural_type
             )).count() == 1
         }
+        AbstractOperation::EstablishZeroedStructural { psi_operation, result } => {
+            graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
+                TargetUnitOperation::EstablishZeroedStructural { psi_operation: retained, result_home }
+                    if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
+            )).count() == 1
+        }
         AbstractOperation::EstablishScalarArray { psi_operation, result, elements } => {
             graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
                 TargetUnitOperation::EstablishScalarArray { psi_operation: retained, result_home, elements: retained_elements }

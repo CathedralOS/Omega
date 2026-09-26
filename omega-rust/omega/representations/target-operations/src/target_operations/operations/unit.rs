@@ -267,6 +267,12 @@ pub enum TargetUnitOperation {
         place: StructuralPlaceDeclaration,
         structural_type: StructuralTypeDeclaration,
     },
+    /// Establish a whole zero-constructible structural value in its exact
+    /// aggregate home: every scalar leaf begins zero with no element roster.
+    EstablishZeroedStructural {
+        psi_operation: OperationId,
+        result_home: crate::target_operations::TargetStructuralHomeRequirement,
+    },
     /// A complete record established in its exact operation-result home.
     EstablishRecord {
         psi_operation: OperationId,

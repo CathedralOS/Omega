@@ -113,6 +113,7 @@ pub(super) fn reconstruct(
         let producer_site = node_site(caller, |operation| {
             matches!(operation,
                 AbstractOperation::EstablishScalarArray { psi_operation, result: actual, .. }
+                | AbstractOperation::EstablishZeroedStructural { psi_operation, result: actual, .. }
                 | AbstractOperation::EstablishRecord { psi_operation, result: actual, .. }
                 | AbstractOperation::EstablishScalarCase { psi_operation, result: actual, .. }
                 | AbstractOperation::CallStructural { psi_operation, result: actual, .. }

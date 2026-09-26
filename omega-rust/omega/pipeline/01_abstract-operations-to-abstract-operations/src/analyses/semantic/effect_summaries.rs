@@ -397,6 +397,7 @@ fn operation_effect(
         | O::EstablishScalarCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
+        | O::EstablishZeroedStructural { .. }
         | O::EstablishRecord { .. }
         | O::EstablishReference { .. }
         | O::ReleaseReference { .. }
