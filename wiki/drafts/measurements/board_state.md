@@ -44,8 +44,8 @@ queue numbers.
 | --- | --- |
 | MODULE-NAMESPACE-RESOLUTION | `unmanaged-root-package-identity` |
 | NOMINAL-FIELD-FLOW | [mutable-self-receiver-declared-field-rows](../../spec/language/dependent_values.md#mutable-receivers-and-declared-field-domains), settled |
-| NATIVE-WRAPPER-ENCODING-AARCH64 | `aarch64-semantic-wrapper-arrival-shape` |
-| OWNED-SELF-RECEIVER-AFFINE-DISCARD | `owned-self-receiver-implicit-retirement` |
+| NATIVE-WRAPPER-ENCODING-AARCH64 | Now implementation reconciliation against [target-authored entry contracts](../../spec/build/entry_roots.md), not owner-blocked |
+| OWNED-SELF-RECEIVER-AFFINE-DISCARD | Now implementation repair under [ordinary parameter ownership](../../spec/language/ownership.md#consumers-and-cleanup), not owner-blocked |
 | ARITHMETIC-POLICY-REALIZATION | `terminal-operation-level-trap-crash-site`, now [delegated implementation](../../../omega-rust/pipeline.md#psi-implementation-and-deferred-human-audit), not owner-blocked |
 
 `SCALAR-ROUTE-REQUIREMENT-OBLIGATION-COUNT` reads as owner-blocked and is

@@ -877,9 +877,16 @@ _roots` shows the current shape: `use omega_language_std::targets::uefi_x86_64`
   promise is native execution is not closed by checking here):
   `control_flow/guarded_leaf_branch_expansion` and
   `capabilities/uses_caller_folder` reject on borrowed storage absent at a
-  boundary call, which is [`copy-data-shared-reference-fields`](OWNER_QUESTIONS.md)
-  (Q7) for the shared-view-field shape and **BORROWED-STORAGE-RESTORATION**
-  otherwise; `proofs/cauchy_predicates_compile` on the two checker
+  boundary call. For the shared-view-field shape, this row owns implementing
+  [shared-reference copy composition](wiki/spec/language/ownership.md), not a
+  new owner ruling: `validation/src/proof_contracts/properties.rs` still excludes
+  references from `[copy]` fields even though stored shared views already copy.
+  Admit shared carriers while preserving exact loans and qualification facts;
+  require the record's explicit `[copy]` declaration. Pin `&mut`/`&write`
+  exclusion and use-after-loan-end rejection, and carry the fix through checked
+  and native execution of the affected fixtures. Deliberate move-and-restore
+  remains **BORROWED-STORAGE-RESTORATION**'s separate work.
+  `proofs/cauchy_predicates_compile` rejects on the two checker
   capabilities `source/library/core/cauchy.omg` names above
   `doubled_nat_max_modulus`, both reported at once and both inside
   `converges_together_at_triangle_split`: `rat_close_triangle_split`'s
@@ -1887,17 +1894,21 @@ syntax and other terminal services are not prerequisites.
   supply reject; legitimate issuance and identity-preserving transfers succeed
   without re-minting capacity.
 
-- **NATIVE-WRAPPER-ENCODING-AARCH64.** (new-scope) Resolve the existing
-  `aarch64-semantic-wrapper-arrival-shape` decision in
-  [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md) before adding a peer encoding.
+- **NATIVE-WRAPPER-ENCODING-AARCH64.** (new-scope) Reconcile wrapper selection
+  with the target-authored [entry contracts](wiki/spec/build/entry_roots.md).
   `select_optimized_program_storage_semantic_wrapper_encoding` currently
   selects the x86-64 template; its recipe assumes the UEFI indirect Extent
   arrival and caller-owned copies. AArch64 declarations instead use register
   fragments, and current AArch64 profiles expose hosted entry, not
   ProgramStorage entry. Do not assume they need the UEFI wrapper.
-  Acceptance after the ruling: either implement the required arrival and
-  continuation with architecture-correct branch relocation and independent
-  substitution checks, or pin the intended refusal and remove this task.
+  Verify the shipped Linux and macOS AArch64 profiles through their hosted
+  bridges. Add a separate wrapper only if an actual authored profile requires
+  it; do not invent a profile to justify an encoder. If needed, preserve the
+  authored value-register arrival and continuation with architecture-correct
+  branch relocation and independent substitution checks. If no profile needs
+  it, keep the UEFI recipe target-specific and pin rejection of incompatible
+  recipe/plan combinations. Acceptance is that reconciliation and the matching
+  profile controls, not an owner decision or a mandatory peer encoding.
   AArch64 hosted execution remains with the native matrix owners.
 
 ## P2 - Materialization and placed access
@@ -2138,13 +2149,7 @@ syntax and other terminal services are not prerequisites.
   Preserve unique historical-migration selection; generated-codec verification
   and trust remain with their existing owner.
 
-- **GENERATED-CODEC-INDEPENDENT-VERIFICATION.** OWNER-BLOCKED on
-  [`generated-codec-derived-evidence`](OWNER_QUESTIONS.md): the spec says a
-  conformance proves the law `decode(encode(value)) == value` and that "only a
-  fully exercised requirement reports `Derived`", but does not say whether the
-  finite differential probe admission actually runs exercises a requirement
-  fully. Both repairs this item names depend on that ruling, and it decides
-  what a shipped artifact report claims. Establish sufficient
+- **GENERATED-CODEC-INDEPENDENT-VERIFICATION.** Establish sufficient
   independently checked evidence for generated codecs' `Derived` trust under
   [public codec agreement](wiki/spec/layouts/codecs.md#agreement-and-trust).
   The no-authored-policy route now exists, but
@@ -2153,7 +2158,10 @@ syntax and other terminal services are not prerequisites.
   `build-evaluation/src/admission/wire_protocol.rs` reports `Derived` when
   that probe's gaps are empty. Finite examples do not establish the general
   agreement law; comparing placements or a shared field classifier is not
-  independent checking of the codec body.
+  independent checking of the codec body. Correct probe-only classifications
+  to `Admitted`, naming compiler trust, without waiting for the general proof
+  machinery. Exercise artifact reports and consumer rejection of refused
+  compiler trust; a finite-scope disclaimer cannot license `Derived`.
 
   Connect general agreement evidence to the exact realization and public
   schema, or retain explicit compiler-admitted trust where it is unavailable.
@@ -2461,21 +2469,15 @@ syntax and other terminal services are not prerequisites.
   Any demonstrated need to change the selected calculus goes to
   `OWNER_QUESTIONS.md`, not an implementation shortcut.
 
-- **C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT.** (new-scope) Bound aggregate
-  compile-time proof work and remove the redundant work that makes it
-  necessary. This row exists because two places already name it as an owner
-  and nothing carried it: **WRITE-ONLY-BORROW** defers its computed-selector
-  limit to this row, and **RC-PCC-REPLAY** reports the release block as red
-  "including a terminated proof-search case" whose resource defect is this
-  row's.
-
-  [`compile-time-proof-work-ceiling`](OWNER_QUESTIONS.md) (Q1) settles the
-  policy question and needs no further ruling: named resource or search
-  exhaustion already publishes as `Incomplete`, not `Reject`, so an explicit
-  aggregate accounting reported that way is implementation work. The question
-  also names the defect to repair first -- repeated whole-module
-  reconstruction and oversized certificates -- and says a cap does not excuse
-  it.
+- **C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT.** (new-scope) Remove repeated
+  whole-module reconstruction and oversized certificates, then bound aggregate
+  compile-time proof work with explicit accounting. **WRITE-ONLY-BORROW**'s
+  computed-selector limit and **RC-PCC-REPLAY**'s terminated proof-search case
+  depend on this repair. [Proof outcomes](wiki/spec/proofs/publication.md#outcomes)
+  already classify named resource/search exhaustion as `Incomplete`, not
+  `Reject`; [kernel budgets](wiki/spec/proofs/kernel_metatheory.md) are
+  implementation policy. No owner decision is pending. A cap does not excuse
+  the redundant work.
 
   The customer is WRITE-ONLY-BORROW's: `runtime_hoisted_index_write_exit`
   checks in 180 ms today only because a selector narrower than `u64` must be a
@@ -2490,7 +2492,7 @@ syntax and other terminal services are not prerequisites.
   aggregate proof work is accounted explicitly, and exhaustion publishes as
   `Incomplete` with the [compiler request](wiki/spec/build/compiler_request.md)
   representation. Rejecting valid source, accepting without required evidence,
-  or warning while claiming bounded execution are all excluded by Q1.
+  or warning while claiming bounded execution violate those contracts.
 
 - **PROOF-CONTRACT-MIGRATION.** Deliver general mathematics from Omega
   source through Terminal evidence and independent checking, using
@@ -3508,11 +3510,15 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
 
 - **OWNED-SELF-RECEIVER-AFFINE-DISCARD.** (new-scope) An owned `self` receiver
   is removed by `consume_terminal_self_receiver` before cleanup validation,
-  regardless of multiplicity. Resolve
-  [`owned-self-receiver-implicit-retirement`](OWNER_QUESTIONS.md), then implement
-  its accounted disposition in
+  regardless of multiplicity. Remove this receiver-only exemption and account
+  for the parameter's ordinary disposition in
   `terminal-verifier/src/validation/frontier/terminators.rs` under
-  [Terminal ownership](wiki/spec/terminal-psi/ownership.md).
+  [Terminal ownership](wiki/spec/terminal-psi/ownership.md) and
+  [source ownership](wiki/spec/language/ownership.md#consumers-and-cleanup).
+  `self` is ordinary parameter syntax: normal completion consumes neither a
+  linear nor an affine input by itself. Carry the repair through producers and
+  consumers that relied on the exemption; do not replace it with a linear-only
+  exemption or a new receiver contract.
 
   The `terminal-interpreter --test unit` controls
   `affine_cleanups::scalar_return_performs_affine_discard_only_after_edge_charge`
@@ -3521,9 +3527,11 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   They reject with `ScalarReturnAffineDiscardsMismatch` after implicit removal
   of that root. Preserve their edge-charge and once-only-disposal observations.
 
-  Acceptance after the ruling: specification, verifier, and both interpreter
-  tests agree on linear and affine receiver disposition without silent custody
-  removal. Do not merely repin the tests.
+  Acceptance: both interpreter controls preserve edge-charge ordering; equivalent
+  receiver and ordinary-parameter forms have the same custody result for linear
+  and affine inputs. Returning with undischarged linear debt rejects; authorized
+  disposition succeeds. Retain loans and claims until their actual disposition.
+  Do not merely repin the tests.
 
 - **FILTERED-CALLEE-CALL-SITES.** (new-scope) A source-authored statement call
   whose callee has no declaration in the selected program is dropped from the
@@ -3653,19 +3661,17 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   contained loans and outcome obligations. Whole-root, indexed, referent,
   scalar-field and nominal-drop fences stay until their evidence exists.
 
-  NOT THIS ROW'S WORK, and design-blocked: 34 `tests/omega/pass` fixtures
-  reject on "cannot transfer a non-copy value out of borrowed storage",
-  measured 2026-09-24. They copy a record holding a SHARED VIEW field out of
-  `&mut self` by value (`_ -> render(self.source)` with
-  `data Room { label: &[u8] in Utf8; }`), which is an illegal move without
-  `[copy]` and a rejected declaration with it. That is
-  [`copy-data-shared-reference-fields`](OWNER_QUESTIONS.md) (Q7), awaiting the
-  owner. `text/runtime_local_struct_string_field_concat_exit`,
+  **CANARY-CORPUS** owns the shared-reference copy-composition repair, not this
+  row. A record such as `data Room { label: &[u8] in Utf8; }` copied from
+  `&mut self` storage needs an explicit `[copy]` declaration; the current field
+  whitelist wrongly rejects that declaration. See the settled
+  [copy/loan rules](wiki/spec/language/ownership.md).
+  `text/runtime_local_struct_string_field_concat_exit`,
   `text/runtime_string_stored_suffix_exit` and
-  `text/runtime_slice_indexed_string_guard_exit` now stop one stage later, on
-  the lost default-domain facts that question predicts. Restoration of a value
-  this row moves out deliberately is a separate mechanism; do not repair those
-  fixtures here.
+  `text/runtime_slice_indexed_string_guard_exit` also exercise preservation of
+  default-domain facts. Restoration of a deliberately moved-out value is a
+  separate mechanism; do not work around the copy-composition gap with an
+  unnecessary move-and-restore.
 
   Complete target/native realization without replacing caller storage by a
   staged copy. Promote `ownership/move_keyword_field_assignment` from
@@ -5814,7 +5820,7 @@ but report the missing runtime leg explicitly; it does not close that host row.
   | 6 | `build_target_activation` | ProgramEntry/Terminal attachment |
   | 3 | `private_joint_progress` | undeclared premise retention (below) |
   | 3 | `subslice_runtime_end_bounds` | claimed elsewhere |
-  | 2 | `service_operational_contracts` | OWNER_QUESTIONS.md Q6 |
+  | 2 | `service_operational_contracts` (recorded, module since removed) | `borrowed-service-suspension-carrier`; recover a source witness |
   | 2 | `source_evaluated_native_realization` | demanded-import custody no longer refuses |
   | 2 | `callback_terminal_custody` | calling plans, fragment import custody |
   | 2 | `optimizer_opt_in` | claimed elsewhere |
@@ -5826,7 +5832,8 @@ but report the missing runtime leg explicitly; it does not close that host row.
   `recast_views` and `build_target_activation` together -- are ONE cause, the
   "selected ProgramEntry establishment rejoins 0 Terminal attachment
   identities" frontier this file names at the top; none of those 23 is a test
-  defect. Fourteen more are claimed by other lanes or blocked on Q6. What is
+  defect. Fourteen more were assigned to other lanes or the recorded borrowed-service
+  suspension gap; the latter needs a fresh witness. What is
   left unclaimed and unblocked is nine tests across seven targets.
 
   Cleared: `access_plans`, `application_type_equations`,
@@ -5972,12 +5979,15 @@ but report the missing runtime leg explicitly; it does not close that host row.
   domain path's routing, not the recast spelling. The test's other half, which
   rejects exchanging two DIFFERENT packages' domains, still passes.
 
-  `service_operational_contracts` keeps two tests blocked on an owner
-  decision, **OWNER_QUESTIONS.md Q6 `borrowed-service-suspension-carrier`**:
-  a machine whose parameters are `&mut Service` and whose published contract
-  is `suspends; blocks;` cannot reach a suspending operation by any spelling
-  the language admits. Do not reshape that fixture again before Q6 is
-  answered.
+  Recover the source witness formerly held by `service_operational_contracts`;
+  that module is absent from the current tree, so its two historical failures
+  are not current test commands. The remaining owner question is
+  [`borrowed-service-suspension-carrier`](OWNER_QUESTIONS.md). Separate named
+  transition-transfer acknowledgement from loan preservation: a `suspends; blocks;`
+  ceiling does not establish suspension-safe carry. Check ordinary carry facts,
+  provenance and runtime preservation first. Only an unresolved source-contract
+  choice blocks this slice; reproducing and repairing settled carry behavior
+  does not await the owner.
 
   `native_filesystem_canaries` is half the total and fails UNIFORMLY -- 89 of
   89, none passing -- so it is one cause, not eighty-nine. PEELED, by fixing

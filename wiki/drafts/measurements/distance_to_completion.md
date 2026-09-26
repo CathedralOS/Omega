@@ -138,11 +138,12 @@ caveat that spot-checked buckets were optimistic. Dependency levers:
 STATE-LOCAL-VALUE-FRONTIER unblocks 6 rows, COMPONENT-SUBSTRATE 4,
 REMOVE-BRACKETED-RANGE-ANNOTATIONS 3.
 
-Owner-decision blockers: Q1 `compile-time-proof-work-ceiling` gates
-RC-PCC-REPLAY (via C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT); Q2
-`aarch64-semantic-wrapper-arrival-shape` gates
-NATIVE-WRAPPER-ENCODING-AARCH64; Q3 `interpreted-inline-assembly` is a
-separate program. Both Q1 and Q2 carry proposed solutions.
+The recorded owner-blocker classification has since been corrected:
+C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT and NATIVE-WRAPPER-ENCODING-AARCH64 are
+implementation work under the [proof outcomes](../../spec/proofs/publication.md#outcomes)
+and [target-authored entry contracts](../../spec/build/entry_roots.md).
+`interpreted-inline-assembly` remains an owner decision for the separate
+interpreted-Cathedral customer. Current assignments are on [TASKS.md](../../../TASKS.md).
 
 ## Trajectory: divergent at current allocation
 
@@ -204,8 +205,8 @@ no expected-skip declarations; nothing recorded at HEAD.
 3. **Run RC-REPOSITORY's 5-command block once at a clean commit** — cheapest
    gate, never attempted as a block; converts "unmeasured" to a named red
    or green.
-4. **Answer Q1 and Q2** — proposed solutions exist; both sit on gate
-   critical paths.
+4. **Repair aggregate proof work and reconcile AArch64 entry** — these recorded
+   blockers are implementation work, not pending owner rulings.
 5. **Stop board mining until open items < ~80** — consolidation cost is
    measured (~40 commits for one spike); steady-state discovery already
    exceeds closure.

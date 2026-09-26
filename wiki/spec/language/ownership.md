@@ -17,6 +17,14 @@ payload. An inactive case creates no obligation for its absent payload.
 Copyability requires compatible owned contents and cannot duplicate unique
 cleanup responsibility.
 
+Shared reference and borrowed-view fields may occur in `[copy]` data when
+every field satisfies the ordinary copy rules. Copying the record duplicates
+its shared loan carriers, not its referents; it preserves their exact backing,
+qualification, provenance, and lifetime obligations. It grants neither a longer
+lifetime nor additional carry or cross-activation sharing permission. Exclusive
+`&mut` and `&write` fields do not qualify. A record still requires an explicit
+`[copy]` declaration; copyable fields do not change the affine default.
+
 ## Property declarations
 
 Lowercase bracket properties attach to the data declaration or type parameter,
@@ -178,6 +186,10 @@ must independently reconstruct the window rather than trust producer approval.
 
 Ownership is determined by the receiver type: bare `self` is owned; `&self` and
 `&mut self` are references. Method and static-call forms obey the same rule.
+`self` is syntax for a parameter of the attached data type, not a separate
+ownership category. The same parameter type has the same transfer, loan,
+cleanup, and disposition obligations whether passed as a receiver or as an
+ordinary parameter. Normal completion grants no receiver-specific consumption.
 `move self` transfers into a consuming machine; there is no terminal-consumer
 annotation and no inference from the method's name.
 

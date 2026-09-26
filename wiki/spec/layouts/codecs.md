@@ -20,9 +20,13 @@ composes outside that law.
 
 Artifacts retain normalized plan, requirement identity, realization origin,
 trust class, and evidence independently. Generated origin does not mean derived
-trust; admission verifies each generated codec against this contract
-(`checked_interpreter::verify_wire_schema_codec`), and only a fully exercised
-requirement reports `Derived`. Preserving-codec realizations remain
+trust. `Derived` requires independently checked evidence establishing the public
+requirement for every input covered by its contract, tied to the exact codec
+realization and schema. Differential probes over selected values and malformed
+frames are regression checks, not a general agreement argument. Reporting their
+finite scope does not qualify the realization as `Derived`. Without sufficient
+agreement evidence, a generated realization remains `Admitted`, naming the
+compiler as the trusted party. Preserving-codec realizations remain
 implementation work.
 
 ## Boundary establishment
