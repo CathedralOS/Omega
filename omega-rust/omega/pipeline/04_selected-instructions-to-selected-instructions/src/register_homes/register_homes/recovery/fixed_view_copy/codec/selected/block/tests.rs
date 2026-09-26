@@ -272,17 +272,63 @@ fn implementation_block_origin_round_trips_without_a_fabricated_source_block() {
 }
 
 #[test]
+fn case_source_codec_retains_local_and_borrowed_sources_and_rejects_invalid_tags() {
+    use semantic_vocabulary::{PlaceId, StructuralCaseId};
+    use target_operations_to_selected_instructions::structural_case::SelectedCaseDispatchSource;
+    use target_operations_to_selected_instructions::{
+        LocalStorageSlotId, SelectedStructuralCaseEdge,
+    };
+
+    for source in [
+        SelectedCaseDispatchSource::Local {
+            slot: LocalStorageSlotId::Spill {
+                register: VirtualRegisterId(17),
+            },
+        },
+        SelectedCaseDispatchSource::Borrowed {
+            place: PlaceId::new(11).unwrap(),
+            pointer: VirtualRegisterId(19),
+            byte_size: 24,
+        },
+    ] {
+        let original = SelectedStructuralCaseEdge {
+            source,
+            case: StructuralCaseId::new(2).unwrap(),
+            case_tag: 1,
+            payloads: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+        };
+        let mut encoded = vec![1];
+        original.encode_identity(&mut encoded);
+        let mut cursor = Cursor::new(&encoded);
+        assert_eq!(super::decode_case(&mut cursor).unwrap(), Some(original));
+        assert_eq!(cursor.remaining(), 0);
+        for end in 0..encoded.len() {
+            assert!(super::decode_case(&mut Cursor::new(&encoded[..end])).is_err());
+        }
+        encoded[1] = 2;
+        assert_eq!(
+            super::decode_case(&mut Cursor::new(&encoded)),
+            Err(FixedViewCopyDecodeError::UnknownValueTransport(2))
+        );
+    }
+}
+
+#[test]
 fn case_payload_codec_retains_every_semantic_and_transport_field() {
     use semantic_vocabulary::{OperationId, PlaceId, StructuralCaseId, StructuralFieldId};
+    use target_operations_to_selected_instructions::structural_case::SelectedCaseDispatchSource;
     use target_operations_to_selected_instructions::{
         LocalStorageSlotId, SelectedCasePayloadBinding, SelectedCasePayloadTransport,
         SelectedStructuralCaseEdge,
     };
     let mut original = successor();
     original.structural_case = Some(SelectedStructuralCaseEdge {
-        slot: LocalStorageSlotId::Structural {
-            operation: OperationId::new(7).unwrap(),
-            place: PlaceId::new(11).unwrap(),
+        source: SelectedCaseDispatchSource::Local {
+            slot: LocalStorageSlotId::Structural {
+                operation: OperationId::new(7).unwrap(),
+                place: PlaceId::new(11).unwrap(),
+            },
         },
         case: StructuralCaseId::new(2).unwrap(),
         case_tag: 1,
@@ -337,8 +383,10 @@ fn case_payload_codec_retains_every_semantic_and_transport_field() {
             2 => case.payloads[0].semantic.parameter.value = ValueId::new(10).unwrap(),
             3 => case.trivial_affine_discards.clear(),
             4 => {
-                case.slot = LocalStorageSlotId::Boundary {
-                    operation: OperationId::new(7).unwrap(),
+                case.source = SelectedCaseDispatchSource::Local {
+                    slot: LocalStorageSlotId::Boundary {
+                        operation: OperationId::new(7).unwrap(),
+                    },
                 }
             }
             _ => {

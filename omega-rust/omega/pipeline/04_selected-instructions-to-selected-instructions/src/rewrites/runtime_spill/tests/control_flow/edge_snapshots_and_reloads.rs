@@ -720,7 +720,7 @@ fn case_payload_arguments_reload_after_binding_pairs_on_every_target() {
                 },
             });
             successor.structural_case = Some(SelectedStructuralCaseEdge {
-                source: selected_instructions::SelectedCaseDispatchSource::Local {
+                source: target_operations_to_selected_instructions::structural_case::SelectedCaseDispatchSource::Local {
                     slot: LocalStorageSlotId::Boundary {
                         operation: OperationId::new(1).unwrap(),
                     },
