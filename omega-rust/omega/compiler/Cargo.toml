@@ -98,6 +98,7 @@ image-macho = { path = "../backend/images/image-macho" }
 image-pe = { path = "../backend/images/image-pe" }
 
 [dev-dependencies]
+mimalloc = { version = "0.1", default-features = false }
 package-compilation = { path = "../build/package-compilation", features = ["test-support"] }
 
 # A standalone corpus outcome driver, not a test: `tools/corpus_gate.py`

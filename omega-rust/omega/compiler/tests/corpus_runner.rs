@@ -53,6 +53,13 @@ use compiler::{
 use std::path::{Path, PathBuf};
 use std::{env, fs, process};
 
+// Worker threads compile fixtures in parallel, and every compile allocates
+// heavily. The macOS system allocator serializes those threads on its zone
+// locks; mimalloc's per-thread heaps do not, which halves the corpus legs'
+// wall time. Compiler output is unchanged: the records match either way.
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 use fixture_package_inputs::{repo_root, reviewed_repository_fixture_package_inputs};
