@@ -352,8 +352,8 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
                         parameter.symbol,
                         obligation_origin,
                         data,
-                        &[],
-                        &[data.symbol],
+                        &mut Vec::new(),
+                        &mut vec![data.symbol],
                         &mut refs,
                     );
                 }
@@ -369,8 +369,11 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
                     lent.and_then(|lent| readable_fixed_array_elements(program, lent))
                     && let Some(data) = readable_nominal_definition(program, element_type)
                 {
+                    let mut path = Vec::new();
+                    let mut visited = vec![data.symbol];
                     for index in 0..length {
-                        let prefix = [PlaceSegment::FixedIndex { index }];
+                        path.clear();
+                        path.push(PlaceSegment::FixedIndex { index });
                         append_state_parameter_data_field_domain_facts(
                             program,
                             facts,
@@ -379,8 +382,8 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
                             parameter.symbol,
                             obligation_origin,
                             data,
-                            &prefix,
-                            &[data.symbol],
+                            &mut path,
+                            &mut visited,
                             &mut refs,
                         );
                     }
@@ -392,8 +395,8 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
                         parameter.symbol,
                         FactOrigin::StatementTransfer,
                         data,
-                        &[WHOLE_ELEMENT_EXTENT],
-                        &[data.symbol],
+                        &mut vec![WHOLE_ELEMENT_EXTENT],
+                        &mut vec![data.symbol],
                         &mut refs,
                     );
                 }
@@ -414,8 +417,8 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
                         parameter.symbol,
                         obligation_origin,
                         data,
-                        &[WHOLE_ELEMENT_EXTENT],
-                        &[data.symbol],
+                        &mut vec![WHOLE_ELEMENT_EXTENT],
+                        &mut vec![data.symbol],
                         &mut refs,
                     );
                 }
@@ -617,6 +620,10 @@ fn append_state_parameter_carry_fact(
     facts.append_ref(refs, fact);
 }
 
+/// Seed the declared field domains of `data` below `path`. The recursion
+/// shares one path buffer and one visited stack, restoring both before it
+/// returns, so a parameter whose type nests many fields does not copy its
+/// prefix for every field.
 #[allow(clippy::too_many_arguments)]
 fn append_state_parameter_data_field_domain_facts(
     program: &TypedTrees,
@@ -626,8 +633,8 @@ fn append_state_parameter_data_field_domain_facts(
     parameter_symbol: SymbolHandle,
     origin: FactOrigin,
     data: &typed_trees::data::DataDefinition,
-    prefix: &[PlaceSegment],
-    visited: &[SymbolHandle],
+    path: &mut Vec<PlaceSegment>,
+    visited: &mut Vec<SymbolHandle>,
     refs: &mut arena::HandleSpan<facts::FactRef>,
 ) {
     for field in program
@@ -641,8 +648,8 @@ fn append_state_parameter_data_field_domain_facts(
         if readable_type_reference(program, field.type_reference).is_none() {
             continue;
         }
-        let mut field_path = prefix.to_vec();
-        crate::flow::push_field_place_segments(program, &mut field_path, field.symbol);
+        let prefix_length = path.len();
+        crate::flow::push_field_place_segments(program, path, field.symbol);
         for (domain_symbol, semantic_domain) in
             crate::facts::field_domain::domain_constraint_identities(program, field.type_reference)
         {
@@ -652,7 +659,7 @@ fn append_state_parameter_data_field_domain_facts(
                 state_symbol,
                 parameter_symbol,
                 origin,
-                &field_path,
+                path,
                 domain_symbol,
                 semantic_domain,
                 refs,
@@ -661,8 +668,7 @@ fn append_state_parameter_data_field_domain_facts(
         if let Some(nested) = readable_nominal_definition(program, field.type_reference)
             && !visited.contains(&nested.symbol)
         {
-            let mut next_visited = visited.to_vec();
-            next_visited.push(nested.symbol);
+            visited.push(nested.symbol);
             append_state_parameter_data_field_domain_facts(
                 program,
                 facts,
@@ -671,10 +677,11 @@ fn append_state_parameter_data_field_domain_facts(
                 parameter_symbol,
                 origin,
                 nested,
-                &field_path,
-                &next_visited,
+                path,
+                visited,
                 refs,
             );
+            visited.pop();
         }
         // A slice-typed field's elements carry their declared fields through
         // the whole-extent row alone: no static extent exists to enumerate, so
@@ -683,10 +690,8 @@ fn append_state_parameter_data_field_domain_facts(
             && let Some(nested) = readable_nominal_definition(program, element_type)
             && !visited.contains(&nested.symbol)
         {
-            let mut next_visited = visited.to_vec();
-            next_visited.push(nested.symbol);
-            let mut element_path = field_path.clone();
-            element_path.push(WHOLE_ELEMENT_EXTENT);
+            visited.push(nested.symbol);
+            path.push(WHOLE_ELEMENT_EXTENT);
             append_state_parameter_data_field_domain_facts(
                 program,
                 facts,
@@ -695,10 +700,12 @@ fn append_state_parameter_data_field_domain_facts(
                 parameter_symbol,
                 origin,
                 nested,
-                &element_path,
-                &next_visited,
+                path,
+                visited,
                 refs,
             );
+            path.pop();
+            visited.pop();
         }
         // A fixed array field enumerates each nominal element's declared fields
         // at `field[i]` -- element coverage rides the same entry facts and the
@@ -712,11 +719,9 @@ fn append_state_parameter_data_field_domain_facts(
             && let Some(nested) = readable_nominal_definition(program, element_type)
             && !visited.contains(&nested.symbol)
         {
-            let mut next_visited = visited.to_vec();
-            next_visited.push(nested.symbol);
+            visited.push(nested.symbol);
             for index in 0..length {
-                let mut element_path = field_path.clone();
-                element_path.push(PlaceSegment::FixedIndex { index });
+                path.push(PlaceSegment::FixedIndex { index });
                 append_state_parameter_data_field_domain_facts(
                     program,
                     facts,
@@ -725,13 +730,13 @@ fn append_state_parameter_data_field_domain_facts(
                     parameter_symbol,
                     origin,
                     nested,
-                    &element_path,
-                    &next_visited,
+                    path,
+                    visited,
                     refs,
                 );
+                path.pop();
             }
-            let mut element_path = field_path.clone();
-            element_path.push(WHOLE_ELEMENT_EXTENT);
+            path.push(WHOLE_ELEMENT_EXTENT);
             append_state_parameter_data_field_domain_facts(
                 program,
                 facts,
@@ -740,11 +745,14 @@ fn append_state_parameter_data_field_domain_facts(
                 parameter_symbol,
                 FactOrigin::StatementTransfer,
                 nested,
-                &element_path,
-                &next_visited,
+                path,
+                visited,
                 refs,
             );
+            path.pop();
+            visited.pop();
         }
+        path.truncate(prefix_length);
     }
 }
 
