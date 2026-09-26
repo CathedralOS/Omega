@@ -33,6 +33,9 @@ pub fn project_checked_package_review<'a>(
     input: impl Into<PackageReviewInput<'a>>,
 ) -> Result<CheckedPackageReviewProjection, Vec<Diagnostic>> {
     let compilation = &input.into();
+    // The checked program is read-only for the whole projection; its
+    // program-pure tables are shared across every declaration's projection.
+    let _frozen_program = ::validation::enter_frozen_program_scope(&compilation.program.typed);
     let (package, target) = validate_review_compilation(compilation)?;
     let surface = project_package_surface(compilation, package)?;
     let callables = project_package_callables(compilation, package)?;

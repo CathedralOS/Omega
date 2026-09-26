@@ -445,7 +445,7 @@ pub(crate) fn infer_checked_crash_causes(
     program: &TypedTrees,
     facts: &checked_trees::CheckFacts,
 ) -> Vec<(SymbolHandle, Vec<checked_trees::CrashCause>)> {
-    let content_conservation = validation::build_content_conservation_plans(program);
+    let content_conservation = validation::content_conservation_plans(program);
     // Validation-only exact-cast facts are not retained in CheckedTrees. They
     // feed only CallArgumentSubstitution.scalar, never its identity. Guard
     // retention, equality and fixed-point closure still use the identity

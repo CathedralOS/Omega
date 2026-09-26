@@ -95,7 +95,7 @@ pub use crate::proof_contracts::slice_ranking::{
 };
 pub use crate::value_custody::cleanup::validate_reserved_cleanup_selections;
 pub use crate::value_custody::content_conservation::{
-    ContentConservationSourcePlan, build_content_conservation_plans,
+    ContentConservationSourcePlan, build_content_conservation_plans, content_conservation_plans,
 };
 pub use crate::value_custody::content_projections::build_content_projection_plans;
 

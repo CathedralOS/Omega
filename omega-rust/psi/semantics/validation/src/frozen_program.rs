@@ -2,14 +2,16 @@
 //! finalization `lower_typed_trees` checks a program no pass restructures,
 //! and many consumers there derive the same program-pure tables: every
 //! check-pass consumer builds its own call-frame resolver, two dozen sites
-//! classify proof-only data, and every structural judge rescans the trait
-//! laws. Inside a scope they share one copy.
+//! classify proof-only data, every structural judge rescans the trait laws,
+//! and check facts, crash contracts and package evidence each rebuild the
+//! content-conservation table. Inside a scope they share one copy.
 
 use crate::declarations::symbols::CallerSiteCaches;
 use crate::machine_calls::calls::CallFrameCaches;
 use crate::proof_contracts::contract_entailment::structural_judgment::{
     EntryMachines, LicenseCandidates,
 };
+use crate::value_custody::content_conservation::ContentConservationSourcePlan;
 use std::cell::RefCell;
 use std::sync::{Arc, OnceLock};
 use typed_trees::TypedTrees;
@@ -32,6 +34,7 @@ pub(crate) struct FrozenProgramMemos {
     pub(crate) license_candidates: OnceLock<Arc<LicenseCandidates>>,
     pub(crate) entry_machines: OnceLock<Arc<EntryMachines>>,
     pub(crate) caller_sites: OnceLock<Arc<CallerSiteCaches>>,
+    pub(crate) content_conservation: OnceLock<Arc<Vec<ContentConservationSourcePlan>>>,
 }
 
 /// Restores the enclosing scope, if any, when dropped.

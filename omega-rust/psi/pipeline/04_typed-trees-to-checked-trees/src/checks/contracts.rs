@@ -89,7 +89,7 @@ pub(super) fn check_flow_call_contracts(
     proven_machine_contracts: &[(SymbolHandle, Vec<ExpressionHandle>)],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-    let content_plans = validation::build_content_conservation_plans(program);
+    let content_plans = validation::content_conservation_plans(program);
     let nominal_requirements = nominal_inputs::DeclaredFieldRequirements::new(&facts.semantic);
     let mut owned_call_frames = None;
     let call_frames =

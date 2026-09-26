@@ -20,6 +20,9 @@ pub fn project_checked_package_policy<'a>(
     package: PackageKeyIdentity,
 ) -> Result<PackagePolicyBaseline, Vec<Diagnostic>> {
     let compilation = &input.into();
+    // The checked program is read-only for the whole projection; its
+    // program-pure tables are shared across every declaration's projection.
+    let _frozen_program = ::validation::enter_frozen_program_scope(&compilation.program.typed);
     if compilation.custody.package_identity() != Some(package)
         || compilation.custody.selected_target_profile() != Some(target)
         || compilation.custody.selected_native_target() != Some(target.native_target())

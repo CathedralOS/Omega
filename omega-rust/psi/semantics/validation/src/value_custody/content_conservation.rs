@@ -38,6 +38,19 @@ pub(crate) fn validate_content_conservation_contracts(
     let _ = collect_content_conservation_plans(program, &projections, diagnostics);
 }
 
+/// [`build_content_conservation_plans`], computed once per frozen program:
+/// check facts, crash contracts and package evidence each ask for the whole
+/// table, some once per declaration.
+pub fn content_conservation_plans(
+    program: &TypedTrees,
+) -> std::sync::Arc<Vec<ContentConservationSourcePlan>> {
+    crate::frozen_program::frozen_memo(
+        program,
+        |memos| &memos.content_conservation,
+        || build_content_conservation_plans(program),
+    )
+}
+
 pub fn build_content_conservation_plans(
     program: &TypedTrees,
 ) -> Vec<ContentConservationSourcePlan> {
