@@ -1,0 +1,30 @@
+// `SelectedConstantBranchFoldV1` proves a conditional-branch terminator's
+// flag state derives from one compare over compile-time constants and
+// replaces the terminator with the decided jump. `value < value` is a real
+// selected `CompareI64`/`ConditionalBranchI64LessThan` pair — no frontend
+// constant sees it — whose `register - register` flag state is always
+// false, so the fold jumps the untaken edge. `Main::main` keeps a runtime
+// `==` branch beside it that the same pass must decline.
+
+data Main {
+}
+
+machine decide(value: i64) -> i64 {
+    transition value < value {
+        true -> taken()
+        _ -> untaken()
+    }
+
+    state taken() -> i64 { 41i64 }
+    state untaken() -> i64 { 43i64 }
+}
+
+machine Main::main(&mut self) {
+    let decided: i64 = decide(7i64);
+    transition decided == 0i64 {
+        true -> done()
+        _ -> done()
+    }
+
+    state done(&mut self) { }
+}

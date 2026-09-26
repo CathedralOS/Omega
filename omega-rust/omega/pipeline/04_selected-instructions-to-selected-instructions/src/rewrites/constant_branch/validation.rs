@@ -296,17 +296,63 @@ fn reconstruct<'source>(
     })
 }
 
+/// The flag-universe and jump-surface sizes the measured-step contract
+/// charges — the union of the target's three compare rows' implicit
+/// definitions and the jump row's implicit surface, under the same
+/// deduplication the audit's own sets apply. Discovery charges these once
+/// per pass, and the reached compare's published definitions stay bounded
+/// by the flag universe they are drawn from.
+pub(crate) fn surface_sizes(
+    environment: &ValidatedTargetRegisterEnvironment,
+) -> Result<(usize, usize), ConstantBranchError> {
+    let keys = environment.selected_keys();
+    let mut flag_universe = BTreeSet::new();
+    for key in [
+        keys.compare_i64,
+        keys.compare_i64_immediate,
+        keys.compare_i64_zero,
+    ] {
+        flag_universe.extend(
+            environment
+                .constraint(key)
+                .ok_or(ConstantBranchError::ConstraintMismatch)?
+                .implicit_defs
+                .iter()
+                .copied(),
+        );
+    }
+    let jump_row = environment
+        .constraint(keys.jump)
+        .ok_or(ConstantBranchError::ConstraintMismatch)?;
+    let jump_surface: BTreeSet<RegisterUnitId> = jump_row
+        .implicit_uses
+        .iter()
+        .chain(jump_row.implicit_defs.iter())
+        .chain(jump_row.clobbers.iter())
+        .copied()
+        .collect();
+    Ok((flag_universe.len(), jump_surface.len()))
+}
+
 /// The validation work this audit performs, in the measured-step contract
 /// the family publishes: one step per block plus one per instruction
 /// across the plan, two scans of the reconstructed function's blocks for
 /// the producer audit, and the shared walk's setup and fixpoint bound at
 /// one per used unit — flag or not — so the bound stays independent of
-/// the partition split.
-fn measured_steps(
+/// the partition split. The `flag_universe`, `jump_surface`, and
+/// `compare_defs` surface sizes are caller-supplied so discovery can
+/// charge the contract before admission runs; a pre-admission caller
+/// bounds `compare_defs` by `flag_universe`, which covers the published
+/// definitions of every compare row the union was built from.
+pub(crate) fn measured_steps(
     plan: &SelectedInstructionPlan,
-    reconstructed: &Reconstructed<'_>,
+    function: &SelectedFunction,
+    successors: &[Vec<usize>],
+    implicit_uses: usize,
+    flag_universe: usize,
+    jump_surface: usize,
+    compare_defs: usize,
 ) -> Result<u64, ConstantBranchError> {
-    let function = reconstructed.function;
     let function_scan = function
         .blocks
         .iter()
@@ -314,8 +360,7 @@ fn measured_steps(
             total.checked_add(block.instructions.len())?.checked_add(1)
         })
         .ok_or(ConstantBranchError::IdentityOverflow)?;
-    let edge_count = reconstructed
-        .successors
+    let edge_count = successors
         .iter()
         .try_fold(0usize, |total, targets| total.checked_add(targets.len()))
         .ok_or(ConstantBranchError::IdentityOverflow)?;
@@ -342,8 +387,7 @@ fn measured_steps(
                 .ok_or(ConstantBranchError::IdentityOverflow)?,
         )
         .ok_or(ConstantBranchError::IdentityOverflow)?;
-    let widest_out = reconstructed
-        .successors
+    let widest_out = successors
         .iter()
         .map(|targets| targets.len())
         .max()
@@ -354,10 +398,9 @@ fn measured_steps(
         .and_then(|total| total.checked_add(pops.checked_mul(widest_out)?.checked_mul(elements)?))
         .and_then(|total| {
             total.checked_add(
-                reconstructed
-                    .flag_universe
-                    .checked_add(reconstructed.jump_surface)?
-                    .checked_add(reconstructed.compare_defs)?,
+                flag_universe
+                    .checked_add(jump_surface)?
+                    .checked_add(compare_defs)?,
             )
         })
         .ok_or(ConstantBranchError::IdentityOverflow)?;
@@ -369,11 +412,10 @@ fn measured_steps(
         )
         .and_then(|total| total.checked_add(block_count))
         .and_then(|total| total.checked_add(edge_count))
-        .and_then(|total| total.checked_add(reconstructed.flag_universe))
-        .and_then(|total| total.checked_add(reconstructed.jump_surface))
+        .and_then(|total| total.checked_add(flag_universe))
+        .and_then(|total| total.checked_add(jump_surface))
         .ok_or(ConstantBranchError::IdentityOverflow)?;
-    let reach_scan = reconstructed
-        .implicit_uses
+    let reach_scan = implicit_uses
         .checked_mul(per_unit)
         .and_then(|total| total.checked_add(walk_setup))
         .ok_or(ConstantBranchError::IdentityOverflow)?;
@@ -457,7 +499,16 @@ pub fn validate_constant_branch_fold(
     proposed: SelectedInstructionPlan,
 ) -> Result<ValidatedConstantBranch, ConstantBranchError> {
     let reconstructed = reconstruct(source, function_index, branch, environment)?;
-    if measured_steps(source.selected_plan(), &reconstructed)? > budget.validation_steps() {
+    if measured_steps(
+        source.selected_plan(),
+        reconstructed.function,
+        &reconstructed.successors,
+        reconstructed.implicit_uses,
+        reconstructed.flag_universe,
+        reconstructed.jump_surface,
+        reconstructed.compare_defs,
+    )? > budget.validation_steps()
+    {
         return Err(ConstantBranchError::WorkBudgetExceeded);
     }
     if proposed
@@ -478,6 +529,8 @@ pub fn validate_constant_branch_fold(
             transformed_selected: selected_instruction_plan_identity(&proposed),
             optimization_unit: source.optimization_unit_identity(),
             fuel_schedule: source.fuel_schedule_identity(),
+            function_index,
+            branch,
         },
         transformed: Arc::new(proposed),
     })
@@ -709,6 +762,8 @@ mod independence_tests {
                 transformed_selected: identity,
                 optimization_unit: OptimizationUnitIdentity::from_bytes([2; 32]),
                 fuel_schedule: plan.fuel_schedule,
+                function_index: 0,
+                branch: BRANCH,
             },
             transformed: Arc::new(plan),
         }

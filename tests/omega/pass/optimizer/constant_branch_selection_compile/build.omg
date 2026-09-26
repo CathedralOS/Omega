@@ -1,0 +1,13 @@
+// The release overlay selects the sole constant-branch fold, so compilation
+// exercises its execution through the pre-allocation stage catalog.
+
+machine build(builder: &mut Build) {
+    builder.application("constant_branch_selection_compile");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+    builder.optimizations.enable(
+        Optimization::SelectedConstantBranchFoldV1,
+    );
+}

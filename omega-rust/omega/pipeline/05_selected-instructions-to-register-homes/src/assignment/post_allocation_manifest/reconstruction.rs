@@ -51,6 +51,9 @@ pub(super) fn expected_record(
             PostAllocationSelectedTransformation::ConstantBoolean(identity) => {
                 (9_u8, identity.bytes())
             }
+            PostAllocationSelectedTransformation::ConstantBranch(identity) => {
+                (10_u8, identity.bytes())
+            }
         };
         !unique_transformations.insert(key)
     }) {

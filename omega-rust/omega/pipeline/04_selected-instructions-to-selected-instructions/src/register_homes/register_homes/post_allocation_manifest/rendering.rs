@@ -76,6 +76,9 @@ impl PostAllocationOptimizationManifest {
                 PostAllocationSelectedTransformation::ConstantBoolean(identity) => {
                     ("constant-boolean", identity.bytes())
                 }
+                PostAllocationSelectedTransformation::ConstantBranch(identity) => {
+                    ("constant-branch", identity.bytes())
+                }
             };
             writeln!(
                 output,
