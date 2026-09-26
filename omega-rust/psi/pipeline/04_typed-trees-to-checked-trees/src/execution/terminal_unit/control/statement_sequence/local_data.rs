@@ -9,7 +9,7 @@
 //! establish their binding directly. What remains is a call initializer:
 //! its result binding goes back to the sequence, which plans the call.
 use super::{
-    CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole,
+    CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralAccess,
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, ExpressionNode,
@@ -318,6 +318,16 @@ pub(super) fn plan(
         });
         return Some(LocalPlan::Planned);
     }
+    local_phase("statement sequence: local data: exclusive place loan");
+    if is_exclusive_place_loan(
+        program,
+        state,
+        structural_parameters,
+        statement_index,
+        local,
+    ) {
+        return Some(LocalPlan::Planned);
+    }
     if let Some(primitive_type) = program.primitive_type_reference(local.type_reference) {
         if local.is_mutable {
             local_phase("statement sequence: local data: mutable primitive local: named type");
@@ -416,4 +426,83 @@ pub(super) fn plan(
         result.binding_ordinal = u32::try_from(*structural_count).ok()?;
         Some(LocalPlan::StructuralCall(result))
     }
+}
+
+/// A `let` binding an exclusive loan of a place: `let seen: &mut u8 = &mut
+/// self.byte;`. The binding is immutable and a reference cannot be reseated,
+/// so the name denotes one place for its whole scope and carries no runtime
+/// value of its own: every write through it is the ordinary store of that
+/// place, rejoined by `structural_scalar_store::destination`. The statement
+/// therefore plans no operation, like a record pattern's marker, and
+/// `composed_control`'s body count recognizes it as the same kind of
+/// compile-time carrier.
+///
+/// The conditions are what make that rejoin exact, not a convenience. The
+/// place must root at a structural parameter this state already writes
+/// through, and its projection must bottom out in exactly the declared
+/// referent: a loan of a wider or narrower leaf is not this local's place.
+/// Only `&mut <primitive>` is admitted, the referent shape
+/// `reference_result_custody::parts` already describes; a shared loan carries
+/// no write authority and its reads are not rejoined here.
+fn is_exclusive_place_loan(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    statement_index: u32,
+    local: &typed_trees::statement::TableLocalData,
+) -> bool {
+    exclusive_place_loan_referent(
+        program,
+        state,
+        structural_parameters,
+        statement_index,
+        local,
+    )
+    .is_some()
+}
+
+fn exclusive_place_loan_referent(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    statement_index: u32,
+    local: &typed_trees::statement::TableLocalData,
+) -> Option<()> {
+    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(local.initial_value)
+    else {
+        return None;
+    };
+    let (referee, access) =
+        super::super::super::reference_results::parts(program, local.type_reference)?;
+    if borrow.access != language_core::ReferenceAccess::Mutable
+        || access != CheckedStructuralAccess::MutableBorrow
+        || local.is_mutable
+    {
+        return None;
+    }
+    let statement = usize::try_from(statement_index).ok()?;
+    let place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        statement,
+        borrow.target,
+    )?;
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+        return None;
+    };
+    let position = program
+        .state_parameters(state)
+        .iter()
+        .position(|parameter| parameter.symbol == symbol)?;
+    structural_parameters
+        .iter()
+        .position(|parameter| parameter.position as usize == position)?;
+    let (storage, _) = crate::execution::terminal_unit::calls::projected_argument_path(
+        program,
+        state.symbol,
+        statement,
+        &place,
+    )?;
+    (program.normalized_type_identity(storage) == program.normalized_type_identity(referee))
+        .then_some(())
 }

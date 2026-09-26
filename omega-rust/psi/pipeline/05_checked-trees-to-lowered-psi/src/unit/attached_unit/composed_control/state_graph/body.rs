@@ -61,9 +61,16 @@ pub(super) fn validate(
     // ahead of `place = Atomic { .. }`) is the same kind of carrier: it
     // declares the prior's binding, which the carrier's one atomic event
     // defines at the next statement.
+    // An exclusive loan local (`let seen: &mut u8 = &mut self.byte;`) is the
+    // same kind of carrier. The binding is immutable and a reference cannot be
+    // reseated, so it names one place for its scope and holds no value of its
+    // own: each write through it is planned as the ordinary store of that
+    // place, and the binding itself plans nothing.
     let is_marker_at = |index: usize| {
         statements.get(index).is_some_and(|statement| {
-            is_record_pattern_marker(statement) || (!closed_sum && is_arm_pattern_marker(statement))
+            is_record_pattern_marker(statement)
+                || (!closed_sum && is_arm_pattern_marker(statement))
+                || is_exclusive_loan_marker(checked, statement)
         }) || crate::emission::atomic_sources::result_placeholder(checked, statements, index)
     };
     let record_pattern_markers = (prefix..end).filter(|index| is_marker_at(*index)).count();
@@ -742,6 +749,24 @@ fn validate_returned_value(
 fn is_record_pattern_marker(statement: &StatementNode) -> bool {
     matches!(statement, StatementNode::LocalData(local)
         if local.name.as_str().starts_with("__destructure#"))
+}
+
+/// A `let` binding an exclusive loan of a place declares no storage and plans
+/// no operation: the loan is compile-time information and each write through
+/// the name is rejoined to the loaned place by the store's own destination
+/// resolution. Reconstructed here from the authored statement rather than
+/// taken from the plan, which is what the surrounding count is checking.
+fn is_exclusive_loan_marker(checked: &CheckedTrees, statement: &StatementNode) -> bool {
+    let StatementNode::LocalData(local) = statement else {
+        return false;
+    };
+    !local.is_mutable
+        && matches!(
+            checked.expression_table.expression(local.initial_value),
+            checked_trees::expression::ExpressionNode::Borrow(borrow)
+                if borrow.access == language_core::ReferenceAccess::Mutable
+        )
+        && validation::reference_result_custody::parts(checked, local.type_reference).is_some()
 }
 
 fn is_arm_pattern_marker(statement: &StatementNode) -> bool {

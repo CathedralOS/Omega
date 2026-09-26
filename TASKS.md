@@ -4204,30 +4204,41 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   failure histogram. Preserve record-pattern and fresh record/case operand
   support rather than recreating it.
 
-  A traced omission that is general and cheap to reproduce. No reference-typed
-  local bound to a place loan plans, in any polarity or referent shape: `let r:
-  &bool = &self.flag;`, `let r: &mut u8 = &mut self.byte;` and `let r: &Inner =
-  &self.inner;` all omit at `statement sequence: local data: structural call
-  binding`, while `(&self.flag as &u8) == 1` and `(&self.inner).v == 0` inline
-  in a guard operand plan and reach realization.
-  `local_data.rs` routes every structural local through that phase and returns
-  `None` unless the initializer is a `Call`; a loan is not a call result.
-  This holds every `tests/omega/pass/recast/*_exit` fixture at
-  **RECAST-SOURCE-POSITIONS**.
+  A traced omission that is general and cheap to reproduce. A reference-typed
+  local bound to a place loan has no producer: `local_data.rs` routes every
+  structural local through `statement sequence: local data: structural call
+  binding` and returns `None` unless the initializer is a `Call`, while the
+  same read inline in a guard operand plans and reaches realization.
 
-  The plan variant and its Terminal operation already exist:
-  `CheckedUnitEffectOperationPlan::EstablishReference` and
-  `terminal-psi`'s `EstablishReference`, produced today only for a `(place)`
-  or `(place[a..b])` return target by `state_graph/returns.rs` and
-  `statement_sequence/completion.rs`, both at `Multiplicity::Affine` with a
-  returned-carrier release. What is missing is a producer at the `let` site
-  and the observation route that reads a scalar leaf through the resulting
-  structural local; `05_`'s `runtime field observation` binder resolves a
-  `StructuralParameterField`, not a structural local result. Do not make the
-  local alias its loaned place instead:
-  `resolve_contextual_name_path_root` deliberately roots a local at its own
-  symbol, and collapsing that erases the loan identity that borrow facts,
-  write frames and releases are keyed on.
+  One shape is now planned. An immutable `&mut <primitive>` loan whose place
+  roots at a structural parameter and whose projection bottoms out in exactly
+  the declared referent is admitted as a compile-time carrier: it plans no
+  operation, `structural_scalar_store::destination` rejoins each write through
+  the name to the loaned place, and `composed_control`'s body count recognizes
+  it as a marker. A reference cannot be reseated and the binding is immutable,
+  so the name denotes one place for its scope and the write is the ordinary
+  store of that place; it adds no authority over the checked loan.
+
+  Still omitting: a shared loan (`let r: &bool = &self.flag;`), a structural
+  referent (`let r: &Inner = &self.inner;`), and any *read* through a loan
+  name, which `resolve_contextual_name_path_root` roots at the local's own
+  symbol. Do not close those by making the local alias its place in that
+  resolver: it roots a local at its own symbol so borrow facts, write frames
+  and releases keep a loan identity to key on. `EstablishReference` and its
+  Terminal operation exist for a `(place)` return target, at
+  `Multiplicity::Affine` with a returned-carrier release; a `let` loan of a
+  known place needs no such value, and minting one is dropped by
+  `composed_control`'s state graph as an added body effect.
+
+  Native execution of the planned shape stops one stage later, in
+  `emission/call_source_custody/projected_receivers/aliases.rs`. The loan local
+  enters that scan as an alias declaration, and the state's own `Transition`
+  falls to its `_` arm: "receiver alias suffix contains a write, local, or
+  escape" with declaration_index 1, position 3, access Mutable. A terminator is
+  not an escape; the scan needs to weigh a transition's guard and target
+  arguments for the owner instead. Loaning a ranged field (`u8 [0..=1]`) as
+  `&mut u8` reaches "receiver alias changes its referent type" in the same
+  owner, because `normalized_type_identity` equates the two.
 
   A traced omission to start from. `samples/cli/collections/matrix_multiply`
   stops at `structural field store: scalar field type` (state 0, statement 0),
