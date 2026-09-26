@@ -4235,12 +4235,16 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   stops at "computed shared argument lost its established local".
   `expression_preparation/bindings`'s `shared_structural_argument` resolves a
   `StructuralLocal { symbol }` through the `structural_locals` registry, which
-  a loan planning no operation never enters. Enter it there, with the loaned
-  place and the borrow's access: that registry already states a `&T` local
-  "is itself a shared-borrow join result". Do not instead rejoin at the
-  argument sites, the way the store destination does -- `StructuralLocal`
-  sources are built at ten sites across `values/scalar/computations/` and
-  `execution/terminal_cleanup.rs`. A bare scalar read through the name
+  a loan planning no operation never enters. That registry already states a
+  `&T` local "is itself a shared-borrow join result", so the entry belongs
+  there, but three edits are needed and not one: `argument_evaluation`
+  registers only from a lowered structural value's `produced.place`, so a
+  loan needs its own registration from the parameter place and projection;
+  the entry's `path` is then non-empty, which `shared_structural_argument`
+  refuses outright today; and the two paths must compose at the use.
+  Do not instead rejoin at the argument sites, the way the store destination
+  does -- `StructuralLocal` sources are built at ten sites across
+  `values/scalar/computations/` and `execution/terminal_cleanup.rs`. A bare scalar read through the name
   (`let r: &bool = &self.flag; transition r`) stops earlier still, at
   `state graph: terminator: conditional successors: guard expression`.
 
