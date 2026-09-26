@@ -46,20 +46,6 @@ fn lower_item_with_exposure(
                 .domain_definitions
                 .push(domain_definition);
         }
-        // A top-level `boundary machine + Owner::name(...);` is the
-        // token-bearing boundary signature: the required operator slot the
-        // `operator` introducer used to declare, lowered to that same slot.
-        syntax::item::Item::Machine(machine)
-            if machine.target.is_none()
-                && crate::lowering::operator::is_token_bearing_boundary_signature(machine) =>
-        {
-            let operator = crate::lowering::operator::lower_token_bearing_boundary_signature(
-                lowerer,
-                syntax_trees,
-                machine,
-            )?;
-            lowerer.symbol_resolved_trees.operators.push(operator);
-        }
         // A bare bodyless signature, token-bearing or not, is admitted only
         // as an exact compiler-catalog primitive declared by the sealed
         // toolchain source; it lowers to the catalog's declaration, and every
@@ -375,7 +361,14 @@ fn item_expression_exposure(
         // not separately spelled `pub`. Its signature and contracts are
         // package interface; lower_machine_into overrides executable state
         // bodies back to private implementation exposure.
-        syntax::item::Item::Machine(machine) if machine.is_public || machine.boundary => {
+        syntax::item::Item::Machine(machine)
+            if machine.is_public
+                || (machine.boundary
+                    && !machine.is_top_level_boundary_requirement
+                    && !crate::lowering::operator::is_token_bearing_boundary_signature(
+                        machine,
+                    )) =>
+        {
             Exposure::PublicInterface
         }
         syntax::item::Item::Operator(operator) if operator.is_public => Exposure::PublicInterface,

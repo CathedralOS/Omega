@@ -192,7 +192,6 @@ pub fn from_typed_boundary_requirement(
 ) -> Option<ServiceSchema> {
     if !is_product_declaration(program, requirement.symbol)
         || !requirement.symbol.is_valid()
-        || !requirement.is_public
         || requirement.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement
         || requirement.body_is_present
         || !program.machine_type_parameters(requirement).is_empty()
@@ -215,7 +214,15 @@ pub fn from_typed_boundary_requirement(
     let package_identity = program.symbols.symbol_package_identity(requirement.symbol);
 
     Some(ServiceSchema {
-        trait_name: requirement_path.clone(),
+        // A token family contains separate overloaded requirement slots. Its
+        // Build selection covers all coordinates atomically, but each row
+        // installs one exact callable signature, not whichever overload shares
+        // the path. Untokened requirements retain their ordinary named slot.
+        trait_name: if requirement.spelling.is_some() {
+            requirement_identity.clone()
+        } else {
+            requirement_path.clone()
+        },
         trait_package_identity: package_identity,
         methods: vec![ServiceMethod {
             name: method_name.to_owned(),

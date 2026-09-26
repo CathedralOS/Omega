@@ -136,9 +136,18 @@ pub(crate) fn resolve_product_operand(
             .map(|definition| (definition.symbol, definition.is_public))
             .collect()
     };
-    program
-        .symbols
-        .find_build_subject_declaration_from_source(&path, occurrence, candidates)
+    let token_bound_machines = program
+        .machine_token_bindings()
+        .iter()
+        .filter(|binding| binding.is_boundary)
+        .map(|binding| binding.symbol)
+        .collect::<Vec<_>>();
+    program.symbols.find_build_subject_declaration_from_source(
+        &path,
+        occurrence,
+        candidates,
+        &token_bound_machines,
+    )
 }
 
 #[cfg(test)]

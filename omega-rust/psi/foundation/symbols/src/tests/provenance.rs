@@ -288,7 +288,12 @@ fn only_a_build_subject_reaches_a_public_toolchain_declaration() {
     let name = symbols.name(toolchain).to_owned();
 
     assert_eq!(
-        symbols.find_build_subject_declaration_from_source(&name, occurrence, [(toolchain, true)]),
+        symbols.find_build_subject_declaration_from_source(
+            &name,
+            occurrence,
+            [(toolchain, true)],
+            &[]
+        ),
         Some(toolchain),
         "a build operand names the injected core declaration it selects a provider for"
     );
@@ -298,8 +303,48 @@ fn only_a_build_subject_reaches_a_public_toolchain_declaration() {
         "ordinary product selection keeps the same-package rule"
     );
     assert_eq!(
-        symbols.find_build_subject_declaration_from_source(&name, occurrence, [(toolchain, false)]),
+        symbols.find_build_subject_declaration_from_source(
+            &name,
+            occurrence,
+            [(toolchain, false)],
+            &[]
+        ),
         None,
         "a private toolchain declaration is not a build operand's to name"
     );
+}
+
+#[test]
+fn build_family_selection_requires_explicit_token_membership() {
+    let mut builder = SymbolTableBuilder::default();
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let members = SymbolTableBuilder::child_handles(builder.insert_children(
+        root,
+        [
+            (SymbolKind::Machine, SymbolNameRef::Static("Math::add")),
+            (SymbolKind::Machine, SymbolNameRef::Static("Math::add")),
+        ],
+    ))
+    .collect::<Vec<_>>();
+    let symbols = builder.finish();
+    let candidates = [(members[0], false), (members[1], false)];
+    let find = |token_bound_machines: &[crate::SymbolHandle]| {
+        symbols.find_build_subject_declaration_from_source(
+            "Math::add",
+            SourceSpan::default(),
+            candidates,
+            token_bound_machines,
+        )
+    };
+    assert_eq!(
+        find(&[]),
+        None,
+        "ordinary machine overloads are not a family operand"
+    );
+    assert_eq!(
+        find(&members[..1]),
+        None,
+        "an unrelated same-path candidate remains ambiguous"
+    );
+    assert_eq!(find(&members), Some(members[0]));
 }

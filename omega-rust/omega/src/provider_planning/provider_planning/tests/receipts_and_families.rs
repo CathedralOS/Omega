@@ -355,6 +355,119 @@ fn operator_family_selection_atomically_selects_every_exact_coordinate() {
 }
 
 #[test]
+fn token_machine_family_preserves_complete_machine_overload_coordinates() {
+    let declarations = [
+        "boundary machine - Math::select(left: i32, right: i32) -> i32;",
+        "boundary machine - Math::select(left: u32, right: u32) -> u32;",
+    ];
+    let mut rosters = Vec::new();
+    for order in [declarations, [declarations[1], declarations[0]]] {
+        let typed = typed_fixture_with_source(
+            "token-family.omg",
+            &format!(
+                "data Math {{}} {} {}
+                 data MathProvider {{}}
+                 machine MathProvider::signed(left: i32, right: i32) -> i32
+                 satisfies Math::select {{ transition {{ _ -> left }} }}
+                 machine MathProvider::unsigned(left: u32, right: u32) -> u32
+                 satisfies Math::select {{ transition {{ _ -> left }} }}",
+                order[0], order[1],
+            ),
+        );
+        let representative = typed.machine_token_bindings()[0].symbol;
+        let family = ProviderOperatorFamilySelection::derive(
+            &typed,
+            representative,
+            "Math::select".to_owned(),
+        )
+        .expect("token machine family");
+        assert_eq!(family.coordinates().len(), 2);
+        assert!(family.replay_against_typed(&typed).is_empty());
+        for coordinate in family.coordinates() {
+            let machine = typed
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == coordinate.symbol)
+                .expect("coordinate retains its requirement machine");
+            assert!(
+                !machine.is_public,
+                "private same-package family remains valid"
+            );
+            assert_eq!(
+                coordinate.requirement_identity,
+                typed
+                    .normalized_machine_overload_identity(machine)
+                    .expect("machine coordinate identity")
+                    .identity()
+            );
+        }
+        let partial = ProviderOperatorFamilySelection::new(
+            family.package,
+            family.canonical_path.clone(),
+            family.authored_path.clone(),
+            family.coordinates()[..1].to_vec(),
+        )
+        .expect("partial roster is constructible but not admissible");
+        assert!(
+            partial
+                .replay_against_typed(&typed)
+                .iter()
+                .any(|reason| reason.contains("omits coordinate"))
+        );
+        let coordinates = family
+            .coordinates()
+            .iter()
+            .map(|coordinate| coordinate.requirement_identity.clone())
+            .collect::<Vec<_>>();
+        let derived = derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None));
+        assert_eq!(
+            derived.len(),
+            2,
+            "token views must not derive extra operator plans"
+        );
+        for plan in &derived {
+            assert!(matches!(
+                plan.provenance.schema,
+                ProviderSchemaDeclaration::BoundaryRequirement(_)
+            ));
+            assert!(coordinates.contains(&plan.plan.schema.trait_name));
+        }
+        let plans = [
+            operator_coordinate_plan("first", &coordinates[0], "MathProvider"),
+            operator_coordinate_plan("second", &coordinates[1], "MathProvider"),
+        ];
+        let mut selection = crate::ProviderSelection::operator_family_for_test(
+            "Math::select",
+            "MathProvider",
+            &[&coordinates[0], &coordinates[1]],
+        );
+        selection.subject = ProviderSelectionSubject::BoundaryOperatorFamily(family);
+        let selected = select_provider_plans(
+            &plans,
+            target::NativeTarget::host(),
+            &[],
+            &[selection.clone()],
+        )
+        .expect("one declaration selects both token machine coordinates");
+        assert_eq!(selected.len(), 2);
+        let mut missing_provider = plans;
+        missing_provider[1].provider_type = "OtherProvider".to_owned();
+        assert!(
+            select_provider_plans(
+                &missing_provider,
+                target::NativeTarget::host(),
+                &[],
+                &[selection],
+            )
+            .is_err(),
+            "selection cannot admit the remaining coordinate alone"
+        );
+        rosters.push(coordinates);
+    }
+    assert_eq!(rosters[0], rosters[1]);
+}
+
+#[test]
 fn operator_family_selection_rejects_when_one_coordinate_lacks_the_provider() {
     let first_coordinate = "operator::Math::convert(i32)->i64";
     let second_coordinate = "operator::Math::convert(u32)->u64";

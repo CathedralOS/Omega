@@ -30,13 +30,22 @@ pub(super) fn assign_machine_symbols(
     let top_level_requirement_symbols = program
         .machines
         .iter()
-        .zip(root_machine_symbols)
+        .zip(root_machine_symbols.iter().copied())
         .filter_map(|(machine, symbol)| {
             matches!(
                 machine.supply_mode,
                 language_semantics::MachineSupplyMode::TopLevelRequirement
             )
             .then_some(symbol)
+        })
+        .collect::<Vec<_>>();
+    let token_requirement_symbols = program
+        .machines
+        .iter()
+        .zip(root_machine_symbols)
+        .filter_map(|(machine, symbol)| {
+            (machine.spelling.is_some() && top_level_requirement_symbols.contains(&symbol))
+                .then_some(symbol)
         })
         .collect::<Vec<_>>();
     let mut diagnostics = Vec::new();
@@ -326,10 +335,26 @@ pub(super) fn assign_machine_symbols(
                         requirement.source_span(),
                     )
                     .unwrap_or_else(SymbolHandle::invalid);
-                (path, symbol, requirement.source_span())
+                let token_family = !matches!(
+                    symbols.lookup_signature_free_top_level_from_source_matching(
+                        &path,
+                        &[SymbolKind::Machine],
+                        requirement.source_span(),
+                        |candidate| token_requirement_symbols.contains(&candidate),
+                    ),
+                    symbols::SymbolLookup::NotFound
+                );
+                (path, symbol, requirement.source_span(), token_family)
             });
             let target_is_trait = match exact_requirement {
-                Some((path, symbol, source_span)) if symbol.is_valid() => {
+                Some((_, _, _, true)) => {
+                    // The family is source-visible, but its exact declaration
+                    // needs the complete typed signature. Do not retain an
+                    // arbitrary sibling as the satisfaction target.
+                    conformance.symbol = SymbolHandle::invalid();
+                    false
+                }
+                Some((path, symbol, source_span, false)) if symbol.is_valid() => {
                     if top_level_requirement_symbols.contains(&symbol) {
                         conformance.symbol = symbol;
                     } else {
@@ -343,7 +368,7 @@ pub(super) fn assign_machine_symbols(
                     }
                     false
                 }
-                Some((path, _, source_span)) => {
+                Some((path, _, source_span, false)) => {
                     conformance.symbol = top_level_symbol_for_source(
                         symbols,
                         SymbolKind::Trait,

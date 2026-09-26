@@ -109,7 +109,7 @@ impl ProviderOperatorFamilySelection {
         }
         let canonical_path = operator_canonical_path(typed, representative);
         let package = typed.symbols.symbol_package_identity(representative.symbol);
-        let coordinates = family_coordinates(typed, package, &canonical_path);
+        let coordinates = family_coordinates(typed, package, &canonical_path)?;
         Self::new(package, canonical_path, authored_path, coordinates)
     }
 
@@ -125,7 +125,10 @@ impl ProviderOperatorFamilySelection {
     /// and a same-spelled member with another symbol or telescope is a
     /// substitution. Each rejection names the coordinate.
     pub fn replay_against_typed(&self, typed: &TypedTrees) -> Vec<String> {
-        let expected = family_coordinates(typed, self.package, &self.canonical_path);
+        let expected = match family_coordinates(typed, self.package, &self.canonical_path) {
+            Ok(expected) => expected,
+            Err(reason) => return vec![reason],
+        };
         let mut reasons = Vec::new();
         for coordinate in &self.coordinates {
             let Some(current) = expected
@@ -194,10 +197,11 @@ fn family_coordinates(
     typed: &TypedTrees,
     package: Option<semantic_vocabulary::PackageKeyIdentity>,
     canonical_path: &str,
-) -> Vec<ProviderOperatorFamilyCoordinate> {
+) -> Result<Vec<ProviderOperatorFamilyCoordinate>, String> {
     typed
         .operators()
         .iter()
+        .chain(typed.machine_token_bindings())
         .chain(
             typed
                 .domain_definitions()
@@ -210,13 +214,40 @@ fn family_coordinates(
                 && typed.symbols.symbol_package_identity(operator.symbol) == package
                 && operator_canonical_path(typed, operator) == canonical_path
         })
-        .map(|operator| ProviderOperatorFamilyCoordinate {
-            symbol: operator.symbol,
-            requirement_identity: symbol_resolved_trees_to_typed_trees::typed_trees::operator::boundary_operator_requirement_identity(
-                typed, operator,
-            ),
-            static_parameter_count: operator.lifetime_parameters.len()
-                + typed.operator_type_parameters(operator).len(),
+        .map(|operator| {
+            let requirement_identity = match typed
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == operator.symbol)
+            {
+                Some(requirement)
+                    if requirement.supply_mode
+                        == language_semantics::MachineSupplyMode::TopLevelRequirement =>
+                {
+                    typed
+                        .normalized_machine_overload_identity(requirement)
+                        .ok_or_else(|| {
+                            format!(
+                                "boundary-operator family `{canonical_path}` has a token machine without an exact overload identity"
+                            )
+                        })?
+                        .identity()
+                }
+                Some(_) => {
+                    return Err(format!(
+                        "boundary-operator family `{canonical_path}` has a token machine without requirement supply"
+                    ));
+                }
+                None => symbol_resolved_trees_to_typed_trees::typed_trees::operator::boundary_operator_requirement_identity(
+                    typed, operator,
+                ),
+            };
+            Ok(ProviderOperatorFamilyCoordinate {
+                symbol: operator.symbol,
+                requirement_identity,
+                static_parameter_count: operator.lifetime_parameters.len()
+                    + typed.operator_type_parameters(operator).len(),
+            })
         })
         .collect()
 }

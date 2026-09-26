@@ -69,7 +69,7 @@ pub(super) fn validate_machine_call_type_parameter_bounds(
     );
 }
 
-/// Whether a top-level `boundary requirement` may be called directly: public,
+/// Whether a resolved top-level `boundary requirement` may be called directly:
 /// free of static generic binders, and at most an owned `self`, shared
 /// `&self`, or mutable `&mut self` receiver. A receiver-free requirement is
 /// called `Owner::name(...)`; a `self`/`&self`/`&mut self` requirement is
@@ -84,8 +84,8 @@ pub(super) fn validate_machine_call_type_parameter_bounds(
 /// Such a call executes
 /// only through the selected provider row that selected-dispatch settles
 /// after provider planning, which rejects a called requirement with no
-/// selected provider; a private or generic requirement keeps the symbol
-/// fence. A write-only or qualified `self` receiver (`&write self`,
+/// selected provider. Lexical resolution owns visibility, while an open
+/// generic requirement keeps the symbol fence. A write-only or qualified `self` receiver (`&write self`,
 /// `self in Pending`) keeps it too: receiver custody and obligation
 /// transfer are a separate settlement shape.
 fn is_directly_callable_top_level_requirement(
@@ -94,7 +94,6 @@ fn is_directly_callable_top_level_requirement(
     callee_state: &State,
 ) -> bool {
     callee_machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-        && callee_machine.is_public
         && program.machine_type_parameters(callee_machine).is_empty()
         && program.machine_states(callee_machine).len() == 1
         && program

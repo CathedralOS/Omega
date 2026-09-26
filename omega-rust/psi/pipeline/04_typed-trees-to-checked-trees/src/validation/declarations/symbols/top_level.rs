@@ -6,6 +6,9 @@ use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
 use symbol_resolved_trees_to_typed_trees::typed_trees::trait_definition::TraitDefinition;
 use symbols::{SymbolHandle, SymbolKeyMap as HashMap, SymbolKind};
 
+#[cfg(test)]
+mod tests;
+
 /// Memoized caller-prefix resolution for write-origin walks. The caller-side
 /// queries repeat the same machine-level scans for every statement site:
 /// whether a machine declares tracked origins at all, which (state, index)
@@ -148,7 +151,29 @@ impl<'program> TopLevelSymbols<'program> {
                                 })
                         })
                     });
-            if !same_named.is_empty() && !is_result_overload_family {
+            let is_boundary_token_overload_family = machine.spelling.is_some()
+                && machine.supply_mode
+                    == language_semantics::MachineSupplyMode::TopLevelRequirement
+                && program
+                    .normalized_machine_overload_identity(machine)
+                    .is_some_and(|identity| {
+                        same_named.iter().all(|previous| {
+                            previous.spelling == machine.spelling
+                                && previous.supply_mode
+                                    == language_semantics::MachineSupplyMode::TopLevelRequirement
+                                && program
+                                    .normalized_machine_overload_identity(previous)
+                                    .is_some_and(|previous_identity| {
+                                        previous_identity.path() == identity.path()
+                                            && previous_identity.parameters()
+                                                != identity.parameters()
+                                    })
+                        })
+                    });
+            if !same_named.is_empty()
+                && !is_result_overload_family
+                && !is_boundary_token_overload_family
+            {
                 diagnostics.push(Diagnostic::error(format!(
                     "duplicate machine `{}`",
                     machine.name

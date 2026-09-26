@@ -108,7 +108,10 @@ pub(crate) fn reject_duplicate_direct_token_bindings(
             diagnostics.push(diagnostic);
             continue;
         }
-        if let Some(earlier) = bindings.iter().find(|earlier| earlier.repeats(&binding)) {
+        if let Some(earlier) = bindings
+            .iter()
+            .find(|earlier| earlier.repeats(program, &binding))
+        {
             diagnostics.push(duplicate_diagnostic(&binding, earlier));
             continue;
         }
@@ -119,7 +122,10 @@ pub(crate) fn reject_duplicate_direct_token_bindings(
             continue;
         };
         let binding = operator_token_binding(program, operator, None, spelling);
-        if let Some(earlier) = bindings.iter().find(|earlier| earlier.repeats(&binding)) {
+        if let Some(earlier) = bindings
+            .iter()
+            .find(|earlier| earlier.repeats(program, &binding))
+        {
             diagnostics.push(duplicate_diagnostic(&binding, earlier));
         }
     }
@@ -129,7 +135,10 @@ pub(crate) fn reject_duplicate_direct_token_bindings(
                 continue;
             };
             let binding = operator_token_binding(program, operator, Some(domain), spelling);
-            if let Some(earlier) = bindings.iter().find(|earlier| earlier.repeats(&binding)) {
+            if let Some(earlier) = bindings
+                .iter()
+                .find(|earlier| earlier.repeats(program, &binding))
+            {
                 diagnostics.push(duplicate_diagnostic(&binding, earlier));
             }
         }
@@ -173,21 +182,26 @@ struct TokenBinding<'program> {
 }
 
 impl TokenBinding<'_> {
-    fn repeats(&self, other: &Self) -> bool {
+    fn repeats(&self, program: &SymbolResolvedTrees, other: &Self) -> bool {
         self.spelling == other.spelling
-            && self.same_owner(other)
+            && self.same_owner(program, other)
             && self.operand_shape == other.operand_shape
     }
 
-    fn same_owner(&self, other: &Self) -> bool {
+    fn same_owner(&self, program: &SymbolResolvedTrees, other: &Self) -> bool {
         match (self.owner, other.owner) {
             (BindingOwner::AttachedData(left), BindingOwner::AttachedData(right))
                 if !(left.is_valid() && right.is_valid()) =>
             {
                 // An owner path that resolved to no data declaration leaves an
                 // invalid symbol; invalid handles all compare equal, so the
-                // authored owner spelling separates unrelated attachments.
-                left == right && self.owner_spelling == other.owner_spelling
+                // authored owner spelling and source package separate unrelated
+                // namespace families. Source-free fixtures still model one package.
+                left == right
+                    && self.owner_spelling == other.owner_spelling
+                    && program
+                        .symbols
+                        .same_source_package(self.name_span, other.name_span)
             }
             _ => self.owner == other.owner,
         }
@@ -199,6 +213,11 @@ impl TokenBinding<'_> {
     /// `operator`-form binding, which is never checked for a home.
     fn missing_semantic_home(&self, program: &SymbolResolvedTrees) -> Option<Diagnostic> {
         let machine = self.machine?;
+        // Required slots do not supply a direct implementation. Their selected
+        // provider is checked separately, just as for boundary operator heads.
+        if machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement {
+            return None;
+        }
         let operand_types = entry_operand_types(program, machine);
         let message = match self.owner {
             BindingOwner::AttachedData(home) => {
@@ -278,6 +297,9 @@ impl TokenBinding<'_> {
     /// owner-local rules.
     fn foreign_semantic_home(&self, program: &SymbolResolvedTrees) -> Option<Diagnostic> {
         let machine = self.machine?;
+        if machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement {
+            return None;
+        }
         let binding_package = program.symbols.symbol_package_identity(machine.symbol)?;
         let foreign = |home: SymbolHandle| {
             program
