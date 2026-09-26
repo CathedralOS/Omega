@@ -1,0 +1,25 @@
+// The WIDENING face of fail/arithmetic/implicit_store_conversion_rejected,
+// which pins the same-width signedness face (`u32` stored into `i32`).
+//
+// Storing the `u8` state into the `u16` output loses no value -- every `u8`
+// fits -- and it is still refused. A typed value keeps its own carrier
+// across a store rather than taking the destination's, and the language has
+// no implicit widening at all: an explicit exact conversion is how a wider
+// carrier is requested (numeric values, "There is no implicit widening ...
+// use an explicit exact conversion to request a wider carrier"). Spelling
+// `self.small as u16` is the escape, exactly as `as i32` is for the
+// signedness face.
+//
+// This is the face a value-preserving store makes tempting to admit, so it
+// is pinned separately: admitting it would make the rule "a typed value
+// keeps its arithmetic policy" rather than "keeps its type", and would
+// silently reintroduce the widening the carrier rules exclude.
+use omega::language::std::console;
+use omega::language::core::binding;
+data Main { console: Binding<Console>; small: u8; wide: u16; }
+machine Main::main(&mut self) {
+    self.small = 7;
+    self.wide = self.small;
+    let o: i32 = 70;
+    self.console.exit_process(o);
+}

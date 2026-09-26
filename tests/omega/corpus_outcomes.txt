@@ -49,6 +49,10 @@ fail/arithmetic/fractional_integer_operand rejected 0ms expected
 	anonymous operand `4097/2` is not an integer in machine `value` state `entry` terminal expression; type an operand before division if integer division was intended
 	anonymous operand `4097/2` cannot land exactly in `i32` in machine `value` state `entry` terminal expression; type an operand before division if integer division was intended
 	exact arithmetic in machine `value` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/arithmetic/implicit_store_conversion_rejected rejected 66ms expected
+	store in machine `Main::main` state `main` assignment implicitly converts `u32` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
+fail/arithmetic/implicit_store_widening_rejected rejected 65ms expected
+	store in machine `Main::main` state `main` assignment implicitly converts `u8` to `u16`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u16`)
 fail/arithmetic/modulo_by_zero_rejected rejected 7ms expected
 	remainder by zero in machine `Main::main` state `main` local `x`: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
 fail/arithmetic/narrowing_literal_wider_than_target rejected 4ms expected
