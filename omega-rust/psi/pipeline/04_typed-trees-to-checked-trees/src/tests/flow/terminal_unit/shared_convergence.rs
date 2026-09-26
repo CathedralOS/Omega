@@ -33,6 +33,8 @@ fn shared_integer_inputs_compose_operations_without_association_or_shell_catalog
         CheckedIntegerBinaryKind::BitwiseXor,
         CheckedIntegerBinaryKind::WrappingShiftLeft,
         CheckedIntegerBinaryKind::WrappingShiftRight,
+        CheckedIntegerBinaryKind::SaturatingShiftLeft,
+        CheckedIntegerBinaryKind::SaturatingShiftRight,
         CheckedIntegerBinaryKind::WrappingAdd,
         CheckedIntegerBinaryKind::SaturatingAdd,
         CheckedIntegerBinaryKind::WrappingSubtract,

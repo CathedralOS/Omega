@@ -986,6 +986,7 @@ pub(crate) fn build_scalar_conditional_target(
             | LoweredDirectExpression::ElementViewRead { .. }
             | LoweredDirectExpression::IeeeFloatLiteral { .. }
             | LoweredDirectExpression::IntegerBinary { .. }
+            | LoweredDirectExpression::SaturatingShiftLeft { .. }
             | LoweredDirectExpression::IntegerBitwiseNot { .. }
             | LoweredDirectExpression::IntegerWiden { .. }
             | LoweredDirectExpression::IntegerExactCast { .. }

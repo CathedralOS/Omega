@@ -78,6 +78,8 @@ pub(super) fn integer_binary(
         26 => Kind::TrappingMultiply,
         27 => Kind::TrappingDivide,
         28 => Kind::TrappingRemainder,
+        29 => Kind::SaturatingShiftLeft,
+        30 => Kind::SaturatingShiftRight,
         _ => return Err(Error::InvalidTag),
     })
 }

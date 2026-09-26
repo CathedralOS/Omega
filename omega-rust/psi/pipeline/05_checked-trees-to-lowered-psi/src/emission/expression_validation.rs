@@ -74,7 +74,8 @@ pub(crate) fn validate_direct_parameter_types(
         | LoweredDirectExpression::ElementViewRead { index, .. } => {
             validate_direct_parameter_types(index, parameter_types)
         }
-        LoweredDirectExpression::IntegerBinary { left, right, .. } => {
+        LoweredDirectExpression::IntegerBinary { left, right, .. }
+        | LoweredDirectExpression::SaturatingShiftLeft { left, right, .. } => {
             validate_direct_parameter_types(left, parameter_types)?;
             validate_direct_parameter_types(right, parameter_types)
         }

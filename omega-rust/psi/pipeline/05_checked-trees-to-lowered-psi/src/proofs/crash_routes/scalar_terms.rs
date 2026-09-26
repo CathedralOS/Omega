@@ -197,6 +197,20 @@ pub(crate) fn lowered_direct_scalar_term(
             ScalarTerm::integer(*integer_type, *value)
                 .map_err(LoweringError::InvalidCrashPredicate)?
         }
+        LoweredDirectExpression::SaturatingShiftLeft {
+            scalar_type,
+            left,
+            right,
+        } => {
+            // Mathematical denotation may reuse a term; runtime emission binds
+            // each operand once before applying the same scaling recipe.
+            let expanded = crate::expression_preparation::saturating_shift::expansion(
+                *scalar_type,
+                *left.clone(),
+                *right.clone(),
+            );
+            lowered_direct_scalar_term(&expanded, values, erased)?
+        }
         LoweredDirectExpression::IntegerBinary {
             kind,
             scalar_type,

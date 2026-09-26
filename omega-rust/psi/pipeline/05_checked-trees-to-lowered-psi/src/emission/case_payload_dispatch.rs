@@ -436,6 +436,15 @@ pub(crate) fn substitute_direct(
             index: Box::new(substitute_direct(*index, bound)),
             scalar_type,
         },
+        Direct::SaturatingShiftLeft {
+            scalar_type,
+            left,
+            right,
+        } => Direct::SaturatingShiftLeft {
+            scalar_type,
+            left: Box::new(substitute_direct(*left, bound)),
+            right: Box::new(substitute_direct(*right, bound)),
+        },
         Direct::IntegerBinary {
             kind,
             scalar_type,
@@ -608,7 +617,8 @@ fn collect_direct_case_reads<'e>(
         | Direct::ElementViewRead { index, .. }
         | Direct::IndexedPrimitiveRead { index, .. }
         | Direct::ByteSequenceFieldRead { index, .. } => collect_direct_case_reads(index, reads),
-        Direct::IntegerBinary { left, right, .. } => {
+        Direct::IntegerBinary { left, right, .. }
+        | Direct::SaturatingShiftLeft { left, right, .. } => {
             collect_direct_case_reads(left, reads);
             collect_direct_case_reads(right, reads);
         }

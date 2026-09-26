@@ -344,6 +344,12 @@ const fn project_integer_binary_kind(
             PackageReviewIntegerBinaryKind::WrappingShiftRight
         }
         CheckedIntegerBinaryKind::ExactShiftLeft => PackageReviewIntegerBinaryKind::ExactShiftLeft,
+        CheckedIntegerBinaryKind::SaturatingShiftLeft => {
+            PackageReviewIntegerBinaryKind::SaturatingShiftLeft
+        }
+        CheckedIntegerBinaryKind::SaturatingShiftRight => {
+            PackageReviewIntegerBinaryKind::SaturatingShiftRight
+        }
         CheckedIntegerBinaryKind::ExactShiftRight => {
             PackageReviewIntegerBinaryKind::ExactShiftRight
         }

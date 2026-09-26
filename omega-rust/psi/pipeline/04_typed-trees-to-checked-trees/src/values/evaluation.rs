@@ -132,6 +132,8 @@ fn integer(
                     | CheckedIntegerBinaryKind::WrappingShiftRight
                     | CheckedIntegerBinaryKind::ExactShiftLeft
                     | CheckedIntegerBinaryKind::ExactShiftRight
+                    | CheckedIntegerBinaryKind::SaturatingShiftLeft
+                    | CheckedIntegerBinaryKind::SaturatingShiftRight
                     | CheckedIntegerBinaryKind::TrappingShiftLeft
                     | CheckedIntegerBinaryKind::TrappingShiftRight
             );
@@ -245,6 +247,26 @@ fn binary(
         }
         CheckedIntegerBinaryKind::ExactShiftRight => {
             scalar_type.exact_shift_right(left, count_type, right)
+        }
+        CheckedIntegerBinaryKind::SaturatingShiftRight => {
+            scalar_type.exact_shift_right(left, count_type, right)
+        }
+        CheckedIntegerBinaryKind::SaturatingShiftLeft => {
+            // Right shift validates both carriers and the count without a
+            // value-overflow condition. Only after that check may left-shift
+            // overflow clamp; an invalid count must never become a value.
+            scalar_type.exact_shift_right(left, count_type, right)?;
+            Some(
+                scalar_type
+                    .exact_shift_left(left, count_type, right)
+                    .unwrap_or_else(|| {
+                        if matches!(left, IntegerValue::Signed(value) if value < 0) {
+                            scalar_type.minimum_value()
+                        } else {
+                            scalar_type.maximum_value()
+                        }
+                    }),
+            )
         }
         // A Trapping operation returns the primitive's exact result on a
         // normal return; where the exact operation is undefined the checked

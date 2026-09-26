@@ -225,6 +225,8 @@ fn shared_integer_runtime_inputs(
                 | CheckedIntegerBinaryKind::BitwiseXor
                 | CheckedIntegerBinaryKind::WrappingShiftLeft
                 | CheckedIntegerBinaryKind::WrappingShiftRight
+                | CheckedIntegerBinaryKind::SaturatingShiftLeft
+                | CheckedIntegerBinaryKind::SaturatingShiftRight
                 | CheckedIntegerBinaryKind::WrappingAdd
                 | CheckedIntegerBinaryKind::SaturatingAdd
                 | CheckedIntegerBinaryKind::WrappingSubtract
@@ -248,6 +250,8 @@ fn shared_integer_runtime_inputs(
                     | CheckedIntegerBinaryKind::ExactShiftRight
                     | CheckedIntegerBinaryKind::WrappingShiftLeft
                     | CheckedIntegerBinaryKind::WrappingShiftRight
+                    | CheckedIntegerBinaryKind::SaturatingShiftLeft
+                    | CheckedIntegerBinaryKind::SaturatingShiftRight
             );
             if left.primitive_type() != Some(*primitive_type)
                 || (!is_shift && right.primitive_type() != Some(*primitive_type))

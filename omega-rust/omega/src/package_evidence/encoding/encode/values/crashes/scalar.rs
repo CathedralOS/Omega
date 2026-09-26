@@ -177,5 +177,7 @@ const fn integer_binary_name(kind: PackageReviewIntegerBinaryKind) -> &'static s
         PackageReviewIntegerBinaryKind::TrappingMultiply => "trapping_multiply",
         PackageReviewIntegerBinaryKind::TrappingDivide => "trapping_divide",
         PackageReviewIntegerBinaryKind::TrappingRemainder => "trapping_remainder",
+        PackageReviewIntegerBinaryKind::SaturatingShiftLeft => "saturating_shift_left",
+        PackageReviewIntegerBinaryKind::SaturatingShiftRight => "saturating_shift_right",
     }
 }

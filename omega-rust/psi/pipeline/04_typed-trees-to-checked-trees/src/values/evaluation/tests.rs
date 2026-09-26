@@ -146,6 +146,12 @@ fn checked_integer_operations_use_selected_width_and_policy() {
         (WrappingShiftRight, 128, 8, Some(128)),
         (ExactShiftLeft, 1, 7, Some(128)),
         (ExactShiftRight, 128, 7, Some(1)),
+        (SaturatingShiftLeft, 17, 4, Some(255)),
+        (SaturatingShiftLeft, 17, 0, Some(17)),
+        (SaturatingShiftLeft, 0, 7, Some(0)),
+        (SaturatingShiftLeft, 1, 8, None),
+        (SaturatingShiftRight, 128, 7, Some(1)),
+        (SaturatingShiftRight, 1, 8, None),
         (ExactAdd, 255, 1, None),
         (ExactSubtract, 0, 1, None),
         (ExactMultiply, 128, 2, None),
@@ -248,6 +254,29 @@ fn binding_values_and_operand_types_must_match_the_checked_carrier() {
 
 #[test]
 fn shifts_use_the_count_carrier_and_preserve_signed_bits() {
+    for (value, count, result) in [(1, 7, 127), (-1, 7, -128), (-128, 0, -128), (0, 7, 0)] {
+        let expression = operation(
+            CheckedIntegerBinaryKind::SaturatingShiftLeft,
+            PrimitiveType::I8,
+            literal(value, LandedIntegerType::I8),
+            literal(count, LandedIntegerType::U64),
+        );
+        assert_eq!(evaluate(&expression, &mut |_| None), expected(result));
+    }
+    for kind in [
+        CheckedIntegerBinaryKind::SaturatingShiftLeft,
+        CheckedIntegerBinaryKind::SaturatingShiftRight,
+    ] {
+        for count in [-1, 8] {
+            let expression = operation(
+                kind,
+                PrimitiveType::I8,
+                literal(0, LandedIntegerType::I8),
+                literal(count, LandedIntegerType::I64),
+            );
+            assert_eq!(evaluate(&expression, &mut |_| None), None);
+        }
+    }
     let expression = operation(
         CheckedIntegerBinaryKind::WrappingShiftLeft,
         PrimitiveType::U8,

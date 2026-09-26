@@ -1047,6 +1047,8 @@ impl Context<'_> {
             | IntegerBinary::SaturatingSubtract
             | IntegerBinary::SaturatingMultiply
             | IntegerBinary::SaturatingDivide
+            | IntegerBinary::SaturatingShiftLeft
+            | IntegerBinary::SaturatingShiftRight
             | IntegerBinary::SaturatingRemainder => ArithmeticDomain::Saturating,
             IntegerBinary::TrappingShiftLeft
             | IntegerBinary::TrappingShiftRight
@@ -1309,9 +1311,11 @@ fn integer_operator(kind: IntegerBinary) -> BinaryOperator {
         IntegerBinary::BitwiseOr => BinaryOperator::BitwiseOr,
         IntegerBinary::BitwiseXor => BinaryOperator::BitwiseXor,
         IntegerBinary::ExactShiftLeft
+        | IntegerBinary::SaturatingShiftLeft
         | IntegerBinary::WrappingShiftLeft
         | IntegerBinary::TrappingShiftLeft => BinaryOperator::ShiftLeft,
         IntegerBinary::ExactShiftRight
+        | IntegerBinary::SaturatingShiftRight
         | IntegerBinary::WrappingShiftRight
         | IntegerBinary::TrappingShiftRight => BinaryOperator::ShiftRight,
     }
