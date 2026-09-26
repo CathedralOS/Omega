@@ -229,7 +229,7 @@ pub fn lower_typed_trees(
     let _plan_scope = ::validation::enter_program_plan_scope();
     let _field_domain_scope = crate::facts::field_domain::enter_field_domain_scope();
     crate::monomorphization::validate_selected_attached_method_bounds(&program)?;
-    let validated = validate_typed_program(
+    let mut validated = validate_typed_program(
         &program,
         opaque_property_receipts,
         mode.allows_pending_opaque_copy(),
@@ -244,6 +244,11 @@ pub fn lower_typed_trees(
     // resolver presence; certificate construction and the check replay share
     // one lazily-filled table instead of rebuilding it per entry.
     let incoming_guard_index = checks::IncomingGuardIndexCache::default();
+    // Validation already judged each checked body's contract entailment on
+    // this program; the exit checks read those proved postconditions
+    // instead of rejudging every machine.
+    let proven_machine_contracts =
+        std::mem::take(&mut validated.validation_facts.proven_machine_contracts);
     let mut facts = build_check_facts(
         &program,
         &validated.proof_plan,
@@ -285,6 +290,7 @@ pub fn lower_typed_trees(
                 &mut facts,
                 &mutation_summaries,
                 &incoming_guard_index,
+                &proven_machine_contracts,
             )?;
         }
         #[cfg(test)]

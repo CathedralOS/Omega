@@ -77,6 +77,8 @@ use exits::{CyclicHeaderInvariants, check_exit_ensures};
 pub(crate) use exits::{
     is_readable_mutable_reference, result_domain_type, scalar_result_domains, value_provable_domain,
 };
+use symbols::SymbolHandle;
+use typed_trees::expression::ExpressionHandle;
 use writes::check_domain_field_writes;
 
 pub(super) fn check_flow_call_contracts(
@@ -84,6 +86,7 @@ pub(super) fn check_flow_call_contracts(
     facts: &CheckFacts,
     incoming_guards: &crate::checks::ranges::incoming_guards::IncomingGuardIndex,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    proven_machine_contracts: &[(SymbolHandle, Vec<ExpressionHandle>)],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let content_plans = validation::build_content_conservation_plans(program);
@@ -98,7 +101,12 @@ pub(super) fn check_flow_call_contracts(
     // calls, even when their result is erased or no guarantee is consumed.
     // Recursive descent establishes termination, not a call's preconditions.
     let proof_only = typed_trees::proof_only::classify(program);
-    let mut entailment = entailment::ProvenExitExpressions::new(program, &proof_only, call_frames);
+    let mut entailment = entailment::ProvenExitExpressions::new(
+        program,
+        &proof_only,
+        call_frames,
+        proven_machine_contracts,
+    );
     let mut cyclic_headers = CyclicHeaderInvariants::new();
     // Call targets carry the callee's ENTRY-STATE symbol (sub-state targets
     // carry that state's); resolve through states as well as the machine

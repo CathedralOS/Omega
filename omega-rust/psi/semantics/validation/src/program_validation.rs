@@ -14,7 +14,6 @@ use crate::machine_calls::calls::validate_proof_machine_recursion;
 use crate::machine_calls::calls::validate_self_recursive_call_positions;
 use crate::machine_calls::calls::validate_value_position_calls;
 use crate::machine_calls::machine_data::validate_owned_data;
-use crate::proof_contracts::contract_entailment::validate_machine_contract_entailment;
 use crate::proof_contracts::domains::validate_domain_definitions;
 use crate::proof_contracts::proof_facts::validate_proposition_definitions;
 use crate::proof_contracts::quotients::QuotientRequestAdmission;
@@ -75,6 +74,12 @@ pub struct ProgramValidationFacts {
     /// Canonical proof-only call SCCs accepted by the structural-subterm
     /// validator. Every exact internal call site retains its own witness.
     pub proof_recursive_components: Vec<ValidatedProofRecursiveComponent>,
+    /// For each checked-body machine whose contract entailment this pass
+    /// judged, the postconditions it proved: what
+    /// [`crate::proven_machine_contract_expressions`] would rejudge for the
+    /// same program, empty when the machine's entailment raised a diagnostic
+    /// or does not cover every exit.
+    pub proven_machine_contracts: Vec<(symbols::SymbolHandle, Vec<ExpressionHandle>)>,
 }
 
 /// Whether opaque property claims must be backed now or remain pending during
@@ -249,6 +254,7 @@ fn validate(
     // handle travels with it: downstream scopes shorten their program
     // borrow below what a fresh catalog could be built from.
     let mut bound_lookup = (program, None);
+    let mut proven_machine_contracts = Vec::new();
     for machine in program.machines() {
         let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);
 
@@ -280,7 +286,34 @@ fn validate(
                                     || specialization.instance == machine.symbol)
                         }));
         if !generic_contract_was_prevalidated {
-            validate_machine_contract_entailment(program, machine, &mut diagnostics);
+            let mut machine_diagnostics = Vec::new();
+            let mut proven = Vec::new();
+            crate::proof_contracts::contract_entailment::validate_machine_contract_entailment_with_outcomes(
+                program,
+                machine,
+                &mut machine_diagnostics,
+                &mut Vec::new(),
+                &mut proven,
+            );
+            // The same judgment `proven_machine_contract_expressions` makes:
+            // a checked body's proved postconditions count only when its
+            // entailment raised nothing and covers every exit.
+            if machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+                && !proven_machine_contracts
+                    .iter()
+                    .any(|(symbol, _)| *symbol == machine.symbol)
+            {
+                let judged = if machine_diagnostics.is_empty()
+                    && crate::proof_contracts::contract_entailment::entailment_covers_all_exits(
+                        program, machine,
+                    ) {
+                    proven
+                } else {
+                    Vec::new()
+                };
+                proven_machine_contracts.push((machine.symbol, judged));
+            }
+            diagnostics.append(&mut machine_diagnostics);
         }
         validate_machine_trait_conformances(
             program,
@@ -573,6 +606,7 @@ fn validate(
             fact_call_projections,
             integer_embedding_calls,
             proof_recursive_components,
+            proven_machine_contracts,
         },
     })
 }
