@@ -8,6 +8,7 @@
 //! `CopyI64` the copy-removal pass then owns, so families share the joint
 //! fixed point rather than each converging alone.
 use crate::AddressFoldError;
+use crate::ConstantBooleanError;
 use crate::CopyRemovalError;
 use crate::OptimizedPreAllocationCustodyError;
 use crate::PreAllocationPolicy;
@@ -27,9 +28,11 @@ use crate::analyze_allocation_legality;
 use crate::analyze_live_ranges;
 use crate::analyze_liveness;
 use crate::resolve_pre_allocation_rules;
+use crate::rewrites::condition_state::adjacency;
 use crate::rewrites::{
-    address_fold_measured_steps, copy_removal_measured_steps, fold_selected_address,
-    redundant_extension_measured_steps, remove_selected_copy, remove_selected_redundant_extension,
+    address_fold_measured_steps, constant_boolean_measured_steps, copy_removal_measured_steps,
+    fold_selected_address, fold_selected_constant_boolean, redundant_extension_measured_steps,
+    remove_selected_copy, remove_selected_redundant_extension,
 };
 use crate::validate_optimized_allocation_legality_custody;
 use optimization_core::{
@@ -95,6 +98,20 @@ fn is_fold_consumer(kind: SelectedInstructionKind) -> bool {
     }
 }
 
+/// Whether the instruction kind is a flag-reading `MaterializeBoolean*`
+/// the constant-boolean family considers. Admission decides foldability;
+/// this is only the source-bound candidate surface, scanned in plan order.
+fn is_boolean_reader(kind: SelectedInstructionKind) -> bool {
+    matches!(
+        kind,
+        SelectedInstructionKind::MaterializeBooleanEqual
+            | SelectedInstructionKind::MaterializeBooleanU64LessThan
+            | SelectedInstructionKind::MaterializeBooleanI64LessThan
+            | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
+            | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual
+    )
+}
+
 /// The operand-0 definition-chain length one fold-shaped consumer adds to
 /// the joint measure: the number of in-block definitions reached by
 /// following each defining instruction's own operand-0 `Use` backward from
@@ -128,11 +145,14 @@ fn operand0_chain_length(instructions: &[SelectedInstruction], consumer_index: u
 
 /// The joint measure a committed step must strictly drop: the plan's
 /// virtual registers, plus its remaining extension candidates, plus the
-/// summed operand-0 definition-chain lengths of the fold-shaped consumers.
-/// A copy removal drops the copy and its destination's roster row and can
-/// only shorten chains; an extension removal retires one extension while
-/// keeping every register and chain; an address fold keeps both but skips
-/// a producer node in its consumer's chain.
+/// summed operand-0 definition-chain lengths of the fold-shaped consumers,
+/// plus every flag unit the remaining `MaterializeBoolean*` readers still
+/// observe. A copy removal drops the copy and its destination's roster row
+/// and can only shorten chains; an extension removal retires one extension
+/// while keeping every register and chain; an address fold keeps both but
+/// skips a producer node in its consumer's chain; a constant-boolean fold
+/// keeps registers, chains, and instruction count while dropping the flag
+/// uses the folded reader carried.
 fn measure(plan: &SelectedInstructionPlan, virtual_registers: usize) -> usize {
     let mut total = virtual_registers;
     for function in &plan.functions {
@@ -143,6 +163,9 @@ fn measure(plan: &SelectedInstructionPlan, virtual_registers: usize) -> usize {
                 }
                 if is_fold_consumer(instruction.kind) {
                     total += operand0_chain_length(&block.instructions, index);
+                }
+                if is_boolean_reader(instruction.kind) {
+                    total += instruction.implicit_uses.len();
                 }
             }
         }
@@ -349,6 +372,78 @@ fn address_fold_pass(
     })
 }
 
+/// Source-bound candidate discovery for the constant-boolean family: every
+/// flag-reading `MaterializeBoolean*` in the current validated plan, in
+/// function/block/instruction order, evaluated until the first admissible
+/// one commits. Declines and hard failures follow the copy pass's contract
+/// exactly, and the measured-step contract is the fold family's own — its
+/// per-candidate cost includes the flag-use count, so the audit charge is
+/// computed per evaluated instruction rather than once per function.
+fn constant_boolean_pass(
+    current: SelectedProgramRef<'_>,
+    environment: &ValidatedTargetRegisterEnvironment,
+    budget: OptimizationWorkBudget,
+) -> Result<PreAllocationPass, OptimizedPreAllocationCustodyError> {
+    let mut evaluated = 0usize;
+    let mut declined = 0usize;
+    let mut validation_steps = 0u64;
+    for (function_index, function) in current.selected_plan().functions.iter().enumerate() {
+        let (successors, _) = adjacency(function);
+        for block in &function.blocks {
+            for instruction in &block.instructions {
+                if !is_boolean_reader(instruction.kind) {
+                    continue;
+                }
+                evaluated += 1;
+                let audit_cost = constant_boolean_measured_steps(
+                    current.selected_plan(),
+                    function,
+                    &successors,
+                    instruction.implicit_uses.len(),
+                )
+                .map_err(OptimizedPreAllocationCustodyError::ConstantBoolean)?;
+                validation_steps = validation_steps
+                    .checked_add(audit_cost)
+                    .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                match fold_selected_constant_boolean(
+                    &current,
+                    function_index,
+                    instruction.id,
+                    environment,
+                    budget,
+                ) {
+                    Ok(fold) => {
+                        validation_steps = validation_steps
+                            .checked_add(audit_cost)
+                            .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                        return Ok(PreAllocationPass::Applied {
+                            transformation: ValidatedPreAllocationTransformation::ConstantBoolean(
+                                fold,
+                            ),
+                            declined,
+                            evaluated,
+                            validation_steps,
+                        });
+                    }
+                    Err(
+                        error @ (ConstantBooleanError::WorkBudgetExceeded
+                        | ConstantBooleanError::IdentityOverflow
+                        | ConstantBooleanError::ReplayMismatch),
+                    ) => {
+                        return Err(OptimizedPreAllocationCustodyError::ConstantBoolean(error));
+                    }
+                    Err(_) => declined += 1,
+                }
+            }
+        }
+    }
+    Ok(PreAllocationPass::Clean {
+        candidates: evaluated,
+        declined,
+        validation_steps,
+    })
+}
+
 /// The measured work of one discovery pass. `rule_evaluations` counts the
 /// candidates the pass reached; `validation_steps` carries the summed
 /// measured-step cost each admit — and, for a commit, the independent
@@ -496,6 +591,9 @@ fn run_passes(
                 Optimization::SelectedAddressOffsetFoldV1 => {
                     address_fold_pass(current, environment, budget)?
                 }
+                Optimization::SelectedConstantBooleanFoldV1 => {
+                    constant_boolean_pass(current, environment, budget)?
+                }
                 // The catalog is closed over this phase's owned rules.
                 _ => continue,
             };
@@ -532,9 +630,10 @@ fn run_passes(
                         complete_transformation(transformation, declined, evaluated, source)?;
                     // The joint measure must strictly drop: a copy and its
                     // destination's roster row leave together and rebound
-                    // chains shorten, one extension retires into a copy, or
-                    // a fold skips a producer node in its consumer's
-                    // operand-0 definition chain.
+                    // chains shorten, one extension retires into a copy, a
+                    // fold skips a producer node in its consumer's operand-0
+                    // definition chain, or a folded boolean drops the flag
+                    // uses it carried.
                     let current_measure = measure(
                         step.transformation.transformed(),
                         step.legality.receipt().virtual_register_count(),
@@ -759,7 +858,7 @@ fn pre_allocation_completion_identity(
     receipt: &StagedPreAllocationOptimizationCustodyReceipt,
 ) -> PreAllocationOptimizationCompletionIdentity {
     let mut canonical = Vec::new();
-    canonical.extend_from_slice(b"omega.pre-allocation-optimization-completion.v3\0");
+    canonical.extend_from_slice(b"omega.pre-allocation-optimization-completion.v4\0");
     let source = receipt.source;
     for identity in [
         source.optimization().bytes(),
@@ -799,6 +898,10 @@ fn pre_allocation_completion_identity(
             }
             crate::PreAllocationTransformationIdentity::AddressFold(identity) => {
                 canonical.push(3);
+                canonical.extend_from_slice(&identity.bytes());
+            }
+            crate::PreAllocationTransformationIdentity::ConstantBoolean(identity) => {
+                canonical.push(4);
                 canonical.extend_from_slice(&identity.bytes());
             }
         }

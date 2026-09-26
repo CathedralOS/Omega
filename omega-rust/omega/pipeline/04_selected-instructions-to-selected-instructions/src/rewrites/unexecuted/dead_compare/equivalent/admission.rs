@@ -33,7 +33,7 @@ use super::super::admission::{
 use super::EquivalentCompareError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{edge_surface, terminator_successors};
-use crate::rewrites::unexecuted::condition_state::{
+use crate::rewrites::condition_state::{
     adjacency, backward_cone, entry_index, immediate_bits, instruction_at, materialized_bits,
     reaching_events,
 };

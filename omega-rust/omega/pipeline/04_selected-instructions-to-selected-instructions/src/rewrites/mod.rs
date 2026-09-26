@@ -10,12 +10,14 @@
 //! rematerialization it owns; `pre_allocation` executes the pre-allocation
 //! slice through `copy_removal` (same-block copy removal),
 //! `redundant_extension` (carrier extensions whose producer already
-//! normalizes), and `address_fold` (displacement consumers reading an
-//! `AddressOffset` result);
+//! normalizes), `address_fold` (displacement consumers reading an
+//! `AddressOffset` result), and `constant_boolean` (a `MaterializeBoolean*`
+//! whose reached compare is compile-time constant);
 //! `runtime_spill` and `runtime_rematerialization`
-//! are the recovery rewrites register assignment replays. `block_edges` and
-//! `window_hazards` are the block-boundary and hazard vocabulary those and
-//! the unexecuted families share.
+//! are the recovery rewrites register assignment replays. `block_edges`,
+//! `condition_state` and `window_hazards` are the block-boundary,
+//! flag-state and hazard vocabulary those and the unexecuted families
+//! share.
 //!
 //! `unexecuted` holds every other rewrite family: catalogued in
 //! `module_catalog` with the board row that owns its execution, tested in
@@ -26,6 +28,8 @@ mod address_fold;
 mod allocation_recovery;
 mod block_edges;
 mod catalog;
+mod condition_state;
+mod constant_boolean;
 mod copy_removal;
 mod fixed_view;
 mod literal_folds;
@@ -58,6 +62,10 @@ pub use allocation_recovery::{
     ValidatedPressureRematerialization, fixed_view_copy_identity,
     rematerialize_selected_active_resident, selected_allocation_recovery_rule,
     validate_fixed_view_copies, validate_pressure_rematerialization,
+};
+pub use constant_boolean::{ConstantBooleanError, ValidatedConstantBoolean};
+pub(crate) use constant_boolean::{
+    fold_selected_constant_boolean, measured_steps as constant_boolean_measured_steps,
 };
 // Reached as `crate::rewrites::<name>` by the catalog's own tests and by
 // `selected_optimization`'s admission decision.

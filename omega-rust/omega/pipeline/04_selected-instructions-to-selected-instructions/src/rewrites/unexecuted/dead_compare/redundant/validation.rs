@@ -29,7 +29,7 @@ use target_operations_to_selected_instructions::selected_instruction_plan_identi
 use super::{RedundantCompareError, RedundantCompareReceipt, ValidatedRedundantCompare};
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{edge_surface, terminator_successors};
-use crate::rewrites::unexecuted::condition_state::{
+use crate::rewrites::condition_state::{
     EventSite, adjacency, backward_cone, entry_index, instruction_at, reaching_events,
 };
 

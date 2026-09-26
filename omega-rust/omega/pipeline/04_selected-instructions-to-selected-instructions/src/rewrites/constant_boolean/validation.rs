@@ -27,7 +27,7 @@ use target_operations_to_selected_instructions::selected_instruction_plan_identi
 
 use super::{ConstantBooleanError, ConstantBooleanReceipt, ValidatedConstantBoolean};
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::unexecuted::condition_state::{
+use crate::rewrites::condition_state::{
     ConditionStateError, adjacency, backward_cone, constant_operands, entry_index, instruction_at,
     reaching_event,
 };
@@ -238,7 +238,7 @@ fn reconstruct<'source>(
 /// across the plan, two scans of the reconstructed function's blocks for
 /// the producer audit, and the shared walk's setup and fixpoint bound at
 /// one per used flag unit.
-fn measured_steps(
+pub(crate) fn measured_steps(
     plan: &SelectedInstructionPlan,
     function: &SelectedFunction,
     successors: &[Vec<usize>],
@@ -421,6 +421,8 @@ pub fn validate_constant_boolean_fold(
             transformed_selected: selected_instruction_plan_identity(&proposed),
             optimization_unit: source.optimization_unit_identity(),
             fuel_schedule: source.fuel_schedule_identity(),
+            function_index,
+            materialization,
         },
         transformed: Arc::new(proposed),
     })
@@ -634,6 +636,8 @@ mod independence_tests {
                 transformed_selected: identity,
                 optimization_unit: OptimizationUnitIdentity::from_bytes([2; 32]),
                 fuel_schedule: plan.fuel_schedule,
+                function_index: 0,
+                materialization: BOOLEAN,
             },
             transformed: Arc::new(plan),
         };

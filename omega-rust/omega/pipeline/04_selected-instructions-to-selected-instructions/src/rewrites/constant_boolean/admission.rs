@@ -15,7 +15,7 @@ use semantic_vocabulary::IntegerValue;
 
 use super::ConstantBooleanError;
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::unexecuted::condition_state::{
+use crate::rewrites::condition_state::{
     ConditionStateError, adjacency, backward_cone, constant_operands, entry_index, instruction_at,
     reaching_event,
 };

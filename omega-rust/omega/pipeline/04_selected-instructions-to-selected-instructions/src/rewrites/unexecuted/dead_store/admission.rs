@@ -89,7 +89,7 @@ use terminal_psi::StructuralPlaceDeclaration;
 use super::DeadStoreEliminationError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{terminator_instruction, terminator_successors};
-use crate::rewrites::unexecuted::condition_state::materialized_bits;
+use crate::rewrites::condition_state::materialized_bits;
 use crate::rewrites::unexecuted::place_storage::{
     SubjectStorage, constant_index, extent_intersects, extent_reached_by,
     local_slot_is_place_storage, local_store_shape, packed_store_row_shape, place_store_row_shape,

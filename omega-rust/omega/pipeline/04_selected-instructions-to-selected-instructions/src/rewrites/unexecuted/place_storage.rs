@@ -23,7 +23,7 @@ use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 use terminal_psi::StructuralPlaceDeclaration;
 
 use crate::rewrites::block_edges::terminator_successors;
-use crate::rewrites::unexecuted::condition_state::materialized_bits;
+use crate::rewrites::condition_state::materialized_bits;
 
 /// The function's declared structural places — the producer evidence the
 /// `Structural` slot check needs. A function without a structural contract

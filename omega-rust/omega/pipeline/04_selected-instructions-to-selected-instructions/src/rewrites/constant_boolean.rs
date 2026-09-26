@@ -76,11 +76,14 @@ mod validation;
 use std::sync::Arc;
 
 use optimization_core::OptimizationUnitIdentity;
-use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
+use selected_instructions::{
+    ConstantBooleanIdentity, SelectedInstructionId, SelectedInstructionPlan,
+    SelectedInstructionPlanIdentity,
+};
 use semantic_vocabulary::FuelScheduleIdentity;
 
-pub use rewrite::fold_selected_constant_boolean;
-pub use validation::validate_constant_boolean_fold;
+pub(crate) use rewrite::fold_selected_constant_boolean;
+pub(crate) use validation::{measured_steps, validate_constant_boolean_fold};
 
 #[cfg(test)]
 mod tests;
@@ -112,6 +115,8 @@ pub struct ConstantBooleanReceipt {
     transformed_selected: SelectedInstructionPlanIdentity,
     optimization_unit: OptimizationUnitIdentity,
     fuel_schedule: FuelScheduleIdentity,
+    function_index: usize,
+    materialization: SelectedInstructionId,
 }
 
 impl ConstantBooleanReceipt {
@@ -127,6 +132,42 @@ impl ConstantBooleanReceipt {
     pub const fn fuel_schedule(&self) -> FuelScheduleIdentity {
         self.fuel_schedule
     }
+    /// The function the fold was committed in.
+    pub const fn function_index(&self) -> usize {
+        self.function_index
+    }
+    /// The folded flag-reader materialization's source-side identity.
+    pub const fn materialization(&self) -> SelectedInstructionId {
+        self.materialization
+    }
+    /// The durable transformation identity the post-allocation manifest
+    /// ledger records: the receipt's exact fields under the
+    /// constant-boolean domain separator.
+    pub fn identity(&self) -> ConstantBooleanIdentity {
+        constant_boolean_identity(self)
+    }
+}
+
+/// Canonical identity of one validated constant boolean fold: every receipt
+/// field — the coordinate, both plan identities, and the proof inputs — is
+/// part of the durable record, so two folds of the same materialization
+/// under different sources stay distinct transformations.
+pub(crate) fn constant_boolean_identity(
+    receipt: &ConstantBooleanReceipt,
+) -> ConstantBooleanIdentity {
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(b"omega.terminal-constant-boolean-fold.v1\0");
+    bytes.extend_from_slice(&receipt.source_selected.bytes());
+    bytes.extend_from_slice(&receipt.transformed_selected.bytes());
+    bytes.extend_from_slice(&receipt.optimization_unit.bytes());
+    bytes.extend_from_slice(&receipt.fuel_schedule.marker().to_le_bytes());
+    bytes.extend_from_slice(
+        &u64::try_from(receipt.function_index)
+            .expect("constant-boolean function index fits u64")
+            .to_le_bytes(),
+    );
+    bytes.extend_from_slice(&receipt.materialization.0.to_le_bytes());
+    ConstantBooleanIdentity::from_canonical_bytes(&bytes)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

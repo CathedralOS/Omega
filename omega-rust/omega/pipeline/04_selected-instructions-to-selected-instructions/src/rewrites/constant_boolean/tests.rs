@@ -1,10 +1,9 @@
+use super::{
+    ConstantBooleanError, ConstantBooleanReceipt, ValidatedConstantBoolean,
+    fold_selected_constant_boolean, validate_constant_boolean_fold,
+};
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::test_support::{budget, instruction, measured_step_budget};
-use crate::rewrites::unexecuted::ConstantBooleanError;
-use crate::rewrites::unexecuted::ConstantBooleanReceipt;
-use crate::rewrites::unexecuted::ValidatedConstantBoolean;
-use crate::rewrites::unexecuted::fold_selected_constant_boolean;
-use crate::rewrites::unexecuted::validate_constant_boolean_fold;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
 use optimization_unit::ValueDefinitionSite;
 use register_environment::baseline_target_register_environment;
@@ -178,6 +177,8 @@ fn fixture(
             transformed_selected: identity,
             optimization_unit: OptimizationUnitIdentity::from_bytes([2; 32]),
             fuel_schedule: plan.fuel_schedule,
+            function_index: 0,
+            materialization: BOOLEAN,
         },
         transformed: std::sync::Arc::new(plan),
     }

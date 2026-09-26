@@ -4,8 +4,8 @@ use optimization_core::{
 };
 use register_model::TargetRegisterEnvironmentIdentity;
 use selected_instructions::{
-    AddressFoldIdentity, CopyRemovalIdentity, FixedViewCopyIdentity, LiteralFoldIdentity,
-    LiveRangeIdentity, LivenessIdentity, PressureRematerializationIdentity,
+    AddressFoldIdentity, ConstantBooleanIdentity, CopyRemovalIdentity, FixedViewCopyIdentity,
+    LiteralFoldIdentity, LiveRangeIdentity, LivenessIdentity, PressureRematerializationIdentity,
     RedundantExtensionIdentity, SelectedInstructionPlanIdentity,
 };
 use target::NativeTarget;
@@ -52,6 +52,7 @@ pub enum PostAllocationSelectedTransformation {
     CopyRemoval(CopyRemovalIdentity),
     RedundantExtension(RedundantExtensionIdentity),
     AddressFold(AddressFoldIdentity),
+    ConstantBoolean(ConstantBooleanIdentity),
 }
 
 /// Structured report at the first independently validated physical-home
