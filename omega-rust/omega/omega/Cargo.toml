@@ -22,7 +22,7 @@ package-manager = { path = "../package-manager" }
 package-source = { path = "../package-manager/source-acquisition" }
 package-compilation = { path = "../compiler/package-compilation" }
 resolver-execution = { path = "../package-manager/resolver-execution" }
-target = { path = "../representations/target" }
+target = { path = "../backend/target" }
 trust-ledger = { path = "../compiler/trust-ledger" }
 checked-trees-to-lowered-psi = { path = "../../psi/pipeline/05_checked-trees-to-lowered-psi" }
 semantic-vocabulary = { path = "../../psi/foundation/semantic-vocabulary" }

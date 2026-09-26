@@ -10,8 +10,8 @@ path = "src/lib.rs"
 
 [dependencies]
 component-description = { path = "../component-description" }
-effects = { path = "../../../representations/effects" }
+effects = { path = "../../plans/effects" }
 native-artifact = { path = "../native-artifact" }
-target = { path = "../../../representations/target" }
+target = { path = "../../target" }
 image-emission = { path = "../../images/image-emission" }
 terminal-codec = { path = "../../../../psi/semantics/terminal-codec" }

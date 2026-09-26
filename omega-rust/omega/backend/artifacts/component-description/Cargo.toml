@@ -12,7 +12,7 @@ path = "src/lib.rs"
 test-support = []
 
 [dependencies]
-effects = { path = "../../../representations/effects" }
+effects = { path = "../../plans/effects" }
 proof-admission = { path = "../../../../psi/semantics/proof-admission" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 terminal-codec = { path = "../../../../psi/semantics/terminal-codec" }

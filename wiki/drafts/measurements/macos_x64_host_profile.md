@@ -13,7 +13,7 @@ to the capability owners named under Attribution.
   (`mbx build -p omega`, dev profile, 2026-09-23). Measurements ran in the
   main checkout; origin/main moved to `3d3acf2d5c` during the session.
 - `TargetProfile::host()` resolves `macos_x86_64` on this host
-  (`omega-rust/omega/representations/target/src/target_profile.rs`); the
+  (`omega-rust/omega/backend/target/src/target_profile.rs`); the
   declared target name `macos_x86_64` is accepted by `--target`.
 
 ## Commands and observations

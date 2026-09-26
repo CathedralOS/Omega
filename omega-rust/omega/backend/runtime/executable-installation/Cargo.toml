@@ -11,9 +11,9 @@ path = "src/lib.rs"
 [dependencies]
 extents = { path = "../../../../psi/foundation/extents" }
 layout-plans = { path = "../../../../psi/foundation/layout-plans" }
-target = { path = "../../../representations/target" }
-installation-evidence = { path = "../../../representations/installation-evidence" }
+target = { path = "../../target" }
+installation-evidence = { path = "../installation-evidence" }
 sha2 = "0.10.9"
 
 [dev-dependencies]
-optimization-core = { path = "../../../representations/optimization-core", features = ["test-support"] }
+optimization-core = { path = "../../../foundation/optimization-core", features = ["test-support"] }

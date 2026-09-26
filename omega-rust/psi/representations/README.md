@@ -6,6 +6,34 @@ recover meaning from body presence, keyword combinations, declaration names,
 runtime layout, or provider selection. [Terminal Psi](../../../wiki/spec/terminal-psi/product.md)
 is the published boundary, not these intermediate trees.
 
+## Program forms along the pipeline
+
+These seven independent packages hold the successive program forms. The
+transformations live in the linked pipeline stages.
+
+| Program form | Produced by | Next pipeline consumer |
+| --- | --- | --- |
+| [Tokens](tokens/src/lib.rs) | [00: source files → tokens](../pipeline/00_source-files-to-tokens/src/lib.rs) | [01: tokens → syntax trees](../pipeline/01_tokens-to-syntax-trees/src/lib.rs) |
+| [Syntax trees](syntax-trees/src/lib.rs) | [01: tokens → syntax trees](../pipeline/01_tokens-to-syntax-trees/src/lib.rs) | [02: syntax → symbol-resolved trees](../pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lib.rs) |
+| [Symbol-resolved trees](symbol-resolved-trees/src/lib.rs) | [02: syntax → symbol-resolved trees](../pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lib.rs) | [03: resolved → typed trees](../pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) |
+| [Typed trees](typed-trees/src/lib.rs) | [03: resolved → typed trees](../pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) | [04: typed → checked trees](../pipeline/04_typed-trees-to-checked-trees/README.md) |
+| [Checked trees](checked-trees/src/lib.rs) | [04: typed → checked trees](../pipeline/04_typed-trees-to-checked-trees/README.md) | [05: checked trees → lowered Psi](../pipeline/05_checked-trees-to-lowered-psi/README.md) |
+| [Lowered Psi](lowered-psi/src/lib.rs) | [05: checked trees → lowered Psi](../pipeline/05_checked-trees-to-lowered-psi/README.md) | [06: lowered Psi → lowered Psi](../pipeline/06_lowered-psi-to-lowered-psi/README.md), then [07: lowered Psi → Terminal Psi](../pipeline/07_lowered-psi-to-terminal-psi/README.md) |
+| [Terminal Psi](terminal-psi/src/lib.rs) | [07: lowered Psi → Terminal Psi](../pipeline/07_lowered-psi-to-terminal-psi/README.md) | [Omega 00: Terminal Psi → abstract operations](../../omega/pipeline/00_terminal-psi-to-abstract-operations/README.md) |
+
+Stage 06 optimizes lowered Psi in the same representation. The independent
+[checked interpreter](../interpreter/checked-interpreter/README.md) and
+[Terminal interpreter](../interpreter/terminal-interpreter/README.md) consume
+their respective program forms without creating another pipeline representation.
+
+Constituent semantic records have separate package owners:
+[facts](../semantics/facts/src/lib.rs) holds fact contexts, places and evidence;
+[flow-effects](../semantics/flow-effects/src/lib.rs) holds operational,
+invocation, capability and reach summaries. The shared
+[optimization selections](../foundation/optimization-selections/src/lib.rs)
+package owns pass names, canonical selections and their identities. These
+packages support the route above; none is an additional program stage.
+
 ## Records and facts
 
 | Subject | Representation obligation |
@@ -61,9 +89,7 @@ report never substitutes for installation or single-use invocation custody.
 
 ## Validation and remaining work
 
-The [semantic shape tests](../../../tests/architecture/semantic_taxonomy_inventory.rs)
-pin selected current records and check that representation changes retain their
-independent distinctions. They are compile-time shape witnesses, not evidence
-that all intended behavior works. [TASKS.md](../../../TASKS.md) owns actual
-unclosed source-to-Terminal and native consumers; do not reproduce migration
-milestones or stale missing-field inventories here.
+Representation changes must preserve the independent semantic distinctions
+above through their producing and consuming stages. [TASKS.md](../../../TASKS.md)
+owns actual unclosed source-to-Terminal and native consumers; do not reproduce
+migration milestones or stale missing-field inventories here.

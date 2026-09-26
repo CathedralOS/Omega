@@ -9,7 +9,7 @@ name = "installation_evidence"
 path = "src/lib.rs"
 
 [dependencies]
-target = { path = "../target" }
-semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
-terminal-psi = { path = "../../../psi/representations/terminal-psi" }
+target = { path = "../../target" }
+semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
+terminal-psi = { path = "../../../../psi/representations/terminal-psi" }
 sha2 = "0.10.9"

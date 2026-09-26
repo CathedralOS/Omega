@@ -20,7 +20,7 @@
         "omega-rust/omega/representations/target-operations",
         "omega-rust/omega/representations/target-operations-runtime",
         "omega-rust/omega/representations/abstract-operations",
-        "omega-rust/omega/representations/legalized-operations",
+        "omega-rust/omega/representations/target-operations/legalized-operations",
         "omega-rust/omega/pipeline/terminal-psi-to-abstract-operations",
         "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations",
         "omega-rust/omega/pipeline/abstract-operations-to-target-operations",

@@ -8,9 +8,9 @@ Start with the subsystem that owns the operation:
 | [compiler/](compiler/README.md) | Compilation coordinator and independent supporting packages |
 | [package-manager/](package-manager/README.md) | Package operations, source acquisition, resolver execution and review |
 | [pipeline/](../pipeline.md) | Transformations from Terminal Psi through native realization |
-| [representations/](representations/README.md) | Independent durable native IR and shared compiler data packages |
+| [representations/](representations/README.md) | Native pipeline program families and their independent internal forms |
 | `backend/` | Target, ABI, encoding, image and runtime mechanisms |
-| [foundation/](foundation/README.md) | Shared host process execution and filesystem custody |
+| [foundation/](foundation/README.md) | Shared host primitives, function identities and optimization vocabulary |
 
 The application is the Cargo package `omega` in `omega/`; run it from the
 workspace root with `mbx run -p omega -- --check <root.omg>`.

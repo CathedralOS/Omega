@@ -9,4 +9,4 @@ name = "runtime_abi"
 path = "src/lib.rs"
 
 [dependencies]
-target = { path = "../../../representations/target" }
+target = { path = "../../target" }

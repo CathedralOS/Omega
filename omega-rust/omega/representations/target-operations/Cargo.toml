@@ -9,10 +9,10 @@ name = "target_operations"
 path = "src/lib.rs"
 
 [dependencies]
-calling-conventions = { path = "../calling-conventions" }
-function-identity = { path = "../function-identity" }
-target = { path = "../target" }
-task-plans = { path = "../task-plans" }
+calling-conventions = { path = "../../backend/calling-conventions" }
+function-identity = { path = "../../foundation/function-identity" }
+target = { path = "../../backend/target" }
+task-plans = { path = "../../backend/runtime/task-plans" }
 abstract-operations = { path = "../abstract-operations" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }

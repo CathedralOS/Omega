@@ -9,10 +9,10 @@ name = "image"
 path = "src/lib.rs"
 
 [dependencies]
-calling-conventions = { path = "../../../representations/calling-conventions" }
-function-identity = { path = "../../../representations/function-identity" }
+calling-conventions = { path = "../../calling-conventions" }
+function-identity = { path = "../../../foundation/function-identity" }
 arena = { path = "../../../../psi/foundation/arena" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
 object-file = { path = "../../object/object-file" }
-target = { path = "../../../representations/target" }
+target = { path = "../../target" }
 sha2 = "0.10.9"

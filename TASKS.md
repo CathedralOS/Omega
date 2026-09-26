@@ -4990,7 +4990,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   Reuse the sealed call-graph plans, argument marshalling, nonmoving leases and
   provider-instance claim ledger. Call-side suspension markers already require
   site/plan pairs; `suspension_call_plan_rejects_coordinated_site_and_plan_deletion`
-  pins that control. The [implementation note](omega-rust/omega/representations/task-plans/README.md)
+  pins that control. The [implementation note](omega-rust/omega/backend/runtime/task-plans/README.md)
   distinguishes those static/accounting mechanisms from executable activation.
 
   - Join final physical frame/spill demand, alignment, entry overhead and complete

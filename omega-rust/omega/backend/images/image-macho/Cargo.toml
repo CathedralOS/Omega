@@ -12,8 +12,8 @@ path = "src/lib.rs"
 arena = { path = "../../../../psi/foundation/arena" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
 image = { path = "../image" }
-calling-conventions = { path = "../../../representations/calling-conventions" }
+calling-conventions = { path = "../../calling-conventions" }
 object-file = { path = "../../object/object-file" }
-target = { path = "../../../representations/target" }
+target = { path = "../../target" }
 isa-x86_64 = { path = "../../instruction_set_architectures/isa-x86_64" }
 sha2 = "0.10"

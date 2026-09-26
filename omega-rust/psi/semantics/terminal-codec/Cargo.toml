@@ -12,7 +12,7 @@ path = "src/lib.rs"
 [dependencies]
 semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
 language-semantics = { path = "../../foundation/language-semantics" }
-optimization = { path = "../../representations/optimization" }
+optimization = { path = "../../foundation/optimization-selections" }
 proof-admission = { path = "../proof-admission" }
 terminal-psi = { path = "../../representations/terminal-psi" }
 terminal-semantics = { path = "../terminal-semantics" }

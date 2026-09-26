@@ -10,7 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 artifacts = { path = "../artifacts" }
-effects = { path = "../../representations/effects" }
+effects = { path = "../../backend/plans/effects" }
 checked-trees = { path = "../../../psi/representations/checked-trees" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
@@ -22,4 +22,4 @@ typed-trees-to-checked-trees = { path = "../../../psi/pipeline/04_typed-trees-to
 sha2 = "0.10.9"
 
 [dev-dependencies]
-target = { path = "../../representations/target" }
+target = { path = "../../backend/target" }

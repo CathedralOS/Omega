@@ -10,9 +10,9 @@ name = "terminal_psi_to_abstract_operations"
 path = "src/lib.rs"
 
 [dependencies]
-optimization-unit = { path = "../../representations/optimization-unit" }
+optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
 abstract-operations = { path = "../../representations/abstract-operations" }
-installation-evidence = { path = "../../representations/installation-evidence" }
+installation-evidence = { path = "../../backend/runtime/installation-evidence" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 proof-admission = { path = "../../../psi/semantics/proof-admission" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }
@@ -20,17 +20,17 @@ terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
 terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" }
 terminal-semantics = { path = "../../../psi/semantics/terminal-semantics" }
 terminal-verifier = { path = "../../../psi/semantics/terminal-verifier" }
-calling-conventions = { path = "../../representations/calling-conventions" }
-effects = { path = "../../representations/effects" }
+calling-conventions = { path = "../../backend/calling-conventions" }
+effects = { path = "../../backend/plans/effects" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
 provider-planning = { path = "../../compiler/provider-planning" }
-target = { path = "../../representations/target" }
+target = { path = "../../backend/target" }
 
 [dev-dependencies]
 abstract-operations-to-target-operations = { path = "../02_abstract-operations-to-target-operations" }
 checked-trees = { path = "../../../psi/representations/checked-trees" }
-target = { path = "../../representations/target" }
-optimization-unit-semantics = { path = "../../representations/optimization-unit/semantics" }
+target = { path = "../../backend/target" }
+optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit/semantics" }
 checked-trees-to-lowered-psi = { path = "../../../psi/pipeline/05_checked-trees-to-lowered-psi" }
 source-files-to-tokens = { path = "../../../psi/pipeline/00_source-files-to-tokens" }
 symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/03_symbol-resolved-trees-to-typed-trees" }

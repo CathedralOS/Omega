@@ -221,7 +221,7 @@
       "item": "SELECTED-ABI-VALIDATION",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/representations/calling-conventions"
+        "omega-rust/omega/backend/calling-conventions"
       ],
       "suggested_first_slice": "Validate one selected calling-convention decision against the declared ABI rather than trusting the selector."
     },

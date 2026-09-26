@@ -68,7 +68,7 @@ compiler services without the compiler depending back on package management;
 shared foundations and utilities remain independently owned. Durable IRs stay
 in `representations/`, separate from their producing pipeline stages. The
 independent optimization-unit checker sits beside its IR at
-[`omega/representations/optimization-unit/semantics/`](omega/representations/optimization-unit/semantics),
+[`omega/representations/abstract-operations/optimization-unit/semantics/`](omega/representations/abstract-operations/optimization-unit/semantics),
 with no reverse dependency from the representation to its checker.
 
 Run the product through the `omega` package in `omega/omega/`; repository commands and validation policy are

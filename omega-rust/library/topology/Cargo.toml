@@ -25,4 +25,4 @@ package-manager = { path = "../../omega/package-manager" }
 package-source = { path = "../../omega/package-manager/source-acquisition" }
 proof-admission = { path = "../../psi/semantics/proof-admission" }
 semantic-vocabulary = { path = "../../psi/foundation/semantic-vocabulary" }
-target = { path = "../../omega/representations/target" }
+target = { path = "../../omega/backend/target" }

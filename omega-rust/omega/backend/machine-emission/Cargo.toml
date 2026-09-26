@@ -20,11 +20,11 @@ register-homes-to-post-allocation-machine = { path = "../../pipeline/06_register
 selected-form-encoding-to-resolved-layout = { path = "../../pipeline/08_selected-form-encoding-to-resolved-layout" }
 resolved-layout-to-resolved-layout = { path = "../../pipeline/09_resolved-layout-to-resolved-layout" }
 selected-instructions-to-register-homes = { path = "../../pipeline/05_selected-instructions-to-register-homes" }
-register-model = { path = "../../representations/register-model" }
+register-model = { path = "../register-model" }
 selected-instructions = { path = "../../representations/selected-instructions" }
-optimization-core = { path = "../../representations/optimization-core" }
-target = { path = "../../representations/target" }
-calling-conventions = { path = "../../representations/calling-conventions" }
+optimization-core = { path = "../../foundation/optimization-core" }
+target = { path = "../target" }
+calling-conventions = { path = "../calling-conventions" }
 machine-code = { path = "../../representations/machine-code" }
 isa-aarch64 = { path = "../instruction_set_architectures/isa-aarch64" }
 isa-x86_64 = { path = "../instruction_set_architectures/isa-x86_64" }
@@ -32,7 +32,7 @@ semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 terminal-fuel = { path = "../../../psi/semantics/terminal-fuel" }
 
-physical-instructions = { path = "../../representations/physical-instructions" }
+physical-instructions = { path = "../../representations/post-allocation-machine" }
 
 [dev-dependencies]
 target-operations = { path = "../../representations/target-operations" }

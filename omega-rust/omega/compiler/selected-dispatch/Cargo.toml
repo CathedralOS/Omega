@@ -9,11 +9,11 @@ name = "selected_dispatch"
 path = "src/lib.rs"
 
 [dependencies]
-effects = { path = "../../representations/effects" }
+effects = { path = "../../backend/plans/effects" }
 package-compilation = { path = "../package-compilation" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
 provider-planning = { path = "../provider-planning" }
-target = { path = "../../representations/target" }
+target = { path = "../../backend/target" }
 arena = { path = "../../../psi/foundation/arena" }
 checked-trees = { path = "../../../psi/representations/checked-trees" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
@@ -28,7 +28,7 @@ typed-trees-to-checked-trees = { path = "../../../psi/pipeline/04_typed-trees-to
 validation = { path = "../../../psi/semantics/validation" }
 
 [dev-dependencies]
-facts = { path = "../../../psi/representations/facts" }
+facts = { path = "../../../psi/semantics/facts" }
 source-files-to-tokens = { path = "../../../psi/pipeline/00_source-files-to-tokens" }
 symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/03_symbol-resolved-trees-to-typed-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/02_syntax-trees-to-symbol-resolved-trees" }

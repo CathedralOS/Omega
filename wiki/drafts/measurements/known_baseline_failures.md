@@ -1583,7 +1583,7 @@ Environmental, not a test regression, verified across the macw3 wave on
 bases including `d1b7165cd6`, `07782416b4`, and `1055e88f31`):
 
 - `TargetProfile::host()`
-  (`omega-rust/omega/representations/target/src/lib.rs`, `host()`) has cfg
+  (`omega-rust/omega/backend/target/src/lib.rs`, `host()`) has cfg
   arms for macos-aarch64, linux-aarch64, linux-x86_64, and windows-x86_64
   only, so host-profiled tests panic with `unsupported host profile for
   Omega native planning`. Observed sets: ~20 `package-manager` ops tests and

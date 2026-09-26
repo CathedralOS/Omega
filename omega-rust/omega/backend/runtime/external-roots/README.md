@@ -15,7 +15,7 @@ execution consume the same bound result; a scalar byte total is not a second
 admission route.
 
 The target arrival model lives in
-[calling-conventions/stack_realizations.rs](../../../representations/calling-conventions/src/stack_realizations/mod.rs).
+[calling-conventions/stack_realizations.rs](../../calling-conventions/src/stack_realizations/mod.rs).
 Its x86-64 rule derives arrival from installed vector, gate/TSS and privilege
 facts, not caller-authored word counts. The binder requires exact equality with
 the validated context roster and the selected boundary commitment. Unknown,

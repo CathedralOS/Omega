@@ -13,9 +13,9 @@ semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 checked-trees = { path = "../../../psi/representations/checked-trees" }
 typed-trees = { path = "../../../psi/representations/typed-trees" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
-calling-conventions = { path = "../../representations/calling-conventions" }
-effects = { path = "../../representations/effects" }
-target = { path = "../../representations/target" }
+calling-conventions = { path = "../../backend/calling-conventions" }
+effects = { path = "../../backend/plans/effects" }
+target = { path = "../../backend/target" }
 
 [dev-dependencies]
 executable-installation = { path = "../../backend/runtime/executable-installation" }

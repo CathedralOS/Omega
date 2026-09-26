@@ -14,7 +14,7 @@ lowered-psi = { path = "../../representations/lowered-psi" }
 arena = { path = "../../foundation/arena" }
 checked-trees = { path = "../../representations/checked-trees" }
 semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
-facts = { path = "../../representations/facts" }
+facts = { path = "../../semantics/facts" }
 language-core = { path = "../../foundation/language-core" }
 language-semantics = { path = "../../foundation/language-semantics" }
 numerics = { path = "../../foundation/numerics" }
@@ -31,7 +31,7 @@ sha2 = "0.10.9"
 [dev-dependencies]
 mimalloc = { version = "0.1", default-features = false }
 diagnostics = { path = "../../foundation/diagnostics" }
-optimization = { path = "../../representations/optimization" }
+optimization = { path = "../../foundation/optimization-selections" }
 lowered-psi-to-lowered-psi = { path = "../06_lowered-psi-to-lowered-psi" }
 lowered-psi-to-terminal-psi = { path = "../07_lowered-psi-to-terminal-psi" }
 terminal-production = { path = "../../compiler/terminal-production" }
