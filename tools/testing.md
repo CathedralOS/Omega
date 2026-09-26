@@ -80,12 +80,25 @@ compares only the fixtures that ran against the same golden; a subset
 `--record` merges into it. The unfiltered corpus is scheduled-workload cost,
 not loop cost — keep it out of routine iteration.
 
-The default run checks fixtures only. `--native` builds every pass and run
-fixture for the host target, executes the run tier and `*_exit` fixtures in a
-temporary directory (stdin from `input.txt`, stdout compared with
-`expected_stdout.txt`), and diffs against that host's golden
-`tests/omega/corpus_native_<target>.txt`; records gain `exit:<code>` and
-`stdout:match|differs`. Use it with `--filter` for backend-visible changes.
+The default run checks fixtures only. `--native` realizes each pass and run
+fixture that binds a program-entry root in its own `build.omg`, executes the
+run tier and `*_exit` fixtures in a temporary directory (stdin from
+`input.txt`, stdout compared with `expected_stdout.txt`), and diffs against
+that host's golden `tests/omega/corpus_native_<target>.txt`; records gain
+`exit:<code>` and `stdout:match|differs`. Use it with `--filter` for
+backend-visible changes.
+
+It realizes for the target the fixture declares, preferring the host when the
+fixture binds it so the product can also run; a fixture binding only foreign
+targets is still realized, because target lowering and emission are most of
+what the leg measures. A fixture that binds no root is not realized at all
+and stays on the check route, recording `checked`. Both rules matter for
+reading a result: before them the leg built everything for the host, so a
+fixture with no entry answered "native-artifact production requires one exact
+selected program entry" and one binding only `windows_x86_64` answered
+"selected target `<host>` has no bound required root slot" -- 13 of 28
+rejections in one sample were the harness choosing for the fixture rather
+than the fixture's own behavior.
 
 ```bash
 python3 tools/corpus_gate.py --native --filter providers/
