@@ -323,6 +323,100 @@ fn receiver_source_provisions_one_zeroed_frame_slot_and_reorders_arguments() {
     );
 }
 
+/// Every shipped hosted profile names the same `ProgramStorageEntry::enter`
+/// semantic continuation but declares a `HostedApplication` slot with no
+/// visible storage roots: the authored physical entry arrives on its own
+/// calling convention's register fragments and provisions the two roots
+/// internally. The UEFI wrapper recipe assumes the freestanding indirect
+/// Extent arrival, so the recipe/plan combination is incompatible and
+/// contract binding — the only route to a plan or an encoding — rejects
+/// each hosted slot before any wrapper machinery runs. Windows x86-64 is
+/// the sharpest case: its `NativeTarget` equals UEFI's X86_64+Coff triple,
+/// so only the authored profile-slot identity keeps it out.
+#[test]
+fn hosted_profiles_cannot_form_the_wrapper_contract() {
+    let semantic = semantic();
+    let application = OptimizedProgramStorageSemanticCallingApplication::new(
+        &semantic,
+        0x5E17_4A11_0000_0001,
+        abstract_operations_to_target_operations::effects::provider_plan::BoundaryCallingPlanCommitment::from_digest([0xC4; 32]),
+    );
+    for profile in [
+        target::TargetProfile::LinuxArm64,
+        target::TargetProfile::MacosArm64,
+        target::TargetProfile::LinuxX64,
+        target::TargetProfile::MacosX64,
+        target::TargetProfile::WindowsX64,
+    ] {
+        let slot = profile.program_entry_slot();
+        assert_eq!(
+            slot.schema,
+            target::ProgramEntrySchema::HostedApplication,
+            "{profile:?} stays a hosted profile; this pin exists because it does"
+        );
+        let selected = SelectedProgramStorageEntryPlan::from_target_slot(
+            slot,
+            ServiceSchema {
+                trait_name: slot.boundary_schema.unwrap().into(),
+                methods: vec![ServiceMethod {
+                    name: "enter".into(),
+                    requirement_owner: "ProgramStorageEntry".into(),
+                    requirement_identity: REQUIREMENT.into(),
+                    parameter_count: 2,
+                    parameter_type_identities: vec!["ImageExtent".into(), "StorageExtent".into()],
+                    entry_claims: vec![],
+                    calling_plan_report_fingerprint: Some(application.report_fingerprint()),
+                    calling_plan_commitment: Some(application.commitment()),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            },
+            REQUIREMENT.into(),
+        )
+        .expect("a hosted slot still forms a valid selected entry plan");
+        // The hosted source signature is exact for its own slot: free entry,
+        // Unit result, and no source-visible storage roots.
+        let source = SelectedProgramEntrySourceSignature::from_checked_typed_entry(
+            slot,
+            SymbolHandle::from_arena_index(1),
+            SymbolHandle::from_arena_index(2),
+            "Main::main".into(),
+            "main".into(),
+            "Main::main#hosted".into(),
+            ProgramEntrySourceReceiverSignature::Free,
+            vec![],
+        )
+        .expect("hosted source signature");
+        let error = bind_optimized_program_storage_semantic_entry_contract(
+            profile.native_target(),
+            &selected,
+            &source,
+            &application,
+        )
+        .expect_err("a hosted recipe/plan combination must reject at contract binding");
+        assert!(
+            error.0.contains("exact UEFI x86-64"),
+            "{profile:?}: {error}"
+        );
+    }
+
+    // A hosted owner cannot counterfeit the freestanding slot either: the
+    // slot table itself rejects a ProgramStorage shape under a hosted owner.
+    let mut counterfeited = target::TargetProfile::UefiX64.program_entry_slot();
+    counterfeited.owner = target::TargetProfile::LinuxArm64;
+    assert!(
+        SelectedProgramStorageEntryPlan::from_target_slot(
+            counterfeited,
+            ServiceSchema {
+                trait_name: "UefiApplication".into(),
+                ..Default::default()
+            },
+            REQUIREMENT.into(),
+        )
+        .is_err()
+    );
+}
+
 #[test]
 fn private_call_fingerprint_and_relocation_corruption_fail_closed() {
     let mut plan = plan_optimized_program_storage_semantic_wrapper(contract(), None).unwrap();

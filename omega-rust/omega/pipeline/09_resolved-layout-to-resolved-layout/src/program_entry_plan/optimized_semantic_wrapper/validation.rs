@@ -134,7 +134,13 @@ pub(super) fn validate(
 pub(super) fn validate_contract_surface(
     contract: &OptimizedProgramStorageSemanticEntryContract,
 ) -> Result<(), ProgramStorageEntryDiagnostic> {
+    // The recipe belongs to the UEFI ProgramStorage slot, not to the x86-64
+    // triple: every other admitted profile — including Windows x64, whose
+    // `NativeTarget` is the same X86_64+Coff pair — selects a `HostedApplication`
+    // slot whose authored arrival this recipe cannot replay. The slot identity
+    // check is what keeps a same-triple contract from satisfying it.
     if contract.target() != target::NativeTarget::uefi_x64()
+        || contract.target_slot() != target::TargetProfile::UefiX64.program_entry_slot()
         || contract.semantic_boundary_entry_plan().call.policy != CallingPolicy::MicrosoftX64
         || contract
             .semantic_boundary_entry_plan()

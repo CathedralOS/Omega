@@ -65,6 +65,12 @@ impl std::fmt::Display for OptimizedProgramStorageSemanticWrapperEncodingError {
 
 impl std::error::Error for OptimizedProgramStorageSemanticWrapperEncodingError {}
 
+/// Discharge the plan's `TargetEncodingRequiredV1` obligation through the
+/// x86-64 ISA owner — the only template this entrance selects. The recipe
+/// exists for the `UefiX64` ProgramStorage slot alone; every hosted
+/// profile's plan already fails the independent replay inside this call, so
+/// an incompatible recipe/plan combination rejects before a template is
+/// requested rather than acquiring a foreign encoding.
 pub fn select_optimized_program_storage_semantic_wrapper_encoding(
     source: OptimizedProgramStorageSemanticWrapperPlan,
 ) -> Result<
