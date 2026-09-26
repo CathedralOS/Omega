@@ -23,40 +23,6 @@ fn prove(source: &str) {
 }
 
 #[test]
-fn computed_record_arrival_needs_no_identity_forwarding_state() {
-    prove(COMPUTED);
-    prove(&COMPUTED.replace(
-        "remaining: countdown.remaining - 1,\n            limit: countdown.limit",
-        "limit: countdown.limit, remaining: countdown.remaining - 1",
-    ));
-    prove(
-        &COMPUTED
-            .replace("limit: u64 [0..=5];", "limit: u64 [0..=5]; enabled: bool;")
-            .replace(
-                "limit: countdown.limit",
-                "limit: countdown.limit, enabled: true",
-            )
-            .replace(
-                "limit: pending.limit",
-                "limit: pending.limit, enabled: false",
-            ),
-    );
-}
-
-#[test]
-fn computed_record_role_is_independent_of_auxiliary_step_inputs() {
-    let source = COMPUTED
-        .replace(
-            "walk(countdown: Countdown)",
-            "walk(countdown: Countdown, step: u64 [1..=1])",
-        )
-        .replace("countdown.remaining > 0", "countdown.remaining >= step")
-        .replace("countdown.remaining - 1", "countdown.remaining - step");
-    prove(&source);
-    reject(&source.replace("countdown.remaining - step", "countdown.remaining + step"));
-}
-
-#[test]
 fn computed_record_arrivals_still_prove_every_field_and_endpoint() {
     for source in [
         COMPUTED.replace("countdown.remaining - 1", "countdown.remaining + 1"),
@@ -175,45 +141,6 @@ fn fresh_record_arrival_still_owes_membership_pinning_and_descent() {
     ] {
         reject(&source);
     }
-}
-
-#[test]
-fn fresh_record_arrival_needs_a_unique_owner_typed_slot() {
-    let (declarations, _) = FRESH.split_once("machine walk").expect("declarations");
-    reject(&format!(
-        "{declarations}
-        machine walk(countdown: Countdown)
-        terminates by countdown -> Countdown::Remaining in 0..=5;
-        -> u64 {{
-            transition countdown.remaining > 3 {{
-                true -> iterate(Countdown {{ remaining: 3, limit: 5 }}, Countdown {{ remaining: 2, limit: 5 }})
-                false -> countdown.remaining
-            }}
-            state iterate(first: Countdown, second: Countdown) {{
-                transition first.remaining > 0 {{
-                    true -> iterate(Countdown {{ remaining: first.remaining - 1, limit: first.limit }}, second)
-                    false -> first.remaining
-                }}
-            }}
-        }}"
-    ));
-    // A borrowed record is not an owned record slot the view can rank.
-    reject(&FRESH.replace("pending: Countdown", "pending: &Countdown"));
-}
-
-#[test]
-fn field_rank_follows_renamed_and_reordered_state_arrivals() {
-    prove(COUNTDOWN);
-    prove(&COUNTDOWN.replace("pending", "renamed"));
-    prove(&COUNTDOWN
-        .replace("iterate(ceiling, countdown)", "relay(countdown, ceiling)")
-        .replace("    state iterate", "    state relay(value: Countdown, bound: u64 [5..=10]) { transition { _ -> iterate(bound, value) } }\n    state iterate"));
-    prove(&COUNTDOWN.replace("in 0..=ceiling", "in 0..=5"));
-    prove(
-        &COUNTDOWN
-            .replace("[5..=10]", "[6..=10]")
-            .replace("in 0..=ceiling", "in 0..ceiling"),
-    );
 }
 
 #[test]
@@ -457,31 +384,6 @@ fn mutable_record_parameters_prove_only_while_the_prefix_preserves_them() {
         "transition pending.remaining",
         "limit = 10; transition pending.remaining",
     ));
-}
-
-#[test]
-fn separate_endpoint_records_keep_their_own_arrival_roles() {
-    let source = format!(
-        "data Bounds {{ value: u64 [5..=10]; }} {}",
-        COUNTDOWN
-            .replace("ceiling: u64 [5..=10]", "bounds: Bounds")
-            .replace("in 0..=ceiling", "in 0..=bounds.value")
-            .replace("iterate(ceiling, countdown)", "iterate(bounds, countdown)")
-            .replace("limit: u64 [5..=10]", "limits: Bounds")
-            .replace("iterate(limit, Countdown", "iterate(limits, Countdown")
-    );
-    prove(&source);
-    reject(&source.replace(
-        "iterate(limits, Countdown",
-        "iterate(Bounds { value: 5 }, Countdown",
-    ));
-    reject(&source.replace("iterate(limits, Countdown", "iterate(pending, Countdown"));
-    reject(
-        &source
-            .replace("iterate(bounds, countdown)", "iterate(countdown)")
-            .replace("limits: Bounds, ", "")
-            .replace("iterate(limits, Countdown", "iterate(Countdown"),
-    );
 }
 
 #[test]

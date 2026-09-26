@@ -375,13 +375,11 @@ impl TypedTrees {
             )
         });
         for authorization in &authorizations {
-            if authorization.provider_plan_digest == [0; 32]
-                || !self.traits().iter().any(|definition| {
-                    definition.is_boundary && definition.symbol == authorization.requirement
-                })
-            {
+            if !self.traits().iter().any(|definition| {
+                definition.is_boundary && definition.symbol == authorization.requirement
+            }) {
                 return Err(
-                    "fused service erasure authorization lacks an exact boundary requirement or selected-plan digest"
+                    "fused service erasure authorization lacks an exact boundary requirement"
                         .to_owned(),
                 );
             }

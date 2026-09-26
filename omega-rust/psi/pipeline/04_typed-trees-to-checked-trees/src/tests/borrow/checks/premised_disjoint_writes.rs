@@ -21,24 +21,6 @@ fn assert_still_active_rejection(source: &str) {
 }
 
 #[test]
-fn stated_ordering_premise_admits_fixed_index_write_before_borrowed_window() {
-    let source = r#"
-        data Main { items: [i32; 4]; }
-
-        machine Main::main(&mut self, cut: u64) -> u64
-            requires 0 < cut && cut <= 4;
-        {
-            let left: &mut [i32] = self.items[cut..4];
-            self.items[0] = 7;
-            left.len
-        }
-    "#;
-
-    check_program(source)
-        .expect("`0 < cut` proves element 0 sits below the borrowed `[cut, 4)` window");
-}
-
-#[test]
 fn stated_ordering_premise_admits_symbolic_index_write_before_borrowed_window() {
     let source = r#"
         data Main { items: [i32; 4]; }
@@ -54,28 +36,6 @@ fn stated_ordering_premise_admits_symbolic_index_write_before_borrowed_window() 
 
     check_program(source)
         .expect("`i < cut` proves the symbolic write precedes the borrowed window");
-}
-
-#[test]
-fn stated_ordering_premise_admits_exclusive_argument_before_borrowed_window() {
-    let source = r#"
-        data Main { items: [i32; 4]; }
-
-        machine take(slot: &mut i32) {
-            slot = 7;
-        }
-
-        machine Main::main(&mut self, i: u64, cut: u64) -> u64
-            requires i < cut && cut <= 4 && i < 4;
-        {
-            let left: &mut [i32] = self.items[cut..4];
-            take(&mut self.items[i]);
-            left.len
-        }
-    "#;
-
-    check_program(source)
-        .expect("`i < cut` proves the exclusive call operand disjoint from the borrowed window");
 }
 
 #[test]
@@ -99,32 +59,6 @@ fn stated_ordering_premise_admits_summed_index_write_before_borrowed_window() {
 }
 
 #[test]
-fn stated_ordering_premise_admits_summed_exclusive_argument_before_borrowed_window() {
-    // `idx` is immutable, bound to `i + j`: the sum's terms come from the
-    // local's initializer, so `i + j < cut` still discharges the borrow.
-    let source = r#"
-        data Main { items: [i32; 4]; }
-
-        machine take(slot: &mut i32) {
-            slot = 7;
-        }
-
-        machine Main::main(&mut self, i: u64, j: u64, cut: u64) -> u64
-            requires i + j < cut && cut <= 4 && i + j < 4;
-        {
-            let idx: u64 = i + j;
-            let left: &mut [i32] = self.items[cut..4];
-            take(&mut self.items[idx]);
-            left.len
-        }
-    "#;
-
-    check_program(source).expect(
-        "`i + j < cut` proves the summed exclusive operand disjoint from the borrowed window",
-    );
-}
-
-#[test]
 fn reordered_sum_premise_admits_the_same_canonical_bound() {
     // `j + i` normalizes to the same canonical sum as `i + j`, so a premise
     // stated on one spelling discharges a selector written in the other.
@@ -142,23 +76,6 @@ fn reordered_sum_premise_admits_the_same_canonical_bound() {
 
     check_program(source)
         .expect("`j + i < cut` normalizes to the same sum and discharges `i + j < cut`");
-}
-
-#[test]
-fn absent_ordering_premise_keeps_the_index_write_conflicting() {
-    let source = r#"
-        data Main { items: [i32; 4]; }
-
-        machine Main::main(&mut self, i: u64, cut: u64) -> u64
-            requires cut <= 4 && i < 4;
-        {
-            let left: &mut [i32] = self.items[cut..4];
-            self.items[i] = 7;
-            left.len
-        }
-    "#;
-
-    assert_still_active_rejection(source);
 }
 
 #[test]

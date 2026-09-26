@@ -139,34 +139,38 @@ pub(super) fn validate(
             diagnostics,
         );
     }
+    let return_domain = program.arithmetic_domain_for_type_reference(state.return_type);
     let before = diagnostics.len();
-    let (return_interval, source_primitive) = arithmetic_domains::validate_anonymous_integer_range(
-        program,
-        state.return_type,
-        *expression,
-        &owner,
-        diagnostics,
-    )
-    .unwrap_or_else(|| {
-        arithmetic_domains::validate_value_range(
+    let (return_interval, source_primitive, source_domain) =
+        arithmetic_domains::validate_anonymous_integer_range(
             program,
-            machine,
-            Some(state),
+            state.return_type,
             *expression,
-            value_environment,
-            return_primitive,
-            program.arithmetic_domain_for_type_reference(state.return_type),
             &owner,
             diagnostics,
         )
-    });
+        .unwrap_or_else(|| {
+            arithmetic_domains::validate_value_range(
+                program,
+                machine,
+                Some(state),
+                *expression,
+                value_environment,
+                return_primitive,
+                return_domain,
+                &owner,
+                diagnostics,
+            )
+        });
     // A cleanly-analyzed return value that cannot fit the declared return
     // type is a silent narrowing (`-> i8 { 300 }`), same as a store.
     if diagnostics.len() == before {
         arithmetic_domains::check_narrowing_assignment(
             return_primitive,
+            return_domain,
             return_interval,
             source_primitive,
+            source_domain,
             &owner,
             diagnostics,
         );

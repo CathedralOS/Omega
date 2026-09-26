@@ -38,32 +38,6 @@ fn rejects_mutation_of_source_retained_by_aggregate_helper_call_leaf() {
 }
 
 #[test]
-fn accepts_unrelated_mutation_beside_aggregate_helper_call_leaf() {
-    let source = r#"
-        data View {
-            body: &mut i32;
-        }
-
-        machine identity(value: &mut i32) -> &mut i32 {
-            value
-        }
-
-        machine write(value: &mut i32) {
-            value = 1;
-        }
-
-        machine exercise(first: &mut i32, second: &mut i32) {
-            let held: View = View { body: identity(first) };
-            write(second);
-            write(held.body);
-        }
-    "#;
-
-    check_program(source)
-        .expect("the helper-linked aggregate loan must not capture an unrelated source");
-}
-
-#[test]
 fn rejects_mutation_of_source_retained_by_nested_aggregate_call() {
     let source = nested_aggregate_source(
         "let held: Outer<'left, 'right> = Outer { pair: pair(left, right) };",

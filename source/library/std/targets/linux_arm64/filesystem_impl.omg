@@ -143,7 +143,7 @@ invokes
     }
     state rd_empty(&mut self) -> IoResult { IoResult::Ok { count: 0 } }
     state rd_ok(&mut self) -> IoResult {
-        self.rd_lou = narrow_i32_to_u64_wrapping(self.rd_count - 2) as u64 in Wrapping;
+        self.rd_lou = narrow_i32_to_u64_wrapping((self.rd_count - 2) as i32) as u64 in Wrapping;
         let count: u64 = self.rd_lou as u64;
         IoResult::Ok { count: count }
     }
@@ -232,8 +232,8 @@ reaches FilesystemHost
         transition self.rd_count > 2 { true -> rds_ok() _ -> rds_empty() }
     }
     state rds_ok(&mut self) -> DirStatsResult {
-        let converted_entries: u64 = narrow_i32_to_u64_wrapping(self.rd_count - 2);
-        let converted_subdirs: u64 = narrow_i32_to_u64_wrapping(self.rd_dirs - 2);
+        let converted_entries: u64 = narrow_i32_to_u64_wrapping((self.rd_count - 2) as i32);
+        let converted_subdirs: u64 = narrow_i32_to_u64_wrapping((self.rd_dirs - 2) as i32);
         let converted_files: u64 = narrow_i32_to_u64_wrapping(self.rd_files as i32);
         DirStatsResult::Ok { stats: DirStats {
             entries: converted_entries,

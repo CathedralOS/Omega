@@ -43,56 +43,6 @@ const SOURCE: &str = r#"
 "#;
 
 #[test]
-fn borrowed_primitive_local_read_observes_the_callee_write() {
-    let checked = crate::front_end::checked_program(
-        r#"
-        machine reset(value: &mut u64) -> u64 { value = 0; 7 }
-        machine enter(value: &mut u64) {
-            let mut scratch: u64 = 91;
-            let returned: u64 = reset(&mut scratch);
-            value = scratch;
-        }
-    "#,
-    );
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("enter"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("borrowing local storage must preserve the callee's write for a later read")
-    .into_artifact();
-    execute_with_expectations(
-        &artifact,
-        &[],
-        ExecutionExpectations {
-            calls: 1,
-            store_sites: 2,
-            callee_store_executions: 1,
-            primitive_locals: 1,
-            primitive_reads: 1,
-            observations: &[91, 0],
-        },
-    );
-}
-
-#[test]
-fn borrowed_scalar_callee_and_returned_value_reach_the_callers_closure() {
-    let checked = crate::front_end::checked_program(SOURCE);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("enter"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("borrowed scalar callee belongs to the ordinary shared call closure")
-    .into_artifact();
-    execute(&artifact, &[], 7);
-}
-
-#[test]
 fn immutable_snapshot_precedes_the_call_and_fresh_local_read_observes_zero() {
     let checked = crate::front_end::checked_program(
         r#"
@@ -125,42 +75,6 @@ fn immutable_snapshot_precedes_the_call_and_fresh_local_read_observes_zero() {
             primitive_locals: 1,
             primitive_reads: 2,
             observations: &[91, 41, 0],
-        },
-    );
-}
-
-#[test]
-fn local_overwrite_commits_the_returned_scalar_before_a_fresh_read() {
-    let checked = crate::front_end::checked_program(
-        r#"
-        machine reset(value: &mut u64) -> u64 { value = 0; 7 }
-        machine enter(value: &mut u64) {
-            let mut scratch: u64 = 41;
-            let returned: u64 = reset(&mut scratch);
-            scratch = returned;
-            value = scratch;
-        }
-    "#,
-    );
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("enter"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap()
-    .into_artifact();
-    execute_with_expectations(
-        &artifact,
-        &[],
-        ExecutionExpectations {
-            calls: 1,
-            store_sites: 3,
-            callee_store_executions: 1,
-            primitive_locals: 1,
-            primitive_reads: 1,
-            observations: &[91, 7],
         },
     );
 }

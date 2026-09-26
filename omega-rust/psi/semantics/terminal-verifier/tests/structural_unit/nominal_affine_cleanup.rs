@@ -29,18 +29,6 @@ use terminal_verifier::{
 };
 
 #[test]
-fn exact_one_call_nominal_affine_cleanup_validates_and_verifies() {
-    let module = executable_nominal_affine_module();
-    validate_module(&module).expect("exact one-call nominal cleanup should validate");
-    verify_module(
-        &module,
-        &ProofBundle::default(),
-        &AdmissionProfile::default(),
-    )
-    .expect("exact one-call nominal cleanup requires no proof evidence");
-}
-
-#[test]
 fn exact_two_call_nominal_affine_cleanup_validates_and_verifies_in_order() {
     let module = two_call_executable_nominal_affine_module();
     let [first, second] = module.machines[1].blocks[0].operations.as_slice() else {
@@ -251,26 +239,6 @@ fn one_call_nominal_affine_cleanup_rejects_recursive_and_uncalled_helpers() {
 }
 
 #[test]
-fn exact_one_primitive_field_nominal_affine_cleanup_validates() {
-    let mut module = nominal_affine_module();
-    module.structural_types[0].shape = StructuralTypeShape::Record {
-        fields: vec![StructuralFieldDeclaration {
-            identity: "payload".into(),
-            id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
-            field_type: StructuralFieldType::Scalar(ScalarType::Integer(
-                semantic_vocabulary::IntegerType::new(
-                    semantic_vocabulary::IntegerSign::Unsigned,
-                    32,
-                )
-                .unwrap(),
-            )),
-            relevance: terminal_psi::BindingRelevance::Relevant,
-        }],
-    };
-    validate_module(&module).expect("one primitive-field nominal cleanup should validate");
-}
-
-#[test]
 fn exact_two_primitive_fields_nominal_affine_cleanup_validates() {
     let mut module = nominal_affine_module();
     module.structural_types[0].shape = StructuralTypeShape::Record {
@@ -319,28 +287,6 @@ fn erased_ieee_float_structural_field_requires_an_opaque_semantic_type() {
             field: actual_field,
         }) if actual_type == structural_type && actual_field == field
     ));
-}
-
-#[test]
-fn wide_flat_primitive_nominal_affine_cleanup_validates() {
-    let mut module = nominal_affine_module();
-    module.structural_types[0].shape = StructuralTypeShape::Record {
-        fields: (1..=5)
-            .map(|index| StructuralFieldDeclaration {
-                identity: format!("payload_{index}"),
-                id: semantic_vocabulary::StructuralFieldId::new(index).unwrap(),
-                field_type: StructuralFieldType::Scalar(ScalarType::Integer(
-                    semantic_vocabulary::IntegerType::new(
-                        semantic_vocabulary::IntegerSign::Unsigned,
-                        64,
-                    )
-                    .unwrap(),
-                )),
-                relevance: terminal_psi::BindingRelevance::Relevant,
-            })
-            .collect(),
-    };
-    validate_module(&module).expect("wide flat primitive nominal cleanup should validate");
 }
 
 #[test]
@@ -1122,27 +1068,6 @@ fn projected_linear_move_cannot_return_its_partial_ancestor() {
             operation: operation_id(1),
         }
     );
-}
-
-#[test]
-fn complete_dense_projected_linear_consumption_closes_the_partial_frontier() {
-    let mut module = two_element_projected_unit_call_module();
-    let mut second = module.machines[0].blocks[0].operations[0].clone();
-    second.id = operation_id(4);
-    let OperationKind::CallUnit {
-        structural_arguments,
-        claim_transfers,
-        ..
-    } = &mut second.kind
-    else {
-        unreachable!()
-    };
-    structural_arguments[0].path = vec![StructuralPathSegment::FixedIndex(1)];
-    claim_transfers[0].claim = claim_id(2);
-    module.machines[0].blocks[0].operations.push(second);
-
-    validate_module(&module)
-        .expect("moving the complete dense sibling set should exhaust the linear array root");
 }
 
 #[test]

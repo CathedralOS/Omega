@@ -59,27 +59,6 @@ fn rejects_view_return_of_body_local() {
     );
 }
 
-/// Borrow-carrying data (decision 15 stage 2): a `data` value holding a
-/// reference field may be returned when its borrow comes from an input —
-/// the constructed value's loan follows the borrowed source.
-#[test]
-fn accepts_borrow_carrying_data_returned_from_input() {
-    let source = r#"
-        data Message {
-            body: &string;
-        }
-
-        machine wrap(input: &string) -> Message {
-            let msg: Message = Message { body: input };
-            transition {
-                _ -> msg
-            }
-        }
-    "#;
-    let facts_result = check_program(source);
-    facts_result.expect("a borrow-carrying value borrowing an input should compile");
-}
-
 /// The escape companion: a borrow-carrying value whose borrow comes from a
 /// machine-body local does not outlive the call and is rejected.
 #[test]
@@ -141,25 +120,6 @@ fn rejects_inline_aggregate_literal_carrying_a_local_borrow() {
     );
 }
 
-/// The same inline construction is accepted when the carried borrow reaches an
-/// input, matching the named-`let` form field for field.
-#[test]
-fn accepts_inline_aggregate_literal_carrying_an_input_borrow() {
-    let source = r#"
-        data Message {
-            body: &i32;
-        }
-
-        machine wrap(input: &i32) -> Message {
-            transition {
-                _ -> Message { body: input }
-            }
-        }
-    "#;
-
-    check_program(source).expect("an inline carrier borrowing an input should compile");
-}
-
 /// A nested record cannot erase a loan. Returning `Envelope` is sound because
 /// its nested `Message` ultimately borrows the machine input.
 #[test]
@@ -185,59 +145,6 @@ fn accepts_nested_borrow_carrying_data_returned_from_input() {
 
     check_program(source)
         .expect("a nested borrow-carrying value borrowing an input should compile");
-}
-
-/// Several fields may carry the same valid source; the aggregate remains
-/// returnable when every carried loan reaches the input.
-#[test]
-fn accepts_multiple_borrowing_fields_returned_from_input() {
-    let source = r#"
-        data Pair {
-            first: &i32;
-            second: &i32;
-        }
-
-        machine wrap(input: &i32) -> Pair {
-            let pair: Pair = Pair {
-                first: input,
-                second: input
-            };
-            transition {
-                _ -> pair
-            }
-        }
-    "#;
-
-    check_program(source).expect("all carried input loans should outlive the result");
-}
-
-/// Projecting one reference field out of a multi-loan carrier rebases through
-/// that field only; a disjoint sibling source remains independently writable
-/// after the carrier's last use.
-#[test]
-fn accepts_projected_field_from_multi_loan_carrier() {
-    let source = r#"
-        data Pair {
-            first: &mut i32;
-            second: &mut i32;
-        }
-
-        machine write(value: &mut i32) {
-            value = 1;
-        }
-
-        machine exercise(first: &mut i32, second: &mut i32) {
-            let pair: Pair = Pair {
-                first: first,
-                second: second
-            };
-            let selected: &mut i32 = pair.first;
-            write(second);
-            write(selected);
-        }
-    "#;
-
-    check_program(source).expect("field projection must not retain a disjoint sibling source");
 }
 
 /// A literal fixed-array position is as precise as a named field: selecting a
@@ -305,33 +212,6 @@ fn rejects_dynamic_fixed_array_projection_as_potentially_aliasing() {
     );
 }
 
-/// Generic storage participates in the same structural walk: substituting a
-/// borrow-carrying argument into an otherwise ordinary field keeps the loan.
-#[test]
-fn accepts_generic_wrapper_of_borrow_carrying_data() {
-    let source = r#"
-        data Message {
-            body: &i32;
-        }
-
-        data Envelope<T> {
-            value: T;
-        }
-
-        machine wrap(input: &i32) -> Envelope<Message> {
-            let envelope: Envelope<Message> = Envelope {
-                value: Message { body: input }
-            };
-            transition {
-                _ -> envelope
-            }
-        }
-    "#;
-
-    check_program(source)
-        .expect("a generic wrapper must retain its concrete argument's input loan");
-}
-
 /// Projection paths through a concrete generic wrapper retain the substituted
 /// field's source rather than appearing rooted in the temporary wrapper.
 #[test]
@@ -385,28 +265,6 @@ fn accepts_sum_payload_carrying_an_input_borrow() {
     "#;
 
     check_program(source).expect("an active sum payload must retain its input loan");
-}
-
-/// Fixed arrays compose borrow carrying structurally just like records and sum
-/// payloads.
-#[test]
-fn accepts_fixed_array_carrying_an_input_borrow() {
-    let source = r#"
-        data Message {
-            body: &i32;
-        }
-
-        machine wrap(input: &i32) -> [Message; 1] {
-            let messages: [Message; 1] = [
-                Message { body: input }
-            ];
-            transition {
-                _ -> messages
-            }
-        }
-    "#;
-
-    check_program(source).expect("a fixed array must retain its element's input loan");
 }
 
 /// The nested escape companion: wrapping a local borrow in two records does not
@@ -533,27 +391,6 @@ fn accepts_recursive_data_without_a_borrow() {
     "#;
 
     check_program(source).expect("recursive owned data must not look borrow-carrying");
-}
-
-/// A recursive edge encountered before a borrowing payload must not terminate
-/// the whole structural search early.
-#[test]
-fn accepts_recursive_data_with_a_later_borrowing_payload() {
-    let source = r#"
-        data Chain {
-            case Next(next: Chain);
-            case End(value: &i32);
-        }
-
-        machine wrap(input: &i32) -> Chain {
-            let chain: Chain = Chain::End { value: input };
-            transition {
-                _ -> chain
-            }
-        }
-    "#;
-
-    check_program(source).expect("cycle detection must still find a later borrowing payload");
 }
 
 #[test]

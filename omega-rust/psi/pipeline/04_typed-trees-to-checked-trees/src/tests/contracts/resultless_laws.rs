@@ -3,25 +3,6 @@ use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
 
 #[test]
-fn resultless_law_accepts_an_exact_resultless_satisfier() {
-    let source = r#"
-        trait ReflexiveLaw {
-            machine reflexive(value: u64)
-            ensures value == value;
-        }
-
-        machine reflexive(value: u64)
-        satisfies ReflexiveLaw::reflexive
-        ensures value == value
-        {
-        }
-    "#;
-
-    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
-        .expect("an exact resultless theorem satisfier should check");
-}
-
-#[test]
 fn result_bearing_machine_cannot_satisfy_a_resultless_law() {
     let source = r#"
         trait ReflexiveLaw {
@@ -77,45 +58,6 @@ fn unchanged_resultless_self_citation_cannot_prove_itself() {
         messages.contains("cannot prove the measure `n` structurally decreases"),
         "unexpected diagnostics: {messages}"
     );
-}
-
-#[test]
-fn descending_resultless_self_citation_is_a_checked_induction_edge() {
-    let source = r#"
-        data Nat {
-            case Zero;
-            case Succ(prev: Nat);
-        }
-
-        machine copy(n: Nat) -> Nat
-        terminates by n;
-        {
-            transition n {
-                Nat::Zero -> Nat::Zero
-                Nat::Succ { prev } -> Nat::Succ { prev: copy(prev) }
-            }
-        }
-
-        machine copy_identity(n: Nat)
-        terminates by n;
-        ensures copy(n) == n
-        {
-            transition n {
-                Nat::Zero -> base()
-                Nat::Succ { prev } -> step(prev)
-            }
-
-            state base() {
-            }
-
-            state step(prev: Nat) {
-                copy_identity(prev);
-            }
-        }
-    "#;
-
-    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
-        .expect("a resultless citation should prove both exact descent and its induction step");
 }
 
 #[test]

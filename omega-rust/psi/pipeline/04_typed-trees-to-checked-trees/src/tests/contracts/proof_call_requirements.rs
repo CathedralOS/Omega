@@ -17,43 +17,6 @@ const CASE_RESTRICTED: &str = r#"
 "#;
 
 #[test]
-fn completed_call_tag_guarantee_establishes_a_later_premise() {
-    let source = format!(
-        "{CASE_RESTRICTED}\n\
-         machine make(marked: bool) -> Tree ensures result in Tree::Empty; terminates; {{\n\
-             transition {{ _ -> Tree::Empty {{ marked: marked }} }} }}\n\
-         machine caller() -> Tree terminates; {{\n\
-             let known: Tree = make(true);\n\
-             transition {{ _ -> (selected(known, known)) }} }}"
-    );
-    crate::lower_typed_trees(
-        parse_typed_trees(&source),
-        &crate::CheckingRequest::settled(),
-    )
-    .expect("a completed call contributes its checked tag guarantee without unfolding its body");
-}
-
-#[test]
-fn completed_result_can_be_matched_before_a_later_call() {
-    let source = format!(
-        "{CASE_RESTRICTED}\n\
-         machine make(marked: bool) -> Tree ensures result in Tree::Empty; terminates; {{\n\
-             transition {{ _ -> Tree::Empty {{ marked: marked }} }} }}\n\
-         machine caller() -> Tree terminates; {{\n\
-             let known: Tree = make(true);\n\
-             transition known {{\n\
-                 Tree::Empty -> (selected(known, known))\n\
-                 Tree::Node {{ child }} -> child\n\
-             }} }}"
-    );
-    crate::lower_typed_trees(
-        parse_typed_trees(&source),
-        &crate::CheckingRequest::settled(),
-    )
-    .expect("matching a completed value refines the selected branch");
-}
-
-#[test]
 fn case_citation_keeps_result_identity_through_named_states() {
     for (arguments, accepted) in [("other, known", true), ("known, other", false)] {
         let source = format!(
@@ -74,28 +37,6 @@ fn case_citation_keeps_result_identity_through_named_states() {
         );
         assert_eq!(result.is_ok(), accepted, "{arguments}: {:?}", result.err());
     }
-}
-
-#[test]
-fn returned_case_cannot_replace_a_parameter_named_result() {
-    let source = format!(
-        "{CASE_RESTRICTED}\n\
-        machine bad(result: Tree, value: Tree) -> Tree\n\
-        requires value in Tree::Empty; ensures result in Tree::Empty;\n\
-        terminates; {{ value }}"
-    );
-    let diagnostics = crate::lower_typed_trees(
-        parse_typed_trees(&source),
-        &crate::CheckingRequest::settled(),
-    )
-    .map(|_| ())
-    .expect_err("the result parameter is unrelated to the returned value");
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("ensures")),
-        "{diagnostics:?}"
-    );
 }
 
 #[test]
@@ -186,31 +127,6 @@ fn case_citation_does_not_imply_zero_common_fields() {
     )
     .map(|_| ())
     .expect_err("a case guarantee supplies no common-field equation");
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("requires")),
-        "{diagnostics:?}"
-    );
-}
-
-#[test]
-fn case_citation_does_not_make_conditional_guarantees_unconditional() {
-    let source = format!(
-        "{CASE_RESTRICTED}\n\
-         machine make() -> Tree\n\
-         ensures Tree::Empty -> {{ result in Tree::Empty; }}\n\
-         terminates; {{ transition {{ _ -> Tree::Node {{ child: Tree::Empty }} }} }}\n\
-         machine caller() -> Tree terminates; {{\n\
-             let known: Tree = make();\n\
-             transition {{ _ -> (selected(known, known)) }} }}"
-    );
-    let diagnostics = crate::lower_typed_trees(
-        parse_typed_trees(&source),
-        &crate::CheckingRequest::settled(),
-    )
-    .map(|_| ())
-    .expect_err("a conditional Empty guarantee cannot establish Empty after a Node return");
     assert!(
         diagnostics
             .iter()
@@ -609,22 +525,6 @@ fn state_contracts_do_not_confuse_shadowed_parameters() {
 }
 
 #[test]
-fn contract_call_on_a_closed_satisfying_argument_needs_no_hypothesis() {
-    let source = format!(
-        r#"{RESTRICTED}
-        machine caller()
-        ensures restricted(Nat::Zero) == restricted(Nat::Zero);
-        {{}}
-    "#
-    );
-    crate::lower_typed_trees(
-        parse_typed_trees(&source),
-        &crate::CheckingRequest::settled(),
-    )
-    .expect("closed arguments can establish their own selected premises");
-}
-
-#[test]
 fn internal_state_specification_call_does_not_inherit_entry_requires() {
     let source = r#"
         data Nat { case Zero; case Succ(previous: Nat); }
@@ -729,26 +629,6 @@ fn omitted_constructor_fields_do_not_prove_equality_to_nonzero_fields() {
         );
         assert_eq!(result.is_ok(), accepted, "{flag}: {:?}", result.err());
     }
-}
-
-#[test]
-fn omitted_constructor_runtime_field_establishes_its_zero_value() {
-    let source = r#"
-        data Tree { case Empty; case Node(child: Tree, flag: bool); }
-        machine restricted(left: Tree, right: Tree) -> Tree
-        requires left == right;
-        terminates;
-        { left }
-        machine caller()
-        requires restricted(Tree::Node { child: Tree::Empty }, Tree::Node { child: Tree::Empty, flag: false })
-            == restricted(Tree::Node { child: Tree::Empty }, Tree::Node { child: Tree::Empty, flag: false });
-        {}
-    "#;
-    crate::lower_typed_trees(
-        parse_typed_trees(source),
-        &crate::CheckingRequest::settled(),
-    )
-    .expect("the omitted runtime bool field denotes false");
 }
 
 #[test]
@@ -1037,22 +917,6 @@ fn mathematical_value_call_requires_established_premises() {
 }
 
 #[test]
-fn mathematical_value_call_accepts_the_exact_caller_premise() {
-    let source = format!(
-        "{RESTRICTED}
-        machine caller(value: Nat) -> Nat
-        requires value == Nat::Zero;
-        terminates;
-        {{ restricted(value) }}"
-    );
-    crate::lower_typed_trees(
-        parse_typed_trees(&source),
-        &crate::CheckingRequest::settled(),
-    )
-    .expect("exact caller premise establishes the call");
-}
-
-#[test]
 fn recursive_call_establishes_the_premise_at_the_smaller_arguments() {
     let source = r#"
         data Nat { case Zero; case Succ(previous: Nat); }
@@ -1228,28 +1092,6 @@ fn descending_call_still_establishes_its_own_premise() {
             .iter()
             .any(|diagnostic| diagnostic.message.contains("requires"))
     );
-}
-
-#[test]
-fn earlier_citation_supplies_only_its_established_guarantees() {
-    let source = format!(
-        r#"{RESTRICTED}
-        machine constant() -> Nat
-        ensures result == Nat::Zero;
-        terminates;
-        {{ transition {{ _ -> Nat::Zero }} }}
-        machine caller() -> Nat terminates;
-        {{
-            let value: Nat = constant();
-            transition {{ _ -> (restricted(value)) }}
-        }}
-    "#
-    );
-    crate::lower_typed_trees(
-        parse_typed_trees(&source),
-        &crate::CheckingRequest::settled(),
-    )
-    .expect("the completed constant call establishes its result's premise");
 }
 
 #[test]

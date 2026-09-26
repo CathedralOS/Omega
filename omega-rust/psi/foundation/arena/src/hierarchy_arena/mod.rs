@@ -243,7 +243,33 @@ impl<T> Iterator for HierarchyChildHandles<T> {
 
         Some(handle)
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.remaining as usize;
+        (remaining, Some(remaining))
+    }
+
+    /// Children are contiguous, so skipping is index arithmetic rather than
+    /// `n` calls to `next`.
+    fn nth(&mut self, n: usize) -> Option<Self::Item> {
+        match u32::try_from(n) {
+            Ok(skip) if skip < self.remaining => {
+                self.next_index = self
+                    .next_index
+                    .checked_add(skip)
+                    .expect("hierarchy child handle index overflow");
+                self.remaining -= skip;
+                self.next()
+            }
+            _ => {
+                self.remaining = 0;
+                None
+            }
+        }
+    }
 }
+
+impl<T> ExactSizeIterator for HierarchyChildHandles<T> {}
 
 #[cfg(test)]
 mod tests {

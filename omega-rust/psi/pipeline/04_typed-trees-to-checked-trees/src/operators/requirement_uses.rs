@@ -3,9 +3,9 @@
 //!
 //! The typed call targets the requirement's entry state; the fact retains the
 //! requirement machine itself plus the arithmetic-policy result adapter its
-//! arguments select, exactly as a named `F32::*` operator use does, so
-//! provider planning can stamp the selected plan and the intrinsic execution
-//! bridge can resolve either spelling through one requirement view.
+//! arguments select, exactly as a named `F32::*` operator use does, so each
+//! target's selected plan joins either spelling by requirement identity and
+//! the intrinsic execution bridge resolves both through one requirement view.
 
 use arena::Arena;
 use checked_trees::{
@@ -139,8 +139,6 @@ fn named_requirement_use_fact(
         origin,
         requirement_symbol: requirement.symbol,
         policy_adapter,
-        provider_plan_report_fingerprint: 0,
-        provider_plan_commitment: Default::default(),
     })
 }
 

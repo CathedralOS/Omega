@@ -156,10 +156,7 @@ fn project_compiler_intrinsic_application_realization(
             ) && operator_use.expression == expression
                 && operator_use.origin == origin
                 && operator_use.selected_operator_symbol == application.requirement_symbol)
-                .then_some((
-                    operator_use.provider_plan_report_fingerprint,
-                    operator_use.provider_plan_commitment,
-                ))
+                .then_some(operator_use.origin)
         })
         .chain(
             checked
@@ -172,10 +169,7 @@ fn project_compiler_intrinsic_application_realization(
                         && operator_use.selected_operator_symbol == application.requirement_symbol
                         && operator_use.status
                             == checked_trees::CheckedOperatorResolutionStatus::Resolved)
-                        .then_some((
-                            operator_use.provider_plan_report_fingerprint,
-                            operator_use.provider_plan_commitment,
-                        ))
+                        .then_some(operator_use.origin)
                 }),
         )
         .chain(
@@ -191,14 +185,11 @@ fn project_compiler_intrinsic_application_realization(
                     ) && requirement_use.expression == expression
                         && requirement_use.origin == origin
                         && requirement_use.requirement_symbol == application.requirement_symbol)
-                        .then_some((
-                            requirement_use.provider_plan_report_fingerprint,
-                            requirement_use.provider_plan_commitment,
-                        ))
+                        .then_some(requirement_use.origin)
                 }),
         )
         .collect::<Vec<_>>();
-    let [(plan_report, plan_commitment)] = uses.as_slice() else {
+    let [use_origin] = uses.as_slice() else {
         return Err(vec![Diagnostic::error(format!(
             "Terminal intrinsic application retains {} exact selected uses; expected one",
             uses.len(),
@@ -211,21 +202,23 @@ fn project_compiler_intrinsic_application_realization(
             "Terminal intrinsic application has misaligned selected-plan provenance",
         )]);
     }
-    let matching_plans = plans
-        .iter()
-        .zip(provenance)
-        .filter(|(plan, retained)| {
-            retained.plan == **plan
-                && plan.report_fingerprint() == *plan_report
-                && plan.identity_digest().as_bytes() == plan_commitment.as_bytes()
-        })
-        .collect::<Vec<_>>();
-    let [(plan, retained)] = matching_plans.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "Terminal intrinsic application rejoins {} selected plans; expected one",
-            matching_plans.len(),
-        ))]);
+    // This target's selected plan joins the use by requirement identity.
+    let Some((plan_index, plan)) = provider_planning::selected_use_plan(
+        checked,
+        plans,
+        application.requirement_symbol,
+        *use_origin,
+    ) else {
+        return Err(vec![Diagnostic::error(
+            "Terminal intrinsic application has no exact selected plan",
+        )]);
     };
+    let retained = &provenance[plan_index];
+    if retained.plan != *plan {
+        return Err(vec![Diagnostic::error(
+            "Terminal intrinsic application's selected plan was substituted after review",
+        )]);
+    }
     if retained.provider.row_requirements.len() != plan.rows.len()
         || retained.provider.row_realizations.len() != plan.rows.len()
         || retained.row_compiler_intrinsic_executions.len() != plan.rows.len()
@@ -287,7 +280,7 @@ fn project_compiler_intrinsic_application_realization(
         }
     };
     Ok((
-        *plan_commitment.as_bytes(),
+        *plan.identity_digest().as_bytes(),
         boundary_applications::BoundaryApplicationRealization::ExactCompilerIntrinsic { execution },
     ))
 }

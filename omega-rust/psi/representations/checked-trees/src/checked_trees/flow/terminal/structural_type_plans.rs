@@ -144,7 +144,6 @@ pub enum CheckedUnitStructuralFieldType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CheckedFusedServiceErasureReceipt {
     pub requirement: SymbolHandle,
-    pub provider_plan_digest: [u8; 32],
 }
 
 /// Exact compiler-owned authority for erasing one direct, owned
@@ -157,7 +156,6 @@ pub struct CheckedFusedServiceParameterReceipt {
     pub source_parameter: SymbolHandle,
     pub carrier_type_identity: String,
     pub requirement: SymbolHandle,
-    pub provider_plan_digest: [u8; 32],
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

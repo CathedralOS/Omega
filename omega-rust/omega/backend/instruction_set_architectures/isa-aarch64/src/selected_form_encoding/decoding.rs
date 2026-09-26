@@ -1,7 +1,7 @@
 //! Decoding encoded words back into forms and checking them against the
 //! selected instruction they claim to realize.
 
-use crate::aarch64_physical_register_model;
+use crate::aarch64_physical_register_model_ref;
 use crate::saturating_forms::SaturatingRealization;
 use crate::selected_form_encoding::movn_materialization::append_canonical_materialization;
 use crate::selected_form_encoding::selected_forms::BOUND_WORDS;
@@ -1197,7 +1197,7 @@ pub(crate) fn footprint(
         .iter()
         .map(|index| operands[usize::from(*index)])
         .collect();
-    let physical = aarch64_physical_register_model();
+    let physical = aarch64_physical_register_model_ref();
     let units = |name: &str| physical.view_named(name).unwrap().units.clone();
     let encoded = if kind == SelectedInstructionKind::Crash {
         super::crash::effects(&units("pc"))

@@ -161,19 +161,22 @@ pub(super) fn project(
         if location.owner != PackageReviewSourceLocationOwner::Package(package) {
             continue;
         }
-        let matching_plans = selected_plans
-            .iter()
-            .zip(provenance)
-            .filter(|(plan, retained)| {
-                retained.plan == **plan
-                    && plan.report_fingerprint() == actual_use.plan_report_fingerprint
-                    && plan.identity_digest().as_bytes() == actual_use.plan_commitment.as_bytes()
-            })
-            .collect::<Vec<_>>();
-        let [(plan, retained)] = matching_plans.as_slice() else {
+        // The selected plan joins the use by requirement identity.
+        let joined = provider_planning::selected_use_plan(
+            compilation.program,
+            selected_plans,
+            application.requirement_symbol,
+            actual_use.origin,
+        )
+        .and_then(|(index, plan)| {
+            provenance
+                .get(index)
+                .filter(|retained| retained.plan == *plan)
+                .map(|retained| (plan, retained))
+        });
+        let Some((plan, retained)) = joined else {
             return Err(vec![Diagnostic::error(format!(
-                "boundary application at expression {expression:?} rejoins {} exact selected provider plans; expected one",
-                matching_plans.len(),
+                "boundary application at expression {expression:?} rejoins no exact selected provider plan",
             ))]);
         };
         if retained.provider.row_requirements.len() != plan.rows.len()
@@ -245,7 +248,7 @@ pub(super) fn project(
                 "actual compiler-intrinsic application names no boundary operator or top-level boundary requirement",
             )]
         })?;
-        if requirement_identity.is_empty() || actual_use.plan_commitment.is_empty() {
+        if requirement_identity.is_empty() {
             return Err(vec![Diagnostic::error(
                 "actual compiler-intrinsic application lost a strong semantic identity",
             )]);
@@ -259,7 +262,7 @@ pub(super) fn project(
                     application.requirement_symbol,
                 )?,
                 application: PackageReviewBoundaryApplication::Empty,
-                selected_plan_digest: *actual_use.plan_commitment.as_bytes(),
+                selected_plan_digest: *plan.identity_digest().as_bytes(),
                 realization: PackageReviewBoundaryApplicationRealization::ExactCompilerIntrinsic {
                     execution,
                 },
@@ -273,8 +276,7 @@ pub(super) fn project(
 #[derive(Clone, Copy)]
 struct ExactApplicationUse {
     kind: selected_dispatch::CheckedOperatorAuthoredUseKind,
-    plan_report_fingerprint: u64,
-    plan_commitment: checked_trees::CheckedProviderPlanCommitment,
+    origin: checked_trees::CheckedValueOrigin,
 }
 
 fn exact_application_uses(
@@ -301,8 +303,7 @@ fn exact_application_uses(
                 && operator_use.selected_operator_symbol == requirement)
                 .then_some(ExactApplicationUse {
                     kind: selected_dispatch::CheckedOperatorAuthoredUseKind::Named,
-                    plan_report_fingerprint: operator_use.provider_plan_report_fingerprint,
-                    plan_commitment: operator_use.provider_plan_commitment,
+                    origin: operator_use.origin,
                 })
         })
         .chain(
@@ -320,9 +321,7 @@ fn exact_application_uses(
                         && requirement_use.requirement_symbol == requirement)
                         .then_some(ExactApplicationUse {
                             kind: selected_dispatch::CheckedOperatorAuthoredUseKind::Named,
-                            plan_report_fingerprint: requirement_use
-                                .provider_plan_report_fingerprint,
-                            plan_commitment: requirement_use.provider_plan_commitment,
+                            origin: requirement_use.origin,
                         })
                 }),
         )
@@ -353,8 +352,7 @@ fn exact_application_uses(
                         kind: selected_dispatch::CheckedOperatorAuthoredUseKind::FixedToken(
                             operator_use.spelling,
                         ),
-                        plan_report_fingerprint: operator_use.provider_plan_report_fingerprint,
-                        plan_commitment: operator_use.provider_plan_commitment,
+                        origin: operator_use.origin,
                     })
                 }),
         )

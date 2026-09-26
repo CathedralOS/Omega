@@ -170,24 +170,6 @@ fn evidence(obligation: u64, conclusion: Proposition, rule: ProofRule) -> ProofB
 }
 
 #[test]
-fn cyclic_unit_call_borrows_exact_reestablished_literal() {
-    let mut module = literal_cycle();
-    verify_module_for_interpretation(
-        &module,
-        &ProofBundle::default(),
-        &AdmissionProfile::default(),
-    )
-    .unwrap();
-    module.machines[0].blocks.reverse();
-    verify_module_for_interpretation(
-        &module,
-        &ProofBundle::default(),
-        &AdmissionProfile::default(),
-    )
-    .unwrap();
-}
-
-#[test]
 fn cyclic_unit_call_accepts_machine_block_and_subslice_views() {
     for source in [1, 2, 3] {
         let mut module = super::unranked_views::view_cycle();

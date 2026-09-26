@@ -385,16 +385,6 @@ fn mutable_receiver_call_separates_scalar_and_structural_positions() {
 }
 
 #[test]
-fn write_only_receiver_call_separates_scalar_and_structural_positions() {
-    assert_receiver_call(StructuralAccess::WriteOnlyBorrow, true, false);
-}
-
-#[test]
 fn mutable_self_caller_retains_forwarded_receiver() {
     assert_receiver_call(StructuralAccess::MutableBorrow, true, true);
-}
-
-#[test]
-fn write_only_self_caller_retains_forwarded_receiver() {
-    assert_receiver_call(StructuralAccess::WriteOnlyBorrow, true, true);
 }

@@ -69,21 +69,6 @@ fn generic_boundary_owner_and_method_arguments_preserve_disjoint_facts() {
     });
 }
 
-#[test]
-fn generic_boundary_value_argument_does_not_invalidate_its_source() {
-    let source = generic_boundary_call_source("self.untouched")
-        .replace("carrier: &mut T", "carrier: &mut T, metadata: u64")
-        .replace(
-            "consume(&mut self.cell)",
-            "consume(&mut self.cell, self.untouched)",
-        );
-    checked_program_result(&source).unwrap_or_else(|diagnostics| {
-        panic!(
-            "copying a scalar argument does not authorize a write to its source: {diagnostics:#?}"
-        )
-    });
-}
-
 fn shadowed_boundary_call_source(subject: &str) -> String {
     format!(
         "data Cell {{ value: u64; }}

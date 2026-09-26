@@ -63,7 +63,7 @@ Terminal Psi:
 
 | Input → output | Owner |
 | --- | --- |
-| Source files → assembled syntax | [source-files-to-assembled-syntax](omega/compiler/src/sources/source_assembly.rs) |
+| Source files → assembled syntax | [source-files-to-assembled-syntax](omega/build/build-evaluation/src/sources/source_assembly.rs) |
 | Assembled syntax → checked compilation | [assembled-syntax-to-checked-compilation](omega/compiler/src/checked/checking.rs) |
 | Checked compilation → Terminal artifact | [checked-compilation-to-terminal-artifact](omega/compiler/src/terminal/terminal_artifact.rs) |
 
@@ -244,7 +244,7 @@ and result/error handling. `lib.rs` wiring, re-exports, and a prose file map do
 not substitute for that orchestration.
 
 Use [main.rs](omega/src/main.rs) and
-[compiler.rs](omega/compiler/compiler/src/compiler.rs) as the gold
+[compiler.rs](omega/compiler/src/compiler.rs) as the gold
 standard: the former shows startup and typed invocation dispatch; the latter
 shows shared preparation, product selection, per-target realization, and outcomes.
 Copy their visible orchestration principle, not their filenames or line counts.

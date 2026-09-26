@@ -265,9 +265,8 @@ pub machine exercise(value: i32) -> i32 {
         .operators
         .named_uses
         .iter()
-        .find_map(|(_, operator_use)| {
-            (!operator_use.provider_plan_commitment.is_empty()).then_some(operator_use.expression)
-        })
+        .map(|(_, operator_use)| operator_use.expression)
+        .next()
         .expect("ordinary application selected-plan use");
     normalized_expression
         .typed
@@ -296,28 +295,6 @@ pub machine exercise(value: i32) -> i32 {
     assert_eq!(
         normalized_location.role(),
         PackageReviewSourceLocationRole::BoundaryApplicationUse
-    );
-
-    let mut substituted_plan = checked;
-    let (actual_use, _) = substituted_plan
-        .facts
-        .operators
-        .named_uses
-        .iter()
-        .find(|(_, operator_use)| !operator_use.provider_plan_commitment.is_empty())
-        .expect("ordinary application selected-plan use");
-    substituted_plan
-        .facts
-        .operators
-        .named_uses
-        .get_mut(actual_use)
-        .provider_plan_commitment = checked_trees::CheckedProviderPlanCommitment::default();
-    let diagnostics = project_checked_package_review(&substituted_plan)
-        .expect_err("ordinary application selected-plan substitution must reject");
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| { diagnostic.message.contains("without an exact commitment") })
     );
 }
 

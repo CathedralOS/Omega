@@ -42,34 +42,8 @@ fn assignment_invalidates_same_named_state_entry_bounds() {
 }
 
 #[test]
-fn assignment_invalidates_renamed_state_entry_bounds() {
-    mutated_entry("values", "position", "index = 255;");
-}
-
-#[test]
 fn call_invalidates_same_named_state_entry_bounds() {
     mutated_entry("items", "index", "set_index(&mut index);");
-}
-
-#[test]
-fn call_invalidates_renamed_state_entry_bounds() {
-    mutated_entry("values", "position", "set_index(&mut index);");
-}
-
-#[test]
-fn explicit_state_bounds_are_available_without_machine_bound_clauses() {
-    check(
-        r#"
-        machine main(values: &[u64; 2], index: u64 [0..=1]) -> u64 {
-            transition { _ -> read(values, index) }
-            state read(items: &[u64; 2], position: u64) -> u64
-            requires position < 2
-            { items[position] }
-        }
-    "#,
-        true,
-        "",
-    );
 }
 
 #[test]

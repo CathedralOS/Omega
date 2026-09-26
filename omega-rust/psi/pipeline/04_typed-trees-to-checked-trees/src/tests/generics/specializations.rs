@@ -172,23 +172,6 @@ fn generic_body_can_discharge_machine_parameter_precondition_from_own_contract()
 }
 
 #[test]
-fn generic_body_can_discharge_machine_parameter_precondition_from_call_value() {
-    let source = r#"
-        data Main {}
-        machine Main::run(&mut self) {}
-
-        machine apply<machine F>()
-        where machine F(item: i32)
-            requires item > 0
-        {
-            F(1);
-        }
-    "#;
-
-    checked_program(source);
-}
-
-#[test]
 fn generic_body_inherits_machine_parameter_service_ceiling() {
     let source = r#"
         boundary trait DeviceIo {

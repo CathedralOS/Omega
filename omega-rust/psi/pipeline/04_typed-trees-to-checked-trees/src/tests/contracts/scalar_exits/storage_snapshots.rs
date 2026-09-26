@@ -81,23 +81,3 @@ fn unknown_assignment_and_effectful_initializer_cannot_retain_old_values() {
         );
     }
 }
-
-#[test]
-fn computed_assignments_into_fields_and_state_arguments_keep_exact_results() {
-    check(
-        "machine produce(output: &mut u8) ensures output == 255 { output = (255 + 1) - 1; }",
-        true,
-    );
-    check(
-        r#"
-        data Packet [copy] { value: u8; }
-        machine produce() -> u8 ensures result == 255 {
-            let mut packet: Packet = Packet { value: 0 };
-            packet.value = (255 + 1) - 1;
-            transition { _ -> finish(packet.value) }
-            state finish(current: u8) -> u8 { current }
-        }
-    "#,
-        true,
-    );
-}

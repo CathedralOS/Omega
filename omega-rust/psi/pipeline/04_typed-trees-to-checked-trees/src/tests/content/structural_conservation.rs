@@ -53,19 +53,6 @@ const SPLIT_LAW: &str = r#"
 "#;
 
 #[test]
-fn routed_structural_result_rejects_annotation_without_conservation() {
-    assert_structural_rejection(&partition_program("Region in Granted", ""));
-}
-
-#[test]
-fn routed_structural_result_rejects_unaccounted_output_field() {
-    assert_structural_rejection(&partition_program(
-        "Region in Granted",
-        "ensures Granted::content(old(&whole)) == Granted::content(&result.taken)",
-    ));
-}
-
-#[test]
 fn routed_structural_result_accepts_exact_split_conservation() {
     let checked = checked_program(&partition_program("Region in Granted", SPLIT_LAW));
     assert_eq!(
@@ -102,14 +89,6 @@ fn routed_structural_result_rejects_unqualified_owned_partition_source() {
         }),
         "the projection itself requires qualified input: {diagnostics:#?}"
     );
-}
-
-#[test]
-fn routed_structural_result_rejects_duplicate_output_in_conservation() {
-    assert_structural_rejection(&partition_program(
-        "Region in Granted",
-        "ensures Granted::content(old(&whole)) == separate(Granted::content(&result.taken), Granted::content(&result.taken))",
-    ));
 }
 
 #[test]

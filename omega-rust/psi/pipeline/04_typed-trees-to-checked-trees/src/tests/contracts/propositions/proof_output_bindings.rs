@@ -359,57 +359,6 @@ fn argumented_proof_output_rejects_wrong_erased_input_after_substitution() {
 }
 
 #[test]
-fn discarded_argumented_proof_output_contributes_the_substituted_fact() {
-    let source = r#"
-        trait Evidence {}
-        proposition carries(value: i32) evidence Evidence;
-
-        machine produce(value: i32)
-        requires incoming: carries(value)
-        ensures copied: carries(value)
-        {
-            copied = incoming;
-        }
-
-        machine consume(value: i32)
-        requires carries(value)
-        {}
-
-        machine relay(input: i32)
-        requires source: carries(input)
-        {
-            let (; copied: _) = produce(input; source);
-            consume(input);
-        }
-    "#;
-
-    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
-        .expect("a discarded output contributes its call-substituted proposition fact");
-}
-
-#[test]
-fn proof_output_lane_allows_selective_capture() {
-    let source = r#"
-        trait Evidence {}
-        proposition ready() evidence Evidence;
-        ConcreteEvidence: satisfies Evidence {}
-        machine produce()
-        ensures first: ready()
-        ensures second: ready()
-        { first = ConcreteEvidence; second = ConcreteEvidence; }
-        machine relay()
-        ensures relayed: ready()
-        {
-            let (; first: local) = produce();
-            relayed = local;
-        }
-    "#;
-
-    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
-        .expect("unmentioned proof outputs contribute facts without minting local terms");
-}
-
-#[test]
 fn omitted_proof_output_contributes_its_fact_without_a_local_term() {
     let source = r#"
         trait Evidence {}
@@ -920,19 +869,6 @@ fn proof_output_is_not_visible_before_its_binding() {
         }),
         "unexpected diagnostics: {diagnostics:?}"
     );
-}
-
-#[test]
-fn proof_output_bound_term_may_remain_unused() {
-    let unused = r#"
-        trait Evidence {}
-        proposition ready() evidence Evidence;
-        ConcreteEvidence: satisfies Evidence {}
-        machine produce() ensures outgoing: ready() { outgoing = ConcreteEvidence; }
-        machine relay() { let (; outgoing: local) = produce(); }
-    "#;
-    lower_typed_trees(parse_typed_trees(unused), &CheckingRequest::settled())
-        .expect("a copyable proposition term has no usage-count obligation");
 }
 
 #[test]

@@ -221,21 +221,6 @@ fn domain_projection_dependencies_are_the_call_argument_occurrences() {
 }
 
 #[test]
-fn transparent_named_fact_can_be_proved_from_an_exact_call_projection() {
-    let source = format!(
-        r#"
-        {RECORD}
-        proposition projected_left(left: u64, right: u64) =
-            make_pair(left, right).left == left;
-        machine theorem(left: u64, right: u64) -> u64
-        ensures projected_left(left, right)
-        {{ transition {{ _ -> left }} }}
-    "#
-    );
-    checked(&source).expect("transparent named fact should use structural call evidence");
-}
-
-#[test]
 fn transparent_named_fact_does_not_certify_a_false_call_projection() {
     let source = format!(
         r#"

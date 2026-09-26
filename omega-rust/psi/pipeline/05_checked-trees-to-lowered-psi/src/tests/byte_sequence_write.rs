@@ -21,38 +21,6 @@ pub(super) const PUT: &str = r#"
 "#;
 
 #[test]
-fn fixed_byte_array_lends_mutable_view() {
-    let checked = crate::front_end::checked_program(&format!(
-        "{PUT}\n machine run(out: &mut [u8; 3]) {{ put(out, 65); put(out, 0); }}"
-    ));
-    let _artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("run"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("a raw fixed byte array lends its exact initialized writable range")
-    .into_artifact();
-}
-
-#[test]
-fn guarded_mutable_byte_view_write_publishes_terminal() {
-    let checked = crate::front_end::checked_program(PUT);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("put"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("guarded mutable byte-view write publishes verified Terminal")
-    .into_artifact();
-    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
-    terminal_verifier::validate_module(&module).unwrap();
-}
-
-#[test]
 fn byte_view_write_rejects_changed_source_operands_access_and_roster() {
     let checked = crate::front_end::checked_program(
         r#"

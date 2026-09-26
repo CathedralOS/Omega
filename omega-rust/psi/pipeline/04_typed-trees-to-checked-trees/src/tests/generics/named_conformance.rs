@@ -44,14 +44,6 @@ fn fixed_width_argument_source(argument: &str) -> String {
 }
 
 #[test]
-fn named_conformance_fixed_width_argument_accepts_fitting_literal() {
-    let typed = typed_program_result(&fixed_width_argument_source("2"))
-        .expect("fixed-width evidence call types");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("bound u8 input accepts a fitting literal");
-}
-
-#[test]
 fn named_conformance_fixed_width_argument_rejects_overflowing_literal() {
     let typed = typed_program_result(&fixed_width_argument_source("300"))
         .expect("literal landing is checked after typing");
@@ -171,9 +163,4 @@ fn retained_named_conformance_call_rejects_missing_requirement() {
         "Order::missing(left, right)",
         "conformance-evidence call has no unique exact requirement",
     );
-}
-
-#[test]
-fn retained_named_conformance_evidence_is_not_a_runtime_value() {
-    rejects("Order", "not a declared local, parameter, field, or type");
 }

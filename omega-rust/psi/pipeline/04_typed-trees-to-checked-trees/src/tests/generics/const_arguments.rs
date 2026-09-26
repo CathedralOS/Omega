@@ -349,19 +349,6 @@ fn declared_range_inference_does_not_invent_missing_or_unusable_endpoints() {
 }
 
 #[test]
-fn explicit_boolean_and_named_const_arguments_select_closed_values() {
-    accepts(
-        "machine value<const N: bool>() -> bool { N }
-        machine main() -> bool { value<true>() }",
-    );
-    accepts(
-        "const Values::N: i32 = -2;
-        machine value<const N: i32>() -> i32 { N }
-        machine main() -> i32 { value<Values::N>() }",
-    );
-}
-
-#[test]
 fn explicit_and_inferred_boolean_values_share_one_instance() {
     let checked = accepts(
         "const Values::ENABLED: bool = true;

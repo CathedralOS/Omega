@@ -84,9 +84,6 @@ fn associate_one(
         || operator_use.status != CheckedOperatorResolutionStatus::Resolved
         || operator_use.application_site() != occurrence.application_site
         || operator_use.selected_operator_symbol != occurrence.requirement_operator
-        || operator_use.provider_plan_report_fingerprint
-            != occurrence.provider_plan_report_fingerprint
-        || operator_use.provider_plan_commitment != occurrence.provider_plan_commitment
         || operator_use.operands(&checked.typed).is_none()
         || selected_meaning.and_then(|(operation, primitive)| {
             lowered_psi::LoweredSelectedIntegerComparisonOperation::admitted_emission(operation)
@@ -116,23 +113,20 @@ fn associate_one(
             "requires exactly one closed authored boundary application",
         ));
     }
-    let plans = selected
-        .plans()
-        .iter()
-        .enumerate()
-        .filter(|(_, plan)| {
-            plan.report_fingerprint() == occurrence.provider_plan_report_fingerprint
-                && plan.identity_digest().as_bytes()
-                    == occurrence.provider_plan_commitment.as_bytes()
-        })
-        .collect::<Vec<_>>();
-    let [(provider_plan_index, plan)] = plans.as_slice() else {
+    // This target's selected plan joins the occurrence by requirement
+    // identity; the Terminal occurrence carries no selection.
+    let Some((provider_plan_index, plan)) = provider_planning::selected_use_plan(
+        checked,
+        selected.plans(),
+        occurrence.requirement_operator,
+        operator_use.origin,
+    ) else {
         return Err(fail("requires exactly one exact selected provider plan"));
     };
-    let Some(retained) = provenance.get(*provider_plan_index) else {
+    let Some(retained) = provenance.get(provider_plan_index) else {
         return Err(fail("selected provider provenance is missing"));
     };
-    if retained.plan != **plan
+    if retained.plan != *plan
         || plan.rows.len() != 1
         || retained.provider.row_requirements.as_slice() != [occurrence.requirement_operator]
     {
@@ -143,7 +137,7 @@ fn associate_one(
     let proposal = crate::report::TerminalIntegerComparisonOccurrenceProposal {
         terminal_machine: occurrence.terminal_machine,
         terminal_operation: occurrence.terminal_operation,
-        provider_plan_index: *provider_plan_index,
+        provider_plan_index,
         provider_plan_commitment: plan.identity_digest(),
         comparison: occurrence.comparison,
         operand_order: occurrence.operand_order,

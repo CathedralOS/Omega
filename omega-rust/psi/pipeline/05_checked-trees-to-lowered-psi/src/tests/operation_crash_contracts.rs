@@ -16,26 +16,6 @@ use terminal_psi::{
     OperationKind, TerminalOperationCrashContract,
 };
 
-/// Omega separately rejoins these opaque commitments to actual selected
-/// ProviderPlans; this unit boundary tests only source-to-Terminal custody.
-fn checked_with_provider_commitments(source: &str) -> checked_trees::CheckedTrees {
-    let mut checked = crate::front_end::checked_program(source);
-    let handles = checked
-        .facts
-        .operators
-        .uses
-        .iter()
-        .map(|(handle, _)| handle)
-        .collect::<Vec<_>>();
-    for handle in handles {
-        let selected = checked.facts.operators.uses.get_mut(handle);
-        selected.provider_plan_report_fingerprint = 7;
-        selected.provider_plan_commitment =
-            checked_trees::CheckedProviderPlanCommitment::from_digest([7; 32]);
-    }
-    checked
-}
-
 fn unconditional(cause: CrashCause) -> CrashRouteBucket {
     CrashRouteBucket {
         cause,
@@ -44,7 +24,7 @@ fn unconditional(cause: CrashCause) -> CrashRouteBucket {
 }
 
 fn crash_qualified_float_comparison(cause: &str) -> checked_trees::CheckedTrees {
-    checked_with_provider_commitments(&format!(
+    crate::front_end::checked_program(&format!(
         "boundary operator == Float::equal(left: f64, right: f64) -> bool crashes {cause};
          machine compare(left: f64, right: f64) -> bool crashes {cause} {{ left == right }}"
     ))
@@ -310,7 +290,7 @@ fn a_guarded_integer_operator_route_lowers_end_to_end_to_the_row_the_verifier_ac
     // published `!(0 <= formal 2)`, continuation over the operation's own
     // right operand, and the verifier accepts the module `lower_machine`
     // produced.
-    let checked = checked_with_provider_commitments(GUARDED_INTEGER_OPERATOR_SOURCE);
+    let checked = crate::front_end::checked_program(GUARDED_INTEGER_OPERATOR_SOURCE);
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("compare"))
         .expect("a joined guarded integer comparison carries its crash contract");
     assert!(
@@ -377,7 +357,7 @@ fn a_reordered_greater_route_publishes_the_operations_own_formal_telescope() {
     // occurrence recorded, so the verifier's positional substitution — which
     // binds formal 1 to operand position 0 — reconstructs the guard over the
     // authored `right` without the positional rule being relaxed.
-    let checked = checked_with_provider_commitments(GUARDED_REORDERED_INTEGER_OPERATOR_SOURCE);
+    let checked = crate::front_end::checked_program(GUARDED_REORDERED_INTEGER_OPERATOR_SOURCE);
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("compare"))
         .expect("a reordered guarded integer comparison carries its crash contract");
     let [occurrence] = lowered.selected_integer_comparison_occurrences.as_slice() else {
@@ -423,7 +403,7 @@ fn a_reordered_row_left_in_the_authored_telescope_fails_verification() {
     // The reindexing is load-bearing, not cosmetic. A `>` row that kept the
     // operator declaration's authored formal 2 would make the verifier
     // reconstruct the guard over the other operand, so it must reject.
-    let checked = checked_with_provider_commitments(GUARDED_REORDERED_INTEGER_OPERATOR_SOURCE);
+    let checked = crate::front_end::checked_program(GUARDED_REORDERED_INTEGER_OPERATOR_SOURCE);
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("compare"))
         .expect("the reordered route lowers");
     let mut forged = lowered.semantic_module.clone();
@@ -444,7 +424,7 @@ fn a_negated_route_keeps_its_contract_on_the_emitted_comparison() {
     // the scalar operands the formal telescope binds, so the authored
     // telescope needs no reindexing and the negation only carries the Boolean
     // result forward without taking a row of its own.
-    let checked = checked_with_provider_commitments(GUARDED_NEGATED_INTEGER_OPERATOR_SOURCE);
+    let checked = crate::front_end::checked_program(GUARDED_NEGATED_INTEGER_OPERATOR_SOURCE);
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("compare"))
         .expect("a negated guarded integer comparison carries its crash contract");
     let [occurrence] = lowered.selected_integer_comparison_occurrences.as_slice() else {
@@ -506,7 +486,7 @@ fn a_guarded_operator_route_without_a_structured_scalar_form_fails_closed() {
     // formals has no checked structured form, so this guarded route still
     // carries its predicate identity only, cannot lower into the row's
     // proposition form, and the use must not lower crash-free.
-    let checked = checked_with_provider_commitments(
+    let checked = crate::front_end::checked_program(
         "boundary operator == Float::equal(left: f64, right: f64) -> bool
          crashes Trap !(right >= 0.0);
          machine compare(left: f64, right: f64) -> bool crashes Trap { left == right }",
@@ -523,11 +503,10 @@ fn a_guarded_operator_route_without_a_structured_scalar_form_fails_closed() {
 #[test]
 fn a_crash_qualified_use_without_lowerable_crash_evidence_fails_closed() {
     // Every authored integer comparison spelling now has an admitted
-    // emission, so the remaining refusals are about the evidence itself: a
+    // emission, so the remaining refusal is about the evidence itself: a
     // published route that normalizes away leaves the site with nothing to
-    // carry, and a use without complete provider plan evidence has no exact
-    // selected occurrence to join at all.
-    let checked = checked_with_provider_commitments(
+    // carry.
+    let checked = crate::front_end::checked_program(
         "boundary operator > Comparison::greater(left: i32, right: i32) -> bool
          crashes Trap false;
          pub machine compare(left: i32, right: i32) -> bool { left > right }",
@@ -536,13 +515,6 @@ fn a_crash_qualified_use_without_lowerable_crash_evidence_fails_closed() {
         .expect_err("a site with no lowerable route must not lower crash-free");
     assert!(
         format!("{error:?}").contains("operator crash site publishes no lowerable crash route"),
-        "{error:?}"
-    );
-    let checked = crate::front_end::checked_program(GUARDED_INTEGER_OPERATOR_SOURCE);
-    let error = lower_machine(&checked, TerminalMachineSelection::Name("compare"))
-        .expect_err("a use without complete provider plan evidence must not lower");
-    assert!(
-        format!("{error:?}").contains("selected comparison has no complete provider plan evidence"),
         "{error:?}"
     );
 }

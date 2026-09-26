@@ -33,31 +33,20 @@ pub(super) fn selected_executions(
         else {
             continue;
         };
-        if operator_use.provider_plan_report_fingerprint == 0
-            && operator_use.provider_plan_commitment.is_empty()
-        {
+        let Some(plan) = super::operator_adapter::selected_use_plan(
+            checked,
+            plans,
+            operator_use.selected_operator_symbol,
+            operator_use.origin,
+        ) else {
             continue;
-        }
+        };
         let fail = |reason: &str| {
             vec![Diagnostic::error(format!(
                 "selected floating Match equality at {:?}: {reason}",
                 operator_use.application_site(),
             ))]
         };
-        if operator_use.provider_plan_commitment.is_empty() {
-            return Err(fail("requires an exact ProviderPlan commitment"));
-        }
-        let mut matching_plans = plans.iter().filter(|plan| {
-            plan.report_fingerprint() == operator_use.provider_plan_report_fingerprint
-                && plan.identity_digest().as_bytes()
-                    == operator_use.provider_plan_commitment.as_bytes()
-        });
-        let Some(plan) = matching_plans.next() else {
-            return Err(fail("requires exactly one exact selected ProviderPlan"));
-        };
-        if matching_plans.next().is_some() {
-            return Err(fail("requires exactly one exact selected ProviderPlan"));
-        }
         let execution = super::derive_selected_primitive_float_binary_execution(
             &checked.typed,
             plan,

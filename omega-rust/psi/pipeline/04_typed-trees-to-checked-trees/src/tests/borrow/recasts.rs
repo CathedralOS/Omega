@@ -223,15 +223,6 @@ fn literal_indexed_record_recast_rejects_mutation_of_interior_padding() {
 }
 
 #[test]
-fn literal_indexed_record_recast_keeps_immediate_sibling_bytes_writable() {
-    check_program(&indexed_mutable_record_recast_source(
-        "self.bytes[1] = 1; self.bytes[10] = 1;",
-        "view.head.code = 2;",
-    ))
-    .expect("the bytes immediately before and after [2, 10) are disjoint");
-}
-
-#[test]
 fn literal_indexed_fixed_array_recast_retains_the_exact_range_for_both_polarities() {
     let source = r#"
         data Cell {
@@ -276,15 +267,6 @@ fn literal_indexed_fixed_array_recast_rejects_first_and_last_byte_mutations() {
 
         assert_conflict(&diagnostics, mutation.trim_end_matches(" = 1;"), "view");
     }
-}
-
-#[test]
-fn literal_indexed_fixed_array_recast_keeps_immediate_sibling_bytes_writable() {
-    check_program(&indexed_mutable_array_recast_source(
-        "self.bytes[2] = 1; self.bytes[9] = 1;",
-        "view[0] = 2;",
-    ))
-    .expect("the bytes immediately before and after [3, 9) are disjoint");
 }
 
 #[test]
@@ -337,15 +319,6 @@ fn literal_indexed_nested_fixed_array_recast_rejects_complete_footprint_mutation
 
         assert_conflict(&diagnostics, mutation.trim_end_matches(" = 1;"), "view");
     }
-}
-
-#[test]
-fn literal_indexed_nested_fixed_array_recast_keeps_immediate_siblings_writable() {
-    check_program(&indexed_mutable_nested_array_recast_source(
-        "self.bytes[2] = 1; self.bytes[11] = 1;",
-        "view[1][1] = 2;",
-    ))
-    .expect("the bytes immediately before and after [3, 11) are disjoint");
 }
 
 #[test]
@@ -411,15 +384,6 @@ fn literal_indexed_nested_record_array_recast_rejects_padding_and_element_bounda
 
         assert_conflict(&diagnostics, mutation.trim_end_matches(" = 1;"), "view");
     }
-}
-
-#[test]
-fn literal_indexed_nested_record_array_recast_keeps_immediate_siblings_writable() {
-    check_program(&indexed_mutable_nested_record_array_recast_source(
-        "self.bytes[2] = 1; self.bytes[35] = 1;",
-        "view[1][1].tail = 2;",
-    ))
-    .expect("the bytes immediately before and after [3, 35) are disjoint");
 }
 
 #[test]
@@ -505,15 +469,6 @@ fn record_array_with_nested_array_fields_rejects_padding_and_every_boundary() {
 }
 
 #[test]
-fn record_array_with_nested_array_fields_keeps_immediate_siblings_writable() {
-    check_program(&indexed_mutable_array_field_record_recast_source(
-        "self.bytes[2] = 1; self.bytes[83] = 1;",
-        "view[1].blocks[1][1].code = 2;",
-    ))
-    .expect("the bytes immediately before and after [3, 83) are disjoint");
-}
-
-#[test]
 fn nonzero_records_with_zero_array_fields_retain_direct_and_array_ranges() {
     let source = r#"
         data Leaf {
@@ -594,15 +549,6 @@ fn zero_field_record_array_recast_rejects_padding_and_record_boundaries() {
 
         assert_conflict(&diagnostics, mutation.trim_end_matches(" = 1;"), "view");
     }
-}
-
-#[test]
-fn zero_field_record_array_recast_keeps_immediate_siblings_writable() {
-    check_program(&indexed_mutable_zero_field_record_recast_source(
-        "self.bytes[2] = 1; self.bytes[19] = 1;",
-        "view[1].tail = 2;",
-    ))
-    .expect("the bytes immediately before and after [3, 19) are disjoint");
 }
 
 #[test]

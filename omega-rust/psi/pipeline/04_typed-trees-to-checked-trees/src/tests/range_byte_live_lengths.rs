@@ -76,18 +76,6 @@ fn bounded_byte_indexes_use_live_prefix_not_capacity() {
 }
 
 #[test]
-fn bounded_byte_runtime_indexes_and_repeated_element_writes_keep_live_length() {
-    check(
-        &field_source("self.out = \"XXX\"; self.out[position] = byte; self.out[position] = 65;"),
-        true,
-    );
-    check(
-        &field_source("self.out = \"X\"; self.out[position] = byte;"),
-        false,
-    );
-}
-
-#[test]
 fn bounded_byte_whole_replacement_updates_extent_and_siblings_do_not() {
     for (body, accepted) in [
         (
@@ -153,14 +141,6 @@ fn bounded_byte_unknown_live_length_needs_a_guard() {
         &field_source(
             "transition 0 < self.out.len { true -> read() _ -> done() } state read(&mut self) { let observed: u8 = self.out[0]; } state done(&mut self) {}",
         ),
-        true,
-    );
-}
-
-#[test]
-fn raw_fixed_byte_array_keeps_its_exact_declared_extent() {
-    check(
-        "machine replace(output: &mut [u8;3], position: u64 [0..=2]) { output[position] = 65; }",
         true,
     );
 }

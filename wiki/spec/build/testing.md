@@ -225,6 +225,23 @@ usual contracts. It does not mark its main as a test, gain private visibility, o
 implicitly collect the groups. Native execution needs its own real containment
 and authority; an in-process trap does not become recoverable by convention.
 
+## The language corpus
+
+`tests/omega` is the Omega language's test suite. Each case is an ordinary
+package: a `pass` case must check, a `fail` case must reject with its expected
+diagnostic fragment, and a runnable case (the `run` tier and `*_exit` pass
+cases) has an ordinary program entry whose exit status and output are its
+result. Compiler behavior is tested by adding a case here; a repository-wide
+Rust harness or a foreign-language driver program does not substitute for one.
+
+The corpus runner selects how runnable cases execute: natively on the host
+target, on the checked interpreter that `omega run --both` uses, or both. In
+both, the native exit status must equal the interpreted one; a disagreement is
+a compiler defect. A case the interpreter declines records that it was
+declined rather than a result. Native execution on the host proves nothing
+about another target, so a target-specific result belongs to a case built for
+that target.
+
 ## Implementation acceptance
 
 Use one small package with two satisfiers of one registered requirement, then

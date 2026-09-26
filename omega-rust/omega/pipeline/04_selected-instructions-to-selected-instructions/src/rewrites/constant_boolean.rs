@@ -1,0 +1,198 @@
+//! Constant condition materialization on the selected CFG.
+//!
+//! The selected-lowering compare pair rules select the immediate or zero
+//! compare form when one operand is a uniquely materialized literal. Between them an operand gap remains: when *every*
+//! input a compare reads is compile-time known, the condition state the
+//! compare publishes is itself a constant — and a `MaterializeBoolean*`
+//! observing that state is a `MaterializeI64` of the predicate outcome.
+//! Nothing selects that materialization: the boolean forms are the only
+//! flag-to-register readers in the selected catalog, and the literal
+//! compare folds stop at the compare's own boundary.
+//!
+//! This rewrite is that compare/test selection at full selected-CFG
+//! standing. A compare's flag state is constant in the cases the selected
+//! forms can express: `CompareI64` whose two operand registers are each
+//! uniquely produced by a `MaterializeI64` (any sixty-four-bit literal —
+//! nothing is re-encoded, so no immediate bound applies), `CompareI64`
+//! whose operands name the same register (`register - register` is zero on
+//! every lane), `CompareI64Immediate` on a uniquely materialized register
+//! (`literal - immediate`), and `CompareI64Zero` on a uniquely
+//! materialized register (`literal - 0`). A `MaterializeBooleanEqual`,
+//! `MaterializeBooleanU64LessThan`, `MaterializeBooleanI64LessThan`,
+//! `MaterializeBooleanU64LessOrEqual`, or
+//! `MaterializeBooleanI64LessOrEqual` whose implicit flag uses all reach
+//! from that compare — each used unit's nearest preceding in-block
+//! definition or clobber is the compare, and the unit is among its
+//! published definitions — is rewritten in place to `MaterializeI64`
+//! carrying `0` or `1` as the predicate dictates, keeping its identity,
+//! position, result register, and provenance.
+//!
+//! The rewritten instruction's implicit surface legitimately narrows: the
+//! materialize row declares no unit traffic, so the flag uses the boolean
+//! carried are dropped. That is the semantics of the fold — the result no
+//! longer observes condition state because the state it observed is a
+//! constant. The compare itself is retained: terminator branches and any
+//! other reached readers still observe the same flag definitions, and
+//! producer elimination stays with the producer-elimination rules.
+//!
+//! The admission table remains deliberately bounded. The flag walk
+//! resolves a used unit to the last condition-state event on every
+//! execution path reaching the materialization: the in-block rule stands
+//! when a definition or clobber precedes the materialization in its own
+//! block, and otherwise the unit's reaching set is the least fixpoint
+//! over predecessor edges. Every crossed edge is transparent — the
+//! successor record's register, storage, case-payload, and fuel fields
+//! cannot name a condition-state unit — each predecessor contributes its
+//! own last body-or-terminator event or recursively its entry set, and
+//! the entry block contributes the unknown marker because condition state
+//! at function entry is not the compare's. Admission holds only when the
+//! materialization block's entry set is exactly the compare: a path last
+//! touched by a clobber, a different instruction's definition, or no
+//! recorded event — and a used unit resolving differently than its
+//! siblings — all refuse, as does the flag-free boolean shape that has no
+//! condition to evaluate. The compare's literal inputs need the same
+//! unique-producer guarantee the literal folds use — exactly one defining
+//! instruction in the function, a clean `[def]` `MaterializeI64` with no
+//! unit traffic — and each literal must fit the sixty-four-bit register
+//! pattern it publishes. Ordering predicates evaluate in the compare's
+//! own direction (`left - right`), so no swapped subtraction or consumer
+//! audit is needed.
+//!
+//! Validation consumes the proposed program, requires the instruction at
+//! the materialization's position to equal the independently computed
+//! fold, and restores the complete source by content: every other
+//! instruction, register, roster row, call, and settlement is retained
+//! bit-identical. The validator re-derives the fold's preconditions on
+//! its own audit — the flag-reader shape, the one compare every used
+//! unit's reaching event must resolve to, and the constant operands the
+//! predicate outcome is decided from — never consulting the producer's
+//! `admission` routine; only the module's shared condition-state walk and
+//! operand audit are common to both sides.
+
+mod admission;
+mod rewrite;
+mod validation;
+
+use std::sync::Arc;
+
+use optimization_core::OptimizationUnitIdentity;
+use selected_instructions::{
+    ConstantBooleanIdentity, SelectedInstructionId, SelectedInstructionPlan,
+    SelectedInstructionPlanIdentity,
+};
+use semantic_vocabulary::FuelScheduleIdentity;
+
+pub(crate) use rewrite::fold_selected_constant_boolean;
+pub(crate) use validation::{measured_steps, validate_constant_boolean_fold};
+
+#[cfg(test)]
+mod tests;
+
+/// An accepted constant condition materialization with its replay receipt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedConstantBoolean {
+    transformed: Arc<SelectedInstructionPlan>,
+    receipt: ConstantBooleanReceipt,
+}
+
+impl ValidatedConstantBoolean {
+    pub fn transformed(&self) -> &SelectedInstructionPlan {
+        &self.transformed
+    }
+
+    pub fn shared_transformed(&self) -> Arc<SelectedInstructionPlan> {
+        Arc::clone(&self.transformed)
+    }
+
+    pub const fn receipt(&self) -> &ConstantBooleanReceipt {
+        &self.receipt
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConstantBooleanReceipt {
+    source_selected: SelectedInstructionPlanIdentity,
+    transformed_selected: SelectedInstructionPlanIdentity,
+    optimization_unit: OptimizationUnitIdentity,
+    fuel_schedule: FuelScheduleIdentity,
+    function_index: usize,
+    materialization: SelectedInstructionId,
+}
+
+impl ConstantBooleanReceipt {
+    pub const fn source_selected(&self) -> SelectedInstructionPlanIdentity {
+        self.source_selected
+    }
+    pub const fn transformed_selected(&self) -> SelectedInstructionPlanIdentity {
+        self.transformed_selected
+    }
+    pub const fn optimization_unit(&self) -> OptimizationUnitIdentity {
+        self.optimization_unit
+    }
+    pub const fn fuel_schedule(&self) -> FuelScheduleIdentity {
+        self.fuel_schedule
+    }
+    /// The function the fold was committed in.
+    pub const fn function_index(&self) -> usize {
+        self.function_index
+    }
+    /// The folded flag-reader materialization's source-side identity.
+    pub const fn materialization(&self) -> SelectedInstructionId {
+        self.materialization
+    }
+    /// The durable transformation identity the post-allocation manifest
+    /// ledger records: the receipt's exact fields under the
+    /// constant-boolean domain separator.
+    pub fn identity(&self) -> ConstantBooleanIdentity {
+        constant_boolean_identity(self)
+    }
+}
+
+/// Canonical identity of one validated constant boolean fold: every receipt
+/// field — the coordinate, both plan identities, and the proof inputs — is
+/// part of the durable record, so two folds of the same materialization
+/// under different sources stay distinct transformations.
+pub(crate) fn constant_boolean_identity(
+    receipt: &ConstantBooleanReceipt,
+) -> ConstantBooleanIdentity {
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(b"omega.terminal-constant-boolean-fold.v1\0");
+    bytes.extend_from_slice(&receipt.source_selected.bytes());
+    bytes.extend_from_slice(&receipt.transformed_selected.bytes());
+    bytes.extend_from_slice(&receipt.optimization_unit.bytes());
+    bytes.extend_from_slice(&receipt.fuel_schedule.marker().to_le_bytes());
+    bytes.extend_from_slice(
+        &u64::try_from(receipt.function_index)
+            .expect("constant-boolean function index fits u64")
+            .to_le_bytes(),
+    );
+    bytes.extend_from_slice(&receipt.materialization.0.to_le_bytes());
+    ConstantBooleanIdentity::from_canonical_bytes(&bytes)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConstantBooleanError {
+    SourceMismatch,
+    UnsupportedInstruction,
+    /// A flag observation the constant fold cannot reproduce: a used unit
+    /// whose reaching event — in-block or through the predecessor walk —
+    /// is a clobber, a non-compare definition, or a different instruction
+    /// than its siblings; a used unit whose reaching set holds several
+    /// events, the entry unknown, or none at all; or the flag-free
+    /// boolean shape that has no condition to evaluate.
+    UnsupportedUse,
+    UnsupportedProducer,
+    UnsupportedLiteral,
+    ConstraintMismatch,
+    WorkBudgetExceeded,
+    IdentityOverflow,
+    ReplayMismatch,
+}
+
+impl std::fmt::Display for ConstantBooleanError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "invalid constant boolean fold: {self:?}")
+    }
+}
+
+impl std::error::Error for ConstantBooleanError {}

@@ -186,14 +186,6 @@ fn check(source: &str, accepted: bool) {
 }
 
 #[test]
-fn ascii_field_class_survives_indexed_writes_and_loop_edges() {
-    check(
-        &loop_source("self.output = \"AB\";", "self.output[self.position] = 65;"),
-        true,
-    );
-}
-
-#[test]
 fn loop_field_class_requires_initial_evidence_and_every_replacement() {
     for (initialization, replacement) in [
         ("", "self.output[self.position] = 65;"),

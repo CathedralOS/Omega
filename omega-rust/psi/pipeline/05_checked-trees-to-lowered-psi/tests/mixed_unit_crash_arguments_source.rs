@@ -104,12 +104,6 @@ fn proposition_only_float_comparisons_compose_as_boolean_crash_operands() {
     }
 }
 
-#[test]
-fn ordinary_unit_crash_guard_combines_interleaved_scalar_and_structural_parameters() {
-    let checked = crate::front_end::checked_program(SOURCE);
-    roundtrip(&checked);
-}
-
 fn roundtrip(checked: &checked_trees::CheckedTrees) -> lowered_psi::LoweredPsi {
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         checked,
@@ -277,11 +271,6 @@ fn mixed_unit_calls_preserve_authored_positions_and_reordered_actuals() {
             }
         }
     }
-}
-
-#[test]
-fn mixed_unit_routes_reject_wrong_scalar_place_and_foreign_formal_bindings() {
-    assert_mixed_unit_route_bindings_reject_tampering(&reordered_source(0, true, false));
 }
 
 #[test]

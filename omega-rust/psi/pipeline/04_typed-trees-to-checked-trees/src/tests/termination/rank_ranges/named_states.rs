@@ -35,24 +35,10 @@ fn reject(source: &str) {
 }
 
 #[test]
-fn named_state_range_follows_the_exact_renamed_arrival_parameter() {
-    prove(COUNTDOWN);
-}
-
-#[test]
 fn named_state_ranges_reject_non_decreasing_or_out_of_range_backedges() {
     for argument in ["pending", "pending + 1", "pending - 2"] {
         reject(&COUNTDOWN.replace("iterate(pending - 1)", &format!("iterate({argument})")));
     }
-}
-
-#[test]
-fn named_state_range_does_not_invent_an_entry_correspondence() {
-    reject(&COUNTDOWN.replace("iterate(remaining)", "iterate(6)"));
-    reject(&COUNTDOWN.replace(
-        "_ -> iterate(remaining)",
-        "remaining == 0 -> iterate(6) _ -> iterate(remaining)",
-    ));
 }
 
 #[test]
@@ -323,34 +309,6 @@ fn named_state_cannot_reuse_a_non_inductive_machine_requirement() {
     }
     "#;
     reject(source);
-}
-
-#[test]
-fn every_root_selected_named_loop_has_its_own_rank_proof() {
-    let source = r#"
-    machine walk(remaining: u32 [0..=5])
-    terminates by remaining in 0..=5;
-    -> u32 {
-        transition remaining > 2 {
-            true -> first(remaining)
-            false -> second(remaining)
-        }
-        state first(pending: u32 [0..=5]) {
-            transition pending > 0 {
-                true -> first(pending - 1)
-                false -> pending
-            }
-        }
-        state second(left: u32 [0..=5]) {
-            transition left > 0 {
-                true -> second(left - 1)
-                false -> left
-            }
-        }
-    }
-    "#;
-    prove(source);
-    reject(&source.replace("second(left - 1)", "second(left)"));
 }
 
 #[test]

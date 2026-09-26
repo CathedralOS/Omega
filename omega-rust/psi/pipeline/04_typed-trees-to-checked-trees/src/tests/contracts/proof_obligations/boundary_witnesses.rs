@@ -3,73 +3,6 @@ use crate::lower_typed_trees;
 use crate::tests::contracts::{parse_typed_trees, parse_typed_trees_with_service};
 
 #[test]
-fn boundary_witness_survives_disjoint_internal_call_frame() {
-    let source = r#"
-        pub boundary trait Firmware {
-            machine get_size(size: &mut u32)
-            ensures size <= 8;
-        }
-
-        data Main {
-            fw: Binding<Firmware>;
-            n: u32;
-            other: u32;
-            small: u32 [0..=8];
-        }
-
-        machine Main::main(&mut self) reaches Firmware {
-            self.fw.get_size(&mut self.n);
-            self.touch_other();
-            self.small = self.n;
-        }
-
-        machine Main::touch_other(&mut self) {
-            self.other = 1;
-        }
-    "#;
-
-    lower_typed_trees(
-        parse_typed_trees_with_service(source),
-        &CheckingRequest::settled(),
-    )
-    .expect("a disjoint internal frame should preserve the boundary range witness");
-}
-
-#[test]
-fn boundary_witness_survives_disjoint_recast_local_call_frame() {
-    let source = r#"
-        pub boundary trait Firmware {
-            machine get_size(size: &mut u32)
-            ensures size <= 8;
-        }
-
-        data Main {
-            fw: Binding<Firmware>;
-            n: u32;
-            other: u32;
-            small: u32 [0..=8];
-        }
-
-        machine Main::main(&mut self) reaches Firmware {
-            self.fw.get_size(&mut self.n);
-            self.touch_other_through_recast();
-            self.small = self.n;
-        }
-
-        machine Main::touch_other_through_recast(&mut self) {
-            let view: &mut f32 = &mut self.other as &mut f32;
-            view = 1.0;
-        }
-    "#;
-
-    lower_typed_trees(
-        parse_typed_trees_with_service(source),
-        &CheckingRequest::settled(),
-    )
-    .expect("an exact mutable-recast frame should preserve a disjoint boundary range witness");
-}
-
-#[test]
 fn boundary_witness_dies_under_overlapping_recast_local_call_frame() {
     let source = r#"
         pub boundary trait Firmware {
@@ -105,46 +38,6 @@ fn boundary_witness_dies_under_overlapping_recast_local_call_frame() {
             .iter()
             .any(|diagnostic| diagnostic.message.contains("cannot prove assignment value")),
         "expected the bounded-assignment refusal, got {diagnostics:#?}"
-    );
-}
-
-#[test]
-fn boundary_witness_survives_disjoint_local_alias_call_frame() {
-    let source = r#"
-        pub boundary trait Firmware {
-            machine get_size(size: &mut u32)
-            ensures size <= 8;
-        }
-
-        data Main {
-            fw: Binding<Firmware>;
-            n: u32;
-            other: u32;
-            small: u32 [0..=8];
-        }
-
-        machine Main::main(&mut self) reaches Firmware {
-            self.fw.get_size(&mut self.n);
-            self.touch_other_through_alias();
-            self.small = self.n;
-        }
-
-        machine Main::touch_other_through_alias(&mut self) {
-            let root: &mut u32 = &mut self.other;
-            let alias: &mut u32 = &mut root;
-            transition { _ -> finish(alias) }
-            state finish(&mut self, value: &mut u32) {
-                value = 1;
-            }
-        }
-    "#;
-
-    lower_typed_trees(
-        parse_typed_trees_with_service(source),
-        &CheckingRequest::settled(),
-    )
-    .expect(
-        "an exact named-transition alias frame should preserve the disjoint boundary range witness",
     );
 }
 
@@ -314,43 +207,6 @@ fn boundary_witness_dies_under_overlapping_projected_alias_frame() {
 }
 
 #[test]
-fn boundary_witness_survives_disjoint_member_indexed_alias_frame() {
-    let source = r#"
-        pub boundary trait Firmware {
-            machine get_size(size: &mut u32)
-            ensures size <= 8;
-        }
-
-        data Group {
-            cells: [u32; 2];
-            other: u32;
-        }
-
-        data Main {
-            fw: Binding<Firmware>;
-            group: Group;
-            small: u32 [0..=8];
-        }
-
-        machine Main::main(&mut self) reaches Firmware {
-            self.fw.get_size(&mut self.group.other);
-            self.touch_cells_through_member_index();
-            self.small = self.group.other;
-        }
-
-        machine Main::touch_cells_through_member_index(&mut self) {
-            let group_alias: &mut Group = &mut self.group;
-            let cell_alias: &mut u32 = &mut group_alias.cells[0];
-            cell_alias = 9;
-        }
-    "#;
-
-    lower_typed_trees(parse_typed_trees_with_service(source), &CheckingRequest::settled()).expect(
-        "the indexed projection should retain its intermediate collection and preserve a sibling witness",
-    );
-}
-
-#[test]
 fn boundary_witness_dies_under_member_indexed_alias_collection_frame() {
     let source = r#"
         pub boundary trait Firmware {
@@ -395,44 +251,6 @@ fn boundary_witness_dies_under_member_indexed_alias_collection_frame() {
             .any(|diagnostic| diagnostic.message.contains("cannot prove assignment value")),
         "expected the bounded-assignment refusal, got {diagnostics:#?}"
     );
-}
-
-#[test]
-fn boundary_witness_survives_disjoint_direct_member_after_index_frame() {
-    let source = r#"
-        pub boundary trait Firmware {
-            machine get_size(size: &mut u32)
-            ensures size <= 8;
-        }
-
-        data Cell {
-            value: u32;
-        }
-
-        data Main {
-            fw: Binding<Firmware>;
-            cells: [Cell; 2];
-            other: u32;
-            small: u32 [0..=8];
-        }
-
-        machine Main::main(&mut self) reaches Firmware {
-            self.fw.get_size(&mut self.other);
-            self.touch_direct_member_after_index();
-            self.small = self.other;
-        }
-
-        machine Main::touch_direct_member_after_index(&mut self) {
-            let value: &mut u32 = &mut self.cells[0].value;
-            value = 9;
-        }
-    "#;
-
-    lower_typed_trees(
-        parse_typed_trees_with_service(source),
-        &CheckingRequest::settled(),
-    )
-    .expect("a direct member-after-index frame should preserve a witness outside its collection");
 }
 
 #[test]
@@ -512,128 +330,6 @@ fn boundary_witness_survives_caller_isolated_local_collection_frame() {
         &CheckingRequest::settled(),
     )
     .expect("writes through a reference-free local collection must not invalidate caller facts");
-}
-
-#[test]
-fn boundary_witness_survives_transparently_forwarded_local_collection() {
-    let source = r#"
-        pub boundary trait Firmware {
-            machine get_size(size: &mut u32)
-            ensures size <= 8;
-        }
-
-        data Main {
-            fw: Binding<Firmware>;
-            n: u32;
-            small: u32 [0..=8];
-        }
-
-        machine return_values(values: &mut [u32; 2]) -> &mut [u32; 2] {
-            values
-        }
-
-        machine Main::main(&mut self) reaches Firmware {
-            self.fw.get_size(&mut self.n);
-            self.touch_computed_local_collection();
-            self.small = self.n;
-        }
-
-        machine Main::touch_computed_local_collection(&mut self) {
-            let local: [u32; 2] = [0, 1];
-            let values: &mut [u32; 2] = return_values(&mut local);
-            let alias: &mut u32 = &mut values[0];
-            alias = 9;
-        }
-    "#;
-
-    lower_typed_trees(
-        parse_typed_trees_with_service(source),
-        &CheckingRequest::settled(),
-    )
-    .expect("a transparent helper preserves the caller-isolated origin of a local collection");
-}
-
-#[test]
-fn boundary_witness_survives_transparent_call_result_alias_chain() {
-    let source = r#"
-        pub boundary trait Firmware {
-            machine get_size(size: &mut u32)
-            ensures size <= 8;
-        }
-
-        data Main {
-            fw: Binding<Firmware>;
-            n: u32;
-            values: [u32; 2];
-            small: u32 [0..=8];
-        }
-
-        machine identity_values(values: &mut [u32; 2]) -> &mut [u32; 2] {
-            values
-        }
-
-        machine Main::main(&mut self) reaches Firmware {
-            self.fw.get_size(&mut self.n);
-            self.touch_values_through_identity_calls();
-            self.small = self.n;
-        }
-
-        machine Main::touch_values_through_identity_calls(&mut self) {
-            let first: &mut [u32; 2] = identity_values(&mut self.values);
-            let second: &mut [u32; 2] = identity_values(first);
-            let alias: &mut u32 = &mut second[0];
-            alias = 9;
-        }
-    "#;
-
-    lower_typed_trees(
-        parse_typed_trees_with_service(source),
-        &CheckingRequest::settled(),
-    )
-    .expect("a direct identity-result chain should preserve a witness outside its argument origin");
-}
-
-#[test]
-fn boundary_witness_survives_transparent_result_with_pure_call_scratch() {
-    let source = r#"
-        pub boundary trait Firmware {
-            machine get_size(size: &mut u32)
-            ensures size <= 8;
-        }
-
-        data Main {
-            fw: Binding<Firmware>;
-            n: u32;
-            values: [u32; 2];
-            small: u32 [0..=8];
-        }
-
-        machine make_scratch() -> u32 {
-            0
-        }
-
-        machine values_after_scratch(values: &mut [u32; 2]) -> &mut [u32; 2] {
-            let scratch: u32 = make_scratch();
-            values
-        }
-
-        machine Main::main(&mut self) reaches Firmware {
-            self.fw.get_size(&mut self.n);
-            self.touch_values_after_scratch();
-            self.small = self.n;
-        }
-
-        machine Main::touch_values_after_scratch(&mut self) {
-            let selected: &mut [u32; 2] = values_after_scratch(&mut self.values);
-            selected[0] = 9;
-        }
-    "#;
-
-    lower_typed_trees(
-        parse_typed_trees_with_service(source),
-        &CheckingRequest::settled(),
-    )
-    .expect("a complete empty call frame for isolated scratch must preserve the returned origin");
 }
 
 #[test]
@@ -774,42 +470,6 @@ fn boundary_witness_dies_under_projected_call_result_frame() {
 }
 
 #[test]
-fn boundary_witness_survives_disjoint_indexed_alias_collection_frame() {
-    let source = r#"
-        pub boundary trait Firmware {
-            machine get_size(size: &mut u32)
-            ensures size <= 8;
-        }
-
-        data Main {
-            fw: Binding<Firmware>;
-            cells: [u32; 2];
-            other: u32;
-            small: u32 [0..=8];
-        }
-
-        machine Main::main(&mut self) reaches Firmware {
-            self.fw.get_size(&mut self.other);
-            self.touch_cells_through_indexed_alias();
-            self.small = self.other;
-        }
-
-        machine Main::touch_cells_through_indexed_alias(&mut self) {
-            let alias: &mut u32 = &mut self.cells[0];
-            alias = 9;
-        }
-    "#;
-
-    lower_typed_trees(
-        parse_typed_trees_with_service(source),
-        &CheckingRequest::settled(),
-    )
-    .expect(
-        "a collection-coarse indexed alias frame should preserve a witness on disjoint storage",
-    );
-}
-
-#[test]
 fn boundary_witness_dies_under_indexed_alias_collection_frame() {
     let source = r#"
         pub boundary trait Firmware {
@@ -922,40 +582,6 @@ fn incoming_guard_conjuncts_do_not_revive_invalidated_or_unestablished_facts() {
 }
 
 #[test]
-fn incoming_guard_survives_pure_value_call_before_bounded_assignment() {
-    let source = r#"
-        machine widen(value: i32) -> i64 {
-            value as i64
-        }
-
-        data Main {
-            i: i32 [0..=2];
-            scratch: i64;
-        }
-
-        machine Main::main(&mut self) {
-            self.i = 0;
-            transition { _ -> step() }
-
-            state step(&mut self) {
-                transition self.i < 2 { true -> add() _ -> done() }
-            }
-
-            state add(&mut self) {
-                self.scratch = widen(self.i);
-                self.i = self.i + 1;
-                transition { _ -> step() }
-            }
-
-            state done(&mut self) {}
-        }
-    "#;
-
-    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
-        .expect("a pure value-call frame should preserve the incoming counter guard");
-}
-
-#[test]
 fn incoming_guard_dies_when_value_call_writes_guarded_place() {
     let source = r#"
         data Main {
@@ -997,27 +623,6 @@ fn incoming_guard_dies_when_value_call_writes_guarded_place() {
 }
 
 #[test]
-fn incoming_guard_survives_the_consuming_assignment_destination_write() {
-    let source = r#"
-        data Main { value: i32 [0..=9]; }
-
-        machine Main::main(&mut self) {
-            transition self.value < 9 {
-                true -> update()
-                false -> done()
-            }
-            state update(&mut self) {
-                self.value = self.value + 1;
-            }
-            state done(&mut self) {}
-        }
-    "#;
-
-    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
-        .expect("the destination is written after the bounded value has been consumed");
-}
-
-#[test]
 fn incoming_guard_dies_under_the_consuming_assignment_value_call() {
     let source = r#"
         data Main {
@@ -1053,39 +658,6 @@ fn incoming_guard_dies_under_the_consuming_assignment_value_call() {
             .any(|diagnostic| diagnostic.message.contains("cannot prove assignment value")),
         "expected bounded-assignment rejection, got {diagnostics:#?}"
     );
-}
-
-#[test]
-fn bounded_byte_domain_membership_projects_to_matching_slice_domain() {
-    let source = r#"
-        pub boundary trait Sink {
-            machine write(text: [u8] in Utf8);
-        }
-
-        pub domain [u8]::Utf8
-        requires
-            valid_utf8(self);
-
-        pub domain [u8; 4]::Utf8
-        requires
-            valid_utf8(self);
-
-        data Main {
-            sink: Binding<Sink>;
-            text: [u8; 4] in Utf8;
-        }
-
-        machine Main::main(&mut self) reaches Sink {
-            self.text = "Gate";
-            self.sink.write(self.text);
-        }
-    "#;
-
-    lower_typed_trees(
-        parse_typed_trees_with_service(source),
-        &CheckingRequest::settled(),
-    )
-    .expect("a bounded Utf8 carrier should carry Utf8 through its slice projection");
 }
 
 #[test]

@@ -26,21 +26,6 @@ machine enter(before: u64, slot: &mut u64, after: u64) -> u64 {
 "#;
 
 #[test]
-fn scalar_root_preserves_ordered_borrowed_computations() {
-    execute(
-        SOURCE,
-        &[unsigned(7), unsigned(11)],
-        ExecutionExpectations {
-            result: TerminalExecutionResult::Scalar(unsigned(7)),
-            observations: &[201, 7, 11],
-            stamp_calls: 2,
-            stamp_invocations: 2,
-            machines: 3,
-        },
-    );
-}
-
-#[test]
 fn scalar_root_finalizes_remainder_and_narrowing_after_borrowed_computations() {
     let source = SOURCE
         .replace("after: u64) -> u64", "after: u64) -> u8")

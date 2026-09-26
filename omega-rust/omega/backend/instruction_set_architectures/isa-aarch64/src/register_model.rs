@@ -58,5 +58,6 @@ pub use operation_keys::{
 };
 pub use physical_model::{
     aarch64_fixed_register_view, aarch64_physical_register_model,
-    canonical_aarch64_physical_register_model_identity, validated_aarch64_physical_register_model,
+    aarch64_physical_register_model_ref, canonical_aarch64_physical_register_model_identity,
+    validated_aarch64_physical_register_model,
 };

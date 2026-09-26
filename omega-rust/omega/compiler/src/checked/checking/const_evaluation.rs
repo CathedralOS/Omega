@@ -422,7 +422,8 @@ impl SelectedConstEvaluation {
             };
             if fact.selected_operator_symbol != selected.requirement
                 || fact.policy_adapter != selected.policy
-                || fact.provider_plan_commitment != selected.provider
+                || joined_plan_commitment(checked, plans, fact.selected_operator_symbol, fact.origin)
+                    != Some(selected.provider)
             {
                 return Err(vec![Diagnostic::error(
                     "folded operator lost its exact final provider custody",
@@ -455,16 +456,18 @@ impl SelectedConstEvaluation {
                 .named_uses()
                 .filter(|fact| fact.expression == body.expression && fact.origin == body.origin)
                 .collect();
-            let (requirement, commitment) = match (spelled.as_slice(), named.as_slice()) {
-                ([fact], []) => (fact.selected_operator_symbol, fact.provider_plan_commitment),
-                ([], [fact]) => (fact.selected_operator_symbol, fact.provider_plan_commitment),
+            let (requirement, origin) = match (spelled.as_slice(), named.as_slice()) {
+                ([fact], []) => (fact.selected_operator_symbol, fact.origin),
+                ([], [fact]) => (fact.selected_operator_symbol, fact.origin),
                 _ => {
                     return Err(vec![Diagnostic::error(
                         "folded provider body has no unique final checked occurrence",
                     )]);
                 }
             };
-            if requirement != body.requirement || commitment != body.provider {
+            if requirement != body.requirement
+                || joined_plan_commitment(checked, plans, requirement, origin) != Some(body.provider)
+            {
                 return Err(vec![Diagnostic::error(
                     "folded provider body lost its exact final provider custody",
                 )]);
@@ -482,4 +485,17 @@ impl SelectedConstEvaluation {
             authority,
         )
     }
+}
+
+/// The commitment of this target's selected plan serving one checked use,
+/// joined by requirement identity.
+fn joined_plan_commitment(
+    checked: &CheckedTrees,
+    plans: &SelectedProviderPlanFacts,
+    requirement: symbols::SymbolHandle,
+    origin: checked_trees::CheckedValueOrigin,
+) -> Option<CheckedProviderPlanCommitment> {
+    provider_planning::selected_use_plan(checked, plans.plans(), requirement, origin).map(
+        |(_, plan)| CheckedProviderPlanCommitment::from_digest(*plan.identity_digest().as_bytes()),
+    )
 }

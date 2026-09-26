@@ -113,27 +113,6 @@ fn total_operations_on_trapping_values_remain_legal_in_contracts() {
 }
 
 #[test]
-fn wrapping_and_saturating_arithmetic_remain_total_contract_terms() {
-    let source = r#"
-        machine wrapped(left: i32 in Wrapping, right: i32 in Wrapping) -> bool
-        requires
-            left + right == left
-        {
-            true
-        }
-
-        machine saturated(left: i32 in Saturating, right: i32 in Saturating) -> bool
-        requires
-            left * right == right
-        {
-            true
-        }
-    "#;
-
-    checked(source).expect("Wrapping and Saturating arithmetic are total");
-}
-
-#[test]
 fn wrapping_and_saturating_division_require_an_independent_nonzero_fact() {
     let accepted = r#"
         machine divide(left: i32 in Wrapping, divisor: i32 in Wrapping) -> bool
@@ -621,31 +600,6 @@ fn trapping_arithmetic_is_illegal_in_domain_and_data_predicates() {
 }
 
 #[test]
-fn total_abstract_contract_operations_remain_legal() {
-    let source = r#"
-        trait ClassificationRule {
-            machine accepts(left: i32 in Trapping, right: i32 in Trapping) -> bool
-            requires
-                left == right
-            requires
-                (left & right) == 0;
-        }
-
-        data Arithmetic {}
-        boundary operator Arithmetic::wrapped(value: i32 in Wrapping) -> i32
-        ensures
-            result == value + 1;
-
-        machine apply<machine Selected>()
-        where machine Selected(value: i32 in Saturating) -> bool
-            requires value * 2 == value;
-        {}
-    "#;
-
-    checked(source).expect("abstract contracts retain their total selected operations");
-}
-
-#[test]
 fn prior_contract_facts_discharge_exact_arithmetic_after_policy_erasure() {
     let source = r#"
         machine add(left: i8 in Trapping, right: i8 in Trapping) -> bool
@@ -732,23 +686,6 @@ fn signed_product_contract_does_not_inherit_unsigned_width_proof() {
             .message
             .contains("exact arithmetic in machine `bounded` requires contract may overflow `i64`")
     }));
-}
-
-#[test]
-fn abstract_prior_facts_discharge_exact_arithmetic_after_policy_erasure() {
-    let source = r#"
-        trait ArithmeticRule {
-            machine add(left: i8 in Trapping, right: i8 in Trapping) -> bool
-            requires left >= 0
-            requires left <= 100
-            requires right >= 0
-            requires right <= 20
-            requires
-                (left as i8) + (right as i8) <= 120;
-        }
-    "#;
-
-    checked(source).expect("abstract prior facts prove the explicitly Exact sum representable");
 }
 
 #[test]

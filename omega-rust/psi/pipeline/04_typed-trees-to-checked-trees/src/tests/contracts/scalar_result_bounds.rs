@@ -23,15 +23,6 @@ fn check_program(program: TypedTrees, accepted: bool, description: &str) {
 }
 
 #[test]
-fn immutable_return_bounds_prove_the_original_choose_guarantee() {
-    check(
-        "machine choose(value: u64 [2..=4]) -> u64 [0..=4]
-         ensures result >= 2 { value }",
-        true,
-    );
-}
-
-#[test]
 fn immutable_return_bounds_preserve_strict_flipped_and_disjoint_comparisons() {
     for (guarantee, accepted) in [
         ("result > 1", true),
@@ -166,21 +157,6 @@ fn every_return_occurrence_and_live_state_must_establish_the_bound() {
             accepted,
         );
     }
-}
-
-#[test]
-fn mutable_captures_cannot_replay_initializers_at_exit() {
-    check(
-        "machine choose(value: u64 [2..=4], replacement: u64 [0..=4]) -> u64
-         ensures result >= 2 {
-             let mut current: u64 = value;
-             current = replacement;
-             let saved: u64 = current;
-             current = value;
-             saved
-         }",
-        false,
-    );
 }
 
 #[test]

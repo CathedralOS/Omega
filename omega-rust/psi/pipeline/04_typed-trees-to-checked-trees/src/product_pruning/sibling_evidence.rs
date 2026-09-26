@@ -1,15 +1,12 @@
 //! Evidence rows keyed by an expression rather than a machine survive pruning
-//! as dead evidence (see the module contract). Provider-selected operator
-//! uses are the one family a later settlement phase plans executions from, so
-//! pruning a target sibling clears the selection on every operator use inside
-//! its body: the row stays addressable, but reads as an unselected use that
-//! no planner executes.
+//! as dead evidence (see the module contract). Boundary application demands
+//! at a dead site leave; an operator use inside a pruned body stays
+//! addressable, and its origin names a machine that no longer exists, so no
+//! provider-selection join serves it.
 
 use std::collections::HashSet;
 
-use checked_trees::{
-    CheckFacts, CheckedBoundaryOperatorApplicationUseSite, CheckedProviderPlanCommitment,
-};
+use checked_trees::{CheckFacts, CheckedBoundaryOperatorApplicationUseSite};
 use typed_trees::{
     TypedTrees,
     domain::ProofFact,
@@ -52,38 +49,12 @@ pub(super) fn collect_machine_evidence(
     }
 }
 
-/// Drop or unselect the operator evidence rows that live in dead bodies: a
-/// boundary application demand at a dead site leaves, and an operator use at
-/// a dead expression loses its provider selection so the dispatch planners
-/// skip it as an unselected use.
+/// Drop the boundary application demands that live in dead bodies.
 pub(super) fn drop_dead_operator_evidence(facts: &mut CheckFacts, dead: &DeadEvidence) {
     facts
         .operators
         .boundary_applications
         .retain(|row| !site_is_dead(&row.site, dead));
-    let dead = &dead.expressions;
-    let cleared = CheckedProviderPlanCommitment::from_digest([0; 32]);
-    facts.operators.uses.for_each_mut(|_, row| {
-        if dead.contains(&row.expression) {
-            row.provider_plan_report_fingerprint = 0;
-            row.provider_plan_commitment = cleared;
-        }
-    });
-    facts.operators.named_uses.for_each_mut(|_, row| {
-        if dead.contains(&row.expression) {
-            row.provider_plan_report_fingerprint = 0;
-            row.provider_plan_commitment = cleared;
-        }
-    });
-    facts
-        .operators
-        .named_requirement_uses
-        .for_each_mut(|_, row| {
-            if dead.contains(&row.expression) {
-                row.provider_plan_report_fingerprint = 0;
-                row.provider_plan_commitment = cleared;
-            }
-        });
 }
 
 fn site_is_dead(site: &CheckedBoundaryOperatorApplicationUseSite, dead: &DeadEvidence) -> bool {

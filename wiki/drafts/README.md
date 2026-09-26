@@ -17,6 +17,10 @@ Drafts are grouped by kind. A draft belongs to exactly one folder, and
 
 Cross-cutting notes that outlive any single rung.
 
+- [Floating-point realization](reference/float_realization.md): selected float
+  plans, x86 FMA admission, IEEE comparison custody and control-register
+  envelopes as the Rust backend realizes them; delete once each boundary has a
+  permanent owner.
 - [Bootstrap cost investigation](reference/bootstrap_cost_review.md): bounded Delta/P1
   feasibility evidence and its recorded decisions; delete when both sections
   are absorbed or superseded.
@@ -199,6 +203,10 @@ A proposed shape for work that has not landed.
 - [Slice-view sample frontier](designs/slice_view_sample_frontier.md): the twelve
   samples blocked on borrowed non-byte slice views and what moved; delete once
   they reach entry establishment or the vocabulary spec lands.
+- [Target-set compilation](designs/target_set_compilation.md): plan for making
+  target multiplicity data — set-valued assembly/checking, named spine, retiring
+  the per-target loops and reuse structures; delete once
+  TARGET-SET-COMPILATION closes.
 - [Toolchain-settled plan provenance replay](designs/toolchain_settled_plan_provenance_replay.md):
   diagnosis of why minted toolchain-settled plans fail candidate provenance;
   delete once the settlement lane makes them pass replay.

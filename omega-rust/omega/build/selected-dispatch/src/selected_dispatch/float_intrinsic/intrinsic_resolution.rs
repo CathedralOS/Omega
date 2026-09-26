@@ -11,17 +11,15 @@ use diagnostics::Diagnostic;
 use provider_planning::{IntrinsicRequirement, IntrinsicRequirementKind};
 use typed_trees::expression::ExpressionNode;
 
-/// One selected named use of an intrinsic-realizable requirement: a named
-/// boundary-operator use or a direct top-level requirement call, each
-/// stamped by provider planning with its exact selected plan.
+/// One named use of an intrinsic-realizable requirement: a named
+/// boundary-operator use or a direct top-level requirement call. Its selected
+/// plan is joined by requirement identity.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct SelectedIntrinsicUse {
     pub(crate) expression: typed_trees::expression::ExpressionHandle,
     pub(crate) origin: checked_trees::CheckedValueOrigin,
     /// The operator symbol or the requirement machine symbol.
     pub(crate) requirement_symbol: symbols::SymbolHandle,
-    pub(crate) provider_plan_report_fingerprint: u64,
-    pub(crate) provider_plan_commitment: checked_trees::CheckedProviderPlanCommitment,
 }
 
 impl From<&checked_trees::CheckedNamedOperatorUseFact> for SelectedIntrinsicUse {
@@ -30,8 +28,6 @@ impl From<&checked_trees::CheckedNamedOperatorUseFact> for SelectedIntrinsicUse 
             expression: operator_use.expression,
             origin: operator_use.origin,
             requirement_symbol: operator_use.selected_operator_symbol,
-            provider_plan_report_fingerprint: operator_use.provider_plan_report_fingerprint,
-            provider_plan_commitment: operator_use.provider_plan_commitment,
         }
     }
 }
@@ -42,8 +38,6 @@ impl From<&checked_trees::CheckedNamedRequirementUseFact> for SelectedIntrinsicU
             expression: requirement_use.expression,
             origin: requirement_use.origin,
             requirement_symbol: requirement_use.requirement_symbol,
-            provider_plan_report_fingerprint: requirement_use.provider_plan_report_fingerprint,
-            provider_plan_commitment: requirement_use.provider_plan_commitment,
         }
     }
 }
@@ -53,39 +47,13 @@ pub(crate) fn resolve_selected_float_intrinsic_call(
     selected_provider_plans: &[effects::provider_plan::ProviderPlan],
     selected_use: &SelectedIntrinsicUse,
 ) -> Result<Option<StagedNamedFloatRewrite>, Diagnostic> {
-    let commitment = selected_use.provider_plan_commitment;
-    if commitment.is_empty() {
-        return Err(Diagnostic::error(format!(
-            "named float use carries ProviderPlan report fingerprint {:#018x} without an exact commitment",
-            selected_use.provider_plan_report_fingerprint,
-        )));
-    }
-    let report_matches = selected_provider_plans
-        .iter()
-        .filter(|plan| plan.report_fingerprint() == selected_use.provider_plan_report_fingerprint)
-        .collect::<Vec<_>>();
-    let plans = report_matches
-        .iter()
-        .copied()
-        .filter(|plan| plan.identity_digest().as_bytes() == commitment.as_bytes())
-        .collect::<Vec<_>>();
-    let [plan] = plans.as_slice() else {
-        return Err(Diagnostic::error(
-            match (report_matches.len(), plans.len()) {
-                (1, 0) => format!(
-                    "named float use ProviderPlan report fingerprint {:#018x} has an exact commitment that does not match the selected plan",
-                    selected_use.provider_plan_report_fingerprint,
-                ),
-                (0, _) => format!(
-                    "named float use carries unknown ProviderPlan report fingerprint {:#018x}",
-                    selected_use.provider_plan_report_fingerprint,
-                ),
-                (_, count) => format!(
-                    "named float use ProviderPlan report fingerprint {:#018x} and exact commitment match {count} selected plans",
-                    selected_use.provider_plan_report_fingerprint,
-                ),
-            },
-        ));
+    let Some((_, plan)) = provider_planning::selected_use_plan(
+        checked,
+        selected_provider_plans,
+        selected_use.requirement_symbol,
+        selected_use.origin,
+    ) else {
+        return Ok(None);
     };
 
     resolve_float_intrinsic_call(checked, selected_use, plan)

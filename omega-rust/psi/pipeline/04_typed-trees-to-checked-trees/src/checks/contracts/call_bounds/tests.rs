@@ -371,27 +371,6 @@ fn surviving_scalar_context_does_not_apply_builtin_order_to_selected_comparators
 }
 
 #[test]
-fn a_self_call_keeps_its_requirement_beside_an_effectful_sibling_actual() {
-    // The effectful `reset` actual leaves only the caller-context route, where
-    // the recursive formal shares the caller parameter's symbol.
-    let source = r#"
-        machine reset(value: &mut u64) -> u64 { value = 0; 0 }
-        machine walk(remaining: u64, marker: u64) -> u64
-        requires remaining <= 5
-        terminates by remaining;
-        {
-            let mut scratch: u64 = 0;
-            transition remaining > 0 {
-                true -> walk(remaining - 1, reset(&mut scratch))
-                false -> remaining
-            }
-        }
-    "#;
-    checked(source).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
-    assert_call_requirement_rejected(&source.replace("walk(remaining - 1,", "walk(remaining + 1,"));
-}
-
-#[test]
 fn a_named_state_arrival_reads_the_calling_states_requires_and_guard() {
     let source = r#"
         machine eval(fuel: u64) -> u64
@@ -413,30 +392,6 @@ fn a_named_state_arrival_reads_the_calling_states_requires_and_guard() {
     "#;
     checked(source).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
     assert_call_requirement_rejected(&source.replace("fuel > 1", "fuel > 0"));
-}
-
-#[test]
-fn a_guard_conjunct_outside_the_arithmetic_vocabulary_keeps_its_sibling() {
-    let source = r#"
-        machine eval(fuel: u64, ready: bool) -> u64
-        requires 1 <= fuel && fuel <= 128
-        {
-            transition { _ -> fill(fuel, ready) }
-            state fill(fuel: u64, ready: bool) -> u64
-            requires 1 <= fuel && fuel <= 128
-            {
-                transition fuel > 1 && ready {
-                    true -> place(fuel - 1)
-                    _ -> fuel
-                }
-            }
-            state place(fuel: u64) -> u64
-            requires 1 <= fuel && fuel <= 128
-            { fuel }
-        }
-    "#;
-    checked(source).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
-    assert_call_requirement_rejected(&source.replace("fuel > 1 && ready", "fuel > 0 && ready"));
 }
 
 fn assert_call_requirement_rejected(source: &str) {

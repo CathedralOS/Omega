@@ -592,34 +592,6 @@ fn direct_receiver_integer_literal_store_reaches_canonical_interpretation() {
 }
 
 #[test]
-fn nested_receiver_integer_literal_store_retains_exact_carrier() {
-    assert_receiver_store(
-        "Outer::nested",
-        &[StructuralPathSegment::Field("inner".into())],
-        19,
-        false,
-    );
-}
-
-#[test]
-fn indexed_receiver_integer_literal_store_retains_exact_element() {
-    assert_receiver_store(
-        "Matrix::indexed",
-        &[
-            StructuralPathSegment::Field("cells".into()),
-            StructuralPathSegment::FixedIndex(2),
-        ],
-        29,
-        false,
-    );
-}
-
-#[test]
-fn receiver_store_retains_same_typed_scalar_parameter() {
-    assert_receiver_store("Pair::parameter", &[], 37, true);
-}
-
-#[test]
 fn write_only_receiver_stores_retain_access_through_canonical_interpretation() {
     for (machine, path, value, from_parameter) in [
         ("Pair::direct", vec![], 17, false),

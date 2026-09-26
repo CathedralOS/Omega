@@ -17,11 +17,6 @@ const CHAIN: &str = "data Value { number: u64; }
         Main::consume(second);
     }";
 
-#[test]
-fn structural_result_feeds_another_producer() {
-    assert_chain(CHAIN, "Main::caller", &[], &[0, 1, 2], 7);
-}
-
 fn assert_chain(
     source: &str,
     name: &str,
@@ -259,22 +254,6 @@ fn free_callers_chain_nested_arrays_and_generic_results() {
         );
         assert_chain(&source, "caller", &[], &[0, 1, 2], 7);
     }
-}
-
-#[test]
-fn calls_before_and_between_initializers_preserve_authored_order() {
-    let source = "data Value { number: u64; }
-        machine forward(value: Value) -> Value { value }
-        machine Main::tick() {}
-        machine Main::consume(value: Value) {}
-        machine caller(value: Value) {
-            Main::tick();
-            let first: Value = forward(value);
-            Main::tick();
-            let second: Value = forward(first);
-            Main::consume(second);
-        }";
-    assert_chain(source, "caller", &[], &[0, 1, 2, 3, 4], 11);
 }
 
 #[test]

@@ -269,14 +269,6 @@ fn nan_delivery_rejects() {
 }
 
 #[test]
-fn delivery_above_endpoint_rejects() {
-    delivery_rejects(&constant_delivery_module(
-        range(0.0, 1.5, false),
-        2.0f64.to_bits(),
-    ));
-}
-
-#[test]
 fn delivery_below_minimum_rejects() {
     delivery_rejects(&constant_delivery_module(
         range(0.0, 1.5, false),

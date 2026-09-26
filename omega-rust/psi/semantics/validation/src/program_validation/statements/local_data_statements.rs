@@ -177,33 +177,38 @@ pub(super) fn validate(
         diagnostics,
     );
     let before = diagnostics.len();
-    let (interval, source_primitive) = arithmetic_domains::validate_anonymous_integer_range(
-        program,
-        local_data.type_reference,
-        local_data.initial_value,
-        &owner,
-        diagnostics,
-    )
-    .unwrap_or_else(|| {
-        arithmetic_domains::validate_value_range(
+    let local_target_domain =
+        program.arithmetic_domain_for_type_reference(local_data.type_reference);
+    let (interval, source_primitive, source_domain) =
+        arithmetic_domains::validate_anonymous_integer_range(
             program,
-            machine,
-            current_state,
+            local_data.type_reference,
             local_data.initial_value,
-            value_environment,
-            local_target_primitive,
-            program.arithmetic_domain_for_type_reference(local_data.type_reference),
             &owner,
             diagnostics,
         )
-    });
+        .unwrap_or_else(|| {
+            arithmetic_domains::validate_value_range(
+                program,
+                machine,
+                current_state,
+                local_data.initial_value,
+                value_environment,
+                local_target_primitive,
+                local_target_domain,
+                &owner,
+                diagnostics,
+            )
+        });
     // A cleanly-analyzed initializer whose value cannot fit the declared
     // local type is a silent narrowing (`let x: i8 = 300`).
     if local_data.initial_value.is_valid() && diagnostics.len() == before {
         arithmetic_domains::check_narrowing_assignment(
             local_target_primitive,
+            local_target_domain,
             interval,
             source_primitive,
+            source_domain,
             &owner,
             diagnostics,
         );

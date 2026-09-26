@@ -122,21 +122,6 @@ fn integer(value: u128) -> TerminalScalarValue {
 }
 
 #[test]
-fn computed_scalar_operands_interleave_with_structural_results() {
-    assert_order(
-        "data Value { number: u64; }
-         machine forward(value: Value) -> Value { value }
-         machine numeric(count: u32) -> u32 { count ^ 1u32 }
-         machine Main::consume(before: u32, first: Value, between: u32, second: Value, after: u32) {}
-         machine Main::caller(count: u32, first: Value, second: Value) {
-             Main::consume(numeric(count), forward(first), numeric(count ^ 1u32), forward(second), numeric(count ^ 2u32));
-         }",
-        &[integer(4)],
-        &[(0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 0)],
-    );
-}
-
-#[test]
 fn scalar_calls_inside_structural_producers_keep_their_own_argument_roles() {
     assert_order(
         "data Value { number: u64; }

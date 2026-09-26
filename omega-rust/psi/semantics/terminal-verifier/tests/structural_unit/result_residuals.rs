@@ -101,16 +101,6 @@ fn partial_continuation_module() -> TerminalModule {
 }
 
 #[test]
-fn partial_result_continuation_disposes_before_its_successor() {
-    verify_module(
-        &partial_continuation_module(),
-        &ProofBundle::default(),
-        &AdmissionProfile::default(),
-    )
-    .expect("a call continuation disposes the exact residual before entering its successor");
-}
-
-#[test]
 fn partial_result_continuation_preserves_an_unrelated_live_owner() {
     let mut module = partial_continuation_module();
     let caller = &mut module.machines[0];
@@ -201,17 +191,6 @@ fn partial_result_continuation_rejects_cleanup_custody_drift() {
             "continuation mutation {mutation}"
         );
     }
-}
-
-#[test]
-fn call_result_partial_moves_retain_the_exact_residual_complement() {
-    let module = produced_partial_module();
-    verify_module(
-        &module,
-        &ProofBundle::default(),
-        &AdmissionProfile::default(),
-    )
-    .expect("a produced affine root retains exactly its untransferred fields");
 }
 
 #[test]

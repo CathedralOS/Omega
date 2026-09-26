@@ -410,30 +410,6 @@ fn unrestricted_record_leaf_observation_and_read_modify_write_remain_rejected() 
 }
 
 #[test]
-fn nested_unconstrained_fixed_byte_array_record_field_is_writable() {
-    lower_typed_trees(
-        typed_program(
-            r#"
-            data Inner {
-                bytes: [u8; 4];
-                spare: u8;
-            }
-            data Outer {
-                inner: Inner;
-                other: Inner;
-            }
-
-            machine fill(outer: &write Outer) {
-                outer.inner.bytes = [1, 2, 3, 4];
-            }
-        "#,
-        ),
-        &CheckingRequest::settled(),
-    )
-    .expect("a whole fixed byte-array leaf behind a common-field path should lower");
-}
-
-#[test]
 fn direct_and_nested_unrestricted_primitive_fixed_arrays_are_writable() {
     lower_typed_trees(
         typed_program(

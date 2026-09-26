@@ -22,12 +22,9 @@ pub fn validate_selected_instructions(
     catalog: &ValidatedRegisterConstraintCatalog,
     plan: SelectedInstructionPlan,
 ) -> Result<ValidatedSelectedInstructions, SelectedInstructionError> {
-    let environment = register_environment::validate_target_register_environment(
-        legalized.plan().target,
-        physical.model().clone(),
-        catalog.catalog().clone(),
-    )
-    .map_err(|_| SelectedInstructionError::custody())?;
+    let environment =
+        crate::selection::target_register_environment(legalized.plan().target, physical, catalog)
+            .map_err(|_| SelectedInstructionError::custody())?;
     validate_with_environment(legalized, constraints, &environment, plan)
 }
 

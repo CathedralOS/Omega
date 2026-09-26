@@ -64,7 +64,6 @@
 //! - `commuting_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `interchange` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `confluence_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
-//! - `constant_boolean` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `constant_branch` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `dead_compare` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `dead_store` — staged, owner row **ALIAS-AWARE-MEMORY**
@@ -77,18 +76,17 @@
 //! - `relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `store_motion` — staged, owner row **ALIAS-AWARE-MEMORY**
 //!
-//! `commuting_accesses`, `condition_state`, `dead_path` and `place_storage`
-//! are the shared vocabulary only these families read; `super::block_edges`
-//! and `super::window_hazards` are shared with the executed set.
+//! `commuting_accesses`, `dead_path` and `place_storage` are the shared
+//! vocabulary only these families read; `super::block_edges`,
+//! `super::condition_state` and `super::window_hazards` are shared with the
+//! executed set.
 
 mod arm_relocation;
 mod boundary_boolean;
 mod boundary_branch;
 mod commuting_accesses;
 mod commuting_relocation;
-mod condition_state;
 mod confluence_relocation;
-mod constant_boolean;
 mod constant_branch;
 mod dead_compare;
 mod dead_path;
@@ -121,10 +119,6 @@ pub use commuting_relocation::{
 pub use confluence_relocation::{
     ConfluenceRelocationError, ConfluenceRelocationReceipt, ValidatedConfluenceRelocation,
     relocate_selected_members_into_confluence, validate_confluence_relocation,
-};
-pub use constant_boolean::{
-    ConstantBooleanError, ConstantBooleanReceipt, ValidatedConstantBoolean,
-    fold_selected_constant_boolean, validate_constant_boolean_fold,
 };
 pub use constant_branch::{
     ConstantBranchError, ConstantBranchReceipt, ValidatedConstantBranch,

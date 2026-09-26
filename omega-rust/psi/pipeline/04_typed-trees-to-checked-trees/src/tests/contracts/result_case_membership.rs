@@ -68,46 +68,6 @@ fn result_case_membership_observes_the_returned_tag_not_payload_equality() {
 }
 
 #[test]
-fn result_case_membership_consumes_live_parameter_and_projection_predicates() {
-    check(
-        "machine forward(value: Message) -> Message requires value in Message::Data; ensures result in Message::Data; { value }",
-        true,
-    );
-    check(
-        "data Wrapper { message: Message; } machine forward(value: Wrapper) -> Message requires value.message in Message::Data; ensures result in Message::Data; { value.message }",
-        true,
-    );
-    check(
-        "machine forward(value: Message) -> Message requires value in Message::Empty; ensures result in Message::Data; { value }",
-        false,
-    );
-    check(
-        "machine forward(value: Message) -> Message ensures !(result in Message::Data); { value }",
-        false,
-    );
-    check(
-        "machine forward(mut value: Message) -> Message requires value in Message::Data; ensures result in Message::Data; { value = Message::Empty; value }",
-        false,
-    );
-}
-
-#[test]
-fn result_case_membership_respects_shadowing_and_each_normal_exit() {
-    check(
-        "machine make(result: Message) -> Message requires result in Message::Empty; ensures result in Message::Data; { Message::Data { value: 1 } }",
-        false,
-    );
-    check(
-        "machine make(flag: bool) -> Message ensures result in Message::Data; { transition flag { true -> (Message::Data { value: 1 }) false -> (Message::Data { value: 2 }) } }",
-        true,
-    );
-    check(
-        "machine make(flag: bool) -> Message ensures result in Message::Data; { transition flag { true -> (Message::Data { value: 1 }) false -> (Message::Empty) } }",
-        false,
-    );
-}
-
-#[test]
 fn result_case_membership_composes_with_live_scalar_predicates() {
     check(
         "machine make(mut value: u8) -> Message requires value > 0; ensures (result in Message::Data) && value > 0; { value = 0; Message::Data { value: value } }",

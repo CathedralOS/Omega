@@ -64,10 +64,12 @@ pub(super) fn exact_single_fused_service_forward_is_supported(
     ) else {
         return false;
     };
-    let Some(target_authorization) = program.fused_service_erasure(target_carrier.requirement)
-    else {
+    if program
+        .fused_service_erasure(target_carrier.requirement)
+        .is_none()
+    {
         return false;
-    };
+    }
     if caller_source.is_self
         || caller_source.is_const
         || caller_source.is_mutable
@@ -82,7 +84,6 @@ pub(super) fn exact_single_fused_service_forward_is_supported(
         || caller_receipt.source_parameter != caller_source.symbol
         || caller_receipt.requirement != caller_carrier.requirement
         || caller_receipt.requirement != target_carrier.requirement
-        || caller_receipt.provider_plan_digest != target_authorization.provider_plan_digest
         || caller_receipt.carrier_type_identity
             != program
                 .normalized_type_identity(caller_source.type_reference)

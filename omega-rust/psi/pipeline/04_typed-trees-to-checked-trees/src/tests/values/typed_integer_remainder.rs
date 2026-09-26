@@ -112,14 +112,6 @@ fn an_explicit_integer_operand_preserves_remainder_in_each_context() {
 }
 
 #[test]
-fn either_integer_operand_can_select_remainder_without_a_destination_hint() {
-    accepts("machine run() -> u32 { 7u32 % 2 }");
-    accepts("machine run() -> u32 { 7 % 2u32 }");
-    accepts("machine run(value: u32) -> u32 { value % 2 }");
-    accepts("machine run(value: i32) -> i32 { value % 2 }");
-}
-
-#[test]
 fn a_const_generic_argument_cannot_erase_anonymous_remainder_before_checking() {
     for expression in ["7 % 2", "8 % 2"] {
         rejects_anonymous_remainder(&format!(

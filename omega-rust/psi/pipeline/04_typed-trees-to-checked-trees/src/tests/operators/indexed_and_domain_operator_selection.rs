@@ -325,7 +325,7 @@ fn denotation_role_on_bodyless_declared_type_selects_domain_operator() {
             value: i32 in Degrees & Wrapping,
             delta: i32 in Wrapping
         ) {
-            let sum: i32 in Wrapping = value + delta;
+            let sum: i32 in Wrapping = (value + delta) as i32 in Wrapping;
         }
 
         machine Main::main(&mut self) {}
@@ -432,7 +432,7 @@ fn flow_established_membership_does_not_select_domain_operator() {
 
         machine Main::main(&mut self) {
             self.mark();
-            let sum: i32 in Wrapping = self.value + 1;
+            let sum: i32 in Wrapping = (self.value + 1) as i32 in Wrapping;
         }
     "#;
 
