@@ -12,6 +12,10 @@ pub mod terminal_authority_permissions;
 mod terminal_authority_policy;
 mod terminal_authority_review;
 
+pub use request::{
+    NativeBoundaryRealization, NativeCompilerBuiltinSettlement, NativeProviderSettlement,
+    ProviderAdmissionRequest,
+};
 pub use terminal_authority_permission_policy::{
     MissingTerminalAuthorityPermission, TERMINAL_AUTHORITY_PERMISSION_POLICY_VERSION,
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPermissionPolicyBuildError,
@@ -32,10 +36,6 @@ pub use terminal_authority_policy::{
     normalized_foreign_terminal_mechanism_with_callback_materializations,
     settled_filesystem_cohort, settled_time_host_cohort, terminal_authority_policy_with_rows,
     time_host_mechanism_row, time_host_permission_row, time_host_permission_rows,
-};
-pub use request::{
-    NativeBoundaryRealization, NativeCompilerBuiltinSettlement, NativeProviderSettlement,
-    ProviderAdmissionRequest,
 };
 
 use crate::AdmittedBoundarySettlement;
@@ -125,10 +125,7 @@ pub fn admit_native_providers<'request>(
                 .unwrap_or_default(),
         )
         .map_err(|error| {
-            diagnostics::realization_error(
-                "terminal-authority closure review",
-                error,
-            )
+            diagnostics::realization_error("terminal-authority closure review", error)
         })?;
     Ok(AdmittedNativeProviders {
         settlements,

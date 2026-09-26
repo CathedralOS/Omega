@@ -472,32 +472,35 @@ pub fn selected_requirement_plan<'a>(
     plans: &'a [ProviderPlan],
     requirement: symbols::SymbolHandle,
 ) -> Option<(usize, &'a ProviderPlan)> {
-    let mut matching: Vec<(usize, &'a ProviderPlan)> =
-        match typed.operators().iter().find(|operator| operator.symbol == requirement) {
-            Some(operator) => {
-                let slot = typed_trees::operator::boundary_operator_requirement_identity(typed, operator);
-                let package = typed.symbols.symbol_package_identity(operator.symbol);
-                plans
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, plan)| {
-                        plan.schema.trait_name == slot
-                            && plan.schema.trait_package_identity == package
-                    })
-                    .collect()
+    let mut matching: Vec<(usize, &'a ProviderPlan)> = match typed
+        .operators()
+        .iter()
+        .find(|operator| operator.symbol == requirement)
+    {
+        Some(operator) => {
+            let slot =
+                typed_trees::operator::boundary_operator_requirement_identity(typed, operator);
+            let package = typed.symbols.symbol_package_identity(operator.symbol);
+            plans
+                .iter()
+                .enumerate()
+                .filter(|(_, plan)| {
+                    plan.schema.trait_name == slot && plan.schema.trait_package_identity == package
+                })
+                .collect()
+        }
+        None => {
+            let requirement = crate::IntrinsicRequirement::by_symbol(typed, requirement)?;
+            if requirement.kind != crate::IntrinsicRequirementKind::TopLevelRequirement {
+                return None;
             }
-            None => {
-                let requirement = crate::IntrinsicRequirement::by_symbol(typed, requirement)?;
-                if requirement.kind != crate::IntrinsicRequirementKind::TopLevelRequirement {
-                    return None;
-                }
-                plans
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, plan)| requirement.schema_binds(typed, &plan.schema))
-                    .collect()
-            }
-        };
+            plans
+                .iter()
+                .enumerate()
+                .filter(|(_, plan)| requirement.schema_binds(typed, &plan.schema))
+                .collect()
+        }
+    };
     match matching.len() {
         1 => matching.pop(),
         _ => None,

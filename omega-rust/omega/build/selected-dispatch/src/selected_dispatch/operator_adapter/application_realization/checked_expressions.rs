@@ -120,8 +120,7 @@ fn derive_checked_expression_operator_application_realization(
                 }),
         )
         .collect::<Vec<_>>();
-    let [(authored_use_kind, exact_authored_use)] = authored_uses.as_slice()
-    else {
+    let [(authored_use_kind, exact_authored_use)] = authored_uses.as_slice() else {
         return Err(Diagnostic::error(format!(
             "canonical-empty boundary application at expression {expression:?} retains {} exact authored uses; expected one",
             authored_uses.len(),
@@ -160,14 +159,13 @@ fn derive_checked_expression_operator_application_realization(
     }
 
     if !matches!(
-            plan.rows.as_slice(),
-            [row]
-                if matches!(
-                    row.binding,
-                    effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
-                )
-        )
-    {
+        plan.rows.as_slice(),
+        [row]
+            if matches!(
+                row.binding,
+                effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
+            )
+    ) {
         // Compiler-intrinsic and admitted external roles have their own exact
         // realization projectors. This lane must not preempt their replay or
         // diagnostics merely because they share a checked application demand.
@@ -256,7 +254,9 @@ fn derive_checked_expression_operator_application_realization(
         requirement_operator: application.requirement_symbol,
         requirement_overload_identity,
         provider_plan_report_fingerprint: plan.report_fingerprint(),
-        provider_plan_commitment: checked_trees::CheckedProviderPlanCommitment::from_digest(*plan.identity_digest().as_bytes()),
+        provider_plan_commitment: checked_trees::CheckedProviderPlanCommitment::from_digest(
+            *plan.identity_digest().as_bytes(),
+        ),
         realization_machine,
         realization_state,
         realization_contract_report_fingerprint: contract.report_fingerprint,

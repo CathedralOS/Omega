@@ -1,14 +1,14 @@
-use installation_evidence::ProviderExecutionEvidence;
 use super::{
     exact_plan::selected_plan_from_exact_evidence,
     normalized_foreign_call::rejoin_normalized_foreign_call,
 };
+use crate::AdmittedBoundarySettlement;
 use crate::provider_admission::{
     NativeBoundaryRealization, NativeProviderSettlement, NativeRealizationInput,
     ProviderAdmissionRequest,
 };
-use crate::AdmittedBoundarySettlement;
 use diagnostics::Diagnostic;
+use installation_evidence::ProviderExecutionEvidence;
 
 pub(super) fn settle_boundary<'request>(
     input: &NativeRealizationInput,
@@ -73,10 +73,7 @@ pub(super) fn settle_boundary<'request>(
     Ok((
         AdmittedBoundarySettlement {
             boundary: boundary.id,
-            execution:
-                crate::AdmittedBoundaryExecution::Provider(
-                    evidence,
-                ),
+            execution: crate::AdmittedBoundaryExecution::Provider(evidence),
             realization,
         },
         evidence,

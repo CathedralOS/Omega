@@ -652,8 +652,11 @@ fn plan_selected_boundary_adapter_dispatch(
             let Some(receipt) = &parameter.fused_service_erasure else {
                 continue;
             };
-            if !selected_service_plan_matches_requirement(typed, selected_plans, receipt.requirement)
-            {
+            if !selected_service_plan_matches_requirement(
+                typed,
+                selected_plans,
+                receipt.requirement,
+            ) {
                 diagnostics.push(Diagnostic::error(format!(
                     "routed service parameter {:?} has no exact Fused selected-provider-plan join",
                     receipt.source_parameter,

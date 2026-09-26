@@ -1,7 +1,5 @@
 use crate::provider_admission::diagnostics::realization_error;
-use crate::provider_admission::{
-    NativeRealizationInput, ProviderAdmissionRequest,
-};
+use crate::provider_admission::{NativeRealizationInput, ProviderAdmissionRequest};
 use diagnostics::Diagnostic;
 use terminal_psi_to_abstract_operations::AdmittedProviderInstallation;
 

@@ -114,7 +114,9 @@ pub fn bind_checked_x86_scalar_fma_plan_associations(
                 .facts
                 .operators
                 .named_requirement_uses()
-                .map(|requirement_use| (requirement_use.requirement_symbol, requirement_use.origin)),
+                .map(|requirement_use| {
+                    (requirement_use.requirement_symbol, requirement_use.origin)
+                }),
         );
     for (requirement_symbol, origin) in named_uses {
         match crate::selected_use_plan(checked, selected.plans(), requirement_symbol, origin) {
@@ -163,13 +165,7 @@ pub fn bind_checked_x86_scalar_fma_plan_associations(
                     // FMA realizations are not x86 deployment demands.
                     continue;
                 }
-                demands.push((
-                    plan_index,
-                    row_index,
-                    builtin,
-                    requirement_symbol,
-                    slot,
-                ));
+                demands.push((plan_index, row_index, builtin, requirement_symbol, slot));
             }
         }
     }

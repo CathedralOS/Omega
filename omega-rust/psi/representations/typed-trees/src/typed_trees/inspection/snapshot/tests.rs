@@ -334,9 +334,7 @@ fn snapshots_program_level_custody_and_full_state_census() {
         });
     program
         .fused_service_erasures
-        .push(crate::typed_trees::FusedServiceErasureAuthorization {
-            requirement,
-        });
+        .push(crate::typed_trees::FusedServiceErasureAuthorization { requirement });
     program
         .boundary_calling_plans
         .push(crate::typed_trees::BoundaryCallingPlanIdentity {
