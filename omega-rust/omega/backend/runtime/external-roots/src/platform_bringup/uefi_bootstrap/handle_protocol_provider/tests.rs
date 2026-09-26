@@ -646,7 +646,7 @@ fn provider_public_surface_has_no_raw_function_or_authority_projection() {
     assert!(!compact.contains("implCloneforLifecycleScopedUefiLoadedImageCorrespondence"));
     assert!(!compact.contains("implCloneforPlannedUefiHandleProtocolInvocation"));
     assert!(!compact.contains("implCloneforBoundUefiHandleProtocolInvocation"));
-    let execution_source = include_str!("../handle_protocol_provider/execution.rs");
+    let execution_source = include_str!("execution.rs");
     let execution_compact: String = execution_source
         .chars()
         .filter(|character| !character.is_whitespace())

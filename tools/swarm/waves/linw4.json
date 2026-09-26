@@ -44,9 +44,9 @@
    "board": "TASKS.md",
    "item": "TOP-LEVEL-BOUNDARY-REQUIREMENTS",
    "owning_paths": [
-    "omega-rust/omega/build/selected-dispatch/src/boundary_dispatch.rs",
-    "omega-rust/omega/build/selected-dispatch/src/boundary_dispatch",
-    "omega-rust/omega/build/selected-dispatch/src/selected_dispatch/requirement_adapter.rs",
+    "omega-rust/omega/compiler/selected-dispatch/src/boundary_dispatch.rs",
+    "omega-rust/omega/compiler/selected-dispatch/src/boundary_dispatch",
+    "omega-rust/omega/compiler/selected-dispatch/src/selected_dispatch/requirement_adapter.rs",
     "omega-rust/psi/semantics/validation/src/machine_calls/calls/generic_bounds.rs"
    ],
    "suggested_first_slice": "Family-row or borrowed-receiver leg: lifetime-parameterized direct requirements landed (483fe3708a); selected_dispatch/requirement_adapter.rs still rejects family rows and boundary_dispatch.rs still restricts direct requirements to nongeneric, receiver-free signatures. Take ONE bounded step: admit one family-row or borrowed-receiver requirement shape, retaining package-qualified operation, static telescope, signature, contract, selected provider/adapter and era through ordinary lowering. tests/ is wholesale-fenced by another session's claim this wave - cover the leg with in-crate tests only (selected-dispatch/validation test modules), no corpus fixtures; if a fixture is genuinely required, note it as deferred instead of touching tests/. OPERATOR-MACHINE-SUPPLY owns source supply migration - do not touch it. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4."

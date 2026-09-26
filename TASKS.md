@@ -1338,7 +1338,7 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   settlement, private staging, and publication rather than adding an executor.
 
   Owners: `package-compilation/src/source_snapshot/`,
-  `omega-rust/omega/packages/sources/acquisition/src/tree/filesystem.rs`, build-output,
+  `omega-rust/omega/package-manager/source-acquisition/src/tree/filesystem.rs`, build-output,
   build-evaluation, and compiler publication. Per-file observations and later
   live-tree comparisons do not establish coherent whole-tree capture. Cover
   directory membership/link races and edits restoring compared observations
@@ -1506,7 +1506,7 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
   facts may establish unreachable behavior; optional optimization and broad
   public ceilings are not absence proofs.
 
-  Owners: `omega-rust/omega/build/build-evaluation/src/admission/behavior_exclusions.rs`,
+  Owners: `omega-rust/omega/compiler/build-evaluation/src/admission/behavior_exclusions.rs`,
   `omega-rust/omega/compiler/src/terminal/terminal_artifact/behavior_exclusions.rs`,
   and Psi operation/guard evidence. BUILD-EXCLUSION-REALIZATION owns physical
   classes and installation, not a duplicate semantic checker.
@@ -1568,7 +1568,7 @@ WIRE-RUNTIME-AND-INSTALLATION owns generic executable custody. No compiler graph
 stage, topology-specific IR, or new trusted graph axiom.
 
 - **TOPOLOGY-PLAN-VERIFICATION.** Deliver the Omega build-only package and payment
-  composition project. Reuse `omega-rust/omega/packages/topology/` normalization,
+  composition project. Reuse `omega-rust/library/topology/` normalization,
   policy, certificate, and codec implementations, plus the existing component
   description producer/admission in compiler, build-evaluation, and
   `backend/artifacts/component-description/`.
@@ -2242,9 +2242,9 @@ syntax and other terminal services are not prerequisites.
   independently checked evidence for generated codecs' `Derived` trust under
   [public codec agreement](wiki/spec/layouts/codecs.md#agreement-and-trust).
   The no-authored-policy route now exists, but
-  `omega-rust/psi/semantics/checked-interpreter/src/interpreter/evaluator/execution/wire_verification.rs`
+  `omega-rust/psi/interpreter/checked-interpreter/src/interpreter/evaluator/execution/wire_verification.rs`
   compares Floor/Ceiling members and malformed-input probes.
-  `omega-rust/omega/build/build-evaluation/src/admission/wire_protocol.rs` reports `Derived` when
+  `omega-rust/omega/compiler/build-evaluation/src/admission/wire_protocol.rs` reports `Derived` when
   that probe's gaps are empty. Finite examples do not establish the general
   agreement law; comparing placements or a shared field classifier is not
   independent checking of the codec body. Correct probe-only classifications
@@ -2427,7 +2427,7 @@ syntax and other terminal services are not prerequisites.
     not an entry snapshot, and crash ceilings imply no normal guarantee.
   - Complete package-review projections through indexes, case payloads and
     generic fields using Psi's exact carrier/case relation. Keep
-    `omega-rust/omega/packages/review/evidence/tests/callable_policy/case_membership.rs` as the
+    `omega-rust/omega/package-manager/review-evidence/tests/callable_policy/case_membership.rs` as the
     source/recovery control; saved/result tags need ordinary value custody,
     not re-executed initializers or callee bodies.
   - Extend entry provenance for opaque/content leaves, dynamic indices and
@@ -2635,7 +2635,7 @@ syntax and other terminal services are not prerequisites.
     contain constants. Preserve assumption closure even when proof use erases.
   - Migrate core relations, quotients and examples. Include the replacement
     proof rows assigned by
-    `omega-rust/omega/packages/review/evidence/EVIDENCE_SCHEMA.md` and
+    `omega-rust/omega/package-manager/review-evidence/EVIDENCE_SCHEMA.md` and
     QUOTIENT-THEOREM-LIFT's congruence-only lift payload.
 
   Acceptance is source → Terminal serialization → independent checking under
@@ -3492,7 +3492,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   (`with_target_configurations`, `ExplicitTargetSet`,
   `TargetCompileConfiguration`) has no production caller; package operations
   loop `for target in targets` one layer up
-  (`omega-rust/omega/packages/manager/src/operations/inspect_packages/execution.rs`,
+  (`omega-rust/omega/package-manager/src/operations/inspect_packages/execution.rs`,
   `CandidateSourcePreparation`), and `NativeInputReuse` deduplicates
   realization inputs after the work is already done. Make target multiplicity
   data: one `AssembledSyntax` retains all targets' qualified declarations
@@ -3631,7 +3631,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   `finalization.rs`, naming an occurrence number rather than the call
   (expression calls already have `undeclared_checked_call_callee`, which names
   the callee). The target-machine filter states the intended rule in
-  `omega-rust/omega/build/build-evaluation/src/admission/target_machines.rs`: a name
+  `omega-rust/omega/compiler/build-evaluation/src/admission/target_machines.rs`: a name
   implemented by ONE foreign target is that target's paradigm internal and is
   "filtered silently with its callers" -- but only the declaration is
   filtered, never a caller. Witness: before
@@ -4221,7 +4221,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   The optional receiver-policy path and its acceptance/rejection controls exist.
   Filesystem cohort emitters also have production callers:
   `providers/settlements/source_imports.rs` emits mechanism classifications;
-  `omega-rust/omega/packages/manager/src/review/candidate/semantic_bindings.rs` attaches
+  `omega-rust/omega/package-manager/src/review/candidate/semantic_bindings.rs` attaches
   consumer permission rows. The merge in `02_abstract-operations-to-target-operations/src/provider_admission/mod.rs`
   is a **mechanism-classification** policy, separate from the optional receiver
   permission policy; preserve both exact identities.
@@ -4242,7 +4242,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   Remaining delivery:
 
   - Connect the bounded Linux filesystem plan to native settlement transport.
-    `omega-rust/omega/build/build-evaluation/src/provider_settlement/canonical_filesystem_host.rs`
+    `omega-rust/omega/compiler/build-evaluation/src/provider_settlement/canonical_filesystem_host.rs`
     already mints accepted-schema plans for supported positional syscalls.
     `compiler/tests/terminal_authority/filesystem_cohort_witness.rs` calls
     `set_len` and now pins `MissingBoundarySettlement`, not zero provider rows.
@@ -4250,7 +4250,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
     path/slice adaptation or host-error mechanisms. General provider planning
     is not the missing implementation for this witness.
     Preserve settled-provenance replay in
-    `omega-rust/omega/packages/review/evidence/src/capture/providers/policy/replay.rs`, including
+    `omega-rust/omega/package-manager/review-evidence/src/capture/providers/policy/replay.rs`, including
     changed settlement identity, authored-candidate substitution, and unsupported
     demanded-leaf rejection. Do not exempt ordinary `UniqueCoveringCandidate` plans.
   - Drive console-exit-app, Cathedral native smoke, `cli_mvp` and Squalr through
@@ -5424,7 +5424,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   Std may be replaced, split or absent; only core and the specified
   compiler-injected vocabulary retain toolchain authority. Standalone
   std/alloc still receive broad `Toolchain` classification in
-  `omega-rust/omega/build/build-evaluation/src/sources/source/source_storage.rs`.
+  `omega-rust/omega/compiler/build-evaluation/src/sources/source/source_storage.rs`.
   Remove that fallback as remaining consumers acquire exact source-byte
   catalog roles or accepted semantic bindings, not by relabeling a directory.
 
@@ -5440,7 +5440,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   dependency edges and target-correct Console, Filesystem and physical-entry
   bindings. Keep freestanding roots dependency-free. The existing narrow
   roles, including macOS x64 entry, are documented
-  [beside package compilation](omega-rust/omega/build/package-compilation/semantic_bindings.md).
+  [beside package compilation](omega-rust/omega/compiler/package-compilation/semantic_bindings.md).
   Route exposed composed-call, ownership, entry and proof failures to their
   capability owners, retaining each customer's intended checking/execution
   acceptance; unrelated blocked features do not stop independent migrations.
@@ -5856,7 +5856,7 @@ but report the missing runtime leg explicitly; it does not close that host row.
   repair, retaining exact selection and package-use authority checks.
   Package command fixtures: reproduce `fixture module path ends in ::fixture`
   in `named_workspace_install::cases`. Fix caller-specific child-test selection
-  in `omega-rust/omega/packages/manager/tests/support/named_workspace.rs` and exercise all four
+  in `omega-rust/omega/package-manager/tests/support/named_workspace.rs` and exercise all four
   consumers, including `package_inspection`, `offline_package_commands`, and
   `source_diff_commands`.
 

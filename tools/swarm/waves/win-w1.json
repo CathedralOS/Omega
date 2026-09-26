@@ -40,7 +40,7 @@
       "item": "OPAQUE-BY-VALUE-BOUNDARY-ABI",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/build/provider-planning/src/calling_policy_plans/opaque_representations.rs",
+        "omega-rust/omega/compiler/provider-planning/src/calling_policy_plans/opaque_representations.rs",
         "omega-rust/omega/representations/boundary-applications/src/realization.rs",
         "omega-rust/omega/representations/installation-evidence/src/lib.rs"
       ],
@@ -52,7 +52,7 @@
       "item": "OPTIONAL-STDLIB-SEMANTIC-BINDINGS",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/build/package-compilation/src/semantic_bindings.rs",
+        "omega-rust/omega/compiler/package-compilation/src/semantic_bindings.rs",
         "omega-rust/omega/compiler/compiler/src/pipeline/package"
       ],
       "suggested_first_slice": "Finish one package-aware ordinary std dependency edge while preserving freestanding builds and explicit semantic bindings."

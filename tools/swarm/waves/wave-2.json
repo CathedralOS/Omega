@@ -39,7 +39,7 @@
       "item": "BUILD-PRODUCT-REFERENCES",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/build/build-evaluation/src/selection"
+        "omega-rust/omega/compiler/build-evaluation/src/selection"
       ],
       "suggested_first_slice": "a multi-file helper binding one owner-restricted private entry reference through the evaluated root Build authority, plus the wrong-scope rejection"
     },

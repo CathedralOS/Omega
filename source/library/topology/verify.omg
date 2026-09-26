@@ -1,6 +1,6 @@
 // verify — the independent source-free plan consumer
 // (wiki/spec/packages/topology.md; reference:
-// omega-rust/omega/packages/topology/src/plan_verification.rs).
+// omega-rust/library/topology/src/plan_verification.rs).
 //
 // `Verify::verify` is given the candidate plan bytes, the *current* owner
 // request bytes, and the admitted-component facts the consumer actually

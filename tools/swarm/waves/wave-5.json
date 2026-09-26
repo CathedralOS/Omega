@@ -67,8 +67,8 @@
       "item": "SYMBOLIC-MATERIALIZATION",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/semantics/build-time-evaluation/src/layout_plans",
-        "omega-rust/psi/semantics/build-time-evaluation/src/placed_views"
+        "omega-rust/psi/compiler/build-time-evaluation/src/layout_plans",
+        "omega-rust/psi/compiler/build-time-evaluation/src/placed_views"
       ],
       "suggested_first_slice": "Complete one symbolic field or index materialization path while preserving exact paths and bounds until target-dependent realization."
     },
@@ -101,7 +101,7 @@
       "item": "OPAQUE-BY-VALUE-BOUNDARY-ABI",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/build/provider-planning/src/calling_policy_plans/opaque_representations.rs",
+        "omega-rust/omega/compiler/provider-planning/src/calling_policy_plans/opaque_representations.rs",
         "omega-rust/omega/representations/boundary-applications/src/realization.rs",
         "omega-rust/omega/representations/installation-evidence/src/lib.rs"
       ],
@@ -157,7 +157,7 @@
       "item": "OPTIONAL-STDLIB-SEMANTIC-BINDINGS",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/build/package-compilation/src/semantic_bindings.rs",
+        "omega-rust/omega/compiler/package-compilation/src/semantic_bindings.rs",
         "omega-rust/omega/compiler/compiler/src/pipeline/package"
       ],
       "suggested_first_slice": "Finish one package-aware ordinary std dependency edge while preserving freestanding builds and explicit semantic bindings."
@@ -168,7 +168,7 @@
       "item": "BUILD-ADMISSION-CHECKPOINT",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/build/build-output/src/replayed_tree.rs",
+        "omega-rust/omega/compiler/build-output/src/replayed_tree.rs",
         "omega-rust/omega/compiler/compilation-report/src/production_manifest.rs",
         "omega-rust/omega/compiler/compiler/src/pipeline/source_assembly"
       ],

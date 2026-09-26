@@ -131,8 +131,8 @@
       "item": "BUILD-SEMANTIC-EXCLUSIONS",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/build/build-evaluation/src/configuration.rs",
-        "omega-rust/omega/build/build-evaluation/src/declarations.rs"
+        "omega-rust/omega/compiler/build-evaluation/src/configuration.rs",
+        "omega-rust/omega/compiler/build-evaluation/src/declarations.rs"
       ],
       "suggested_first_slice": "Define the smallest typed exclusion configuration and retained declaration evidence needed to distinguish a permitted no-op Trap composition from an actual Console invocation."
     },

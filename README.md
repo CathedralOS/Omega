@@ -18,7 +18,7 @@ design is ahead of its implementation; native support is still being completed.
 
 [Language guide](wiki/language_guide/language_guide.md) ·
 [Specification](wiki/README.md#current-specification-subjects) ·
-[Examples](samples/) ·
+[Examples](samples) ·
 [Contributing](#development)
 
 ## Machines
@@ -272,7 +272,7 @@ on the Rust implementation.
 | --- | --- |
 | Learn the language | [Language guide](wiki/language_guide/language_guide.md) |
 | Look up an exact rule | [Language and toolchain specification](wiki/README.md) |
-| Explore programs and library code | [Samples](samples/) · [Bundled library](source/library/) |
+| Explore programs and library code | [Samples](samples) · [Bundled library](source/library) |
 | Work on the current compiler | [Rust implementation](omega-rust/README.md) |
 | Read the self-hosted compiler sources | [Product source](source/README.md) |
 | Understand bootstrap and trust | [Bootstrap](bootstrap/README.md) |

@@ -39,7 +39,7 @@
       "owning_paths": [
         "omega-rust/psi/semantics/validation/src/expression_types",
         "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/tests/value_dispatch.rs",
-        "omega-rust/psi/semantics/checked-interpreter/tests/value_dispatch.rs",
+        "omega-rust/psi/interpreter/checked-interpreter/tests/value_dispatch.rs",
         "tests/native-differential/tests/scalar_case_results.rs"
       ],
       "suggested_first_slice": "one selective Match dispatch shape whose result type and lowering are witnessed by the same fixture in the checked interpreter and the lowered-psi value_dispatch tests"
@@ -51,7 +51,7 @@
       "host": "linux",
       "owning_paths": [
         "omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/module_normalization.rs",
-        "omega-rust/psi/semantics/build-time-evaluation/src/const_initializers.rs",
+        "omega-rust/psi/compiler/build-time-evaluation/src/const_initializers.rs",
         "omega-rust/omega/compiler/compiler/tests/module_machine_indices.rs",
         "omega-rust/omega/compiler/compiler/tests/module_machine_indices"
       ],
@@ -66,7 +66,7 @@
         "omega-rust/psi/pipeline/01_tokens-to-syntax-trees/src/parser/machine.rs",
         "omega-rust/psi/representations/typed-trees/src/typed_trees/calls/signature.rs",
         "omega-rust/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/src/state.rs",
-        "omega-rust/omega/build/provider-planning/src/calling_policy_plans.rs",
+        "omega-rust/omega/compiler/provider-planning/src/calling_policy_plans.rs",
         "omega-rust/omega/compiler/compiler/tests/calling_policy_plans.rs",
         "omega-rust/omega/compiler/compiler/tests/callback_terminal_custody.rs"
       ]
@@ -90,9 +90,9 @@
       "item": "BOUNDED-INSTALLATION-REACH-ROWS",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/packages/review/evidence/src/capture",
-        "omega-rust/omega/packages/review/evidence/tests/authority",
-        "omega-rust/omega/build/provider-planning/src/plans.rs"
+        "omega-rust/omega/package-manager/review-evidence/src/capture",
+        "omega-rust/omega/package-manager/review-evidence/tests/authority",
+        "omega-rust/omega/compiler/provider-planning/src/plans.rs"
       ],
       "suggested_first_slice": "the unresolved-requirement fence on selected installation reach rows, before the carrier-owned invocation route"
     },

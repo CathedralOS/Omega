@@ -6,8 +6,8 @@ fixed by [pipeline.gamma](../pipeline.gamma): source envelope
 balanced parsing and grammatical roles ([syntax/](syntax/README.md)), the
 global identity census ([collection.gamma](collection.gamma)), declaration
 resolution ([declarations.gamma](declarations.gamma) and
-[declarations/](declarations/)), body checking ([types.gamma](types.gamma) and
-[types/](types/)), and selected-profile validation
+[declarations/](declarations)), body checking ([types.gamma](types.gamma) and
+[types/](types)), and selected-profile validation
 ([profile.gamma](profile.gamma)). Scoped environments
 ([environments.gamma](environments.gamma)) and the exact-name tries and cursors
 ([names.gamma](names.gamma), [names/](names/README.md)) serve the census,
@@ -61,7 +61,7 @@ built during resolution.
 
 ### Declaration resolution
 
-[declarations/](declarations/) replaces census rows with typed metadata in
+[declarations/](declarations) replaces census rows with typed metadata in
 authored order. `identity_cursor_replace` preserves child edges and every
 earlier immutable root; lookups are charged through `Q`.
 
@@ -85,7 +85,7 @@ earlier immutable root; lookups are charged through `Q`.
 
 ### Body checking
 
-[types/](types/) runs the explicit visit/resume machine. A continuation is
+[types/](types) runs the explicit visit/resume machine. A continuation is
 `(pair kind (pair payload previous))`; payload owners are listed per row.
 Local and constructor name lookups (`local_environment_lookup`,
 `find_function_metadata`, `require_constructor_metadata`,

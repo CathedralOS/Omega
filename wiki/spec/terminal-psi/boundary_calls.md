@@ -177,7 +177,7 @@ The host must supply a legitimate owned value. An opaque identity number does
 not establish global allocation freshness against interpreter-created values
 or suspended callers. Shape validation alone is not external ownership proof.
 Current interpreter limits are described beside
-[effect handling](../../../omega-rust/psi/semantics/terminal-interpreter/README.md).
+[effect handling](../../../omega-rust/psi/interpreter/terminal-interpreter/README.md).
 
 ## Reachability and attachments
 

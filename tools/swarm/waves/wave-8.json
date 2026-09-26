@@ -131,7 +131,7 @@
       "item": "CALLBACK-PRIVATE-MATERIALIZATION",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/build/provider-planning",
+        "omega-rust/omega/compiler/provider-planning",
         "omega-rust/psi/compiler/terminal-production"
       ],
       "suggested_first_slice": "Plan-side slice: target-owned private callback slots through exact conformances and validated layout paths \u2014 callback_layout_catalog under provider-planning is the seam. backend/runtime/component-publication is claimed by EXTERNAL-ENTRY-STACK-EPOCHS until ~04:32Z; keep to planning/terminal-production writes or report blocked."
@@ -142,7 +142,7 @@
       "item": "BUILD-PRODUCT-REFERENCES",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/build/build-evaluation/src/selection",
+        "omega-rust/omega/compiler/build-evaluation/src/selection",
         "omega-rust/omega/compiler/compiler/tests/build_target_activation.rs"
       ],
       "suggested_first_slice": "Backfill for the blocked frame-layout slot. Remaining work per board: provider/schema description kinds (the computed-receiver implementation fence likely still waits on call-result authority). Extend the landed ProductEntryRef pattern in build-evaluation/src/selection/root_bindings.rs to one provider or schema description kind; keep rejection matrix intact. omega/packages is claimed by BUILD-DEPENDENCY-PURPOSES; tests/canary_suite files are partially claimed by other items \u2014 keep writes in owned paths or report blocked.",
@@ -154,9 +154,9 @@
       "item": "BUILD-SEMANTIC-EXCLUSIONS",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/build/build-evaluation/src/behavior_exclusions",
-        "omega-rust/omega/build/build-evaluation/src/behavior_exclusions.rs",
-        "omega-rust/omega/build/build-declarations"
+        "omega-rust/omega/compiler/build-evaluation/src/behavior_exclusions",
+        "omega-rust/omega/compiler/build-evaluation/src/behavior_exclusions.rs",
+        "omega-rust/omega/compiler/build-declarations"
       ],
       "suggested_first_slice": "Backfill for the blocked callback-private-materialization slot. Board resume evidence names the next unit: the Build authoring surface for exclusions with retained declaration spans, then the product-admission join over the selected entry roster. build-evaluation/src/selection is owned by build-product-references this wave \u2014 if the slice needs it, report blocked instead of crossing.",
       "backfill_for": "callback-private-materialization"
@@ -213,7 +213,7 @@
       "item": "TARGET-SEMANTIC-APPLICATIONS",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/semantics/build-time-evaluation"
+        "omega-rust/psi/compiler/build-time-evaluation"
       ],
       "suggested_first_slice": "Backfill for the landed declarative-peepholes slot. One bounded slice inside the semantic evaluation owner crate \u2014 e.g. finish earlier generic-application evaluation, or one typed target observation / selected-realization-coverage class. flow/, monomorphization, and checked-interpreter are claimed by NOMINAL-FIELD-FLOW/RUNTIME-VALUE-GENERICS (leases were due ~06:15Z \u2014 re-check tools/claims.py status); keep writes inside build-time-evaluation or report blocked.",
       "backfill_for": "declarative-peepholes"
@@ -224,13 +224,13 @@
       "item": "BUILD-ADMISSION-CHECKPOINT",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/build/build-evaluation/src/lib.rs",
-        "omega-rust/omega/build/build-evaluation/src/replay_record",
-        "omega-rust/omega/build/build-evaluation/src/replay_record.rs",
-        "omega-rust/omega/build/build-evaluation/src/replay_eligibility.rs",
-        "omega-rust/omega/build/build-evaluation/src/configuration.rs",
-        "omega-rust/omega/build/build-evaluation/src/observation_identity.rs",
-        "omega-rust/omega/build/build-evaluation/src/observations.rs"
+        "omega-rust/omega/compiler/build-evaluation/src/lib.rs",
+        "omega-rust/omega/compiler/build-evaluation/src/replay_record",
+        "omega-rust/omega/compiler/build-evaluation/src/replay_record.rs",
+        "omega-rust/omega/compiler/build-evaluation/src/replay_eligibility.rs",
+        "omega-rust/omega/compiler/build-evaluation/src/configuration.rs",
+        "omega-rust/omega/compiler/build-evaluation/src/observation_identity.rs",
+        "omega-rust/omega/compiler/build-evaluation/src/observations.rs"
       ],
       "suggested_first_slice": "Backfill for the landed exact-machine-simplifications slot. Execute one admitted build machine against the coherent frontend/source/authority snapshot and record the checkpoint \u2014 or land the serialized-replay/drift-rejection matrix for the full activation (the replay* and observation* files are the seam). build-evaluation/src/{selection,behavior_exclusions,build-declarations} are owned by wave siblings \u2014 if the slice needs them, report blocked rather than crossing.",
       "backfill_for": "exact-machine-simplifications"
@@ -359,11 +359,11 @@
       "host": "linux",
       "owning_paths": [
         "omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/module_normalization.rs",
-        "omega-rust/psi/semantics/build-time-evaluation/src/const_initializers.rs",
-        "omega-rust/psi/semantics/build-time-evaluation/src/const_initializers",
-        "omega-rust/psi/semantics/build-time-evaluation/src/const_generic_expressions/value/match_dispatch.rs",
-        "omega-rust/psi/semantics/build-time-evaluation/src/const_generic_expressions/value/match_dispatch",
-        "omega-rust/psi/semantics/build-time-evaluation/src/admission/closure_validation.rs"
+        "omega-rust/psi/compiler/build-time-evaluation/src/const_initializers.rs",
+        "omega-rust/psi/compiler/build-time-evaluation/src/const_initializers",
+        "omega-rust/psi/compiler/build-time-evaluation/src/const_generic_expressions/value/match_dispatch.rs",
+        "omega-rust/psi/compiler/build-time-evaluation/src/const_generic_expressions/value/match_dispatch",
+        "omega-rust/psi/compiler/build-time-evaluation/src/admission/closure_validation.rs"
       ],
       "suggested_first_slice": "Backfill after case-constraints released preparation/. One bounded slice: extend concrete failure discharge in const_initializers/invocations.rs \u2014 arithmetic guard expressions or unknown saved-entry origins need their existing checked evidence (not successful interpretation or provider-body inspection); OR extend match_dispatch nonconstant divisor integrality beyond singleton sign intervals with exact fractional-warning evidence. Preserve exact lexical/package selection before evaluation; keep machine_initializers:: module/index and scalar-composition checks in module_machine_indices green.",
       "backfill_for": "case-constraints",
@@ -376,7 +376,7 @@
       "host": "linux",
       "layer": 1,
       "owning_paths": [
-        "omega-rust/omega/build/build-evaluation/src/selection",
+        "omega-rust/omega/compiler/build-evaluation/src/selection",
         "omega-rust/omega/compiler/compiler/tests/build_target_activation.rs",
         "omega-rust/omega/compiler/compiler/tests/fixture_rosters/build_target_activation.rs"
       ],

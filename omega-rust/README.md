@@ -9,6 +9,8 @@ self-hosted compiler and not a language rung.
   emission.
 - `omega/` is the `omega` product package and development command. Its nested
   crates implement target realization, orchestration, and artifact emission.
+- `library/` contains Rust reference implementations of ordinary Omega library
+  contracts; these do not become compiler subsystems.
 
 The crates remain the working development compiler and a maintained parallel
 comparator while the selected Epsilon-evaluator bootstrap path grows. Delta
@@ -46,10 +48,28 @@ implies deletion.
   lowering with separately supplied authority.
 - [Native representations](omega/representations/README.md) and
   [optimization](optimization.md): current data, exact rewrites, and replay.
-- [Packages](omega/packages/README.md),
-  [build evaluation](omega/build/build-evaluation/README.md), and
-  [component deployment](omega/build/component-deployment/README.md): their own
-  loading, execution, policy, and runtime coordination boundaries.
+- [Package management](omega/package-manager/README.md): package operations,
+  with independent source acquisition, resolver execution, and review evidence
+  packages beneath the subsystem owner.
+- [Build evaluation](omega/compiler/build-evaluation/README.md): one of the
+  independent supporting packages beneath compiler coordination, alongside
+  declarations, output custody, package inputs, selection, and trust policy.
+- [Psi interpreters](psi/interpreter/): separate checked-tree and Terminal Psi
+  engines. [Build-time evaluation](psi/compiler/build-time-evaluation/) uses
+  target-neutral execution without depending on the Omega compiler coordinator.
+- [Runtime component installation](omega/backend/runtime/component-deployment/README.md):
+  custody composition under backend runtime ownership.
+- [Topology library](library/topology/README.md): an ordinary package-defined
+  plan, policy, and installation contract, separate from compiler ownership.
+
+Subsystem folders show the operation owner and its supporting crates. Each
+supporting crate retains its own manifest and API. The package manager can use
+compiler services without the compiler depending back on package management;
+shared foundations and utilities remain independently owned. Durable IRs stay
+in `representations/`, separate from their producing pipeline stages. The
+independent optimization-unit checker sits beside its IR at
+[`omega/representations/optimization-unit/semantics/`](omega/representations/optimization-unit/semantics/),
+with no reverse dependency from the representation to its checker.
 
 Run the product through `omega/`; repository commands and validation policy are
 in [AGENTS.md](../AGENTS.md#commands). Language examples live in `../tests/omega/`,

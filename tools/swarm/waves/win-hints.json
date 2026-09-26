@@ -51,8 +51,8 @@
       "item": "BUILD-SNAPSHOT-OUTPUTS",
       "host": "local",
       "owning_paths": [
-        "omega-rust/omega/build/build-evaluation",
-        "omega-rust/omega/build/build-output",
+        "omega-rust/omega/compiler/build-evaluation",
+        "omega-rust/omega/compiler/build-output",
         "omega-rust/omega/compiler/compiler/src"
       ],
       "suggested_first_slice": "Extend the landed build_snapshot inventory binding one step — e.g. narrowed inputs or deterministic snapshot reads with a tamper/substitution rejection witness. The board's progress notes mark the current seam; land one bounded piece, not the whole item."

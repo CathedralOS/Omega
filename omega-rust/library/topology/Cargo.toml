@@ -1,0 +1,28 @@
+[package]
+name = "topology-plan"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "topology_plan"
+path = "src/lib.rs"
+
+[dependencies]
+component-description = { path = "../../omega/backend/artifacts/component-description" }
+sha2 = "0.10.9"
+terminal-psi = { path = "../../psi/representations/terminal-psi" }
+
+[target.'cfg(unix)'.dependencies]
+bounded-process = { path = "../../omega/tooling/bounded-process" }
+
+[dev-dependencies]
+compiler = { path = "../../omega/compiler" }
+component-description = { path = "../../omega/backend/artifacts/component-description", features = ["test-support"] }
+libc = "0.2.186"
+mutation-matrix = { path = "../../psi/foundation/mutation-matrix", features = ["test-support"] }
+package-manager = { path = "../../omega/package-manager" }
+package-source = { path = "../../omega/package-manager/source-acquisition" }
+proof-admission = { path = "../../psi/semantics/proof-admission" }
+semantic-vocabulary = { path = "../../psi/foundation/semantic-vocabulary" }
+target = { path = "../../omega/representations/target" }

@@ -68,6 +68,24 @@ one ordinary `CompileReport` or diagnostic result per target, without hiding fai
 siblings. Single-product consumers explicitly use `into_single_report`, which
 rejects any other cardinality. Executable publication remains a later operation.
 
+## Supporting packages
+
+This directory contains the coordinator crate and independent supporting crates.
+Each child has its own `Cargo.toml`; `src/` belongs only to the coordinator.
+Consumers depend directly on the package whose contract they need.
+
+| Packages | Responsibility |
+| --- | --- |
+| `build-declarations`, `build-evaluation`, `build-output` | Build inputs, evaluation and retained outputs |
+| `package-compilation` | Source package compilation inputs and results |
+| `provider-planning`, `representation-planning`, `selected-dispatch` | Provider and representation choices and selected execution |
+| `trust-model`, `trust-ledger` | Trust vocabulary and admission bookkeeping |
+
+Target-neutral build evaluation remains in
+[Psi's compiler support](../../psi/compiler/build-time-evaluation/README.md).
+Package installation and update belong to the separate
+[package manager](../package-manager/README.md).
+
 ## Product boundaries and observations
 
 [Request validation](src/compiler/request.rs) checks the requested product and
@@ -112,7 +130,7 @@ format and identities.
 
 ## Intrinsic settlement conversion
 
-[intrinsic_settlements.rs](../build/provider-planning/src/compiler_intrinsics/mod.rs) validates all
+[intrinsic_settlements.rs](provider-planning/src/compiler_intrinsics/mod.rs) validates all
 selected plan provenance, then joins sorted borrowed intrinsic rows to lexical
 Terminal demand. Original plan indices remain attached to each row. Duplicate
 demanded rows reject; undemanded rows need no executable proposal. One exhaustive
@@ -140,7 +158,7 @@ batch manifest binding the realization set and each realization's
 commitment/outcome; it grants no support, test or audit claim.
 
 Today's implementation instead retains one immutable source parse checkpoint
-([source preparation](../build/build-evaluation/src/sources/source_assembly/checkpoint.rs))
+([source preparation](build-evaluation/src/sources/source_assembly/checkpoint.rs))
 and runs an exact-target child per configuration: per-target source assembly,
 declaration filtering, build evaluation, provider settlement and checking, with
 request-level policy copied into each configuration.

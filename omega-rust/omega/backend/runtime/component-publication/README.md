@@ -31,7 +31,7 @@ successful reclamation.
 
 ## Source composition boundary
 
-[Provider planning](../../../build/provider-planning/src/provider_planning.rs) retains mode
+[Provider planning](../../../compiler/provider-planning/src/provider_planning.rs) retains mode
 through selected-plan provenance but rejects Independent before publishing
 checked/package-review facts until the component closure and routed installation
 exist. The current Fused implementation recognizes the routed `Binding<R>`
@@ -71,7 +71,7 @@ proves no provision or stack lease. An object-validated full-body Linux
 `exit_group(i32)` leaf may have exact zero body stack; missing physical evidence
 does not justify that inference for arbitrary functions.
 
-[Component deployment](../../../build/component-deployment/README.md) sequences
+[Component deployment](../component-deployment/README.md) sequences
 the independently supplied authority above compilation and documents remaining
 production integration. Symbolic component imports/exports, lifetime cohorts,
 general disposition/migration interfaces, and cross-component specialization

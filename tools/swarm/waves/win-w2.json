@@ -39,7 +39,7 @@
       "item": "OPTIONAL-STDLIB-SEMANTIC-BINDINGS",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/build/package-compilation/src/semantic_bindings.rs",
+        "omega-rust/omega/compiler/package-compilation/src/semantic_bindings.rs",
         "omega-rust/omega/compiler/compiler/src/pipeline/package",
         "tests/omega/pass/arithmetic/narrowing_flow_and_widen_permitted"
       ],
@@ -52,7 +52,7 @@
       "host": "linux",
       "owning_paths": [
         "omega-rust/omega/pipeline/00_terminal-psi-to-abstract-operations/src/artifact",
-        "omega-rust/psi/semantics/build-time-evaluation/src/plan_laid.rs"
+        "omega-rust/psi/compiler/build-time-evaluation/src/plan_laid.rs"
       ],
       "suggested_first_slice": "Rejoin one plan-laid view's layout identity, backing, range, access, or lifetime at a use site so a stale substitution rejects with a checked witness."
     },
@@ -63,7 +63,7 @@
       "host": "linux",
       "owning_paths": [
         "omega-rust/psi/foundation/layout-plans",
-        "omega-rust/psi/semantics/build-time-evaluation/src/layout_plans.rs"
+        "omega-rust/psi/compiler/build-time-evaluation/src/layout_plans.rs"
       ],
       "suggested_first_slice": "Materialize one symbolic layout-plan case through build-time evaluation without baking in a concrete address."
     },
@@ -74,7 +74,7 @@
       "host": "linux",
       "probe_only": true,
       "owning_paths": [
-        "omega-rust/omega/packages/topology",
+        "omega-rust/library/topology",
         "tests/fixtures/packages"
       ],
       "suggested_first_slice": "Implement or extend one fixed no_route/only_via normalization or bypass-rejection witness on the payment graph fixtures."
@@ -85,7 +85,7 @@
       "item": "PACKAGE-PREPARATION-REUSE",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/packages/manager/src/review/candidate",
+        "omega-rust/omega/package-manager/src/review/candidate",
         "tests/omega/pass/effects"
       ],
       "suggested_first_slice": "Reuse one already-verified package preparation result instead of recompiling, with the effects canaries witnessing the route."
@@ -160,7 +160,7 @@
       "item": "FINITE-GENERIC-DISPATCH",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/build/selected-dispatch"
+        "omega-rust/omega/compiler/selected-dispatch"
       ],
       "suggested_first_slice": "Extend finite generic dispatch selection for one enumerated case set while keeping dispatch evidence explicit."
     },

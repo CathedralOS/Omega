@@ -63,7 +63,7 @@ Terminal Psi:
 
 | Input → output | Owner |
 | --- | --- |
-| Source files → assembled syntax | [source-files-to-assembled-syntax](omega/build/build-evaluation/src/sources/source_assembly.rs) |
+| Source files → assembled syntax | [source-files-to-assembled-syntax](omega/compiler/build-evaluation/src/sources/source_assembly.rs) |
 | Assembled syntax → checked compilation | [assembled-syntax-to-checked-compilation](omega/compiler/src/checked/checking.rs) |
 | Checked compilation → Terminal artifact | [checked-compilation-to-terminal-artifact](omega/compiler/src/terminal/terminal_artifact.rs) |
 
@@ -80,9 +80,10 @@ remain independent packages under `representations/`; transformation crates
 consume and produce those representations without owning their public types.
 Shared foundations and utilities retain independent library ownership. Do not
 absorb them into a producing stage or the application crate to reduce crate
-count or directory depth. `semantics/`, `backend/`, `compiler/`, `build/`,
-`packages/`, and `tooling/` retain their distinct responsibilities and dependency
-boundaries. A draft, cleanup campaign, or rewritten placement table does not
+count or directory depth. Subsystem folders expose their coordinators and
+supporting packages without merging their APIs or dependency boundaries.
+Directory names are not a requirement to retain the former `build/` or
+`packages/` buckets. A draft, cleanup campaign, or rewritten placement table does not
 authorize removing these boundaries. The rejected
 [fat-stages proposal](../wiki/drafts/designs/fat_stages_consolidation.md) is
 historical evidence only and must not be implemented.
@@ -91,11 +92,52 @@ historical evidence only and must not be implemented.
 | Responsibility | Owner |
 | --- | --- |
 | Durable current program, identities, raw evidence and codecs | `representations/` |
-| Language meaning and independently reusable validity/proof | `semantics/` |
+| Language meaning and independently reusable validity/proof | Psi `semantics/`; independent domain-specific checker packages beside their representation |
 | Transformation, rewrite, private scratch and analyses | Owning `pipeline/X-to-Y` or `X-to-X` |
 | ISA, ABI, runtime carriers, object/relocation/image mechanics | Omega `backend/` |
 | Shared target-neutral source/arena/numeric primitives | Psi `foundation/` |
-| Product sequencing, requested outputs and composition policy | Compiler/build owners |
+| Product sequencing, requested outputs and composition policy | Omega `compiler/` and its independent supporting packages |
+| Source acquisition, package operations and review | Omega `package-manager/` and its independent supporting packages |
+| Checked and Terminal Psi execution | Psi `interpreter/` |
+| Target-neutral build-machine evaluation | Psi `compiler/build-time-evaluation/` |
+| Ordinary library reference implementations | `library/`, outside the compiler halves |
+
+### Subsystem entrances and supporting packages
+
+`omega/compiler/` owns compilation orchestration. Its supporting crates are
+`build-declarations`, `build-evaluation`, `build-output`, `package-compilation`,
+`provider-planning`, `representation-planning`, `selected-dispatch`,
+`trust-ledger`, and `trust-model`. Each retains its own `Cargo.toml` and domain
+entrypoint. Nesting makes the compilation responsibilities discoverable; it
+does not make helpers depend on the coordinator. In particular,
+`build-declarations` remains a compiler-neutral syntactic projection used by
+both compilation and package management.
+
+`omega/package-manager/` owns package operations, with independent
+`source-acquisition`, `resolver-execution`, and `review-evidence` crates beneath
+it. Package operations and evidence capture consume compiler services; the
+compiler does not depend back on package management. Shared process and
+filesystem utilities remain independent packages under `omega/tooling/`.
+
+`psi/interpreter/` contains the separate `checked-interpreter` and
+`terminal-interpreter` engines. They execute prepared representations; the
+compiler coordinates source preparation and uses
+`psi/compiler/build-time-evaluation/` for target-neutral build execution.
+Interpreter ownership remains on the Psi side of the firewall.
+
+The independent `optimization-unit-semantics` checker lives at
+`omega/representations/optimization-unit/semantics/`, beside the representation
+whose meaning and rewrites it checks. Its own manifest depends on representation
+and semantic libraries, not on candidate-producing stages. The representation
+does not acquire a dependency on the checker. Domain-local placement does not
+turn checking into IR data or justify a general `verification/` bucket.
+
+Installed-component custody composition belongs to
+`omega/backend/runtime/component-deployment/`, alongside installation and
+publication support. It is not a top-level deployment subsystem. The
+package-defined topology implementation lives separately at `library/topology/`:
+its graph policies, plan codec, verifier, and installer are ordinary library
+responsibilities, not compiler primitives or backend realization plans.
 
 Omega has no second general foundation bucket: dependency-light native identities
 and carriers belong in its representations; target/runtime primitives belong in
@@ -163,7 +205,7 @@ semantic axes.
 ## Projections and replacement work
 
 Package admission is a checked observation, not a new `Chi` stage. Its
-[projection owner](omega/packages/review/evidence/README.md) reads each fact at the
+[projection owner](omega/package-manager/review-evidence/README.md) reads each fact at the
 earliest representation where it is semantically complete and joins whatever
 later checked evidence it needs. Unresolved syntax and diagnostic strings are
 not admission evidence. The canonical package projection is the boundary, not
@@ -230,7 +272,13 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
   the same representation; do not invent a `PreOptimized`/`PostOptimized` pair.
   The folders must expose the connected `X-to-Y`, `Y-to-Y`, `Y-to-Z` sequence,
   not merely name individually plausible calculations. See [optimization phases](../wiki/spec/build/optimizations.md#phase-and-product-boundaries).
-- `semantics/` — language meaning, validation, proof, interpreters.
+- Psi `semantics/` — language meaning, validation, and proof. A domain-specific
+  checker may instead live beside its representation as an independent package;
+  representation data and candidate production must remain independent of it.
+- Psi `interpreter/` — separate engines for checked and Terminal Psi execution.
+- `compiler/` — compilation coordination and independent supporting packages.
+- Omega `package-manager/` — package operations and independent acquisition,
+  resolver execution, and review packages.
 - `backend/` — target, ABI, layout, object, linker, image.
 
 Concepts stay visible across stages without being forced into one mega-IR: each
@@ -335,4 +383,3 @@ Keep the actual customer's command as the outer acceptance check; a passing
 isolated helper does not close an unchanged application failure. Do not expand
 the task board with one item per permutation, or treat this rule as permission
 for an unrelated whole-IR rewrite.
-

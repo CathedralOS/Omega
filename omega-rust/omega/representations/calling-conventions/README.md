@@ -9,7 +9,7 @@ and validation. See [plans.rs](src/plans/mod.rs) and the exported vocabulary in
 
 ## Source-policy boundary
 
-[provider-planning](../../build/provider-planning/src/calling_policy_plans/mod.rs)
+[provider-planning](../../compiler/provider-planning/src/calling_policy_plans/mod.rs)
 materializes a public signature graph, evaluates source-authored policy,
 range-checks its output, and invokes the normalized validator. Current graph
 nodes cover integers, floats, references, fixed arrays, and fixed records.

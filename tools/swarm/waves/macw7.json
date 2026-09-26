@@ -161,7 +161,7 @@
             "owning_paths": [
                 "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/primitive_store.rs",
                 "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/emission",
-                "omega-rust/psi/semantics/terminal-interpreter/tests/unit"
+                "omega-rust/psi/interpreter/terminal-interpreter/tests/unit"
             ],
             "suggested_first_slice": "extend the contract-fact index derivation d61f983d6a added to proven_runtime_index (authored requires conjuncts folded into the closed interval) to one further placed-access operation beyond the indexed store — contract/domain facts only, no revived bracketed-range annotation syntax",
             "host_gates": [

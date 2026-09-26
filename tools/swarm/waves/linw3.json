@@ -52,9 +52,9 @@
    "board": "TASKS.md",
    "item": "TOP-LEVEL-BOUNDARY-REQUIREMENTS",
    "owning_paths": [
-    "omega-rust/omega/build/selected-dispatch/src/boundary_dispatch.rs",
-    "omega-rust/omega/build/selected-dispatch/src/boundary_dispatch",
-    "omega-rust/omega/build/selected-dispatch/src/selected_dispatch/requirement_adapter.rs",
+    "omega-rust/omega/compiler/selected-dispatch/src/boundary_dispatch.rs",
+    "omega-rust/omega/compiler/selected-dispatch/src/boundary_dispatch",
+    "omega-rust/omega/compiler/selected-dispatch/src/selected_dispatch/requirement_adapter.rs",
     "omega-rust/psi/semantics/validation/src/machine_calls/calls/generic_bounds.rs",
     "tests/omega/pass/providers",
     "tests/omega/fail/providers"

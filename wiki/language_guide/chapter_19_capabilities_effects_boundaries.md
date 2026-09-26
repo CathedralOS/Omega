@@ -95,7 +95,7 @@ must agree on the exact representation; a state-migration proof cannot repair
 an incompatible ABI in an existing caller.
 
 See [opaque representations](../spec/build/opaque_representations.md) and
-[representation review](../../omega-rust/omega/packages/review/evidence/README.md).
+[representation review](../../omega-rust/omega/package-manager/review-evidence/README.md).
 Opacity alone is not an accepted proposition or capability establishment.
 
 ## Boundary Traits

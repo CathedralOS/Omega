@@ -40,7 +40,7 @@
       "layer": 0,
       "owning_paths": [
         "omega-rust/omega/packages",
-        "omega-rust/omega/build/build-declarations"
+        "omega-rust/omega/compiler/build-declarations"
       ],
       "suggested_first_slice": "Retain one explicit build/product edge through acquisition or declaration projection: e.g. a purpose-tagged dependency edge that survives lock/review, with a rejection witness for a cycle or missing purpose. Bounded slice only; the item is large."
     },
@@ -51,8 +51,8 @@
       "host": "local",
       "layer": 0,
       "owning_paths": [
-        "omega-rust/omega/build/trust-model",
-        "omega-rust/omega/build/trust-ledger"
+        "omega-rust/omega/compiler/trust-model",
+        "omega-rust/omega/compiler/trust-ledger"
       ],
       "suggested_first_slice": "Define one exact typed exclusion case (crash or service) in the build configuration model with a canonical union rule and a conservative rejection for incomplete evidence. Re-claim narrower or corrected paths if the exclusions model actually lives elsewhere under omega-rust/omega/build/."
     },
@@ -63,8 +63,8 @@
       "host": "local",
       "layer": 1,
       "owning_paths": [
-        "omega-rust/omega/build/provider-planning",
-        "omega-rust/omega/build/representation-planning"
+        "omega-rust/omega/compiler/provider-planning",
+        "omega-rust/omega/compiler/representation-planning"
       ],
       "suggested_first_slice": "Implement one designated product-operand or qualified non-callable entry/provider reference shape in the Build root/provider owners, exercising whatever purpose-aware resolution layer 0 landed. Wrong-scope or description-to-callable confusion must reject."
     },
@@ -75,8 +75,8 @@
       "host": "local",
       "layer": 1,
       "owning_paths": [
-        "omega-rust/omega/build/build-evaluation",
-        "omega-rust/omega/build/build-output"
+        "omega-rust/omega/compiler/build-evaluation",
+        "omega-rust/omega/compiler/build-output"
       ],
       "suggested_first_slice": "Join one semantic exclusion case from layer 0 through the receiving-policy or admission route to a checked rejection — no second classifier. Bounded slice: one exclusion class realized end-to-end beats breadth."
     }

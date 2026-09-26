@@ -39,10 +39,10 @@ Rows verified by independent stash-baseline reproduction at revision
 passed, 1 failed —
 `scoped_lookup_maps::every_name_keyed_lookup_map_file_is_cataloged` reports
 name-keyed maps lacking a recorded reason in
-`omega-rust/omega/build/build-evaluation/src/admission/wire_protocol.rs`
+`omega-rust/omega/compiler/build-evaluation/src/admission/wire_protocol.rs`
 (`BTreeMap<String, …>` keyed by qualified schema path, from the wire-codec
 trust pinning) and
-`omega-rust/psi/semantics/checked-interpreter/src/interpreter/evaluator/wire_verification.rs`
+`omega-rust/psi/interpreter/checked-interpreter/src/interpreter/evaluator/wire_verification.rs`
 (`BTreeMap<String, _>` member tables, new file). Both arrived in the
 `a3e52751ef..530bc264e4` zergling batch-merge, so this is a merged-range
 failure, not an excused baseline row: close it by recording each key domain
