@@ -17,6 +17,7 @@ terminal-psi-to-abstract-operations = { path = "../00_terminal-psi-to-abstract-o
 sha2 = { version = "0.10.9" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 optimization-core = { path = "../../../psi/optimization-core" }
+proof-admission = { path = "../../../psi/proof-admission" }
 target = { path = "../../../psi/target" }
 abstract-operations-to-abstract-operations = { path = "../01_abstract-operations-to-abstract-operations" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
@@ -29,3 +30,4 @@ terminal-codec = { path = "../../../psi/terminal-codec" }
 mimalloc = { version = "0.1", default-features = false }
 abstract-operations-to-target-operations = { path = "../02_abstract-operations-to-target-operations" }
 installation-evidence = { path = "../../../psi/installation-evidence" }
+terminal-verifier = { path = "../../../psi/terminal-verifier" }
