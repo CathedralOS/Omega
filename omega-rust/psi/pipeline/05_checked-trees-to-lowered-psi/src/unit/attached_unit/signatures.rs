@@ -210,6 +210,19 @@ pub(super) fn lower(
         // published every clause twice.
         let authored_requires = contract.closed_scalar_values.authored_requires();
         if authored_requires.iter().all(Option::is_some) {
+            let view_roster: Vec<(u32, StructuralParameterDeclaration)> = signature
+                .predicate_parameters
+                .iter()
+                .map(|parameter| (parameter.position, parameter.clone()))
+                .collect();
+            let element_views = crate::expression_preparation::bindings::element_views(
+                &view_roster,
+                structural_types,
+            );
+            let views = crate::scalar_graph::scalar_contracts::ContractViewNamespace {
+                parameters: &view_roster,
+                element_views: &element_views,
+            };
             signature.requires = authored_requires
                 .iter()
                 .map(|clause| {
@@ -217,6 +230,7 @@ pub(super) fn lower(
                         std::slice::from_ref(clause),
                         &signature.scalar_parameters,
                         &signature.erased_scalar_parameters,
+                        &views,
                     )
                 })
                 .collect::<Result<Vec<_>, _>>()?

@@ -92,6 +92,9 @@ fn capture_scalar(term: &mut ScalarTerm, captures: &[(ScalarTerm, ScalarTerm)]) 
                 *term = value.clone();
             }
         }
+        // View extents are not entry-snapshotted values — a requires-side
+        // extent is discharged against the caller's live view at the callsite.
+        ScalarTerm::ViewExtent { .. } => {}
         ScalarTerm::BooleanNot { operand }
         | ScalarTerm::IntegerBitwiseNot { operand, .. }
         | ScalarTerm::IntegerWiden { operand, .. }

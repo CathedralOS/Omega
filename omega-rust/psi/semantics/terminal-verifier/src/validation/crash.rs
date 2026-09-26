@@ -6,7 +6,7 @@ use super::{
     IntegerType, IntegerValue, ModuleError, PlaceId, Proposition, PropositionContext, ScalarTerm,
     ScalarType, StructuralFieldType, StructuralTypeId, StructuralTypeShape, TerminalMachine,
     TerminalModule, Terminator, ValueId, contracts, structural_leaf_type,
-    substitute_proposition_values,
+    substitute_proposition_values, view_extent_leaf_has_extent,
 };
 use numerics::{
     arithmetic::ArithmeticDomain,
@@ -768,6 +768,20 @@ fn validate_boolean_field_terms(
                         if bounded.integer_type() == *scalar_type
                 ) {
                     return Err(ModuleError::InvalidIntegerFieldTerm {
+                        machine: machine.id,
+                        root: *root,
+                        path: path.clone(),
+                        scalar_type: *scalar_type,
+                    });
+                }
+            }
+            ScalarTerm::ViewExtent {
+                root,
+                path,
+                scalar_type,
+            } => {
+                if !view_extent_leaf_has_extent(module, machine, *root, path) {
+                    return Err(ModuleError::InvalidViewExtentTerm {
                         machine: machine.id,
                         root: *root,
                         path: path.clone(),

@@ -332,6 +332,16 @@ pub(super) fn encode_scalar_term(bytes: &mut CanonicalBytes, term: &ScalarTerm) 
             left,
             right,
         } => encode_scalar_binary(bytes, 35, Some(*scalar_type), left, right),
+        S::ViewExtent {
+            root,
+            path,
+            scalar_type,
+        } => {
+            bytes.u8(36);
+            bytes.id(*root);
+            encode_canonical_path(bytes, path);
+            encode_integer_type(bytes, *scalar_type);
+        }
     }
 }
 

@@ -1079,6 +1079,12 @@ pub enum ModuleError {
         path: Vec<CanonicalStructuralPathSegment>,
         scalar_type: semantic_vocabulary::IntegerType,
     },
+    InvalidViewExtentTerm {
+        machine: MachineId,
+        root: PlaceId,
+        path: Vec<CanonicalStructuralPathSegment>,
+        scalar_type: semantic_vocabulary::IntegerType,
+    },
     InvalidIeeeFloatFieldTerm {
         machine: MachineId,
         root: PlaceId,

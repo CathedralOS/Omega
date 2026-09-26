@@ -180,6 +180,18 @@ pub enum ScalarTerm {
         path: Vec<CanonicalStructuralPathSegment>,
         scalar_type: IntegerType,
     },
+    /// The live extent (element count for element views, byte count for
+    /// byte views) of one borrowed view or bounded byte field below a
+    /// terminal structural root. `path` is empty for a whole view and selects
+    /// the authored byte field when the source nests it — the same rebasing
+    /// shape a field leaf takes, so callsite substitution can plant the
+    /// extent at the caller's actual prefix. The extent is an opaque
+    /// observation discharged by supplied facts, never recomputed.
+    ViewExtent {
+        root: PlaceId,
+        path: Vec<CanonicalStructuralPathSegment>,
+        scalar_type: IntegerType,
+    },
     Boolean(bool),
     BooleanNot {
         operand: Box<ScalarTerm>,
@@ -356,6 +368,18 @@ impl ScalarTerm {
         scalar_type: IntegerType,
     ) -> Self {
         Self::IntegerField {
+            root,
+            path,
+            scalar_type,
+        }
+    }
+
+    pub fn view_extent(
+        root: PlaceId,
+        path: Vec<CanonicalStructuralPathSegment>,
+        scalar_type: IntegerType,
+    ) -> Self {
+        Self::ViewExtent {
             root,
             path,
             scalar_type,
@@ -844,7 +868,9 @@ impl ScalarTerm {
     pub fn scalar_type(&self) -> ScalarType {
         match self {
             Self::Value { scalar_type, .. } => *scalar_type,
-            Self::IntegerField { scalar_type, .. } => ScalarType::Integer(*scalar_type),
+            Self::IntegerField { scalar_type, .. } | Self::ViewExtent { scalar_type, .. } => {
+                ScalarType::Integer(*scalar_type)
+            }
             Self::Boolean(_)
             | Self::BooleanField { .. }
             | Self::BooleanNot { .. }
@@ -1297,6 +1323,7 @@ impl ScalarTerm {
                 }
                 Self::BooleanField { .. }
                 | Self::IntegerField { .. }
+                | Self::ViewExtent { .. }
                 | Self::Boolean(_)
                 | Self::Integer { .. } => {}
             }
@@ -1367,6 +1394,7 @@ impl ScalarTerm {
                     Self::Value { .. }
                     | Self::BooleanField { .. }
                     | Self::IntegerField { .. }
+                    | Self::ViewExtent { .. }
                     | Self::Boolean(_)
                     | Self::Integer { .. } => pending.push(Step::Finalize(term)),
                 },
@@ -1384,6 +1412,7 @@ impl ScalarTerm {
             Self::Value { .. }
             | Self::BooleanField { .. }
             | Self::IntegerField { .. }
+            | Self::ViewExtent { .. }
             | Self::Boolean(_) => Ok(()),
             Self::BooleanNot { operand } => {
                 if operand.scalar_type() != ScalarType::Boolean {

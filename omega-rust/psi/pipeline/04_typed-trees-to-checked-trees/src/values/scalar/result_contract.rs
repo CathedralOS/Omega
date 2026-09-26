@@ -247,6 +247,38 @@ impl ContractPredicates<'_, '_> {
                     reference,
                 ))
             }
+            ExpressionNode::Member(_) => {
+                // `subject.len` reads the live extent of a borrowed view or
+                // bounded byte field parameter in the same closed namespace
+                // the body's scalar lowering publishes. Its carrier is the
+                // builtin u64 exact type.
+                let term = super::structural_fields::structural_sequence_length(
+                    program,
+                    self.parameters,
+                    expression,
+                )?;
+                // Only a whole-parameter extent is admissible in the closed
+                // contract namespace: a nested path needs canonical field ids
+                // the namespace does not mint, and a view-local root resolves
+                // no retained place here. Both stay erased as before.
+                if let CheckedScalarExpression::StructuralParameterByteLength { root, path } = &term
+                {
+                    let admissible =
+                        matches!(root, checked_trees::CheckedStorageRoot::Parameter { .. })
+                            && path.is_empty();
+                    if !admissible {
+                        return None;
+                    }
+                }
+                let reference = program.type_reference_table.named_references().find_map(
+                    |(reference, symbol, _)| {
+                        (program.symbols.builtin_type_atom(symbol)
+                            == Some(symbols::BuiltinTypeAtom::U64))
+                        .then_some(reference)
+                    },
+                )?;
+                Some((term, reference))
+            }
             _ => None,
         }
     }
@@ -303,7 +335,10 @@ impl ContractPredicates<'_, '_> {
                     self.boolean(unary.operand, depth + 1)?,
                 )))
             }
-            ExpressionNode::Binary(binary) if operator_is_builtin(self.operators, expression) => {
+            ExpressionNode::Binary(binary) => {
+                if !operator_is_builtin(self.operators, expression) {
+                    return None;
+                }
                 let subjects =
                     [binary.left, binary.right].map(|expression| self.integer_term(expression, 0));
                 if let Some(comparison) = lower_integer_contract_comparison(

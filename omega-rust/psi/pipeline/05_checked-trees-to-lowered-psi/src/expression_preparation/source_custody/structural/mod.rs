@@ -648,7 +648,8 @@ pub(crate) fn validate(
                     // field of the copy's provenance — nothing moves, so the
                     // transfer catalog legitimately records no receipt.
                     if let CheckedStructuralValueKind::CopiedStructuralPlace {
-                        source: copied, ..
+                        source: copied,
+                        ..
                     } = &source_node.kind
                     {
                         let (authored_machine, authored) =

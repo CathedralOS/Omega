@@ -158,9 +158,12 @@ pub(super) fn wrapper_domains(callees: &[CheckedScalarCallee<'_>]) -> Vec<Semant
 /// Scalar callees prepared against the closure's shared catalogs.
 pub(super) struct PreparedScalarCallees<'checked> {
     pub(super) machines: Vec<PreparedScalarCallee<'checked>>,
-    /// Each callee's structural parameters by source machine; only graph
-    /// callees allocate any here.
-    graph_parameters: Vec<(symbols::SymbolHandle, Vec<StructuralParameterDeclaration>)>,
+    /// Each callee's structural parameters by source machine, keyed by the
+    /// parameter's authored position; only graph callees allocate any here.
+    graph_parameters: Vec<(
+        symbols::SymbolHandle,
+        Vec<(u32, StructuralParameterDeclaration)>,
+    )>,
 }
 
 /// Allocate each graph callee's structural parameters, then its primitive
@@ -187,6 +190,12 @@ pub(super) fn prepare<'checked>(
             } else {
                 Vec::new()
             };
+            let view_roster: Vec<(u32, StructuralParameterDeclaration)> = callee
+                .structural_parameters()
+                .iter()
+                .zip(parameters.iter())
+                .map(|(source, parameter)| (source.position, parameter.clone()))
+                .collect();
             let locals = if let CheckedScalarCallee::Graph(graph) = callee {
                 crate::scalar_graph::scalar_graph_lowering::primitive_locals::allocate(
                     checked, graph, type_ids, next_place,
@@ -194,16 +203,16 @@ pub(super) fn prepare<'checked>(
             } else {
                 Vec::new()
             };
-            Ok((callee.source_machine(), parameters, locals))
+            Ok((callee.source_machine(), parameters, locals, view_roster))
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let machines = callees
         .into_iter()
         .map(|callee| {
             let source = callee.source_machine();
-            let (_, parameters, locals) = allocated
+            let (_, parameters, locals, _) = allocated
                 .iter()
-                .find(|(symbol, _, _)| *symbol == source)
+                .find(|(symbol, _, _, _)| *symbol == source)
                 .ok_or(LoweringError::Unsupported(
                     "scalar graph has no allocated parameter namespace",
                 ))?;
@@ -221,7 +230,7 @@ pub(super) fn prepare<'checked>(
         machines,
         graph_parameters: allocated
             .into_iter()
-            .map(|(source, parameters, _)| (source, parameters))
+            .map(|(source, _, _, view_roster)| (source, view_roster))
             .collect(),
     })
 }
@@ -353,6 +362,14 @@ pub(super) fn emit(
             .ok_or(LoweringError::Unsupported(
                 "scalar graph emission lost its allocated parameters",
             ))?;
+        let element_views = crate::expression_preparation::bindings::element_views(
+            &graph_parameters.1,
+            catalog.structural_types,
+        );
+        let views = crate::scalar_graph::scalar_contracts::ContractViewNamespace {
+            parameters: &graph_parameters.1,
+            element_views: &element_views,
+        };
         if !machine.scalar_qualifications.domains.is_empty() {
             return unsupported(
                 "attached scalar graph requires the enclosing qualification catalog namespace",
@@ -373,6 +390,7 @@ pub(super) fn emit(
                 catalog.machine_ids,
                 catalog.requirement_counts,
                 &graph_parameters.1,
+                &views,
                 machine.loop_plan.as_ref(),
             )?;
         let [terminal_machine] = lowered.semantic_module.machines.as_mut_slice() else {

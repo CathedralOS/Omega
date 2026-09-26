@@ -127,11 +127,27 @@ pub(in crate::unit::attached_unit) fn emit(
     // of the runtime requirements in published contract order.
     let signature = signatures::find(shared.signatures, plan.machine)?;
     machine.contract.requires = signature.requires.clone();
+    let view_roster: Vec<(u32, StructuralParameterDeclaration)> = plan
+        .states
+        .first()
+        .into_iter()
+        .flat_map(|entry| entry.structural_parameters.iter())
+        .zip(machine.structural_parameters.iter())
+        .map(|(source, parameter)| (source.position, parameter.clone()))
+        .collect();
+    let element_views = crate::expression_preparation::bindings::element_views(
+        &view_roster,
+        &catalogs.structural_types,
+    );
     machine.contract.ensures = scalar_guarantees(
         checked,
         plan,
         &machine,
         &signature.erased_scalar_parameters,
+        &crate::scalar_graph::scalar_contracts::ContractViewNamespace {
+            parameters: &view_roster,
+            element_views: &element_views,
+        },
         &mut catalogs.scalar_calls.next_call_obligation,
     )?;
     *counters.place = catalogs.next_place;
@@ -157,6 +173,7 @@ fn scalar_guarantees(
     plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
     machine: &TerminalMachine,
     erased: &[ValueDeclaration],
+    views: &crate::scalar_graph::scalar_contracts::ContractViewNamespace<'_>,
     next_obligation: &mut u64,
 ) -> Result<Vec<terminal_psi::ContractClause>, LoweringError> {
     let terminal_psi::TerminalMachineResult::Scalar(result) = &machine.result else {
@@ -184,7 +201,7 @@ fn scalar_guarantees(
     )?;
     let mut namespace = machine.parameters.clone();
     namespace.push(*result);
-    crate::scalar_graph::scalar_contracts::clauses(refined.ensures(), &namespace, erased)?
+    crate::scalar_graph::scalar_contracts::clauses(refined.ensures(), &namespace, erased, views)?
         .into_iter()
         .map(|proposition| {
             Ok(terminal_psi::ContractClause {

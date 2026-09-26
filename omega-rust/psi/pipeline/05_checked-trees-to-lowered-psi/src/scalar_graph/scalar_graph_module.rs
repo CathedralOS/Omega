@@ -163,6 +163,7 @@ pub(crate) fn build_scalar_graph_module(
         machine_ids,
         requirement_counts,
         &[],
+        &scalar_contracts::ContractViewNamespace::EMPTY,
         loop_plan,
     )
 }
@@ -181,10 +182,15 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
     identity_base: u64,
     machine_ids: &[(symbols::SymbolHandle, MachineId)],
     requirement_counts: &[(symbols::SymbolHandle, usize)],
-    structural_parameters: &[StructuralParameterDeclaration],
+    view_parameters: &[(u32, StructuralParameterDeclaration)],
+    views: &scalar_contracts::ContractViewNamespace<'_>,
     loop_plan: Option<&crate::scalar_graph::scalar_graph_lowering::cycles::ScalarLoopPlan>,
 ) -> Result<LoweredPsi, LoweringError> {
     let scalar_qualifications = scalar_qualifications.clone();
+    let structural_parameters: Vec<StructuralParameterDeclaration> = view_parameters
+        .iter()
+        .map(|(_, parameter)| parameter.clone())
+        .collect();
     let parameters = states[0]
         .parameter_types
         .iter()
@@ -369,7 +375,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
             .structural_parameters = plan.parameters.clone();
     }
     owned_parameters::complete(
-        loop_plan.map_or(structural_parameters, |plan| plan.parameters.as_slice()),
+        loop_plan.map_or(&structural_parameters, |plan| plan.parameters.as_slice()),
         scalar_source_block(identity_base, 0),
         &mut blocks,
     )?;
@@ -458,6 +464,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                 &scalar_contracts::covered_requires(&plan)?,
                 &parameters,
                 &erased_scalar_formals,
+                views,
             )?
             .into_iter()
             .collect();
@@ -529,18 +536,22 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
             }
             let mut namespace = parameters.clone();
             namespace.push(result);
-            let ensures =
-                scalar_contracts::clauses(plan.ensures(), &namespace, &erased_scalar_formals)?
-                    .into_iter()
-                    .map(|proposition| ContractClause {
-                        obligation: obligation_id(
-                            identity_base
-                                .checked_add(1)
-                                .expect("contract obligation is one-based"),
-                        ),
-                        proposition,
-                    })
-                    .collect();
+            let ensures = scalar_contracts::clauses(
+                plan.ensures(),
+                &namespace,
+                &erased_scalar_formals,
+                views,
+            )?
+            .into_iter()
+            .map(|proposition| ContractClause {
+                obligation: obligation_id(
+                    identity_base
+                        .checked_add(1)
+                        .expect("contract obligation is one-based"),
+                ),
+                proposition,
+            })
+            .collect();
             // These are real parameter/result relations. Finalization proves
             // their requirements at calls and guarantees from emitted exits.
             (requires, ensures, Vec::new())
@@ -566,7 +577,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
     {
         merge_content_place_declaration(&mut structural_places, place)?;
     }
-    for parameter in structural_parameters {
+    for parameter in &structural_parameters {
         merge_content_place_declaration(
             &mut structural_places,
             StructuralPlaceDeclaration {
