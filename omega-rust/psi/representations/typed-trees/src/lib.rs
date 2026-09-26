@@ -36,5 +36,5 @@ pub use language_semantics::declaration_selection::{
 pub use snapshot::TypedTreesSnapshot;
 pub use typed_trees::{
     PlanLaidBitField, PlanLaidBitFragment, PlanLaidIntegerField, PlanLaidLayout,
-    PlanLaidRepeatedField, TypedTreeRoots, TypedTreeTables, TypedTrees,
+    PlanLaidRepeatedField, ProgramIdentity, TypedTreeRoots, TypedTreeTables, TypedTrees,
 };

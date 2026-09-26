@@ -59,15 +59,23 @@ pub(super) struct IsolationCache {
 
 thread_local! {
     static ISOLATION_CACHE: RefCell<
-        Option<(*const TypedTrees, usize, IsolationCache)>,
+        Option<(typed_trees::ProgramIdentity, usize, IsolationCache)>,
     > = const { RefCell::new(None) };
 }
 
-/// Cheap per-call identity over the tables these verdicts read. Forged
-/// handles make symbol endpoints collide across fixture programs, so the
-/// fingerprint also mixes child-arena base pointers — generated `Identifier`
-/// text and member/state slices are unique heap addresses that discriminate
-/// programs the table anchors cannot.
+/// Cheap per-call staleness check over the tables these verdicts read.
+///
+/// This answers "has this program grown since the entry was built", not "is
+/// this the same program": `TypedTrees::identity` answers that, and it is the
+/// cache's key. The fingerprint mixed arena base pointers before, to tell
+/// fixture programs apart when forged handles made their symbol endpoints
+/// collide; those blocks are recycled with the program, so a dropped program
+/// and its replacement could present the same address and the same
+/// fingerprint, and the replacement was then served the dropped program's
+/// verdicts. Measured on `-p typed-trees-to-checked-trees --lib -E
+/// 'test(/range_/)'`: 2 of 6 multi-threaded runs failed, with different tests
+/// failing each time, while 4 of 4 single-threaded runs and 6 of 6 runs with
+/// this cache disabled passed.
 fn program_fingerprint(program: &TypedTrees) -> usize {
     let definitions = program.data_definitions();
     let machines = program.machines();
@@ -76,9 +84,12 @@ fn program_fingerprint(program: &TypedTrees) -> usize {
             .get(index)
             .map(|definition| {
                 definition.symbol.arena_index() as usize
-                    ^ definition.name.as_ptr() as usize
-                    ^ program.data_members(definition).as_ptr() as usize
-                    ^ program.data_type_parameters(definition).as_ptr() as usize
+                    ^ definition.name.as_str().len().rotate_left(7)
+                    ^ program.data_members(definition).len().rotate_left(13)
+                    ^ program
+                        .data_type_parameters(definition)
+                        .len()
+                        .rotate_left(19)
             })
             .unwrap_or(0)
     };
@@ -87,20 +98,14 @@ fn program_fingerprint(program: &TypedTrees) -> usize {
             .get(index)
             .map(|machine| {
                 machine.symbol.arena_index() as usize
-                    ^ program.machine_states(machine).as_ptr() as usize
+                    ^ program.machine_states(machine).len().rotate_left(5)
             })
             .unwrap_or(0)
     };
-    let mut fingerprint = (program as *const TypedTrees) as usize
-        ^ definitions.as_ptr() as usize
-        ^ definitions.len().rotate_left(17)
-        ^ machines.as_ptr() as usize
+    let mut fingerprint = definitions.len().rotate_left(17)
         ^ machines.len().rotate_left(31)
-        ^ program.plan_laid_layouts.as_ptr() as usize
         ^ program.plan_laid_layouts.len().rotate_left(9)
-        ^ program.placed_view_plans.as_ptr() as usize
         ^ program.placed_view_plans.len().rotate_left(23)
-        ^ program.authored_service_reach_rows.as_ptr() as usize
         ^ program.authored_service_reach_rows.len().rotate_left(41);
     fingerprint = fingerprint.rotate_left(11) ^ definition_sample(0);
     fingerprint = fingerprint.rotate_left(11) ^ definition_sample(definitions.len() / 2);
@@ -118,7 +123,7 @@ pub(super) fn with_isolation_cache<R>(
         let mut slot = cell.borrow_mut();
         let fingerprint = program_fingerprint(program);
         let fresh = matches!(&*slot, Some((owner, seen, _))
-            if std::ptr::eq(*owner, program as *const _) && *seen == fingerprint);
+            if owner.get() == program.identity.get() && *seen == fingerprint);
         if !fresh {
             let mut by_symbol: HashMap<SymbolHandle, Vec<u32>> = HashMap::new();
             let mut by_name: HashMap<String, Vec<u32>> = HashMap::new();
@@ -135,7 +140,7 @@ pub(super) fn with_isolation_cache<R>(
                     .push(index as u32);
             }
             *slot = Some((
-                program as *const TypedTrees,
+                program.identity,
                 fingerprint,
                 IsolationCache {
                     isolation: HashMap::new(),
