@@ -2,8 +2,9 @@
 
 use crate::{FixedFuelError, UnboundedCycleCause};
 use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
-    OperationId, Proposition, ScalarTerm, ScalarType, ValueId,
+    BlockId, BoundaryMachineId, EdgeId, IntegerMathLiteral, IntegerMathTerm, IntegerSign,
+    IntegerType, IntegerValue, MachineId, OperationId, Proposition, ScalarTerm, ScalarType,
+    ValueId,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_fuel::TerminalFuelSchedule;
@@ -664,8 +665,9 @@ pub(super) struct EntryRankBound {
 /// is the argument at the target's rank-parameter position. An arrival
 /// reduces to a boundable value only when it is a machine parameter the
 /// contract caps — directly by a literal clause, through a relational
-/// chain the clauses themselves state, or through a conditional row whose
-/// arms all bound it or whose premise the ambient rows discharge, as
+/// chain the clauses themselves state, through an `IntegerMath*` affine
+/// bound solved over unbounded integers, or through a conditional row
+/// whose arms all bound it or whose premise the ambient rows discharge, as
 /// `contract_scope` derives; an argument threaded through another block's
 /// parameters, a computed value, an observed view, or a structural-case
 /// payload has no contract ceiling, so one unbounded arrival leaves the
@@ -805,6 +807,198 @@ fn rank_literal(term: &ScalarTerm, rank_type: IntegerType) -> Option<u128> {
     }
 }
 
+/// One mathematical integer literal as `i128`. A magnitude beyond the
+/// signed range cannot participate in the affine solving below and leaves
+/// the clause unhandled rather than misread.
+fn math_literal(literal: &IntegerMathLiteral) -> Option<i128> {
+    if literal.negative() {
+        if literal.magnitude() == (i128::MAX as u128) + 1 {
+            Some(i128::MIN)
+        } else {
+            i128::try_from(literal.magnitude()).ok().map(|value| -value)
+        }
+    } else {
+        i128::try_from(literal.magnitude()).ok()
+    }
+}
+
+/// One clause-side affine form: `(coefficient, variable, offset)` reading
+/// the term as `coefficient * variable + offset` over unbounded integers.
+/// Only the single-variable fragment solves — a product of two variables,
+/// two distinct variables in one side, or a subtraction or negative
+/// scaling that flips the coefficient into a lower-bound shape all return
+/// `None` and leave the clause contributing nothing.
+fn math_affine(term: &IntegerMathTerm) -> Option<(u128, Option<(IntegerType, ValueId)>, i128)> {
+    match term {
+        IntegerMathTerm::IntegerLiteral(literal) => Some((0, None, math_literal(literal)?)),
+        IntegerMathTerm::MathValue { source_type, value } if !source_type.is_address() => {
+            Some((1, Some((*source_type, *value)), 0))
+        }
+        IntegerMathTerm::Add(left, right) => {
+            let (lc, lv, lo) = math_affine(left)?;
+            let (rc, rv, ro) = math_affine(right)?;
+            let offset = lo.checked_add(ro)?;
+            match (lv, rv) {
+                (Some(v), None) | (None, Some(v)) => Some((lc.checked_add(rc)?, Some(v), offset)),
+                (None, None) => Some((0, None, offset)),
+                (Some(v), Some(w)) if v == w => Some((lc.checked_add(rc)?, Some(v), offset)),
+                _ => None,
+            }
+        }
+        IntegerMathTerm::Subtract(left, right) => {
+            let (lc, lv, lo) = math_affine(left)?;
+            let (rc, rv, ro) = math_affine(right)?;
+            let offset = lo.checked_sub(ro)?;
+            match (lv, rv) {
+                (Some(v), None) => Some((lc, Some(v), offset)),
+                (None, None) => Some((0, None, offset)),
+                (Some(v), Some(w)) if v == w => Some((lc.checked_sub(rc)?, Some(v), offset)),
+                _ => None,
+            }
+        }
+        IntegerMathTerm::Multiply(left, right) => {
+            let (lc, lv, lo) = math_affine(left)?;
+            let (rc, rv, ro) = math_affine(right)?;
+            // A nonnegative literal factor scales the other side; a
+            // negative scale flips the coefficient into a lower-bound
+            // form, and a product of two variable terms is nonlinear.
+            match (lv, rv) {
+                (Some(_), Some(_)) => None,
+                (Some(v), None) => {
+                    let scale = u128::try_from(ro).ok()?;
+                    Some((lc.checked_mul(scale)?, Some(v), lo.checked_mul(ro)?))
+                }
+                (None, Some(v)) => {
+                    let scale = u128::try_from(lo).ok()?;
+                    Some((rc.checked_mul(scale)?, Some(v), ro.checked_mul(lo)?))
+                }
+                (None, None) => Some((0, None, lo.checked_mul(ro)?)),
+            }
+        }
+        IntegerMathTerm::ShiftLeft { value, count } => {
+            let (vc, vv, vo) = math_affine(value)?;
+            let (0, None, shift) = math_affine(count)? else {
+                return None;
+            };
+            let shift = u32::try_from(shift).ok()?;
+            let factor = 2u128.checked_pow(shift)?;
+            Some((
+                vc.checked_mul(factor)?,
+                vv,
+                vo.checked_mul(i128::try_from(factor).ok()?)?,
+            ))
+        }
+        _ => None,
+    }
+}
+
+/// The terminal or transfer edge `left OP right` contributes over
+/// unbounded integer math, where `strict` 0 reads `<=` and 1 reads `<`.
+/// `s*x + o (+ strict) <= k` caps `x` at `(k - o - strict) / s` floored —
+/// with `s > 0` and a nonnegative numerator, else the row bounds `x` from
+/// below or not at all and contributes nothing. `x + o (+ strict) <= y +
+/// r` transfers `y`'s ceiling when `o - r + strict` is nonnegative —
+/// `x + c <= y` — while a negative constant is a slack relation `x <= y +
+/// d` the edge model cannot express, so the clause adds nothing. Floors,
+/// multi-variable rows, and closed comparisons contribute nothing here.
+fn math_order_fragments(
+    left: &IntegerMathTerm,
+    right: &IntegerMathTerm,
+    strict: u128,
+    support: ClauseSupport,
+    scope: &mut ClauseScope,
+) {
+    let Some((lc, lv, lo)) = math_affine(left) else {
+        return;
+    };
+    let Some((rc, rv, ro)) = math_affine(right) else {
+        return;
+    };
+    let Ok(strict) = i128::try_from(strict) else {
+        return;
+    };
+    match (lv, rv) {
+        (Some((_, x)), None) if lc > 0 && rc == 0 => {
+            let Some(numerator) = ro.checked_sub(lo).and_then(|n| n.checked_sub(strict)) else {
+                return;
+            };
+            if numerator < 0 {
+                return;
+            }
+            let Ok(divisor) = i128::try_from(lc) else {
+                return;
+            };
+            let Ok(bound) = u128::try_from(numerator / divisor) else {
+                return;
+            };
+            scope.terminals.push((x, bound, support));
+        }
+        (Some((_, x)), Some((_, y))) if lc == 1 && rc == 1 => {
+            let Some(cost) = lo.checked_sub(ro).and_then(|cost| cost.checked_add(strict)) else {
+                return;
+            };
+            let Ok(cost) = u128::try_from(cost) else {
+                return;
+            };
+            scope.edges.push((x, y, cost, support));
+        }
+        _ => {}
+    }
+}
+
+/// `left = right` over unbounded integer math. An affine-literal equality
+/// `s*x + o = k` fixes `x` at `(k - o) / s` when the division is exact — a
+/// terminal ceiling; an inexact or negative quotient caps nothing here
+/// (the contradiction check decides whether the row can hold at all). `x +
+/// o = y + r` states both `x + (o - r) = y` and `y + (r - o) = x`: each
+/// direction yields a transfer edge only while its constant is
+/// nonnegative — equal offsets keep the bidirectional zero-cost pair of
+/// the scalar equality clause, otherwise the slack direction is dropped
+/// rather than approximated.
+fn math_equal_fragments(
+    left: &IntegerMathTerm,
+    right: &IntegerMathTerm,
+    support: ClauseSupport,
+    scope: &mut ClauseScope,
+) {
+    let Some((lc, lv, lo)) = math_affine(left) else {
+        return;
+    };
+    let Some((rc, rv, ro)) = math_affine(right) else {
+        return;
+    };
+    let exact = |coefficient: u128, offset: i128, literal: i128| -> Option<u128> {
+        let Ok(divisor) = i128::try_from(coefficient) else {
+            return None;
+        };
+        let difference = literal.checked_sub(offset)?;
+        if difference < 0 || difference % divisor != 0 {
+            return None;
+        }
+        u128::try_from(difference / divisor).ok()
+    };
+    match (lv, rv) {
+        (Some((_, x)), None) if lc > 0 && rc == 0 => {
+            if let Some(bound) = exact(lc, lo, ro) {
+                scope.terminals.push((x, bound, support));
+            }
+        }
+        (None, Some((_, y))) if rc > 0 && lc == 0 => {
+            if let Some(bound) = exact(rc, ro, lo) {
+                scope.terminals.push((y, bound, support));
+            }
+        }
+        (Some((_, x)), Some((_, y))) if lc == 1 && rc == 1 => {
+            for (from, to, difference) in [(x, y, lo.checked_sub(ro)), (y, x, ro.checked_sub(lo))] {
+                if let Some(cost) = difference.and_then(|d| u128::try_from(d).ok()) {
+                    scope.edges.push((from, to, cost, support.clone()));
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
 /// The machine contract's resolved clause scope at `rank_type`: every
 /// `requires` row's unconditional content plus the conditional rows that
 /// resolve under it. Rows enter tagged with their own position so derived
@@ -881,7 +1075,9 @@ fn resolve_scope<'a>(
 
 /// Flatten the content `proposition` contributes when it holds under
 /// `support`. A `Conjunction` dissolves into its children; each leaf seeds
-/// a ceiling terminal or a relational edge and joins `leaves` for verbatim
+/// a ceiling terminal or a relational edge — the scalar comparisons
+/// directly, the `IntegerMath*` orderings through `math_affine`'s
+/// single-variable affine fragment — and joins `leaves` for verbatim
 /// premise discharge; a `Disjunction` or `Implication` is a conditional
 /// form and defers until this level's conjunctive ceilings settle. A
 /// literal on the left of `<=` bounds its parameter from below, a
@@ -956,6 +1152,15 @@ fn collect_clause_fragments<'a>(
                             }
                             _ => {}
                         }
+                    }
+                    Proposition::IntegerMathLessOrEqual(left, right) => {
+                        math_order_fragments(left, right, 0, support.clone(), scope);
+                    }
+                    Proposition::IntegerMathLessThan(left, right) => {
+                        math_order_fragments(left, right, 1, support.clone(), scope);
+                    }
+                    Proposition::IntegerMathEqual(left, right) => {
+                        math_equal_fragments(left, right, support.clone(), scope);
                     }
                     _ => {}
                 }
@@ -1118,12 +1323,14 @@ fn resolve_disjunction<'a>(
 /// when the context proves it. An assumed verbatim leaf carries its own
 /// rows, `Truth` needs none, a conjunction needs every child discharged, a
 /// disjunction needs one achieving child, and a nested implication is
-/// shown by its conclusion alone. A relational leaf is proved either by
-/// the settled ceilings — `v <= k` holds when `v`'s derived ceiling fits —
-/// or by a chain of transfer edges reaching the other side, and binds the
-/// rows the achieving derivation traversed. Everything else — a literal on
-/// the left needing a floor the scope never derives, equality with a
-/// literal, or non-scalar forms — stays undischarged rather than guessed.
+/// shown by its conclusion alone. A relational leaf — scalar or the affine
+/// `IntegerMath*` fragment — is proved either by the settled ceilings —
+/// `v <= k` holds when `v`'s derived ceiling fits — or by a chain of
+/// transfer edges reaching the other side with summed strictness covering
+/// the premise's constant, and binds the rows the achieving derivation
+/// traversed. Everything else — a literal on the left needing a floor the
+/// scope never derives, equality with a literal, or unsolved forms — stays
+/// undischarged rather than guessed.
 fn premise_support(
     premise: &Proposition,
     scope: &ClauseScope,
@@ -1158,15 +1365,98 @@ fn premise_support(
         Proposition::Equal(left, right) => {
             match (rank_value(left, rank_type), rank_value(right, rank_type)) {
                 (Some(x), Some(y)) => {
-                    let mut support = relation_path_support(x, y, false, scope)?;
-                    support.extend(relation_path_support(y, x, false, scope)?);
+                    let mut support = relation_path_support(x, y, 0, scope)?;
+                    support.extend(relation_path_support(y, x, 0, scope)?);
                     Some(support)
                 }
                 _ => None,
             }
         }
+        Proposition::IntegerMathLessOrEqual(left, right) => {
+            math_premise_support(left, right, false, scope, ceilings)
+        }
+        Proposition::IntegerMathLessThan(left, right) => {
+            math_premise_support(left, right, true, scope, ceilings)
+        }
+        Proposition::IntegerMathEqual(left, right) => {
+            math_equal_premise_support(left, right, scope)
+        }
         _ => None,
     }
+}
+
+/// Discharge an `IntegerMath*` ordering premise `left <= right`
+/// (`strict` false) or `left < right` (`strict` true) under the settled
+/// scope. `s*x + o (+ strict) <= k` holds when `x`'s derived ceiling
+/// already fits — the bound's achieving rows discharge it. `x + o
+/// (+ strict) <= y + r` holds when a transfer chain reaches `y` with
+/// summed strictness at least `o - r + strict`. Any other shape — a
+/// literal on the left needing a floor, a multi-variable or nonlinear
+/// side — stays undischarged rather than guessed.
+fn math_premise_support(
+    left: &IntegerMathTerm,
+    right: &IntegerMathTerm,
+    strict: bool,
+    scope: &ClauseScope,
+    ceilings: &BTreeMap<ValueId, u128>,
+) -> Option<ClauseSupport> {
+    let (lc, lv, lo) = math_affine(left)?;
+    let (rc, rv, ro) = math_affine(right)?;
+    match (lv, rv) {
+        (Some((_, x)), None) if lc > 0 && rc == 0 => {
+            let bound = i128::try_from(*ceilings.get(&x)?).ok()?;
+            let reached = i128::try_from(lc)
+                .ok()?
+                .checked_mul(bound)?
+                .checked_add(lo)?;
+            let fits = if strict { reached < ro } else { reached <= ro };
+            if !fits {
+                return None;
+            }
+            let mut visited = BTreeSet::from([x]);
+            justify_requires_ceiling(x, *ceilings.get(&x)?, ceilings, scope, &mut visited)
+        }
+        (Some((_, x)), Some((_, y))) if lc == 1 && rc == 1 => {
+            let needed = lo.checked_sub(ro)?.checked_add(i128::from(strict))?.max(0);
+            relation_path_support(x, y, u128::try_from(needed).ok()?, scope)
+        }
+        (None, None) => {
+            let holds = if strict { lo < ro } else { lo <= ro };
+            holds.then(ClauseSupport::new)
+        }
+        _ => None,
+    }
+}
+
+/// Discharge an `IntegerMathEqual` premise: `x + o = y + r` needs a
+/// transfer chain each way — `x + (o - r) <= y` and `y + (r - o) <= x`.
+/// An equality on a literal needs an exact value the ceiling derivation
+/// never proves from above, so only the verbatim-leaf route discharges
+/// it.
+fn math_equal_premise_support(
+    left: &IntegerMathTerm,
+    right: &IntegerMathTerm,
+    scope: &ClauseScope,
+) -> Option<ClauseSupport> {
+    let (lc, lv, lo) = math_affine(left)?;
+    let (rc, rv, ro) = math_affine(right)?;
+    let (Some((_, x)), Some((_, y))) = (lv, rv) else {
+        return None;
+    };
+    if lc != 1 || rc != 1 {
+        return None;
+    }
+    let mut support = ClauseSupport::new();
+    for (from, to, difference) in [(x, y, lo.checked_sub(ro)), (y, x, ro.checked_sub(lo))] {
+        let needed = difference?.max(0);
+        support.extend(relation_path_support(
+            from,
+            to,
+            u128::try_from(needed).ok()?,
+            scope,
+        )?);
+    }
+    Some(support)
 }
 
 /// Discharge one relational leaf `left <= right` (`cost` 0) or `left <
@@ -1195,48 +1485,76 @@ fn comparison_support(
             let mut visited = BTreeSet::from([x]);
             justify_requires_ceiling(x, bound, ceilings, scope, &mut visited)
         }
-        (Some(x), Some(y), None) => relation_path_support(x, y, cost == 1, scope),
+        (Some(x), Some(y), None) => relation_path_support(x, y, cost, scope),
         _ => None,
     }
 }
 
-/// The rows on one achieving transfer chain `from -> to`. A `strict`
-/// chain must cross at least one strict (`<`) edge: every edge subtracts
-/// its cost from the target's bound, so a strict crossing is what
-/// separates `from < to` from `from <= to`.
+/// The rows on one achieving transfer chain `from -> to` whose summed
+/// strictness reaches `needed`. Every edge subtracts its cost from the
+/// target's bound, so a chain of total cost `C` proves `from + C <= to`;
+/// the premise `from + needed <= to` follows whenever `C >= needed`.
+/// `needed` 0 is bare reachability, 1 is a strict crossing, and larger
+/// constants discharge affine premises like `x + 2 <= y`.
 fn relation_path_support(
     from: ValueId,
     to: ValueId,
-    strict: bool,
+    needed: u128,
     scope: &ClauseScope,
 ) -> Option<ClauseSupport> {
-    if !strict {
-        let path = relation_path(from, to, &scope.edges)?;
-        let mut rows = ClauseSupport::new();
-        for index in path {
-            rows.extend(scope.edges[index].3.iter().copied());
-        }
-        return Some(rows);
+    let path = relation_path_cost(from, to, needed, &scope.edges)?;
+    let mut rows = ClauseSupport::new();
+    for index in path {
+        rows.extend(scope.edges[index].3.iter().copied());
     }
-    for (index, &(a, b, cost, _)) in scope.edges.iter().enumerate() {
-        if cost == 0 {
-            continue;
+    Some(rows)
+}
+
+/// One edge chain `from -> to` whose costs sum to at least `needed`, as
+/// edge positions. `needed` 0 is bare reachability — breadth-first keeps
+/// that chain short. Otherwise depth-first enumerates simple paths until
+/// one accumulates `needed`: in a satisfiable contract no positive-cost
+/// cycle exists, so every achievable total already appears on a simple
+/// path, and a contradictory clause that admits one merely fails closed.
+/// A bounded expansion budget keeps a dense clause graph from ballooning
+/// the search; fixed edge order keeps the recovered chain deterministic.
+fn relation_path_cost(
+    from: ValueId,
+    to: ValueId,
+    needed: u128,
+    edges: &[(ValueId, ValueId, u128, ClauseSupport)],
+) -> Option<Vec<usize>> {
+    if needed == 0 {
+        return relation_path(from, to, edges);
+    }
+    if from == to {
+        return None;
+    }
+    let mut stack = vec![(from, 0_u128, Vec::new(), BTreeSet::from([from]))];
+    let mut budget = 8192_usize;
+    while let Some((node, cost, path, seen)) = stack.pop() {
+        budget = budget.checked_sub(1)?;
+        for (index, &(a, b, edge_cost, _)) in edges.iter().enumerate() {
+            if a != node || seen.contains(&b) {
+                continue;
+            }
+            let next_cost = cost.saturating_add(edge_cost);
+            if b == to {
+                if next_cost >= needed {
+                    let mut achieved = path.clone();
+                    achieved.push(index);
+                    return Some(achieved);
+                }
+                // Reaching `to` short of the needed cost is a dead end —
+                // a simple path cannot leave and revisit `to`.
+                continue;
+            }
+            let mut next_seen = seen.clone();
+            next_seen.insert(b);
+            let mut next_path = path.clone();
+            next_path.push(index);
+            stack.push((b, next_cost, next_path, next_seen));
         }
-        let Some(first) = relation_path(from, a, &scope.edges) else {
-            continue;
-        };
-        let Some(second) = relation_path(b, to, &scope.edges) else {
-            continue;
-        };
-        let mut rows = ClauseSupport::new();
-        for hop in first
-            .iter()
-            .chain(std::iter::once(&index))
-            .chain(second.iter())
-        {
-            rows.extend(scope.edges[*hop].3.iter().copied());
-        }
-        return Some(rows);
     }
     None
 }
@@ -1333,6 +1651,130 @@ fn proposition_unsatisfiable(proposition: &Proposition) -> bool {
         }
         Proposition::LessOrEqual(left, right) => closed(left, right).is_some_and(|(a, b)| a > b),
         Proposition::Equal(left, right) => closed(left, right).is_some_and(|(a, b)| a != b),
+        Proposition::IntegerMathLessThan(left, right) => {
+            math_unsatisfiable(left, right, MathRelation::LessThan)
+        }
+        Proposition::IntegerMathLessOrEqual(left, right) => {
+            math_unsatisfiable(left, right, MathRelation::LessOrEqual)
+        }
+        Proposition::IntegerMathEqual(left, right) => {
+            math_unsatisfiable(left, right, MathRelation::Equal)
+        }
+        _ => false,
+    }
+}
+
+/// The three decidable `IntegerMath*` orderings for local contradiction
+/// checks.
+#[derive(Clone, Copy)]
+enum MathRelation {
+    LessOrEqual,
+    LessThan,
+    Equal,
+}
+
+/// Whether `left OP right` over unbounded integer math admits no
+/// valuation — the contradiction must be visible without assuming any
+/// ambient fact. A false closed comparison is vacuous outright. A
+/// variable side over an unsigned carrier bottoms out at its offset:
+/// `s*x + o <= k` needs `o <= k`, `s*x + o < k` needs `o < k`, and
+/// `s*x + o = k` needs `(k - o)` nonnegative, divisible by `s`, and
+/// inside the carrier's range; a variable on the right instead top-outs
+/// at `s*max + o`, which `k` must not exceed (`<=`) or reach (`<`), and
+/// equality solves the same quotient. Anything else — a term that does
+/// not solve to the affine fragment, a two-variable row, a coefficient
+/// the arithmetic cannot lift — stays live rather than guessed.
+fn math_unsatisfiable(left: &IntegerMathTerm, right: &IntegerMathTerm, kind: MathRelation) -> bool {
+    let Some((lc, lv, lo)) = math_affine(left) else {
+        return false;
+    };
+    let Some((rc, rv, ro)) = math_affine(right) else {
+        return false;
+    };
+    let range = |source_type: IntegerType| -> Option<(i128, i128)> {
+        let minimum = match source_type.minimum_value() {
+            IntegerValue::Signed(v) => v,
+            IntegerValue::Unsigned(v) => i128::try_from(v).ok()?,
+        };
+        let maximum = match source_type.maximum_value() {
+            IntegerValue::Signed(v) => v,
+            IntegerValue::Unsigned(v) => i128::try_from(v).ok()?,
+        };
+        Some((minimum, maximum))
+    };
+    // Whether `value` can solve `s*value + o = k` inside `source_type`.
+    let equality_unsatisfiable =
+        |coefficient: u128, offset: i128, literal: i128, source_type: IntegerType| -> bool {
+            let Some(difference) = literal.checked_sub(offset) else {
+                return true;
+            };
+            let Ok(divisor) = i128::try_from(coefficient) else {
+                return false;
+            };
+            if divisor <= 0 || difference % divisor != 0 {
+                return true;
+            }
+            let quotient = difference / divisor;
+            let Some((minimum, maximum)) = range(source_type) else {
+                return false;
+            };
+            quotient < minimum || quotient > maximum
+        };
+    match (lv, rv) {
+        (None, None) => match kind {
+            MathRelation::LessOrEqual => lo > ro,
+            MathRelation::LessThan => lo >= ro,
+            MathRelation::Equal => lo != ro,
+        },
+        (Some((source_type, _)), None) if lc > 0 && rc == 0 => match kind {
+            // `x >= min` bottoms the side out at `s*min + o`; an unsigned
+            // carrier's minimum is zero.
+            MathRelation::LessOrEqual => {
+                let Some((minimum, _)) = range(source_type) else {
+                    return false;
+                };
+                i128::try_from(lc)
+                    .ok()
+                    .and_then(|s| s.checked_mul(minimum))
+                    .and_then(|m| m.checked_add(lo))
+                    .is_some_and(|minimum_side| ro < minimum_side)
+            }
+            MathRelation::LessThan => {
+                let Some((minimum, _)) = range(source_type) else {
+                    return false;
+                };
+                i128::try_from(lc)
+                    .ok()
+                    .and_then(|s| s.checked_mul(minimum))
+                    .and_then(|m| m.checked_add(lo))
+                    .is_some_and(|minimum_side| ro <= minimum_side)
+            }
+            MathRelation::Equal => equality_unsatisfiable(lc, lo, ro, source_type),
+        },
+        (None, Some((source_type, _))) if rc > 0 && lc == 0 => match kind {
+            // `s*y + o` tops out at `s*max + o`.
+            MathRelation::LessOrEqual => {
+                let Some((_, maximum)) = range(source_type) else {
+                    return false;
+                };
+                i128::try_from(rc)
+                    .ok()
+                    .and_then(|s| s.checked_mul(maximum))
+                    .and_then(|m| m.checked_add(ro))
+                    .is_some_and(|maximum_side| lo > maximum_side)
+            }
+            MathRelation::LessThan => {
+                let Some((_, maximum)) = range(source_type) else {
+                    return false;
+                };
+                i128::try_from(rc)
+                    .ok()
+                    .and_then(|s| s.checked_mul(maximum))
+                    .and_then(|m| m.checked_add(ro))
+                    .is_some_and(|maximum_side| lo >= maximum_side)
+            }
+            MathRelation::Equal => equality_unsatisfiable(rc, ro, lo, source_type),
+        },
         _ => false,
     }
 }

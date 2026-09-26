@@ -198,9 +198,10 @@ backend-visible; full corpus runs only at the end of an item.
   [component publication](wiki/spec/build/component_publication.md) place
   erasure in lowering and Terminal replay) and stage 04's selected generic
   operator providers and boundary families (`CheckingRequest`). Moving the
-  provider-body const folds waits on OWNER_QUESTIONS.md Q10
-  (`provider-dependent-constants`): a const application folded through a
-  selected provider gives a type that varies by target. Invert the layering
+  provider-body const folds follows the settled rule in
+  [multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation):
+  every realized target must select the same provider for a folded
+  application, and disagreement rejects it. Invert the layering
   guard `omega_provider_selection_consumes_psi_frontend_directly` so
   `provider-planning` may not depend on `typed-trees` or `validation`. Scalar
   `ensures` of a requirement are not yet retained on its Terminal
@@ -1836,10 +1837,13 @@ syntax and other terminal services are not prerequisites.
   compatibility, not this source-position restriction.
   Carry checked layout/validity, backing identity, lifetime and access through
   ordinary expression sequencing and temporary loans rather than bypassing
-  the recast check. Runtime `recast_views` canaries remain blocked on a
-  pre-existing Terminal unit-plan omission at local construction (entry
-  establishment rejoins 0 attachment identities), reproduced identically on
-  the pre-change base — not recast machinery. Acceptance: valid inline
+  the recast check. The `tests/omega/{pass,fail}/recast` corpus is
+  green: all 14 pass fixtures check and all 12 fail fixtures reject with their
+  expected fragments. The last pass-tier holdout,
+  `runtime_interior_slice_congruent_offset_exit`, was refused at "cannot bound
+  the recast offset `self.k * 2`" and not at any unit-plan omission; its bound
+  lives in `data Main where k <= 3`, which the leaf bound walk did not read.
+  No fixture named `recast_views` exists. Acceptance: valid inline
   equivalents of supported shared
   and mutable recasts check and execute; incompatible geometry/validity,
   access escalation and conflicting backing use reject at the offending

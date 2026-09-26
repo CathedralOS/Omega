@@ -434,7 +434,38 @@ fn symbolic_param_upper_bound(
                 interval.high()
             });
     declared
+        .or_else(|| standing_place_high(program, machine, source, name))
         .or_else(|| incoming_offset_bound(program, machine, source, name, depth, BoundSide::Upper))
+}
+
+/// The place's standing interval: its declared range, an immutable
+/// parameter's `requires`, or its data's `where` facts. A declared type range
+/// is read directly above because it is the tightest and cheapest source;
+/// this covers the invariants that hold at every program point without being
+/// spelled on the type, which is where `data Main where k <= 3` lives now
+/// that a data `where` is the canonical spelling for a field relationship.
+fn standing_place_high(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    source: &typed_trees::state::State,
+    name: ExpressionHandle,
+) -> Option<i64> {
+    crate::proof_contracts::arithmetic_domains::standing_integer_interval(
+        program, machine, source, name,
+    )?
+    .high()
+}
+
+fn standing_place_low(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    source: &typed_trees::state::State,
+    name: ExpressionHandle,
+) -> Option<i64> {
+    crate::proof_contracts::arithmetic_domains::standing_integer_interval(
+        program, machine, source, name,
+    )?
+    .low()
 }
 
 /// A NAME's inclusive LOWER bound in `source`'s scope (declared range or
@@ -456,7 +487,45 @@ fn symbolic_param_lower_bound(
                 interval.low()
             });
     declared
+        .or_else(|| standing_place_low(program, machine, source, name))
         .or_else(|| incoming_offset_bound(program, machine, source, name, depth, BoundSide::Lower))
+        .or_else(|| unsigned_place_floor(program, machine, source, name))
+}
+
+/// An EXACT unsigned place's floor is 0 by its carrier, with no range,
+/// `requires` or `where` needed. The composite walk asks for a floor before it
+/// will multiply or subtract, so without this a `u32` field with a stated
+/// ceiling -- `data Main where k <= 3` -- bounds above and still fails the
+/// nonnegative-operand test that keeps `k * 2` from wrapping below its bound.
+///
+/// The exactness is the whole of the soundness. A `u32 in Wrapping` place has
+/// the same carrier and no such floor: its arithmetic may wrap, which is
+/// exactly what those operand-floor tests exist to exclude, and handing one a
+/// floor of 0 admits the drifted stride walk that
+/// `a_drifted_stride_witness_refuses_the_dependent_view` pins as refused.
+fn unsigned_place_floor(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    source: &typed_trees::state::State,
+    name: ExpressionHandle,
+) -> Option<i64> {
+    use typed_trees::types::PrimitiveType;
+    let raw = crate::value_custody::places::declared_place_type_raw(
+        program,
+        machine,
+        Some(source),
+        name,
+    )?;
+    if program.arithmetic_domain_for_type_reference(raw)
+        != numerics::arithmetic::ArithmeticDomain::Exact
+    {
+        return None;
+    }
+    matches!(
+        program.primitive_type_reference(raw)?,
+        PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
+    )
+    .then_some(0)
 }
 
 /// `label >= K` / `> K` within the same guard walk -- the lower twin.
