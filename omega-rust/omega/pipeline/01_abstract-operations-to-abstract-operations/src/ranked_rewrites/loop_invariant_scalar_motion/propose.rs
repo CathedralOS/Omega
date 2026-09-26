@@ -80,10 +80,14 @@ fn component_candidate(
 /// leaf, an invariant place observation (byte-exact when its root is
 /// preheader-visible or run-covered, or with its storage root rebound to the
 /// representative its member structural parameter resolves to), a byte read
-/// or subslice (root rebound, scalar operands substituted,
-/// `length` still coupled to a `ByteSequenceLength` on the rebound root, and
-/// for a subslice the structural result preserved inside the moved
-/// operation), a byte-sequence-literal establishment (declared place, type,
+/// or subslice (root rebound, scalar operands substituted, `length` still
+/// coupled to a `ByteSequenceLength` on the rebound root, and for a subslice
+/// the structural result preserved inside the moved operation), a field
+/// byte read (root rebound but `index`/`length` proposition-pinned
+/// byte-exact — each must already be a result the same run preserves — and
+/// `length` still coupled to a `StructuralByteSequenceFieldLength` on the
+/// rebound root's same `path` and `field`), a byte-sequence-literal
+/// establishment (declared place, type,
 /// and payload all preserved byte-exact inside the moved operation while
 /// consumers keep spelling the same place identity), a primitive-local
 /// establishment (declared place, type, and claim-free custody preserved
@@ -239,6 +243,32 @@ fn admit_member_node(
             return None;
         }
         let (root, substitution) = crate::validation::place_observations::invariant_byte_read_admission(
+            function,
+            component,
+            node,
+            relocating,
+            relocating_roots,
+        )?;
+        if !evidence.representable(&substitution, relocating) {
+            return None;
+        }
+        root_rewrite = (root != source).then_some((source, root));
+        substitution.into_iter().collect()
+    } else if let Some((source, _, _)) = crate::validation::invariant_operations::admissible_invariant_field_byte_read(node) {
+        // A field byte read keeps the byte family's whole evidence surface
+        // — the non-speculative gate, the observation-root resolution — and
+        // narrows the `length` coupling to a
+        // `StructuralByteSequenceFieldLength` measuring the same `path` and
+        // `field` inside the rebound root. Its `index` and `length` are
+        // proposition-pinned: the accepted bounds fact records `index <
+        // length` over the operation's own operand identities, so both stay
+        // byte-exact and each member-internal operand must already be a
+        // result the same run preserves. `path`, `field`, and the bounds
+        // obligation are not operand positions and stay byte-exact too.
+        if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
+            return None;
+        }
+        let (root, substitution) = crate::validation::place_observations::invariant_field_byte_read_admission(
             function,
             component,
             node,

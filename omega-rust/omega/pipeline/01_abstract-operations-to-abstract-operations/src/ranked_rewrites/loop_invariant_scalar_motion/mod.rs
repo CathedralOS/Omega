@@ -57,8 +57,15 @@ mod tests;
 /// family adds its own evidence: a `ByteSequenceRead` or
 /// `ByteSequenceSubslice` must also substitute each scalar operand under the
 /// same rule and keep its `length` operand coupled to a `ByteSequenceLength`
-/// measuring the rebound root, and a subslice preserves its structural view
-/// result and bounds obligation byte-exact inside the moved operation. The
+/// on the rebound root, and a subslice preserves its structural view result
+/// and bounds obligation byte-exact inside the moved operation. A
+/// `StructuralByteSequenceFieldRead` shares that root resolution but is
+/// proposition-pinned: its accepted bounds fact records `index < length`
+/// over the operation's own operand identities, so both operands stay
+/// byte-exact — each member-internal operand must already be a result the
+/// same run preserves, and the `length` operand must name a
+/// `StructuralByteSequenceFieldLength` measuring the rebound root's same
+/// `path` and `field`. The
 /// byte family's non-observation member, an `EstablishByteSequenceLiteral`,
 /// declares a fresh immutable view root over constant bytes: it reads no
 /// scalar or structural operand and carries no custody events, so the whole

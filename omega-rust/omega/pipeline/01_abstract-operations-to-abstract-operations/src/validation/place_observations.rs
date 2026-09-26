@@ -4,7 +4,8 @@
 //! and the place, byte-read and subslice admissions built on them.
 
 use super::invariant_operations::{
-    admissible_invariant_byte_read, admissible_invariant_place_read, admissible_invariant_subslice,
+    admissible_invariant_byte_read, admissible_invariant_field_byte_read,
+    admissible_invariant_place_read, admissible_invariant_subslice,
 };
 use super::member_blocks::{
     member_scalar_operand_substitution, shared_entry_source, value_definition_sites,
@@ -17,14 +18,15 @@ use optimization_unit::{
 use semantic_vocabulary::{BlockId, EdgeId, PlaceId, StructuralPlaceKind, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
 
-/// The storage root an admitted place observation, byte read, or subslice
-/// names — whichever observation gate the node's operation shape admits
-/// through. `same_relocated_node` needs the expected root to replay the
-/// member parameter's rebind without trusting the transformed unit's
-/// spelling.
+/// The storage root an admitted place observation, byte read, field byte
+/// read, or subslice names — whichever observation gate the node's operation
+/// shape admits through. `same_relocated_node` needs the expected root to
+/// replay the member parameter's rebind without trusting the transformed
+/// unit's spelling.
 pub(crate) fn invariant_observation_source(node: &OptimizationNode) -> Option<PlaceId> {
     admissible_invariant_place_read(node)
         .or_else(|| admissible_invariant_byte_read(node).map(|(source, _, _)| source))
+        .or_else(|| admissible_invariant_field_byte_read(node).map(|(source, _, _)| source))
         .or_else(|| admissible_invariant_subslice(node).map(|(source, _, _, _)| source))
 }
 
@@ -908,6 +910,67 @@ pub(crate) fn invariant_byte_read_admission(
         .then_some((root, substitution))
 }
 
+/// The complete `StructuralByteSequenceFieldRead` admission shared by the
+/// proposal and the relocation freeze replay: `node` must carry the
+/// source-owned field byte-read shape
+/// ([`admissible_invariant_field_byte_read`]) and its storage root must
+/// resolve to a root the relocated run can see through the shared
+/// observation-root admission ([`invariant_observation_root`]) —
+/// preheader-visible or produced by a node the same run covers.
+///
+/// The scalar operands follow a stricter rule than the byte family's other
+/// observations: the read's accepted bounds fact is recorded over the
+/// operation's own operand identities — `index < length` — and the moved
+/// operation re-derives that proposition from whatever it still names, so
+/// neither operand may substitute. Each member-internal use must already be
+/// a member node result the same relocation run preserves — an invariant
+/// member parameter, which [`member_scalar_operand_substitution`] would
+/// rebind to a representative, changes the proposition and therefore
+/// refuses. Outside the component the operands stay byte-exact either way.
+///
+/// The `length` operand then carries the byte family's producer coupling
+/// with one field qualifier: field-byte-view validation requires it to be
+/// defined by a `StructuralByteSequenceFieldLength` measuring the very field
+/// the read observes — the same `source` root, the same `path`, and the same
+/// `field`. A member-internal producer qualifies only when it relocates in
+/// the same run and its own root resolves to the read's rebound root; a
+/// producer outside the component qualifies only when it already measures
+/// that root's field. The `path` and `field` the coupling compares stay
+/// byte-exact inside the moved operation, so a rebound `source` cannot
+/// drift the measured field — the moved operation still validates
+/// byte-exact against its preserved bounds obligation. Anything else — a
+/// member parameter, a function parameter, or a field-length observation of
+/// a different root or field — refuses.
+///
+/// Returns the root the relocated read rebinds to plus the operand
+/// substitution its member-parameter uses need — empty for this family: the
+/// proposition-pinned operands admit only the no-rewrite case.
+pub(crate) fn invariant_field_byte_read_admission(
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    node: &OptimizationNode,
+    relocating: &BTreeSet<ValueId>,
+    relocating_roots: &BTreeSet<PlaceId>,
+) -> Option<(PlaceId, BTreeMap<ValueId, ValueId>)> {
+    let (source, _, length) = admissible_invariant_field_byte_read(node)?;
+    let O::StructuralByteSequenceFieldRead { path, field, .. } = &node.operation else {
+        return None;
+    };
+    let root = invariant_observation_root(function, component, source, relocating_roots)?;
+    member_scalar_operand_substitution(function, component, node, relocating)
+        .filter(|substitution| substitution.is_empty())?;
+    field_byte_length_operand_measures_root(
+        function,
+        component,
+        root,
+        length,
+        relocating_roots,
+        path,
+        *field,
+    )
+    .then_some((root, BTreeMap::new()))
+}
+
 /// The complete `ByteSequenceSubslice` admission shared by the proposal and
 /// the relocation freeze replay: `node` must carry the source-owned subslice
 /// shape ([`admissible_invariant_subslice`]), its storage root must resolve
@@ -986,6 +1049,62 @@ fn byte_length_operand_measures_root(
         O::ByteSequenceLength {
             source: measured, ..
         } => *measured == root,
+        _ => false,
+    }
+}
+
+/// Whether `length` — the value-exact `length` operand an admitted field
+/// byte read relocates with — is defined by a
+/// `StructuralByteSequenceFieldLength` measuring the very field the read
+/// observes: the `path` and `field` it spells inside `root`, the rebound
+/// storage root. A member-internal producer keeps the operand bound only
+/// when it relocates in the same run and its own observation root resolves
+/// to that same root under the same run-covered member roots; a producer
+/// outside the component must already measure the root's field directly.
+fn field_byte_length_operand_measures_root(
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    root: PlaceId,
+    length: ValueId,
+    relocating_roots: &BTreeSet<PlaceId>,
+    path: &[terminal_psi::StructuralPathSegment],
+    field: semantic_vocabulary::StructuralFieldId,
+) -> bool {
+    let members: BTreeSet<BlockId> = component.members.iter().copied().collect();
+    let sites = value_definition_sites(function);
+    let Some(ValueDefinitionSite::Node { block, node }) = sites.get(&length) else {
+        return false;
+    };
+    let Some(producing) = function
+        .blocks
+        .iter()
+        .find(|candidate| candidate.id == *block)
+        .and_then(|block| {
+            usize::try_from(*node)
+                .ok()
+                .and_then(|node| block.nodes.get(node))
+        })
+    else {
+        return false;
+    };
+    match &producing.operation {
+        O::StructuralByteSequenceFieldLength {
+            source: measured,
+            path: measured_path,
+            field: measured_field,
+            ..
+        } if members.contains(block) => {
+            measured_path == path
+                && *measured_field == field
+                && invariant_observation_root(function, component, *measured, relocating_roots)
+                    == Some(root)
+        }
+        O::StructuralByteSequenceFieldLength {
+            source: measured,
+            path: measured_path,
+            field: measured_field,
+            ..
+        } => *measured == root && measured_path == path && *measured_field == field,
         _ => false,
     }
 }

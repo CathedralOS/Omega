@@ -378,6 +378,30 @@ pub(super) fn validate(
                 Some((root, substitution)) => (substitution, Some(root), BTreeMap::new()),
                 None => return Err(mismatch(machine, relocation.expected_block)),
             }
+        } else if crate::validation::invariant_operations::admissible_invariant_field_byte_read(relocation.expected).is_some() {
+            // A field byte read replays the byte read's halves on a
+            // proposition-pinned operand rule: `index` and `length` carry
+            // the accepted bounds fact's value identities, so the replayed
+            // substitution must be empty — a member parameter would rebind
+            // and change the recorded proposition — and the `length`
+            // producer must be a `StructuralByteSequenceFieldLength`
+            // measuring the same `path` and `field` inside the rebound
+            // root. A forged source, field, operand, or obligation spelling
+            // rejects.
+            match crate::validation::place_observations::invariant_field_byte_read_admission(
+                expected,
+                component,
+                relocation.expected,
+                relocated_results
+                    .get(&component.id)
+                    .unwrap_or(&no_relocated_results),
+                relocated_roots
+                    .get(&component.id)
+                    .unwrap_or(&no_relocated_roots),
+            ) {
+                Some((root, substitution)) => (substitution, Some(root), BTreeMap::new()),
+                None => return Err(mismatch(machine, relocation.expected_block)),
+            }
         } else if crate::validation::invariant_operations::admissible_invariant_subslice(relocation.expected).is_some() {
             // A subslice replays the same two halves — root resolution
             // and `start`/`end`/`length` substitution with the `length`
