@@ -1,0 +1,72 @@
+{
+  "wave": "macw9",
+  "host": "local",
+  "drained": "2026-09-25",
+  "base_at_launch": "985f74a1fd",
+  "slots": [
+    {
+      "slot": "coordinator",
+      "item": "CANONICALIZE-SCALAR-RANGE-CONTRACTS",
+      "result": "landed",
+      "commits": ["c1303f89d4", "0406ab04d2"],
+      "item_closed": false,
+      "note": "source/library leg: 49 suffixes migrated under canonical forms only (35 redundant narrow-conversion params whose requires already carried the bound, 9 Vec index params to requires, 5 entry locals whose interval facts already flow); the rest are evidence-backed remainders (ensures-through-as gap, const-site domain proofs, payload-membership-to-requires, call-arg folding, indexed-path membership, textual requires-admission) — recorded on the board; second commit is the wave board sweep"
+    },
+    {
+      "slot": "rep-specialization",
+      "item": "REPRESENTATION-SPECIALIZATION",
+      "result": "landed",
+      "commits": ["4c307fc9ed"],
+      "item_closed": false,
+      "note": "array-element frontier resolved to coverage — descended_type already folds FixedIndex/RuntimeIndex/Referent/Field chains; pinned the regression matrix plus decline/forged-evidence controls; remaining bounds upstream (RuntimeIndex awaits lowering control-plan evidence, EstablishStructuralCase rejected at t2a). Handle then refilled onto GENERAL-LICM — still running at drain per user decision, live claim 82a853d296 on worktree macw9-rep-specialization"
+    },
+    {
+      "slot": "terminal-authority",
+      "item": "TWO-AXIS-TERMINAL-AUTHORITY-REVIEW",
+      "result": "wip",
+      "commits": [],
+      "wip_branch": "swarm/macw9-terminal-authority@5728d45a2f",
+      "item_closed": false,
+      "note": "carried the macw8b blueprint into a full direct_syscall instruction family: selected-instruction identity, legalization replay, scalar-graph selection, row encoding, aarch64 and x86-64 form encoding, ABI call machinery — 176 files +2913/-213 over the prior 7f856f6d43 WIP; unvalidated at rate-limit interrupt; resume line on the board"
+    },
+    {
+      "slot": "arithmetic-policy",
+      "item": "ARITHMETIC-POLICY-REALIZATION",
+      "result": "landed",
+      "commits": ["3590f2f67c"],
+      "item_closed": false,
+      "note": "signed/mixed-sign saturating conversions for every fixed-integer pair — source-carrier clamp via total ops then wrapping cross; remaining: trapping conversion native realization (crash-refinement vocabulary, upstream), addr carriers, guarded-Trap ceilings"
+    },
+    {
+      "slot": "psiir-fuel",
+      "item": "PSIIR",
+      "result": "landed",
+      "commits": ["52a1f10575", "8d8174bd0b"],
+      "item_closed": false,
+      "note": "two legs: ClauseScope conditional forms (disjunctive max-of-arms, implication premise discharge to fixpoint) then IntegerMath{Equal,LessThan,LessOrEqual} affine fragment (literal floor-div solve, unit-coefficient transfer edges, dual-direction equalities); remaining: non-affine IntegerMath rows, guard/path-fact bounds, wait/foreign-edge cause"
+    },
+    {
+      "slot": "range-annotations",
+      "item": "CANONICALIZE-SCALAR-RANGE-CONTRACTS",
+      "result": "landed",
+      "commits": ["18500aa356"],
+      "item_closed": false,
+      "note": "corpus leg superseded: upstream canonical migration already covered its five pass groups and the session's generated-domain direction was rejected by the 2026-09-24 owner directive; handle refilled onto the checker-side blocker and landed predicate-only domain membership (proven_predicates_grant_domain: in D membership at statement calls + dominating guards, 5430/5430 crate tests, 19-case e2e matrix)"
+    },
+    {
+      "slot": "exact-machine",
+      "item": "EXACT-MACHINE-SIMPLIFICATIONS",
+      "result": "landed",
+      "commits": ["9627b528bc", "3f31f50e18"],
+      "item_closed": false,
+      "note": "two families executed through the pre-allocation catalog: address-offset folds (SelectedAddressOffsetFoldV1) and constant-boolean folds (SelectedConstantBooleanFoldV1, tag 48; condition_state lifted to rewrites/ as shared flag-state vocabulary); remaining: compare/test and scheduling families"
+    }
+  ],
+  "friction": [
+    "shared model rate limiter mass-killed all six handles again; paced resume recovered real lands — dead handle still does not mean dead work",
+    "claims 240-min leases expired under multi-hour slots (landing queue head promotion also expired mid-rebase once — 3-minute window is tight for heavy std rebuilds); renewal candidate stands",
+    "same-item claim rejection needed --allow-overlap for documented path-disjoint legs of the renamed CANONICALIZE-SCALAR-RANGE-CONTRACTS item; launch.py similarly needs --skip-claims-check for same-item disjoint slots",
+    "compiler diagnostics cap at 16 per run — the coordinator's library migration needed iterative fix-and-recheck cycles to reveal the full blocker set",
+    "GENERAL-LICM refill leg still running at drain (user decision): claim 82a853d296, worktree macw9-rep-specialization, branch swarm/macw9-rep-specialization left live; fold its report into a future sweep"
+  ]
+}
