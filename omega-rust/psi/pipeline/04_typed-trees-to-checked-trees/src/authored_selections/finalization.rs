@@ -322,6 +322,7 @@ pub(crate) fn finalize_checked_authored_selections_with_policy(
                         expression,
                         node,
                         occurrence,
+                        Some(&owner_index),
                     ))
                     .or_else(|| {
                         typed_operator_has_no_authored_selection(program, expression).then_some(
