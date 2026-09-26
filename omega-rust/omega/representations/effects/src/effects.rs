@@ -257,15 +257,13 @@ impl SelectedProviderPlanFacts {
         report_identity: u64,
         exact_plan: &ProviderPlan,
     ) -> Option<&ProviderPlan> {
-        let mut matches = self
-            .plans
-            .iter()
-            .filter(|plan| plan.report_fingerprint() == report_identity);
-        let selected = matches.next()?;
-        if matches.next().is_some() || selected != exact_plan {
-            return None;
-        }
-        Some(selected)
+        // Every constructor rejects a repeated plan and a fingerprint
+        // collision, so the one member structurally equal to `exact_plan` is
+        // the only member that can carry its fingerprint: comparing plans
+        // (which fails fast on the name) and rendering one fingerprint
+        // replaces rendering every member's.
+        let selected = self.plans.iter().find(|plan| *plan == exact_plan)?;
+        (selected.report_fingerprint() == report_identity).then_some(selected)
     }
 
     pub const fn report_fingerprint(&self) -> u64 {
