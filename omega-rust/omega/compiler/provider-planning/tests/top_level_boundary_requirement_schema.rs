@@ -93,7 +93,7 @@ fn exact_top_level_requirement_schema_retains_its_typed_operational_shape() {
 }
 
 #[test]
-fn top_level_requirement_schema_fences_non_public_and_generic_declarations() {
+fn top_level_requirement_schema_fences_static_generics_not_package_visibility() {
     let typed = typed_source(
         r#"
         boundary requirement Private::complete(value: u32);
@@ -103,23 +103,33 @@ fn top_level_requirement_schema_fences_non_public_and_generic_declarations() {
         "#,
     );
 
-    for name in ["Private::complete", "StaticGeneric::complete"] {
+    // A static type parameter names no one callable signature, so there is no
+    // exact row to install and the declaration stays outside this rung. A
+    // lifetime telescope erases instead, which the next test pins.
+    assert!(
+        provider_planning::service_schema::from_typed_boundary_requirement(
+            &typed,
+            requirement(&typed, "StaticGeneric::complete")
+        )
+        .is_none(),
+        "StaticGeneric::complete must remain outside the first planning rung"
+    );
+
+    // Package visibility is not a planning fence. A private requirement keeps
+    // its selected declaration through overload settlement and
+    // package-qualified duplicate checks, so it reifies exactly like a public
+    // one; who may name it is the visibility checker's answer, not the
+    // schema's.
+    for name in ["Private::complete", "Plain::complete"] {
         assert!(
             provider_planning::service_schema::from_typed_boundary_requirement(
                 &typed,
                 requirement(&typed, name)
             )
-            .is_none(),
-            "{name} must remain outside the first planning rung"
+            .is_some(),
+            "{name} reifies one exact callable signature"
         );
     }
-    assert!(
-        provider_planning::service_schema::from_typed_boundary_requirement(
-            &typed,
-            requirement(&typed, "Plain::complete")
-        )
-        .is_some()
-    );
 }
 
 #[test]
