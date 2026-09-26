@@ -43,7 +43,11 @@ blocks;
         // The rejection span is read before the lexer is borrowed mutably:
         // a call's mutable receiver cannot overlap an argument read.
         let length: u64 [0..=65536] = self.lexer.source.length;
-        self.lexer.reject(LexDiagnosticCode::SourceCapacityExceeded, length, length);
+        self.lexer.reject(
+            LexDiagnosticCode::SourceCapacityExceeded,
+            length as u64 in Trapping,
+            length as u64 in Trapping
+        );
         self.console.exit_process(252);
     }
 
@@ -58,7 +62,7 @@ blocks;
     state prepare_parse(&mut self) {
         self.parser.initialize(
             self.lexer.source.id,
-            self.lexer.source.length
+            self.lexer.source.length as u64 in Trapping
         );
         transition { _ -> parse() }
     }
@@ -173,10 +177,10 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
     }
 
     state parse_diagnostic_coordinates(&mut self) {
-        self.write_u64(self.parser.output.diagnostic.source_span.source.value as u64);
+        self.write_u64(self.parser.output.diagnostic.source_span.source.value as u64 in Trapping);
         self.write_u64(self.parser.output.diagnostic.source_span.span.start);
         self.write_u64(self.parser.output.diagnostic.source_span.span.end);
-        self.write_u64(self.parser.output.root_count);
+        self.write_u64(self.parser.output.root_count as u64 in Trapping);
         transition self.parser.output.root_count > 0 {
             true -> parse_root(0)
             _ -> parse_use_count()
@@ -198,7 +202,7 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
     ) {
         self.write_byte(1);
         self.write_u64(root.item_index);
-        self.write_u64(root.source_span.source.value as u64);
+        self.write_u64(root.source_span.source.value as u64 in Trapping);
         self.write_u64(root.source_span.span.start);
         self.write_u64(root.source_span.span.end);
         let next: u64 = index + 1;
@@ -215,7 +219,7 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
     ) {
         self.write_byte(2);
         self.write_u64(root.item_index);
-        self.write_u64(root.source_span.source.value as u64);
+        self.write_u64(root.source_span.source.value as u64 in Trapping);
         self.write_u64(root.source_span.span.start);
         self.write_u64(root.source_span.span.end);
         let next: u64 = index + 1;
@@ -233,7 +237,7 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
     }
 
     state parse_use_count(&mut self) {
-        self.write_u64(self.parser.output.use_count);
+        self.write_u64(self.parser.output.use_count as u64 in Trapping);
         transition self.parser.output.use_count > 0 {
             true -> parse_use_item(0)
             _ -> parse_member_count()
@@ -243,8 +247,8 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
     state parse_use_item(&mut self, index: u64 [0..=255]) {
         let item: UseItem = self.parser.output.uses[index];
         self.write_u64(item.first_member);
-        self.write_u64(item.member_count);
-        self.write_u64(item.source_span.source.value as u64);
+        self.write_u64(item.member_count as u64 in Trapping);
+        self.write_u64(item.source_span.source.value as u64 in Trapping);
         self.write_u64(item.source_span.span.start);
         self.write_u64(item.source_span.span.end);
         let next: u64 = index + 1;
@@ -262,7 +266,7 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
     }
 
     state parse_member_count(&mut self) {
-        self.write_u64(self.parser.output.member_count);
+        self.write_u64(self.parser.output.member_count as u64 in Trapping);
         transition self.parser.output.member_count > 0 {
             true -> parse_member(0)
             _ -> parse_data_count()
@@ -271,7 +275,7 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
 
     state parse_member(&mut self, index: u64 [0..=1023]) {
         let member: IdentifierSpan = self.parser.output.members[index];
-        self.write_u64(member.source_span.source.value as u64);
+        self.write_u64(member.source_span.source.value as u64 in Trapping);
         self.write_u64(member.source_span.span.start);
         self.write_u64(member.source_span.span.end);
         let next: u64 = index + 1;
@@ -289,7 +293,7 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
     }
 
     state parse_data_count(&mut self) {
-        self.write_u64(self.parser.output.data_count);
+        self.write_u64(self.parser.output.data_count as u64 in Trapping);
         transition self.parser.output.data_count > 0 {
             true -> parse_data_item(0)
             _ -> parse_data_member_count()
@@ -298,15 +302,15 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
 
     state parse_data_item(&mut self, index: u64 [0..=255]) {
         let item: DataItem = self.parser.output.data_items[index];
-        self.write_u64(item.name.source_span.source.value as u64);
+        self.write_u64(item.name.source_span.source.value as u64 in Trapping);
         self.write_u64(item.name.source_span.span.start);
         self.write_u64(item.name.source_span.span.end);
         self.write_u64(item.first_member);
-        self.write_u64(item.member_count);
+        self.write_u64(item.member_count as u64 in Trapping);
         self.write_u64(item.first_field);
-        self.write_u64(item.field_count);
+        self.write_u64(item.field_count as u64 in Trapping);
         self.write_u64(item.first_case);
-        self.write_u64(item.case_count);
+        self.write_u64(item.case_count as u64 in Trapping);
         transition item.multiplicity {
             DataMultiplicity::Affine -> parse_data_multiplicity(item, index, 0)
             DataMultiplicity::Unrestricted -> parse_data_multiplicity(item, index, 1)
@@ -350,11 +354,11 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
         item: DataItem,
         index: u64 [0..=255]
     ) {
-        self.write_u64(item.source_span.source.value as u64);
+        self.write_u64(item.source_span.source.value as u64 in Trapping);
         self.write_u64(item.source_span.span.start);
         self.write_u64(item.source_span.span.end);
         self.write_u64(item.first_generic_parameter);
-        self.write_u64(item.generic_parameter_count);
+        self.write_u64(item.generic_parameter_count as u64 in Trapping);
         let next: u64 = index + 1;
         transition next < self.parser.output.data_count {
             true -> parse_data_bound(next)
@@ -370,7 +374,7 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
     }
 
     state parse_data_member_count(&mut self) {
-        self.write_u64(self.parser.output.data_member_count);
+        self.write_u64(self.parser.output.data_member_count as u64 in Trapping);
         transition self.parser.output.data_member_count > 0 {
             true -> parse_data_member(0)
             _ -> parse_field_count()
@@ -393,7 +397,7 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
     ) {
         self.write_byte(kind);
         self.write_u64(member.item_index);
-        self.write_u64(member.source_span.source.value as u64);
+        self.write_u64(member.source_span.source.value as u64 in Trapping);
         self.write_u64(member.source_span.span.start);
         self.write_u64(member.source_span.span.end);
         let next: u64 = index + 1;
@@ -411,7 +415,7 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
     }
 
     state parse_field_count(&mut self) {
-        self.write_u64(self.parser.output.field_count);
+        self.write_u64(self.parser.output.field_count as u64 in Trapping);
         transition self.parser.output.field_count > 0 {
             true -> parse_field(0)
             _ -> parse_case_count()
@@ -420,11 +424,11 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
 
     state parse_field(&mut self, index: u64 [0..=1023]) {
         let field: DataField = self.parser.output.fields[index];
-        self.write_u64(field.name.source_span.source.value as u64);
+        self.write_u64(field.name.source_span.source.value as u64 in Trapping);
         self.write_u64(field.name.source_span.span.start);
         self.write_u64(field.name.source_span.span.end);
         self.write_u64(field.type_reference);
-        self.write_u64(field.source_span.source.value as u64);
+        self.write_u64(field.source_span.source.value as u64 in Trapping);
         self.write_u64(field.source_span.span.start);
         self.write_u64(field.source_span.span.end);
         let next: u64 = index + 1;
@@ -442,7 +446,7 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
     }
 
     state parse_payload_field_count(&mut self) {
-        self.write_u64(self.parser.output.payload_field_count);
+        self.write_u64(self.parser.output.payload_field_count as u64 in Trapping);
         transition self.parser.output.payload_field_count > 0 {
             true -> parse_payload_field(0)
             _ -> parse_case_count()
@@ -451,11 +455,11 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
 
     state parse_payload_field(&mut self, index: u64 [0..=1023]) {
         let field: DataField = self.parser.output.payload_fields[index];
-        self.write_u64(field.name.source_span.source.value as u64);
+        self.write_u64(field.name.source_span.source.value as u64 in Trapping);
         self.write_u64(field.name.source_span.span.start);
         self.write_u64(field.name.source_span.span.end);
         self.write_u64(field.type_reference);
-        self.write_u64(field.source_span.source.value as u64);
+        self.write_u64(field.source_span.source.value as u64 in Trapping);
         self.write_u64(field.source_span.span.start);
         self.write_u64(field.source_span.span.end);
         let next: u64 = index + 1;
@@ -473,7 +477,7 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
     }
 
     state parse_case_count(&mut self) {
-        self.write_u64(self.parser.output.case_count);
+        self.write_u64(self.parser.output.case_count as u64 in Trapping);
         transition self.parser.output.case_count > 0 {
             true -> parse_case(0)
             _ -> parse_type_reference_count()
@@ -482,14 +486,14 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
 
     state parse_case(&mut self, index: u64 [0..=511]) {
         let data_case: DataCase = self.parser.output.cases[index];
-        self.write_u64(data_case.name.source_span.source.value as u64);
+        self.write_u64(data_case.name.source_span.source.value as u64 in Trapping);
         self.write_u64(data_case.name.source_span.span.start);
         self.write_u64(data_case.name.source_span.span.end);
-        self.write_u64(data_case.source_span.source.value as u64);
+        self.write_u64(data_case.source_span.source.value as u64 in Trapping);
         self.write_u64(data_case.source_span.span.start);
         self.write_u64(data_case.source_span.span.end);
         self.write_u64(data_case.first_payload_field);
-        self.write_u64(data_case.payload_field_count);
+        self.write_u64(data_case.payload_field_count as u64 in Trapping);
         let next: u64 = index + 1;
         transition next < self.parser.output.case_count {
             true -> parse_case_bound(next)
@@ -505,7 +509,7 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
     }
 
     state parse_type_reference_count(&mut self) {
-        self.write_u64(self.parser.output.type_reference_count);
+        self.write_u64(self.parser.output.type_reference_count as u64 in Trapping);
         transition self.parser.output.type_reference_count > 0 {
             true -> parse_type_reference(0)
             _ -> parse_done()
@@ -530,14 +534,14 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
         index: u64 [0..=1023]
     ) {
         self.write_byte(2);
-        self.write_u64(type_reference.name.source_span.source.value as u64);
+        self.write_u64(type_reference.name.source_span.source.value as u64 in Trapping);
         self.write_u64(type_reference.name.source_span.span.start);
         self.write_u64(type_reference.name.source_span.span.end);
-        self.write_u64(type_reference.source_span.source.value as u64);
+        self.write_u64(type_reference.source_span.source.value as u64 in Trapping);
         self.write_u64(type_reference.source_span.span.start);
         self.write_u64(type_reference.source_span.span.end);
         self.write_byte(1);
-        self.write_u64(type_reference.domain.source_span.source.value as u64);
+        self.write_u64(type_reference.domain.source_span.source.value as u64 in Trapping);
         self.write_u64(type_reference.domain.source_span.span.start);
         self.write_u64(type_reference.domain.source_span.span.end);
         let next: u64 = index + 1;
@@ -553,10 +557,10 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
         index: u64 [0..=1023]
     ) {
         self.write_byte(1);
-        self.write_u64(type_reference.name.source_span.source.value as u64);
+        self.write_u64(type_reference.name.source_span.source.value as u64 in Trapping);
         self.write_u64(type_reference.name.source_span.span.start);
         self.write_u64(type_reference.name.source_span.span.end);
-        self.write_u64(type_reference.source_span.source.value as u64);
+        self.write_u64(type_reference.source_span.source.value as u64 in Trapping);
         self.write_u64(type_reference.source_span.span.start);
         self.write_u64(type_reference.source_span.span.end);
         self.write_byte(0);
@@ -578,7 +582,7 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
     }
 
     state parse_generic_count(&mut self) {
-        self.write_u64(self.parser.output.generic_parameter_count);
+        self.write_u64(self.parser.output.generic_parameter_count as u64 in Trapping);
         transition self.parser.output.generic_parameter_count > 0 {
             true -> parse_generic_parameter(0)
             _ -> parse_done()
@@ -611,7 +615,7 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
         parameter: GenericParameter,
         index: u64 [0..=255]
     ) {
-        self.write_u64(parameter.name.source_span.source.value as u64);
+        self.write_u64(parameter.name.source_span.source.value as u64 in Trapping);
         self.write_u64(parameter.name.source_span.span.start);
         self.write_u64(parameter.name.source_span.span.end);
         transition parameter.has_type_reference {
@@ -659,7 +663,7 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
         bounds: u8
     ) {
         self.write_byte(bounds);
-        self.write_u64(parameter.source_span.source.value as u64);
+        self.write_u64(parameter.source_span.source.value as u64 in Trapping);
         self.write_u64(parameter.source_span.span.start);
         self.write_u64(parameter.source_span.span.end);
         let next: u64 = index + 1;
