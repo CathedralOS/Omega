@@ -23,6 +23,7 @@ use semantic_vocabulary::{
     ScalarType,
 };
 
+use super::super::affine_custody::DefinitionIndex;
 use super::super::cast_custody;
 use super::super::integer_evidence::{
     ProjectedFact, closed_integer_relation, integer_carrier_bound, projected_facts, relax,
@@ -60,11 +61,11 @@ pub(super) fn prove(
     if goal_left.integer_value().is_none() && goal_right.integer_value().is_none() {
         return None;
     }
-    for bound in closure(context, integer_type, assumptions, semantic_axioms) {
+    for bound in memoized_closure(context, integer_type, assumptions, semantic_axioms).iter() {
         if bound.conclusion == *goal {
-            return Some(bound);
+            return Some(bound.clone());
         }
-        if let Some(proof) = relax(goal, bound) {
+        if let Some(proof) = relax(goal, bound.clone()) {
             return Some(proof);
         }
     }
@@ -82,8 +83,8 @@ pub(super) fn operand_endpoints(
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> Vec<ProofNode> {
-    closure(context, integer_type, assumptions, semantic_axioms)
-        .into_iter()
+    memoized_closure(context, integer_type, assumptions, semantic_axioms)
+        .iter()
         .filter(|proof| match &proof.conclusion {
             Proposition::LessOrEqual(left, right) if lower => {
                 left.integer_value().is_some() && right == operand
@@ -93,7 +94,27 @@ pub(super) fn operand_endpoints(
             }
             _ => false,
         })
+        .cloned()
         .collect()
+}
+
+/// The closure for this scope and type, derived once: it does not depend on
+/// the goal, and each derived goal or operand-endpoint query would otherwise
+/// rebuild it, including its kernel-checked cast-image bounds.
+fn memoized_closure(
+    context: &PropositionContext,
+    integer_type: IntegerType,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> std::rc::Rc<[ProofNode]> {
+    let mut definitions = DefinitionIndex::new(context, assumptions, semantic_axioms);
+    if let Some(closure) = definitions.cached_derived_closure(integer_type) {
+        return closure;
+    }
+    let derived: std::rc::Rc<[ProofNode]> =
+        closure(context, integer_type, assumptions, semantic_axioms).into();
+    definitions.cache_derived_closure(integer_type, derived.clone());
+    derived
 }
 
 /// The bounded derivation itself: cited endpoint facts, carrier endpoints,
