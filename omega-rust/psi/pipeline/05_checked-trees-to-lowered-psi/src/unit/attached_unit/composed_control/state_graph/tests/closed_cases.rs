@@ -243,3 +243,52 @@ fn owned_result_edges_and_return_rejoin_actual_permission_rows() {
         }
     }
 }
+
+#[test]
+fn closed_case_markers_survive_multi_operation_prefix() {
+    // Prefix statements may plan several operations at one authored
+    // statement (a construction nested in a field store, a call's own
+    // continuation): the marker window is the trailing run of
+    // `__arm_destructure#V=` locals ahead of the dispatch, not a count of
+    // operation rows. Regression for "Unit case body roster drifted" —
+    // `bindings + operations` overran the dispatch position.
+    let source = r#"
+        data Point { x: u64; }
+        machine Point::new(x: u64) -> Point { Point { x: x } }
+        data ByteRead { case Eof; case Byte(value: i32 [0..=255]); }
+        boundary trait Console { machine read_byte() -> ByteRead reaches Console; }
+        data Driver { first: Point; second: Point; }
+        machine Driver::run(&mut self) reaches Console {
+            transition { _ -> load() }
+            state load(&mut self) {
+                self.first = Point::new(1);
+                self.second = Point::new(2);
+                let observed: ByteRead = Console::read_byte();
+                transition observed {
+                    ByteRead::Byte { value } -> record(value)
+                    ByteRead::Eof -> done()
+                }
+            }
+            state record(&mut self, value: i32 [0..=255]) { self.second.x = value as u64; }
+            state done(&mut self) {}
+        }
+    "#;
+    let checked = crate::front_end::checked_program(source);
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_machines
+        .iter()
+        .find(|plan| {
+            plan.states.iter().any(|state| {
+                matches!(
+                    state.terminator,
+                    CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. }
+                )
+            })
+        })
+        .expect("general source graph retains its inspected result")
+        .clone();
+    admission::admit(&checked, &plan).expect("marker run rejoins after multi-operation prefix");
+}
