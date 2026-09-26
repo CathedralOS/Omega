@@ -43,7 +43,7 @@ mod local {
     #[test]
     fn offline_local_install_and_update_publish_current_source() {
         let fixture = Fixture::new("offline-local-update");
-        fixture.package("local", "local-library", "");
+        fixture.package("local", "local_library", "");
         let installed = fixture
             .execute_with_offline(
                 PackageCommand::Install {

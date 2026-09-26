@@ -10,7 +10,7 @@ fn inspection_keeps_accepted_git_pin_when_head_moves_and_cache_is_missing() {
         module_path!(),
         "inspection_keeps_accepted_git_pin_when_head_moves_and_cache_is_missing",
         |fixture| {
-            fixture.package("repository", "git-library", "");
+            fixture.package("repository", "git_library", "");
             let old = fixture.commit();
             assert_eq!(
                 fixture.install(None, None).unwrap().status,
@@ -46,12 +46,12 @@ fn inspection_keeps_named_and_relative_members_at_one_accepted_repository_pin() 
         |fixture| {
             fixture.package(
                 "repository/modules/selected",
-                "exact-math",
+                "exact_math",
                 " builder.depend(Source::Path { location: \"../other\" });\n",
             );
             let old = fixture.commit();
             assert_eq!(
-                fixture.install(Some("exact-math"), None).unwrap().status,
+                fixture.install(Some("exact_math"), None).unwrap().status,
                 PackageCommandStatus::Published
             );
             fixture.git(&["tag", "accepted-source", &old]);
@@ -65,8 +65,8 @@ fn inspection_keeps_named_and_relative_members_at_one_accepted_repository_pin() 
             let inspected = inspect(fixture);
             assert!(inspected.complete, "{}", inspected.report);
             assert!(!inspected.requires_decision, "{}", inspected.report);
-            assert!(inspected.report.contains("exact-math"));
-            assert!(inspected.report.contains("other-library"));
+            assert!(inspected.report.contains("exact_math"));
+            assert!(inspected.report.contains("other_library"));
             assert!(inspected.report.matches(&old).count() >= 2);
             assert!(!inspected.report.contains(&new));
             assert_eq!(fixture.read("root/omega.lock"), before);

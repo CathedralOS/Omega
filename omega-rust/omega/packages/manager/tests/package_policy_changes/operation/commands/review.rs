@@ -135,8 +135,8 @@ fn changed_findings_cannot_be_accepted_by_editing_decision_tokens() {
     let before = accepted_files(&tree);
     let path = &initial.review_paths[0];
     let text = fs::read_to_string(path).unwrap();
-    assert!(text.contains("command-dependency"));
-    let changed = text.replacen("command-dependency", "foreign-dependency", 1);
+    assert!(text.contains("command_dependency"));
+    let changed = text.replacen("command_dependency", "foreign_dependency", 1);
     fs::write(path, &changed).unwrap();
     let error = resume(&tree, PackageCommandKind::Install)
         .unwrap_err()
@@ -329,7 +329,7 @@ fn repeated_update_audit(dependency: &str) -> PackageLock {
         assert!(
             updated
                 .report
-                .contains("Audit recommended: command-dependency"),
+                .contains("Audit recommended: command_dependency"),
             "{}",
             updated.report
         );

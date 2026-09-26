@@ -331,7 +331,7 @@ fn identical_edit_bytes_from_another_project_and_wrong_transaction_root_reject()
     let (tree, replacement, staged, checked) = fixture(PURE);
     let root = tree.path("sources/root");
     let other = tree.path("sources/other-root");
-    package(&other, "policy-fixture", "");
+    package(&other, "policy_fixture", "");
     fs::write(other.join("main.omg"), PURE).unwrap();
     let other_replacement = addition(&other, "../dependency");
     assert_eq!(

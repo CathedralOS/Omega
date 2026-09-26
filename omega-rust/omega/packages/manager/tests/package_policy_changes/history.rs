@@ -231,7 +231,7 @@ fn removed_package_history_needs_no_candidate_index_old_checkout_or_cache() {
         "pub const VALUE: u64 = 7;\n",
         " builder.depend_as(\"dependency\", Source::Path { location: \"../old\" });\n",
     );
-    package(&tree.path("sources/old"), "removed-package", "");
+    package(&tree.path("sources/old"), "removed_package", "");
     fs::write(tree.path("sources/old/main.omg"), ASSUMPTIONS).unwrap();
     let baseline = {
         let (closure, reviews) = candidate(&tree, "accepted-history");
@@ -302,13 +302,13 @@ fn root_role_replacements_and_rows_capture_in_canonical_subject_order() {
         main,
         " builder.depend_as(\"service\", Source::Path { location: \"../old\" });\n",
     );
-    package(&tree.path("sources/old"), "old-service", "");
+    package(&tree.path("sources/old"), "old_service", "");
     fs::write(tree.path("sources/old/main.omg"), ASSUMPTIONS).unwrap();
     let baseline = {
         let (closure, reviews) = candidate(&tree, "role-baseline");
         lock_from_reviews(&closure, &reviews)
     };
-    package(&tree.path("sources/new"), "new-service", "");
+    package(&tree.path("sources/new"), "new_service", "");
     fs::write(
         tree.path("sources/root/build.omg"),
         concat!(

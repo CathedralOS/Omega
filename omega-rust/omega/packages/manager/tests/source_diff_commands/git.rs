@@ -11,7 +11,7 @@ fn update_renders_exact_old_git_root_after_selector_moves() {
         module_path!(),
         "update_renders_exact_old_git_root_after_selector_moves",
         |fixture| {
-            fixture.package("repository", "git-library", "");
+            fixture.package("repository", "git_library", "");
             let old = fixture.commit();
             assert_eq!(
                 fixture.install(None, None).unwrap().status,
@@ -32,7 +32,7 @@ fn update_renders_exact_old_git_root_after_selector_moves() {
                 updated.report
             );
             assert!(
-                updated.report.contains("Source diff: git-library"),
+                updated.report.contains("Source diff: git_library"),
                 "{}",
                 updated.report
             );
@@ -59,12 +59,12 @@ fn named_and_relative_members_use_the_accepted_repository_pin_with_cold_storage(
         |fixture| {
             fixture.package(
                 "repository/modules/selected",
-                "exact-math",
+                "exact_math",
                 " builder.depend_as(\"other\", Source::Path { location: \"../other\" });\n",
             );
             let old = fixture.commit();
             assert_eq!(
-                fixture.install(Some("exact-math"), None).unwrap().status,
+                fixture.install(Some("exact_math"), None).unwrap().status,
                 PackageCommandStatus::Published
             );
             // This server permits fetching advertised exact objects. The
@@ -95,12 +95,12 @@ fn named_and_relative_members_use_the_accepted_repository_pin_with_cold_storage(
                 updated.report
             );
             assert!(
-                updated.report.contains("Source diff: exact-math"),
+                updated.report.contains("Source diff: exact_math"),
                 "{}",
                 updated.report
             );
             assert!(
-                updated.report.contains("Source diff: other-library"),
+                updated.report.contains("Source diff: other_library"),
                 "{}",
                 updated.report
             );
@@ -129,7 +129,7 @@ fn unavailable_old_git_source_preserves_policy_comparison_without_selector_fallb
         module_path!(),
         "unavailable_old_git_source_preserves_policy_comparison_without_selector_fallback",
         |fixture| {
-            fixture.package("repository", "git-library", "");
+            fixture.package("repository", "git_library", "");
             fixture.commit();
             assert_eq!(
                 fixture.install(None, None).unwrap().status,

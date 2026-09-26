@@ -25,7 +25,7 @@ fn unresolved_contracts_reject_for_the_root_and_transitive_packages() {
                 "middle",
                 " builder.depend(Source::Path { location: \"../leaf\" });\n",
             );
-            package(&tree.path("sources/leaf"), "unresolved-leaf", "");
+            package(&tree.path("sources/leaf"), "unresolved_leaf", "");
             fs::write(tree.path("sources/leaf/main.omg"), OPEN_CONTRACT).unwrap();
         } else {
             source(&tree, OPEN_CONTRACT, "");
@@ -59,7 +59,7 @@ fn invalid_proof_and_service_reach_remain_compiler_failures() {
         for transitive in [false, true] {
             let tree = Tree::new();
             if transitive {
-                super::transitive::source_chain(&tree, "invalid-leaf", &main);
+                super::transitive::source_chain(&tree, "invalid_leaf", &main);
             } else {
                 source(&tree, &main, "");
             }

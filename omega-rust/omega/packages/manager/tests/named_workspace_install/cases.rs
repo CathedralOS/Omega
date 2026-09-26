@@ -13,7 +13,7 @@ fn named_member_uses_declared_default_alias_and_member_relative_dependencies() {
         |fixture| {
             fixture.package(
                 "repository/modules/selected",
-                "exact-math",
+                "exact_math",
                 " builder.depend(Source::Path { location: \"../other\" });\n",
             );
             fixture.write(
@@ -26,7 +26,7 @@ fn named_member_uses_declared_default_alias_and_member_relative_dependencies() {
             );
             fixture.commit();
             assert_eq!(
-                fixture.install(Some("exact-math"), None).unwrap().status,
+                fixture.install(Some("exact_math"), None).unwrap().status,
                 PackageCommandStatus::Published
             );
             let lock = fixture.lock();
@@ -38,7 +38,7 @@ fn named_member_uses_declared_default_alias_and_member_relative_dependencies() {
                 .find(|edge| edge.requester() == source.root().selected().key())
                 .unwrap();
             assert_eq!(edge.alias().as_str(), "exact_math");
-            assert_named(edge.request(), "exact-math");
+            assert_named(edge.request(), "exact_math");
             let build = fixture.read("root/build.omg");
             assert!(!build.contains("depend_as"));
             assert!(build.contains("PackageSelection::Named { package: \"exact_math\" }"));
@@ -60,7 +60,7 @@ fn named_member_alias_override_does_not_rename_the_selected_package() {
             fixture.commit();
             assert_eq!(
                 fixture
-                    .install(Some("exact-math"), Some("math"))
+                    .install(Some("exact_math"), Some("math"))
                     .unwrap()
                     .status,
                 PackageCommandStatus::Published
@@ -75,7 +75,7 @@ fn named_member_alias_override_does_not_rename_the_selected_package() {
             let edge = &source.dependency_requests()[0];
             assert_eq!(edge.alias().as_str(), "math");
             assert_eq!(edge.selected().key().name().as_str(), "exact_math");
-            assert_named(edge.request(), "exact-math");
+            assert_named(edge.request(), "exact_math");
         },
     );
 }
@@ -89,7 +89,7 @@ fn unknown_declared_name_rejects_without_publishing() {
             fixture.commit();
             let before = fixture.pair();
             let error = fixture
-                .install(Some("unknown-library"), None)
+                .install(Some("unknown_library"), None)
                 .unwrap_err()
                 .to_string();
             assert!(error.contains("no member package named"), "{error}");
@@ -105,11 +105,11 @@ fn duplicate_declared_names_reject_without_publishing() {
         module_path!(),
         "duplicate_declared_names_reject_without_publishing",
         |fixture| {
-            fixture.package("repository/modules/other", "exact-math", "");
+            fixture.package("repository/modules/other", "exact_math", "");
             fixture.commit();
             let before = fixture.pair();
             let error = fixture
-                .install(Some("exact-math"), None)
+                .install(Some("exact_math"), None)
                 .unwrap_err()
                 .to_string();
             assert!(error.contains("multiple member paths"), "{error}");
@@ -125,7 +125,7 @@ fn omitted_selection_keeps_root_package_behavior() {
         module_path!(),
         "omitted_selection_keeps_root_package_behavior",
         |fixture| {
-            fixture.package("repository", "root-library", "");
+            fixture.package("repository", "root_library", "");
             fixture.commit();
             assert_eq!(
                 fixture.install(None, None).unwrap().status,
@@ -172,7 +172,7 @@ fn named_review_resume_retains_selection_alias_and_exact_revision() {
             );
             let original_revision = fixture.commit();
             let before = fixture.pair();
-            let pending = fixture.install(Some("exact-math"), Some("math")).unwrap();
+            let pending = fixture.install(Some("exact_math"), Some("math")).unwrap();
             assert_eq!(pending.status, PackageCommandStatus::ReviewRequired);
             assert_eq!(fixture.pair(), before);
             assert!(
@@ -214,7 +214,7 @@ fn named_review_resume_retains_selection_alias_and_exact_revision() {
             let lock = fixture.lock();
             let edge = &lock.targets()[0].source().dependency_requests()[0];
             assert_eq!(edge.alias().as_str(), "math");
-            assert_named(edge.request(), "exact-math");
+            assert_named(edge.request(), "exact_math");
             let ImmutableSourceResolution::Git { commit, .. } = edge.selected().resolution() else {
                 panic!("Git pin");
             };
@@ -236,7 +236,7 @@ fn named_selection_rejects_local_sources_and_member_paths() {
                     source: "../repository".into(),
                     revision: None,
                     alias: None,
-                    package: Some("exact-math".into()),
+                    package: Some("exact_math".into()),
                 })
                 .unwrap_err()
                 .to_string();
@@ -255,12 +255,12 @@ fn selected_member_update_moves_reachable_members_but_preserves_unrelated_pins()
         |fixture| {
             fixture.package(
                 "repository/modules/selected",
-                "exact-math",
+                "exact_math",
                 " builder.depend(Source::Path { location: \"../other\" });\n",
             );
             let original = fixture.commit();
             assert_eq!(
-                fixture.install(Some("exact-math"), None).unwrap().status,
+                fixture.install(Some("exact_math"), None).unwrap().status,
                 PackageCommandStatus::Published
             );
             // The test server serves the same bytes at a distinct generic
@@ -271,7 +271,7 @@ fn selected_member_update_moves_reachable_members_but_preserves_unrelated_pins()
                         source: "git@unrelated-fixture.invalid:workspace.git".into(),
                         revision: None,
                         alias: Some("unrelated".into()),
-                        package: Some("other-library".into()),
+                        package: Some("other_library".into()),
                     })
                     .unwrap()
                     .status,
@@ -319,8 +319,8 @@ fn selected_member_update_moves_reachable_members_but_preserves_unrelated_pins()
             }
             assert_eq!(affected, 2);
             let report = fs::read_to_string(&outcome.review_paths[0]).unwrap();
-            assert!(report.contains("exact-math"));
-            assert!(report.contains("other-library"));
+            assert!(report.contains("exact_math"));
+            assert!(report.contains("other_library"));
         },
     );
 }

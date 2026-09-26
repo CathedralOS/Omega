@@ -50,8 +50,8 @@ pub(super) fn run(module: &str, test: &str, operation: impl FnOnce(&Fixture)) {
         cleanup: true,
     };
     fixture.package("root", "consumer", "");
-    fixture.package("repository/modules/selected", "exact-math", "");
-    fixture.package("repository/modules/other", "other-library", "");
+    fixture.package("repository/modules/selected", "exact_math", "");
+    fixture.package("repository/modules/other", "other_library", "");
     fixture.write(
         "repository/build.omg",
         concat!(

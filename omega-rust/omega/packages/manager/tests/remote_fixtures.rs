@@ -25,6 +25,14 @@ struct RemotePin {
     commit: String,
 }
 
+impl RemotePin {
+    // `package` is the immutable repository and directory label, which keeps
+    // its hyphens; the fixture declares the same words as a snake_case name.
+    fn declared_name(&self) -> String {
+        self.package.replace('-', "_")
+    }
+}
+
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
@@ -93,7 +101,7 @@ fn remote_fixture_pins_are_exact_and_local_names_follow_current_spelling() {
     assert_eq!(pins.len(), 12);
     let mut packages = BTreeSet::new();
     for pin in &pins {
-        let local_name = pin.package.replace('-', "_");
+        let local_name = pin.declared_name();
         PackageName::parse(&local_name).expect("local fixture package names must be snake_case");
         assert!(pin.https_url.ends_with(&format!("/{}", pin.package)));
         assert_eq!(
@@ -218,7 +226,7 @@ fn verify_remote_pin(
     let expected_lineage = SourceLineage::git(&pin.https_url)
         .expect("REMOTE_PINS HTTPS locator must define canonical lineage");
     let expected_key = PackageKey::new(
-        PackageName::parse(&pin.package).expect("remote fixture package name"),
+        PackageName::parse(pin.declared_name()).expect("remote fixture package name"),
         expected_lineage.clone(),
     );
     let resolved = resolve_git_source(request, storage, LocalSourceLimits::default())
@@ -264,7 +272,7 @@ fn verify_remote_pin(
                 pin.package
             )
         });
-    assert_eq!(declared.key().name().as_str(), pin.package);
+    assert_eq!(declared.key().name().as_str(), pin.declared_name());
     assert_eq!(
         declared.product_dependency_requests(),
         extract_dependency_projection(expected_root)

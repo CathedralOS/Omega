@@ -23,6 +23,13 @@ pub(super) const REVIEWABLE_PACKAGES: &[&str] = &[
     "graph-workbench",
 ];
 
+/// The package name a fixture directory declares: directories keep their
+/// kebab-case labels, and each fixture's `build.omg` declares the same words
+/// as a snake_case package name.
+pub(super) fn declared_name(directory: &str) -> String {
+    directory.replace('-', "_")
+}
+
 pub(super) fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .ancestors()

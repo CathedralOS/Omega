@@ -512,7 +512,7 @@ fn package_native_cli_directs_missing_or_empty_lock_to_update() {
             );
             let package = diagnostic
                 .split("\npackage ")
-                .find(|section| section.starts_with("\"accepted-claim-app\" "))
+                .find(|section| section.starts_with("\"accepted_claim_app\" "))
                 .and_then(|section| section.split_once("\nend-package"))
                 .map(|(package, _)| package)
                 .unwrap_or_else(|| panic!("missing application policy section: {diagnostic}"));

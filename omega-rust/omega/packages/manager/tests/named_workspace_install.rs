@@ -164,14 +164,14 @@ pub(crate) mod local {
     #[test]
     fn named_selection_rejects_local_sources() {
         let fixture = Fixture::new("named-local-selection");
-        fixture.package("local/modules/selected", "exact-math", "");
+        fixture.package("local/modules/selected", "exact_math", "");
         let before = fixture.pair();
         let error = fixture
             .execute(PackageCommand::Install {
                 source: "../local".into(),
                 revision: None,
                 alias: None,
-                package: Some("exact-math".into()),
+                package: Some("exact_math".into()),
             })
             .unwrap_err()
             .to_string();
@@ -182,7 +182,7 @@ pub(crate) mod local {
     #[test]
     fn local_install_with_alias_publishes_under_the_alias() {
         let fixture = Fixture::new("named-local-alias");
-        fixture.package("local", "local-library", "");
+        fixture.package("local", "local_library", "");
         let installed = fixture
             .execute(PackageCommand::Install {
                 source: "../local".into(),

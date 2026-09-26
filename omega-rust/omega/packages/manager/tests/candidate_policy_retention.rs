@@ -75,11 +75,11 @@ fn exact_package_and_target_policies_recover_without_the_source_or_review_set() 
     for (member, name, value, dependencies) in [
         (
             "root",
-            "policy-root",
+            "policy_root",
             7,
             "builder.depend_as(\"dependency\", Source::Path { location: \"../dependency\" });",
         ),
-        ("dependency", "policy-dependency", 11, ""),
+        ("dependency", "policy_dependency", 11, ""),
     ] {
         let root = tree.path(&format!("source/{member}"));
         fs::create_dir_all(&root).unwrap();

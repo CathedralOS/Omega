@@ -16,7 +16,7 @@ fn pure_initial_install_reports_new_source_without_an_old_source_failure() {
     assert!(
         installed
             .report
-            .contains("New package source: command-dependency")
+            .contains("New package source: command_dependency")
     );
     assert!(installed.report.contains("no prior revision to compare"));
     assert!(!installed.report.contains("Source diff unavailable"));
@@ -33,14 +33,14 @@ fn hostile_source_is_separate_and_editing_it_cannot_supply_decisions() {
     assert!(
         initial
             .report
-            .contains("New package source: command-dependency")
+            .contains("New package source: command_dependency")
     );
     assert!(initial.report.contains("no prior revision to compare"));
     assert!(!initial.report.contains("Source diff unavailable"));
     assert!(
         initial
             .report
-            .contains("Audit recommended: command-dependency")
+            .contains("Audit recommended: command_dependency")
     );
     assert!(initial.report.contains("source-diff.txt"));
     assert!(!initial.report.contains("forged-source-instruction"));
@@ -77,14 +77,14 @@ fn changed_local_source_recovers_cached_baseline_and_keeps_policy_comparison() {
     let updated = execute(&tree, update(), Vec::new()).unwrap();
     assert_eq!(updated.status, PackageCommandStatus::Published);
     assert!(
-        updated.report.contains("Source diff: command-dependency"),
+        updated.report.contains("Source diff: command_dependency"),
         "{}",
         updated.report
     );
     assert!(
         !updated
             .report
-            .contains("Source diff unavailable: command-dependency")
+            .contains("Source diff unavailable: command_dependency")
     );
     assert!(source_document(&tree).contains("mode update\n"));
     assert!(
@@ -95,7 +95,7 @@ fn changed_local_source_recovers_cached_baseline_and_keeps_policy_comparison() {
     assert!(
         updated
             .report
-            .contains("Audit recommended: command-dependency")
+            .contains("Audit recommended: command_dependency")
     );
     assert!(source_document(&tree).contains("changed-implementation"));
     assert_eq!(
@@ -112,7 +112,7 @@ fn accepted_live_root_diff_and_binary_candidate_are_reported() {
     let installed = execute(&tree, install(), Vec::new()).unwrap();
     assert_eq!(installed.status, PackageCommandStatus::Published);
     assert!(
-        installed.report.contains("Source diff: policy-fixture"),
+        installed.report.contains("Source diff: policy_fixture"),
         "{}",
         installed.report
     );
@@ -120,7 +120,7 @@ fn accepted_live_root_diff_and_binary_candidate_are_reported() {
     assert!(
         installed
             .report
-            .contains("Source view incomplete: command-dependency")
+            .contains("Source view incomplete: command_dependency")
     );
     assert!(
         installed
@@ -131,7 +131,7 @@ fn accepted_live_root_diff_and_binary_candidate_are_reported() {
     assert!(
         installed
             .report
-            .contains("New package source: command-dependency")
+            .contains("New package source: command_dependency")
     );
     assert!(!installed.report.contains("Source diff unavailable"));
     let source = source_document(&tree);
@@ -158,7 +158,7 @@ fn missing_old_local_cache_keeps_policy_and_standalone_candidate_output() {
     assert!(
         updated
             .report
-            .contains("Source diff unavailable: command-dependency"),
+            .contains("Source diff unavailable: command_dependency"),
         "{}",
         updated.report
     );
@@ -178,7 +178,7 @@ fn missing_old_local_cache_keeps_policy_and_standalone_candidate_output() {
         accepted.target(TARGET).unwrap().occurrences()
     );
     let source = source_document(&tree);
-    let dependency = source.split("package command-dependency\n").nth(1).unwrap();
+    let dependency = source.split("package command_dependency\n").nth(1).unwrap();
     assert!(dependency.starts_with("baseline_key none\n"));
     assert!(source.contains("changed without old cache"));
 }
@@ -238,7 +238,7 @@ fn corrupt_old_local_cache_keeps_policy_without_presenting_unverified_source() {
         accepted.target(TARGET).unwrap().occurrences()
     );
     let source = source_document(&tree);
-    let dependency = source.split("package command-dependency\n").nth(1).unwrap();
+    let dependency = source.split("package command_dependency\n").nth(1).unwrap();
     assert!(dependency.starts_with("baseline_key none\n"));
     assert!(source.contains("valid candidate after cache corruption"));
     assert!(!source.contains("unverified-old-source"));
@@ -259,7 +259,7 @@ fn edited_project_root_recovers_its_accepted_cached_source() {
     .unwrap();
     let updated = execute(&tree, update(), Vec::new()).unwrap();
     assert_eq!(updated.status, PackageCommandStatus::Published);
-    assert!(updated.report.contains("Source diff: policy-fixture"));
+    assert!(updated.report.contains("Source diff: policy_fixture"));
     assert!(
         !updated.report.contains("Source diff unavailable"),
         "{}",
@@ -306,7 +306,7 @@ fn rendering_limit_is_explicit_and_does_not_become_a_policy_decision() {
             .report
             .contains("obtain the exact sources for standalone audit")
     );
-    assert!(source_document(&tree).contains("Source output unavailable: command-dependency"));
+    assert!(source_document(&tree).contains("Source output unavailable: command_dependency"));
     assert!(!documents(&outcome)[0].contains("large.txt"));
 }
 
@@ -314,7 +314,7 @@ fn rendering_limit_is_explicit_and_does_not_become_a_policy_decision() {
 fn same_named_replacement_never_uses_the_other_lineage_as_old_source() {
     let tree = fixture(PURE);
     execute(&tree, install(), vec![TARGET]).unwrap();
-    package(&tree.path("sources/replacement"), "command-dependency", "");
+    package(&tree.path("sources/replacement"), "command_dependency", "");
     let path = tree.path("sources/root/build.omg");
     let build = fs::read_to_string(&path).unwrap();
     fs::write(path, build.replace("../dependency", "../replacement")).unwrap();
@@ -325,11 +325,11 @@ fn same_named_replacement_never_uses_the_other_lineage_as_old_source() {
     assert!(
         outcome
             .report
-            .contains("New package source: command-dependency")
+            .contains("New package source: command_dependency")
     );
     assert!(outcome.report.contains("no prior revision to compare"));
     let source = source_document(&tree);
-    let dependency = source.split("package command-dependency\n").nth(1).unwrap();
+    let dependency = source.split("package command_dependency\n").nth(1).unwrap();
     assert!(
         dependency.starts_with("baseline_key none\n"),
         "{dependency}"

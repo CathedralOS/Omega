@@ -10,7 +10,7 @@ fn offline_install_resume_publishes_the_reviewed_named_pin_after_head_moves() {
             );
             let proposed = fixture.commit();
             let before = fixture.pair();
-            let pending = fixture.install(Some("exact-math"), Some("math")).unwrap();
+            let pending = fixture.install(Some("exact_math"), Some("math")).unwrap();
             assert_eq!(pending.status, PackageCommandStatus::ReviewRequired);
             assert_eq!(fixture.pair(), before);
             assert!(fixture.transport_calls() > 0);
@@ -51,7 +51,7 @@ fn offline_resume_with_missing_proposed_cache_cannot_publish_install_or_update()
         module_path!(),
         "offline_resume_with_missing_proposed_cache_cannot_publish_install_or_update",
         |fixture| {
-            fixture.package("repository", "git-library", "");
+            fixture.package("repository", "git_library", "");
             fixture.write("repository/main.omg", &format!("{PURE}{ASSUMPTION}"));
             fixture.commit();
             let mut pending = fixture.install(None, None).unwrap();
@@ -115,7 +115,7 @@ fn offline_update_resume_uses_candidate_pin_after_head_moves_again() {
         module_path!(),
         "offline_update_resume_uses_candidate_pin_after_head_moves_again",
         |fixture| {
-            fixture.package("repository", "git-library", "");
+            fixture.package("repository", "git_library", "");
             let old = fixture.commit();
             assert_eq!(
                 fixture.install(None, None).unwrap().status,

@@ -233,7 +233,7 @@ fn audit_inventory_checks_unaccepted_targets_without_publishing_or_hiding_missin
         2,
         "{report}"
     );
-    assert!(report.contains("inventory-child"), "{report}");
+    assert!(report.contains("inventory_child"), "{report}");
     audit.extend(["--build-input", "required-missing.txt"]);
     let missing = project.omega(&audit);
     assert_eq!(missing.status.code(), Some(1), "{missing:?}");

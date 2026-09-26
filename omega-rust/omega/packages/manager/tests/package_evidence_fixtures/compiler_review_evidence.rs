@@ -3,7 +3,7 @@ use super::{
     PackageTriageDisposition, PackageTriageReason, REVIEWABLE_PACKAGES,
     ReviewOnlyCapabilityConflictLimits, SourceLineage, SourceRelativePath,
     assemble_initial_source_review, assemble_update_source_review, assert_fixture_evidence,
-    compare_review_only_initial_capabilities, compile_resolved_package_reviews,
+    compare_review_only_initial_capabilities, compile_resolved_package_reviews, declared_name,
     decode_ordinary_package_obligation_ledger, encode_ordinary_package_obligation_ledger,
     resolve_workspace_package_closure_from_hardened_base, temp_root, triage_initial_install,
     triage_review_update, triage_update_without_admission_baseline, workspace_root,
@@ -16,6 +16,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
     let workspace_lineage = SourceLineage::git("https://github.com/CathedralOS/Omega.git").unwrap();
 
     for package in REVIEWABLE_PACKAGES {
+        let name = declared_name(package);
         let cache = temp_root(package);
         let closure = resolve_workspace_package_closure_from_hardened_base(
             &workspace_lineage,
@@ -225,7 +226,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
         let initial_root = initial_triage
             .decisions()
             .iter()
-            .find(|decision| decision.package_name() == *package)
+            .find(|decision| decision.package_name() == name)
             .expect("initial triage retains root package");
         let initial_disposition = match *package {
             "axiom-ledger" | "file-journal" | "process-exit" | "remote-journal" => {
@@ -276,7 +277,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
         let unchanged_root = unchanged_triage
             .decisions()
             .iter()
-            .find(|decision| decision.package_name() == *package)
+            .find(|decision| decision.package_name() == name)
             .expect("unchanged triage retains root package");
         let retained_dangerous_authority =
             matches!(*package, "file-journal" | "process-exit" | "remote-journal");

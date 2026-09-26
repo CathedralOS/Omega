@@ -63,7 +63,7 @@ fn planned_addition_checks_imports_before_live_edit_and_matches_landed_lock() {
     let initial = review(&tree, "initial", None);
     let accepted = propose(&initial);
     let root = tree.path("sources/root");
-    package(&tree.path("sources/arithmetic"), "arithmetic-kernels", "");
+    package(&tree.path("sources/arithmetic"), "arithmetic_kernels", "");
     fs::write(
         root.join("main.omg"),
         "use arithmetic_kernels::main;\npub machine calculate() -> u64 { value() }\n",
@@ -119,7 +119,7 @@ fn staged_new_assumptions_require_decisions_without_changing_project_files() {
     let tree = Tree::new();
     source(&tree, PURE, "");
     let root = tree.path("sources/root");
-    package(&tree.path("sources/device"), "device-access", "");
+    package(&tree.path("sources/device"), "device_access", "");
     fs::write(tree.path("sources/device/main.omg"), ASSUMPTION).unwrap();
     let original = fs::read(root.join("build.omg")).unwrap();
     let replacement = automatic(plan_dependency_addition(&root, &request("../device")).unwrap());
@@ -175,8 +175,8 @@ fn planned_source_replacement_reviews_candidate_when_old_checkout_is_unavailable
         PURE,
         " builder.depend(Source::Path { location: \"../old\" });\n",
     );
-    package(&tree.path("sources/old"), "arithmetic-kernels", "");
-    package(&tree.path("sources/new"), "arithmetic-kernels", "");
+    package(&tree.path("sources/old"), "arithmetic_kernels", "");
+    package(&tree.path("sources/new"), "arithmetic_kernels", "");
     let initial = review(&tree, "initial", None);
     let accepted = propose(&initial);
     fs::rename(tree.path("sources/old"), tree.path("unavailable-old")).unwrap();

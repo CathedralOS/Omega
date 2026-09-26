@@ -20,7 +20,7 @@ mod targets;
 fn fixture(dependency_source: &str) -> Tree {
     let tree = Tree::new();
     source(&tree, PURE, "");
-    package(&tree.path("sources/dependency"), "command-dependency", "");
+    package(&tree.path("sources/dependency"), "command_dependency", "");
     fs::write(tree.path("sources/dependency/main.omg"), dependency_source).unwrap();
     tree
 }

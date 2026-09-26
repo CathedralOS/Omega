@@ -115,12 +115,12 @@ fn check_import(fixture: &Fixture, alias: &str) {
 
 #[test]
 fn initial_process_authority_requires_each_exact_decision() {
-    initial_authority(PROCESS_BUILD, PROCESS_SOURCE, "process-exit", "Console");
+    initial_authority(PROCESS_BUILD, PROCESS_SOURCE, "process_exit", "Console");
 }
 
 #[test]
 fn initial_filesystem_authority_requires_each_exact_decision() {
-    initial_authority(FILE_BUILD, FILE_SOURCE, "file-journal", "FilesystemHost");
+    initial_authority(FILE_BUILD, FILE_SOURCE, "file_journal", "FilesystemHost");
 }
 
 fn initial_authority(build: &str, source: &str, package: &str, service: &str) {
@@ -175,7 +175,7 @@ fn initial_authority(build: &str, source: &str, package: &str, service: &str) {
             .filter(|line| line.starts_with("decision "))
             .count()
     );
-    check_import(&fixture, &package.replace('-', "_"));
+    check_import(&fixture, package);
 }
 
 #[test]
@@ -193,9 +193,9 @@ fn retained_filesystem_implementation_upgrade_recommends_audit_without_reapprova
     fixture.write("dependency/main.omg", &revised);
     let output = fixture.omega(&["update", "file_journal"]);
     assert_status(&output, 0);
-    assert!(String::from_utf8_lossy(&output.stdout).contains("Audit recommended: file-journal"));
+    assert!(String::from_utf8_lossy(&output.stdout).contains("Audit recommended: file_journal"));
     let (_, document) = review(&fixture, &output);
-    let section = package_section(&document, "file-journal");
+    let section = package_section(&document, "file_journal");
     assert!(section.contains("source-changed true\n"), "{section}");
     assert!(section.contains("audit-recommended true\n"), "{section}");
     assert!(!section.contains("\nchange "), "{section}");
@@ -233,7 +233,7 @@ fn added_and_removed_process_authority_require_exact_update_decisions() {
     accept_install(&fixture);
     for (build, source, change) in [
         (
-            PROCESS_BUILD.replace("process-exit", "file-journal"),
+            PROCESS_BUILD.replace("process_exit", "file_journal"),
             format!("{FILE_SOURCE}\n{PROCESS_SOURCE}"),
             "added",
         ),
@@ -247,7 +247,7 @@ fn added_and_removed_process_authority_require_exact_update_decisions() {
         assert_eq!(fixture.accepted_files(), before);
         let (path, document) = review(&fixture, &output);
         let decision = authority_decision(
-            package_section(&document, "file-journal"),
+            package_section(&document, "file_journal"),
             change,
             "Console",
         );
@@ -361,7 +361,7 @@ fn generated_authority(source: &str, callable: &str, services: &[&str]) {
     assert_eq!(fixture.accepted_files(), before);
     assert_status(&output, 3);
     let (path, document) = review(&fixture, &output);
-    let section = package_section(&document, "generated-table");
+    let section = package_section(&document, "generated_table");
     for service in services {
         authority_decision(section, "added", service);
     }

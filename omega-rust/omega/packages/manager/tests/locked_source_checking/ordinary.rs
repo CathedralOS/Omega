@@ -34,14 +34,14 @@ fn resolve(tree: &Tree, storage: &SourceResolverStorage) -> ResolvedPackageSourc
 fn fixture(tree: &Tree) -> (PackageLock, PackageRootSourceRequest) {
     package(
         &tree.path("sources/root"),
-        "checking-root",
+        "checking_root",
         concat!(
             " builder.depend_as(\"first\", Source::Path { location: \"../first\" });\n",
             " builder.depend_as(\"second\", Source::Path { location: \"../second\" });\n",
         ),
     );
     for directory in ["first", "second"] {
-        package(&tree.path(&format!("sources/{directory}")), "same-name", "");
+        package(&tree.path(&format!("sources/{directory}")), "same_name", "");
         fs::write(
             tree.path(&format!("sources/{directory}/main.omg")),
             "boundary machine LIMIT() -> u64 ensures result == 7;\n",

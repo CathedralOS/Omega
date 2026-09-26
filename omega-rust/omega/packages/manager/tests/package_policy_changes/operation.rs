@@ -166,7 +166,7 @@ fn updates_use_retained_baselines_after_old_sources_disappear() {
         PURE,
         " builder.depend(Source::Path { location: \"../old\" });\n",
     );
-    package(&tree.path("sources/old"), "removed-package", "");
+    package(&tree.path("sources/old"), "removed_package", "");
     fs::write(tree.path("sources/old/main.omg"), ASSUMPTION).unwrap();
     let accepted = propose(&review(&tree, "old", None));
     let old_key = accepted

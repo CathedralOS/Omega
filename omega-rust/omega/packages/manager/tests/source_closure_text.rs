@@ -100,7 +100,7 @@ fn resolve_diamond(tree: &TempTree, role: &str) -> ResolvedPackageSourceClosure 
     write_member(
         &sources.join("root"),
         role,
-        "source-text-root",
+        "source_text_root",
         concat!(
             "    builder.depend_as(\"left_branch\", Source::Path { location: \"../left\" });\n",
             "    builder.depend_as(\"right_branch\", Source::Path { location: \"../right\" });\n",
@@ -110,13 +110,13 @@ fn resolve_diamond(tree: &TempTree, role: &str) -> ResolvedPackageSourceClosure 
         write_member(
             &sources.join(directory),
             "package",
-            "same-name",
+            "same_name",
             &format!(
                 "    builder.depend_as(\"{alias}\", Source::Path {{ location: \"../shared\" }});\n"
             ),
         );
     }
-    write_member(&sources.join("shared"), "package", "shared-package", "");
+    write_member(&sources.join("shared"), "package", "shared_package", "");
     let storage =
         SourceResolverStorage::for_hardened_base(tree.path("cache"), PrimaryGitChoices::default())
             .expect("source resolver storage");
@@ -231,10 +231,10 @@ fn workspace_graph_text_recovers_without_old_source_or_cache() {
     write_member(
         &workspace.join("root"),
         "package",
-        "workspace-root",
+        "workspace_root",
         "    builder.depend_as(\"child_alias\", Source::Path { location: \"../child\" });\n",
     );
-    write_member(&workspace.join("child"), "package", "workspace-child", "");
+    write_member(&workspace.join("child"), "package", "workspace_child", "");
     let lineage = SourceLineage::git("https://github.com/CathedralOS/source-text-fixture.git")
         .expect("workspace source lineage");
     let storage =
@@ -347,8 +347,8 @@ fn malformed_unknown_trailing_and_noncanonical_text_rejects() {
             1,
         ),
         text.replacen(
-            "name \"source-text-root\"",
-            "name \"\\x73ource-text-root\"",
+            "name \"source_text_root\"",
+            "name \"\\x73ource_text_root\"",
             1,
         ),
     ] {

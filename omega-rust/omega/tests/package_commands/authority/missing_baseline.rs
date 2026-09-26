@@ -61,7 +61,7 @@ fn missing_lock_update_requires_fresh_exact_authority_decisions_before_publicati
         package_section(&document, package.key().name().as_str());
     }
     let decision = authority_decision(
-        package_section(&document, "process-exit"),
+        package_section(&document, "process_exit"),
         "added",
         "Console",
     );

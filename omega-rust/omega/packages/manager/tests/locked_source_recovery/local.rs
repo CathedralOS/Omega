@@ -25,7 +25,7 @@ fn diamond(tree: &Tree, storage: &SourceResolverStorage) -> ResolvedPackageSourc
     for (directory, alias) in [("left", "shared_left"), ("right", "shared_right")] {
         package(
             &tree.path(&format!("sources/{directory}")),
-            "same-name",
+            "same_name",
             &format!(
                 " builder.depend_as(\"{alias}\", Source::Path {{ location: \"../shared\" }});\n"
             ),
