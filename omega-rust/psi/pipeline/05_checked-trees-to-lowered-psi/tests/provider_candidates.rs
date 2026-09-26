@@ -31,6 +31,194 @@ const SOURCE: &str = r#"
     }
 "#;
 
+fn checked_closed_operator_candidates() -> typed_trees_to_checked_trees::checked_trees::CheckedTrees
+{
+    let typed = crate::front_end::typed_program(
+        r#"
+        data Buffer<Element, const Count: u64> { value: i64; }
+        data Indexing {}
+        boundary machine [] Indexing::index<Element, const Count: u64>(
+            items: Buffer<Element, Count>, offset: i32
+        ) -> Buffer<Element, Count> requires Count == Count;
+        data Provider {}
+        machine Provider::index<Value, const Length: u64>(
+            items: Buffer<Value, Length>, offset: i32
+        ) -> Buffer<Value, Length> satisfies Indexing::index { items }
+        machine run(four: Buffer<i32, 4>, eight: Buffer<i32, 8>) {
+            let first: Buffer<i32, 4> = four[(0 as i32)];
+            let second: Buffer<i32, 8> = eight[(0 as i32)];
+        }
+    "#,
+    );
+    // This tests catalog publication from checked applications, not automatic
+    // selection-neutral specialization or native provider-plan installation.
+    let requests = [
+        typed_trees_to_checked_trees::SelectedGenericOperatorProviderSpecialization {
+            requirement_operator: typed.machine_token_bindings()[0].symbol,
+            realization_machine: typed
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == "Provider::index")
+                .expect("provider template")
+                .symbol,
+        },
+    ];
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled()
+            .with_selected_generic_operator_providers(&requests),
+    )
+    .expect("two checked closed operator applications")
+}
+
+#[test]
+fn closed_operator_candidates_rejoin_distinct_requirement_applications() {
+    let checked = checked_closed_operator_candidates();
+    let artifact =
+        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("run"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("closed candidate catalog publishes")
+        .into_artifact();
+    let module = decode_module(artifact.semantic_bytes()).expect("source-free module");
+    let proof =
+        terminal_codec::decode_proof_bundle(artifact.proof_bytes()).expect("source-free proof");
+    terminal_verifier::verify_module(
+        &module,
+        &proof,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("closed provider signatures and bodies independently verify");
+    let [first, second] = module.provider_candidates.as_slice() else {
+        panic!("one exact candidate per closed requirement");
+    };
+    assert_ne!(first.boundary, second.boundary);
+    assert_ne!(first.requirement_identity, second.requirement_identity);
+    assert_ne!(first.candidate, second.candidate);
+    assert_ne!(first.candidate_identity, second.candidate_identity);
+    for candidate in &module.provider_candidates {
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| {
+                checked
+                    .normalized_machine_overload_identity(machine)
+                    .is_some_and(|identity| identity.identity() == candidate.candidate_identity)
+            })
+            .expect("exact provider instance");
+        let symbols = typed_trees_to_checked_trees::validation::TopLevelSymbols::build(
+            &checked.typed,
+            &mut Vec::new(),
+        );
+        let conformance = &checked.machine_trait_conformances(machine)[0];
+        let template = checked
+            .machines()
+            .iter()
+            .find(|requirement| requirement.symbol == conformance.symbol)
+            .expect("authored requirement");
+        let requirement =
+            typed_trees_to_checked_trees::validation::resolve_closed_requirement_application(
+                &checked.typed,
+                machine,
+                template,
+                &symbols,
+            )
+            .expect("exact checked application");
+        assert_eq!(
+            candidate.requirement_identity,
+            checked
+                .normalized_machine_overload_identity(requirement)
+                .unwrap()
+                .identity()
+        );
+    }
+    let selections = module
+        .provider_candidates
+        .iter()
+        .map(|candidate| ProviderInstallationSelection {
+            boundary: candidate.boundary,
+            provider_identity: candidate.provider_identity.clone(),
+            candidate: candidate.candidate,
+        })
+        .collect::<Vec<_>>();
+    drop(checked);
+    admit_provider_installation_from_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &proof_admission::AdmissionProfile::default(),
+        &selections,
+    )
+    .expect("both exact closed candidates install without source custody");
+}
+
+#[test]
+fn closed_operator_catalog_rejects_substituted_or_missing_application_custody() {
+    let baseline = checked_closed_operator_candidates();
+    let provider = baseline
+        .machine_specializations
+        .iter()
+        .position(|receipt| !receipt.operator_realizations.is_empty())
+        .expect("provider specialization");
+    let provider_receipt = &baseline.machine_specializations[provider];
+    let requirement = baseline
+        .machine_specializations
+        .iter()
+        .position(|receipt| {
+            receipt.template == provider_receipt.operator_realizations[0].requirement_symbol
+                && receipt.const_argument_identities == provider_receipt.const_argument_identities
+        })
+        .expect("matching requirement specialization");
+    for receipt_index in [provider, requirement] {
+        for mutation in 0..5 {
+            let mut checked = baseline.clone();
+            match mutation {
+                0 => {
+                    checked.typed.machine_specializations.remove(receipt_index);
+                }
+                1 => {
+                    let duplicate = checked.typed.machine_specializations[receipt_index].clone();
+                    checked.typed.machine_specializations.push(duplicate);
+                }
+                2 => {
+                    checked.typed.machine_specializations[receipt_index]
+                        .normalized_template_identity
+                        .push_str("substituted");
+                }
+                3 => {
+                    checked.typed.machine_specializations[receipt_index].commitment =
+                        Default::default();
+                }
+                _ => {
+                    let other = baseline
+                        .machine_specializations
+                        .iter()
+                        .find(|receipt| {
+                            receipt.template
+                                == baseline.machine_specializations[receipt_index].template
+                                && receipt.instance
+                                    != baseline.machine_specializations[receipt_index].instance
+                        })
+                        .expect("other closed tuple of the same template");
+                    checked.typed.machine_specializations[receipt_index]
+                        .const_argument_identities = other.const_argument_identities.clone();
+                }
+            }
+            let lowered = checked_trees_to_lowered_psi::lower_machine(
+                &checked,
+                TerminalMachineSelection::Name("run"),
+            );
+            assert!(
+                lowered.is_err(),
+                "receipt {receipt_index}, mutation {mutation} cannot publish a candidate: {lowered:?}"
+            );
+        }
+    }
+}
+
 const STRUCTURAL_PROVIDER_SOURCE: &str = r#"
     pub data Extent [linear] {
         base: addr;

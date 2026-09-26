@@ -40,6 +40,7 @@ mod requirements;
 
 pub use conformance::compose_forwarded_trait_arguments;
 pub use conformance::generic_bound_operator_requirement;
+pub use conformance::resolve_closed_requirement_application;
 pub use conformance::revalidate_top_level_requirement_realization;
 pub(crate) use conformance::{
     GenericBoundRequirement, generic_bound_argument_matches, generic_bound_requirement_call,
