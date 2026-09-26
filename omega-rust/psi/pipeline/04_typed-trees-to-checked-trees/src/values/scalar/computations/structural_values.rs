@@ -963,9 +963,8 @@ impl Builder<'_, '_> {
         ) {
             return None;
         }
-        Some(CheckedStructuralValueKind::ScalarCasePlace {
-            source: self.borrowed_leaf_argument(expression, expected)?,
-        })
+        let (source, leaf) = self.borrowed_leaf_argument(expression, expected)?;
+        Some(CheckedStructuralValueKind::ScalarCasePlace { source, leaf })
     }
 
     /// One `[copy]` record element copied out of a borrowed view: the same
@@ -1067,9 +1066,8 @@ impl Builder<'_, '_> {
         ) {
             return None;
         }
-        Some(CheckedStructuralValueKind::CopiedStructuralPlace {
-            source: self.borrowed_leaf_argument(expression, expected)?,
-        })
+        let (source, leaf) = self.borrowed_leaf_argument(expression, expected)?;
+        Some(CheckedStructuralValueKind::CopiedStructuralPlace { source, leaf })
     }
 
     /// The `SharedBorrow` argument plan a borrowed leaf read produces: the
@@ -1079,7 +1077,10 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
-    ) -> Option<checked_trees::CheckedUnitStructuralArgumentPlan> {
+    ) -> Option<(
+        checked_trees::CheckedUnitStructuralArgumentPlan,
+        TypeReferenceHandle,
+    )> {
         let place = crate::flow::canonical_place_from_expression_in_state(
             self.program,
             self.state,
@@ -1147,12 +1148,15 @@ impl Builder<'_, '_> {
                     .normalized_type_identity(projected)
                     .into_string()
             });
-        Some(checked_trees::CheckedUnitStructuralArgumentPlan {
-            source,
-            path,
-            type_identity,
-            access: checked_trees::CheckedStructuralAccess::SharedBorrow,
-        })
+        Some((
+            checked_trees::CheckedUnitStructuralArgumentPlan {
+                source,
+                path,
+                type_identity,
+                access: checked_trees::CheckedStructuralAccess::SharedBorrow,
+            },
+            projected,
+        ))
     }
 
     /// One selected projected child of an existing owner. The owned-selection

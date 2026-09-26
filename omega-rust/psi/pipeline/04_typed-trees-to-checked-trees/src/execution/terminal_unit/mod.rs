@@ -592,9 +592,12 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
             CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
-            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => {
                 retained_type_identities.insert(result.type_identity.as_str());
+            }
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, value, .. } => {
+                retained_type_identities.insert(result.type_identity.as_str());
+                retained_type_identities.extend(value_leaf_type_identities(facts, *value));
             }
             _ => {}
         }
@@ -1123,4 +1126,52 @@ pub(crate) fn exact_two_field_record_projection(
         plans[residual_index].identity.clone(),
         residual_type_identity.clone(),
     ))
+}
+
+/// The `type_identity` strings of every borrowed leaf-read argument reachable
+/// in a structural value tree: those identities mint their own plans at
+/// value-planning time and must survive `retain_transitive` so the unit's
+/// structural catalog can resolve them.
+fn value_leaf_type_identities<'a>(
+    facts: &'a CheckFacts,
+    value: checked_trees::CheckedStructuralValueHandle,
+) -> Vec<&'a str> {
+    let plans = &facts.values.structural_values;
+    let mut pending = vec![value];
+    let mut identities = Vec::new();
+    while let Some(node) = pending.pop() {
+        match &plans.nodes.get(node).kind {
+            checked_trees::CheckedStructuralValueKind::ScalarCasePlace { source, .. }
+            | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
+                identities.push(source.type_identity.as_str());
+            }
+            checked_trees::CheckedStructuralValueKind::Projection { source, .. } => {
+                pending.push(*source);
+            }
+            checked_trees::CheckedStructuralValueKind::Record { fields, .. }
+            | checked_trees::CheckedStructuralValueKind::StructuralCase { fields, .. } => {
+                for field in plans.record_fields.span_or_empty(*fields) {
+                    if let checked_trees::CheckedStructuralRecordFieldValue::Structural(nested) =
+                        field.value
+                    {
+                        pending.push(nested);
+                    }
+                }
+            }
+            checked_trees::CheckedStructuralValueKind::FixedArray { elements } => {
+                pending.extend(elements.iter().copied());
+            }
+            checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => {
+                pending.extend(
+                    plans
+                        .dispatch_arms
+                        .span_or_empty(*arms)
+                        .iter()
+                        .map(|arm| arm.value),
+                );
+            }
+            _ => {}
+        }
+    }
+    identities
 }

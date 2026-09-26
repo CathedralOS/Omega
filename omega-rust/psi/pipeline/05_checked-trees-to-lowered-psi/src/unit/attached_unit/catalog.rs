@@ -21,6 +21,69 @@ use super::{
 };
 use checked_trees::{CheckedBoundaryMachineResultPlan, CheckedUnitStructuralTypePlan};
 
+/// Root the leaf type identity of every structural argument plan reachable
+/// inside a structural value tree: member/fixed-index leaf reads mint the
+/// projected leaf's own identity (`slice(named(u8))` for a `&'a [u8]`
+/// member), which no signature root names, while emission resolves that
+/// identity against the unit catalog.
+fn collect_value_roots(
+    checked: &CheckedTrees,
+    value: checked_trees::CheckedStructuralValueHandle,
+    roots: &mut Vec<String>,
+) {
+    let node = checked.facts.values.structural_values.nodes.get(value);
+    match &node.kind {
+        checked_trees::CheckedStructuralValueKind::Place(source)
+        | checked_trees::CheckedStructuralValueKind::Reference { source }
+        | checked_trees::CheckedStructuralValueKind::ScalarCasePlace { source, .. }
+        | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { source, .. }
+        | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { source } => {
+            roots.push(source.type_identity.clone());
+        }
+        checked_trees::CheckedStructuralValueKind::Projection {
+            source,
+            type_identity,
+            ..
+        } => {
+            roots.push(type_identity.clone());
+            collect_value_roots(checked, *source, roots);
+        }
+        checked_trees::CheckedStructuralValueKind::Record { fields, .. }
+        | checked_trees::CheckedStructuralValueKind::StructuralCase { fields, .. } => {
+            for field in checked
+                .facts
+                .values
+                .structural_values
+                .record_fields
+                .span_or_empty(*fields)
+            {
+                if let checked_trees::CheckedStructuralRecordFieldValue::Structural(nested) =
+                    field.value
+                {
+                    collect_value_roots(checked, nested, roots);
+                }
+            }
+        }
+        checked_trees::CheckedStructuralValueKind::FixedArray { elements } => {
+            for element in elements {
+                collect_value_roots(checked, *element, roots);
+            }
+        }
+        checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => {
+            for arm in checked
+                .facts
+                .values
+                .structural_values
+                .dispatch_arms
+                .span_or_empty(*arms)
+            {
+                collect_value_roots(checked, arm.value, roots);
+            }
+        }
+        _ => {}
+    }
+}
+
 pub(super) fn lower_program_local_root_introductions(
     checked: &CheckedTrees,
     plan: &CheckedBoundaryMachinePlan,
@@ -184,9 +247,19 @@ pub(super) fn lower_unit_structural_types_including(
                 // its view type: a range over a fixed-array field narrows a
                 // view no earlier binding or parameter declared.
                 CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
-                | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => {
                     roots.push(result.type_identity.clone());
+                }
+                // A leaf observed through a shared-borrowed place (`source.f`
+                // on `&'a` storage) projects a type that no signature,
+                // parameter or result owns: its argument plan mints the leaf's
+                // own identity, and emission resolves that identity against
+                // this shared catalog, so the leaf type must be rooted here.
+                CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                    result, value, ..
+                } => {
+                    roots.push(result.type_identity.clone());
+                    collect_value_roots(checked, *value, &mut roots);
                 }
                 CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
                     type_identity, ..

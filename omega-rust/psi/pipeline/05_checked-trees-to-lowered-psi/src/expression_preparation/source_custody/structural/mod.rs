@@ -422,7 +422,9 @@ pub(crate) fn validate(
                 }
                 consumed_calls.push(handle);
             }
-            CheckedStructuralValueKind::ScalarCasePlace { source: argument } => {
+            CheckedStructuralValueKind::ScalarCasePlace {
+                source: argument, ..
+            } => {
                 shared_borrow::validate_scalar_case_place(
                     checked,
                     owner,
@@ -436,7 +438,9 @@ pub(crate) fn validate(
             CheckedStructuralValueKind::ViewElementCopy { reads } => {
                 view_element_copy::validate(checked, source, expression, reference, &reads)?;
             }
-            CheckedStructuralValueKind::CopiedStructuralPlace { source: argument } => {
+            CheckedStructuralValueKind::CopiedStructuralPlace {
+                source: argument, ..
+            } => {
                 shared_borrow::validate_copied_place(
                     checked,
                     owner,

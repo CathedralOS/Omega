@@ -252,20 +252,28 @@ fn walk_exact_place(
                 .ok_or(LoweringError::Unsupported(
                     "borrowed selection lost its receiver type",
                 ))?;
-                let checked_trees::types::TypeReferenceNode::Named { symbol, .. } =
-                    checked.type_reference_table.type_reference(receiver)
-                else {
-                    return unsupported("borrowed selection receiver is not a named record");
+                // A `&'a` receiver on a lifetime-parameterized record unwraps
+                // to a `Generic` node whose base symbol still names the data
+                // declaration — the erased borrow-region arguments are not
+                // part of the member-walk identity.
+                let symbol = match checked.type_reference_table.type_reference(receiver) {
+                    checked_trees::types::TypeReferenceNode::Named { symbol, .. } => *symbol,
+                    checked_trees::types::TypeReferenceNode::Generic { base_symbol, .. } => {
+                        *base_symbol
+                    }
+                    _ => {
+                        return unsupported("borrowed selection receiver is not a named record");
+                    }
                 };
                 // A `self` receiver keeps the machine-keyed `Self` alias; its
                 // owner is the machine's attached data declaration, and the
                 // authored member symbol lives in the receiver-view space, so
                 // the field resolves by name there.
-                let self_receiver = *symbol == machine.symbol;
+                let self_receiver = symbol == machine.symbol;
                 let owner_symbol = if self_receiver {
                     machine.attached_data_symbol
                 } else {
-                    *symbol
+                    symbol
                 };
                 let owner = checked
                     .data_definitions()

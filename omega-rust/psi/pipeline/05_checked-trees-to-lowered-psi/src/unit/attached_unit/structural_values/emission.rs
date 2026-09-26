@@ -817,7 +817,7 @@ impl Emission<'_, '_, '_> {
                 self.complete_value(projected.root, Some(&projected), continuation)?;
                 Ok(continuation.place)
             }
-            CheckedStructuralValueKind::ScalarCasePlace { source } => {
+            CheckedStructuralValueKind::ScalarCasePlace { source, .. } => {
                 if lookup_type_id(self.type_ids, &source.type_identity)? != self.structural_type {
                     return unsupported("scalar case place changed its leaf type");
                 }
@@ -839,7 +839,7 @@ impl Emission<'_, '_, '_> {
             CheckedStructuralValueKind::ViewElementCopy { reads } => {
                 self.view_element_copy(&reads, continuation)
             }
-            CheckedStructuralValueKind::CopiedStructuralPlace { source } => {
+            CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
                 if lookup_type_id(self.type_ids, &source.type_identity)? != self.structural_type {
                     return unsupported("copied place changed its leaf type");
                 }
