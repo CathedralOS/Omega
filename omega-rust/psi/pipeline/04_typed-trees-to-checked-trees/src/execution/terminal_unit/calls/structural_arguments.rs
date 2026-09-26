@@ -3,7 +3,8 @@
 
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::calls::argument_paths::{
-    byte_sequence_literal_argument, projected_argument_path, projected_argument_path_with_identity,
+    byte_sequence_literal_argument, projected_argument_path,
+    projected_argument_path_with_identity, projected_borrowed_receiver_path,
 };
 use crate::execution::terminal_unit::calls::boundary_admission::{
     boundary_argument_presentation_is_admitted, fixed_array_slice_view_is_admitted,
@@ -629,6 +630,53 @@ pub(crate) fn structural_call_arguments(
                     &place,
                     &target_identity,
                 )?
+            }
+            // A runtime index in a shared-borrow path loans one element of a
+            // borrowed subtree without transferring ownership, the same
+            // subloan the receiver lane admits. `projected_borrowed_receiver_path`
+            // retains the selector only when the caller's published integer
+            // range proves it inside the enclosing fixed array's extent;
+            // terminal verification replays that bound.
+            segments
+                if segments.iter().any(|segment| {
+                    matches!(segment, facts::PlaceSegment::Index { .. })
+                }) && segments.iter().all(|segment| {
+                    matches!(
+                        segment,
+                        facts::PlaceSegment::Field { .. }
+                            | facts::PlaceSegment::FixedIndex { .. }
+                            | facts::PlaceSegment::Index { .. }
+                    )
+                }) && target_machine.supply_mode == MachineSupplyMode::CheckedBody
+                    && matches!(
+                        structural_access_for_type_reference(
+                            program,
+                            target.type_reference
+                        )?,
+                        CheckedStructuralAccess::SharedBorrow
+                    )
+                    && matches!(
+                        caller_parameters[source_index].access,
+                        CheckedStructuralAccess::SharedBorrow
+                            | CheckedStructuralAccess::MutableBorrow
+                    )
+                    && caller_parameters
+                        .get(source_index)?
+                        .qualifications
+                        .is_empty() =>
+            {
+                let (projected_type, path) = projected_borrowed_receiver_path(
+                    program,
+                    facts,
+                    caller_machine.symbol,
+                    caller_state.symbol,
+                    statement_index,
+                    &place,
+                )?;
+                if base_type_identity(program, projected_type, &[])? != target_identity {
+                    return None;
+                }
+                path
             }
             _ => return None,
         };
