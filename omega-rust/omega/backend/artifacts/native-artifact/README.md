@@ -15,6 +15,11 @@ Follow its subordinate owners for:
 
 - [dynamic_elf.rs](src/native_artifact/dynamic_elf.rs): the distinct,
   non-installable dynamic-ELF product and its own reconstruction and validation.
+- [provider_execution.rs](src/native_artifact/provider_execution.rs): reconstruct
+  required provider executions from Terminal boundaries and foreign calls,
+  validate exact stack contributions, then compare the complete selected-plan
+  report set. Direct artifacts supply image rows; dynamic ELF supplies object
+  rows after its own image replay. Both use the same requirement checks.
 - [identity.rs](src/native_artifact/identity.rs): exact identity-field
   serialization, including foreign-call custody. This is not a substitute for
   replaying those fields.
