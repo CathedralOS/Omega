@@ -48,4 +48,8 @@ the `corpus_runner` target and diffs its outcome record (checked or rejected,
 diagnostics, expected-fragment match) against `corpus_outcomes.txt`; nothing
 needs registering in a roster. That run checks fixtures only; `--native` builds
 every pass and run fixture for the host, executes the run tier and `*_exit`
-fixtures, and diffs against `corpus_native_<target>.txt`.
+fixtures, and diffs against `corpus_native_<target>.txt`. `--interpret` also
+runs the run tier and `*_exit` fixtures on the checked interpreter, and
+`--both` runs both legs and records whether their exit codes agree; the
+[testing spec](../../wiki/spec/build/testing.md#the-language-corpus) makes that
+agreement a requirement.

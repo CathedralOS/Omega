@@ -31,6 +31,15 @@ run tier and `*_exit` fixtures, diffing against this host's golden
 
     python3 tools/corpus_gate.py --native --filter providers/
 
+Interpreted leg — also execute each runnable fixture on the checked
+interpreter `omega run --both` uses, diffing against
+`tests/omega/corpus_interpreted.txt`; `--both` runs the native and
+interpreted legs together, records whether their exit codes agree, and diffs
+against `tests/omega/corpus_both_<target>.txt`:
+
+    python3 tools/corpus_gate.py --interpret --filter _exit
+    python3 tools/corpus_gate.py --both --filter run/
+
 Measuring your own change — one pass, not two:
 
     git stash && python3 tools/corpus_gate.py --baseline --record && git stash pop
@@ -320,7 +329,7 @@ def shown(value) -> str:
     return str(value)
 
 
-def baseline_path(native: bool = False) -> Path:
+def baseline_path(leg: str = "") -> Path:
     """This checkout's baseline file, named for the commit it was recorded at.
 
     The checked-in golden pins outcomes for `main` as a whole, so it disagrees
@@ -334,7 +343,7 @@ def baseline_path(native: bool = False) -> Path:
         ["git", "rev-parse", "HEAD"],
         cwd=ROOT, capture_output=True, text=True, check=False,
     ).stdout.strip() or "unknown"
-    suffix = "-native" if native else ""
+    suffix = f"-{leg}" if leg else ""
     return ROOT / "build" / "corpus_baselines" / f"{revision}{suffix}.txt"
 
 
@@ -354,6 +363,14 @@ def main() -> int:
                         help="build pass and run fixtures for this host, execute "
                              "the run tier and *_exit fixtures, and diff against "
                              "tests/omega/corpus_native_<target>.txt")
+    parser.add_argument("--interpret", action="store_true",
+                        help="also execute runnable fixtures on the checked "
+                             "interpreter and diff against "
+                             "tests/omega/corpus_interpreted.txt")
+    parser.add_argument("--both", action="store_true",
+                        help="run the native and interpreted legs together, "
+                             "record whether they agree, and diff against "
+                             "tests/omega/corpus_both_<target>.txt")
     parser.add_argument("--baseline", action="store_true",
                         help="diff against this checkout's own recorded "
                              "outcomes instead of the checked-in golden — "
@@ -368,19 +385,30 @@ def main() -> int:
                         help="k/N — deterministic hash-slice of the corpus "
                              "(sets OMEGA_CORPUS_SHARD for the runner)")
     options = parser.parse_args()
+    leg = ""
+    if options.both:
+        options.native = True
+        options.interpret = True
+    if options.interpret:
+        os.environ["OMEGA_CORPUS_INTERPRET"] = "1"
+        leg = "interpreted"
+        if options.golden == GOLDEN and not options.native:
+            options.golden = ROOT / "tests" / "omega" / "corpus_interpreted.txt"
     if options.native:
         target = host_target()
         if target is None:
             print("corpus_gate: this host has no catalogued Omega target for --native")
             return 2
         os.environ["OMEGA_CORPUS_NATIVE"] = "1"
+        leg = "both" if options.interpret else "native"
         if options.golden == GOLDEN:
-            options.golden = ROOT / "tests" / "omega" / f"corpus_native_{target}.txt"
+            name = "both" if options.interpret else "native"
+            options.golden = ROOT / "tests" / "omega" / f"corpus_{name}_{target}.txt"
     if options.baseline:
-        if options.golden != GOLDEN and not options.native:
+        if options.golden != GOLDEN and not leg:
             print("corpus_gate: --baseline and --golden name different goldens")
             return 2
-        options.golden = baseline_path(options.native)
+        options.golden = baseline_path(leg)
         if not options.golden.is_file() and not options.record:
             print(f"corpus_gate: no baseline at {options.golden.relative_to(ROOT)}; "
                   "record one from a clean tree first:\n"
