@@ -27,14 +27,17 @@ item's acceptance names one of those tests, the acceptance is the named
 fixture's corpus-gate outcome, plus its `--native` outcome where the item needs
 a native build or run. Rewrite such an item's acceptance when you next touch it.
 
-Twenty-five items cite at least one `.rs` path that no longer resolves, 34
-dead paths in all, mostly from that deletion and from the selected-operator
-plan removal. Re-measure one of these before planning against it; a gone
+Items here cite `.rs` paths that no longer resolve -- 33 on this board and
+one on the optimizer board when last measured, mostly from that deletion and
+from the selected-operator plan removal. Do not maintain that count by hand;
+the checker below derives it. Re-measure one of these before planning against it; a gone
 anchor file usually means the claim around it needs restating, not a path
 substitution. `python3 tools/board_paths.py` re-derives the list rather than
 trusting this paragraph, understands the directory-relative and
-`{a,b}.rs` citation forms, and exits nonzero while any path is dead;
-`--hints` names real files sharing a dead path's basename.
+brace-alternative citation forms, and exits nonzero while any path is dead;
+`--hints` names real files sharing a dead path's basename. It reports a
+citation that only misses a pipeline stage's numeric prefix separately, as a
+substitution rather than a dead anchor.
 `TASKS_OPTIMIZER.md` carries one of its own, `tests/linw4_translation_probe.rs`,
 whose basename matches nothing in the tree. AP-BRINGUP, ASM-INSTRUCTION-CATALOG-EXPANSION, BLOCKEXEC,
 BOUNDED-INSTALLATION-REACH-ROWS, BUILD-PRODUCT-REFERENCES,
@@ -4133,7 +4136,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   Filesystem cohort emitters also have production callers:
   `providers/settlements/source_imports.rs` emits mechanism classifications;
   `packages/manager/src/review/candidate/semantic_bindings.rs` attaches
-  consumer permission rows. The merge in `abstract-operations-to-target-operations/src/provider_admission/mod.rs`
+  consumer permission rows. The merge in `02_abstract-operations-to-target-operations/src/provider_admission/mod.rs`
   is a **mechanism-classification** policy, separate from the optional receiver
   permission policy; preserve both exact identities.
 
@@ -4202,7 +4205,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   shipped program's lifecycle.
 
   The native policy helpers in
-  `abstract-operations-to-target-operations/src/provider_admission/terminal_authority_policy/filesystem.rs`
+  `02_abstract-operations-to-target-operations/src/provider_admission/terminal_authority_policy/filesystem.rs`
   already bind an occurrence commitment into syscall/foreign-import mechanism
   identities and emit a constrained empty row, but only tests call them.
   Implement the checked-flow derivation, retained Terminal evidence and independent
