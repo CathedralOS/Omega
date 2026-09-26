@@ -9,7 +9,7 @@ pub(crate) mod phase_transitions;
 
 pub use checked_compilation::CheckedCompilation;
 
-use crate::sources::ImmutableSourceParseCheckpoint;
+use build_evaluation::sources::ImmutableSourceParseCheckpoint;
 use artifacts::compile_timings::CompileTimings;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
@@ -539,7 +539,7 @@ fn compile_checked_worker(
 #[derive(Clone)]
 pub(crate) struct AssembledSource {
     pub(crate) source_file_count: usize,
-    pub(crate) syntax: crate::sources::AssembledSyntax,
+    pub(crate) syntax: build_evaluation::sources::AssembledSyntax,
     pub(crate) timings: CompileTimings,
 }
 

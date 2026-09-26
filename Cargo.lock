@@ -180,6 +180,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "artifacts",
+ "build-declarations",
  "build-output",
  "build-time-evaluation",
  "calling-conventions",
@@ -206,6 +207,7 @@ dependencies = [
  "syntax-trees-to-symbol-resolved-trees",
  "target",
  "terminal-psi",
+ "tokens",
  "tokens-to-syntax-trees",
  "trust-model",
  "typed-trees",

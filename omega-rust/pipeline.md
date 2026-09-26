@@ -63,7 +63,7 @@ Terminal Psi:
 
 | Input → output | Owner |
 | --- | --- |
-| Source files → assembled syntax | [source-files-to-assembled-syntax](omega/compiler/src/sources/source_assembly.rs) |
+| Source files → assembled syntax | [source-files-to-assembled-syntax](omega/build/build-evaluation/src/sources/source_assembly.rs) |
 | Assembled syntax → checked compilation | [assembled-syntax-to-checked-compilation](omega/compiler/src/checked/checking.rs) |
 | Checked compilation → Terminal artifact | [checked-compilation-to-terminal-artifact](omega/compiler/src/terminal/terminal_artifact.rs) |
 
