@@ -15,3 +15,5 @@ priority = 100
 # Leave thread counts at the host default: Windows trials did not establish
 # a repeatable advantage from a universal eight-thread cap.
 [[profile.default.overrides]]
+filter = 'binary_id(=omega::package_manager_suite)'
+priority = 50
