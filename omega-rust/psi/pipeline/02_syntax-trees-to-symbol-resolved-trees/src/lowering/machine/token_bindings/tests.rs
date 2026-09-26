@@ -38,6 +38,7 @@ fn token_bearing_machines_retain_their_spelling_and_named_machines_have_none() {
         [
             ("Vec2::add".to_owned(), Some(OperatorSpelling::Add)),
             ("Vec2::at".to_owned(), Some(OperatorSpelling::Index)),
+            ("Vec2::equal".to_owned(), Some(OperatorSpelling::Equal)),
             ("subtract".to_owned(), Some(OperatorSpelling::Subtract)),
             ("Vec2::length".to_owned(), None),
             ("ordinary".to_owned(), None),
@@ -56,23 +57,23 @@ fn token_bearing_machines_retain_their_spelling_and_named_machines_have_none() {
         };
         assert!(symbol.is_valid(), "{}", parameter.name);
     }
-    // A bodyless token-bearing `boundary machine` is the required operator
-    // slot itself, not a machine: it lowers to the boundary operator
-    // declaration every provider route is keyed on.
+    // Bodyless boundary tokens retain a requirement machine. The typed
+    // operator view will share that machine's symbol rather than create
+    // another declaration or provider slot.
     let equal = program
-        .operators
+        .machines
         .iter()
-        .next()
-        .expect("boundary operator slot");
-    assert!(equal.is_boundary);
-    assert_eq!(equal.spelling, Some(OperatorSpelling::Equal));
+        .find(|machine| machine.name.to_string() == "Vec2::equal")
+        .expect("boundary requirement machine");
     assert_eq!(
-        program
-            .operator_path_members(equal.name)
-            .iter()
-            .map(|member| member.as_str().to_owned())
-            .collect::<Vec<_>>(),
-        ["Vec2", "equal"]
+        equal.supply_mode,
+        language_semantics::MachineSupplyMode::TopLevelRequirement
+    );
+    assert_eq!(equal.spelling, Some(OperatorSpelling::Equal));
+    assert!(!equal.body_is_present);
+    assert!(
+        program.operators.is_empty(),
+        "no parallel operator declaration"
     );
 }
 

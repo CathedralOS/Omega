@@ -167,7 +167,11 @@ impl<'typed> IntrinsicRequirement<'typed> {
 
     /// The operator signature, including a boundary machine's same-symbol
     /// token view. Token meaning does not change the machine's provider slot.
-    pub fn as_operator(&self) -> Option<&'typed symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition> {
+    pub fn as_operator(
+        &self,
+    ) -> Option<
+        &'typed symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition,
+    > {
         self.operator
     }
 

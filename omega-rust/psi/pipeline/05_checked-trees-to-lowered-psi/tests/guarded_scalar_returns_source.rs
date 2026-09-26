@@ -1,6 +1,6 @@
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use lowered_psi_to_terminal_psi::terminal_production::{
-    TerminalProductionCustody, TerminalProductionTimings,
+    self, TerminalProductionCustody, TerminalProductionTimings,
 };
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};

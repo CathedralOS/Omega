@@ -86,20 +86,25 @@ deletes the side doors it replaces. Validate with `tools/corpus_gate.py
 backend-visible; full corpus runs only at the end of an item.
 
 - **OPERATOR-BOUNDARY-CALLS.** (split-of:PROVIDER-SELECTION-AFTER-TERMINAL)
-  Depends on OPERATOR-MACHINE-SUPPLY's declaration migration: a bodyless
-  token-bearing `boundary machine - Owner::name(...);` lowers in stage 02
-  (`lowering/operator.rs`) to an operator declaration, not a machine, so
-  neither a spelled nor a named use reaches the requirement lane's
-  `BoundaryCall` (both stop at Unit local construction, "call: flow call" and
-  "local data: scalar local: pure initializer"). The 22 core float operators
-  (`Float::add` and siblings) use the same form, so migrating it routes every
-  float `+` through installation as well. A boundary-operator application lowers as a requirement-level `BoundaryCall`
-  on the operator's requirement, exactly like a direct top-level requirement
-  call, and Omega stage 00 installs the selected provider. A `boundary machine
-  - Owner::name(...);` operator is a token-bearing machine whose operator view
-  shares the machine symbol, and `operators/token_bound_machine_calls.rs`
-  already rewrites checked-body token machine uses into plain calls; extend it
-  to bodyless boundary token machines, then delete
+  Finish routing every boundary-operator application through its requirement's
+  `BoundaryCall` and Omega stage 00 installation, including legacy named
+  operators and compiler-known float realizations. Generic token machines
+  still need selection-neutral specialization of all eligible checked
+  candidates for actual closed demands, then a portable exact
+  requirement-template/application join to the original selected ProviderPlan.
+  Stage 05 `unit/attached_unit/providers.rs` can catalog checked closed
+  applications through the existing conformance resolver; its integration test
+  explicitly supplies specialization requests and does not establish the
+  automatic native route. Do not extend the retired selected-dispatch route,
+  alias a closed requirement to its template, or infer authority from equal
+  runtime signatures. On macOS ARM64, the outcome of `python3 tools/corpus_gate.py
+  --native --filter specialized_mixed_structural_result_operator_hosted_native
+  --golden build/operator-native.txt --record` still records rejection at
+  terminal-authority review with zero selected provider rows for
+  the closed requirement. The non-generic `token_machine_family_override_exit`
+  and `checked_fixed_operator_dispatch_exit` both build and exit 70; keep
+  these native controls while completing the generic join. After replacement,
+  delete
   `selected_dispatch/uninstalled.rs`, the `UninstalledOperator` omission and
   the operator-adapter and float-intrinsic resolution it uses. Compiler-known
   float realizations (`F32::negate`, directed arithmetic, conversions,
