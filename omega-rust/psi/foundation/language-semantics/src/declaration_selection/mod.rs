@@ -622,9 +622,48 @@ impl AuthoredDeclarationSelection {
 
 /// Append-only authored-selection custody in deterministic source traversal
 /// order.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Clone, Default, PartialEq, Eq)]
 pub struct AuthoredDeclarationSelections {
     rows: Vec<AuthoredDeclarationSelection>,
+    /// Row positions by source span, in row order; derived from `rows`.
+    by_span: SpanIndex,
+}
+
+impl std::fmt::Debug for AuthoredDeclarationSelections {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("AuthoredDeclarationSelections")
+            .field("rows", &self.rows)
+            .finish()
+    }
+}
+
+/// Row positions by source span. It is derived entirely from the rows, so it
+/// never distinguishes two ledgers.
+#[derive(Clone, Default)]
+struct SpanIndex(std::collections::HashMap<SourceSpan, Vec<u32>>);
+
+impl PartialEq for SpanIndex {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for SpanIndex {}
+
+impl SpanIndex {
+    fn of(rows: &[AuthoredDeclarationSelection]) -> Self {
+        let mut index = Self::default();
+        for (position, row) in rows.iter().enumerate() {
+            index.add(row.source_span, position);
+        }
+        index
+    }
+
+    fn add(&mut self, source_span: SourceSpan, position: usize) {
+        let position = u32::try_from(position).expect("selection ledger position overflow");
+        self.0.entry(source_span).or_default().push(position);
+    }
 }
 
 impl AuthoredDeclarationSelections {
@@ -702,7 +741,8 @@ impl AuthoredDeclarationSelections {
             rebased.occurrence_id = occurrence_id;
             rows.push(rebased);
         }
-        Ok((Self { rows }, rebase))
+        let by_span = SpanIndex::of(&rows);
+        Ok((Self { rows, by_span }, rebase))
     }
 
     pub fn record_resolved(
@@ -734,6 +774,7 @@ impl AuthoredDeclarationSelections {
             compiler_partition,
             selected_symbol,
         )?;
+        self.by_span.add(source_span, self.rows.len());
         self.rows.push(selection);
         Ok(occurrence_id)
     }
@@ -759,6 +800,7 @@ impl AuthoredDeclarationSelections {
     ) -> Result<AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionRecordError>
     {
         let occurrence_id = self.next_occurrence_id()?;
+        self.by_span.add(source_span, self.rows.len());
         self.rows.push(AuthoredDeclarationSelection::late_bound(
             occurrence_id,
             source_span,
@@ -768,6 +810,34 @@ impl AuthoredDeclarationSelections {
             late_binding,
         ));
         Ok(occurrence_id)
+    }
+
+    /// The first row selecting exactly `selected_symbol` for this source span,
+    /// exposure and kind outside every compiler partition, found through the
+    /// span index instead of a scan of the whole ledger.
+    pub fn resolved_occurrence(
+        &self,
+        source_span: SourceSpan,
+        exposure: AuthoredDeclarationSelectionExposure,
+        kind: AuthoredDeclarationSelectionKind,
+        selected_symbol: SymbolHandle,
+    ) -> Option<AuthoredDeclarationSelectionOccurrenceId> {
+        self.by_span
+            .0
+            .get(&source_span)?
+            .iter()
+            .map(|position| &self.rows[*position as usize])
+            .find(|selection| {
+                selection.exposure == exposure
+                    && selection.kind == kind
+                    && selection.compiler_partition.is_none()
+                    && matches!(
+                        selection.target,
+                        AuthoredDeclarationSelectionTarget::Resolved(target)
+                            if target.selected_symbol() == selected_symbol
+                    )
+            })
+            .map(|selection| selection.occurrence_id)
     }
 
     pub fn get(
