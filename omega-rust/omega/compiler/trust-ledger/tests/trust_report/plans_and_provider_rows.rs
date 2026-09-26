@@ -22,6 +22,27 @@ fn plan_commitment_prefix(rest: &str) -> String {
     format!("provider plan: {}", qualified_plan_name(rest))
 }
 
+/// The target a check plans for. `provider_settlement` derives against the
+/// requested profile, or the compiler host when none is requested, so that
+/// planning follows the same choice `filter_target_machines_by_scope` made
+/// about which target-scoped machines exist. A row is therefore host-scoped
+/// on a supported host and all-targets only where the host has no catalogued
+/// profile.
+fn planning_target() -> String {
+    target::TargetProfile::host_if_supported()
+        .map(|profile| profile.target_name().to_owned())
+        .unwrap_or_default()
+}
+
+/// [`planning_target`] as a rendered commitment spells it: an empty target
+/// prints `<all>`.
+fn planning_target_field() -> String {
+    match target::TargetProfile::host_if_supported() {
+        Some(profile) => format!("target: {}", profile.target_name()),
+        None => "target: <all>".to_owned(),
+    }
+}
+
 fn trust_report(checked: &CheckedCompilation) -> artifacts::TrustReport {
     trust_model::reconstruct_trust_report(
         checked.terminal_production_trees(),
@@ -190,8 +211,9 @@ machine Main::exercise(&mut self) reaches Console {
         "an empty provider type denotes a free external leaf"
     );
     assert_eq!(
-        requirement_row.target, "",
-        "an empty target denotes all targets"
+        requirement_row.target,
+        planning_target(),
+        "the row names the target the check planned for"
     );
     assert_eq!(requirement_row.calling_plan_report_fingerprint, None);
     assert_eq!(requirement_row.calling_plan_commitment, None);
@@ -506,7 +528,7 @@ machine Main::exercise(&mut self) {}
     );
     let entry_row = extent_rows[0];
     assert_eq!(entry_row.provider_type, "StorageEntryProvider");
-    assert_eq!(entry_row.target, "");
+    assert_eq!(entry_row.target, planning_target());
     assert_eq!(entry_row.provider_origin_package_identity, None);
     assert_eq!(entry_row.service_schema, "StorageEntry");
     assert!(entry_row.selected);
@@ -539,7 +561,7 @@ machine Main::exercise(&mut self) {}
         result_row.provider_type, "",
         "an empty provider type denotes a free external leaf"
     );
-    assert_eq!(result_row.target, "");
+    assert_eq!(result_row.target, planning_target());
     assert_eq!(result_row.provider_origin_package_identity, None);
     assert_eq!(result_row.service_schema, "Issuer");
     assert_eq!(result_row.requirement_owner, "Issuer");
@@ -734,7 +756,7 @@ machine Main::exercise(&mut self) {}
         qualification.provider_type, "",
         "an empty provider type denotes a free external leaf"
     );
-    assert_eq!(qualification.target, "");
+    assert_eq!(qualification.target, planning_target());
     assert!(!qualification.selected);
     assert_eq!(qualification.domain, "Token::Bound");
     assert!(
@@ -879,9 +901,9 @@ machine Main::exercise(&mut self) {}
     assert!(first.commitment.contains("selected: no"));
     assert!(second.commitment.contains("selected: yes"));
     assert!(first.commitment.contains("provider type: FirstProvider"));
-    assert!(first.commitment.contains("target: <all>"));
+    assert!(first.commitment.contains(&planning_target_field()));
     assert!(second.commitment.contains("provider type: SecondProvider"));
-    assert!(second.commitment.contains("target: <all>"));
+    assert!(second.commitment.contains(&planning_target_field()));
 
     let requirement = |provider: &str| {
         let plan = format!("{provider}::satisfies::Pair");
@@ -906,14 +928,14 @@ machine Main::exercise(&mut self) {}
     };
     assert_eq!(first_requirement.requirement_owner, "Pair");
     assert_eq!(first_requirement.provider_type, "FirstProvider");
-    assert_eq!(first_requirement.target, "");
+    assert_eq!(first_requirement.target, planning_target());
     assert!(!first_requirement.selected);
     assert_eq!(first_requirement.realization, adapter("FirstProvider"));
     assert!(first_requirement.grant_selectors.is_empty());
     assert!(first_requirement.standing_warning);
     assert_eq!(second_requirement.requirement_owner, "Pair");
     assert_eq!(second_requirement.provider_type, "SecondProvider");
-    assert_eq!(second_requirement.target, "");
+    assert_eq!(second_requirement.target, planning_target());
     assert!(second_requirement.selected);
     assert_eq!(second_requirement.realization, adapter("SecondProvider"));
     assert_eq!(second_requirement.grant_selectors, ["Pair"]);
