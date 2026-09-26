@@ -7,6 +7,7 @@ use package_source::SourceResolverStorage;
 #[test]
 fn inspection_keeps_accepted_git_pin_when_head_moves_and_cache_is_missing() {
     run(
+        module_path!(),
         "inspection_keeps_accepted_git_pin_when_head_moves_and_cache_is_missing",
         |fixture| {
             fixture.package("repository", "git-library", "");
@@ -40,6 +41,7 @@ fn inspection_keeps_accepted_git_pin_when_head_moves_and_cache_is_missing() {
 #[test]
 fn inspection_keeps_named_and_relative_members_at_one_accepted_repository_pin() {
     run(
+        module_path!(),
         "inspection_keeps_named_and_relative_members_at_one_accepted_repository_pin",
         |fixture| {
             fixture.package(

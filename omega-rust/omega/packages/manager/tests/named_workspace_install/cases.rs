@@ -8,6 +8,7 @@ use std::fs;
 #[test]
 fn named_member_uses_declared_default_alias_and_member_relative_dependencies() {
     run(
+        module_path!(),
         "named_member_uses_declared_default_alias_and_member_relative_dependencies",
         |fixture| {
             fixture.package(
@@ -49,6 +50,7 @@ fn named_member_uses_declared_default_alias_and_member_relative_dependencies() {
 #[test]
 fn named_member_alias_override_does_not_rename_the_selected_package() {
     run(
+        module_path!(),
         "named_member_alias_override_does_not_rename_the_selected_package",
         |fixture| {
             fixture.write(
@@ -81,6 +83,7 @@ fn named_member_alias_override_does_not_rename_the_selected_package() {
 #[test]
 fn unknown_declared_name_rejects_without_publishing() {
     run(
+        module_path!(),
         "unknown_declared_name_rejects_without_publishing",
         |fixture| {
             fixture.commit();
@@ -99,6 +102,7 @@ fn unknown_declared_name_rejects_without_publishing() {
 #[test]
 fn duplicate_declared_names_reject_without_publishing() {
     run(
+        module_path!(),
         "duplicate_declared_names_reject_without_publishing",
         |fixture| {
             fixture.package("repository/modules/other", "exact-math", "");
@@ -117,30 +121,35 @@ fn duplicate_declared_names_reject_without_publishing() {
 
 #[test]
 fn omitted_selection_keeps_root_package_behavior() {
-    run("omitted_selection_keeps_root_package_behavior", |fixture| {
-        fixture.package("repository", "root-library", "");
-        fixture.commit();
-        assert_eq!(
-            fixture.install(None, None).unwrap().status,
-            PackageCommandStatus::Published
-        );
-        let lock = fixture.lock();
-        let edge = &lock.targets()[0].source().dependency_requests()[0];
-        assert_eq!(edge.alias().as_str(), "root_library");
-        assert!(matches!(
-            edge.request(),
-            CanonicalDependencySourceRequest::Git {
-                selection: PackageSelection::Root,
-                ..
-            }
-        ));
-        assert!(!fixture.read("root/build.omg").contains("selection:"));
-    });
+    run(
+        module_path!(),
+        "omitted_selection_keeps_root_package_behavior",
+        |fixture| {
+            fixture.package("repository", "root-library", "");
+            fixture.commit();
+            assert_eq!(
+                fixture.install(None, None).unwrap().status,
+                PackageCommandStatus::Published
+            );
+            let lock = fixture.lock();
+            let edge = &lock.targets()[0].source().dependency_requests()[0];
+            assert_eq!(edge.alias().as_str(), "root_library");
+            assert!(matches!(
+                edge.request(),
+                CanonicalDependencySourceRequest::Git {
+                    selection: PackageSelection::Root,
+                    ..
+                }
+            ));
+            assert!(!fixture.read("root/build.omg").contains("selection:"));
+        },
+    );
 }
 
 #[test]
 fn omitted_selection_does_not_guess_a_workspace_member() {
     run(
+        module_path!(),
         "omitted_selection_does_not_guess_a_workspace_member",
         |fixture| {
             fixture.commit();
@@ -154,6 +163,7 @@ fn omitted_selection_does_not_guess_a_workspace_member() {
 #[test]
 fn named_review_resume_retains_selection_alias_and_exact_revision() {
     run(
+        module_path!(),
         "named_review_resume_retains_selection_alias_and_exact_revision",
         |fixture| {
             fixture.write(
@@ -217,6 +227,7 @@ fn named_review_resume_retains_selection_alias_and_exact_revision() {
 #[test]
 fn named_selection_rejects_local_sources_and_member_paths() {
     run(
+        module_path!(),
         "named_selection_rejects_local_sources_and_member_paths",
         |fixture| {
             let before = fixture.pair();
@@ -239,6 +250,7 @@ fn named_selection_rejects_local_sources_and_member_paths() {
 #[test]
 fn selected_member_update_moves_reachable_members_but_preserves_unrelated_pins() {
     run(
+        module_path!(),
         "selected_member_update_moves_reachable_members_but_preserves_unrelated_pins",
         |fixture| {
             fixture.package(

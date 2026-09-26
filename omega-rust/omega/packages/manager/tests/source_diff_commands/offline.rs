@@ -1,10 +1,11 @@
 #[test]
 fn offline_update_resume_with_only_candidate_cached_retains_lock_policy_comparison() {
     run(
+        module_path!(),
         "offline_update_resume_with_only_candidate_cached_retains_lock_policy_comparison",
         |fixture| {
-            use package_source::PrimaryGitChoices;
             use package_manager::PackageCommandKind;
+            use package_source::PrimaryGitChoices;
             use package_source::git::resolution::resolve_git_source;
             use package_source::{GitSourceRequest, LocalSourceLimits, SourceResolverStorage};
 
@@ -41,10 +42,7 @@ fn offline_update_resume_with_only_candidate_cached_retains_lock_policy_comparis
             .unwrap();
             let request = GitSourceRequest::new(REPOSITORY, None).unwrap();
             let calls = fixture.transport_calls();
-            drop(
-                resolve_git_source(&request, &storage, LocalSourceLimits::default())
-                    .unwrap(),
-            );
+            drop(resolve_git_source(&request, &storage, LocalSourceLimits::default()).unwrap());
             assert!(fixture.transport_calls() > calls);
             drop(storage);
             fixture.write("repository/main.omg", "pub machine value() -> u64 { 99 }\n");
