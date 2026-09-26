@@ -411,7 +411,7 @@ impl SelectedTargetMachineDeclarations {
         }
         typed.statement_table.retarget_call_states(&replacements);
         typed.expression_table.retarget_call_states(&replacements);
-        Ok(())
+        reject_inert_sibling_callers(typed, target)
     }
 
     /// Move the retained selection of one family from its canonical body to
@@ -737,6 +737,79 @@ fn select_target_machines(
         selected_machine_origins,
         all_machine_origins,
     )
+}
+
+/// A surviving caller of a body this target does not realize.
+///
+/// A family implemented only by other targets keeps its declaration as an
+/// inert sibling with its callers, so the call still resolves. Nothing then
+/// realizes the callee: checking accepts the program and the closure refuses
+/// at `Legs::bump::linux_x86_64 ... selects no terminal machine for it`,
+/// past `omega --check`. A caller that is itself scoped to the sibling's
+/// target goes inert with it and is not reported.
+fn reject_inert_sibling_callers(
+    typed: &TypedTrees,
+    target: NativeTarget,
+) -> Result<(), Vec<Diagnostic>> {
+    // Symbol handles are arena handles, not ordered keys; the sibling set is
+    // small and scanned linearly like the rest of this pass.
+    // A call names the callee's entry state, not its machine, so the index
+    // carries each inert machine's states beside its own symbol.
+    let mut inert: Vec<(symbols::SymbolHandle, &str, &str)> = Vec::new();
+    for machine in typed.machines() {
+        let Some(machine_target) = machine.target.as_ref().map(|target| target.as_str()) else {
+            continue;
+        };
+        // `NativeTarget` carries no canonical name and several spellings can
+        // share one profile, so the comparison is structural -- the same
+        // conversion the rest of this pass uses.
+        if NativeTarget::from_omega_target_name(Some(machine_target))
+            .is_ok_and(|declared| declared == target)
+        {
+            continue;
+        }
+        inert.push((machine.symbol, machine.name.as_str(), machine_target));
+        for state in typed.machine_states(machine) {
+            inert.push((state.symbol, machine.name.as_str(), machine_target));
+        }
+    }
+    if inert.is_empty() {
+        return Ok(());
+    }
+    let mut diagnostics = Vec::new();
+    for machine in typed.machines() {
+        let caller_target = machine.target.as_ref().map(|target| target.as_str());
+        for state in typed.machine_states(machine) {
+            for statement in typed.statement_table.statements(state.statement_nodes) {
+                let typed_trees::statement::StatementNode::Call(call) = statement else {
+                    continue;
+                };
+                let Some((_, callee, callee_target)) = inert
+                    .iter()
+                    .find(|(symbol, _, _)| *symbol == call.target_symbol)
+                else {
+                    continue;
+                };
+                if caller_target == Some(*callee_target) {
+                    continue;
+                }
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` state `{}` calls `{callee}`, which is declared only for \
+                     target `{callee_target}`. This build realizes another target, so that \
+                     body is an inert sibling and the call has no implementation; scope the \
+                     caller to `{callee_target}` as well, or declare `{callee}` for the \
+                     target being built.",
+                    machine.name.as_str(),
+                    state.name.as_str(),
+                )));
+            }
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
 }
 
 #[cfg(test)]

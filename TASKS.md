@@ -3500,6 +3500,18 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   exactly the filtered-callee case, so improving
   `undeclared_checked_call_callee` moves nothing here.
 
+  The product-scope half is closed. `reject_inert_sibling_callers` runs at the
+  end of `select_product_target` and rejects a call resolving into a machine
+  declared only for a target this build does not realize, unless the caller is
+  itself scoped to that same target and goes inert with it. It needs no name
+  matching and no receiver-type lookup, because the call resolves: it indexes
+  each inert machine's states beside its own symbol, since a call names the
+  callee's entry state rather than its machine.
+
+  What remains is the dependency-scope half, if it still exists: re-measure
+  the `UefiOsHandoffCycle::acquire` witness, whose no-call-row shape product
+  scope no longer produces.
+
   Acceptance: a statement call whose callee no declaration in the selected
   program supplies rejects, naming the callee and the selected target, and the
   authored source that legitimately filters with its callee keeps compiling.
