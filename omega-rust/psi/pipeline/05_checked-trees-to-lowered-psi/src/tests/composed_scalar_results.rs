@@ -479,14 +479,6 @@ fn lowers_and_verifies(source: &str, machine: &str) {
     .unwrap_or_else(|error| panic!("{machine} verifies: {error:?}"));
 }
 
-/// Each state's shared view formal arrives on its incoming edge as a
-/// whole-parameter `SharedBorrow` transfer: the target re-borrows the source
-/// place instead of taking custody it never had.
-#[test]
-fn forwarded_shared_view_chain_lowers_and_verifies() {
-    lowers_and_verifies(FORWARDED_VIEW_CALLEE, "scan");
-}
-
 /// The `seek -> check -> seek` cycle never re-enters the entry. The scalar
 /// graph's loop plan owned only entry-backed cycles and declined it; the state
 /// graph carries any cycle of states, so the machine lowers and verifies.

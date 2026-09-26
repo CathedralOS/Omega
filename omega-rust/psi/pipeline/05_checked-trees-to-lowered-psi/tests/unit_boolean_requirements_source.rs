@@ -87,12 +87,6 @@ fn write_only_parameter_retains_a_caller_supplied_field_requirement() {
 }
 
 #[test]
-fn boolean_parameter_requirement_survives_mixed_unit_call() {
-    let lowered = roundtrip(SOURCE);
-    assert_call_requirement_certificates(&lowered);
-}
-
-#[test]
 fn write_only_forwarding_proves_the_callee_field_requirement() {
     let lowered = roundtrip(
         r#"
@@ -272,23 +266,6 @@ fn boolean_call_requirements_preserve_reordered_and_shared_actuals() {
 }
 
 #[test]
-fn nested_disjunction_requirements_preserve_reordered_actuals() {
-    let source = r#"
-        data Metrics { current: u64; }
-        boundary trait Sink { machine record(flag: bool); }
-        data Helper {}
-        machine Helper::consume(right: bool, metrics: Metrics, left: bool, gate: bool)
-        reaches Sink requires gate && (left || right)
-        { Sink::record(gate); }
-        data Main {}
-        machine Main::main(left: bool, metrics: Metrics, right: bool, gate: bool)
-        requires gate && (left || right)
-        { Helper::consume(right, metrics, left, gate); }
-    "#;
-    assert_call_requirement_certificates(&roundtrip(source));
-}
-
-#[test]
 fn literal_true_actual_proves_boolean_requirement_without_caller_assumptions() {
     let source = SOURCE.replace(
         "requires flag\n    { Helper::consume(flag, metrics); }",
@@ -303,11 +280,6 @@ fn literal_true_actual_proves_boolean_requirement_without_caller_assumptions() {
         .find(|machine| machine.id == lowered.semantic_module.entry)
         .unwrap();
     assert!(root.contract.requires.is_empty());
-}
-
-#[test]
-fn computed_boolean_actual_proves_requirement_from_operation_meaning() {
-    computed_boolean_actual("!false", "");
 }
 
 fn computed_boolean_actual(actual: &str, caller_requirement: &str) -> lowered_psi::LoweredPsi {

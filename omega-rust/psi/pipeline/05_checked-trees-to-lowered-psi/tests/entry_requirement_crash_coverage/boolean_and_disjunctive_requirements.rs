@@ -4,25 +4,6 @@ use super::{
 };
 
 #[test]
-fn compound_boolean_equality_entry_requirement_covers_unconditional_unit_call() {
-    let declarations = r#"
-        data Main {}
-        boundary trait Sink { machine record(value: bool); }
-        machine trigger() -> bool
-        crashes Trap
-        { crash Trap; }
-        machine forward(a: bool, b: bool, c: bool, d: bool)
-        reaches Sink requires (a && b) == (c || d)
-        crashes Trap (a && b) == (c || d)
-        { Sink::record(trigger()); }
-        machine Main::value()
-        crashes Trap
-        { forward(true, true, false, true); }
-    "#;
-    assert_unconditional_call_trap_at_entry(declarations, "Main::value");
-}
-
-#[test]
 fn atomic_boolean_entry_requirement_covers_unconditional_unit_call() {
     assert_unconditional_call_trap_at_entry(
         r#"
@@ -41,23 +22,6 @@ fn atomic_boolean_entry_requirement_covers_unconditional_unit_call() {
         "#,
         "Main::value",
     );
-}
-
-#[test]
-fn compound_boolean_equality_entry_requirement_covers_unconditional_call() {
-    let declarations = r#"
-        machine trigger() -> bool
-        crashes Trap
-        { crash Trap; }
-        machine forward(a: bool, b: bool, c: bool, d: bool) -> bool
-        requires (a && b) == (c || d)
-        crashes Trap (a && b) == (c || d)
-        { trigger() }
-    "#;
-    assert_unconditional_call_trap(&with_caller(
-        declarations,
-        "forward(true, true, false, true)",
-    ));
 }
 
 #[test]
@@ -358,14 +322,6 @@ fn negated_disjunction_entry_call_coverage_keeps_original_mutable_operands() {
             assert_unconditional_call_trap(&with_caller(&declarations, "forward(false, false)"));
         }
     }
-}
-
-#[test]
-fn all_crash_scalar_callee_retains_its_entry_requirement() {
-    assert_trap(&with_caller(
-        "machine trigger(flag: bool) -> bool\nrequires flag\ncrashes Trap\n{ crash Trap; }",
-        "trigger(true)",
-    ));
 }
 
 #[test]

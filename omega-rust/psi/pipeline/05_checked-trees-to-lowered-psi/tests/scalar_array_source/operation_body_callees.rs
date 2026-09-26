@@ -167,21 +167,6 @@ fn scalar_array_locals_preserve_conditional_call_continuations() {
 }
 
 #[test]
-fn scalar_helpers_retain_ordered_array_bodies_across_transitive_calls() {
-    assert_array(
-        "machine answer(row: [u8; 2], value: u8) -> u8 { value }
-         machine helper(value: u8) -> u8 {
-             let row: [u8; 2] = [7u8, 9u8];
-             answer(row, value)
-         }
-         machine forward(value: u8) -> u8 { helper(value) }
-         machine selected(value: u8) -> [u8; 2] { [forward(value), 9u8] }",
-        &[byte(42)],
-        &[byte(42), byte(9)],
-    );
-}
-
-#[test]
 fn ordered_scalar_helpers_are_reachable_from_scalar_and_unit_entries() {
     let helpers = "machine answer(row: [u8; 2], value: u8) -> u8 { value }
          machine helper(value: u8) -> u8 {

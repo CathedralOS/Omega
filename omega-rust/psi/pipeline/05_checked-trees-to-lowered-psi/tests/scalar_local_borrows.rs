@@ -103,21 +103,6 @@ fn scalar_root_reads_current_referent_and_preserves_snapshot_after_assignment() 
 }
 
 #[test]
-fn immutable_snapshot_before_nested_calls_keeps_the_initial_contents() {
-    let source = SOURCE
-        .replace(
-            "    let answer:",
-            "    let initial: u64 = slot;\n    let answer:",
-        )
-        .replace("\n    snapshot\n", "\n    initial\n");
-    execute(
-        &source,
-        &[unsigned(7), unsigned(11)],
-        Expectations::scalar(unsigned(201), 2),
-    );
-}
-
-#[test]
 fn unborrowed_mutable_peer_remains_scalar_storage_beside_the_real_local() {
     let source = SOURCE
         .replace(

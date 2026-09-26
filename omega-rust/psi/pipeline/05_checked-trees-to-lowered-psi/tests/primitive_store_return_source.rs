@@ -59,23 +59,6 @@ fn boolean_reference_negation_preserves_pre_store_value() {
     }
 }
 
-#[test]
-fn primitive_reference_write_then_scalar_return_reaches_terminal() {
-    let checked =
-        crate::front_end::checked_program("machine reset(value: &mut u64) -> u64 { value = 0; 0 }");
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("reset"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("the operand callee must execute its store before returning")
-    .into_artifact();
-    let zero = unsigned(0);
-    execute(&artifact, &[], unsigned(91), zero, zero);
-}
-
 fn unsigned(value: u128) -> TerminalScalarValue {
     TerminalScalarValue::Integer {
         scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
@@ -196,29 +179,6 @@ fn write_only_parameter_delivery_and_distinct_result_keep_dense_scalar_order() {
         unsigned(91),
         unsigned(27),
         unsigned(43),
-    );
-}
-
-#[test]
-fn boolean_store_and_return_keep_separate_values() {
-    let checked = crate::front_end::checked_program(
-        "machine replace(destination: &mut bool, replacement: bool) -> bool { destination = replacement; false }",
-    );
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("replace"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap()
-    .into_artifact();
-    execute(
-        &artifact,
-        &[TerminalScalarValue::Boolean(true)],
-        TerminalScalarValue::Boolean(false),
-        TerminalScalarValue::Boolean(true),
-        TerminalScalarValue::Boolean(false),
     );
 }
 

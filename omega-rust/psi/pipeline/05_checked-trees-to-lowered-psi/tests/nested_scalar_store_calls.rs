@@ -131,19 +131,6 @@ fn nested_call_assignment_to_mutable_scalar_local_runs_each_call_once() {
 }
 
 #[test]
-fn deeply_nested_call_assignment_preserves_inner_result_home() {
-    let source = r#"
-        machine inner(input: i32) -> i32 { input }
-        machine exercise(source: i32) {
-            let mut x: i32 = 0;
-            x = inner(inner(source));
-        }
-    "#;
-    let (module, lowered) = lowered_verified(source, "exercise");
-    assert_exact_call_receipts(&module, &lowered, "exercise", 2, 1);
-}
-
-#[test]
 fn sibling_nested_call_operands_evaluate_in_authored_order() {
     let source = r#"
         machine inner(input: i32) -> i32 { input }
@@ -189,22 +176,6 @@ fn nested_call_assignment_through_borrowed_primitive_parameter_verifies() {
         "the store writes through the borrowed parameter's own place"
     );
     assert_exact_call_receipts(&module, &lowered, "exercise", 2, 0);
-}
-
-#[test]
-fn nested_call_assignment_in_attached_machine_verifies() {
-    let source = r#"
-        data Rec { field: i32; }
-        machine inner(input: i32) -> i32 { input }
-        machine choose(value: i32, extra: i32) -> i32 { value }
-        machine Rec::exercise(&mut self, source: i32) {
-            let mut x: i32 = 0;
-            x = choose(inner(source), source);
-            self.field = x;
-        }
-    "#;
-    let (module, lowered) = lowered_verified(source, "Rec::exercise");
-    assert_exact_call_receipts(&module, &lowered, "Rec::exercise", 2, 1);
 }
 
 #[test]

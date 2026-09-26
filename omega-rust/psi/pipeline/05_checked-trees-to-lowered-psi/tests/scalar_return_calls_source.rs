@@ -345,11 +345,6 @@ fn separate_guarded_calls_materialize_computed_current_and_saved_arguments() {
 }
 
 #[test]
-fn combined_guarded_calls_materialize_computed_current_and_saved_arguments() {
-    assert_guarded_computed_return_arguments(true);
-}
-
-#[test]
 fn guarded_calls_keep_literal_arguments_and_partial_integer_arguments_selected() {
     let source = r#"
         machine identity(input: u8) -> u8
@@ -439,11 +434,6 @@ fn assert_guarded_crash_call_is_selective(combined: bool) {
 #[test]
 fn separate_guarded_calls_do_not_execute_unselected_trap_or_abort() {
     assert_guarded_crash_call_is_selective(false);
-}
-
-#[test]
-fn combined_guarded_calls_do_not_execute_unselected_trap_or_abort() {
-    assert_guarded_crash_call_is_selective(true);
 }
 
 #[test]

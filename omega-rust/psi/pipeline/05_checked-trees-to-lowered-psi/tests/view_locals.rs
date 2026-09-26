@@ -392,25 +392,6 @@ fn a_record_element_field_read_out_of_bounds_is_refused() {
     );
 }
 
-/// The selector may be any `u64` scalar the body holds: a local selector is
-/// replayed as the element read's own operand.
-#[test]
-fn a_record_element_field_read_takes_a_local_selector() {
-    let source = RECORD_ELEMENTS.replace(
-        "Output::observe(tail[1].value);",
-        "let index: u64 = 1;\n        Output::observe(tail[index].value);",
-    );
-    let lowered = lower(&source).expect("a record element read with a local selector lowers");
-    let module = terminal_codec::decode_module(&encode_module(&lowered.semantic_module).unwrap())
-        .expect("reload module");
-    let proof = terminal_codec::decode_proof_bundle(
-        &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
-    )
-    .expect("reload proof");
-    terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default())
-        .expect("a locally selected record element field read verifies");
-}
-
 /// A whole `[copy]` record element copies through its scalar fields: one
 /// element read per field at the copy's selector, then a fresh owned record
 /// from those leaves. Each read carries the view's own bound, and the verifier

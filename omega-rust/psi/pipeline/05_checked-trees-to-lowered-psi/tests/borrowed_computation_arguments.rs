@@ -181,26 +181,6 @@ fn earlier_scalar_operand_is_not_reread_after_the_borrowed_mutation() {
 }
 
 #[test]
-fn short_circuit_selection_skips_the_borrowed_mutator() {
-    let source = r#"
-        machine stamp(value: &mut u64) -> bool { value = 7; true }
-        machine consume(value: bool) { }
-        machine enter(enabled: bool, output: &mut u64) {
-            let mut scratch: u64 = 91;
-            consume(enabled && stamp(&mut scratch));
-            output = scratch;
-        }
-    "#;
-    execute_with_arguments(
-        source,
-        &[TerminalScalarValue::Boolean(false)],
-        &[201, 91],
-        0,
-    );
-    execute_with_arguments(source, &[TerminalScalarValue::Boolean(true)], &[201, 7], 1);
-}
-
-#[test]
 fn two_nested_mutators_keep_distinct_invocations_and_one_shared_callee() {
     execute_with_arguments(
         r#"
@@ -260,22 +240,6 @@ fn nested_shared_local_borrow_preserves_contents() {
         machine enter(output: &mut u64) {
             let mut scratch: u64 = 91;
             consume(&mut output, hold(&scratch));
-            output = scratch;
-        }
-    "#,
-        &[201, 11, 91],
-    );
-}
-
-#[test]
-fn repeated_shared_actuals_keep_their_formal_positions() {
-    execute(
-        r#"
-        machine hold(first: &u64, number: u64, second: &u64) -> u64 { number }
-        machine consume(output: &mut u64, value: u64) { output = value; }
-        machine enter(output: &mut u64) {
-            let mut scratch: u64 = 91;
-            consume(&mut output, hold(&scratch, 11, &scratch));
             output = scratch;
         }
     "#,

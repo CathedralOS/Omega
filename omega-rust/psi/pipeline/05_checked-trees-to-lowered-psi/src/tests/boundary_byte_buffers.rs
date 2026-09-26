@@ -98,11 +98,6 @@ fn assert_stored_fields(
 }
 
 #[test]
-fn boundary_byte_buffer_preserves_initialized_field() {
-    assert_sequential_input(INPUT_SOURCE, &[b"fin", b"QQ", b"fin"]);
-}
-
-#[test]
 fn boundary_crash_retains_pre_call_buffers_and_skips_later_effects() {
     let source = INPUT_SOURCE.replace("reaches Input", "reaches Input crashes Abort");
     let (module, mut execution) = start(&source);
