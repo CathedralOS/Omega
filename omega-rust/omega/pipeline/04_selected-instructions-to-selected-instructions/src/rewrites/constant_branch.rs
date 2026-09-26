@@ -70,7 +70,6 @@ use selected_instructions::{
     ConstantBranchIdentity, SelectedInstructionId, SelectedInstructionPlan,
     SelectedInstructionPlanIdentity,
 };
-use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::FuelScheduleIdentity;
 
 pub(crate) use rewrite::fold_selected_constant_branch;

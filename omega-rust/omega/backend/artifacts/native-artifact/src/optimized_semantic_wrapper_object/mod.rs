@@ -19,6 +19,7 @@ use program_entry_plan::{
     StagedOptimizedProgramStorageSemanticWrapperEncoding,
     validate_optimized_program_storage_semantic_wrapper_encoding,
 };
+use terminal_psi_to_abstract_operations::ValidatedNativeProgramEntrySettlement;
 
 mod error;
 mod object;

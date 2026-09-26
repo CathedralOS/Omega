@@ -5,8 +5,8 @@ use crate::constants::{
     COFF_HEADER_SIZE, DOS_HEADER_SIZE, FILE_ALIGNMENT, IMAGE_BASE, OPTIONAL_HEADER_SIZE,
     SECTION_ALIGNMENT, SECTION_HEADER_SIZE, TEXT_RVA,
 };
+use crate::layout::{align_to, align_to_u32};
 use image::{FinalImage, FinalImageLayout};
-use layout::{align_to, align_to_u32};
 
 pub(crate) struct PeSections {
     pub(crate) text_virtual_size: usize,
