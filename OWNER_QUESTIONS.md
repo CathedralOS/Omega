@@ -351,6 +351,46 @@ its unsigned promotion.
 - Adopt the interpreter's promotion to unsigned. This is C's rule and silently
   answers wrongly for negative operands.
 
+### Q10 - May a type depend on a target's provider selection when Psi runs once?
+
+Named decision: `provider-dependent-constants`.
+
+**Context:** [Multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation)
+says Psi runs once and does not observe a selected target, and that provider
+selections are rows keyed by target in the one evaluated Build. The corpus pins
+a const application that folds through the selected provider's checked body:
+`pass/providers/checked_boundary_operator_const_application_alternate_exit`
+declares `value: Buffer<limit()>`, where `limit()` applies the boundary
+operator `%` (`Math::remainder`), and the byte-8 write type-checks only because
+the build selects `AltProvider` (length 9) instead of `Provider` (length 7).
+`fail/providers/checked_boundary_operator_const_application_unselected` rejects
+the application when no selection exists ("requires exact authored selection
+before evaluation"). Today the compiler evaluates the Build and settles
+providers per target before checking, so each target types its own copy of
+the program.
+
+**Problem:** Under Psi-once, two realized targets whose rows select different
+providers for `%` give `Main.value` two different types. The pipeline route's
+PROVIDER-SELECTION-AFTER-TERMINAL item cannot move provider-body const folding
+out of the Psi run while this construct stays target-dependent, and no
+implementation choice removes the conflict: a checked program either has one
+type for `Main.value` or it does not.
+
+**Proposed solution:** A const application may fold through a provider only
+when every realized target's row selects the same provider for it; the fold is
+then target-independent and Psi evaluates it once. Rows that disagree reject
+the const application with a diagnostic naming the diverging targets. A
+compilation realizing one target, and a build that selects one provider for
+all targets, behave as today.
+
+**Alternatives:**
+- Forbid provider-realized operators and requirements in const positions:
+  constants never observe provider selection. The two pass fixtures above
+  become fail fixtures.
+- Check the program once per distinct set of rows its const folds observe, so
+  a provider-dependent type yields several checked programs. Psi then runs once
+  per equivalence class rather than once, and Terminal identity is per class.
+
 Settled mathematical binding and proof rules live in the
 [mathematical source contract](wiki/spec/proofs/mathematical_bindings.md) and
 [foundation](wiki/spec/proofs/foundation.md). Their implementation and required
