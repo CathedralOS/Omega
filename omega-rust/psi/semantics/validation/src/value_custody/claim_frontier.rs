@@ -115,19 +115,39 @@ fn append_linear_claim_frontier(
             element_type,
             length: typed_trees::types::FixedArrayLength::Literal(length),
         } => {
+            if *length == 0 {
+                return;
+            }
+            // Every element has the same frontier below its index. Walk one
+            // element and repeat its claims per index: a `[u8; 16384]` buffer
+            // would otherwise walk sixteen thousand identical elements.
+            let mut element_claims = Vec::new();
+            append_linear_claim_frontier(
+                program,
+                *element_type,
+                substitutions,
+                &mut Vec::new(),
+                visiting,
+                data_definitions_by_symbol,
+                parameters_by_symbol,
+                &mut element_claims,
+            );
+            let prefix_is_conditional = path
+                .iter()
+                .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }));
             for index in 0..*length {
-                path.push(facts::PlaceSegment::FixedIndex { index });
-                append_linear_claim_frontier(
-                    program,
-                    *element_type,
-                    substitutions,
-                    path,
-                    visiting,
-                    data_definitions_by_symbol,
-                    parameters_by_symbol,
-                    claims,
-                );
-                path.pop();
+                for element_claim in &element_claims {
+                    let mut claim_path =
+                        Vec::with_capacity(path.len() + 1 + element_claim.path.len());
+                    claim_path.extend_from_slice(path);
+                    claim_path.push(facts::PlaceSegment::FixedIndex { index });
+                    claim_path.extend_from_slice(&element_claim.path);
+                    claims.push(ClaimFrontierClaim {
+                        path: claim_path,
+                        type_reference: element_claim.type_reference,
+                        conditional: prefix_is_conditional || element_claim.conditional,
+                    });
+                }
             }
             return;
         }
