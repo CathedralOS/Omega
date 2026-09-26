@@ -64,6 +64,26 @@ fn collect_build_roots(directory: &Path, roots: &mut Vec<PathBuf>) {
     }
 }
 
+/// Registered submodule paths, which this repository does not own.
+///
+/// A submodule carries another repository's content and its own gates, and
+/// this checkout must not edit it, so a violation inside one cannot be
+/// repaired here -- asserting on it only makes this check permanently red and
+/// blind to the samples it does govern. `samples/apps/squalr` is the live
+/// case: all seventeen of its member declarations spell hyphenated package
+/// identities, which Omega's snake_case identity rule refuses before any role
+/// is projected.
+fn submodule_roots() -> Vec<PathBuf> {
+    let modules = repository_root().join(".gitmodules");
+    let Ok(text) = fs::read_to_string(modules) else {
+        return Vec::new();
+    };
+    text.lines()
+        .filter_map(|line| line.trim().strip_prefix("path = "))
+        .map(|path| repository_root().join(path.trim()))
+        .collect()
+}
+
 fn expected_sample_application_name(root: &Path) -> String {
     let leaf = root
         .file_name()
@@ -230,7 +250,18 @@ fn executable_samples_declare_canonical_roles_and_ordinary_standard_library_edge
     collect_build_roots(&samples, &mut roots);
     assert!(!roots.is_empty(), "the sample tree must not be empty");
 
+    // A sample may be a workspace whose members carry their own declarations
+    // and mirror an upstream layout. Roots arrive parent-first, so a member is
+    // recognized by the workspace root it sits under.
+    let mut workspaces: Vec<PathBuf> = Vec::new();
+    let submodules = submodule_roots();
     for root in roots {
+        if submodules
+            .iter()
+            .any(|submodule| root.starts_with(submodule))
+        {
+            continue;
+        }
         let expected_name = expected_sample_application_name(&root);
         let projection = extract_build_dependency_projection(&root).unwrap_or_else(|error| {
             panic!(
@@ -238,6 +269,46 @@ fn executable_samples_declare_canonical_roles_and_ordinary_standard_library_edge
                 root.display()
             )
         });
+        if let BuildDeclaration::Workspace(workspace) = projection.declaration() {
+            for member in &workspace.members {
+                let member_root = root.join(member.as_str());
+                assert!(
+                    member_root.join("build.omg").is_file(),
+                    "workspace {} declares member {} with no build declaration",
+                    root.display(),
+                    member.as_str()
+                );
+            }
+            assert!(
+                projection.product_dependencies().is_empty(),
+                "a workspace root declares membership, not product dependencies, in {}",
+                root.display()
+            );
+            workspaces.push(root);
+            continue;
+        }
+        if let Some(workspace) = workspaces
+            .iter()
+            .find(|workspace| root.starts_with(workspace))
+        {
+            // A workspace member keeps its authored role and name; its edges
+            // mirror the upstream package graph rather than the sample tree's
+            // single standard-library convention, so they are the workspace
+            // owner's contract and are not asserted here.
+            let name = match projection.declaration() {
+                BuildDeclaration::Package(package) => package.name.as_str(),
+                BuildDeclaration::Application(application) => application.name.as_str(),
+                BuildDeclaration::Workspace(_) => unreachable!("handled above"),
+            };
+            assert_eq!(
+                name,
+                expected_name,
+                "workspace member in {} under {} must be named for its directory",
+                root.display(),
+                workspace.display()
+            );
+            continue;
+        }
         assert_eq!(
             projection.declaration(),
             &BuildDeclaration::Application(package_manager::declarations::ApplicationDeclaration {

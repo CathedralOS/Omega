@@ -5188,8 +5188,18 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   aliases, paths, names and same-spelled substitutes confer no authority.
   Rejoin exact package, declaration, schema and any role-required selected
   plan; stale/substituted bindings reject independently of lock replay.
-  Extend `repository_build_declarations.rs`'s recursive member/import checks
-  as fixtures migrate and preserve the missing-edge/alias controls in
+  `repository_build_declarations.rs`'s sample check now handles a workspace
+  root and its members and skips registered submodules, so it passes again;
+  its 131-directory backlog is invisible to it, because a directory with no
+  `build.omg` is never collected as a root. `samples/apps/squalr` is why the
+  skip exists: all seventeen member declarations spell hyphenated package
+  identities that Omega's snake_case rule refuses, and this checkout must not
+  edit that submodule. Its sibling
+  `omega_cases_declare_a_standard_library_edge_exactly_when_they_use_it`
+  still fails, on the opposite error --
+  `tests/omega/pass/providers/boundary_scalar_field_store` declares a
+  standard-library edge it never uses. Extend those recursive member/import
+  checks further as fixtures migrate and preserve the missing-edge/alias controls in
   `standard_library_package_resolution.rs`. Early missing-import rejection
   is sufficient; do not weaken assembly to manufacture a second diagnostic
   for a provider selection whose import already failed.
