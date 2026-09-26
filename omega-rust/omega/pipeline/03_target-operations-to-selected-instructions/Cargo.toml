@@ -32,4 +32,3 @@ terminal-verifier = { path = "../../../psi/terminal-verifier" }
 mimalloc = { version = "0.1", default-features = false }
 abstract-operations-to-target-operations = { path = "../02_abstract-operations-to-target-operations" }
 installation-evidence = { path = "../../../psi/installation-evidence" }
-terminal-verifier = { path = "../../../psi/terminal-verifier" }
