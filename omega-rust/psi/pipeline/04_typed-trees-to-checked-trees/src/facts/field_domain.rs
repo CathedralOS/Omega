@@ -571,14 +571,17 @@ fn declared_owned_field_domain_identities_uncached(
 // Domain declarations bucketed by their resolved symbol once per program.
 // `domain_requires_provenance` runs per DomainMembership fact per context
 // per statement and its alias walk rescanned the whole domain table at
-// every visited node. Freshness anchors on the program pointer plus the
-// domain slice and sampled name text pointers: fixture programs forge
-// identical symbol arenas, but an `Identifier`'s text allocation is
-// distinct per program.
+// every visited node. The owner is the program's `ProgramIdentity`, and the
+// fingerprint answers only whether the table has grown since. Both once read
+// addresses -- the program's, the domain slice's, and sampled name text -- to
+// tell fixture programs apart when their forged symbol arenas agree. Those
+// blocks are recycled with the program they identify, so a replacement could
+// present the same address and the same fingerprint and be served the dropped
+// program's domain positions.
 thread_local! {
     static DOMAIN_SYMBOL_INDEX: std::cell::RefCell<
         Option<(
-            *const typed_trees::TypedTrees,
+            typed_trees::ProgramIdentity,
             usize,
             std::collections::HashMap<SymbolHandle, usize>,
         )>,
@@ -595,8 +598,7 @@ fn domain_index_fingerprint(program: &typed_trees::TypedTrees) -> usize {
             })
             .unwrap_or(0)
     };
-    let mut fingerprint = (program as *const typed_trees::TypedTrees) as usize
-        ^ (domains.as_ptr() as usize)
+    let mut fingerprint = (domains.as_ptr() as usize)
         ^ domains.len().rotate_left(17)
         ^ (program.data_definitions().as_ptr() as usize)
         ^ program.data_definitions().len().rotate_left(31);
@@ -613,18 +615,14 @@ fn domain_by_symbol(
         let mut slot = cell.borrow_mut();
         let fingerprint = domain_index_fingerprint(program);
         let fresh = matches!(&*slot, Some((owner, seen, _))
-            if std::ptr::eq(*owner, program as *const _) && *seen == fingerprint);
+            if owner.get() == program.identity.get() && *seen == fingerprint);
         if !fresh {
             let mut by_symbol = std::collections::HashMap::new();
             for (position, domain) in program.domain_definitions().iter().enumerate() {
                 // `find` returns the first matching row; keep it.
                 by_symbol.entry(domain.symbol).or_insert(position);
             }
-            *slot = Some((
-                program as *const typed_trees::TypedTrees,
-                fingerprint,
-                by_symbol,
-            ));
+            *slot = Some((program.identity, fingerprint, by_symbol));
         }
         slot.as_ref()
             .unwrap()

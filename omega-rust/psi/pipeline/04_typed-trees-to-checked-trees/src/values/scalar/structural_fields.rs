@@ -64,7 +64,12 @@ fn structural_rosters_fingerprint(
     program: &TypedTrees,
     machines: &[typed_trees::machine::Machine],
 ) -> usize {
-    let mut fingerprint = machines.len().rotate_left(7)
+    // The slice base stays in the fingerprint. With the owner an identity it
+    // can no longer produce a false hit, and it still separates two states of
+    // one program -- including a clone, which shares its source's tag -- that
+    // the lengths alone do not.
+    let mut fingerprint = (machines.as_ptr() as usize)
+        ^ machines.len().rotate_left(7)
         ^ program.tables.machine_states.len().rotate_left(13)
         ^ program.tables.state_parameters.len().rotate_left(19)
         ^ program.statement_table.statement_count().rotate_left(23)
