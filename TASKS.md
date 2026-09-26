@@ -3477,37 +3477,27 @@ syntax and other terminal services are not prerequisites.
   cast.
 
   This rejection broke 16 tests outside the item's claimed paths, all in
-  `typed-trees-to-checked-trees` and all deterministic: 6100 of 6116 pass at
-  7bb32a4d88. Their fixtures still carry implicit store conversions, and they
-  are not all one repair. Ten distinct messages appear:
-  `i32` to `i32 in Wrapping` (4), `u8 in Wrapping` to `u8` (3), `u8` to
-  `u8 in Wrapping` (2), `u8` to `u16` (2), `u8` to `u64`, `f32` to `f64`,
-  `f32` to `f32 in Saturating`, `f32 in Saturating` to `f32`, `f64` to
-  `f64 in Trapping`, and `f64 in Trapping` to `f64`.
+  `typed-trees-to-checked-trees`; that migration is finished and the crate is
+  green.
 
-  Two kinds need different answers. Adding or dropping an arithmetic policy is
-  the spelling the rule asks for, and those fixtures take an `as`. The width
-  widenings -- `u8` to `u16`, `u8` to `u64`, `f32` to `f64` -- are a broader
-  refusal than "a typed value keeps its arithmetic policy", and whether the
-  rule should reach them is this item's call, not a fixture repair.
-
-  Two corpus fail fixtures are masked the same way and need the same
-  judgement. `fail/ranges/index_signed_guard_below_zero` and
-  `fail/ranges/loop_increment_index_unbounded` each expect a
-  "cannot prove index" refusal and are instead refused at
-  "store in machine `Main::main` state `body` local `__hoist_0` implicitly
-  converts `i32` to `i32 in Trapping`". The conversion is in a compiler-minted
-  hoist local, not authored source, so neither fixture can spell an `as` to
-  restore its subject: the rule reaching a generated local is this item's
-  call.
+  Two kinds needed different answers, and both are settled. Adding or
+  dropping an arithmetic policy is the spelling the rule asks for, and those
+  fixtures took an `as`. The width widenings -- `u8` to `u16`, `u8` to `u64`,
+  `f32` to `f64` -- do belong to the rule: the carrier contract has no
+  implicit widening at all ("use an explicit exact conversion to request a
+  wider carrier"), so a typed value keeps its TYPE across a store, not merely
+  its arithmetic policy. A value-preserving widening is the face that makes
+  admitting it tempting, so it is pinned on its own as
+  `fail/arithmetic/implicit_store_widening_rejected` beside the same-width
+  signedness face in `implicit_store_conversion_rejected`.
 
   `call_bounds::tests::widening::argument_widening_does_not_reinterpret_saved\
 _wrapping_computations` is repaired as the worked example: it asserts rejection
   carrying "cannot prove requires" and was being refused earlier for the
   conversion instead, so its own subject went unexercised. Spelling
-  `input as u8 in Wrapping` restores it. The other fifteen each need the same
-  judgement -- incidental conversion, or a subject the new rule now refuses
-  earlier -- which wants this item's context.
+  `input as u8 in Wrapping` restores it. The other fifteen took the same
+  judgement -- incidental conversion, or a subject the new rule refuses
+  earlier -- and are migrated.
 
   The Omega-written product compiler was an unrecorded customer and is now
   migrated: `source/omega/main.omg` failed real package resolution with 33
@@ -3518,24 +3508,33 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   `input.tokens[...]` on a `[Token; 16384] in Trapping` array -- so
   `Parser::parse` and `Lexer::tokenize` publish `crashes Trap`. One diagnostic
   remains and belongs to the unit-plan omission roster, not here: the entry's
-  plan is omitted at `call operation: projected operand support`. Until that
-  clears, `omega`'s `routed_production_entry_roots_pass_real_package_resolution`
-  and `acquired_generator_publishes_occurrence_local_files_for_artifact_and_native_products` stay red on main.
+  plan is omitted at `call operation: projected operand support`.
+  `omega`'s `routed_production_entry_roots_pass_real_package_resolution` and
+  `acquired_generator_publishes_occurrence_local_files_for_artifact_and_native_products`
+  do stay red, but no longer for that reason and no longer for this item's:
+  both now stop at `Float::subtract` retaining 0 authored selection
+  occurrences while reviewing `std`, which is **OPERATOR-BOUNDARY-CALLS**.
+  Whether the unit-plan omission also cleared is masked behind it.
 
   The corpus migration landed in c6e04262f5: 34 of the 40 corpus fixtures the
   rule rejected now check or reject as their golden records say. Two of them
-  needed `as` inside `std`'s UEFI handoff and `core`'s float order keys. Two
-  pass fixtures stay rejected because the right spelling is a compiler
+  needed `as` inside `std`'s UEFI handoff and `core`'s float order keys. One
+  pass fixture stays rejected because the right spelling is a compiler
   decision, not a fixture repair:
   - `float/named_provider_multiply_then_add_exit`: its saturating case needs
     `f32 in Saturating` arguments to `F32::multiply_then_add(f32, ...)`, and
-    core declares no Saturating overload.
-  - `slices/runtime_saturating_array_element_guard_exit` and every array
-    declared `[T; N] in P`: validation reads an element as plain `T`, while
-    the index hoist types its `__hoist_N` temp as `T in P`, so a hoisted
-    element read is rejected at a store the author never wrote. `[T in P; N]`
-    checks, but a whole-array literal store into it then stops native
-    lowering at `structural field store: scalar field type`.
+    core declares no Saturating overload. It is behind
+    **OPERATOR-BOUNDARY-CALLS** in the meantime: every float boundary in
+    `core/float_operations.omg` is a token-bearing `boundary machine`.
+
+  `slices/runtime_saturating_array_element_guard_exit` no longer belongs on
+  that list. It checks. The hoist still re-applies a collection's arithmetic
+  domain to the element deliberately (`hoist_temp_type.rs`: arithmetic
+  domains are element-applicable where an encoding `Domain` is not), so the
+  validation side is what reconciled. Its second claim does not reproduce
+  either -- a `[i32 in Wrapping; 3]` field taking a whole-array literal store
+  checks and produces its unit plan -- and native execution cannot be the
+  evidence on a host with no recorded native golden.
 - **TARGET-SET-COMPILATION.** (new-scope) Multi-target compilation is
   repeated single-target compilation at two layers
   ([plan](wiki/drafts/designs/target_set_compilation.md), measured at
