@@ -315,17 +315,18 @@ stage is cheap.
   Reproduce with `mbx nextest run -p checked-trees-to-lowered-psi --lib`.
 
   SILENT REVERSIONS. Compile-green is not the whole tail: the fold kept older
-  copies of files changed between `74902921fe` and `5d93a065f5`, often without
-  a compile error. Compare published pre-fold definitions under their new
-  owners, ignoring namespace and formatting changes. Remaining audit leads:
-  `b8fee6a36d`, `67fb78a6e5`, `3ac66b7cb2`,
-  `dfef3aad41`, `520653aa2d`, `4359371ede`, `930514ffda`, `e206ac13a8`,
-  `324d47bf4f` (check-pass memos and indexes in stage 04), `bcc2dab848` and
-  `ebc356fe9d` (repository build-declaration tests, older copy), `bb4b693db9`,
-  `dc29e8c817`, `5ab0dab7e8` (shared builds in `compiler.rs`), `59becf45ab`,
-  `67a83704c8`, `8286328570`, `62716b74ec`, `db39f38a74`. Restore each by
-  replaying its diff under the new paths; the fold's own path rewrites are
-  the only intended difference.
+  copies of files that commits between `74902921fe` and `5d93a065f5`
+  changed, so their added lines are absent from the folded tree, mostly
+  without a compile error. Found by checking each commit's added lines, with
+  crate-path prefixes stripped, against the folded file: 1,111 lines in 44
+  commits at the fold, 451 in 34 now. Still missing: `dc29e8c817` (79
+  lines), `59becf45ab`, `5ab0dab7e8` (shared builds in `compiler.rs`),
+  `8286328570`, `db39f38a74`, `a07dad44e1` (`result_realization.rs`),
+  `bcc2dab848` and `ebc356fe9d` (repository build-declaration tests),
+  `1a0cab1978`, `c7b645f47c`. `3ac66b7cb2` and `62716b74ec` count as missing
+  only because later commits replaced their lines. Restore each by replaying
+  its diff under the new paths; the fold's own path rewrites are the only
+  intended difference.
 
 ## Immediate product closure
 
