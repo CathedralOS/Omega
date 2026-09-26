@@ -86,37 +86,6 @@ impl StagedFunctionFragmentFrameApplication {
     pub const fn receipt(&self) -> FunctionFragmentFrameApplicationReceipt {
         self.receipt
     }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn corrupt_first_epilogue_site_for_test(&mut self) {
-        std::sync::Arc::make_mut(&mut self.application).functions[0].epilogues[0]
-            .function_offset += 1;
-        self.reseal_for_test();
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn corrupt_first_branch_byte_for_test(&mut self) {
-        let application = std::sync::Arc::make_mut(&mut self.application);
-        let function = &mut application.fragments.functions[0];
-        let row = function
-            .blocks
-            .iter_mut()
-            .flat_map(|block| &mut block.instructions)
-            .find(|row| row.branch.is_some())
-            .unwrap();
-        let byte_index = row.bytes.len() - 1;
-        row.bytes[byte_index] ^= 1;
-        function.bytes[row.offset as usize + byte_index] ^= 1;
-        application.fragments.identity = application.fragments.recomputed_identity();
-        self.reseal_for_test();
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    fn reseal_for_test(&mut self) {
-        let application = std::sync::Arc::make_mut(&mut self.application);
-        application.identity = application.recomputed_identity();
-        self.receipt = seal(application);
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

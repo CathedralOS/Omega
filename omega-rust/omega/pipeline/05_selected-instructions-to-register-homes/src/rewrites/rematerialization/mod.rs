@@ -6,15 +6,8 @@
 
 mod compute;
 mod custody;
-#[cfg(any(test, feature = "test-support"))]
-mod test_support;
 mod validation;
 
-#[cfg(any(test, feature = "test-support"))]
-pub use test_support::{
-    OptimizedActiveResidentRematerializationCustodyFieldForTest,
-    OptimizedActiveResidentRematerializationPressureCustodyFieldForTest,
-};
 pub use validation::{
     validate_optimized_active_resident_rematerialization,
     validate_optimized_active_resident_rematerialization_pressure,
@@ -445,19 +438,3 @@ impl std::fmt::Display for OptimizedActiveResidentRematerializationError {
 }
 
 impl std::error::Error for OptimizedActiveResidentRematerializationError {}
-
-#[cfg(feature = "test-support")]
-#[doc(hidden)]
-pub fn corrupt_active_resident_rematerialization_custody_for_test(
-    staged: &mut StagedOptimizedActiveResidentRematerialization,
-) {
-    staged.custody.rewritten_use_count += 1;
-}
-
-#[cfg(feature = "test-support")]
-#[doc(hidden)]
-pub(crate) fn corrupt_active_resident_rematerialization_pressure_custody_for_test(
-    staged: &mut StagedOptimizedActiveResidentRematerializationPressure,
-) {
-    staged.custody.rewritten_use_count += 1;
-}

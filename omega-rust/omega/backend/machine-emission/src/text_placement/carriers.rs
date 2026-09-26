@@ -24,11 +24,6 @@ impl ValidatedFunctionFragmentTextSectionManifest {
     pub fn shared_record(&self) -> Arc<FunctionFragmentTextSectionManifest> {
         Arc::clone(&self.record)
     }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn record_mut(&mut self) -> &mut FunctionFragmentTextSectionManifest {
-        Arc::make_mut(&mut self.record)
-    }
 }
 
 #[derive(Debug)]
@@ -60,41 +55,6 @@ impl StagedOptimizedFixedFrameTextSection {
 
     pub const fn custody(&self) -> StagedFixedFrameTextSectionCustodyReceipt {
         self.custody
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn text_section_mut(&mut self) -> &mut RelocationFreeTextSectionPlacement {
-        Arc::make_mut(&mut self.text_section)
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn manifest_mut(&mut self) -> &mut ValidatedFunctionFragmentTextSectionManifest {
-        &mut self.manifest
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn corrupt_custody_frame_application_for_test(&mut self) {
-        self.custody.frame_application =
-            FunctionFragmentFrameApplicationIdentity::from_bytes([0xa5; 32]);
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn corrupt_custody_fragments_for_test(&mut self) {
-        self.custody.fragments =
-            FunctionFragmentEmissionIdentity::from_canonical_bytes(b"corrupt fragments");
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn corrupt_custody_text_section_for_test(&mut self) {
-        self.custody.text_section = TerminalRelocationFreeTextSectionIdentity::from_canonical_bytes(
-            b"corrupt text section",
-        );
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn corrupt_custody_manifest_for_test(&mut self) {
-        self.custody.manifest =
-            FunctionFragmentTextSectionManifestIdentity::from_canonical_bytes(b"corrupt");
     }
 }
 

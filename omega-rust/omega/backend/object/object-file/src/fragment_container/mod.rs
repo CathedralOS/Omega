@@ -78,11 +78,6 @@ impl ValidatedFunctionFragmentObjectContainerManifest {
     pub fn shared_record(&self) -> Arc<FunctionFragmentObjectContainerManifest> {
         Arc::clone(&self.record)
     }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn record_mut(&mut self) -> &mut FunctionFragmentObjectContainerManifest {
-        Arc::make_mut(&mut self.record)
-    }
 }
 
 #[derive(Debug)]
@@ -133,50 +128,6 @@ impl StagedOptimizedRelocationFreeObjectContainer {
         &self,
     ) -> Option<&terminal_psi_to_abstract_operations::AdmittedProviderInstallation> {
         self.source.source().source().provider_installation()
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn object_mut(&mut self) -> &mut RelocationFreeObjectPlan {
-        Arc::make_mut(&mut self.object)
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn container_mut(&mut self) -> &mut RelocationFreeObjectContainer {
-        Arc::make_mut(&mut self.container)
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn manifest_mut(&mut self) -> &mut ValidatedFunctionFragmentObjectContainerManifest {
-        &mut self.manifest
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn corrupt_custody_source_text_section_manifest_for_test(&mut self) {
-        self.custody.source_text_section_manifest =
-            FunctionFragmentTextSectionManifestIdentity::from_canonical_bytes(b"corrupt");
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn corrupt_custody_text_section_for_test(&mut self) {
-        self.custody.text_section =
-            TerminalRelocationFreeTextSectionIdentity::from_canonical_bytes(b"corrupt");
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn corrupt_custody_object_for_test(&mut self) {
-        self.custody.object = RelocationFreeObjectPlanIdentity::from_canonical_bytes(b"corrupt");
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn corrupt_custody_object_container_for_test(&mut self) {
-        self.custody.object_container =
-            RelocationFreeObjectContainerIdentity::from_canonical_bytes(b"corrupt");
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn corrupt_custody_manifest_for_test(&mut self) {
-        self.custody.manifest =
-            FunctionFragmentObjectContainerManifestIdentity::from_canonical_bytes(b"corrupt");
     }
 }
 

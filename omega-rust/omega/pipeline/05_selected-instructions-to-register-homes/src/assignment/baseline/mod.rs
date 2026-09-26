@@ -6,14 +6,8 @@
 
 mod construction;
 mod custody;
-#[cfg(any(test, feature = "test-support"))]
-mod test_support;
 mod validation;
 
-#[cfg(any(test, feature = "test-support"))]
-pub use test_support::{
-    OptimizedPostCopyRegisterHomeCustodyFieldForTest, OptimizedRegisterHomeCustodyFieldForTest,
-};
 pub use validation::{
     validate_optimized_register_home_after_fixed_view_copy_custody,
     validate_optimized_register_home_custody,

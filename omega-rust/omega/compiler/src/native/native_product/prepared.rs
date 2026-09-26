@@ -124,26 +124,3 @@ impl PreparedNativeCompilation {
             .map_err(|message| vec![Diagnostic::error(message)])
     }
 }
-
-#[cfg(feature = "test-support")]
-impl NativeInputReuseKey {
-    /// Build one reuse key from its parts so tests outside this crate can
-    /// check which prepared inputs an invocation shares.
-    pub fn from_parts(
-        terminal_artifact_identity: terminal_codec::TerminalArtifactIdentity,
-        admission_profile: proof_admission::AdmissionProfile,
-        post_terminal_optimizations: optimization_core::PostTerminalOptimizationSelections,
-    ) -> Self {
-        Self {
-            terminal_artifact_identity,
-            admission_profile,
-            post_terminal_optimizations,
-        }
-    }
-
-    pub fn post_terminal_optimizations(
-        &self,
-    ) -> &optimization_core::PostTerminalOptimizationSelections {
-        &self.post_terminal_optimizations
-    }
-}

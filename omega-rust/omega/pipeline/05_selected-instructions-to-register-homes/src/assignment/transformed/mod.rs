@@ -7,16 +7,8 @@
 mod construction;
 mod custody;
 mod projection;
-#[cfg(any(test, feature = "test-support"))]
-mod test_support;
 mod validation;
 
-#[cfg(any(test, feature = "test-support"))]
-pub use test_support::{
-    OptimizedPostLiteralFoldHomeCustodyFieldForTest,
-    OptimizedPostPreAllocationHomeCustodyFieldForTest,
-    OptimizedPostSelectedLoweringHomeCustodyFieldForTest,
-};
 pub use validation::{
     validate_optimized_register_home_after_literal_fold_custody,
     validate_optimized_register_home_after_pre_allocation_custody,

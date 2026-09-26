@@ -93,24 +93,8 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
     pub(crate) fn replay(&self) -> &FunctionFragmentReplayInputs {
         &self.replay
     }
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn replay_for_test(&self) -> &FunctionFragmentReplayInputs {
-        &self.replay
-    }
     pub(super) fn validate_current(&self) -> Result<(), FunctionFragmentEmissionError> {
         self.current.validate_against(&self.replay)
-    }
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn replay_mut(&mut self) -> &mut FunctionFragmentReplayInputs {
-        &mut self.replay
-    }
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn into_replay_for_test(self) -> FunctionFragmentReplayInputs {
-        self.replay
-    }
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn program_mut(&mut self) -> &mut ResolvedMachineProgram {
-        &mut self.current.program
     }
 }
 

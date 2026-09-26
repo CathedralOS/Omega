@@ -337,10 +337,6 @@ impl ValidatedOptimizedOrdinaryCallableEntryManifest {
     pub const fn record(&self) -> &OptimizedOrdinaryCallableEntryManifest {
         &self.record
     }
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn record_mut(&mut self) -> &mut OptimizedOrdinaryCallableEntryManifest {
-        &mut self.record
-    }
 }
 
 #[derive(Debug)]
@@ -363,30 +359,6 @@ impl StagedValidatedOptimizedOrdinaryCallableEntry {
     }
     pub const fn custody(&self) -> OptimizedOrdinaryCallableEntryCustodyReceipt {
         self.custody
-    }
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn entry_mut(&mut self) -> &mut OptimizedOrdinaryCallableEntryRecord {
-        &mut self.entry
-    }
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn manifest_mut(&mut self) -> &mut ValidatedOptimizedOrdinaryCallableEntryManifest {
-        &mut self.manifest
-    }
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn corrupt_custody_manifest_for_test(&mut self) {
-        self.custody.manifest =
-            OptimizedOrdinaryCallableEntryManifestIdentity::from_canonical_bytes(b"bad");
-    }
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn corrupt_custody_source_artifact_for_test(&mut self) {
-        self.custody.source_artifact =
-            OptimizedObjectArtifactIdentity::from_canonical_bytes(b"bad source artifact");
-    }
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn corrupt_custody_entry_for_test(&mut self) {
-        self.custody.entry = OptimizedTerminalOrdinaryCallableEntryIdentity::from_canonical_bytes(
-            b"bad callable entry",
-        );
     }
 }
 

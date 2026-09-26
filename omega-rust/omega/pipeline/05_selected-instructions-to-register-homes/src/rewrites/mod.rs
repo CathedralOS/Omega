@@ -3,15 +3,6 @@
 mod rematerialization;
 
 pub(crate) use rematerialization::complete_optimized_active_resident_rematerialization;
-#[cfg(feature = "test-support")]
-pub use rematerialization::corrupt_active_resident_rematerialization_custody_for_test;
-#[cfg(feature = "test-support")]
-pub(crate) use rematerialization::corrupt_active_resident_rematerialization_pressure_custody_for_test;
-#[cfg(any(test, feature = "test-support"))]
-pub use rematerialization::{
-    OptimizedActiveResidentRematerializationCustodyFieldForTest,
-    OptimizedActiveResidentRematerializationPressureCustodyFieldForTest,
-};
 pub use rematerialization::{
     OptimizedActiveResidentRematerializationError, StagedOptimizedActiveResidentRematerialization,
     StagedOptimizedActiveResidentRematerializationCustodyReceipt,

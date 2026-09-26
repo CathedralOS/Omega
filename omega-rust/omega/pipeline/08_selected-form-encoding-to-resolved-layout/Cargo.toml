@@ -4,9 +4,6 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
-[features]
-test-support = []
-
 [dependencies]
 calling-conventions = { path = "../../representations/calling-conventions" }
 isa-aarch64 = { path = "../../backend/instruction_set_architectures/isa-aarch64" }

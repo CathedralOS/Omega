@@ -18,8 +18,6 @@ mod selection;
 mod structural_inputs;
 
 // The stage entry and its custody join.
-#[cfg(feature = "test-support")]
-pub use optimized::OptimizedSelectionCustodyFieldForTest;
 pub use optimized::{
     OptimizedSelectionCustodyError, OptimizedSelectionPipelineError,
     StagedOptimizedSelectedInstructions, StagedOptimizedSelectionCustodyReceipt,

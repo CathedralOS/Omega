@@ -293,11 +293,6 @@ impl ValidatedOptimizedObjectArtifactManifest {
     pub const fn record(&self) -> &OptimizedObjectArtifactManifest {
         &self.record
     }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn record_mut(&mut self) -> &mut OptimizedObjectArtifactManifest {
-        &mut self.record
-    }
 }
 
 #[derive(Debug)]
@@ -354,49 +349,6 @@ impl StagedValidatedOptimizedObjectArtifact {
             .source()
             .source()
             .selected_plan()
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn artifact_mut(&mut self) -> &mut OptimizedObjectArtifactRecord {
-        &mut self.artifact
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn manifest_mut(&mut self) -> &mut ValidatedOptimizedObjectArtifactManifest {
-        &mut self.manifest
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn corrupt_custody_psi_artifact_for_test(&mut self) {
-        self.custody.psi_artifact = [0xa1; 32];
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn corrupt_custody_object_container_manifest_for_test(&mut self) {
-        self.custody.object_container_manifest =
-            FunctionFragmentObjectContainerManifestIdentity::from_canonical_bytes(b"corrupt");
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn corrupt_custody_object_for_test(&mut self) {
-        self.custody.object = RelocationFreeObjectPlanIdentity::from_canonical_bytes(b"corrupt");
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn corrupt_custody_object_container_for_test(&mut self) {
-        self.custody.object_container =
-            RelocationFreeObjectContainerIdentity::from_canonical_bytes(b"corrupt");
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn corrupt_custody_artifact_for_test(&mut self) {
-        self.custody.artifact = OptimizedObjectArtifactIdentity::from_canonical_bytes(b"corrupt");
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn corrupt_custody_manifest_for_test(&mut self) {
-        self.custody.manifest =
-            OptimizedObjectArtifactManifestIdentity::from_canonical_bytes(b"corrupt");
     }
 }
 

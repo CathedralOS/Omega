@@ -42,37 +42,11 @@ impl StagedFixedFrameFunctionRelativeRealization {
     pub fn relaxation(&self) -> Option<&StagedOptimizedX86BranchRelaxation> {
         self.layout_optimization.relaxation()
     }
-    #[cfg(feature = "test-support")]
-    pub fn relaxation_mut(&mut self) -> Option<&mut StagedOptimizedX86BranchRelaxation> {
-        self.layout_optimization.relaxation_mut_for_test()
-    }
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn exit_contract_mut(&mut self) -> &mut ValidatedWholeFunctionExitContract {
-        &mut self.exit_contract
-    }
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn manifest_mut(
-        &mut self,
-    ) -> &mut ValidatedFunctionRelativeOptimizationRealizationManifest {
-        &mut self.manifest
-    }
     pub const fn allocation(&self) -> &RetainedAllocation {
         &self.allocation
     }
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn allocation_mut(&mut self) -> &mut RetainedAllocation {
-        &mut self.allocation
-    }
     pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachinePlan {
         &self.machine
-    }
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn encoding_mut(&mut self) -> &mut StagedOptimizedSelectedFormEncoding {
-        &mut self.encoding
-    }
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn baseline_layout_mut(&mut self) -> &mut StagedOptimizedResolvedSelectedFormLayout {
-        &mut self.baseline_layout
     }
     pub const fn encoding(&self) -> &StagedOptimizedSelectedFormEncoding {
         &self.encoding

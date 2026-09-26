@@ -87,11 +87,6 @@ pub use fixed_view::{
     validate_optimized_fixed_precolored_segment_home_custody,
     validate_optimized_fixed_view_copy_custody,
 };
-#[cfg(any(test, feature = "test-support"))]
-pub use fixed_view::{
-    OptimizedFixedPrecoloredSegmentHomeCustodyFieldForTest,
-    OptimizedFixedViewCopyCustodyFieldForTest,
-};
 pub use literal_folds::{
     OptimizedLiteralFoldCustodyError, StagedOptimizedLiteralFoldAttempt,
     StagedOptimizedLiteralFoldAttemptReceipt, StagedOptimizedLiteralFoldCustodyReceipt,
@@ -101,12 +96,6 @@ pub use literal_folds::{
     stage_first_optimized_literal_fold, stage_next_optimized_literal_fold,
     validate_optimized_literal_fold_custody, validate_selected_lowering_optimization_custody,
 };
-#[cfg(any(test, feature = "test-support"))]
-pub use literal_folds::{
-    OptimizedLiteralFoldCustodyFieldForTest, SelectedLoweringOptimizationCustodyFieldForTest,
-};
-#[cfg(any(test, feature = "test-support"))]
-pub use pre_allocation::PreAllocationOptimizationCustodyFieldForTest;
 pub use pre_allocation::{
     OptimizedPreAllocationCustodyError, PRE_ALLOCATION_RULE_CATALOG, PreAllocationPolicy,
     PreAllocationRuleCatalogEntry, PreAllocationRuleCatalogError, PreAllocationRuleCatalogPayload,

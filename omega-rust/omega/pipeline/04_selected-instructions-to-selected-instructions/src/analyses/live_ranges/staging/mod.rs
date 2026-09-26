@@ -5,12 +5,8 @@
 
 mod compute;
 mod custody;
-#[cfg(any(test, feature = "test-support"))]
-mod test_support;
 mod validation;
 
-#[cfg(any(test, feature = "test-support"))]
-pub use test_support::OptimizedLiveRangeCustodyFieldForTest;
 pub use validation::validate_optimized_live_range_custody;
 
 use crate::StagedOptimizedLiveness;

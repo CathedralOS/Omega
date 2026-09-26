@@ -40,21 +40,6 @@ impl RuntimeSpillAllocation {
     pub(crate) fn recovery_prefix_selection(&self) -> Option<optimization_core::Optimization> {
         self.source.recovery_prefix_selection()
     }
-
-    /// Corrupt the recorded active-resident prefix custody so cross-phase
-    /// controls can prove replay rejects it before trusting any spill step.
-    /// Returns `false` when this recovery has no such prefix.
-    #[cfg(feature = "test-support")]
-    #[doc(hidden)]
-    pub(crate) fn corrupt_active_resident_prefix_custody_for_test(&mut self) -> bool {
-        let RuntimeSpillSource::ActiveResidentRematerialization(pressure) = &mut self.source else {
-            return false;
-        };
-        crate::rewrites::corrupt_active_resident_rematerialization_pressure_custody_for_test(
-            pressure,
-        );
-        true
-    }
 }
 
 /// The staged custody a spill recovery began from. The direct route enters

@@ -22,8 +22,6 @@ mod source;
 mod validation;
 
 pub use error::{FunctionFragmentEmissionError, FunctionFragmentEmissionManifestDecodeError};
-#[cfg(any(test, feature = "test-support"))]
-pub use replay::FunctionFragmentReplayInputs;
 pub use source::StagedOptimizedFunctionFragmentEmissionSource;
 
 use crate::function_realization::ValidatedFunctionRelativeOptimizationRealizationManifest;
@@ -139,38 +137,6 @@ impl StagedOptimizedFunctionFragmentEmission {
         &self,
     ) -> &abstract_operations_to_abstract_operations::validation::ValidatedPrePhysicalOptimizationManifest{
         self.source.pre_physical_manifest()
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn fragments_mut(&mut self) -> &mut FunctionFragmentEmissionPlan {
-        Arc::make_mut(&mut self.fragments)
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn manifest_record_mut(&mut self) -> &mut FunctionFragmentEmissionManifest {
-        Arc::make_mut(&mut self.manifest.record)
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn corrupt_custody_source_realization_for_test(&mut self) {
-        self.custody.source_realization =
-            FunctionRelativeOptimizationRealizationManifestIdentity::from_canonical_bytes(
-                b"corrupt function-fragment source realization",
-            );
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn corrupt_custody_fragments_for_test(&mut self) {
-        self.custody.fragments = FunctionFragmentEmissionIdentity::from_canonical_bytes(
-            b"corrupt function-fragment emission",
-        );
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn corrupt_custody_manifest_for_test(&mut self) {
-        self.custody.manifest = FunctionFragmentEmissionManifestIdentity::from_canonical_bytes(
-            b"corrupt function-fragment manifest",
-        );
     }
 }
 

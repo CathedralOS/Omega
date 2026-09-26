@@ -12,13 +12,6 @@ autotests = false
 name = "compiler"
 path = "src/lib.rs"
 
-[features]
-test-support = [
-    "machine-emission/test-support",
-    "object-file/test-support",
-    "native-artifact/test-support",
-]
-
 [dependencies]
 lowered-psi = { path = "../../psi/representations/lowered-psi" }
 lowered-psi-to-lowered-psi = { path = "../../psi/pipeline/06_lowered-psi-to-lowered-psi" }

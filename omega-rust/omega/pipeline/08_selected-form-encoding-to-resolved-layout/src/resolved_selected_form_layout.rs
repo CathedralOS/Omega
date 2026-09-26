@@ -126,9 +126,4 @@ impl StagedOptimizedResolvedSelectedFormLayout {
             program: Arc::new(program),
         }
     }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn functions_mut(&mut self) -> &mut [ResolvedSelectedFunctionLayout] {
-        &mut Arc::make_mut(&mut self.program).functions
-    }
 }

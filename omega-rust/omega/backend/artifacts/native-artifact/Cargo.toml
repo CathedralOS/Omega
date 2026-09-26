@@ -36,6 +36,3 @@ program-entry-plan = { path = "../../plans/program-entry-plan" }
 legalized-operations = { path = "../../../representations/legalized-operations" }
 terminal-psi-to-abstract-operations = { path = "../../../pipeline/00_terminal-psi-to-abstract-operations" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
-
-[features]
-test-support = ["object-file/test-support"]

@@ -1,8 +1,6 @@
 //! Optimizer module role: executable entrance. Deterministic post-allocation machine-plan construction and replay.
 
 mod compute;
-#[cfg(any(test, feature = "test-support"))]
-mod test_support;
 mod validate;
 
 use optimization_core::PostAllocationOptimizationManifestIdentity;
@@ -12,8 +10,6 @@ use selected_instructions::PreAllocationMachineEffectIdentity;
 use selected_instructions::SelectedInstructionPlanIdentity;
 use selected_instructions_to_register_homes::RegisterHomeIdentity;
 use std::sync::Arc;
-#[cfg(any(test, feature = "test-support"))]
-pub use test_support::PostAllocationMachinePlanReceiptFieldForTest;
 pub use validate::validate_post_allocation_machine_plan;
 
 /// Join one validated selected CFG, its pre-allocation machine effects, and

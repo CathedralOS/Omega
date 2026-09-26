@@ -8,8 +8,6 @@
 mod catalog;
 mod execution;
 mod model;
-#[cfg(any(test, feature = "test-support"))]
-mod test_support;
 
 use optimization_core::{
     OptimizationExecutionPhase, OptimizationPhaseSelections, OptimizationSelections,
@@ -30,8 +28,6 @@ pub use model::{
     StagedPreAllocationOptimizationCustodyReceipt, StagedPreAllocationOptimizationRun,
     ValidatedPreAllocationTransformation,
 };
-#[cfg(any(test, feature = "test-support"))]
-pub use test_support::PreAllocationOptimizationCustodyFieldForTest;
 
 impl From<PreAllocationRuleCatalogError> for OptimizedPreAllocationCustodyError {
     fn from(error: PreAllocationRuleCatalogError) -> Self {
