@@ -5,9 +5,9 @@ use super::{
 use crate::{
     ByteOrder, ConsumptionInstant, IntegerInterpretation, LayoutFieldEntryReport,
     LayoutPlacementReport, LayoutPlanReport, MaterializationAction, MaterializationContext,
-    PlacementAddressRange, PlacementConstraints, PlacementPhase, PlacementSite, RelocationTarget,
-    SymbolicFieldInnerLayout, SymbolicFieldPathSegment, SymbolicFieldValue,
-    derive_symbolic_materialization, derive_symbolic_materialization_with_inner_layouts,
+    PlacementAddressRange, PlacementConstraints, PlacementPhase, SymbolicFieldInnerLayout,
+    SymbolicFieldPathSegment, SymbolicFieldValue, derive_symbolic_materialization,
+    derive_symbolic_materialization_with_inner_layouts,
 };
 
 #[test]
@@ -35,57 +35,6 @@ fn placement_range_must_fit_the_materialization() {
     .expect_err("sixteen bytes cannot fit an eight-byte range");
 
     assert!(error.0.contains("cannot fit"));
-}
-
-#[test]
-fn symbolic_index_materialization_assigns_the_exact_element() {
-    let symbolic = SymbolicFieldValue::new_indexed_numbered("handlers", 9, 2, 64, entry())
-        .expect("indexed field");
-    let plan = derive_symbolic_materialization(
-        &repeated_layout(),
-        &[symbolic],
-        MaterializationContext {
-            consumption: ConsumptionInstant::AfterOmegaHandoff,
-            byte_order: ByteOrder::LittleEndian,
-            native_pointer_relocation_bits: None,
-            placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
-        },
-        |_| None,
-    )
-    .expect("an indexed field/index path derives one element write");
-
-    assert_eq!(plan.actions.len(), 1);
-    let MaterializationAction::RuntimeWriter(write) = &plan.actions[0] else {
-        panic!("an unresolved indexed symbolic derives a runtime writer");
-    };
-    assert_eq!(write.container_byte_offset, 16);
-
-    let writer = plan.derive_post_handoff_writer().expect("writer");
-    let mut bytes = [0xa5_u8; 32];
-    writer
-        .execute(
-            &mut bytes,
-            PlacementSite {
-                base_address: 0,
-                phase: PlacementPhase::PostHandoff,
-                machine_regime: None,
-                installation_scope: None,
-            },
-            |target| {
-                assert_eq!(target, entry());
-                Some(0x1122_3344_5566_7788)
-            },
-        )
-        .expect("the indexed writer resolves the exact element");
-
-    assert_eq!(&bytes[16..24], &0x1122_3344_5566_7788_u64.to_le_bytes());
-    assert!(
-        bytes[..16]
-            .iter()
-            .chain(&bytes[24..])
-            .all(|byte| *byte == 0xa5),
-        "index materialization writes only the addressed element"
-    );
 }
 
 #[test]
@@ -249,65 +198,6 @@ fn symbolic_index_materialization_rejects_before_target_resolution() {
         error.0.contains("fragmented or stored-integer placement"),
         "{}",
         error.0
-    );
-}
-
-#[test]
-fn symbolic_inner_materialization_assigns_the_exact_member() {
-    let (layout, carrier) = nested_layout();
-    let symbolic = [
-        SymbolicFieldValue::new("slot", 64, entry())
-            .expect("outer record field")
-            .with_inner_segment(SymbolicFieldPathSegment::new("entry")),
-        SymbolicFieldValue::new("slot", 64, data())
-            .expect("outer record field")
-            .with_inner_segment(SymbolicFieldPathSegment::new("flags")),
-    ];
-    let plan = derive_symbolic_materialization_with_inner_layouts(
-        &layout,
-        std::slice::from_ref(&carrier),
-        &symbolic,
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect("two inner paths share one interior carrier");
-
-    let writes = plan
-        .actions
-        .iter()
-        .map(|action| match action {
-            MaterializationAction::RuntimeWriter(write) => {
-                (write.field.as_str(), write.container_byte_offset)
-            }
-            other => panic!("expected runtime writers, found {other:?}"),
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(writes, [("slot.entry", 8), ("slot.flags", 16)]);
-
-    let writer = plan.derive_post_handoff_writer().expect("writer");
-    let mut bytes = [0xa5_u8; 24];
-    writer
-        .execute(
-            &mut bytes,
-            PlacementSite {
-                base_address: 0,
-                phase: PlacementPhase::PostHandoff,
-                machine_regime: None,
-                installation_scope: None,
-            },
-            |target| {
-                Some(match target {
-                    RelocationTarget::Entry(_) => 0x1122_3344_5566_7788,
-                    RelocationTarget::Data(_) => 0xdead_beef,
-                })
-            },
-        )
-        .expect("the inner writers resolve each exact member");
-    assert_eq!(&bytes[8..16], &0x1122_3344_5566_7788_u64.to_le_bytes());
-    assert_eq!(&bytes[16..24], &0xdead_beef_u64.to_le_bytes());
-    assert!(
-        bytes[..8].iter().all(|byte| *byte == 0xa5),
-        "inner materialization writes only the addressed members"
     );
 }
 
@@ -741,90 +631,6 @@ fn symbolic_inner_materialization_bounds_writes_to_the_interior_extent() {
             .contains("writes outside the 16-byte materialization"),
         "{}",
         error.0
-    );
-}
-
-#[test]
-fn symbolic_inner_materialization_composes_through_a_second_record_boundary() {
-    let (layout, carrier) = deeply_nested_layout();
-    let symbolic = [
-        SymbolicFieldValue::new("slot", 64, entry())
-            .expect("outer record field")
-            .with_inner_segment(
-                SymbolicFieldPathSegment::new("sub")
-                    .with_inner_segment(SymbolicFieldPathSegment::new("entry")),
-            ),
-        SymbolicFieldValue::new("slot", 64, data())
-            .expect("outer record field")
-            .with_inner_segment(
-                SymbolicFieldPathSegment::new("sub")
-                    .with_inner_segment(SymbolicFieldPathSegment::new("flags")),
-            ),
-        SymbolicFieldValue::new("slot", 64, data())
-            .expect("outer record field")
-            .with_inner_segment(SymbolicFieldPathSegment::new("pad")),
-    ];
-    let plan = derive_symbolic_materialization_with_inner_layouts(
-        &layout,
-        std::slice::from_ref(&carrier),
-        &symbolic,
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect("deep paths compose one offset per crossed record boundary");
-
-    let writes = plan
-        .actions
-        .iter()
-        .map(|action| match action {
-            MaterializationAction::RuntimeWriter(write) => {
-                (write.field.as_str(), write.container_byte_offset)
-            }
-            other => panic!("expected runtime writers, found {other:?}"),
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(
-        writes,
-        [
-            ("slot.sub.entry", 16),
-            ("slot.sub.flags", 24),
-            ("slot.pad", 8)
-        ]
-    );
-
-    let mut entry_resolutions = 0;
-    let writer = plan.derive_post_handoff_writer().expect("writer");
-    let mut bytes = [0xa5_u8; 40];
-    writer
-        .execute(
-            &mut bytes,
-            PlacementSite {
-                base_address: 0,
-                phase: PlacementPhase::PostHandoff,
-                machine_regime: None,
-                installation_scope: None,
-            },
-            |target| {
-                Some(match target {
-                    RelocationTarget::Entry(_) => {
-                        entry_resolutions += 1;
-                        0x1122_3344_5566_7788
-                    }
-                    RelocationTarget::Data(_) => 0xdead_beef,
-                })
-            },
-        )
-        .expect("the deeper writers resolve each exact member");
-    assert_eq!(entry_resolutions, 1);
-    assert_eq!(&bytes[16..24], &0x1122_3344_5566_7788_u64.to_le_bytes());
-    assert_eq!(&bytes[24..32], &0xdead_beef_u64.to_le_bytes());
-    assert_eq!(&bytes[8..16], &0xdead_beef_u64.to_le_bytes());
-    assert!(
-        bytes[..8]
-            .iter()
-            .chain(&bytes[32..])
-            .all(|byte| *byte == 0xa5),
-        "deeper materialization writes only the addressed members"
     );
 }
 

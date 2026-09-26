@@ -938,7 +938,7 @@ impl SelectedExternalRootProviderPlan {
         lowered: program_entry_plan::LoweredPostHandoffWriter,
         execution: &external_roots::ProviderExecution,
         installed_code: &'installed executable_installation::InstalledCode,
-        writer: &layout_plans::PostHandoffWriterPlan,
+        writer: &post_handoff_writer_plan::PostHandoffWriterPlan,
         destination: executable_installation::PreparedPostHandoffWriterDestination<
             'mapping,
             'bytes,

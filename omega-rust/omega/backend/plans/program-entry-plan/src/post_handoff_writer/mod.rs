@@ -10,7 +10,7 @@ use executable_installation::{
     InstalledCode, ResolvedPostHandoffEntryWriterContext,
     ValidatedPreparedPostHandoffWriterDestination,
 };
-use layout_plans::{PostHandoffWriterInvocationPlan, PostHandoffWriterPlan};
+use post_handoff_writer_plan::{PostHandoffWriterInvocationPlan, PostHandoffWriterPlan};
 use target::{Architecture, NativeTarget};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -370,8 +370,9 @@ mod tests {
     };
     use layout_plans::{
         ByteOrder, DataSymbolId, EntryStubId, MaterializationWrite, PlacementConstraints,
-        PlacementPhase, PostHandoffWriterSource, PostHandoffWriterStep, RelocationTarget,
+        PlacementPhase, RelocationTarget,
     };
+    use post_handoff_writer_plan::{PostHandoffWriterSource, PostHandoffWriterStep};
 
     fn writer(target: RelocationTarget) -> PostHandoffWriterPlan {
         PostHandoffWriterPlan {

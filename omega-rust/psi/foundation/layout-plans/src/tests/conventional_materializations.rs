@@ -4,7 +4,7 @@ use crate::{
     ConventionalSumCaseLayoutReport, ConventionalSumLayoutReport,
     ConventionalSumPayloadFieldLayoutReport, EntryStubId, IntegerInterpretation,
     LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport, MaterializationAction,
-    MaterializationContext, PlacementConstraints, PlacementPhase, PlacementSite, RelocationTarget,
+    MaterializationContext, PlacementConstraints, PlacementPhase, RelocationTarget,
     ScalarFieldSchema, ScalarFieldValue, SymbolicFieldValue,
     conventional_sum_layout_reports_match_for_replay, decode_scalar_layout,
     derive_symbolic_materialization, layout_plan_reports_match_for_replay,
@@ -1300,72 +1300,6 @@ fn scalar_materialization_is_complete_and_atomic() {
 }
 
 #[test]
-fn numbered_symbolic_materialization_rejoins_renamed_fields_by_identity() {
-    let mut layout = split_layout();
-    for entry in &mut layout.entries {
-        entry.field = "legacy_address".into();
-        entry.member_identity = Some(7);
-    }
-    let context = MaterializationContext {
-        consumption: ConsumptionInstant::AfterOmegaHandoff,
-        byte_order: ByteOrder::LittleEndian,
-        native_pointer_relocation_bits: None,
-        placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
-    };
-    let symbolic =
-        SymbolicFieldValue::new_numbered("handler", 7, 64, entry()).expect("numbered target");
-    let plan =
-        derive_symbolic_materialization(&layout, std::slice::from_ref(&symbolic), context, |_| {
-            None
-        })
-        .expect("stable identity should rejoin renamed symbolic fragments");
-    assert_eq!(plan.actions.len(), 3);
-    assert!(plan.actions.iter().all(|action| {
-        matches!(action, MaterializationAction::RuntimeWriter(write) if write.field == "handler")
-    }));
-
-    let current_fragment = plan
-        .derive_post_handoff_writer()
-        .expect("renamed symbolic plan derives a writer")
-        .lower_reusable_fragment()
-        .expect("renamed symbolic writer lowers");
-    let legacy = SymbolicFieldValue::new_numbered("legacy_address", 7, 64, entry())
-        .expect("legacy numbered target");
-    let legacy_fragment = derive_symbolic_materialization(&layout, &[legacy], context, |_| None)
-        .expect("matching presentation spelling also derives")
-        .derive_post_handoff_writer()
-        .expect("legacy symbolic plan derives a writer")
-        .lower_reusable_fragment()
-        .expect("legacy symbolic writer lowers");
-    assert_eq!(
-        current_fragment.fragment.report_fingerprint(),
-        legacy_fragment.fragment.report_fingerprint(),
-        "presentation spelling must not change generated writer identity"
-    );
-
-    let mut drifted = layout.clone();
-    drifted.entries[1].member_identity = Some(8);
-    let mut resolutions = 0;
-    let error =
-        derive_symbolic_materialization(&drifted, std::slice::from_ref(&symbolic), context, |_| {
-            resolutions += 1;
-            None
-        })
-        .expect_err("fragment identity drift must reject before resolution");
-    assert!(error.0.contains("same stable identity"), "{}", error.0);
-    assert_eq!(resolutions, 0);
-
-    let alias = SymbolicFieldValue::new_numbered("alias", 7, 64, entry()).expect("identity alias");
-    let error = derive_symbolic_materialization(&layout, &[symbolic, alias], context, |_| {
-        resolutions += 1;
-        None
-    })
-    .expect_err("one stable identity cannot name two supplied symbolic values");
-    assert!(error.0.contains("repeats stable member identity #7"));
-    assert_eq!(resolutions, 0);
-}
-
-#[test]
 fn symbolic_write_geometry_rejects_before_any_resolver_invocation() {
     let layout = LayoutPlanReport {
         schema_report_fingerprint: 1,
@@ -1496,54 +1430,4 @@ fn symbolic_value_constraints_reject_before_unrelated_target_resolution() {
             .collect::<Vec<_>>(),
         vec![0x7f, 0, 0x7f]
     );
-}
-
-#[test]
-fn unresolved_post_handoff_entry_derives_split_writer() {
-    let symbolic = SymbolicFieldValue::new("address", 64, entry()).expect("symbolic field");
-    let plan = derive_symbolic_materialization(
-        &split_layout(),
-        &[symbolic],
-        MaterializationContext {
-            consumption: ConsumptionInstant::AfterOmegaHandoff,
-            byte_order: ByteOrder::LittleEndian,
-            native_pointer_relocation_bits: Some(64),
-            placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
-        },
-        |_| None,
-    )
-    .expect("post-handoff fragments have a writer path");
-
-    assert_eq!(plan.actions.len(), 3);
-    assert!(
-        plan.actions
-            .iter()
-            .all(|action| matches!(action, MaterializationAction::RuntimeWriter(_)))
-    );
-
-    let writer = plan
-        .derive_post_handoff_writer()
-        .expect("runtime actions form a writer program");
-    let mut bytes = [0_u8; 16];
-    let mut resolutions = 0;
-    writer
-        .execute(
-            &mut bytes,
-            PlacementSite {
-                base_address: 0,
-                phase: PlacementPhase::PostHandoff,
-                machine_regime: None,
-                installation_scope: None,
-            },
-            |target| {
-                assert_eq!(target, entry());
-                resolutions += 1;
-                Some(0x1122_3344_5566_7788)
-            },
-        )
-        .expect("provider resolves and executes the writer");
-
-    assert_eq!(resolutions, 1, "three fragments share one resolution");
-    assert_eq!(&bytes[0..4], &[0x88, 0x77, 0x66, 0x55]);
-    assert_eq!(&bytes[8..12], &[0x44, 0x33, 0x22, 0x11]);
 }

@@ -118,7 +118,8 @@ fn provider_execution_prepares_only_its_selected_entry_writer_and_exact_placemen
     );
 
     let mut pre_resolved_writer = writer.clone();
-    pre_resolved_writer.steps[0].source = layout_plans::PostHandoffWriterSource::Resolved(0x1010);
+    pre_resolved_writer.steps[0].source =
+        post_handoff_writer_plan::PostHandoffWriterSource::Resolved(0x1010);
     let error = execution
         .prepare_post_handoff_entry_writer(
             selected_plan,

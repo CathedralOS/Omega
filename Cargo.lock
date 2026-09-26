@@ -648,6 +648,7 @@ dependencies = [
  "installation-evidence",
  "layout-plans",
  "optimization-core",
+ "post-handoff-writer-plan",
  "sha2",
  "target",
 ]
@@ -669,6 +670,7 @@ dependencies = [
  "language-semantics",
  "layout-plans",
  "numerics",
+ "post-handoff-writer-plan",
  "program-entry-plan",
  "proof-admission",
  "semantic-vocabulary",
@@ -895,6 +897,7 @@ dependencies = [
  "diagnostics",
  "layout-plans",
  "optimization-core",
+ "post-handoff-writer-plan",
  "register-model",
  "selected-instructions",
  "semantic-vocabulary",
@@ -910,6 +913,7 @@ dependencies = [
  "layout-plans",
  "optimization-core",
  "optimization-unit",
+ "post-handoff-writer-plan",
  "register-model",
  "selected-instructions",
  "semantic-vocabulary",
@@ -1422,6 +1426,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "post-handoff-writer-plan"
+version = "0.1.0"
+dependencies = [
+ "layout-plans",
+]
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.107"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1446,6 +1457,7 @@ dependencies = [
  "language-semantics",
  "layout",
  "layout-plans",
+ "post-handoff-writer-plan",
  "sha2",
  "symbols",
  "target",
@@ -1500,6 +1512,7 @@ dependencies = [
  "layout-plans",
  "numerics",
  "package-compilation",
+ "post-handoff-writer-plan",
  "program-entry-plan",
  "representation-planning",
  "semantic-vocabulary",

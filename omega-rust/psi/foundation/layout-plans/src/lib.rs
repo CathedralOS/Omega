@@ -10,13 +10,14 @@
 //! validated geometry from `layout_reports` with compiler-issued identities
 //! from `symbolic_values` under `placement` constraints. `materialization`
 //! applies the derived plans and owns the field values, field identities and
-//! stored-integer writes they consume; `post_handoff_writer` plans the
-//! fragments a provider replays after handoff.
+//! stored-integer write predicates they consume. These are portable
+//! descriptions and semantic validity only: Omega consumers derive, lower,
+//! validate, and execute their own writer programs from the same vocabulary,
+//! and the interpreter consumes the portable operations through its own path.
 
 mod layout_reports;
 mod materialization;
 mod placement;
-mod post_handoff_writer;
 mod symbolic_materialization;
 mod symbolic_values;
 
@@ -36,6 +37,10 @@ pub use layout_reports::{
 pub use materialization::field_values::{
     AggregateFieldSchema, AggregateFieldValue, ScalarFieldSchema, ScalarFieldValue,
 };
+pub use materialization::stored_integer_writes::{
+    apply_write, validate_fragment, validate_stored_integer_fit, validate_stored_integer_fit_shape,
+    validate_write, validate_write_source_value,
+};
 pub use materialization::{
     MaterializationDiagnostic, SymbolicMaterializationPlan, decode_scalar_layout,
     materialize_aggregate_layout_into, materialize_scalar_layout_into,
@@ -44,14 +49,6 @@ pub use placement::{
     ArtifactInstallationScopeId, ByteOrder, ConsumptionInstant, MachineRegimeId,
     MaterializationAction, MaterializationContext, MaterializationWrite, PlacementAddressRange,
     PlacementConstraints, PlacementPhase, PlacementSite, StoredIntegerFit,
-};
-pub use post_handoff_writer::{
-    GeneratedPostHandoffWriterFragmentPlan, GeneratedPostHandoffWriterStep,
-    POST_HANDOFF_WRITER_CONTEXT_ABI_V1, POST_HANDOFF_WRITER_DESTINATION_OFFSET,
-    POST_HANDOFF_WRITER_SOURCE_SLOT_WIDTH, POST_HANDOFF_WRITER_SOURCE_SLOTS_OFFSET,
-    PostHandoffWriterFitConstraint, PostHandoffWriterInvocationPlan, PostHandoffWriterPlan,
-    PostHandoffWriterSource, PostHandoffWriterSourceSlot, PostHandoffWriterStep,
-    post_handoff_writer_context_byte_len,
 };
 pub use symbolic_materialization::{
     derive_symbolic_materialization, derive_symbolic_materialization_with_inner_layouts,

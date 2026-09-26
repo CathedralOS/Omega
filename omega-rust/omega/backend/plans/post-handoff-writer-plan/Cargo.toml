@@ -1,0 +1,12 @@
+[package]
+name = "post-handoff-writer-plan"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "post_handoff_writer_plan"
+path = "src/lib.rs"
+
+[dependencies]
+layout-plans = { path = "../../../../psi/foundation/layout-plans" }

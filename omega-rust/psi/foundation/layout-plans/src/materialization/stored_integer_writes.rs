@@ -147,7 +147,7 @@ fn validate_stored_integer_bits(
     Ok(())
 }
 
-pub(crate) fn validate_write_source_value(
+pub fn validate_write_source_value(
     write: &MaterializationWrite,
     source_value: u64,
     value_kind: &str,
@@ -158,7 +158,7 @@ pub(crate) fn validate_write_source_value(
     validate_stored_integer_fit(&write.field, fit, source_value, value_kind)
 }
 
-pub(crate) fn validate_stored_integer_fit(
+pub fn validate_stored_integer_fit(
     field: &str,
     fit: StoredIntegerFit,
     source_value: u64,
@@ -191,7 +191,7 @@ pub(crate) fn validate_stored_integer_fit(
     Ok(())
 }
 
-pub(crate) fn validate_stored_integer_fit_shape(
+pub fn validate_stored_integer_fit_shape(
     field: &str,
     fit: StoredIntegerFit,
     value_kind: &str,
@@ -227,7 +227,7 @@ fn signed_bits(value: u64, width: u16) -> i128 {
     }
 }
 
-pub(crate) fn apply_write(
+pub fn apply_write(
     bytes: &mut [u8],
     byte_order: ByteOrder,
     write: &MaterializationWrite,
@@ -282,7 +282,7 @@ pub(crate) fn apply_fragment(
     Ok(())
 }
 
-pub(crate) fn validate_write(
+pub fn validate_write(
     materialization_len: usize,
     write: &MaterializationWrite,
 ) -> Result<(), MaterializationDiagnostic> {
@@ -310,7 +310,7 @@ pub(crate) fn validate_write(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn validate_fragment(
+pub fn validate_fragment(
     materialization_len: usize,
     field: &str,
     container_byte_offset: u64,

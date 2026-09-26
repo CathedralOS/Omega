@@ -16,6 +16,7 @@ target = { path = "../../target" }
 installation-evidence = { path = "../installation-evidence" }
 isa-x86_64 = { path = "../../instruction_set_architectures/isa-x86_64" }
 program-entry-plan = { path = "../../plans/program-entry-plan" }
+post-handoff-writer-plan = { path = "../../plans/post-handoff-writer-plan" }
 layout-plans = { path = "../../../../psi/foundation/layout-plans" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 extents = { path = "../../../../psi/foundation/extents" }

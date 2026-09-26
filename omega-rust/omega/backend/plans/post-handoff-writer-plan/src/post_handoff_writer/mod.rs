@@ -2,16 +2,57 @@
 //! plans, invocation plans, and the step/plan carriers a provider replays
 //! after control leaves the loader.
 
-use crate::layout_reports::{hash_fingerprint_byte, hash_fingerprint_bytes, hash_fingerprint_u64};
-use crate::materialization::MaterializationDiagnostic;
-use crate::materialization::stored_integer_writes::{
-    apply_write, validate_fragment, validate_stored_integer_fit, validate_stored_integer_fit_shape,
-    validate_write, validate_write_source_value,
+use layout_plans::{
+    ByteOrder, MaterializationAction, MaterializationDiagnostic, MaterializationWrite,
+    PlacementConstraints, PlacementSite, RelocationTarget, StoredIntegerFit,
+    SymbolicMaterializationPlan, validate_fragment, validate_stored_integer_fit,
+    validate_stored_integer_fit_shape, validate_write, validate_write_source_value,
 };
-use crate::placement::{
-    ByteOrder, MaterializationWrite, PlacementConstraints, PlacementSite, StoredIntegerFit,
-};
-use crate::symbolic_values::RelocationTarget;
+
+#[cfg(test)]
+mod tests;
+
+/// Derive the consumer writer program from a portable symbolic materialization
+/// plan. Resolved writes retain their compiler-issued values; runtime writes
+/// become resolver-bound sources; loader-native relocations are not writer
+/// instructions and reject here rather than reaching a provider.
+pub fn derive_post_handoff_writer(
+    plan: &SymbolicMaterializationPlan,
+) -> Result<PostHandoffWriterPlan, MaterializationDiagnostic> {
+    if plan.actions.is_empty() {
+        return Err(MaterializationDiagnostic(
+            "post-handoff writer requires at least one fragment".into(),
+        ));
+    }
+    let mut steps = Vec::with_capacity(plan.actions.len());
+    for action in &plan.actions {
+        let step = match action {
+            MaterializationAction::ResolvedWrite {
+                write,
+                source_value,
+            } => PostHandoffWriterStep {
+                write: write.clone(),
+                source: PostHandoffWriterSource::Resolved(*source_value),
+            },
+            MaterializationAction::RuntimeWriter(write) => PostHandoffWriterStep {
+                write: write.clone(),
+                source: PostHandoffWriterSource::Resolve(write.target),
+            },
+            MaterializationAction::NativePointerRelocation { .. } => {
+                return Err(MaterializationDiagnostic(
+                    "loader-native relocation cannot enter a post-handoff writer program".into(),
+                ));
+            }
+        };
+        steps.push(step);
+    }
+    Ok(PostHandoffWriterPlan {
+        byte_len: plan.byte_len,
+        byte_order: plan.byte_order,
+        placement: plan.placement,
+        steps,
+    })
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PostHandoffWriterSource {
@@ -113,7 +154,7 @@ pub struct PostHandoffWriterFitConstraint {
 /// targets, placement, or fit evidence.
 ///
 /// ```compile_fail
-/// use layout_plans::PostHandoffWriterInvocationPlan;
+/// use post_handoff_writer_plan::PostHandoffWriterInvocationPlan;
 ///
 /// fn discard_fit_evidence(invocation: &mut PostHandoffWriterInvocationPlan) {
 ///     invocation.fit_constraints.clear();
@@ -164,7 +205,7 @@ impl PostHandoffWriterInvocationPlan {
                     .into(),
             ));
         }
-        if self.placement.alignment == 0 {
+        if self.placement.alignment() == 0 {
             return Err(MaterializationDiagnostic(
                 "post-handoff writer invocation placement alignment must be nonzero".into(),
             ));
@@ -435,77 +476,6 @@ impl PostHandoffWriterPlan {
         }
         Ok(())
     }
-
-    /// Validates the concrete placement and every write, resolves every target,
-    /// then commits one staged image into the unpublished destination. Repeated
-    /// fragments of one target resolve once so a provider cannot observe
-    /// inconsistent address values within one materialization. Every rejection
-    /// leaves the destination bytes unchanged; successful application commits
-    /// the complete writer range once. Publication remains a later transition.
-    pub fn execute(
-        &self,
-        destination: &mut [u8],
-        site: PlacementSite,
-        mut resolve: impl FnMut(RelocationTarget) -> Option<u64>,
-    ) -> Result<(), MaterializationDiagnostic> {
-        self.validate(destination.len(), site)?;
-
-        let mut resolved_targets = std::collections::BTreeMap::new();
-        let mut values = Vec::with_capacity(self.steps.len());
-        for step in &self.steps {
-            let target = step.write.target;
-            let value = if let Some(value) = resolved_targets.get(&target) {
-                *value
-            } else {
-                let value = match step.source {
-                    PostHandoffWriterSource::Resolved(value) => value,
-                    PostHandoffWriterSource::Resolve(target) => {
-                        resolve(target).ok_or_else(|| {
-                            MaterializationDiagnostic(format!(
-                                "post-handoff writer could not resolve symbolic target {target:?}"
-                            ))
-                        })?
-                    }
-                };
-                for candidate in self
-                    .steps
-                    .iter()
-                    .filter(|candidate| candidate.write.target == target)
-                {
-                    validate_write_source_value(&candidate.write, value, "resolved symbolic")?;
-                }
-                resolved_targets.insert(target, value);
-                value
-            };
-            values.push(value);
-        }
-
-        apply_post_handoff_writes_atomically(
-            &mut destination[..self.byte_len],
-            self.byte_order,
-            &self.steps,
-            &values,
-        )
-    }
-}
-
-pub(crate) fn apply_post_handoff_writes_atomically(
-    destination: &mut [u8],
-    byte_order: ByteOrder,
-    steps: &[PostHandoffWriterStep],
-    values: &[u64],
-) -> Result<(), MaterializationDiagnostic> {
-    if steps.len() != values.len() {
-        return Err(MaterializationDiagnostic(
-            "post-handoff writer application requires one resolved value per fragment".into(),
-        ));
-    }
-    let mut staged = destination.to_vec();
-    for (step, value) in steps.iter().zip(values) {
-        apply_write(&mut staged, byte_order, &step.write, *value)?;
-    }
-    destination.copy_from_slice(&staged);
-    Ok(())
 }
 
 fn validate_post_handoff_writer_nonempty(
@@ -570,4 +540,19 @@ fn generated_post_handoff_writer_report_fingerprint(
         }
     }
     if hash == 0 { 1 } else { hash }
+}
+
+fn hash_fingerprint_u64(hash: &mut u64, value: u64) {
+    hash_fingerprint_bytes(hash, &value.to_le_bytes());
+}
+
+fn hash_fingerprint_bytes(hash: &mut u64, bytes: &[u8]) {
+    for byte in bytes {
+        hash_fingerprint_byte(hash, *byte);
+    }
+}
+
+fn hash_fingerprint_byte(hash: &mut u64, byte: u8) {
+    *hash ^= u64::from(byte);
+    *hash = hash.wrapping_mul(0x100000001b3);
 }
