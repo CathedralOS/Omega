@@ -175,7 +175,7 @@ pub(crate) fn collect_citation_equations(
         }
         equations.extend(established.equations);
     }
-    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+    if super::struct_trace() {
         eprintln!("CITE machine={} equations={equations:?}", machine.name);
     }
     equations

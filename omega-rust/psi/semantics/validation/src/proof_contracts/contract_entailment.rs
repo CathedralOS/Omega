@@ -181,6 +181,14 @@ use structural_terms::{
     structural_call_machine_name, structural_term, term_contains, unfold_constant_applications,
 };
 
+/// Whether `OMEGA_STRUCT_TRACE` asks for structural-judgment tracing. Read
+/// once: each environment lookup takes the process environment lock, and
+/// body unfolding asks once per application.
+fn struct_trace() -> bool {
+    static TRACE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *TRACE.get_or_init(|| std::env::var_os("OMEGA_STRUCT_TRACE").is_some())
+}
+
 /// The reserved binder naming a machine's return value inside `ensures`
 /// facts. Matches the call-site substitution rule in the checked-trees
 /// contract prover: a single-segment `result` that does not shadow a real
@@ -502,7 +510,7 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
     // with the restricted subject resolver; a tag remains no field equation.
     let case_structural = StructuralJudge::from_case_requires(program, machine, &requires);
     let sole_arm_case_result = sole_arm_value(&case_structural);
-    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+    if struct_trace() {
         eprintln!(
             "STRUCT machine={} sole_arm={:?}",
             machine.name, sole_arm_result
@@ -724,7 +732,7 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
                     .as_ref()
                     .map(|name| name.as_str().to_owned())
             });
-            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            if struct_trace() {
                 eprintln!(
                     "ROUTE machine={} fact=`{}` mention={:?} zero_value={}",
                     machine.name,
