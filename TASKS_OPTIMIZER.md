@@ -33,7 +33,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   The semantic-wrapper object's records, composition, validation and codec
   live in `native-artifact/src/semantic_wrapper_object`, and
   the plan's x86-64 template selection and replay live beside its recipe in
-  `program-entry-plan/src/optimized_semantic_wrapper/encoding.rs`;
+  `omega-rust/omega/pipeline/09_resolved-layout-to-resolved-layout/src/program_entry_plan/optimized_semantic_wrapper/encoding.rs`;
   native-realization keeps only the object stage's
   settlement/source/encoding custody join and replay. UEFI/provider/ABI gaps
   remain with their native owners, not another wrapper implementation.
@@ -297,11 +297,11 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     [compiler-owned stack contract](wiki/spec/resources/storage.md#compiler-owned-stack-accesses).
     Reuse the final-frame demand path, not a parallel spill-byte estimate.
     `image-emission` derives each function's peak from its validated final
-    frame (`src/function_fragments/production.rs`, replayed by
+    frame (`omega-rust/omega/pipeline/09_resolved-layout-to-resolved-layout/src/image_emission/function_fragments/production.rs`, replayed by
     `validation/stack.rs`) and composes it in
     `object_artifact/stack_demand.rs` and
     `installation_record/record_construction.rs::derive_installation_stack_demand`.
-    External-root admission (`external-roots/src/root_entry/root_validation.rs`)
+    External-root admission (`omega-rust/omega/src/external_roots/root_entry/root_validation.rs`)
     and hosted-receiver partitioning (`image-emission/src/hosted_receiver.rs`)
     compare that demand with supply. No test carries a runtime-spilled
     function through this path to an admission or a rejection. Target-required
