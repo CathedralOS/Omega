@@ -3,6 +3,12 @@ use terminal_psi::{
     StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
+/// Resource ceiling for the leaf walk: every leaf is at least one byte of
+/// zeroed storage, and a degenerate fixed-array extent must not balloon the
+/// worklist or the leaf vector before the descent guard can run — the bound
+/// keeps worst-case enumeration proportional to real storage.
+const MAX_ZEROED_LEAVES: usize = 65_536;
+
 /// One scalar leaf cell of a zero-constructible structural type, addressed the
 /// way runtime storage keys it: a record field under its parent path, or one
 /// primitive-scalar element of a fixed array whose path ends at its index.
@@ -67,13 +73,6 @@ pub fn zeroed_structural_leaves<'types>(
     let mut pending = vec![(root, Vec::new())];
     let mut visited_cells = 0usize;
     while let Some((current, path)) = pending.pop() {
-        visited_cells += 1;
-        // Bounded by declarations × membership: a recursion that re-enters an
-        // ancestor would only enumerate distinct (type, path) cells, and the
-        // declaration set caps each member's distinct type ids.
-        if visited_cells > bound.saturating_mul(bound).max(1024) {
-            return None;
-        }
         let Some(declaration) = declarations
             .iter()
             .find(|declaration| declaration.id == current)
@@ -88,7 +87,18 @@ pub fn zeroed_structural_leaves<'types>(
                 });
             }
             StructuralTypeShape::FixedArray { element, length } => {
+                visited_cells += 1;
+                // Descent bound: only Record/FixedArray visits can push work,
+                // so they alone need the declarations² recursion guard — a
+                // scalar element enumeration is declared extent, not
+                // recursion.
+                if visited_cells > bound.saturating_mul(bound).max(1024) {
+                    return None;
+                }
                 let extent = usize::try_from(*length).ok()?;
+                if pending.len().saturating_add(extent) > MAX_ZEROED_LEAVES {
+                    return None;
+                }
                 for index in 0..extent {
                     let mut element_path = path.clone();
                     element_path.push(StructuralPathSegment::FixedIndex(index as u64));
@@ -96,6 +106,10 @@ pub fn zeroed_structural_leaves<'types>(
                 }
             }
             StructuralTypeShape::Record { fields } => {
+                visited_cells += 1;
+                if visited_cells > bound.saturating_mul(bound).max(1024) {
+                    return None;
+                }
                 for field in fields {
                     match &field.field_type {
                         StructuralFieldType::Scalar(scalar_type) => {
@@ -115,6 +129,9 @@ pub fn zeroed_structural_leaves<'types>(
                 }
             }
             _ => return None,
+        }
+        if leaves.len() + pending.len() > MAX_ZEROED_LEAVES {
+            return None;
         }
     }
     Some(leaves)
