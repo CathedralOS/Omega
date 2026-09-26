@@ -1,4 +1,4 @@
-use crate::symbol_resolved_trees::SymbolResolvedTrees;
+use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTableAppender, SymbolTableBuilder};
 
 use crate::symbols::symbol_table::names::symbol_seed;
@@ -7,7 +7,7 @@ pub(in crate::symbols::symbol_table) fn insert_trait_symbol_children(
     builder: &mut impl SymbolTableAppender,
     program: &SymbolResolvedTrees,
     trait_symbol: SymbolHandle,
-    trait_definition: &crate::symbol_resolved_trees::trait_definition::TraitDefinition,
+    trait_definition: &symbol_resolved_trees::trait_definition::TraitDefinition,
     has_sources: bool,
 ) {
     let trait_children = builder.insert_children(
@@ -17,12 +17,12 @@ pub(in crate::symbols::symbol_table) fn insert_trait_symbol_children(
             .iter()
             .map(|parameter| {
                 let kind = match parameter.kind {
-                    crate::symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
+                    symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
                         SymbolKind::MachineParameter
                     }
-                    crate::symbol_resolved_trees::data::TypeParameterKind::Proposition {
-                        ..
-                    } => SymbolKind::PropositionParameter,
+                    symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => {
+                        SymbolKind::PropositionParameter
+                    }
                     _ => SymbolKind::TypeParameter,
                 };
                 symbol_seed(kind, &parameter.name, has_sources)
@@ -50,7 +50,7 @@ pub(in crate::symbols::symbol_table) fn insert_trait_symbol_children(
         let parameter_symbol = trait_children.next();
         if let (
             Some(parameter_symbol),
-            crate::symbol_resolved_trees::data::TypeParameterKind::Proposition { contract },
+            symbol_resolved_trees::data::TypeParameterKind::Proposition { contract },
         ) = (parameter_symbol, &parameter.kind)
         {
             builder.insert_children(

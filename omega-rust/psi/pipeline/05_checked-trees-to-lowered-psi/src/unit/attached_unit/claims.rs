@@ -17,7 +17,7 @@ pub(super) struct LoweredUnitClaims {
 pub(super) fn validate_entry_claims(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
-    state: &typed_trees_to_checked_trees::checked_trees::state::State,
+    state: &checked_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
     claims: &[CheckedUnitEntryClaimPlan],
 ) -> Result<(), LoweringError> {
@@ -65,10 +65,7 @@ pub(super) fn validate_entry_claims(
                 .iter()
                 .filter(|event| {
                     event.claim_identity == claim.claim_identity
-                        && event.root
-                            == typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(
-                                source.symbol,
-                            )
+                        && event.root == facts::PlaceRoot::Symbol(source.symbol)
                         && checked
                             .facts
                             .flow
@@ -77,7 +74,7 @@ pub(super) fn validate_entry_claims(
                             .span_or_empty(event.segments)
                             .len()
                             == event.segments.len()
-                        && typed_trees_to_checked_trees::validation::structural_claim_path(
+                        && validation::structural_claim_path(
                             &checked.typed,
                             source.type_reference,
                             checked

@@ -10,7 +10,6 @@
 
 mod boundary_operator_custody;
 mod publish_artifact;
-pub mod terminal_production;
 
 pub use boundary_operator_custody::{
     CheckedBoundaryOperatorApplicationOccurrence, CheckedBoundaryOperatorApplicationScope,

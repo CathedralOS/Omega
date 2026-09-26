@@ -1,8 +1,8 @@
 //! Independent correspondence for native descriptor derivations.
 use super::Checker;
-use abstract_operations_to_target_operations::target_operations::TargetByteView;
+use abstract_operations::AbstractOperation;
 use semantic_vocabulary::{PlaceId, ValueId};
-use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
+use target_operations::TargetByteView;
 
 impl Checker<'_> {
     pub(super) fn byte_view(

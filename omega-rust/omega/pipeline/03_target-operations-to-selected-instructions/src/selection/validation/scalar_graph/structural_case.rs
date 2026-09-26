@@ -4,17 +4,15 @@ use super::{
     SelectedInstructionProvenance, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use crate::SelectedInstructionError;
-use crate::legalized_operations;
-use crate::legalized_operations::{LegalizedScalarBlock, LegalizedScalarTerminator};
-use crate::register_model::ValidatedRegisterConstraintCatalog;
-use crate::selected_instructions;
-use crate::selected_instructions::SelectedTerminator;
-use crate::selected_instructions::{
+use crate::selection::validation::scalar_graph::Replay;
+use crate::selection::validation::scalar_graph::validate_block_constraints;
+use legalized_operations::{LegalizedScalarBlock, LegalizedScalarTerminator};
+use register_model::ValidatedRegisterConstraintCatalog;
+use selected_instructions::SelectedTerminator;
+use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedCasePayloadTransport, SelectedMemoryAccess,
     SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedSuccessorRole,
 };
-use crate::selection::validation::scalar_graph::Replay;
-use crate::selection::validation::scalar_graph::validate_block_constraints;
 use semantic_vocabulary::{IntegerType, PlaceId};
 
 pub(super) fn validate(
@@ -37,10 +35,7 @@ pub(super) fn validate(
             .enumerate()
             .any(|(ordinal, case)| usize::try_from(case.case_tag) != Ok(ordinal))
         || layout.tag_byte_offset != 0
-        || layout.tag_shape
-            != abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(
-                4, 4,
-            )
+        || layout.tag_shape != calling_conventions::ValueShape::integer(4, 4)
     {
         return Err(SelectedInstructionError::custody());
     }
@@ -54,7 +49,7 @@ pub(super) fn validate(
                 place: result.place,
             },
         },
-        crate::legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+        legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
             block,
             declaration,
         } => selected_instructions::SelectedCaseDispatchSource::Local {
@@ -228,7 +223,7 @@ pub(super) fn validate(
             successor(&cases[ordinal + 1], when_nonzero, dispatch_source, replay)?;
             None
         } else {
-            let expected_origin = crate::selected_instructions::SelectedBlockOrigin::CaseDispatch {
+            let expected_origin = selected_instructions::SelectedBlockOrigin::CaseDispatch {
                 source: block.id,
                 case_ordinal: (ordinal + 1)
                     .try_into()
@@ -292,8 +287,7 @@ fn successor(
         .blocks
         .iter()
         .find(|candidate| {
-            candidate.origin
-                == crate::selected_instructions::SelectedBlockOrigin::Source(expected.target)
+            candidate.origin == selected_instructions::SelectedBlockOrigin::Source(expected.target)
         })
         .ok_or_else(|| SelectedInstructionError::custody())?;
     let retained = actual

@@ -2,11 +2,9 @@
 
 use std::collections::BTreeMap;
 
-use crate::target_operations::{TargetOperationPlan, TargetUnitOperation};
+use abstract_operations::{AbstractOperation, AbstractOperationPlan};
 use target::NativeTarget;
-use terminal_psi_to_abstract_operations::abstract_operations::{
-    AbstractOperation, AbstractOperationPlan,
-};
+use target_operations::{TargetOperationPlan, TargetUnitOperation};
 
 use super::{
     AbstractToTargetFunctionRosterReceipt, AbstractToTargetTranslationValidationError,
@@ -55,7 +53,7 @@ pub fn validate_abstract_to_target_translation(
             .collect::<BTreeMap<_, _>>()
             .into_values()
             .cloned()
-            .collect::<terminal_psi_to_abstract_operations::abstract_operations::StructuralTypeCatalog>()
+            .collect::<abstract_operations::StructuralTypeCatalog>()
     };
     let mut function_roster = Vec::with_capacity(source.functions.len());
     for (position, (source_function, target_function)) in

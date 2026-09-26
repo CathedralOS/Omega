@@ -4,12 +4,12 @@ use super::{
     PostAllocationMachineInstruction, ResolvedPhysicalAddress, TargetFrameLayoutPlan, resolve,
     validate_address,
 };
-use semantic_vocabulary::{MachineId, OperationId, PlaceId};
-use target_operations_to_selected_instructions::{
+use selected_instructions::{
     LocalStorageSlotId, MachineAlternative, MachineAlternativeApplicability,
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects,
     MachineLatencyKnowledge, MachineSizeKnowledge, SelectedInstructionId, SelectedLocalStorageSlot,
 };
+use semantic_vocabulary::{MachineId, OperationId, PlaceId};
 
 fn fixture() -> (
     PostAllocationMachineFunction,
@@ -32,35 +32,35 @@ fn fixture() -> (
         blocks: Vec::new(),
     };
     let frame = TargetFrameLayoutPlan {
-        post_allocation_machine: register_homes_to_post_allocation_machine::PostAllocationMachineIdentity::from_bytes([0;32]),
+        post_allocation_machine: physical_instructions::PostAllocationMachineIdentity::from_bytes([0;32]),
         callee_saved_requirements: selected_instructions_to_register_homes::AllocatedCalleeSavedRequirementIdentity::from_bytes([0;32]),
-        callee_save_storage: crate::machine_code::NonAuthoritativeCalleeSaveStorageIdentity::from_bytes([0;32]),
-        register_environment: target_operations_to_selected_instructions::register_model::TargetRegisterEnvironmentIdentity::from_bytes([0;32]),
-        physical_register_model: target_operations_to_selected_instructions::register_model::PhysicalRegisterModelIdentity::from_bytes([0;32]),
+        callee_save_storage: machine_code::NonAuthoritativeCalleeSaveStorageIdentity::from_bytes([0;32]),
+        register_environment: register_model::TargetRegisterEnvironmentIdentity::from_bytes([0;32]),
+        physical_register_model: register_model::PhysicalRegisterModelIdentity::from_bytes([0;32]),
         target: target::NativeTarget::linux_x64(),
-        abi: target_operations_to_selected_instructions::register_model::FrameAbiPreservationConvention::SystemVAMD64,
-        policy: crate::machine_code::TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
+        abi: register_model::FrameAbiPreservationConvention::SystemVAMD64,
+        policy: machine_code::TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
         functions: vec![FunctionTargetFrameLayout {
-            machine, contains_call: false, stack_pointer: target_operations_to_selected_instructions::register_model::RegisterViewId(0),
+            machine, contains_call: false, stack_pointer: register_model::RegisterViewId(0),
             pre_call_stack_alignment: 16, frame_size_bytes: 16, red_zone_resident_bytes: 0,
             abi_stack_alignment_bytes: 16,
-            outgoing_abi_area: crate::machine_code::OutgoingAbiFrameArea { byte_size: 0, shadow_bytes: 0 },
-            local_storage_slots: vec![crate::machine_code::LocalStorageFrameSlot {
+            outgoing_abi_area: machine_code::OutgoingAbiFrameArea { byte_size: 0, shadow_bytes: 0 },
+            local_storage_slots: vec![machine_code::LocalStorageFrameSlot {
                 id, frame_offset_bytes: 0, size_bytes: 16, alignment_bytes: 8,
             }],
             stable_address_loans: vec![id],
             callee_save_slots: Vec::new(),
-            return_address: crate::machine_code::ReturnAddressFrameCustody::CallerActivationStack {
+            return_address: machine_code::ReturnAddressFrameCustody::CallerActivationStack {
                 post_prologue_offset_bytes: 16, size_bytes: 8,
             },
-            stack_probe: crate::machine_code::StackProbePlan {
+            stack_probe: machine_code::StackProbePlan {
                 interval_bytes: 4_096,
                 touches: 0,
             },
-            unwind: crate::machine_code::FrameUnwindPlan {
+            unwind: machine_code::FrameUnwindPlan {
                 restores: Vec::new(),
                 released_bytes: 16,
-                return_address: crate::machine_code::ReturnAddressFrameCustody::CallerActivationStack {
+                return_address: machine_code::ReturnAddressFrameCustody::CallerActivationStack {
                     post_prologue_offset_bytes: 16, size_bytes: 8,
                 },
             },
@@ -177,15 +177,15 @@ fn incoming_pointer_slots_bind_entry_bias_frame_size_and_parameter_identity() {
         byte_offset: 0,
     });
     for return_address in [
-        crate::machine_code::ReturnAddressFrameCustody::CallerActivationStack {
+        machine_code::ReturnAddressFrameCustody::CallerActivationStack {
             post_prologue_offset_bytes: 16,
             size_bytes: 8,
         },
-        crate::machine_code::ReturnAddressFrameCustody::LiveLinkRegister {
-            view: target_operations_to_selected_instructions::register_model::RegisterViewId(30),
+        machine_code::ReturnAddressFrameCustody::LiveLinkRegister {
+            view: register_model::RegisterViewId(30),
         },
-        crate::machine_code::ReturnAddressFrameCustody::SavedLinkRegister {
-            view: target_operations_to_selected_instructions::register_model::RegisterViewId(30),
+        machine_code::ReturnAddressFrameCustody::SavedLinkRegister {
+            view: register_model::RegisterViewId(30),
             frame_offset_bytes: 8,
             size_bytes: 8,
         },
@@ -193,7 +193,7 @@ fn incoming_pointer_slots_bind_entry_bias_frame_size_and_parameter_identity() {
         frame.functions[0].return_address = return_address;
         let bias = if matches!(
             return_address,
-            crate::machine_code::ReturnAddressFrameCustody::CallerActivationStack { .. }
+            machine_code::ReturnAddressFrameCustody::CallerActivationStack { .. }
         ) {
             8
         } else {
@@ -270,7 +270,7 @@ fn floating_control_frame_custody_rejects_slot_geometry_and_address_substitution
             byte_size: 8,
             alignment: 8,
         };
-        frame.functions[0].local_storage_slots[0] = crate::machine_code::LocalStorageFrameSlot {
+        frame.functions[0].local_storage_slots[0] = machine_code::LocalStorageFrameSlot {
             id: slot,
             frame_offset_bytes: 8,
             size_bytes: 8,
@@ -368,7 +368,7 @@ fn boundary_byte_scratch_requires_exact_origin_geometry_and_offset() {
         byte_size: 1,
         alignment: 1,
     };
-    frame.functions[0].local_storage_slots[0] = crate::machine_code::LocalStorageFrameSlot {
+    frame.functions[0].local_storage_slots[0] = machine_code::LocalStorageFrameSlot {
         id: slot,
         frame_offset_bytes: 0,
         size_bytes: 1,
@@ -476,18 +476,16 @@ fn local_address_replay_rejects_displacement_source_and_extent_substitution() {
         let local = &mut changed.functions[0].local_storage_slots[0];
         match mutation {
             0 => {
-                local.id =
-                    target_operations_to_selected_instructions::LocalStorageSlotId::Structural {
-                        operation: local.id.operation().expect("source-backed local slot"),
-                        place: PlaceId::new(7).unwrap(),
-                    }
+                local.id = selected_instructions::LocalStorageSlotId::Structural {
+                    operation: local.id.operation().expect("source-backed local slot"),
+                    place: PlaceId::new(7).unwrap(),
+                }
             }
             1 => {
-                local.id =
-                    target_operations_to_selected_instructions::LocalStorageSlotId::Structural {
-                        operation: OperationId::new(11).unwrap(),
-                        place: local.id.structural_place().unwrap(),
-                    }
+                local.id = selected_instructions::LocalStorageSlotId::Structural {
+                    operation: OperationId::new(11).unwrap(),
+                    place: local.id.structural_place().unwrap(),
+                }
             }
             2 => local.size_bytes += 8,
             _ => local.alignment_bytes = 4,
@@ -555,7 +553,7 @@ fn pointer_address_replay_binds_base_offset_and_store_width_without_a_frame() {
 fn red_zone_resident_slots_resolve_below_the_unadjusted_stack_pointer() {
     let (mut function, mut frame, mut instruction) = fixture();
     let slot = LocalStorageSlotId::Spill {
-        register: target_operations_to_selected_instructions::VirtualRegisterId(7),
+        register: selected_instructions::VirtualRegisterId(7),
     };
     function.local_storage_slots[0].id = slot;
     function.local_storage_slots[0].byte_size = 8;
@@ -566,7 +564,7 @@ fn red_zone_resident_slots_resolve_below_the_unadjusted_stack_pointer() {
     frame.functions[0].frame_size_bytes = 8;
     frame.functions[0].red_zone_resident_bytes = 8;
     frame.functions[0].return_address =
-        crate::machine_code::ReturnAddressFrameCustody::CallerActivationStack {
+        machine_code::ReturnAddressFrameCustody::CallerActivationStack {
             post_prologue_offset_bytes: 0,
             size_bytes: 8,
         };
@@ -637,7 +635,7 @@ fn red_zone_resident_slots_resolve_below_the_unadjusted_stack_pointer() {
     function.local_storage_slots[0].id = boundary;
     function.local_storage_slots[0].byte_size = 1;
     function.local_storage_slots[0].alignment = 1;
-    frame.functions[0].local_storage_slots[0] = crate::machine_code::LocalStorageFrameSlot {
+    frame.functions[0].local_storage_slots[0] = machine_code::LocalStorageFrameSlot {
         id: boundary,
         frame_offset_bytes: 0,
         size_bytes: 1,
@@ -666,7 +664,7 @@ fn red_zone_resident_slots_resolve_below_the_unadjusted_stack_pointer() {
 fn compiler_spill_slot_addresses_bind_register_identity_and_exact_store_bounds() {
     let (mut function, mut frame, mut instruction) = fixture();
     let slot = LocalStorageSlotId::Spill {
-        register: target_operations_to_selected_instructions::VirtualRegisterId(7),
+        register: selected_instructions::VirtualRegisterId(7),
     };
     function.local_storage_slots[0].id = slot;
     function.local_storage_slots[0].byte_size = 8;
@@ -686,12 +684,12 @@ fn compiler_spill_slot_addresses_bind_register_identity_and_exact_store_bounds()
         slot: FrameStorageSlotId::Local(slot),
         byte_offset: 0,
     });
-    let original_identity = crate::machine_code::target_frame_layout_identity(&frame);
+    let original_identity = machine_code::target_frame_layout_identity(&frame);
     frame.functions[0].local_storage_slots[0].id = LocalStorageSlotId::Spill {
-        register: target_operations_to_selected_instructions::VirtualRegisterId(8),
+        register: selected_instructions::VirtualRegisterId(8),
     };
     assert_ne!(
-        crate::machine_code::target_frame_layout_identity(&frame),
+        machine_code::target_frame_layout_identity(&frame),
         original_identity
     );
     assert!(resolve(&function, Some(&frame), &instruction).is_err());
@@ -730,7 +728,7 @@ fn materialized_local_addresses_resolve_only_through_the_stable_address_loan_ros
     // An allocator spill slot's private reload materialization is not a
     // loan: it resolves while unrostered and rejects a rostered claim.
     let spill = LocalStorageSlotId::Spill {
-        register: target_operations_to_selected_instructions::VirtualRegisterId(9),
+        register: selected_instructions::VirtualRegisterId(9),
     };
     function.local_storage_slots[0].id = spill;
     frame.functions[0].local_storage_slots[0].id = spill;

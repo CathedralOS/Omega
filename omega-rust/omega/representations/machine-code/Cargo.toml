@@ -1,0 +1,26 @@
+[package]
+name = "machine-code"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "machine_code"
+path = "src/lib.rs"
+
+[dependencies]
+register-homes = { path = "../register-homes" }
+physical-instructions = { path = "../physical-instructions" }
+calling-conventions = { path = "../calling-conventions" }
+function-identity = { path = "../function-identity" }
+optimization-core = { path = "../optimization-core" }
+optimization-unit = { path = "../optimization-unit" }
+target = { path = "../target" }
+register-model = { path = "../register-model" }
+abstract-operations = { path = "../abstract-operations" }
+selected-instructions = { path = "../selected-instructions" }
+target-operations = { path = "../target-operations" }
+task-plans = { path = "../task-plans" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+terminal-psi = { path = "../../../psi/representations/terminal-psi" }
+sha2 = "0.10.9"

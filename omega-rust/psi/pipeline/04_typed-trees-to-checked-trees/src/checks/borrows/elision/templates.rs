@@ -1,12 +1,12 @@
 //! An uninstantiated declaration frontier cannot silently produce no loan.
 
 use diagnostics::Diagnostic;
-use symbol_resolved_trees_to_typed_trees::typed_trees::{
+use symbols::SymbolHandle;
+use typed_trees::{
     TypedTrees,
     expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument},
     statement::{StatementNode, TransitionTargetNode},
 };
-use symbols::SymbolHandle;
 
 enum Receiver<'a> {
     Named(Option<&'a str>),
@@ -108,8 +108,8 @@ pub(super) fn check_calls(
 
 fn check_target(
     program: &TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     deferred: &[SymbolHandle],
     target: SymbolHandle,
     receiver: Receiver<'_>,
@@ -134,17 +134,13 @@ fn check_target(
             });
             !concrete && {
                 let requirement = match receiver {
-                    Receiver::Named(Some(receiver)) => {
-                        crate::validation::generic_bound_call_requirement(
-                            program, machine, state, receiver, name,
-                        )
-                    }
+                    Receiver::Named(Some(receiver)) => validation::generic_bound_call_requirement(
+                        program, machine, state, receiver, name,
+                    ),
                     Receiver::Named(None) => Ok(None),
-                    Receiver::Value(receiver) => {
-                        crate::validation::generic_bound_value_call_requirement(
-                            program, machine, state, receiver, name,
-                        )
-                    }
+                    Receiver::Value(receiver) => validation::generic_bound_value_call_requirement(
+                        program, machine, state, receiver, name,
+                    ),
                 };
                 requirement
                     .ok()
@@ -171,8 +167,8 @@ fn check_target(
 /// the historical rejection.
 fn closed_return_frontier(
     program: &TypedTrees,
-    caller: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    caller: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     target: SymbolHandle,
     static_arguments: &[StaticMachineArgument],
     arguments: &[ExpressionHandle],
@@ -186,7 +182,7 @@ fn closed_return_frontier(
     let Some(signature) = signature else {
         return false;
     };
-    let Some(substitutions) = crate::validation::closed_static_call_type_bindings(
+    let Some(substitutions) = validation::closed_static_call_type_bindings(
         program,
         caller,
         state,

@@ -10,14 +10,14 @@ use super::{
     CheckedBooleanExpression, CheckedScalarExpression, LoweringError, PrimitiveType,
     integer_scalar_type, unsupported,
 };
-use typed_trees_to_checked_trees::checked_trees::domain::ProofFact;
-use typed_trees_to_checked_trees::checked_trees::signature::SignatureContractKind;
-use typed_trees_to_checked_trees::checked_trees::types::{TypeConstraintNode, TypeReferenceNode};
+use checked_trees::domain::ProofFact;
+use checked_trees::signature::SignatureContractKind;
+use checked_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
 pub(crate) fn validate_scalar_source(
     checked: &CheckedTrees,
-    machine: &typed_trees_to_checked_trees::checked_trees::machine::Machine,
-    state: &typed_trees_to_checked_trees::checked_trees::state::State,
+    machine: &checked_trees::machine::Machine,
+    state: &checked_trees::state::State,
 ) -> Result<(), LoweringError> {
     let requirements = checked
         .facts
@@ -90,7 +90,7 @@ pub(crate) fn validate_scalar_source(
 /// endpoints directly on the `FloatRange` clause.
 enum RetainedClause<'clause> {
     Predicate(&'clause CheckedBooleanExpression),
-    FloatRange(&'clause typed_trees_to_checked_trees::checked_trees::ClosedFloatRangeRequirement),
+    FloatRange(&'clause checked_trees::ClosedFloatRangeRequirement),
 }
 
 /// Scalar graphs retain authored clauses separately from their appended range
@@ -101,7 +101,7 @@ enum RetainedClause<'clause> {
 pub(crate) fn validate_graph_parameter_ranges(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
-    plan: &typed_trees_to_checked_trees::checked_trees::ClosedScalarValueContractPlan,
+    plan: &checked_trees::ClosedScalarValueContractPlan,
 ) -> Result<(), LoweringError> {
     let source = checked
         .machines()
@@ -148,20 +148,10 @@ pub(crate) fn validate_graph_parameter_ranges(
 
 fn validate_parameter_ranges<'clause>(
     checked: &CheckedTrees,
-    state: &typed_trees_to_checked_trees::checked_trees::state::State,
+    state: &checked_trees::state::State,
     mut retained: impl Iterator<Item = Option<RetainedClause<'clause>>>,
-    mut float_ranges: Option<
-        std::slice::Iter<
-            '_,
-            typed_trees_to_checked_trees::checked_trees::ClosedFloatRangeRequirement,
-        >,
-    >,
-    mut integer_ranges: Option<
-        std::slice::Iter<
-            '_,
-            typed_trees_to_checked_trees::checked_trees::ClosedIntegerRangeRequirement,
-        >,
-    >,
+    mut float_ranges: Option<std::slice::Iter<'_, checked_trees::ClosedFloatRangeRequirement>>,
+    mut integer_ranges: Option<std::slice::Iter<'_, checked_trees::ClosedIntegerRangeRequirement>>,
 ) -> Result<(), LoweringError> {
     let mut scalar_position = 0;
     for parameter in checked.state_parameters(state) {
@@ -185,7 +175,7 @@ fn validate_parameter_ranges<'clause>(
                                 let Some(bounds) = primitive
                                     .filter(|primitive| integer_scalar_type(*primitive).is_ok())
                                     .and_then(|primitive| {
-                                        typed_trees_to_checked_trees::validation::exact_declared_domain_carrier_interval(
+                                        validation::exact_declared_domain_carrier_interval(
                                             &checked.typed,
                                             primitive,
                                             domain,
@@ -232,18 +222,18 @@ fn validate_parameter_ranges<'clause>(
                                     "scalar float entry range lost its requires clause",
                                 );
                             };
-                            let (minimum_value, maximum_value) = typed_trees_to_checked_trees::validation::closed_float_range_endpoint(
+                            let (minimum_value, maximum_value) = validation::closed_float_range_endpoint(
                                     &checked.typed,
                                     *minimum,
                                     primitive,
                                 )
-                                .zip(typed_trees_to_checked_trees::validation::closed_float_range_endpoint(
+                                .zip(validation::closed_float_range_endpoint(
                                     &checked.typed,
                                     *maximum,
                                     primitive,
                                 ))
                                 .filter(|(low, high)| {
-                                    typed_trees_to_checked_trees::validation::ieee_float_range_ordered(*low, *high)
+                                    validation::ieee_float_range_ordered(*low, *high)
                                 })
                                 .ok_or(LoweringError::Unsupported(
                                     "scalar float entry range has unavailable or unordered source bounds",
@@ -281,8 +271,8 @@ fn validate_parameter_ranges<'clause>(
                                     maximum,
                                     end_inclusive,
                                 },
-                            ) => typed_trees_to_checked_trees::validation::closed_integer_range_bound(&checked.typed, *minimum)
-                                .zip(typed_trees_to_checked_trees::validation::closed_integer_range_maximum(
+                            ) => validation::closed_integer_range_bound(&checked.typed, *minimum)
+                                .zip(validation::closed_integer_range_maximum(
                                     &checked.typed,
                                     *maximum,
                                     *end_inclusive,
@@ -341,15 +331,10 @@ fn validate_parameter_ranges<'clause>(
                                     "scalar entry range endpoint is not a closed literal",
                                 );
                             };
-                            let expected =
-                                typed_trees_to_checked_trees::validation::land_integer_value(
-                                    &expected, primitive,
-                                )
-                                .ok_or(
-                                    LoweringError::Unsupported(
-                                        "scalar range bound does not fit its carrier",
-                                    ),
-                                )?;
+                            let expected = validation::land_integer_value(&expected, primitive)
+                                .ok_or(LoweringError::Unsupported(
+                                    "scalar range bound does not fit its carrier",
+                                ))?;
                             if literal != &expected || literal.landing() != expected.landing() {
                                 return unsupported(
                                     "scalar entry range changes its normalized bound or carrier",
@@ -405,7 +390,7 @@ fn validate_parameter_ranges<'clause>(
 fn validate_value(
     checked: &CheckedTrees,
     state: symbols::SymbolHandle,
-    expression: typed_trees_to_checked_trees::checked_trees::expression::ExpressionHandle,
+    expression: checked_trees::expression::ExpressionHandle,
     primitive: PrimitiveType,
     value: CheckedScalarExpression,
 ) -> Result<(), LoweringError> {
@@ -415,7 +400,7 @@ fn validate_value(
         0,
         expression,
         primitive,
-        &typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(value),
+        &checked_trees::CheckedCallScalarArgument::Pure(value),
     )
 }
 

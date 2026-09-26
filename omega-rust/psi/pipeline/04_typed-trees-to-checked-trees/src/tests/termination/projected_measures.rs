@@ -79,8 +79,7 @@ fn measure_projection_rejects_substituted_field_and_binder_identities() {
         .iter()
         .find(|data| data.name.as_str() == "Other")
         .unwrap();
-    let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(foreign_field) =
-        &program.data_members(other)[0]
+    let typed_trees::data::DataMember::Field(foreign_field) = &program.data_members(other)[0]
     else {
         panic!("field");
     };
@@ -94,9 +93,8 @@ fn measure_projection_rejects_substituted_field_and_binder_identities() {
         measure.symbol,
     ] {
         let mut changed = program.clone();
-        let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Member(
-            member,
-        ) = changed.expression_table.expression_mut(body)
+        let typed_trees::expression::ExpressionNode::Member(member) =
+            changed.expression_table.expression_mut(body)
         else {
             panic!("projection");
         };
@@ -107,14 +105,13 @@ fn measure_projection_rejects_substituted_field_and_binder_identities() {
         );
     }
     let mut changed = program.clone();
-    let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Member(
-        member,
-    ) = changed.expression_table.expression(body)
+    let typed_trees::expression::ExpressionNode::Member(member) =
+        changed.expression_table.expression(body)
     else {
         panic!("projection");
     };
     let receiver = member.receiver;
-    let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Name(path) =
+    let typed_trees::expression::ExpressionNode::Name(path) =
         changed.expression_table.expression_mut(receiver)
     else {
         panic!("binder");
@@ -129,7 +126,7 @@ fn measure_projection_rejects_substituted_field_and_binder_identities() {
 
 #[test]
 fn measure_projection_matches_nominal_subject_identity_not_spelling() {
-    use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
+    use typed_trees::types::TypeReferenceNode;
 
     let program = typed_program(&format!("data Other {{ remaining: u64; }}\n{COUNTDOWN}"));
     let machine = &program.machines()[0];

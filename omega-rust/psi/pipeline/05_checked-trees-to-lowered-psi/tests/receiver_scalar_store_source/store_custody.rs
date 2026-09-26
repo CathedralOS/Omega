@@ -1,5 +1,5 @@
 use super::CheckedUnitEffectOperationPlan;
-use lowered_psi_to_terminal_psi::terminal_production::{
+use terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
 const ORDERED_SOURCE: &str = r#"
@@ -14,13 +14,13 @@ const ORDERED_SOURCE: &str = r#"
     }
 "#;
 
-fn checked() -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
+fn checked() -> checked_trees::CheckedTrees {
     crate::front_end::checked_program(ORDERED_SOURCE)
 }
 
 fn plan_mut(
-    checked: &mut typed_trees_to_checked_trees::checked_trees::CheckedTrees,
-) -> &mut typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectMachinePlan {
+    checked: &mut checked_trees::CheckedTrees,
+) -> &mut checked_trees::CheckedUnitEffectMachinePlan {
     let machine = checked
         .machines()
         .iter()
@@ -39,16 +39,15 @@ fn plan_mut(
 
 #[test]
 fn ordered_store_source_custody_rejects_omission_reordering_and_substitution() {
-    let _artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked(),
-            TerminalMachineSelection::Name("Pair::ordered"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("unmodified authored store sequence publishes")
-        .into_artifact();
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked(),
+        TerminalMachineSelection::Name("Pair::ordered"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("unmodified authored store sequence publishes")
+    .into_artifact();
     for mutation in 0..11 {
         let mut checked = checked();
         let plan = plan_mut(&mut checked);
@@ -140,7 +139,7 @@ fn ordered_store_source_custody_rejects_omission_reordering_and_substitution() {
             _ => unreachable!(),
         }
         assert!(
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            terminal_production::TerminalProductionRequest::new(
                 &checked,
                 TerminalMachineSelection::Name("Pair::ordered")
             )
@@ -157,16 +156,15 @@ fn ordered_store_source_custody_rejects_omission_reordering_and_substitution() {
 fn unrelated_scalar_local_cannot_hide_an_omitted_call_between_stores() {
     let source = ORDERED_SOURCE.replace("self.left = 1;", "let unrelated: u16 = 7; self.left = 1;");
     let mut checked = crate::front_end::checked_program(&source);
-    let _artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("Pair::ordered"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("authored local and ordered stores publish together")
-        .into_artifact();
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Pair::ordered"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("authored local and ordered stores publish together")
+    .into_artifact();
     let plan = plan_mut(&mut checked);
     let position = plan
         .operations
@@ -175,7 +173,7 @@ fn unrelated_scalar_local_cannot_hide_an_omitted_call_between_stores() {
         .unwrap();
     plan.operations.remove(position);
     assert!(
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+        terminal_production::TerminalProductionRequest::new(
             &checked,
             TerminalMachineSelection::Name("Pair::ordered")
         )

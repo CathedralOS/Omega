@@ -3,14 +3,14 @@ use super::{
     CheckedBooleanExpression, CheckedScalarComputationKind, CheckedScalarExpression,
     CheckedScalarExpressionRole, ExpressionNode, PrimitiveType, StatementNode,
 };
-use crate::checked_trees::{
+use crate::values::build_checked_scalar_computation_plans;
+use crate::values::scalar::computations::tests::checked_source;
+use checked_trees::{
     CheckedCallScalarArgument, CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentSourcePlan,
 };
-use crate::values::build_checked_scalar_computation_plans;
-use crate::values::scalar::computations::tests::checked_source;
 
-fn local_fixture(borrow_first: bool) -> crate::checked_trees::CheckedTrees {
+fn local_fixture(borrow_first: bool) -> checked_trees::CheckedTrees {
     let arguments = if borrow_first {
         "stamp(&mut scratch, 7), scratch"
     } else {
@@ -33,9 +33,7 @@ fn local_fixture(borrow_first: bool) -> crate::checked_trees::CheckedTrees {
     )
 }
 
-fn entry(
-    checked: &crate::checked_trees::CheckedTrees,
-) -> &symbol_resolved_trees_to_typed_trees::typed_trees::state::State {
+fn entry(checked: &checked_trees::CheckedTrees) -> &typed_trees::state::State {
     let machine = checked
         .machines()
         .iter()
@@ -49,7 +47,7 @@ fn entry(
     &checked.machine_states(machine)[0]
 }
 
-fn root(checked: &crate::checked_trees::CheckedTrees) -> CheckedScalarComputationHandle {
+fn root(checked: &checked_trees::CheckedTrees) -> CheckedScalarComputationHandle {
     checked
         .facts
         .values
@@ -335,7 +333,7 @@ fn borrowed_computation_arguments_keep_sibling_occurrences_on_the_same_local_dis
         };
         assert_eq!(
             crate::values::evaluate_checked_scalar(value, &mut |_| None),
-            Some(crate::fact_plan::ScalarValue::Integer(
+            Some(facts::ScalarValue::Integer(
                 numerics::bignum::BigInt::from_i64(expected)
             ))
         );
@@ -490,7 +488,7 @@ fn borrowed_computation_arguments_reject_missing_duplicate_or_substituted_custod
             0 => borrow.calls.get_mut(borrow_call).accesses = arena::HandleSpan::empty(),
             1 => {
                 borrow.argument_accesses.get_mut(access).kind =
-                    crate::checked_trees::BorrowAccessKind::Read
+                    checked_trees::BorrowAccessKind::Read
             }
             2 => borrow.argument_accesses.get_mut(access).root_symbol = SymbolHandle::invalid(),
             3 => borrow.calls.get_mut(borrow_call).call_ordinal += 1,
@@ -723,7 +721,7 @@ fn borrowed_computation_arguments_do_not_admit_projections_or_owned_structures()
     }
 }
 
-fn shared_occurrence_fixture(arguments: &str) -> crate::checked_trees::CheckedTrees {
+fn shared_occurrence_fixture(arguments: &str) -> checked_trees::CheckedTrees {
     checked_source(
         &format!(
             r#"
@@ -791,7 +789,7 @@ fn borrowed_computation_shared_occurrences_keep_scalar_reads_between_same_root_b
             "scalar observation retains its intervening row"
         );
         assert!(rows.iter().all(|row| row.root_symbol == symbol
-            && row.kind == crate::checked_trees::BorrowAccessKind::Read
+            && row.kind == checked_trees::BorrowAccessKind::Read
             && row.segments.is_empty()));
     }
 }
@@ -850,7 +848,7 @@ fn borrowed_computation_shared_occurrences_reject_altered_full_access_rosters() 
                 "missing scalar read" => {
                     rows.remove(1);
                 }
-                "exclusive" => rows[2].kind = crate::checked_trees::BorrowAccessKind::Mutable,
+                "exclusive" => rows[2].kind = checked_trees::BorrowAccessKind::Mutable,
                 "substituted" => rows[1].root_symbol = SymbolHandle::invalid(),
                 "reordered" => rows.swap(0, 2),
                 _ => unreachable!(),

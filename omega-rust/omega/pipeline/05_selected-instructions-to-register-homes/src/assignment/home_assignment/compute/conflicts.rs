@@ -1,18 +1,16 @@
 //! Explicit interference and directional early-clobber compatibility.
 
-use target_operations_to_selected_instructions::VirtualRegisterId;
 #[cfg(test)]
-use target_operations_to_selected_instructions::register_model::{
-    RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel,
-};
+use register_model::{RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel};
+use selected_instructions::VirtualRegisterId;
 
 #[cfg(test)]
 use super::domain::AllocationDomain;
 #[cfg(test)]
 use crate::RegisterHomeError;
 #[cfg(test)]
-use target_operations_to_selected_instructions::FunctionLiveRanges;
-use target_operations_to_selected_instructions::VirtualInterference;
+use selected_instructions::FunctionLiveRanges;
+use selected_instructions::VirtualInterference;
 
 #[cfg(test)]
 pub(super) fn domains_constrained(

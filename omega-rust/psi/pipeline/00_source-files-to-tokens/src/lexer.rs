@@ -27,10 +27,8 @@ use std::str::CharIndices;
 
 use crate::LexError;
 use crate::lexer::strings::decode_string_literal;
-use crate::tokens::{
-    CommentKind, KeywordKind, PunctuationKind, Token, TokenKind, TokenStream, TokenText,
-};
 use source::Span;
+use tokens::{CommentKind, KeywordKind, PunctuationKind, Token, TokenKind, TokenStream, TokenText};
 
 pub mod lex_error;
 mod numbers;

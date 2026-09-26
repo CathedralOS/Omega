@@ -1,3 +1,4 @@
+use checked_trees::CheckedUnitEffectOperationPlan;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use checked_trees_to_lowered_psi::lower_machine;
 use proof_admission::AdmissionProfile;
@@ -11,7 +12,6 @@ use terminal_interpreter::{
     TerminalStructuralValue,
 };
 use terminal_psi::{OperationKind, OperationResult, Terminator};
-use typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan;
 
 #[path = "affine_result_calls/uses.rs"]
 mod uses;
@@ -40,14 +40,13 @@ fn harness(source: &str) -> String {
     format!("data Main {{}} machine Main::run() {{}} {source}")
 }
 
-fn checked(source: &str) -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
+fn checked(source: &str) -> checked_trees::CheckedTrees {
     crate::front_end::checked_program(&harness(source))
 }
 
 fn checked_result(
     source: &str,
-) -> Result<typed_trees_to_checked_trees::checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>>
-{
+) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     crate::front_end::checked_program_result(&harness(source))
 }
 
@@ -249,7 +248,7 @@ fn structural_initializers_preserve_mixed_authored_parameter_positions() {
 }
 
 fn structural_call_mut(
-    checked: &mut typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+    checked: &mut checked_trees::CheckedTrees,
 ) -> &mut CheckedUnitEffectOperationPlan {
     checked
         .facts

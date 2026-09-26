@@ -29,7 +29,7 @@ fn structural_unit_jump_composes_signatures_transfers_and_cleanup() {
     assert_eq!(plan.states.len(), 2);
     assert_eq!(plan.states[0].scalar_parameters.len(), 1);
     assert_eq!(plan.states[1].scalar_parameters.len(), 1);
-    let crate::checked_trees::CheckedStructuralUnitControlTerminatorPlan::Jump {
+    let checked_trees::CheckedStructuralUnitControlTerminatorPlan::Jump {
         transfers,
         trivial_affine_discard_parameter_positions,
         ..
@@ -40,12 +40,11 @@ fn structural_unit_jump_composes_signatures_transfers_and_cleanup() {
     assert_eq!(transfers.len(), 1);
     assert_eq!(
         transfers[0].source,
-        crate::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 1 }
+        checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 1 }
     );
     assert_eq!(transfers[0].target_parameter_index, 0);
-    let crate::checked_trees::CheckedStructuralUnitControlTerminatorPlan::Jump {
-        scalar_arguments,
-        ..
+    let checked_trees::CheckedStructuralUnitControlTerminatorPlan::Jump {
+        scalar_arguments, ..
     } = &plan.states[0].terminator
     else {
         unreachable!()
@@ -54,15 +53,15 @@ fn structural_unit_jump_composes_signatures_transfers_and_cleanup() {
     assert_eq!(scalar_arguments[0].argument_ordinal, 1);
     assert_eq!(
         scalar_arguments[0].source,
-        crate::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 0 }
+        checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 0 }
     );
     assert_eq!(scalar_arguments[0].target_scalar_parameter_index, 0);
     assert_eq!(
         scalar_arguments[0].primitive_type,
-        crate::checked_trees::types::PrimitiveType::I32
+        checked_trees::types::PrimitiveType::I32
     );
     assert_eq!(trivial_affine_discard_parameter_positions, &[0]);
-    let crate::checked_trees::CheckedStructuralUnitControlTerminatorPlan::ReturnUnit {
+    let checked_trees::CheckedStructuralUnitControlTerminatorPlan::ReturnUnit {
         trivial_affine_discard_parameter_positions,
     } = &plan.states[1].terminator
     else {
@@ -133,7 +132,7 @@ fn structural_unit_countdown_retains_exact_ranked_scc_plan() {
     assert_eq!(ranked.rank_scalar_parameter_index, 0);
     assert_eq!(
         ranked.rank_primitive_type,
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U32
+        typed_trees::types::PrimitiveType::U32
     );
     assert_eq!(ranked.rank_lower_bound, 0);
     assert_eq!(ranked.rank_upper_bound, u128::from(u32::MAX));
@@ -145,23 +144,21 @@ fn structural_unit_countdown_retains_exact_ranked_scc_plan() {
     assert_eq!(edge.statement_ordinal, 0);
     assert_eq!(
         edge.guard,
-        crate::checked_trees::CheckedStructuralRankedGuardPlan::UnsignedParameterPositive {
+        checked_trees::CheckedStructuralRankedGuardPlan::UnsignedParameterPositive {
             scalar_parameter_index: 0,
-            primitive_type:
-                symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U32,
+            primitive_type: typed_trees::types::PrimitiveType::U32,
         }
     );
     assert_eq!(
         edge.successor_argument,
-        crate::checked_trees::CheckedStructuralRankedArgumentPlan::UnsignedParameterMinusOne {
+        checked_trees::CheckedStructuralRankedArgumentPlan::UnsignedParameterMinusOne {
             argument_ordinal: 1,
             source_scalar_parameter_index: 0,
             target_scalar_parameter_index: 0,
-            primitive_type:
-                symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U32,
+            primitive_type: typed_trees::types::PrimitiveType::U32,
         }
     );
-    let crate::checked_trees::CheckedStructuralUnitControlTerminatorPlan::Conditional {
+    let checked_trees::CheckedStructuralUnitControlTerminatorPlan::Conditional {
         guard_scalar_parameter_index,
         when_true,
         ..
@@ -173,7 +170,7 @@ fn structural_unit_countdown_retains_exact_ranked_scc_plan() {
     assert_eq!(when_true.target_state, ranked.header_state);
     assert_eq!(
         when_true.scalar_arguments[0].source,
-        crate::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 0 }
+        checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 0 }
     );
     assert_eq!(
         when_true.scalar_arguments[0].target_scalar_parameter_index,
@@ -241,13 +238,13 @@ fn structural_unit_countdown_retains_implicit_mutable_receiver_custody() {
     assert_eq!(header_receiver, done_receiver);
     assert_eq!(
         header_receiver.access,
-        crate::checked_trees::CheckedStructuralAccess::MutableBorrow
+        checked_trees::CheckedStructuralAccess::MutableBorrow
     );
     assert_eq!(
         header_receiver.multiplicity,
         language_semantics::Multiplicity::Unrestricted
     );
-    let crate::checked_trees::CheckedStructuralUnitControlTerminatorPlan::Conditional {
+    let checked_trees::CheckedStructuralUnitControlTerminatorPlan::Conditional {
         when_true,
         when_false,
         ..
@@ -258,11 +255,10 @@ fn structural_unit_countdown_retains_implicit_mutable_receiver_custody() {
     for successor in [when_true, when_false] {
         assert_eq!(
             successor.transfers,
-            [crate::checked_trees::CheckedStructuralControlTransferPlan {
-                source:
-                    crate::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
-                        index: 0
-                    },
+            [checked_trees::CheckedStructuralControlTransferPlan {
+                source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
+                    index: 0
+                },
                 target_parameter_index: 0,
             }]
         );
@@ -272,7 +268,7 @@ fn structural_unit_countdown_retains_implicit_mutable_receiver_custody() {
                 .is_empty()
         );
     }
-    let crate::checked_trees::CheckedStructuralUnitControlTerminatorPlan::ReturnUnit {
+    let checked_trees::CheckedStructuralUnitControlTerminatorPlan::ReturnUnit {
         trivial_affine_discard_parameter_positions,
     } = &done.terminator
     else {
@@ -315,7 +311,7 @@ fn structural_unit_conditional_composes_independent_transfer_cleanup_frontiers()
     assert_eq!(plan.states[0].scalar_parameters.len(), 2);
     assert_eq!(plan.states[1].scalar_parameters.len(), 1);
     assert_eq!(plan.states[2].scalar_parameters.len(), 1);
-    let crate::checked_trees::CheckedStructuralUnitControlTerminatorPlan::Conditional {
+    let checked_trees::CheckedStructuralUnitControlTerminatorPlan::Conditional {
         guard_scalar_parameter_index,
         when_true,
         when_false,
@@ -327,13 +323,13 @@ fn structural_unit_conditional_composes_independent_transfer_cleanup_frontiers()
     assert_eq!(when_true.statement_ordinal, 0);
     assert_eq!(
         when_true.transfers[0].source,
-        crate::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 }
+        checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 }
     );
     assert_eq!(when_true.scalar_arguments.len(), 1);
     assert_eq!(when_true.scalar_arguments[0].argument_ordinal, 1);
     assert_eq!(
         when_true.scalar_arguments[0].source,
-        crate::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 1 }
+        checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 1 }
     );
     assert_eq!(
         when_true.scalar_arguments[0].target_scalar_parameter_index,
@@ -343,7 +339,7 @@ fn structural_unit_conditional_composes_independent_transfer_cleanup_frontiers()
     assert_eq!(when_false.statement_ordinal, 1);
     assert_eq!(
         when_false.transfers[0].source,
-        crate::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 1 }
+        checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 1 }
     );
     assert_eq!(when_false.scalar_arguments, when_true.scalar_arguments);
     assert_eq!(when_false.trivial_affine_discard_parameter_positions, [0]);
@@ -417,7 +413,7 @@ fn structural_unit_bounded_conditional_topology_composes_exact_frontiers() {
     assert_eq!(plan.states.len(), 4);
     assert!(matches!(
         &plan.states[0].terminator,
-        crate::checked_trees::CheckedStructuralUnitControlTerminatorPlan::Jump {
+        checked_trees::CheckedStructuralUnitControlTerminatorPlan::Jump {
             transfers,
             scalar_arguments,
             trivial_affine_discard_parameter_positions,
@@ -428,7 +424,7 @@ fn structural_unit_bounded_conditional_topology_composes_exact_frontiers() {
     ));
     assert!(matches!(
         &plan.states[1].terminator,
-        crate::checked_trees::CheckedStructuralUnitControlTerminatorPlan::Conditional {
+        checked_trees::CheckedStructuralUnitControlTerminatorPlan::Conditional {
             guard_scalar_parameter_index: 0,
             ..
         }
@@ -485,7 +481,7 @@ fn structural_unit_bounded_conditional_topology_composes_exact_frontiers() {
             .iter()
             .filter(|state| matches!(
                 state.terminator,
-                crate::checked_trees::CheckedStructuralUnitControlTerminatorPlan::Conditional { .. }
+                checked_trees::CheckedStructuralUnitControlTerminatorPlan::Conditional { .. }
             ))
             .count(),
         2
@@ -602,7 +598,7 @@ fn structural_unit_diamond_retains_one_join_and_exact_scalar_edges() {
     for state in &plan.states[1..3] {
         assert!(matches!(
             &state.terminator,
-            crate::checked_trees::CheckedStructuralUnitControlTerminatorPlan::Jump {
+            checked_trees::CheckedStructuralUnitControlTerminatorPlan::Jump {
                 target_state,
                 transfers,
                 scalar_arguments,

@@ -194,8 +194,7 @@ fn storage_block(
     function: usize,
     storage: &[SpillPseudoStorage],
     id: crate::unsequenced_spill_stages::GeneralizedSpillActionId,
-) -> Result<target_operations_to_selected_instructions::SelectedBlockId, SpillPseudoInstructionError>
-{
+) -> Result<selected_instructions::SelectedBlockId, SpillPseudoInstructionError> {
     storage
         .iter()
         .find(|row| row.id == id)

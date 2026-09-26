@@ -14,32 +14,34 @@ fn instantiates_call_contract_places_onto_caller_arguments() {
     let caller_argument_symbol = SymbolHandle::from_arena_index(5);
     let callee_parameter_symbol = SymbolHandle::from_arena_index(6);
 
-    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
-    let caller_argument_expression = program.expression_table.insert(
-        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Name(
-            symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableNamePath {
-                members: HandleSpan::empty(),
-                member_symbols: HandleSpan::empty(),
-                head_symbol: caller_argument_symbol,
-                symbol: caller_argument_symbol,
-            },
-        ),
-    );
-    let callee_parameter_expression = program.expression_table.insert(
-        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Name(
-            symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableNamePath {
-                members: HandleSpan::empty(),
-                member_symbols: HandleSpan::empty(),
-                head_symbol: callee_parameter_symbol,
-                symbol: callee_parameter_symbol,
-            },
-        ),
-    );
-    let callee_fact = program.proof_facts.append(
-        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
+    let mut program = typed_trees::TypedTrees::default();
+    let caller_argument_expression =
+        program
+            .expression_table
+            .insert(typed_trees::expression::ExpressionNode::Name(
+                typed_trees::expression::TableNamePath {
+                    members: HandleSpan::empty(),
+                    member_symbols: HandleSpan::empty(),
+                    head_symbol: caller_argument_symbol,
+                    symbol: caller_argument_symbol,
+                },
+            ));
+    let callee_parameter_expression =
+        program
+            .expression_table
+            .insert(typed_trees::expression::ExpressionNode::Name(
+                typed_trees::expression::TableNamePath {
+                    members: HandleSpan::empty(),
+                    member_symbols: HandleSpan::empty(),
+                    head_symbol: callee_parameter_symbol,
+                    symbol: callee_parameter_symbol,
+                },
+            ));
+    let callee_fact = program
+        .proof_facts
+        .append(typed_trees::domain::ProofFact::Expression(
             callee_parameter_expression,
-        ),
-    );
+        ));
 
     let mut caller_arguments = HandleSpan::empty();
     program
@@ -90,8 +92,7 @@ fn instantiates_call_contract_places_onto_caller_arguments() {
         name: Identifier::generated("Caller"),
         attached_data: None,
         attached_data_symbol: symbols::SymbolHandle::invalid(),
-        attached_data_application:
-            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
+        attached_data_application: typed_trees::types::TypeReferenceHandle::invalid(),
         generic_data_template: symbols::SymbolHandle::invalid(),
         spelling: None,
         is_public: false,
@@ -144,8 +145,7 @@ fn instantiates_call_contract_places_onto_caller_arguments() {
         name: Identifier::generated("Worker"),
         attached_data: None,
         attached_data_symbol: symbols::SymbolHandle::invalid(),
-        attached_data_application:
-            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
+        attached_data_application: typed_trees::types::TypeReferenceHandle::invalid(),
         generic_data_template: symbols::SymbolHandle::invalid(),
         spelling: None,
         is_public: false,
@@ -172,7 +172,7 @@ fn instantiates_call_contract_places_onto_caller_arguments() {
     program.push_machine_state(&mut callee_machine, callee_state);
     program.push_machine(callee_machine);
 
-    let call = crate::checked_trees::ContractCallFact {
+    let call = checked_trees::ContractCallFact {
         caller_machine_symbol,
         caller_state_symbol,
         statement_index: 0,
@@ -183,7 +183,7 @@ fn instantiates_call_contract_places_onto_caller_arguments() {
         ensures: HandleSpan::empty(),
         evidence_arguments: HandleSpan::empty(),
     };
-    let contract = crate::checked_trees::ContractProofFact {
+    let contract = checked_trees::ContractProofFact {
         kind: ContractProofFactKind::Requires,
         owner: ContractProofFactOwner::MachineState {
             machine_symbol: callee_machine_symbol,
@@ -195,15 +195,15 @@ fn instantiates_call_contract_places_onto_caller_arguments() {
         inherited_scope: None,
     };
 
-    let mut semantic = crate::fact_plan::FactPlan::default();
+    let mut semantic = facts::FactPlan::default();
     let place = instantiate_call_contract_place(&program, &mut semantic, &call, &contract);
-    let crate::fact_plan::FactPlace::Place(place_handle) = place else {
+    let facts::FactPlace::Place(place_handle) = place else {
         panic!("expected instantiated call place");
     };
 
     assert_eq!(
         semantic.places.get(place_handle).root,
-        crate::fact_plan::PlaceRoot::Symbol(caller_argument_symbol)
+        facts::PlaceRoot::Symbol(caller_argument_symbol)
     );
 }
 
@@ -216,22 +216,23 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
     let caller_player_symbol = SymbolHandle::from_arena_index(5);
     let callee_player_symbol = SymbolHandle::from_arena_index(6);
 
-    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
-    let player_fact_expression = program.expression_table.insert(
-        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Name(
-            crate::checked_trees::expression::TableNamePath {
-                members: HandleSpan::empty(),
-                member_symbols: HandleSpan::empty(),
-                head_symbol: callee_player_symbol,
-                symbol: callee_player_symbol,
-            },
-        ),
-    );
-    let callee_fact = program.proof_facts.append(
-        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
+    let mut program = typed_trees::TypedTrees::default();
+    let player_fact_expression =
+        program
+            .expression_table
+            .insert(typed_trees::expression::ExpressionNode::Name(
+                checked_trees::expression::TableNamePath {
+                    members: HandleSpan::empty(),
+                    member_symbols: HandleSpan::empty(),
+                    head_symbol: callee_player_symbol,
+                    symbol: callee_player_symbol,
+                },
+            ));
+    let callee_fact = program
+        .proof_facts
+        .append(typed_trees::domain::ProofFact::Expression(
             player_fact_expression,
-        ),
-    );
+        ));
 
     let mut caller_arguments = HandleSpan::empty();
     let self_name = Expression::Name(NamePath::resolved(
@@ -239,14 +240,12 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
         caller_machine_symbol,
         caller_machine_symbol,
     ));
-    let player_member = Expression::Member(Box::new(
-        crate::checked_trees::expression::MemberExpression {
-            receiver: self_name,
-            member_symbol: caller_player_symbol,
-            member: Identifier::generated("player"),
-            case_variant: None,
-        },
-    ));
+    let player_member = Expression::Member(Box::new(checked_trees::expression::MemberExpression {
+        receiver: self_name,
+        member_symbol: caller_player_symbol,
+        member: Identifier::generated("player"),
+        case_variant: None,
+    }));
     let player_argument = mutable_borrow(player_member);
     let player_argument = program.expression_table.insert_tree(&player_argument);
     program
@@ -258,8 +257,7 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
         name: Identifier::generated("Main"),
         attached_data: None,
         attached_data_symbol: symbols::SymbolHandle::invalid(),
-        attached_data_application:
-            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
+        attached_data_application: typed_trees::types::TypeReferenceHandle::invalid(),
         generic_data_template: symbols::SymbolHandle::invalid(),
         spelling: None,
         is_public: false,
@@ -287,8 +285,7 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
         symbol: caller_state_symbol,
         name: Identifier::generated("main"),
         parameters: Default::default(),
-        return_type:
-            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
+        return_type: typed_trees::types::TypeReferenceHandle::invalid(),
         contracts: Default::default(),
         statement_nodes: Default::default(),
     };
@@ -319,8 +316,7 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
         name: Identifier::generated("Game"),
         attached_data: None,
         attached_data_symbol: symbols::SymbolHandle::invalid(),
-        attached_data_application:
-            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
+        attached_data_application: typed_trees::types::TypeReferenceHandle::invalid(),
         generic_data_template: symbols::SymbolHandle::invalid(),
         spelling: None,
         is_public: false,
@@ -348,8 +344,7 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
         symbol: callee_state_symbol,
         name: Identifier::generated("heal"),
         parameters: Default::default(),
-        return_type:
-            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
+        return_type: typed_trees::types::TypeReferenceHandle::invalid(),
         contracts: Default::default(),
         statement_nodes: Default::default(),
     };
@@ -358,7 +353,7 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
         StateParameter {
             symbol: callee_player_symbol,
             name: Identifier::generated("player"),
-            type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
+            type_reference: typed_trees::types::TypeReferenceHandle::invalid(),
             is_const: false,
             is_mutable: true,
             is_self: false,
@@ -368,7 +363,7 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
     program.push_machine_state(&mut callee_machine, callee_state);
     program.push_machine(callee_machine);
 
-    let call = crate::checked_trees::ContractCallFact {
+    let call = checked_trees::ContractCallFact {
         caller_machine_symbol,
         caller_state_symbol,
         statement_index: 0,
@@ -379,7 +374,7 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
         ensures: HandleSpan::empty(),
         evidence_arguments: HandleSpan::empty(),
     };
-    let contract = crate::checked_trees::ContractProofFact {
+    let contract = checked_trees::ContractProofFact {
         kind: ContractProofFactKind::Requires,
         owner: ContractProofFactOwner::MachineState {
             machine_symbol: callee_machine_symbol,
@@ -391,22 +386,19 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
         inherited_scope: None,
     };
 
-    let mut semantic = crate::fact_plan::FactPlan::default();
+    let mut semantic = facts::FactPlan::default();
     let place = instantiate_call_contract_place(&program, &mut semantic, &call, &contract);
-    let crate::fact_plan::FactPlace::Place(place_handle) = place else {
+    let facts::FactPlace::Place(place_handle) = place else {
         panic!("expected instantiated call place");
     };
     let place = semantic.places.get(place_handle);
     let segments = semantic.place_segments.span_or_empty(place.segments);
 
-    assert_eq!(
-        place.root,
-        crate::fact_plan::PlaceRoot::Symbol(caller_machine_symbol)
-    );
+    assert_eq!(place.root, facts::PlaceRoot::Symbol(caller_machine_symbol));
     assert_eq!(segments.len(), 1);
     assert_eq!(
         segments[0],
-        crate::fact_plan::PlaceSegment::Field {
+        facts::PlaceSegment::Field {
             symbol: caller_player_symbol
         }
     );
@@ -421,36 +413,35 @@ fn instantiates_call_contract_places_for_expression_statement_calls() {
     let caller_player_symbol = SymbolHandle::from_arena_index(5);
     let callee_player_symbol = SymbolHandle::from_arena_index(6);
 
-    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
-    let player_fact_expression = program.expression_table.insert(
-        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Name(
-            crate::checked_trees::expression::TableNamePath {
-                members: HandleSpan::empty(),
-                member_symbols: HandleSpan::empty(),
-                head_symbol: callee_player_symbol,
-                symbol: callee_player_symbol,
-            },
-        ),
-    );
-    let callee_fact = program.proof_facts.append(
-        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
+    let mut program = typed_trees::TypedTrees::default();
+    let player_fact_expression =
+        program
+            .expression_table
+            .insert(typed_trees::expression::ExpressionNode::Name(
+                checked_trees::expression::TableNamePath {
+                    members: HandleSpan::empty(),
+                    member_symbols: HandleSpan::empty(),
+                    head_symbol: callee_player_symbol,
+                    symbol: callee_player_symbol,
+                },
+            ));
+    let callee_fact = program
+        .proof_facts
+        .append(typed_trees::domain::ProofFact::Expression(
             player_fact_expression,
-        ),
-    );
+        ));
 
     let self_name = Expression::Name(NamePath::resolved(
         vec![Identifier::generated("self")],
         caller_machine_symbol,
         caller_machine_symbol,
     ));
-    let player_member = Expression::Member(Box::new(
-        crate::checked_trees::expression::MemberExpression {
-            receiver: self_name,
-            member_symbol: caller_player_symbol,
-            member: Identifier::generated("player"),
-            case_variant: None,
-        },
-    ));
+    let player_member = Expression::Member(Box::new(checked_trees::expression::MemberExpression {
+        receiver: self_name,
+        member_symbol: caller_player_symbol,
+        member: Identifier::generated("player"),
+        case_variant: None,
+    }));
     let player_argument = mutable_borrow(player_member);
     let call_expression = Expression::Call(Box::new(CallExpression {
         receiver: Some(Box::new(Expression::Name(NamePath::resolved(
@@ -471,8 +462,7 @@ fn instantiates_call_contract_places_for_expression_statement_calls() {
         name: Identifier::generated("Main"),
         attached_data: None,
         attached_data_symbol: symbols::SymbolHandle::invalid(),
-        attached_data_application:
-            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
+        attached_data_application: typed_trees::types::TypeReferenceHandle::invalid(),
         generic_data_template: symbols::SymbolHandle::invalid(),
         spelling: None,
         is_public: false,
@@ -500,8 +490,7 @@ fn instantiates_call_contract_places_for_expression_statement_calls() {
         symbol: caller_state_symbol,
         name: Identifier::generated("main"),
         parameters: Default::default(),
-        return_type:
-            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
+        return_type: typed_trees::types::TypeReferenceHandle::invalid(),
         contracts: Default::default(),
         statement_nodes: Default::default(),
     };
@@ -517,8 +506,7 @@ fn instantiates_call_contract_places_for_expression_statement_calls() {
         name: Identifier::generated("Game"),
         attached_data: None,
         attached_data_symbol: symbols::SymbolHandle::invalid(),
-        attached_data_application:
-            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
+        attached_data_application: typed_trees::types::TypeReferenceHandle::invalid(),
         generic_data_template: symbols::SymbolHandle::invalid(),
         spelling: None,
         is_public: false,
@@ -546,8 +534,7 @@ fn instantiates_call_contract_places_for_expression_statement_calls() {
         symbol: callee_state_symbol,
         name: Identifier::generated("heal"),
         parameters: Default::default(),
-        return_type:
-            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
+        return_type: typed_trees::types::TypeReferenceHandle::invalid(),
         contracts: Default::default(),
         statement_nodes: Default::default(),
     };
@@ -556,7 +543,7 @@ fn instantiates_call_contract_places_for_expression_statement_calls() {
         StateParameter {
             symbol: callee_player_symbol,
             name: Identifier::generated("player"),
-            type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
+            type_reference: typed_trees::types::TypeReferenceHandle::invalid(),
             is_const: false,
             is_mutable: true,
             is_self: false,
@@ -566,7 +553,7 @@ fn instantiates_call_contract_places_for_expression_statement_calls() {
     program.push_machine_state(&mut callee_machine, callee_state);
     program.push_machine(callee_machine);
 
-    let call = crate::checked_trees::ContractCallFact {
+    let call = checked_trees::ContractCallFact {
         caller_machine_symbol,
         caller_state_symbol,
         statement_index: 0,
@@ -577,7 +564,7 @@ fn instantiates_call_contract_places_for_expression_statement_calls() {
         ensures: HandleSpan::empty(),
         evidence_arguments: HandleSpan::empty(),
     };
-    let contract = crate::checked_trees::ContractProofFact {
+    let contract = checked_trees::ContractProofFact {
         kind: ContractProofFactKind::Requires,
         owner: ContractProofFactOwner::MachineState {
             machine_symbol: callee_machine_symbol,
@@ -589,22 +576,19 @@ fn instantiates_call_contract_places_for_expression_statement_calls() {
         inherited_scope: None,
     };
 
-    let mut semantic = crate::fact_plan::FactPlan::default();
+    let mut semantic = facts::FactPlan::default();
     let place = instantiate_call_contract_place(&program, &mut semantic, &call, &contract);
-    let crate::fact_plan::FactPlace::Place(place_handle) = place else {
+    let facts::FactPlace::Place(place_handle) = place else {
         panic!("expected instantiated call place");
     };
     let place = semantic.places.get(place_handle);
     let segments = semantic.place_segments.span_or_empty(place.segments);
 
-    assert_eq!(
-        place.root,
-        crate::fact_plan::PlaceRoot::Symbol(caller_machine_symbol)
-    );
+    assert_eq!(place.root, facts::PlaceRoot::Symbol(caller_machine_symbol));
     assert_eq!(segments.len(), 1);
     assert_eq!(
         segments[0],
-        crate::fact_plan::PlaceSegment::Field {
+        facts::PlaceSegment::Field {
             symbol: caller_player_symbol
         }
     );

@@ -71,8 +71,8 @@ pub(crate) use multiplicity::{record_permission_events, validate_linear_permissi
 
 #[cfg(test)]
 pub(crate) fn check_checked_facts(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    facts: &crate::checked_trees::CheckFacts,
+    program: &typed_trees::TypedTrees,
+    facts: &checked_trees::CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut scratch = facts.clone();
     check_checked_facts_recording(program, &mut scratch)
@@ -83,8 +83,8 @@ pub(crate) fn check_checked_facts(
 /// Production checked trees never use this helper.
 #[cfg(test)]
 pub(crate) fn check_unretained_borrow_fixture_facts(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    facts: &crate::checked_trees::CheckFacts,
+    program: &typed_trees::TypedTrees,
+    facts: &checked_trees::CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut scratch = facts.clone();
     borrows::initialize_checked_direct_borrow_resources(
@@ -101,16 +101,16 @@ pub(crate) fn check_unretained_borrow_fixture_facts(
 }
 
 pub(crate) fn initialize_checked_direct_borrow_resources(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    facts: &mut crate::checked_trees::CheckFacts,
+    program: &typed_trees::TypedTrees,
+    facts: &mut checked_trees::CheckFacts,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(), Vec<Diagnostic>> {
     borrows::initialize_checked_direct_borrow_resources(program, facts, mutation_summaries)
 }
 
 pub(crate) fn initialize_checked_borrow_call_certificates(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    facts: &mut crate::checked_trees::CheckFacts,
+    program: &typed_trees::TypedTrees,
+    facts: &mut checked_trees::CheckFacts,
     guard_index: &IncomingGuardIndexCache,
 ) {
     borrows::initialize_checked_borrow_call_certificates(program, facts, guard_index)
@@ -126,11 +126,11 @@ pub(crate) fn initialize_checked_borrow_call_certificates(
 /// stays read-only; a drifted, duplicated, retargeted or unconsumed row is
 /// an ordinary diagnostic, never a rebuild in place.
 pub fn replay_checked_borrow_certificates(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    facts: &crate::checked_trees::CheckFacts,
+    program: &typed_trees::TypedTrees,
+    facts: &checked_trees::CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut scratch = facts.clone();
-    let call_frames = crate::validation::CallFrameResolver::new(program);
+    let call_frames = validation::CallFrameResolver::new(program);
     let guard_index = IncomingGuardIndexCache::default();
     let incoming_guards = guard_index.index(program, call_frames.as_ref());
     borrows::check_flow_call_borrows(
@@ -144,8 +144,8 @@ pub fn replay_checked_borrow_certificates(
 
 #[cfg(test)]
 pub(crate) fn check_checked_facts_recording(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    facts: &mut crate::checked_trees::CheckFacts,
+    program: &typed_trees::TypedTrees,
+    facts: &mut checked_trees::CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     check_checked_facts_recording_with_crash_admission(
         program,
@@ -162,14 +162,11 @@ pub(crate) fn check_checked_facts_recording(
 /// program and the borrow facts, so the same table answers fact construction,
 /// resource replay, borrow statements, and range indexing in one check pass.
 pub(crate) fn check_checked_facts_recording_with_mutation_summaries(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    facts: &mut crate::checked_trees::CheckFacts,
+    program: &typed_trees::TypedTrees,
+    facts: &mut checked_trees::CheckFacts,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
     guard_index: &IncomingGuardIndexCache,
-    proven_machine_contracts: &[(
-        SymbolHandle,
-        Vec<symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle>,
-    )],
+    proven_machine_contracts: &[(SymbolHandle, Vec<typed_trees::expression::ExpressionHandle>)],
 ) -> Result<(), Vec<Diagnostic>> {
     check_checked_facts_recording_with_crash_admission(
         program,
@@ -183,8 +180,8 @@ pub(crate) fn check_checked_facts_recording_with_mutation_summaries(
 
 #[cfg(test)]
 pub(crate) fn check_checked_facts_recording_without_crash_admission(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    facts: &mut crate::checked_trees::CheckFacts,
+    program: &typed_trees::TypedTrees,
+    facts: &mut checked_trees::CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     check_checked_facts_recording_with_crash_admission(
         program,
@@ -197,18 +194,15 @@ pub(crate) fn check_checked_facts_recording_without_crash_admission(
 }
 
 fn check_checked_facts_recording_with_crash_admission(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    facts: &mut crate::checked_trees::CheckFacts,
+    program: &typed_trees::TypedTrees,
+    facts: &mut checked_trees::CheckFacts,
     enforce_crash_admission: bool,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
     guard_index: &IncomingGuardIndexCache,
-    proven_machine_contracts: &[(
-        SymbolHandle,
-        Vec<symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle>,
-    )],
+    proven_machine_contracts: &[(SymbolHandle, Vec<typed_trees::expression::ExpressionHandle>)],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-    let call_frames = crate::validation::CallFrameResolver::new(program);
+    let call_frames = validation::CallFrameResolver::new(program);
     let incoming_guards = guard_index.index(program, call_frames.as_ref());
 
     if let Err(mut evidence_diagnostics) = contracts::bind_call_evidence_arguments(program, facts) {

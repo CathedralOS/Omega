@@ -37,11 +37,11 @@ use crate::borrow::view_link::{
     ViewReturnSource, is_borrow_carrying_data, is_mutably_borrow_carrying_data,
     resolve_signature_view_return_source,
 };
-use crate::checked_trees::expression::ExpressionHandle;
-use crate::checked_trees::name::Identifier;
-use crate::checked_trees::statement::StatementNode;
 use crate::semantic::calls::find_state;
 use arena::Handle;
+use checked_trees::expression::ExpressionHandle;
+use checked_trees::name::Identifier;
+use checked_trees::statement::StatementNode;
 use language_semantics::declaration_selection::CollectionViewOperation;
 use symbols::SymbolHandle;
 
@@ -66,8 +66,8 @@ pub(super) struct StatementBorrowLoan {
     pub(super) owner_path: Vec<BorrowOwnerSegment>,
     pub(super) place: accesses::BorrowAccessPlace,
     pub(super) source_owner_symbol: SymbolHandle,
-    pub(super) lineage: crate::checked_trees::BorrowLoanLineage,
-    pub(super) kind: crate::checked_trees::BorrowAccessKind,
+    pub(super) lineage: checked_trees::BorrowLoanLineage,
+    pub(super) kind: checked_trees::BorrowAccessKind,
     /// The loan's retained root was captured from a call result, not from a
     /// borrow expression. It resolves receivers like any direct root, but it
     /// is not borrow ancestry: children formed through it stay derived rather
@@ -78,7 +78,7 @@ pub(super) struct StatementBorrowLoan {
 struct RebasedBorrowPlace {
     place: accesses::BorrowAccessPlace,
     source_owner_symbol: SymbolHandle,
-    parent_loan: Handle<crate::checked_trees::BorrowLoanFact>,
+    parent_loan: Handle<checked_trees::BorrowLoanFact>,
     parent_lineage_is_retained: bool,
 }
 
@@ -87,8 +87,8 @@ struct RebasedBorrowPlace {
 /// its static-source exemption cannot disagree with local aggregate loan
 /// attribution about which nested fields actually borrow.
 pub(crate) fn borrow_initializer_expressions(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    program: &typed_trees::TypedTrees,
+    type_reference: typed_trees::types::TypeReferenceHandle,
     expression: ExpressionHandle,
 ) -> Vec<ExpressionHandle> {
     borrowed_initializers(program, type_reference, expression, &[], &[])
@@ -98,8 +98,8 @@ pub(crate) fn borrow_initializer_expressions(
 }
 
 pub(super) fn statement_borrow_loans(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
     statement_index: usize,
     machine_symbol: SymbolHandle,
     statement: &StatementNode,
@@ -158,11 +158,11 @@ pub(super) fn statement_borrow_loans(
 /// the separate outlives/persistent-storage contract rather than a state-local
 /// tracker.
 fn assignment_borrow_loans(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
     statement_index: usize,
     machine_symbol: SymbolHandle,
-    assignment: &crate::checked_trees::statement::TableAssignment,
+    assignment: &checked_trees::statement::TableAssignment,
     loan_trackers: &[StateLoanTracker],
 ) -> Vec<StatementBorrowLoan> {
     let Some(target) = borrow_access_place(
@@ -201,7 +201,7 @@ fn assignment_borrow_loans(
     }
 
     let target_owner_path = owner_path_from_place_segments(program, &target.segments);
-    let synthetic_local = crate::checked_trees::statement::TableLocalData {
+    let synthetic_local = checked_trees::statement::TableLocalData {
         symbol: local.symbol,
         name: local.name.clone(),
         type_reference: target_type,
@@ -240,11 +240,11 @@ fn assignment_borrow_loans(
 }
 
 fn reference_local_borrow_loans(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
     statement_index: usize,
     machine_symbol: SymbolHandle,
-    local_data: &crate::checked_trees::statement::TableLocalData,
+    local_data: &checked_trees::statement::TableLocalData,
     loan_trackers: &[StateLoanTracker],
     allow_direct_reborrow_lineage: bool,
 ) -> Vec<StatementBorrowLoan> {
@@ -270,7 +270,7 @@ fn reference_local_borrow_loans(
     // carried the borrow, so each source stays constrained as if that edge
     // ran. Non-borrow arms contribute no loan rather than a fabricated source;
     // result admission elsewhere keeps the selected set uniform.
-    if let crate::checked_trees::expression::ExpressionNode::Match(dispatch) = program
+    if let checked_trees::expression::ExpressionNode::Match(dispatch) = program
         .expression_table
         .expression(local_data.initial_value)
     {
@@ -307,7 +307,7 @@ fn reference_local_borrow_loans(
         .expression_table
         .expression(local_data.initial_value)
     {
-        crate::checked_trees::expression::ExpressionNode::Call(call) => {
+        checked_trees::expression::ExpressionNode::Call(call) => {
             call_declares_direct_view_source(program, call.target_symbol)
         }
         _ => false,
@@ -316,8 +316,8 @@ fn reference_local_borrow_loans(
         program
             .expression_table
             .expression(local_data.initial_value),
-        crate::checked_trees::expression::ExpressionNode::Cast(_)
-            | crate::checked_trees::expression::ExpressionNode::Call(_)
+        checked_trees::expression::ExpressionNode::Cast(_)
+            | checked_trees::expression::ExpressionNode::Call(_)
     ) && !call_declares_direct_source
         && !is_explicit_reborrow;
     let explicit_reborrow_place = explicit_reborrow_target.and_then(|target| {
@@ -343,7 +343,7 @@ fn reference_local_borrow_loans(
         .expression_table
         .expression(local_data.initial_value)
     {
-        crate::checked_trees::expression::ExpressionNode::Borrow(inner_expression) => {
+        checked_trees::expression::ExpressionNode::Borrow(inner_expression) => {
             let ordinary = || {
                 borrow_access_place(
                     program,
@@ -367,7 +367,7 @@ fn reference_local_borrow_loans(
             .or_else(|| indexed_recast_place.clone())
             .or_else(ordinary)
         }
-        crate::checked_trees::expression::ExpressionNode::Cast(cast) if cast.form.is_recast() => {
+        checked_trees::expression::ExpressionNode::Cast(cast) if cast.form.is_recast() => {
             whole_place_recast_borrow_place(
                 program,
                 state.symbol,
@@ -377,18 +377,16 @@ fn reference_local_borrow_loans(
             )
             .or_else(|| indexed_recast_place.clone())
         }
-        crate::checked_trees::expression::ExpressionNode::Call(call) => {
-            helper_call_borrow_loan_place(
-                program,
-                state.symbol,
-                statement_index,
-                machine_symbol,
-                call,
-            )
-        }
-        crate::checked_trees::expression::ExpressionNode::Indexed(_)
-        | crate::checked_trees::expression::ExpressionNode::Member(_)
-        | crate::checked_trees::expression::ExpressionNode::Name(_) => borrow_access_place(
+        checked_trees::expression::ExpressionNode::Call(call) => helper_call_borrow_loan_place(
+            program,
+            state.symbol,
+            statement_index,
+            machine_symbol,
+            call,
+        ),
+        checked_trees::expression::ExpressionNode::Indexed(_)
+        | checked_trees::expression::ExpressionNode::Member(_)
+        | checked_trees::expression::ExpressionNode::Name(_) => borrow_access_place(
             program,
             state.symbol,
             statement_index,
@@ -405,7 +403,7 @@ fn reference_local_borrow_loans(
         program
             .expression_table
             .expression(local_data.initial_value),
-        crate::checked_trees::expression::ExpressionNode::Call(_)
+        checked_trees::expression::ExpressionNode::Call(_)
     );
     let rebased = rebase_borrow_places_through_local_loans(program, place, loan_trackers);
     rebased
@@ -434,12 +432,12 @@ fn reference_local_borrow_loans(
 /// A match arm is not an explicit reborrow, so direct sources keep
 /// `DirectRoot` lineage and rebased sources stay deliberately unretained.
 fn selected_arm_borrow_loans(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     machine_symbol: SymbolHandle,
-    local_data: &crate::checked_trees::statement::TableLocalData,
-    dispatch: &crate::checked_trees::expression::TableMatchExpression,
+    local_data: &checked_trees::statement::TableLocalData,
+    dispatch: &checked_trees::expression::TableMatchExpression,
     loan_trackers: &[StateLoanTracker],
 ) -> Vec<StatementBorrowLoan> {
     program
@@ -447,20 +445,20 @@ fn selected_arm_borrow_loans(
         .match_arms(dispatch.arms)
         .iter()
         .flat_map(|arm| {
-            let crate::checked_trees::expression::ExpressionNode::Borrow(borrow) =
+            let checked_trees::expression::ExpressionNode::Borrow(borrow) =
                 program.expression_table.expression(arm.value)
             else {
                 return Vec::new();
             };
             let kind = match borrow.access {
                 language_semantics::ReferenceAccess::Shared => {
-                    crate::checked_trees::BorrowAccessKind::Read
+                    checked_trees::BorrowAccessKind::Read
                 }
                 language_semantics::ReferenceAccess::Mutable => {
-                    crate::checked_trees::BorrowAccessKind::Mutable
+                    checked_trees::BorrowAccessKind::Mutable
                 }
                 language_semantics::ReferenceAccess::WriteOnly => {
-                    crate::checked_trees::BorrowAccessKind::WriteOnly
+                    checked_trees::BorrowAccessKind::WriteOnly
                 }
             };
             let Some(place) = borrow_access_place(
@@ -491,19 +489,18 @@ fn selected_arm_borrow_loans(
 }
 
 fn literal_indexed_recast_borrow_place(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
     statement_index: usize,
     machine_symbol: SymbolHandle,
-    local_data: &crate::checked_trees::statement::TableLocalData,
+    local_data: &checked_trees::statement::TableLocalData,
 ) -> Option<accesses::BorrowAccessPlace> {
     let machine = program
         .machines()
         .iter()
         .find(|machine| machine.symbol == machine_symbol)?;
-    let footprint = crate::validation::validate_literal_indexed_recast_footprint(
-        program, machine, state, local_data,
-    )?;
+    let footprint =
+        validation::validate_literal_indexed_recast_footprint(program, machine, state, local_data)?;
     let mut place = borrow_access_place(
         program,
         state.symbol,
@@ -511,12 +508,10 @@ fn literal_indexed_recast_borrow_place(
         footprint.collection(),
         machine_symbol,
     )?;
-    place
-        .segments
-        .push(crate::fact_plan::PlaceSegment::FixedRange {
-            start: footprint.start(),
-            end: footprint.end(),
-        });
+    place.segments.push(facts::PlaceSegment::FixedRange {
+        start: footprint.start(),
+        end: footprint.end(),
+    });
     Some(place)
 }
 
@@ -526,12 +521,12 @@ fn literal_indexed_recast_borrow_place(
 /// of a semantic-domain retag. Numeric/domain casts and helper-returned views
 /// remain derived and unretained.
 fn direct_reborrow_target(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
     match program.expression_table.expression(expression) {
-        crate::checked_trees::expression::ExpressionNode::Borrow(inner) => Some(inner.target),
-        crate::checked_trees::expression::ExpressionNode::Cast(cast)
+        checked_trees::expression::ExpressionNode::Borrow(inner) => Some(inner.target),
+        checked_trees::expression::ExpressionNode::Cast(cast)
             if is_reference_type(program, cast.target_type) && cast.semantic_domain.is_empty() =>
         {
             direct_reborrow_target(program, cast.value)
@@ -541,13 +536,13 @@ fn direct_reborrow_target(
 }
 
 fn whole_place_recast_borrow_place(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
     machine_symbol: SymbolHandle,
 ) -> Option<accesses::BorrowAccessPlace> {
-    let crate::checked_trees::expression::ExpressionNode::Cast(cast) =
+    let checked_trees::expression::ExpressionNode::Cast(cast) =
         program.expression_table.expression(expression)
     else {
         return None;
@@ -555,8 +550,8 @@ fn whole_place_recast_borrow_place(
     if !cast.form.is_recast()
         || !matches!(
             program.expression_table.expression(cast.value),
-            crate::checked_trees::expression::ExpressionNode::Name(_)
-                | crate::checked_trees::expression::ExpressionNode::Member(_)
+            checked_trees::expression::ExpressionNode::Name(_)
+                | checked_trees::expression::ExpressionNode::Member(_)
         )
     {
         return None;
@@ -582,21 +577,21 @@ fn whole_place_recast_borrow_place(
 /// A nested direct helper call or moved/projected aggregate is then expanded
 /// under the enclosing field/index prefix with its original loan polarity.
 fn borrow_carrying_data_loans(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
     statement_index: usize,
     machine_symbol: SymbolHandle,
-    local_data: &crate::checked_trees::statement::TableLocalData,
+    local_data: &checked_trees::statement::TableLocalData,
     loan_trackers: &[StateLoanTracker],
 ) -> Vec<StatementBorrowLoan> {
     if matches!(
         program
             .expression_table
             .expression(local_data.initial_value),
-        crate::checked_trees::expression::ExpressionNode::Call(_)
-            | crate::checked_trees::expression::ExpressionNode::Name(_)
-            | crate::checked_trees::expression::ExpressionNode::Member(_)
-            | crate::checked_trees::expression::ExpressionNode::Indexed(_)
+        checked_trees::expression::ExpressionNode::Call(_)
+            | checked_trees::expression::ExpressionNode::Name(_)
+            | checked_trees::expression::ExpressionNode::Member(_)
+            | checked_trees::expression::ExpressionNode::Indexed(_)
     ) {
         return aggregate_expression_borrow_loans(
             program,
@@ -637,11 +632,11 @@ fn borrow_carrying_data_loans(
 
 #[allow(clippy::too_many_arguments)]
 fn borrowed_initializer_loans(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     machine_symbol: SymbolHandle,
-    local_data: &crate::checked_trees::statement::TableLocalData,
+    local_data: &checked_trees::statement::TableLocalData,
     initializer: BorrowedInitializer,
     loan_trackers: &[StateLoanTracker],
 ) -> Vec<StatementBorrowLoan> {
@@ -660,7 +655,7 @@ fn borrowed_initializer_loans(
                 if !is_mutable {
                     returned_carriers::attenuate(
                         &mut loans,
-                        &crate::checked_trees::BorrowAccessKind::Read,
+                        &checked_trees::BorrowAccessKind::Read,
                     );
                 }
                 return loans;
@@ -686,11 +681,11 @@ fn borrowed_initializer_loans(
                     owner_path: initializer.owner_path.clone(),
                     place: source.place,
                     source_owner_symbol: source.source_owner_symbol,
-                    lineage: crate::checked_trees::BorrowLoanLineage::UnretainedDerived,
+                    lineage: checked_trees::BorrowLoanLineage::UnretainedDerived,
                     kind: if is_mutable {
-                        crate::checked_trees::BorrowAccessKind::Mutable
+                        checked_trees::BorrowAccessKind::Mutable
                     } else {
-                        crate::checked_trees::BorrowAccessKind::Read
+                        checked_trees::BorrowAccessKind::Read
                     },
                     call_result: false,
                 })
@@ -712,18 +707,18 @@ fn borrowed_initializer_loans(
 
 #[allow(clippy::too_many_arguments)]
 fn aggregate_expression_borrow_loans(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     machine_symbol: SymbolHandle,
-    local_data: &crate::checked_trees::statement::TableLocalData,
-    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    local_data: &checked_trees::statement::TableLocalData,
+    type_reference: typed_trees::types::TypeReferenceHandle,
     expression: ExpressionHandle,
     owner_path_prefix: &[BorrowOwnerSegment],
     loan_trackers: &[StateLoanTracker],
 ) -> Vec<StatementBorrowLoan> {
     match program.expression_table.expression(expression) {
-        crate::checked_trees::expression::ExpressionNode::Call(call) => {
+        checked_trees::expression::ExpressionNode::Call(call) => {
             if let Some(field_loans) = returned_carriers::result_loans(
                 program,
                 state_symbol,
@@ -754,19 +749,19 @@ fn aggregate_expression_borrow_loans(
                     owner_path: owner_path_prefix.to_vec(),
                     place: source.place,
                     source_owner_symbol: source.source_owner_symbol,
-                    lineage: crate::checked_trees::BorrowLoanLineage::UnretainedDerived,
+                    lineage: checked_trees::BorrowLoanLineage::UnretainedDerived,
                     kind: if is_mutably_borrow_carrying_data(program, type_reference) {
-                        crate::checked_trees::BorrowAccessKind::Mutable
+                        checked_trees::BorrowAccessKind::Mutable
                     } else {
-                        crate::checked_trees::BorrowAccessKind::Read
+                        checked_trees::BorrowAccessKind::Read
                     },
                     call_result: false,
                 })
                 .collect()
         }
-        crate::checked_trees::expression::ExpressionNode::Name(_)
-        | crate::checked_trees::expression::ExpressionNode::Member(_)
-        | crate::checked_trees::expression::ExpressionNode::Indexed(_) => {
+        checked_trees::expression::ExpressionNode::Name(_)
+        | checked_trees::expression::ExpressionNode::Member(_)
+        | checked_trees::expression::ExpressionNode::Indexed(_) => {
             if let Some(loans) = returned_carriers::result_loans(
                 program,
                 state_symbol,
@@ -796,7 +791,7 @@ fn aggregate_expression_borrow_loans(
                 loan_trackers,
             )
         }
-        crate::checked_trees::expression::ExpressionNode::Cast(cast) if !cast.form.is_recast() => {
+        checked_trees::expression::ExpressionNode::Cast(cast) if !cast.form.is_recast() => {
             // A same-carrier value cast preserves denotation and can erase only
             // non-owning qualification. Re-expand its operand under the same
             // owner prefix so the cast cannot erase carried ownership loans.
@@ -827,12 +822,12 @@ fn aggregate_expression_borrow_loans(
 }
 
 fn helper_call_aggregate_borrow_loans(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     machine_symbol: SymbolHandle,
-    local_data: &crate::checked_trees::statement::TableLocalData,
-    call: &crate::checked_trees::expression::TableCallExpression,
+    local_data: &checked_trees::statement::TableLocalData,
+    call: &checked_trees::expression::TableCallExpression,
     owner_path_prefix: &[BorrowOwnerSegment],
     loan_trackers: &[StateLoanTracker],
 ) -> Vec<StatementBorrowLoan> {
@@ -904,7 +899,7 @@ fn helper_call_aggregate_borrow_loans(
                         owner_path,
                         place: source.place,
                         source_owner_symbol: source.source_owner_symbol,
-                        lineage: crate::checked_trees::BorrowLoanLineage::UnretainedDerived,
+                        lineage: checked_trees::BorrowLoanLineage::UnretainedDerived,
                         kind: field.kind.clone(),
                         call_result: false,
                     }
@@ -915,8 +910,8 @@ fn helper_call_aggregate_borrow_loans(
 }
 
 fn transferred_aggregate_loans(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    local_data: &crate::checked_trees::statement::TableLocalData,
+    program: &typed_trees::TypedTrees,
+    local_data: &checked_trees::statement::TableLocalData,
     source: &accesses::BorrowAccessPlace,
     owner_path_prefix: &[BorrowOwnerSegment],
     loan_trackers: &[StateLoanTracker],
@@ -948,7 +943,7 @@ fn transferred_aggregate_loans(
                 owner_path: prefixed_owner_path,
                 place: loan.place.clone(),
                 source_owner_symbol: loan.owner_symbol,
-                lineage: crate::checked_trees::BorrowLoanLineage::UnretainedDerived,
+                lineage: checked_trees::BorrowLoanLineage::UnretainedDerived,
                 kind: loan.kind.clone(),
                 call_result: false,
             })
@@ -957,11 +952,11 @@ fn transferred_aggregate_loans(
 }
 
 pub(crate) fn helper_call_borrow_loan_place(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     machine_symbol: SymbolHandle,
-    call: &crate::checked_trees::expression::TableCallExpression,
+    call: &checked_trees::expression::TableCallExpression,
 ) -> Option<accesses::BorrowAccessPlace> {
     // A checked call is the same `TableCallExpression` the typed program
     // holds, and none of this function's callers carry `CheckFacts`, so the
@@ -1032,7 +1027,7 @@ pub(crate) fn helper_call_borrow_loan_place(
 }
 
 fn call_view_return_source(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     target_symbol: SymbolHandle,
 ) -> ViewReturnSource {
     let Some((parameters, return_type, _)) = call_view_signature(program, target_symbol) else {
@@ -1047,9 +1042,9 @@ fn call_view_return_source(
 /// each returned view leaf borrows. Calls without closed bindings — concrete
 /// states and still-open signatures — keep the declaration-level decision.
 fn call_view_return_source_at(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
-    call: &crate::checked_trees::expression::TableCallExpression,
+    call: &checked_trees::expression::TableCallExpression,
 ) -> ViewReturnSource {
     let Some((parameters, return_type, signature)) =
         call_view_signature(program, call.target_symbol)
@@ -1074,18 +1069,13 @@ fn call_view_return_source_at(
 /// signature under — the same `closed_static_call_type_bindings` the
 /// call-admission gate proves before the call may produce a returned view.
 fn call_site_substitutions(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
-    signature: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateSignature,
-    call: &crate::checked_trees::expression::TableCallExpression,
-) -> Option<
-    Vec<(
-        SymbolHandle,
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
-    )>,
-> {
+    signature: &typed_trees::signature::StateSignature,
+    call: &checked_trees::expression::TableCallExpression,
+) -> Option<Vec<(SymbolHandle, typed_trees::types::TypeReferenceHandle)>> {
     let (caller, state) = crate::semantic::calls::find_state_with_machine(program, state_symbol)?;
-    crate::validation::closed_static_call_type_bindings(
+    validation::closed_static_call_type_bindings(
         program,
         caller,
         state,
@@ -1101,7 +1091,7 @@ fn call_site_substitutions(
 /// the name-matched slice/view builtins, carrier-field sources, ambiguous
 /// signatures, and view-free calls all stay deliberately unretained.
 pub(crate) fn call_declares_direct_view_source(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     target_symbol: SymbolHandle,
 ) -> bool {
     matches!(
@@ -1111,12 +1101,12 @@ pub(crate) fn call_declares_direct_view_source(
 }
 
 fn call_view_signature(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     target_symbol: SymbolHandle,
 ) -> Option<(
-    &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter],
-    symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
-    Option<&symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateSignature>,
+    &[typed_trees::signature::StateParameter],
+    typed_trees::types::TypeReferenceHandle,
+    Option<&typed_trees::signature::StateSignature>,
 )> {
     if let Some(target_state) = find_state(program, target_symbol) {
         return Some((
@@ -1153,14 +1143,14 @@ fn call_view_signature(
 /// view-producing calls (`bag.cells.as_mut_slice()`, or a nested one-ref-input
 /// machine call) by recursing into the call's own loan place.
 fn argument_borrow_loan_place(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     machine_symbol: SymbolHandle,
     argument: ExpressionHandle,
 ) -> Option<accesses::BorrowAccessPlace> {
     match program.expression_table.expression(argument) {
-        crate::checked_trees::expression::ExpressionNode::Call(inner_call) => {
+        checked_trees::expression::ExpressionNode::Call(inner_call) => {
             helper_call_borrow_loan_place(
                 program,
                 state_symbol,
@@ -1169,10 +1159,10 @@ fn argument_borrow_loan_place(
                 inner_call,
             )
         }
-        crate::checked_trees::expression::ExpressionNode::Borrow(inner)
+        checked_trees::expression::ExpressionNode::Borrow(inner)
             if matches!(
                 program.expression_table.expression(inner.target),
-                crate::checked_trees::expression::ExpressionNode::Call(_)
+                checked_trees::expression::ExpressionNode::Call(_)
             ) =>
         {
             argument_borrow_loan_place(
@@ -1194,7 +1184,7 @@ fn argument_borrow_loan_place(
 }
 
 fn rebase_borrow_places_through_local_loans(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     place: accesses::BorrowAccessPlace,
     loan_trackers: &[StateLoanTracker],
 ) -> Vec<RebasedBorrowPlace> {
@@ -1241,7 +1231,7 @@ fn rebase_borrow_places_through_local_loans(
                 // derived, so the reborrow resource model never sees more than
                 // the suspension shapes it can represent.
                 parent_lineage_is_retained: source_loan.lineage
-                    != crate::checked_trees::BorrowLoanLineage::UnretainedDerived
+                    != checked_trees::BorrowLoanLineage::UnretainedDerived
                     && !source_loan.call_result,
             }
         })
@@ -1253,12 +1243,12 @@ fn retained_reference_lineage(
     rebased: &[RebasedBorrowPlace],
     is_explicit_reborrow: bool,
     force_unretained: bool,
-) -> crate::checked_trees::BorrowLoanLineage {
+) -> checked_trees::BorrowLoanLineage {
     if force_unretained {
-        return crate::checked_trees::BorrowLoanLineage::UnretainedDerived;
+        return checked_trees::BorrowLoanLineage::UnretainedDerived;
     }
     if !source.source_owner_symbol.is_valid() {
-        return crate::checked_trees::BorrowLoanLineage::DirectRoot;
+        return checked_trees::BorrowLoanLineage::DirectRoot;
     }
     let parent_is_unique = rebased.len() == 1;
     if is_explicit_reborrow
@@ -1266,10 +1256,10 @@ fn retained_reference_lineage(
         && source.parent_lineage_is_retained
         && parent_is_unique
     {
-        crate::checked_trees::BorrowLoanLineage::Reborrow {
+        checked_trees::BorrowLoanLineage::Reborrow {
             parent_loan: source.parent_loan,
         }
     } else {
-        crate::checked_trees::BorrowLoanLineage::UnretainedDerived
+        checked_trees::BorrowLoanLineage::UnretainedDerived
     }
 }

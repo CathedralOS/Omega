@@ -121,10 +121,8 @@ pub(crate) fn lower_boundary_scalar_return_machine(
     let roots = scalar_arguments
         .iter()
         .filter_map(|argument| match argument {
-            typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Computation(
-                root,
-            ) => Some(*root),
-            typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(_) => None,
+            checked_trees::CheckedCallScalarArgument::Computation(root) => Some(*root),
+            checked_trees::CheckedCallScalarArgument::Pure(_) => None,
         })
         .collect::<Vec<_>>();
     let scalar_calls =
@@ -180,7 +178,7 @@ pub(crate) fn lower_boundary_scalar_return_machine(
 
 fn lower_boundary_scalar_domains(
     checked: &CheckedTrees,
-    plans: &typed_trees_to_checked_trees::checked_trees::CheckedBoundaryScalarReturnPlans,
+    plans: &checked_trees::CheckedBoundaryScalarReturnPlans,
     machine: &CheckedBoundaryScalarReturnMachinePlan,
     boundary: &CheckedBoundaryMachinePlan,
     type_ids: &[(String, StructuralTypeId)],

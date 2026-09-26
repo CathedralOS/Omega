@@ -2,9 +2,7 @@ use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
 
-fn checked(
-    source: &str,
-) -> Result<crate::checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
+fn checked(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
 }
 
@@ -285,7 +283,7 @@ fn transparent_relation_call_arguments_retain_contract_revision_dependencies() {
     let context = checked
         .facts
         .semantic
-        .contexts_at_point(crate::fact_plan::ProgramPoint::State {
+        .contexts_at_point(facts::ProgramPoint::State {
             machine_symbol: theorem.symbol,
             state_symbol: state.symbol,
         })
@@ -293,7 +291,7 @@ fn transparent_relation_call_arguments_retain_contract_revision_dependencies() {
             context.facts().any(|fact| {
                 matches!(
                     fact.origin,
-                    crate::fact_plan::FactOrigin::MachineContract { machine_symbol }
+                    facts::FactOrigin::MachineContract { machine_symbol }
                         if machine_symbol == theorem.symbol
                 )
             })
@@ -302,11 +300,11 @@ fn transparent_relation_call_arguments_retain_contract_revision_dependencies() {
     let fields = context
         .facts()
         .filter_map(|fact| {
-            let crate::fact_plan::FactPlace::Place(place) = fact.place else {
+            let facts::FactPlace::Place(place) = fact.place else {
                 return None;
             };
             let place = checked.facts.semantic.places.get(place);
-            (place.root == crate::fact_plan::PlaceRoot::Symbol(input.symbol)).then_some(
+            (place.root == facts::PlaceRoot::Symbol(input.symbol)).then_some(
                 checked
                     .facts
                     .semantic
@@ -314,7 +312,7 @@ fn transparent_relation_call_arguments_retain_contract_revision_dependencies() {
                     .span_or_empty(place.segments)
                     .iter()
                     .filter_map(|segment| match segment {
-                        crate::fact_plan::PlaceSegment::Field { symbol } => {
+                        facts::PlaceSegment::Field { symbol } => {
                             Some(checked.symbols.name(*symbol).to_owned())
                         }
                         _ => None,

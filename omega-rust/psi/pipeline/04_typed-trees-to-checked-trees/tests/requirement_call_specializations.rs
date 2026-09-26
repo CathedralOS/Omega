@@ -7,14 +7,11 @@
 
 use std::path::PathBuf;
 use std::sync::Arc;
-use symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
+use typed_trees::data::TypeParameterKind;
+use typed_trees::expression::ExpressionNode;
+use typed_trees::types::TypeReferenceNode;
 
-fn check(
-    source: &str,
-) -> Result<typed_trees_to_checked_trees::checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>>
-{
+fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
         .unwrap();
@@ -40,8 +37,7 @@ const CORE_SERVICE: &str = include_str!(concat!(
 
 fn check_with_service(
     source: &str,
-) -> Result<typed_trees_to_checked_trees::checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>>
-{
+) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     let mut sources = source::SourceMap::default();
     let service_source_id = sources
         .add_with_metadata(
@@ -185,7 +181,7 @@ fn a_routed_requirement_call_retains_its_derived_specialization() {
     };
     assert_eq!(
         specialization.site,
-        typed_trees_to_checked_trees::checked_trees::NominalMachineUseSite::Expression(call_handle)
+        checked_trees::NominalMachineUseSite::Expression(call_handle)
     );
     assert_eq!(
         specialization.registration_operation,

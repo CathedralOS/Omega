@@ -29,20 +29,18 @@
 //! effects. `validation::row` checks the produced rows again with its own
 //! kind matching and does not read these routes.
 
-use register_homes_to_post_allocation_machine::PostAllocationMachineInstruction;
-use target::{Architecture, NativeTarget};
-use target_operations_to_selected_instructions::isa_aarch64::encode_aarch64_selected_form;
-use target_operations_to_selected_instructions::isa_x86_64::encode_x86_64_selected_form;
-use target_operations_to_selected_instructions::register_model::{
-    RegisterViewId, ValidatedPhysicalRegisterModel,
-};
-use target_operations_to_selected_instructions::{
+use isa_aarch64::encode_aarch64_selected_form;
+use isa_x86_64::encode_x86_64_selected_form;
+use physical_instructions::PostAllocationMachineInstruction;
+use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
+use selected_instructions::{
     MachineAlternativeKey, MachineEncodedEffects, MachineSizeKnowledge, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind,
 };
+use target::{Architecture, NativeTarget};
 
 use super::OptimizedSelectedFormEncodingError;
-use crate::machine_code::{
+use machine_code::{
     DeferredControlEncodingReason, SelectedFormDecodedFootprint, SelectedFormEncodingRow,
     SelectedFormEncodingState, SelectedFormMachineDisposition,
 };
@@ -65,7 +63,7 @@ pub(super) fn encode_row(
     selected: &SelectedInstruction,
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
-    address: Option<crate::machine_code::ResolvedPhysicalAddress>,
+    address: Option<machine_code::ResolvedPhysicalAddress>,
 ) -> Result<SelectedFormEncodingRow, OptimizedSelectedFormEncodingError> {
     let alternative = machine.alternative.key;
     let route = route::route_of(selected.kind);
@@ -130,7 +128,7 @@ pub(super) fn encode_row(
 /// machine row: presence would attach frame geometry to a row whose selected
 /// kind never asked for one.
 fn reject_unrouted_address(
-    address: Option<crate::machine_code::ResolvedPhysicalAddress>,
+    address: Option<machine_code::ResolvedPhysicalAddress>,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
     if address.is_some() {
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
@@ -147,7 +145,7 @@ fn encode_address_routed(
     alternative: MachineAlternativeKey,
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
-    address: crate::machine_code::ResolvedPhysicalAddress,
+    address: machine_code::ResolvedPhysicalAddress,
 ) -> Result<SelectedFormEncodingState, OptimizedSelectedFormEncodingError> {
     let views = machine
         .operands
@@ -158,7 +156,7 @@ fn encode_address_routed(
     let (bytes, reads, writes, encoded_effects) = match target.architecture {
         Architecture::X86_64 => {
             let encoded = match channel {
-                HostedChannel::None => target_operations_to_selected_instructions::isa_x86_64::encode_x86_64_selected_memory_form(
+                HostedChannel::None => isa_x86_64::encode_x86_64_selected_memory_form(
                     physical,
                     kind,
                     alternative,
@@ -166,7 +164,7 @@ fn encode_address_routed(
                     displacement,
                 ),
                 HostedChannel::WriteByteI32 => {
-                    target_operations_to_selected_instructions::isa_x86_64::encode_x86_64_selected_hosted_write_byte_form(
+                    isa_x86_64::encode_x86_64_selected_hosted_write_byte_form(
                         physical,
                         kind,
                         alternative,
@@ -175,7 +173,7 @@ fn encode_address_routed(
                     )
                 }
                 HostedChannel::ReadByte => {
-                    target_operations_to_selected_instructions::isa_x86_64::encode_x86_64_selected_hosted_read_byte_form(
+                    isa_x86_64::encode_x86_64_selected_hosted_read_byte_form(
                         physical,
                         kind,
                         alternative,
@@ -198,7 +196,7 @@ fn encode_address_routed(
         }
         Architecture::Aarch64 => {
             let encoded = match channel {
-                HostedChannel::None => target_operations_to_selected_instructions::isa_aarch64::encode_aarch64_selected_memory_form(
+                HostedChannel::None => isa_aarch64::encode_aarch64_selected_memory_form(
                     physical,
                     kind,
                     alternative,
@@ -206,7 +204,7 @@ fn encode_address_routed(
                     displacement,
                 ),
                 HostedChannel::WriteByteI32 => {
-                    target_operations_to_selected_instructions::isa_aarch64::encode_aarch64_selected_hosted_write_byte_form(
+                    isa_aarch64::encode_aarch64_selected_hosted_write_byte_form(
                         target,
                         physical,
                         kind,
@@ -216,7 +214,7 @@ fn encode_address_routed(
                     )
                 }
                 HostedChannel::ReadByte => {
-                    target_operations_to_selected_instructions::isa_aarch64::encode_aarch64_selected_hosted_read_byte_form(
+                    isa_aarch64::encode_aarch64_selected_hosted_read_byte_form(
                         target,
                         physical,
                         kind,
@@ -275,7 +273,7 @@ fn encode_scalar(
         Architecture::X86_64 => {
             let encoded = match channel {
                 HostedChannel::ExitProcessI32 => {
-                    target_operations_to_selected_instructions::isa_x86_64::encode_x86_64_selected_hosted_exit_process_form(
+                    isa_x86_64::encode_x86_64_selected_hosted_exit_process_form(
                         target,
                         physical,
                         kind,
@@ -302,7 +300,7 @@ fn encode_scalar(
         Architecture::Aarch64 => {
             let encoded = match channel {
                 HostedChannel::ExitProcessI32 => {
-                    target_operations_to_selected_instructions::isa_aarch64::encode_aarch64_selected_hosted_exit_process_form(
+                    isa_aarch64::encode_aarch64_selected_hosted_exit_process_form(
                         target,
                         physical,
                         kind,

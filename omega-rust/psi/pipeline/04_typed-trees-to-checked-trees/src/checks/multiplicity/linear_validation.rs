@@ -24,29 +24,27 @@ pub(crate) use recorded_events::{
     apply_recorded_statement_events, permission_event_statement_index,
 };
 
-use crate::checked_trees::{
-    CheckFacts, FlowClaimOutcomeSource, FlowFacts, FlowPermissionEventFact,
-};
 use crate::checks::multiplicity::owned_selection;
 use crate::checks::multiplicity::permission_events::{
     case_transition_run_is_exhaustive, collect_positive_case_tests, exact_positive_case_test,
     exclude_case_alternative, select_case_alternative_from_guard,
 };
 use crate::checks::multiplicity::type_multiplicity::type_carries_linear_obligation;
+use checked_trees::{CheckFacts, FlowClaimOutcomeSource, FlowFacts, FlowPermissionEventFact};
 use diagnostics::Diagnostic;
 use language_semantics::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
     PermissionEventSource,
 };
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 use symbols::SymbolHandle;
+use typed_trees::statement::StatementNode;
 
 #[cfg(test)]
 pub(crate) fn validate_linear_permission_events(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
-    let call_frames = crate::validation::CallFrameResolver::new(program);
+    let call_frames = validation::CallFrameResolver::new(program);
     let incoming_guards =
         crate::checks::ranges::incoming_guards::IncomingGuardIndexCache::default();
     validate_linear_permission_events_with_incoming_guards(
@@ -57,7 +55,7 @@ pub(crate) fn validate_linear_permission_events(
 }
 
 pub(crate) fn validate_linear_permission_events_with_incoming_guards(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     incoming_guards: &crate::checks::ranges::incoming_guards::IncomingGuardIndex,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -185,7 +183,7 @@ pub(crate) fn validate_linear_permission_events_with_incoming_guards(
                 let StatementNode::Transition(transition) = &statements[statement_index] else {
                     unreachable!("transition indices contain only transitions")
                 };
-                if let symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
+                if let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
                     let mut selected = Vec::new();
                     collect_positive_case_tests(program, guard, &mut selected);
                     for (subject, variant) in selected {
@@ -206,10 +204,10 @@ pub(crate) fn validate_linear_permission_events_with_incoming_guards(
                     &mut outcome,
                     &mut diagnostics,
                 );
-                if transition.exit == symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionExit::Ordinary {
+                if transition.exit == typed_trees::statement::TransitionExit::Ordinary {
                     outcomes.push(outcome);
                 }
-                if let symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard
+                if let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard
                     && let Some(case_test) = exact_positive_case_test(program, guard)
                 {
                     excluded_case_tests.push(case_test);
@@ -219,8 +217,8 @@ pub(crate) fn validate_linear_permission_events_with_incoming_guards(
                 arm_indices.last().is_some_and(|index| {
                     matches!(
                         statements[*index],
-                        StatementNode::Transition(symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableTransition {
-                            guard: symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionGuardNode::Always,
+                        StatementNode::Transition(typed_trees::statement::TableTransition {
+                            guard: typed_trees::statement::TransitionGuardNode::Always,
                             ..
                         })
                     )
@@ -286,7 +284,7 @@ pub(crate) fn validate_linear_permission_events_with_incoming_guards(
         // residual siblings of a source root remain live custody with their
         // own later events. Only an event overlapping a consumed path on a
         // source root is a second life for the same claim.
-        let consumed_places: Vec<(SymbolHandle, Vec<crate::fact_plan::PlaceSegment>)> =
+        let consumed_places: Vec<(SymbolHandle, Vec<facts::PlaceSegment>)> =
             if program.type_multiplicity(receipt.type_reference) == Multiplicity::Linear {
                 selected_replay
                     .flow
@@ -356,13 +354,13 @@ pub(crate) fn validate_linear_permission_events_with_incoming_guards(
                 return false;
             }
             if consumed_places.is_empty() {
-                return sources.iter().any(|source| {
-                    event.root == crate::fact_plan::PlaceRoot::Symbol(source.symbol)
-                });
+                return sources
+                    .iter()
+                    .any(|source| event.root == facts::PlaceRoot::Symbol(source.symbol));
             }
             let event_path = facts.flow.ownership.segments.span_or_empty(event.segments);
             consumed_places.iter().any(|(symbol, path)| {
-                event.root == crate::fact_plan::PlaceRoot::Symbol(*symbol)
+                event.root == facts::PlaceRoot::Symbol(*symbol)
                     && owned_selection::place_paths_overlap(event_path, path)
             })
         }) {
@@ -381,8 +379,8 @@ pub(crate) fn validate_linear_permission_events_with_incoming_guards(
 /// rather than semantic. Compare each recorded receipt field-for-field,
 /// resolving spans through the side that produced them.
 fn owned_selections_match(
-    replay: &crate::checked_trees::FlowOwnershipFacts,
-    recorded: &crate::checked_trees::FlowOwnershipFacts,
+    replay: &checked_trees::FlowOwnershipFacts,
+    recorded: &checked_trees::FlowOwnershipFacts,
 ) -> bool {
     let replay_receipts = replay
         .owned_selections
@@ -462,10 +460,10 @@ fn owned_selections_match(
 }
 
 fn append_unresolved_state_result_mapping_diagnostics(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
     events: &[&FlowPermissionEventFact],
-    ownership: &crate::checked_trees::FlowOwnershipFacts,
+    ownership: &checked_trees::FlowOwnershipFacts,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let statements = program.statement_table.statements(state.statement_nodes);
@@ -488,9 +486,8 @@ fn append_unresolved_state_result_mapping_diagnostics(
             StatementNode::Assignment(assignment) => assignment.value,
             _ => continue,
         };
-        let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(
-            call,
-        ) = program.expression_table.expression(result_expression)
+        let typed_trees::expression::ExpressionNode::Call(call) =
+            program.expression_table.expression(result_expression)
         else {
             continue;
         };
@@ -556,21 +553,19 @@ fn append_unresolved_state_result_mapping_diagnostics(
             .any(|(index, _)| *index == statement_index)
         {
             let root = match event.root {
-                crate::fact_plan::PlaceRoot::Symbol(symbol) => {
-                    program.symbols.name(symbol).to_owned()
-                }
+                facts::PlaceRoot::Symbol(symbol) => program.symbols.name(symbol).to_owned(),
                 other => format!("{other:?}"),
             };
             let path = receiving_path
                 .iter()
                 .map(|segment| match segment {
-                    crate::fact_plan::PlaceSegment::Field { symbol } => {
+                    facts::PlaceSegment::Field { symbol } => {
                         format!(".{}", program.symbols.name(*symbol))
                     }
-                    crate::fact_plan::PlaceSegment::Case { variant } => {
+                    facts::PlaceSegment::Case { variant } => {
                         format!("::{}", program.symbols.name(*variant))
                     }
-                    crate::fact_plan::PlaceSegment::FixedIndex { index } => format!("[{index}]"),
+                    facts::PlaceSegment::FixedIndex { index } => format!("[{index}]"),
                     other => format!("{other:?}"),
                 })
                 .collect::<String>();

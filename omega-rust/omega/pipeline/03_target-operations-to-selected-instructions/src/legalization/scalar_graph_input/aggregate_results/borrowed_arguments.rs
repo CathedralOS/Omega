@@ -9,7 +9,6 @@ use super::{
 use crate::legalization::scalar_graph_input::aggregate_results::home_layout;
 use crate::legalization::scalar_graph_input::structural_case;
 use crate::legalization::scalar_graph_input::structural_parameters;
-use crate::legalized_operations;
 pub(super) fn reconstruct(
     argument: &terminal_psi::StructuralArgument,
     position: usize,
@@ -19,10 +18,7 @@ pub(super) fn reconstruct(
     call: &CallPlan,
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
-) -> Result<
-    abstract_operations_to_target_operations::target_operations::TargetStructuralArgument,
-    LegalizationError,
-> {
+) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
     let destination = callee
         .structural_parameters
         .get(position)
@@ -87,7 +83,7 @@ pub(super) fn reconstruct(
         };
         let after = site(call_operation).ok_or(LegalizationError::custody())?;
         match structural_case::source_owner(caller, argument.place)? {
-            crate::legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+            legalized_operations::LegalizedStructuralCaseSource::OperationResult {
                 operation,
                 result,
             } => {
@@ -101,12 +97,12 @@ pub(super) fn reconstruct(
                 }
                 (
                     result.structural_type,
-                    abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::StructuralHome {
+                    target_operations::TargetStructuralArgumentSource::StructuralHome {
                         psi_operation: operation,
                     },
                 )
             }
-            crate::legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+            legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
                 block,
                 declaration,
             } => {
@@ -125,7 +121,7 @@ pub(super) fn reconstruct(
                 }
                 (
                     declaration.structural_type,
-                    abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::BlockParameter {
+                    target_operations::TargetStructuralArgumentSource::BlockParameter {
                         block,
                         place: declaration.place,
                     },
@@ -157,19 +153,17 @@ pub(super) fn reconstruct(
     if selected != destination.structural_type || placement.shape != shape {
         return Err(LegalizationError::custody());
     }
-    Ok(
-        abstract_operations_to_target_operations::target_operations::TargetStructuralArgument {
-            place: argument.place,
-            access: argument.access,
-            path: argument.path.clone(),
-            root_structural_type: root,
-            structural_type: selected,
-            shape,
-            source_byte_offset: offset,
-            fixed_array_length: None,
-            element_stride: None,
-            source,
-            destination: placement.clone(),
-        },
-    )
+    Ok(target_operations::TargetStructuralArgument {
+        place: argument.place,
+        access: argument.access,
+        path: argument.path.clone(),
+        root_structural_type: root,
+        structural_type: selected,
+        shape,
+        source_byte_offset: offset,
+        fixed_array_length: None,
+        element_stride: None,
+        source,
+        destination: placement.clone(),
+    })
 }

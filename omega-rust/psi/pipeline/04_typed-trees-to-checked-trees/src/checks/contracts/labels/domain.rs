@@ -1,17 +1,14 @@
 use symbols::SymbolHandle;
 
 pub(crate) fn domain_proves_expression_label(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     domain_symbol: SymbolHandle,
     base_label: &str,
     candidate_label: &str,
 ) -> bool {
     // Rendering a family predicate cannot substitute its retained indices.
     // Keep this fallback restricted to wholly unindexed proof theories.
-    if !symbol_resolved_trees_to_typed_trees::typed_trees::domain::supports_symbol_only_proof(
-        program,
-        domain_symbol,
-    ) {
+    if !typed_trees::domain::supports_symbol_only_proof(program, domain_symbol) {
         return false;
     }
     let Some(domain) = program
@@ -23,14 +20,10 @@ pub(crate) fn domain_proves_expression_label(
     };
 
     program.proof_facts(domain).iter().any(|fact| match fact {
-        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
-            expression,
-        ) => {
+        typed_trees::domain::ProofFact::Expression(expression) => {
             instantiate_domain_expression_label(program, *expression, base_label) == candidate_label
         }
-        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(
-            membership,
-        ) => {
+        typed_trees::domain::ProofFact::Membership(membership) => {
             let nested_base =
                 instantiate_domain_expression_label(program, membership.value, base_label);
             domain_proves_expression_label(
@@ -40,19 +33,17 @@ pub(crate) fn domain_proves_expression_label(
                 candidate_label,
             )
         }
-        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(_) => {
-            false
-        }
+        typed_trees::domain::ProofFact::Proposition(_) => false,
     })
 }
 
 pub(crate) fn instantiate_domain_expression_label(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    program: &typed_trees::TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
     base_label: &str,
 ) -> String {
     match program.expression_table.expression(expression) {
-        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Match(dispatch) => {
+        typed_trees::expression::ExpressionNode::Match(dispatch) => {
             let render = |value| instantiate_domain_expression_label(program, value, base_label);
             let arms = program
                 .expression_table
@@ -60,8 +51,8 @@ pub(crate) fn instantiate_domain_expression_label(
                 .iter()
                 .map(|arm| {
                     let pattern = match arm.pattern {
-                        symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(value) => render(value),
-                        symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Wildcard => "_".to_owned(),
+                        typed_trees::expression::MatchPattern::Value(value) => render(value),
+                        typed_trees::expression::MatchPattern::Wildcard => "_".to_owned(),
                     };
                     format!("{pattern} -> {}", render(arm.value))
                 })
@@ -69,12 +60,12 @@ pub(crate) fn instantiate_domain_expression_label(
                 .join(", ");
             format!("match {} {{ {arms} }}", render(dispatch.subject))
         }
-        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Atomic(atomic) => format!(
+        typed_trees::expression::ExpressionNode::Atomic(atomic) => format!(
             "atomic[{:?}]({})",
             atomic.ordering,
             instantiate_domain_expression_label(program, atomic.value, base_label),
         ),
-        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::ArrayLiteral(values) => {
+        typed_trees::expression::ExpressionNode::ArrayLiteral(values) => {
             let values = program
                 .expression_table
                 .expression_handles(*values)
@@ -84,24 +75,24 @@ pub(crate) fn instantiate_domain_expression_label(
                 .join(", ");
             format!("[{values}]")
         }
-        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Binary(binary) => format!(
+        typed_trees::expression::ExpressionNode::Binary(binary) => format!(
             "{} {} {}",
             instantiate_domain_expression_label(program, binary.left, base_label),
             binary.operator.display_name(),
             instantiate_domain_expression_label(program, binary.right, base_label),
         ),
-        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Boolean(value) => value.to_string(),
-        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Cast(cast) => format!(
+        typed_trees::expression::ExpressionNode::Boolean(value) => value.to_string(),
+        typed_trees::expression::ExpressionNode::Cast(cast) => format!(
             "{} as {}",
             instantiate_domain_expression_label(program, cast.value, base_label),
-            symbol_resolved_trees_to_typed_trees::typed_trees::expression::display_name_path(
+            typed_trees::expression::display_name_path(
                 program
                     .expression_table
                     .name_path_members(cast.target_label),
                 "::",
             )
         ),
-        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(call) => {
+        typed_trees::expression::ExpressionNode::Call(call) => {
             let arguments = program
                 .expression_table
                 .expression_handles(call.arguments)
@@ -119,13 +110,13 @@ pub(crate) fn instantiate_domain_expression_label(
                 format!("{}({arguments})", call.target)
             }
         }
-        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Float(value) => value.to_string(),
-        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Indexed(indexed) => format!(
+        typed_trees::expression::ExpressionNode::Float(value) => value.to_string(),
+        typed_trees::expression::ExpressionNode::Indexed(indexed) => format!(
             "{}[{}]",
             instantiate_domain_expression_label(program, indexed.collection, base_label),
             instantiate_domain_expression_label(program, indexed.index, base_label),
         ),
-        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Range(range) => {
+        typed_trees::expression::ExpressionNode::Range(range) => {
             match (range.start.is_valid(), range.end.is_valid()) {
                 (true, true) => format!(
                     "{}..{}",
@@ -143,13 +134,13 @@ pub(crate) fn instantiate_domain_expression_label(
                 (false, false) => "..".to_owned(),
             }
         }
-        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Integer(value) => value.to_string(),
-        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Member(member) => format!(
+        typed_trees::expression::ExpressionNode::Integer(value) => value.to_string(),
+        typed_trees::expression::ExpressionNode::Member(member) => format!(
             "{}.{}",
             instantiate_domain_expression_label(program, member.receiver, base_label),
             member.member
         ),
-        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Borrow(inner) => {
+        typed_trees::expression::ExpressionNode::Borrow(inner) => {
             let target = instantiate_domain_expression_label(program, inner.target, base_label);
             match inner.access {
                 language_semantics::ReferenceAccess::Shared => target,
@@ -157,12 +148,12 @@ pub(crate) fn instantiate_domain_expression_label(
                 language_semantics::ReferenceAccess::WriteOnly => format!("write {target}"),
             }
         }
-        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Unary(unary) => format!(
+        typed_trees::expression::ExpressionNode::Unary(unary) => format!(
             "{}{}",
             unary.operator.display_name(),
             instantiate_domain_expression_label(program, unary.operand, base_label)
         ),
-        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Name(path) => {
+        typed_trees::expression::ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
             if members
                 .first()
@@ -173,18 +164,18 @@ pub(crate) fn instantiate_domain_expression_label(
                 } else {
                     format!(
                         "{base_label}::{}",
-                        symbol_resolved_trees_to_typed_trees::typed_trees::expression::display_name_path(&members[1..], "::")
+                        typed_trees::expression::display_name_path(&members[1..], "::")
                     )
                 }
             } else {
-                symbol_resolved_trees_to_typed_trees::typed_trees::expression::display_name_path(members, "::")
+                typed_trees::expression::display_name_path(members, "::")
             }
         }
-        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::StructLiteral(struct_literal) => {
+        typed_trees::expression::ExpressionNode::StructLiteral(struct_literal) => {
             struct_literal.type_name.to_string()
         }
-        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::String(value) => format!("{value:?}"),
-        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::ZeroValue(type_reference) => format!(
+        typed_trees::expression::ExpressionNode::String(value) => format!("{value:?}"),
+        typed_trees::expression::ExpressionNode::ZeroValue(type_reference) => format!(
             "zero_value<{}>()",
             program.display_type_reference(*type_reference)
         ),

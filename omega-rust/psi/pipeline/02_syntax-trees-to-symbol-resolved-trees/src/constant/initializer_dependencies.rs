@@ -1,11 +1,11 @@
 //! Declaration-owned dependency discovery before provisional values exist.
 
-use crate::symbol_resolved_trees::{
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
+use source::SourceSpan;
+use symbol_resolved_trees::{
     SymbolResolvedTrees,
     expression::{ExpressionHandle, ExpressionNode, MatchPattern},
 };
-use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
-use source::SourceSpan;
 use symbols::{SymbolHandle, SymbolKind};
 
 /// Exact source occurrence/declaration pairs. Body dependencies are retained
@@ -306,9 +306,7 @@ impl Collector<'_> {
     }
 
     fn machine(&mut self, symbol: SymbolHandle) -> Result<(), String> {
-        use crate::symbol_resolved_trees::statement::{
-            Statement, TransitionGuard, TransitionTarget,
-        };
+        use symbol_resolved_trees::statement::{Statement, TransitionGuard, TransitionTarget};
         let program = self.program;
         let mut machines = program
             .machines
@@ -413,7 +411,7 @@ mod tests {
     fn prepare(
         text: &str,
     ) -> (
-        tokens_to_syntax_trees::syntax_trees::SyntaxTrees,
+        syntax_trees::SyntaxTrees,
         crate::resolution::ConstInitializerSelection,
     ) {
         let mut sources = source::SourceMap::default();
@@ -447,7 +445,7 @@ mod tests {
         let definition = syntax
             .root_items()
             .find_map(|item| match item {
-                tokens_to_syntax_trees::syntax_trees::item::Item::Const(definition)
+                syntax_trees::item::Item::Const(definition)
                     if definition.name.as_str() == "TOTAL" =>
                 {
                     Some(definition)
@@ -476,9 +474,7 @@ mod tests {
         let definition = syntax
             .root_items()
             .find_map(|item| match item {
-                tokens_to_syntax_trees::syntax_trees::item::Item::Const(definition) => {
-                    Some(definition)
-                }
+                syntax_trees::item::Item::Const(definition) => Some(definition),
                 _ => None,
             })
             .expect("constant");
@@ -524,7 +520,7 @@ mod tests {
             syntax
                 .root_items()
                 .find_map(|item| match item {
-                    tokens_to_syntax_trees::syntax_trees::item::Item::Const(definition)
+                    syntax_trees::item::Item::Const(definition)
                         if definition.name.as_str() == name =>
                     {
                         Some(definition)

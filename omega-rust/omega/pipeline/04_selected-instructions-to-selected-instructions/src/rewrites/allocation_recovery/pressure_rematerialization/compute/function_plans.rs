@@ -1,12 +1,12 @@
-use target_operations_to_selected_instructions::SelectedInstructionPlan;
-use target_operations_to_selected_instructions::register_model::RegisterInstructionConstraint;
+use register_model::RegisterInstructionConstraint;
+use selected_instructions::SelectedInstructionPlan;
 
-use crate::register_homes::RecoveryClassificationPlan;
 use crate::{
     FunctionPressureRematerialization, PressureRematerializationError,
     PressureRematerializationPolicy,
 };
-use target_operations_to_selected_instructions::LiveRangePlan;
+use register_homes::RecoveryClassificationPlan;
+use selected_instructions::LiveRangePlan;
 
 use super::{application, candidate_action, selected_structure};
 

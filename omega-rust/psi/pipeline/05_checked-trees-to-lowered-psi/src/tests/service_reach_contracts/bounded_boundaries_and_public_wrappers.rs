@@ -7,10 +7,8 @@ use crate::unit::attached_unit::{
     lower_published_service_ceiling, lower_root_service_reach,
 };
 use language_semantics::{ServiceReachInterface, ServiceReachPlan};
-use lowered_psi_to_terminal_psi::terminal_production::{
-    TerminalProductionCustody, TerminalProductionTimings,
-};
 use terminal_interpreter::TerminalStructuralInputs;
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 #[test]
 fn top_level_bounded_boundary_keeps_fixed_invocation_reach() {
@@ -95,18 +93,15 @@ fn top_level_bounded_boundary_keeps_fixed_invocation_reach() {
             "{source}\n pub data Root {{}}\n machine helper() reaches Console + Storage invokes Console; {{ Endpoint::step(); }}\n pub machine Root::enter() invokes Console; {{ helper(); helper(); }}"
         );
         let caller = crate::front_end::checked_program(&call_source);
-        let artifact =
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-                &caller,
-                lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                    "Root::enter",
-                ),
-            )
-            .produce(TerminalProductionCustody::artifact_only(
-                &mut TerminalProductionTimings::default(),
-            ))
-            .expect("publish explicit top-level boundary calls")
-            .into_artifact();
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &caller,
+            terminal_production::TerminalMachineSelection::Name("Root::enter"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("publish explicit top-level boundary calls")
+        .into_artifact();
         let module =
             terminal_codec::decode_module(artifact.semantic_bytes()).expect("reload calls");
         assert_eq!(
@@ -204,18 +199,15 @@ fn bounded_boundary_helpers_replay_fixed_parent_and_invocation_reach() {
         "#
         );
         let checked = crate::front_end::checked_program(&source);
-        let artifact =
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-                &checked,
-                lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                    "Root::enter",
-                ),
-            )
-            .produce(TerminalProductionCustody::artifact_only(
-                &mut TerminalProductionTimings::default(),
-            ))
-            .expect("publish helper closure")
-            .into_artifact();
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            terminal_production::TerminalMachineSelection::Name("Root::enter"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("publish helper closure")
+        .into_artifact();
         let module = terminal_codec::decode_module(artifact.semantic_bytes())
             .expect("reload helper closure");
         assert_eq!(module.boundary_machines.len(), 1);
@@ -288,18 +280,15 @@ fn unresolved_installation_selection_keeps_closed_reach_application() {
     );
     let lowered =
         lower_machine(&checked, TerminalMachineSelection::Name("enter")).expect("lower traverse");
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "enter",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("publish installation-bound selection")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("publish installation-bound selection")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).expect("reload");
     assert_eq!(module, lowered.semantic_module);
     drop(checked);
@@ -529,18 +518,15 @@ fn public_wrapper_publishes_propagated_reach_and_pinned_boundary_ceiling() {
     );
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("public wrapper lowers");
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Root::enter",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("public propagated contract publishes")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Root::enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("public propagated contract publishes")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes())
         .expect("published Terminal module decodes");
     assert_eq!(module, lowered.semantic_module);

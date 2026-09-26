@@ -2,10 +2,8 @@
 //! same-home assignment. This records the relation; it does not assume it.
 
 use crate::LiveRangeError;
-use target_operations_to_selected_instructions::{EdgeRegisterTransfer, FunctionLiveness};
-use target_operations_to_selected_instructions::{
-    SelectedFunction, SelectedTerminator, VirtualRegisterOrigin,
-};
+use selected_instructions::{EdgeRegisterTransfer, FunctionLiveness};
+use selected_instructions::{SelectedFunction, SelectedTerminator, VirtualRegisterOrigin};
 
 pub(super) fn derive(
     function_index: usize,

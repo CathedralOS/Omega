@@ -1,4 +1,5 @@
 //! Authored checked providers preserve borrowed destination custody across calls.
+use super::super::LoweringError;
 use super::{
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, INPUT_SOURCE, OperationKind,
     TerminalBoundaryByteBuffer, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
@@ -6,14 +7,12 @@ use super::{
     TerminalStructuralValue, assert_stored_fields, lower_machine,
 };
 use crate::TerminalMachineSelection;
-use lowered_psi_to_terminal_psi::terminal_production::{
-    TerminalProductionCustody, TerminalProductionTimings,
-};
+use checked_trees::CheckedStructuralAccess;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     ProviderInstallationSelection, admit_provider_installation_from_artifact,
 };
-use typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess;
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 #[test]
 fn checked_provider_byte_buffers_forward_original_array_path_across_fuel_suspension() {
@@ -72,18 +71,15 @@ fn assert_forwarded_input(source: &str, ordinary_helper: bool, expected_stored: 
         );
     }
     let checked = crate::front_end::checked_program(&source);
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Record::run",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("authored forwarding provider produces verified Terminal")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Record::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("authored forwarding provider produces verified Terminal")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let [candidate] = module.provider_candidates.as_slice() else {
         panic!("one authored provider candidate")
@@ -287,7 +283,7 @@ fn assert_forwarded_input(source: &str, ordinary_helper: bool, expected_stored: 
 
 #[test]
 fn checked_provider_empty_path_reborrow_rejects_retained_source_substitution() {
-    use typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan;
+    use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
     let source = r#"
         domain [u8; 3]::Utf8 requires valid_utf8(self);
         boundary trait Input {
@@ -355,7 +351,7 @@ fn checked_provider_empty_path_reborrow_rejects_retained_source_substitution() {
         let result =
             lower_machine(&changed, TerminalMachineSelection::Name("Record::run")).map(|_| ());
         assert!(
-            matches!(&result, Err(crate::LoweringError::Unsupported(message))
+            matches!(&result, Err(LoweringError::Unsupported(message))
             if *message == "boundary byte loan differs from its authored backing"),
             "mutation {mutation} must fail exact authored source custody: {result:?}"
         );

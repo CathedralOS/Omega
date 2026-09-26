@@ -1,9 +1,7 @@
 //! Mixed Unit crash arithmetic uses exact runtime requirement evidence.
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use lowered_psi_to_terminal_psi::terminal_production::{
-    TerminalProductionCustody, TerminalProductionTimings,
-};
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 const SOURCE: &str = r#"
     data Metrics { current: u64; }
@@ -20,9 +18,7 @@ const SOURCE: &str = r#"
     { Helper::consume(divisor, metrics, limit); }
 "#;
 
-fn roundtrip(
-    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
-) -> checked_trees_to_lowered_psi::lowered_psi::LoweredPsi {
+fn roundtrip(checked: &checked_trees::CheckedTrees) -> lowered_psi::LoweredPsi {
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         checked,
         TerminalMachineSelection::Name("Main::main"),
@@ -42,16 +38,15 @@ fn roundtrip(
     .expect("independent verification of mixed runtime requirements");
     assert_eq!(module, lowered.semantic_module);
     assert_eq!(proof, lowered.proof_bundle);
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            checked,
-            TerminalMachineSelection::Name("Main::main"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("mixed runtime requirements publish")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("mixed runtime requirements publish")
+    .into_artifact();
     assert_eq!(
         terminal_codec::decode_module(artifact.semantic_bytes()).unwrap(),
         module
@@ -277,7 +272,7 @@ fn reflexive_call_requirement_cannot_prove_unbounded_argument_addition_safe() {
             "{primitive}: {error:?}"
         );
         assert!(
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            terminal_production::TerminalProductionRequest::new(
                 &checked,
                 TerminalMachineSelection::Name("Main::main")
             )
@@ -396,7 +391,7 @@ fn reversed_scalar_actuals_prove_the_symmetric_callee_requirement() {
 }
 
 fn call_requirement(
-    lowered: &checked_trees_to_lowered_psi::lowered_psi::LoweredPsi,
+    lowered: &lowered_psi::LoweredPsi,
     select: impl Fn(&semantic_vocabulary::Proposition) -> bool,
 ) -> semantic_vocabulary::ObligationId {
     let root = lowered

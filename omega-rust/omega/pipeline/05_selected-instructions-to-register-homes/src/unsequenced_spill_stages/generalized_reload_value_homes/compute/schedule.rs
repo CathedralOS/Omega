@@ -2,20 +2,18 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel;
+use register_model::ValidatedPhysicalRegisterModel;
 
 use crate::unsequenced_spill_stages::{
     GeneralizedReloadCoexistingValue, GeneralizedReloadValueHomeAssignment,
     GeneralizedReloadValueHomeError, GeneralizedReloadValueHomeOutcome,
     GeneralizedReloadValuePressure, GeneralizedSpillActionId, GeneralizedSpillActionSource,
 };
-use target_operations_to_selected_instructions::LiveRangePoint;
+use selected_instructions::LiveRangePoint;
 
 use super::{ActiveHome, ReloadSpec, homes};
-use selected_instructions_to_selected_instructions::register_homes::{
-    FunctionAllocationLegality, VirtualRegisterAllocationLegality,
-};
-use target_operations_to_selected_instructions::FunctionLiveRanges;
+use register_homes::{FunctionAllocationLegality, VirtualRegisterAllocationLegality};
+use selected_instructions::FunctionLiveRanges;
 
 #[derive(Clone, Copy)]
 enum Event<'a> {

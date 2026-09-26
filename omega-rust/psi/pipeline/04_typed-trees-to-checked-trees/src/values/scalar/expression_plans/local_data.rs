@@ -14,7 +14,7 @@ use super::{
 
 pub(super) fn plan(
     planner: StatementPlanner<'_, '_>,
-    local: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableLocalData,
+    local: &typed_trees::statement::TableLocalData,
 ) {
     let StatementPlanner {
         program,
@@ -112,7 +112,7 @@ pub(super) fn plan(
                 program,
                 operators,
                 local.initial_value,
-                crate::checked_trees::CheckedSubsliceSite::LocalBinding,
+                checked_trees::CheckedSubsliceSite::LocalBinding,
                 |endpoint| {
                     lower_return_expression(
                         program,

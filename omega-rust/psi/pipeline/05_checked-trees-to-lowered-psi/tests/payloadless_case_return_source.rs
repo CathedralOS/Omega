@@ -1,10 +1,10 @@
 //! Fixtures shared by the payloadless case return source tests.
 
-use lowered_psi_to_terminal_psi::terminal_production::{
-    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
-};
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 #[path = "payloadless_case_return_source/guarded_payloadless_calls.rs"]
 mod guarded_payloadless_calls;
 #[path = "payloadless_case_return_source/ordered_case_returns.rs"]
@@ -32,11 +32,11 @@ const SOURCE: &str = r#"
     }
 "#;
 
-fn checked_source() -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
+fn checked_source() -> checked_trees::CheckedTrees {
     crate::front_end::checked_program(SOURCE)
 }
 
-fn checked_ordered_case_returns() -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
+fn checked_ordered_case_returns() -> checked_trees::CheckedTrees {
     crate::front_end::checked_program(
         r#"
         data MemoryAlignment [copy] {
@@ -67,20 +67,19 @@ fn integer_case_argument(value: i128) -> terminal_interpreter::TerminalScalarVal
 }
 
 fn assert_guarded_case_results(
-    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+    checked: &checked_trees::CheckedTrees,
     entry: &str,
     cases_to_run: &[(terminal_interpreter::TerminalScalarValue, &str)],
 ) {
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            checked,
-            TerminalMachineSelection::Name(entry),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("ordered scalar guards retain selected case construction")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        checked,
+        TerminalMachineSelection::Name(entry),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("ordered scalar guards retain selected case construction")
+    .into_artifact();
     let artifact =
         terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
     let module = decode_module(artifact.semantic_bytes()).unwrap();

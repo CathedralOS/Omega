@@ -8,9 +8,10 @@ pub(crate) use recovery::{
     assign_source, recover, recover_after_active_resident_rematerialization,
     recover_after_declined_fixed_view_probe, recover_after_fixed_view_copies,
 };
-use selected_instructions_to_selected_instructions::register_homes::{
+use register_homes::{
     PostAllocationOptimizationManifestError, PostAllocationSelectedTransformation,
 };
+use selected_instructions::{SelectedInstructionPlan, VirtualRegisterId};
 use selected_instructions_to_selected_instructions::{
     AllocationLegalityError, FixedPrecoloredSegmentHomeDecline, FixedViewCopyPolicy,
     LiveRangeError, LivenessError, OptimizedAllocationLegalityCustodyError,
@@ -21,7 +22,6 @@ use selected_instructions_to_selected_instructions::{
     probe_optimized_fixed_precolored_segment_homes, validate_optimized_allocation_legality_custody,
     validate_optimized_selected_reanalysis_custody,
 };
-use target_operations_to_selected_instructions::{SelectedInstructionPlan, VirtualRegisterId};
 
 /// Original source custody and rewrite evidence are retained only for replay.
 #[derive(Debug)]
@@ -102,7 +102,7 @@ impl RuntimeSpillSource {
     /// the underlying legality stage.
     pub(crate) fn register_environment(
         &self,
-    ) -> &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment{
+    ) -> &register_environment::ValidatedTargetRegisterEnvironment {
         self.legality_stage().register_environment()
     }
 

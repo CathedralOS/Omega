@@ -32,11 +32,8 @@ pub(crate) fn allocate(
             return unsupported("scalar primitive locals disagree with declaration order");
         }
         for local in &state.primitive_locals {
-            let Some(
-                typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(
-                    authored,
-                ),
-            ) = statements.get(local.statement_ordinal as usize)
+            let Some(checked_trees::statement::StatementNode::LocalData(authored)) =
+                statements.get(local.statement_ordinal as usize)
             else {
                 return unsupported("scalar primitive local lost its authored declaration");
             };
@@ -53,7 +50,7 @@ pub(crate) fn allocate(
                     checked
                         .type_reference_table
                         .type_reference(authored.type_reference),
-                    typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Named { .. }
+                    checked_trees::types::TypeReferenceNode::Named { .. }
                 )
                 || checked.primitive_type_reference(authored.type_reference)
                     != Some(local.primitive_type)
@@ -66,7 +63,7 @@ pub(crate) fn allocate(
                     binding.statement_ordinal == local.statement_ordinal
                         && binding.primitive_type == local.primitive_type
                         && binding.destination
-                            == typed_trees_to_checked_trees::checked_trees::CheckedScalarBindingDestination::StorageInitialize {
+                            == checked_trees::CheckedScalarBindingDestination::StorageInitialize {
                                 symbol: local.symbol,
                             }
                 })
@@ -85,7 +82,7 @@ pub(crate) fn allocate(
             ))?;
             if shapes.next().is_some()
                 || shape.shape
-                    != typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(
+                    != checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(
                         local.primitive_type,
                     )
             {
@@ -105,9 +102,9 @@ pub(crate) fn allocate(
 
 pub(super) fn destination(
     locals: &[PrimitiveLocal],
-    binding: &typed_trees_to_checked_trees::checked_trees::CheckedScalarBinding,
+    binding: &checked_trees::CheckedScalarBinding,
 ) -> Result<Option<StoreDestination>, LoweringError> {
-    use typed_trees_to_checked_trees::checked_trees::CheckedScalarBindingDestination;
+    use checked_trees::CheckedScalarBindingDestination;
     let symbol = match binding.destination {
         CheckedScalarBindingDestination::Immutable => return Ok(None),
         CheckedScalarBindingDestination::StorageInitialize { symbol }

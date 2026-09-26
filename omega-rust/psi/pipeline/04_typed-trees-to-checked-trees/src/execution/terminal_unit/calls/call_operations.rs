@@ -23,7 +23,7 @@ use crate::execution::terminal_unit::{
     Multiplicity, PermissionEventKind, PrimitiveType, SymbolHandle, TypedTrees, is_reference,
     strips_erased_parameter,
 };
-use crate::validation::exact_compiler_intrinsic_boundary_requirement;
+use validation::exact_compiler_intrinsic_boundary_requirement;
 
 pub(in crate::execution) enum ExpectedCallValueResult<'result> {
     Scalar(PrimitiveType),
@@ -35,18 +35,17 @@ pub(in crate::execution) enum ExpectedCallValueResult<'result> {
 /// call's expected result selects.
 pub(super) struct PlannedCall<'p> {
     pub(super) coordinate: CheckedUnitCallCoordinate,
-    pub(super) source_site: Option<crate::checked_trees::NominalMachineUseSite>,
-    pub(super) call: &'p crate::checked_trees::FlowCallFact,
-    pub(super) target_machine:
-        &'p symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    pub(super) target_state: &'p symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-    pub(super) target_contract: &'p crate::checked_trees::MachineContractPlan,
+    pub(super) source_site: Option<checked_trees::NominalMachineUseSite>,
+    pub(super) call: &'p checked_trees::FlowCallFact,
+    pub(super) target_machine: &'p typed_trees::machine::Machine,
+    pub(super) target_state: &'p typed_trees::state::State,
+    pub(super) target_contract: &'p checked_trees::MachineContractPlan,
     pub(super) scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
-    pub(super) scalar_arguments: Vec<crate::checked_trees::CheckedCallScalarArgument>,
-    pub(super) erased_scalar_arguments: Vec<crate::checked_trees::CheckedCallScalarArgument>,
-    pub(super) erased_proof_arguments: Vec<crate::checked_trees::CheckedProofTerm>,
+    pub(super) scalar_arguments: Vec<checked_trees::CheckedCallScalarArgument>,
+    pub(super) erased_scalar_arguments: Vec<checked_trees::CheckedCallScalarArgument>,
+    pub(super) erased_proof_arguments: Vec<checked_trees::CheckedProofTerm>,
     pub(super) structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
-    pub(super) transfers: Vec<crate::checked_trees::CheckedUnitClaimTransferPlan>,
+    pub(super) transfers: Vec<checked_trees::CheckedUnitClaimTransferPlan>,
 }
 
 /// Build one call with the scalar-callee evidence available to this pass.
@@ -55,18 +54,15 @@ pub(in crate::execution) fn build_call_operation(
     program: &TypedTrees,
     facts: &CheckFacts,
     scalar_callees: Option<ScalarCalleePlans<'_>>,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
     caller_trivial_affine_locals: &[(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
     entry_claims: &[CheckedUnitEntryClaimPlan],
-    call: &crate::checked_trees::FlowCallFact,
+    call: &checked_trees::FlowCallFact,
     allow_field_path_projection: bool,
     expected_call_result: Option<ExpectedCallValueResult<'_>>,
-    caller_structural_results: &[(
-        CheckedUnitStructuralResultBindingPlan,
-        crate::fact_plan::PlaceRoot,
-    )],
+    caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
     trace: &LocalConstructionTrace,
 ) -> Option<CheckedUnitEffectOperationPlan> {
     let coordinate = CheckedUnitCallCoordinate {
@@ -91,7 +87,7 @@ pub(in crate::execution) fn build_call_operation(
     let source_site = match &call_site {
         crate::semantic::calls::CallSite::Statement(_) => {
             let offset = u32::try_from(call.statement_index).ok()?;
-            Some(crate::checked_trees::NominalMachineUseSite::Statement(
+            Some(checked_trees::NominalMachineUseSite::Statement(
                 arena::Handle::from_parts(
                     state
                         .statement_nodes
@@ -103,7 +99,7 @@ pub(in crate::execution) fn build_call_operation(
             ))
         }
         crate::semantic::calls::CallSite::Expression { expression, .. } => Some(
-            crate::checked_trees::NominalMachineUseSite::Expression(*expression),
+            checked_trees::NominalMachineUseSite::Expression(*expression),
         ),
         crate::semantic::calls::CallSite::TransitionNamed { .. } => None,
     };
@@ -208,9 +204,7 @@ pub(in crate::execution) fn build_call_operation(
     // Boundary results currently carry identity/claims, not an array payload.
     // Ordinary calls get their payload from the independently checked body.
     phase("call operation: result shape");
-    if boundary
-        && crate::validation::is_closed_primitive_array_type(program, target_state.return_type)
-    {
+    if boundary && validation::is_closed_primitive_array_type(program, target_state.return_type) {
         return None;
     }
     if if boundary {
@@ -386,7 +380,7 @@ pub(in crate::execution) fn build_call_operation(
                 .state_parameters(target_state)
                 .iter()
                 .any(|parameter| {
-                    symbol_resolved_trees_to_typed_trees::typed_trees::service::exact_bound_service_requirement(
+                    typed_trees::service::exact_bound_service_requirement(
                         program,
                         parameter.type_reference,
                     )
@@ -463,7 +457,7 @@ pub(in crate::execution) fn build_call_operation(
             structural_arguments,
             discard_result_on_return: false,
         };
-        let custody = crate::validation::reconstruct_structural_call_custody(
+        let custody = validation::reconstruct_structural_call_custody(
             program,
             facts,
             machine.symbol,
@@ -576,10 +570,10 @@ pub(in crate::execution) fn build_call_operation(
 fn projected_reference_record_operands_supported(
     program: &TypedTrees,
     facts: &CheckFacts,
-    caller_machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    caller_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-    target_machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    target_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    caller_machine: &typed_trees::machine::Machine,
+    caller_state: &typed_trees::state::State,
+    target_machine: &typed_trees::machine::Machine,
+    target_state: &typed_trees::state::State,
     arguments: &[CheckedUnitStructuralArgumentPlan],
 ) -> bool {
     if target_machine.supply_mode != MachineSupplyMode::CheckedBody {
@@ -645,11 +639,11 @@ fn projected_reference_record_operands_supported(
                     && argument.path.iter().all(|segment| {
                         matches!(
                             segment,
-                            crate::checked_trees::CheckedUnitStructuralPathSegment::Field(_)
+                            checked_trees::CheckedUnitStructuralPathSegment::Field(_)
                         )
                     })
                     && !target.is_self
-                    && crate::validation::reference_result_custody::is_reference_record(
+                    && validation::reference_result_custody::is_reference_record(
                         program,
                         target.type_reference,
                     )

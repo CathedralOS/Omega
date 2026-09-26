@@ -15,9 +15,7 @@ fn quotient_request_retains_exact_resultless_theorem_machine_selection() {
         .expression_table
         .iter_expressions()
         .find_map(|(_, expression)| match expression {
-            symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(
-                call,
-            ) => call.quotient_operation.as_ref(),
+            typed_trees::expression::ExpressionNode::Call(call) => call.quotient_operation.as_ref(),
             _ => None,
         })
         .expect("sealed quotient request");
@@ -62,9 +60,7 @@ fn three_argument_lift_retains_canonical_congruence_then_transport_roles() {
         .expression_table
         .iter_expressions()
         .find_map(|(_, expression)| match expression {
-            symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(
-                call,
-            ) => call.quotient_operation.as_ref(),
+            typed_trees::expression::ExpressionNode::Call(call) => call.quotient_operation.as_ref(),
             _ => None,
         })
         .expect("sealed quotient request");
@@ -72,11 +68,11 @@ fn three_argument_lift_retains_canonical_congruence_then_transport_roles() {
     assert_eq!(request.theorem_evidence.len(), 2);
     assert_eq!(
         request.theorem_evidence[0].role,
-        symbol_resolved_trees_to_typed_trees::typed_trees::expression::QuotientTheoremRole::Congruence
+        typed_trees::expression::QuotientTheoremRole::Congruence
     );
     assert_eq!(
         request.theorem_evidence[1].role,
-        symbol_resolved_trees_to_typed_trees::typed_trees::expression::QuotientTheoremRole::ForwardPreconditionTransport
+        typed_trees::expression::QuotientTheoremRole::ForwardPreconditionTransport
     );
 }
 

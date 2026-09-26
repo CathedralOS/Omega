@@ -1,6 +1,4 @@
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, ExpressionNode,
-};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 mod arguments;
 mod guards;
@@ -26,9 +24,9 @@ pub(super) struct DirectCountdownEdge {
 /// later checked-plan producer may project this judgment, but must not grow a
 /// second recognizer for `parameter > 0` and `parameter - 1`.
 pub(super) fn direct_countdown_edge(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    source: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-    target: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    source: &typed_trees::state::State,
+    target: &typed_trees::state::State,
     guard: &[patterns::GuardFact],
     arguments: &[ExpressionHandle],
     decreases: ExpressionHandle,
@@ -49,12 +47,12 @@ pub(super) fn direct_countdown_edge(
 /// target's subjects by name, so every state of a cyclic component carries
 /// parameters of these names.
 pub(super) fn state_rank(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
     measure: DecreaseMeasure,
-) -> Option<crate::checked_trees::CheckedStateNaturalRank> {
-    use crate::checked_trees::CheckedNaturalRankMeasure;
-    use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
+) -> Option<checked_trees::CheckedStateNaturalRank> {
+    use checked_trees::CheckedNaturalRankMeasure;
+    use typed_trees::types::PrimitiveType;
     let plain = |subject: ExpressionHandle| {
         let ExpressionNode::Name(_) = program.expression_table.expression(subject) else {
             return None;
@@ -78,7 +76,7 @@ pub(super) fn state_rank(
             ) {
                 return None;
             }
-            Some(crate::checked_trees::CheckedStateNaturalRank {
+            Some(checked_trees::CheckedStateNaturalRank {
                 state: state.symbol,
                 parameter: parameter.symbol,
                 parameter_position: position,
@@ -101,7 +99,7 @@ pub(super) fn state_rank(
             {
                 return None;
             }
-            Some(crate::checked_trees::CheckedStateNaturalRank {
+            Some(checked_trees::CheckedStateNaturalRank {
                 state: state.symbol,
                 parameter: lower.symbol,
                 parameter_position: lower_position,
@@ -116,8 +114,8 @@ pub(super) fn state_rank(
 }
 
 pub(super) fn state_has_proven_self_loop(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
     measure: DecreaseMeasure,
     orientation: DistanceOrientation,
 ) -> bool {
@@ -142,9 +140,9 @@ pub(super) fn state_has_proven_self_loop(
 /// target differs from the source, so the decreasing argument is located by the
 /// matching parameter name in the *target* state.
 pub(super) fn edge_decrease_proven(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    source: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-    target: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    source: &typed_trees::state::State,
+    target: &typed_trees::state::State,
     guard: &[patterns::GuardFact],
     arguments: &[ExpressionHandle],
     measure: DecreaseMeasure,
@@ -179,8 +177,8 @@ pub(super) fn edge_decrease_proven(
 /// Index of the non-self parameter with the given name in a state's parameter
 /// list (the positional argument slot for that parameter on an incoming edge).
 fn target_argument_index(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    target: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    target: &typed_trees::state::State,
     name: &str,
 ) -> Option<usize> {
     program
@@ -191,9 +189,9 @@ fn target_argument_index(
 }
 
 fn countdown_edge(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    source: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-    target: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    source: &typed_trees::state::State,
+    target: &typed_trees::state::State,
     guard: &[patterns::GuardFact],
     arguments: &[ExpressionHandle],
     decreases: ExpressionHandle,
@@ -210,13 +208,13 @@ fn countdown_edge(
 }
 
 fn countdown_edge_parts<'program>(
-    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    source: &'program symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-    target: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &'program typed_trees::TypedTrees,
+    source: &'program typed_trees::state::State,
+    target: &typed_trees::state::State,
     arguments: &'program [ExpressionHandle],
     decreases: ExpressionHandle,
 ) -> Option<(
-    &'program symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter,
+    &'program typed_trees::signature::StateParameter,
     usize,
     ExpressionHandle,
 )> {
@@ -249,27 +247,22 @@ fn countdown_edge_parts<'program>(
 /// Non-Exact carriers are permissive (probed live at stores) and never
 /// discharge a bound.
 fn floor_at_least_one(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-    parameter: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter,
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
+    parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
     crate::semantic::calls::find_state_with_machine(program, state.symbol)
         .and_then(|(machine, state)| {
-            crate::validation::state_parameter_integer_interval(
-                program,
-                machine,
-                state,
-                parameter.symbol,
-            )
+            validation::state_parameter_integer_interval(program, machine, state, parameter.symbol)
         })
         .and_then(|(low, _)| low)
         .is_some_and(|low| low >= 1)
 }
 
 fn member_countdown_edge(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    source: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-    target: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    source: &typed_trees::state::State,
+    target: &typed_trees::state::State,
     guard: &[patterns::GuardFact],
     arguments: &[ExpressionHandle],
     decreases: ExpressionHandle,
@@ -304,9 +297,9 @@ fn member_countdown_edge(
 /// guarded edge: the guard bounds `lower` below `upper`, `upper` is threaded
 /// unchanged, and `lower` advances by one.
 fn distance_edge(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    source: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-    target: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    source: &typed_trees::state::State,
+    target: &typed_trees::state::State,
     guard: &[patterns::GuardFact],
     arguments: &[ExpressionHandle],
     upper: ExpressionHandle,
@@ -344,18 +337,13 @@ fn distance_edge(
 /// `- 1` shape or positive-looking guard is not builtin arithmetic evidence
 /// when an authored/selected operator owns that exact expression.
 fn has_builtin_meaning(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
     expression: ExpressionHandle,
 ) -> bool {
     let Some((machine, _)) = crate::semantic::calls::find_state_with_machine(program, state.symbol)
     else {
         return false;
     };
-    crate::validation::has_builtin_bound_expression_meaning(
-        program,
-        machine,
-        Some(state),
-        expression,
-    )
+    validation::has_builtin_bound_expression_meaning(program, machine, Some(state), expression)
 }

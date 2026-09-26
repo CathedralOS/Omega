@@ -9,10 +9,8 @@ pub(crate) mod validate;
 pub(crate) mod tests;
 
 use optimization_core::OptimizationUnitIdentity;
+use selected_instructions::{LivenessIdentity, LivenessPlan, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::FuelScheduleIdentity;
-use target_operations_to_selected_instructions::{
-    LivenessIdentity, LivenessPlan, SelectedInstructionPlanIdentity,
-};
 pub use validate::validate_liveness;
 
 #[cfg(test)]

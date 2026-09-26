@@ -1,5 +1,5 @@
 //! Bounded no-observation eligibility; this predicate supplies no ownership authority.
-use crate::legalized_operations::{
+use legalized_operations::{
     LegalizedScalarArgument, LegalizedScalarFunction, LegalizedScalarInstructionKind as Instruction,
 };
 use terminal_psi::{
@@ -98,8 +98,8 @@ pub(crate) fn accepts(function: &LegalizedScalarFunction) -> bool {
         && contract.published_service_ceiling.is_empty()
         && function.attachment.is_none()
         && !function.blocks.iter().any(|block| matches!(&block.terminator,
-            crate::legalized_operations::LegalizedScalarTerminator::Return(returned)
-                if matches!(returned.value, crate::legalized_operations::LegalizedScalarReturnValue::StructuralParameter { .. })))
+            legalized_operations::LegalizedScalarTerminator::Return(returned)
+                if matches!(returned.value, legalized_operations::LegalizedScalarReturnValue::StructuralParameter { .. })))
         && contract
             .parameters
             .iter()

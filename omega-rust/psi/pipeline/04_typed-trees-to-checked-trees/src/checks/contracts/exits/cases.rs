@@ -3,17 +3,15 @@
 //! saved places consume only live flow predicates. Initializers and calls are
 //! never replayed to recover a tag after their evaluation point.
 
-use crate::checked_trees::{
-    CheckFacts, ContractProofFactKind, ContractProofFactOwner, FlowExitFact,
-};
-use crate::fact_plan::{FactContextHandle, FactPayload, PlaceRoot, PlaceSegment};
-use symbol_resolved_trees_to_typed_trees::typed_trees::{
+use checked_trees::{CheckFacts, ContractProofFactKind, ContractProofFactOwner, FlowExitFact};
+use facts::{FactContextHandle, FactPayload, PlaceRoot, PlaceSegment};
+use symbols::SymbolHandle;
+use typed_trees::{
     TypedTrees,
     expression::{ExpressionHandle, ExpressionNode},
     machine::Machine,
     state::State,
 };
-use symbols::SymbolHandle;
 
 use super::super::return_values::exit_return_expression;
 use crate::flow::{CanonicalPlace, canonical_place_from_expression_in_state};
@@ -24,8 +22,8 @@ impl<'a> CaseObservation<'a> {
         facts: &'a CheckFacts,
         exit: &'a FlowExitFact,
         contexts: &'a [FactContextHandle],
-        requirement: &crate::fact_plan::Fact,
-        call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
+        requirement: &facts::Fact,
+        call_frames: Option<&validation::CallFrameResolver<'_>>,
     ) -> Option<Self> {
         let FactPayload::ContractBooleanExpression {
             fact, expression, ..
@@ -33,7 +31,7 @@ impl<'a> CaseObservation<'a> {
         else {
             return None;
         };
-        if !matches!(program.proof_facts.get(fact), symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(source) if *source == expression)
+        if !matches!(program.proof_facts.get(fact), typed_trees::domain::ProofFact::Expression(source) if *source == expression)
         {
             return None;
         }
@@ -73,7 +71,7 @@ impl<'a> CaseObservation<'a> {
         facts: &'a CheckFacts,
         exit: &'a FlowExitFact,
         contexts: &'a [FactContextHandle],
-        call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
+        call_frames: Option<&validation::CallFrameResolver<'_>>,
     ) -> Option<Self> {
         let machine = program
             .machines()
@@ -95,8 +93,7 @@ impl<'a> CaseObservation<'a> {
                 ExpressionNode::Atomic(_)
             )
         }) || facts.operators.uses.iter().any(|(_, operator)| {
-            operator.status
-                != crate::checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+            operator.status != checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
                 && returned_nodes.contains(&operator.expression)
         });
         Some(CaseObservation {
@@ -146,7 +143,7 @@ impl CaseObservation<'_> {
         else {
             return None;
         };
-        if !crate::validation::has_exact_case_membership_meaning(
+        if !validation::has_exact_case_membership_meaning(
             self.program,
             self.machine,
             Some(self.state),
@@ -155,7 +152,7 @@ impl CaseObservation<'_> {
         ) {
             return None;
         }
-        let subject = crate::validation::reserved_result_place(self.program, binary.left)?;
+        let subject = validation::reserved_result_place(self.program, binary.left)?;
         if subject.machine_symbol != self.machine.symbol {
             return None;
         }
@@ -216,7 +213,7 @@ impl CaseObservation<'_> {
                     let declared = self.program.data_definitions().iter().any(|data| {
                         data.symbol == literal.type_symbol
                             && self.program.data_members(data).iter().any(|member| {
-                                matches!(member, symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(candidate)
+                                matches!(member, typed_trees::data::DataMember::Variant(candidate)
                                     if candidate.symbol == *variant)
                             })
                     });
@@ -307,7 +304,7 @@ impl CaseObservation<'_> {
                     return false;
                 };
                 let declared = self.program.data_members(data).iter().any(|member| {
-                    matches!(member, symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant) if variant.symbol == actual)
+                    matches!(member, typed_trees::data::DataMember::Variant(variant) if variant.symbol == actual)
                 });
                 literal.type_symbol == owner && declared && (actual == case) == required
             }
@@ -315,12 +312,12 @@ impl CaseObservation<'_> {
                 if self.program.symbols.get(path.symbol).kind == symbols::SymbolKind::Variant =>
             {
                 let Some(actual_owner) =
-                    crate::validation::exact_case_reference_owner(self.program, expression)
+                    validation::exact_case_reference_owner(self.program, expression)
                 else {
                     return false;
                 };
                 let payload_free = self.program.data_members(data).iter().any(|member| {
-                    matches!(member, symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant) if variant.symbol == path.symbol && variant.payload.is_empty())
+                    matches!(member, typed_trees::data::DataMember::Variant(variant) if variant.symbol == path.symbol && variant.payload.is_empty())
                 });
                 actual_owner.symbol == owner && payload_free && (path.symbol == case) == required
             }
@@ -416,8 +413,8 @@ mod tests {
         let requirement = *checked.facts.semantic.facts.iter().find(|(_, fact)| {
             matches!(fact.payload, FactPayload::ContractBooleanExpression { fact, .. } if fact == source_fact)
         }).unwrap().1;
-        let preserves_live_reads = |checked: &crate::checked_trees::CheckedTrees| {
-            let frames = crate::validation::CallFrameResolver::new(&checked.typed).unwrap();
+        let preserves_live_reads = |checked: &checked_trees::CheckedTrees| {
+            let frames = validation::CallFrameResolver::new(&checked.typed).unwrap();
             CaseObservation::for_requirement(
                 &checked.typed,
                 &checked.facts,
@@ -450,9 +447,9 @@ mod tests {
             .facts
             .operators
             .uses
-            .append(crate::checked_trees::CheckedOperatorUseFact {
+            .append(checked_trees::CheckedOperatorUseFact {
                 expression: later,
-                status: crate::checked_trees::CheckedOperatorResolutionStatus::Resolved,
+                status: checked_trees::CheckedOperatorResolutionStatus::Resolved,
                 ..Default::default()
             });
         assert!(!preserves_live_reads(&selected));
@@ -461,16 +458,15 @@ mod tests {
             .typed
             .expression_table
             .insert(ExpressionNode::Boolean(false));
-        *atomic.typed.expression_table.expression_mut(later) = ExpressionNode::Atomic(
-            symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableAtomicExpression {
+        *atomic.typed.expression_table.expression_mut(later) =
+            ExpressionNode::Atomic(typed_trees::expression::TableAtomicExpression {
                 value: operand,
                 result: operand,
                 ordering: language_core::atomic::AtomicOrderingPlan::Swap(
                     language_core::atomic::MemoryOrdering::NoOrdering,
                 ),
                 result_custody: language_core::atomic::AtomicExpressionResultCustody::Scalar,
-            },
-        );
+            });
         assert!(!preserves_live_reads(&atomic));
     }
 
@@ -504,7 +500,7 @@ mod tests {
         let FactPayload::ContractBooleanExpression { expression, .. } = requirement.payload else {
             panic!("Boolean requirement");
         };
-        let observe = |exit: &FlowExitFact, requirement: &crate::fact_plan::Fact| {
+        let observe = |exit: &FlowExitFact, requirement: &facts::Fact| {
             CaseObservation::for_requirement(
                 &checked.typed,
                 &checked.facts,

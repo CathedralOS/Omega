@@ -21,11 +21,9 @@ use crate::unit::attached_unit::bodies::{UnitBody, UnitPlans};
 
 pub(crate) fn admit_dynamic_continuation<'a>(
     checked: &'a CheckedTrees,
-    plan: &typed_trees_to_checked_trees::checked_trees::CheckedDynamicScalarCallPlan,
-    continuation: &'a typed_trees_to_checked_trees::checked_trees::CheckedDynamicUnitContinuationPlan,
-    stored: Option<
-        &typed_trees_to_checked_trees::checked_trees::CheckedDynamicStoredDescriptorPlan,
-    >,
+    plan: &checked_trees::CheckedDynamicScalarCallPlan,
+    continuation: &'a checked_trees::CheckedDynamicUnitContinuationPlan,
+    stored: Option<&checked_trees::CheckedDynamicStoredDescriptorPlan>,
 ) -> Result<
     (
         Vec<(&'a CheckedBoundaryMachinePlan, String)>,
@@ -141,16 +139,15 @@ pub(crate) fn admit_dynamic_continuation<'a>(
 
 fn exact_stored_local_drop(
     checked: &CheckedTrees,
-    plan: &typed_trees_to_checked_trees::checked_trees::CheckedDynamicScalarCallPlan,
-    storage: &typed_trees_to_checked_trees::checked_trees::DynamicDescriptorStorageFact,
+    plan: &checked_trees::CheckedDynamicScalarCallPlan,
+    storage: &checked_trees::DynamicDescriptorStorageFact,
 ) -> bool {
     // Descriptor storage establishes an affine local even though its borrowed
     // payload carries no linear debt and needs no executable destructor. Rejoin
     // its no-code disposal to that exact establishment, not the old untracked
     // Unknown provenance. Any intervening move, replacement, projected claim,
     // or additional dying root needs its own cleanup plan rather than this pair.
-    let root =
-        typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(storage.destination_binding);
+    let root = facts::PlaceRoot::Symbol(storage.destination_binding);
     let source = language_semantics::PermissionEventSource::Statement {
         statement_index: storage.statement_index,
     };
@@ -194,11 +191,8 @@ fn exact_stored_local_drop(
 
 pub(super) fn exact_attachment<'a>(
     checked: &'a CheckedTrees,
-    plan: &typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlMachinePlan,
-) -> Result<
-    Option<&'a typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypePlan>,
-    LoweringError,
-> {
+    plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
+) -> Result<Option<&'a checked_trees::CheckedUnitStructuralTypePlan>, LoweringError> {
     let mut machines = checked
         .machines()
         .iter()
@@ -274,10 +268,7 @@ fn exact_attachment_identity<'a>(
     checked: &'a CheckedTrees,
     identity: &str,
     requires_record_storage: bool,
-) -> Result<
-    &'a typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypePlan,
-    LoweringError,
-> {
+) -> Result<&'a checked_trees::CheckedUnitStructuralTypePlan, LoweringError> {
     let attachments = checked
         .facts
         .flow
@@ -304,9 +295,9 @@ fn exact_attachment_identity<'a>(
 pub(super) fn admit_call_targets<'a>(
     checked: &'a CheckedTrees,
     machine: symbols::SymbolHandle,
-    call_states: &[&'a typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlStatePlan],
-    attachment: Option<&typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypePlan>,
-    provider_attachment_requirements: &[typed_trees_to_checked_trees::checked_trees::CheckedProviderAttachmentRequirementPlan],
+    call_states: &[&'a checked_trees::CheckedComposedUnitControlStatePlan],
+    attachment: Option<&checked_trees::CheckedUnitStructuralTypePlan>,
+    provider_attachment_requirements: &[checked_trees::CheckedProviderAttachmentRequirementPlan],
 ) -> Result<
     (
         Vec<(&'a CheckedBoundaryMachinePlan, String)>,
@@ -375,8 +366,8 @@ pub(super) fn validate_claim_free_boundary(
                 || parameter.fused_service_erasure.is_some()
                 || !matches!(
                     parameter.access,
-                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
-                        | typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow
+                    checked_trees::CheckedStructuralAccess::SharedBorrow
+                        | checked_trees::CheckedStructuralAccess::MutableBorrow
                 )
         })
         || !(boundary.result.is_unit()
@@ -403,7 +394,7 @@ pub(super) fn validate_claim_free_boundary(
 pub(super) fn admit_calls<'a>(
     checked: &'a CheckedTrees,
     machine: symbols::SymbolHandle,
-    call_states: &[&'a typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlStatePlan],
+    call_states: &[&'a checked_trees::CheckedComposedUnitControlStatePlan],
 ) -> Result<Vec<(&'a CheckedBoundaryMachinePlan, String)>, LoweringError> {
     let plans = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
     let mut boundaries = Vec::new();
@@ -452,7 +443,7 @@ pub(super) fn admit_calls<'a>(
 fn unit_targets<'a>(
     checked: &'a CheckedTrees,
     machine: symbols::SymbolHandle,
-    call_states: &[&'a typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlStatePlan],
+    call_states: &[&'a checked_trees::CheckedComposedUnitControlStatePlan],
 ) -> Result<Vec<(UnitBody<'a>, String)>, LoweringError> {
     let plans = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
     let mut targets = Vec::<(UnitBody<'a>, String)>::new();
@@ -491,7 +482,7 @@ fn unit_targets<'a>(
 
 pub(super) fn validate_contract(
     checked: &CheckedTrees,
-    plan: &typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlMachinePlan,
+    plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
 ) -> Result<(), LoweringError> {
     let contract = checked
         .facts
@@ -510,7 +501,7 @@ pub(super) fn validate_contract(
 }
 
 pub(super) fn validate_leaf(
-    state: &typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlStatePlan,
+    state: &checked_trees::CheckedComposedUnitControlStatePlan,
 ) -> Result<(), LoweringError> {
     if !state.scalar_parameters.is_empty()
         || !state.bindings.is_empty()

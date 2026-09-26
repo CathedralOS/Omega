@@ -16,8 +16,8 @@ use super::{
     ProviderSignature, ProviderSignatureParameter, TerminalMachine, UnitBody, lookup_machine_id,
     unique_unit_boundary, unsupported,
 };
-use typed_trees_to_checked_trees::checked_trees::machine::{Machine, TraitConformance};
-use typed_trees_to_checked_trees::validation::{
+use checked_trees::machine::{Machine, TraitConformance};
+use validation::{
     TopLevelSymbols, resolve_closed_requirement_application,
     validate_checked_machine_specialization_commitments,
 };
@@ -33,10 +33,7 @@ pub(super) enum ProviderBody {
 pub(super) fn affine_candidate(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
-) -> Result<
-    &typed_trees_to_checked_trees::checked_trees::CheckedClaimFreeAffineStructuralReturnMachinePlan,
-    LoweringError,
-> {
+) -> Result<&checked_trees::CheckedClaimFreeAffineStructuralReturnMachinePlan, LoweringError> {
     let mut candidates = checked
         .facts
         .flow
@@ -92,11 +89,10 @@ fn callable_candidate(
 #[derive(Clone, Copy)]
 enum CatalogRequirement<'a> {
     Trait {
-        definition:
-            &'a typed_trees_to_checked_trees::checked_trees::trait_definition::TraitDefinition,
-        signature: &'a typed_trees_to_checked_trees::checked_trees::signature::StateSignature,
+        definition: &'a checked_trees::trait_definition::TraitDefinition,
+        signature: &'a checked_trees::signature::StateSignature,
     },
-    TopLevel(&'a typed_trees_to_checked_trees::checked_trees::machine::Machine),
+    TopLevel(&'a checked_trees::machine::Machine),
 }
 
 /// A closed requirement keeps its authored conformance coordinate on the
@@ -278,7 +274,7 @@ pub(super) fn checked_unit_provider_candidates(
                 continue;
             }
             let body = match &boundary.result {
-                typed_trees_to_checked_trees::checked_trees::CheckedBoundaryMachineResultPlan::Unit => {
+                checked_trees::CheckedBoundaryMachineResultPlan::Unit => {
                     let candidate = callable_candidate(checked, machine.symbol).map_err(
                         |error| match error {
                             LoweringError::Unsupported(reason) => {
@@ -294,14 +290,14 @@ pub(super) fn checked_unit_provider_candidates(
                             error => error,
                         },
                     )?;
-                    if candidate.result()? != typed_trees_to_checked_trees::checked_trees::CheckedControlResultPlan::Unit {
+                    if candidate.result()? != checked_trees::CheckedControlResultPlan::Unit {
                         return unsupported(
                             "provider result disagrees with its Unit boundary requirement",
                         );
                     }
                     ProviderBody::Callable
                 }
-                typed_trees_to_checked_trees::checked_trees::CheckedBoundaryMachineResultPlan::Structural {
+                checked_trees::CheckedBoundaryMachineResultPlan::Structural {
                     type_identity,
                     multiplicity,
                     qualifications,
@@ -310,7 +306,7 @@ pub(super) fn checked_unit_provider_candidates(
                         || plans.composed_for_machine(machine.symbol).is_some()
                     {
                         let candidate = callable_candidate(checked, machine.symbol)?;
-                        let typed_trees_to_checked_trees::checked_trees::CheckedControlResultPlan::Structural(result) =
+                        let checked_trees::CheckedControlResultPlan::Structural(result) =
                             candidate.result()?
                         else {
                             return unsupported(
@@ -349,7 +345,7 @@ pub(super) fn checked_unit_provider_candidates(
                 // It takes the route an ordinary scalar call to it would:
                 // its scalar owner when it has one (keeping its contract
                 // lowering), otherwise its Unit body's scalar completion.
-                typed_trees_to_checked_trees::checked_trees::CheckedBoundaryMachineResultPlan::Scalar(expected) => {
+                checked_trees::CheckedBoundaryMachineResultPlan::Scalar(expected) => {
                     match super::CheckedScalarCallee::find_for_unit_call(checked, machine.symbol)? {
                         super::CheckedScalarCallee::Operations(_) => {
                             let candidate = callable_candidate(checked, machine.symbol)?;

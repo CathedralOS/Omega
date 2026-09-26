@@ -20,14 +20,14 @@
 //! given result expression, and `call_contract_argument_projection`, which
 //! the contract prover uses.
 
-use crate::checked_trees::{ContractCallFact, ContractProofFact};
-use crate::fact_plan::{FactPlace, FactPlan};
 use crate::semantic::calls::CallSite;
 use crate::semantic::calls::call_site_argument_expressions;
 use crate::semantic::calls::call_target_parameters;
 use crate::semantic::calls::find_call_site;
 use crate::semantic::calls::find_state_in_machine;
 use crate::semantic::facts::contract_fact_place;
+use checked_trees::{ContractCallFact, ContractProofFact};
+use facts::{FactPlace, FactPlan};
 mod expression;
 mod place_builders;
 mod receiver;
@@ -39,15 +39,13 @@ pub(crate) use expression::{
 };
 
 pub(crate) fn instantiate_call_contract_place(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &mut FactPlan,
     call: &ContractCallFact,
     contract: &ContractProofFact,
 ) -> FactPlace {
     match program.proof_facts.get(contract.fact) {
-        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
-            expression,
-        ) => {
+        typed_trees::domain::ProofFact::Expression(expression) => {
             if let Some(place) = expression::instantiate_call_contract_expression_place(
                 program,
                 facts,
@@ -57,9 +55,7 @@ pub(crate) fn instantiate_call_contract_place(
                 return FactPlace::Place(place);
             }
         }
-        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(
-            membership,
-        ) => {
+        typed_trees::domain::ProofFact::Membership(membership) => {
             if let Some(place) = expression::instantiate_call_contract_expression_place(
                 program,
                 facts,
@@ -69,7 +65,7 @@ pub(crate) fn instantiate_call_contract_place(
                 return FactPlace::Place(place);
             }
         }
-        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(_) => {}
+        typed_trees::domain::ProofFact::Proposition(_) => {}
     }
 
     let original_place = contract_fact_place(program, facts, contract);

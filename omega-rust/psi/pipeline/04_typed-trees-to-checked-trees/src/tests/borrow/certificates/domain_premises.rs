@@ -1,9 +1,7 @@
-use crate::checked_trees::{BorrowCompatibilityDerivation, BorrowCompatibilityPremiseSource};
 use crate::tests::front_end::{checked_program, checked_program_result};
-use symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    BinaryOperator, ExpressionNode,
-};
+use checked_trees::{BorrowCompatibilityDerivation, BorrowCompatibilityPremiseSource};
+use typed_trees::domain::ProofFact;
+use typed_trees::expression::{BinaryOperator, ExpressionNode};
 
 const DOMAIN_WINDOW: &str = r#"
     domain u64::Upper requires self >= 2;
@@ -29,7 +27,7 @@ fn domain_membership_certifies_disjoint_window_write_and_call() {
             .mutation_certificates
             .iter()
             .any(|(_, certificate)| certificate.derivation
-                == crate::checked_trees::BorrowCompatibilityDerivation::Premised)
+                == checked_trees::BorrowCompatibilityDerivation::Premised)
     );
     assert!(
         checked
@@ -38,7 +36,7 @@ fn domain_membership_certifies_disjoint_window_write_and_call() {
             .call_compatibility_certificates
             .iter()
             .any(|(_, certificate)| certificate.derivation
-                == crate::checked_trees::BorrowCompatibilityDerivation::Premised)
+                == checked_trees::BorrowCompatibilityDerivation::Premised)
     );
     crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
         .expect("domain-established borrow evidence replays");
@@ -70,7 +68,7 @@ fn domain_predicate_boolean_structure_and_aliases_share_the_same_judgment() {
     assert_domain_premises(&checked);
 }
 
-fn assert_domain_premises(checked: &crate::checked_trees::CheckedTrees) {
+fn assert_domain_premises(checked: &checked_trees::CheckedTrees) {
     assert!(
         checked
             .facts
@@ -166,7 +164,7 @@ fn projected_membership_subject_certifies_disjoint_window_write() {
             .mutation_certificates
             .iter()
             .any(|(_, certificate)| certificate.derivation
-                == crate::checked_trees::BorrowCompatibilityDerivation::Premised)
+                == checked_trees::BorrowCompatibilityDerivation::Premised)
     );
     crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
         .expect("projected membership evidence replays");
@@ -197,7 +195,7 @@ fn assert_conflict(source: &str) {
     );
 }
 
-fn assert_replay_rejects(checked: &mut crate::checked_trees::CheckedTrees) {
+fn assert_replay_rejects(checked: &mut checked_trees::CheckedTrees) {
     let mutations = checked.facts.borrow.mutation_certificates.clone();
     let calls = checked.facts.borrow.call_compatibility_certificates.clone();
     let diagnostics =
@@ -217,8 +215,8 @@ fn assert_replay_rejects(checked: &mut crate::checked_trees::CheckedTrees) {
 }
 
 fn domain_predicate(
-    checked: &crate::checked_trees::CheckedTrees,
-) -> symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle {
+    checked: &checked_trees::CheckedTrees,
+) -> typed_trees::expression::ExpressionHandle {
     let domain = checked
         .typed
         .domain_definitions()
@@ -260,7 +258,7 @@ fn replay_rejects_changed_membership_subject_or_domain() {
         if change_domain {
             membership.domain_symbol = symbols::SymbolHandle::invalid();
         } else {
-            membership.value = symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid();
+            membership.value = typed_trees::expression::ExpressionHandle::invalid();
         }
         assert_replay_rejects(&mut checked);
     }
@@ -441,10 +439,7 @@ fn replay_rejects_foreign_carrier_symbol_behind_builtin_spelling() {
         .expect("domain");
     let carrier = domain.target_type;
     let foreign_symbol = checked.typed.data_definitions()[0].symbol;
-    let symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named {
-        name,
-        ..
-    } = checked
+    let typed_trees::types::TypeReferenceNode::Named { name, .. } = checked
         .typed
         .type_reference_table
         .type_reference(carrier)
@@ -454,7 +449,7 @@ fn replay_rejects_foreign_carrier_symbol_behind_builtin_spelling() {
     };
     checked.typed.type_reference_table.substitute_node(
         carrier,
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named {
+        typed_trees::types::TypeReferenceNode::Named {
             name,
             symbol: foreign_symbol,
         },
@@ -512,10 +507,10 @@ fn domain_subject_carrier_comes_from_the_binding_not_its_display_name() {
         .find(|domain| domain.name.as_str().ends_with("::Upper"))
         .expect("domain");
     assert!(
-        !crate::validation::has_exact_integer_domain_subject(
+        !validation::has_exact_integer_domain_subject(
             &checked.typed,
             domain,
-            &crate::validation::ImmutableBoundLookup::new(&checked.typed),
+            &validation::ImmutableBoundLookup::new(&checked.typed),
             expression,
         ),
         "a retained i32 binding cannot become the displayed u64 parameter"

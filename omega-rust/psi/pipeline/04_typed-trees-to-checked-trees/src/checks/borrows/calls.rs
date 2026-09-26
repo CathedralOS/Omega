@@ -20,7 +20,7 @@
 //! comparisons. `receiver::check_exclusive_place_use` is also used by
 //! `borrows::statements`.
 
-use crate::checked_trees::{BorrowCallFact, CheckFacts, FlowStateFact};
+use checked_trees::{BorrowCallFact, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 
 use crate::labels::call_target_label;
@@ -42,12 +42,12 @@ use crate::checks::ranges::incoming_guards::{IncomingGuardIndex, IncomingGuardIn
 /// Initial construction is deliberately separate from replay: a checked
 /// program with deleted evidence must not be mistaken for an unbuilt ledger.
 pub(super) fn initialize_compatibility(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &mut CheckFacts,
     guard_index: &IncomingGuardIndexCache,
 ) {
     let mut diagnostics = Vec::new();
-    let call_frames = crate::validation::CallFrameResolver::new(program);
+    let call_frames = validation::CallFrameResolver::new(program);
     let incoming_guards = guard_index.index(program, call_frames.as_ref());
     let mut bound_lookup = None;
     let certificates = collect_compatibility(
@@ -72,12 +72,12 @@ pub(super) fn initialize_compatibility(
 }
 
 pub(super) fn validate_compatibility<'p>(
-    program: &'p symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &'p typed_trees::TypedTrees,
     facts: &CheckFacts,
     incoming_guards: &IncomingGuardIndex,
-    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
-    bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> Vec<Diagnostic> {
     let reconstructed = collect_compatibility(
         program,
@@ -106,13 +106,13 @@ pub(super) fn validate_compatibility<'p>(
 }
 
 fn collect_compatibility<'p>(
-    program: &'p symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &'p typed_trees::TypedTrees,
     facts: &CheckFacts,
     incoming_guards: &IncomingGuardIndex,
-    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
-    bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
-) -> Vec<crate::checked_trees::CheckedBorrowCallCompatibilityCertificate> {
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
+) -> Vec<checked_trees::CheckedBorrowCallCompatibilityCertificate> {
     let mut certificates = Vec::new();
     if !correspondence::matches_source(program, facts) {
         diagnostics.push(Diagnostic::error(
@@ -197,14 +197,14 @@ fn collect_compatibility<'p>(
 }
 
 fn check_call_borrows<'p>(
-    program: &'p symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &'p typed_trees::TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     borrow_call: &BorrowCallFact,
     stated_premises: &[StatedOrderingPremise],
     diagnostics: &mut Vec<Diagnostic>,
     recording: &mut CallCompatibility<'_>,
-    bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) {
     let target_name = call_target_label(program, borrow_call.target_symbol);
     let entry_constraints = call_borrow_constraints(borrow_call, state_flow, facts);
@@ -248,7 +248,7 @@ fn call_borrow_constraints<'a>(
     borrow_call: &BorrowCallFact,
     state_flow: &'a FlowStateFact,
     facts: &'a CheckFacts,
-) -> arena::HandleSpan<crate::checked_trees::FlowConstraintRef> {
+) -> arena::HandleSpan<checked_trees::FlowConstraintRef> {
     facts.flow.state_call_entry_constraints(
         state_flow,
         borrow_call.statement_index,

@@ -4,7 +4,7 @@ use super::{
     StructuralTypeId, StructuralTypeShape, ValueId, fixture,
 };
 use crate::legalize_target_operations;
-use crate::selected_instructions::{
+use selected_instructions::{
     FrameStorageSlotId, SelectedInstructionKind as Instruction, VirtualRegisterOrigin,
 };
 
@@ -39,11 +39,9 @@ fn incoming_stack_array_replay_rejects_transport_and_charge_substitution() {
             let function = &mut source.functions[0];
             function.operations.remove(0);
             function.parameters = (0..8)
-                .map(|ordinal| {
-                    terminal_psi_to_abstract_operations::abstract_operations::AbstractParameter {
-                        value: ValueId::new(10 + ordinal).unwrap(),
-                        scalar_type: ScalarType::Integer(integer),
-                    }
+                .map(|ordinal| abstract_operations::AbstractParameter {
+                    value: ValueId::new(10 + ordinal).unwrap(),
+                    scalar_type: ScalarType::Integer(integer),
                 })
                 .collect();
             function
@@ -63,15 +61,15 @@ fn incoming_stack_array_replay_rejects_transport_and_charge_substitution() {
                 abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
             )
             .unwrap();
-            let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
+            let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
                 &source,
                 FuelScheduleIdentity::new(1).unwrap(),
             )
             .unwrap();
-            terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+            optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
             let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
             let environment =
-                crate::register_environment::baseline_target_register_environment(native).unwrap();
+                register_environment::baseline_target_register_environment(native).unwrap();
             let constraints = crate::selection_constraints(&legalized, &environment);
             let selected = crate::select_instructions(
                 &legalized,
@@ -145,7 +143,7 @@ fn incoming_stack_array_replay_rejects_transport_and_charge_substitution() {
                         else {
                             panic!("packed");
                         };
-                        *width = crate::selected_instructions::PackedByteWidth::Five;
+                        *width = selected_instructions::PackedByteWidth::Five;
                     }
                     3 | 4 => {
                         let VirtualRegisterOrigin::AbiTransport {
@@ -163,8 +161,8 @@ fn incoming_stack_array_replay_rejects_transport_and_charge_substitution() {
                     5 => function.blocks[0].instructions[packed_index]
                         .provenance
                         .fuel
-                        .push(terminal_psi_to_abstract_operations::optimization_unit::FuelSettlement {
-                            site: terminal_psi_to_abstract_operations::optimization_unit::PsiProvenance::Operation(
+                        .push(optimization_unit::FuelSettlement {
+                            site: optimization_unit::PsiProvenance::Operation(
                                 OperationId::new(99).unwrap(),
                             ),
                             units: 1,

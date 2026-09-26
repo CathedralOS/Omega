@@ -1,19 +1,17 @@
-use crate::checked_trees::{ProofFactKind, ProofObligationFact, ProofObligationOwner};
+use checked_trees::{ProofFactKind, ProofObligationFact, ProofObligationOwner};
 use symbols::SymbolHandle;
 
 pub(crate) fn lower_proof_obligation(
-    obligation: &crate::proof_engine::obligations::ProofObligation,
+    obligation: &proof::obligations::ProofObligation,
 ) -> ProofObligationFact {
     match obligation {
-        crate::proof_engine::obligations::ProofObligation::BoundedAssignment(obligation) => {
-            ProofObligationFact {
-                kind: ProofFactKind::BoundedAssignment,
-                machine_symbol: obligation.machine_symbol,
-                state_symbol: obligation.state_symbol,
-                owner: state_owner(obligation.machine_symbol, obligation.state_symbol),
-            }
-        }
-        crate::proof_engine::obligations::ProofObligation::BoundedCallArgument(obligation) => {
+        proof::obligations::ProofObligation::BoundedAssignment(obligation) => ProofObligationFact {
+            kind: ProofFactKind::BoundedAssignment,
+            machine_symbol: obligation.machine_symbol,
+            state_symbol: obligation.state_symbol,
+            owner: state_owner(obligation.machine_symbol, obligation.state_symbol),
+        },
+        proof::obligations::ProofObligation::BoundedCallArgument(obligation) => {
             ProofObligationFact {
                 kind: ProofFactKind::BoundedCallArgument,
                 machine_symbol: obligation.machine_symbol,
@@ -26,7 +24,7 @@ pub(crate) fn lower_proof_obligation(
                 },
             }
         }
-        crate::proof_engine::obligations::ProofObligation::BoundedInitializer(obligation) => {
+        proof::obligations::ProofObligation::BoundedInitializer(obligation) => {
             ProofObligationFact {
                 kind: ProofFactKind::BoundedInitializer,
                 machine_symbol: symbols::SymbolHandle::invalid(),
@@ -34,7 +32,7 @@ pub(crate) fn lower_proof_obligation(
                 owner: proof_obligation_owner(&obligation.owner),
             }
         }
-        crate::proof_engine::obligations::ProofObligation::BoundedStateReturn(obligation) => {
+        proof::obligations::ProofObligation::BoundedStateReturn(obligation) => {
             ProofObligationFact {
                 kind: ProofFactKind::BoundedStateReturn,
                 machine_symbol: obligation.machine_symbol,
@@ -45,34 +43,30 @@ pub(crate) fn lower_proof_obligation(
                 },
             }
         }
-        crate::proof_engine::obligations::ProofObligation::BoundedValue(obligation) => {
+        proof::obligations::ProofObligation::BoundedValue(obligation) => ProofObligationFact {
+            kind: ProofFactKind::BoundedValue,
+            machine_symbol: symbols::SymbolHandle::invalid(),
+            state_symbol: symbols::SymbolHandle::invalid(),
+            owner: proof_obligation_owner(&obligation.owner),
+        },
+        proof::obligations::ProofObligation::BoundedTransitionArgument(obligation) => {
             ProofObligationFact {
-                kind: ProofFactKind::BoundedValue,
-                machine_symbol: symbols::SymbolHandle::invalid(),
-                state_symbol: symbols::SymbolHandle::invalid(),
-                owner: proof_obligation_owner(&obligation.owner),
+                kind: ProofFactKind::BoundedTransitionArgument,
+                machine_symbol: obligation.machine_symbol,
+                state_symbol: obligation.state_symbol,
+                owner: ProofObligationOwner::TransitionParameter {
+                    machine_symbol: obligation.machine_symbol,
+                    state_symbol: obligation.state_symbol,
+                    parameter_symbol: obligation.parameter_symbol,
+                },
             }
         }
-        crate::proof_engine::obligations::ProofObligation::BoundedTransitionArgument(
-            obligation,
-        ) => ProofObligationFact {
-            kind: ProofFactKind::BoundedTransitionArgument,
+        proof::obligations::ProofObligation::GuardedTransition(obligation) => ProofObligationFact {
+            kind: ProofFactKind::GuardedTransition,
             machine_symbol: obligation.machine_symbol,
             state_symbol: obligation.state_symbol,
-            owner: ProofObligationOwner::TransitionParameter {
-                machine_symbol: obligation.machine_symbol,
-                state_symbol: obligation.state_symbol,
-                parameter_symbol: obligation.parameter_symbol,
-            },
+            owner: state_owner(obligation.machine_symbol, obligation.state_symbol),
         },
-        crate::proof_engine::obligations::ProofObligation::GuardedTransition(obligation) => {
-            ProofObligationFact {
-                kind: ProofFactKind::GuardedTransition,
-                machine_symbol: obligation.machine_symbol,
-                state_symbol: obligation.state_symbol,
-                owner: state_owner(obligation.machine_symbol, obligation.state_symbol),
-            }
-        }
     }
 }
 
@@ -87,13 +81,11 @@ pub(crate) fn state_owner(
 }
 
 pub(crate) fn proof_obligation_owner(
-    owner: &crate::proof_engine::obligations::ProofObligationOwner,
+    owner: &proof::obligations::ProofObligationOwner,
 ) -> ProofObligationOwner {
     match owner {
-        crate::proof_engine::obligations::ProofObligationOwner::Unknown => {
-            ProofObligationOwner::Unknown
-        }
-        crate::proof_engine::obligations::ProofObligationOwner::MachineOwnedData {
+        proof::obligations::ProofObligationOwner::Unknown => ProofObligationOwner::Unknown,
+        proof::obligations::ProofObligationOwner::MachineOwnedData {
             machine_symbol,
             machine: _,
             data_symbol,
@@ -102,7 +94,7 @@ pub(crate) fn proof_obligation_owner(
             machine_symbol: *machine_symbol,
             data_symbol: *data_symbol,
         },
-        crate::proof_engine::obligations::ProofObligationOwner::StateParameter {
+        proof::obligations::ProofObligationOwner::StateParameter {
             machine_symbol,
             machine: _,
             state_symbol,
@@ -114,7 +106,7 @@ pub(crate) fn proof_obligation_owner(
             state_symbol: *state_symbol,
             parameter_symbol: *parameter_symbol,
         },
-        crate::proof_engine::obligations::ProofObligationOwner::StateReturn {
+        proof::obligations::ProofObligationOwner::StateReturn {
             machine_symbol,
             machine: _,
             state_symbol,

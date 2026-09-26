@@ -1,7 +1,5 @@
-use target_operations_to_selected_instructions::register_model::{
-    RegisterInstructionConstraint, RegisterOperandAccess,
-};
-use target_operations_to_selected_instructions::{
+use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
+use selected_instructions::{
     SelectedFunction, SelectedInstruction, SelectedInstructionKind, SelectedInstructionProvenance,
     SelectedTerminator, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };

@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel;
+use register_model::ValidatedPhysicalRegisterModel;
 
 use crate::unsequenced_spill_stages::{
     GeneralizedReloadCoexistingValue, GeneralizedReloadValueHomeOutcome, GeneralizedSpillActionId,
@@ -12,8 +12,8 @@ use crate::unsequenced_spill_stages::{
 };
 
 use super::{Occupant, ReplaySpec, homes};
-use selected_instructions_to_selected_instructions::register_homes::FunctionAllocationLegality;
-use target_operations_to_selected_instructions::LiveRangePoint;
+use register_homes::FunctionAllocationLegality;
+use selected_instructions::LiveRangePoint;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn reconstruct(
@@ -218,10 +218,7 @@ fn pick(
     row: &ReplaySpec,
     occupants: &[Occupant],
     physical: &ValidatedPhysicalRegisterModel,
-) -> Result<
-    target_operations_to_selected_instructions::register_model::RegisterViewId,
-    RecursiveReloadValueHomeError,
-> {
+) -> Result<register_model::RegisterViewId, RecursiveReloadValueHomeError> {
     row.candidates
         .iter()
         .copied()
@@ -234,7 +231,7 @@ fn pick(
 
 fn retain_pairs(
     row: &ReplaySpec,
-    view: target_operations_to_selected_instructions::register_model::RegisterViewId,
+    view: register_model::RegisterViewId,
     occupants: &[Occupant],
     rosters: &mut BTreeMap<GeneralizedSpillActionId, BTreeSet<RecursiveReloadCoexistingHome>>,
 ) {

@@ -6,6 +6,7 @@ use crate::TerminalMachineSelection;
 use std::collections::BTreeMap;
 
 use crate::lower_machine;
+use crate::lowering_error::LoweringError;
 use crate::proofs::crash_routes::lower_formal_crash_routes;
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm, ScalarType, ValueId,
@@ -22,9 +23,7 @@ fn unconditional(cause: CrashCause) -> CrashRouteBucket {
     }
 }
 
-fn crash_qualified_float_comparison(
-    cause: &str,
-) -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
+fn crash_qualified_float_comparison(cause: &str) -> checked_trees::CheckedTrees {
     crate::front_end::checked_program(&format!(
         "boundary operator == Float::equal(left: f64, right: f64) -> bool crashes {cause};
          machine compare(left: f64, right: f64) -> bool crashes {cause} {{ left == right }}"
@@ -84,7 +83,7 @@ const GUARDED_NEGATED_INTEGER_OPERATOR_SOURCE: &str =
 
 /// The block and operation one crash contract row names.
 fn joined_operation<'lowered>(
-    lowered: &'lowered crate::lowered_psi::LoweredPsi,
+    lowered: &'lowered lowered_psi::LoweredPsi,
     row: &TerminalOperationCrashContract,
 ) -> (&'lowered Block, &'lowered Operation) {
     lowered
@@ -182,11 +181,9 @@ fn a_recaused_site_roster_fails_closed_at_verification() {
         .expect("compare contract plan");
     let mut sites = plan.crash.checked_operators().to_vec();
     assert_eq!(sites.len(), 1);
-    sites[0].published = vec![
-        typed_trees_to_checked_trees::checked_trees::CrashRouteBucket::unconditional(
-            typed_trees_to_checked_trees::checked_trees::CrashCause::Abort,
-        ),
-    ];
+    sites[0].published = vec![checked_trees::CrashRouteBucket::unconditional(
+        checked_trees::CrashCause::Abort,
+    )];
     plan.crash = plan
         .crash
         .clone()
@@ -197,7 +194,7 @@ fn a_recaused_site_roster_fails_closed_at_verification() {
     // lowering refuses to attach a roster a receiver would reject.
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("compare")),
-        Err(crate::LoweringError::UndischargedCrashObligations(owners))
+        Err(LoweringError::UndischargedCrashObligations(owners))
             if owners.iter().any(|owner| matches!(
                 owner,
                 terminal_psi::CrashObligationOwner::Continuation {
@@ -306,7 +303,7 @@ fn a_guarded_integer_operator_route_lowers_end_to_end_to_the_row_the_verifier_ac
     };
     assert_eq!(
         occurrence.comparison,
-        crate::lowered_psi::LoweredSelectedIntegerComparisonOperation::Equal
+        lowered_psi::LoweredSelectedIntegerComparisonOperation::Equal
     );
     assert_eq!(occurrence.integer_type, i32_type());
     let [row] = lowered.semantic_module.operation_crash_contracts.as_slice() else {
@@ -368,11 +365,11 @@ fn a_reordered_greater_route_publishes_the_operations_own_formal_telescope() {
     };
     assert_eq!(
         occurrence.comparison,
-        crate::lowered_psi::LoweredSelectedIntegerComparisonOperation::LessThan
+        lowered_psi::LoweredSelectedIntegerComparisonOperation::LessThan
     );
     assert_eq!(
         occurrence.operand_order,
-        crate::lowered_psi::LoweredSelectedIntegerComparisonOperandOrder::Swapped
+        lowered_psi::LoweredSelectedIntegerComparisonOperandOrder::Swapped
     );
     assert!(!occurrence.negated);
     let [row] = lowered.semantic_module.operation_crash_contracts.as_slice() else {
@@ -435,11 +432,11 @@ fn a_negated_route_keeps_its_contract_on_the_emitted_comparison() {
     };
     assert_eq!(
         occurrence.comparison,
-        crate::lowered_psi::LoweredSelectedIntegerComparisonOperation::Equal
+        lowered_psi::LoweredSelectedIntegerComparisonOperation::Equal
     );
     assert_eq!(
         occurrence.operand_order,
-        crate::lowered_psi::LoweredSelectedIntegerComparisonOperandOrder::Authored
+        lowered_psi::LoweredSelectedIntegerComparisonOperandOrder::Authored
     );
     assert!(occurrence.negated);
     let [row] = lowered.semantic_module.operation_crash_contracts.as_slice() else {

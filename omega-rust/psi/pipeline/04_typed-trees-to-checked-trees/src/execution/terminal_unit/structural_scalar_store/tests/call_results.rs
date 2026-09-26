@@ -3,7 +3,7 @@
 //! checked plan names the call's dense scalar-namespace position instead of an
 //! `AssignmentValue` expression, and the store follows its producing call in
 //! ordinary evaluation order.
-use crate::checked_trees::{
+use checked_trees::{
     CheckedStructuralScalarFieldStoreValue, CheckedUnitEffectMachinePlan,
     CheckedUnitEffectOperationPlan,
 };

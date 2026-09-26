@@ -1,14 +1,12 @@
 //! Scalar-guarded Unit crash ceilings compose through exact evaluated operands.
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use lowered_psi_to_terminal_psi::terminal_production::{
-    TerminalProductionCustody, TerminalProductionTimings,
-};
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
 };
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 const SOURCE: &str = r#"
     machine identity(value: u16) -> u16 { value }
@@ -42,9 +40,7 @@ fn composed_unit_call_retains_a_scalar_guarded_crash_ceiling() {
     }
 }
 
-fn roundtrip(
-    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
-) -> checked_trees_to_lowered_psi::lowered_psi::LoweredPsi {
+fn roundtrip(checked: &checked_trees::CheckedTrees) -> lowered_psi::LoweredPsi {
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         checked,
         TerminalMachineSelection::Name("Main::main"),
@@ -64,16 +60,15 @@ fn roundtrip(
     .expect("decoded guarded Unit call verifies independently");
     assert_eq!(module, lowered.semantic_module);
     assert_eq!(proof, lowered.proof_bundle);
-    let published =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            checked,
-            TerminalMachineSelection::Name("Main::main"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("guarded Unit closure publishes")
-        .into_artifact();
+    let published = terminal_production::TerminalProductionRequest::new(
+        checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("guarded Unit closure publishes")
+    .into_artifact();
     assert_eq!(
         terminal_codec::decode_module(published.semantic_bytes()).unwrap(),
         module
@@ -383,7 +378,7 @@ impl TerminalEffectHandler for Observe {
 }
 
 fn execute(
-    lowered: &checked_trees_to_lowered_psi::lowered_psi::LoweredPsi,
+    lowered: &lowered_psi::LoweredPsi,
     selected: bool,
 ) -> (TerminalExecutionStatus, Vec<Vec<TerminalScalarValue>>) {
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();

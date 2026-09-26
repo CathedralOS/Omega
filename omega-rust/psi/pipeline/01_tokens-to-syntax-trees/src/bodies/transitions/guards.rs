@@ -1,18 +1,18 @@
 use crate::diagnostics::parse_error::ParseError;
 use crate::expressions::parse_expression::parse_expression_handle_without_struct_literals;
 use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
-use crate::syntax_trees::SyntaxTrees;
-use crate::syntax_trees::expression::{
+use arena::HandleSpan;
+use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableAtomicExpression, TableBinaryExpression,
     TableCallExpression, TableCastExpression, TableIndexedExpression, TableMemberExpression,
     TableMembershipExpression, TableRangeExpression, TableStructLiteral, TableStructLiteralField,
     TableUnaryExpression,
 };
-use crate::syntax_trees::identifier::Identifier;
-use crate::syntax_trees::statement::TableOutcomeProofSelector;
-use crate::syntax_trees::statement::TransitionGuardNode;
-use arena::HandleSpan;
-use source_files_to_tokens::tokens::{KeywordKind, PunctuationKind};
+use syntax_trees::identifier::Identifier;
+use syntax_trees::statement::TableOutcomeProofSelector;
+use syntax_trees::statement::TransitionGuardNode;
+use tokens::{KeywordKind, PunctuationKind};
 
 /// One named binding a pattern arm introduces: uses of `binding` rewrite to
 /// `subject.member` in the arm's guard and transition-target arguments. For
@@ -825,9 +825,7 @@ pub(super) fn rewrite_destructure_guard_expression(
             );
             let mut arms = syntax_trees.expressions.match_arms(dispatch.arms).to_vec();
             for arm in &mut arms {
-                if let crate::syntax_trees::expression::MatchPattern::Value(pattern) =
-                    &mut arm.pattern
-                {
+                if let syntax_trees::expression::MatchPattern::Value(pattern) = &mut arm.pattern {
                     *pattern = rewrite_destructure_guard_expression(
                         syntax_trees,
                         *pattern,
@@ -839,7 +837,7 @@ pub(super) fn rewrite_destructure_guard_expression(
                     rewrite_destructure_guard_expression(syntax_trees, arm.value, subject, fields);
             }
             let arms = syntax_trees.expressions.insert_match_arms(arms);
-            ExpressionNode::Match(crate::syntax_trees::expression::TableMatchExpression {
+            ExpressionNode::Match(syntax_trees::expression::TableMatchExpression {
                 subject: saved_subject,
                 arms,
             })
@@ -933,7 +931,7 @@ pub(super) fn rewrite_destructure_guard_expression(
             case_variant: member.case_variant,
         }),
         ExpressionNode::Borrow(inner) => {
-            ExpressionNode::Borrow(crate::syntax_trees::expression::TableBorrowExpression {
+            ExpressionNode::Borrow(syntax_trees::expression::TableBorrowExpression {
                 target: rewrite_destructure_guard_expression(
                     syntax_trees,
                     inner.target,

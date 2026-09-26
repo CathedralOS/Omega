@@ -2,14 +2,14 @@
 //! a decomposed checked guard: the live-length observation dominates, then one
 //! indexed-byte equality per literal position, so short-circuit evaluation
 //! never reads past the carrier's live extent.
-use crate::checked_trees::{
+use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::machine_named;
+use checked_trees::{
     CheckedBooleanExpression, CheckedComposedUnitControlTerminatorPlan,
     CheckedIntegerComparisonKind, CheckedScalarExpression, CheckedStructuralPredicatePathSegment,
     CheckedUnitEffectOperationPlan,
 };
-use crate::tests::flow::terminal_unit::checked;
-use crate::tests::flow::terminal_unit::machine_named;
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
+use typed_trees::types::PrimitiveType;
 
 fn conjuncts(expression: &CheckedBooleanExpression) -> Vec<&CheckedBooleanExpression> {
     let mut flat = Vec::new();
@@ -66,9 +66,8 @@ fn carrier_literal_guard_decomposes_into_length_and_bytes() {
     else {
         panic!("the carrier guard survives as a conditional terminator");
     };
-    let crate::checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Boolean(
-        guard,
-    )) = guard
+    let checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Boolean(guard)) =
+        guard
     else {
         panic!("the composed guard stays boolean");
     };
@@ -80,7 +79,7 @@ fn carrier_literal_guard_decomposes_into_length_and_bytes() {
     assert_eq!(*kind, CheckedIntegerComparisonKind::Equal);
     assert!(
         matches!(left.as_ref(), CheckedScalarExpression::StructuralParameterByteLength {
-            root: crate::checked_trees::CheckedStorageRoot::Parameter { index: 0 },
+            root: checked_trees::CheckedStorageRoot::Parameter { index: 0 },
             path,
         } if path.as_slice() == [CheckedStructuralPredicatePathSegment::Field("out".to_owned())])
     );
@@ -92,7 +91,7 @@ fn carrier_literal_guard_decomposes_into_length_and_bytes() {
         assert_eq!(*kind, CheckedIntegerComparisonKind::Equal);
         let CheckedScalarExpression::StructuralParameterIndexedRead {
             root:
-                crate::checked_trees::CheckedStorageRoot::Parameter {
+                checked_trees::CheckedStorageRoot::Parameter {
                     index: parameter_position,
                 },
             path,

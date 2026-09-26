@@ -13,21 +13,19 @@ mod floating;
 #[path = "scalar_array_source/literal_arguments.rs"]
 mod literal_arguments;
 
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use proof_admission::AdmissionProfile;
-use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, ExpressionNode,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
-use terminal_interpreter::{
-    TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact,
-};
-use typed_trees_to_checked_trees::checked_trees::{
+use checked_trees::{
     CheckedCallScalarArgument, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees,
     CheckedUnitEffectOperationPlan,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use proof_admission::AdmissionProfile;
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+use terminal_interpreter::{
+    TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact,
+};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::statement::StatementNode;
+use typed_trees::types::PrimitiveType;
 
 fn fixture(returned: &str) -> CheckedTrees {
     let source = format!(
@@ -94,7 +92,7 @@ fn same_typed_array_locals_return_the_authored_binding_contents() {
 
 #[test]
 fn empty_array_catalog_cannot_change_primitive_or_nested_dimensions_under_the_same_identity() {
-    use typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypeShape;
+    use checked_trees::CheckedUnitStructuralTypeShape;
 
     for (carrier, primitive_type) in [
         ("[u8; 0]", PrimitiveType::U8),
@@ -211,7 +209,7 @@ fn changed_array_result_and_constructor_facts_reject() {
             "another returned binding" => plan.structural_result = Some(other_result.into()),
             "unknown returned ordinal" => {
                 plan.structural_result.as_mut().unwrap().source =
-                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         binding_ordinal: u32::MAX,
                     }
             }
@@ -223,7 +221,7 @@ fn changed_array_result_and_constructor_facts_reject() {
                 };
                 result.binding_ordinal = other_result.binding_ordinal;
                 plan.structural_result.as_mut().unwrap().source =
-                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         binding_ordinal: other_result.binding_ordinal,
                     };
             }
@@ -531,7 +529,7 @@ fn array_element_pure_source_coordinates_and_destination_reject_corruption() {
                     "element ordinal" => {
                         plans.source_bindings.get_mut(handle).role =
                             CheckedScalarExpressionRole::ArrayElement {
-                                source: typed_trees_to_checked_trees::checked_trees::CheckedArrayConstructionSource::Statement,
+                                source: checked_trees::CheckedArrayConstructionSource::Statement,
                                 element_ordinal: u32::MAX,
                             }
                     }
@@ -650,10 +648,8 @@ fn changed_authored_array_parameter_local_and_call_order_rejects() {
 
 #[test]
 fn array_pure_and_computed_operators_reject_semantic_substitution() {
-    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator;
-    use typed_trees_to_checked_trees::checked_trees::{
-        CheckedIntegerBinaryKind, CheckedScalarComputationKind,
-    };
+    use checked_trees::{CheckedIntegerBinaryKind, CheckedScalarComputationKind};
+    use typed_trees::expression::BinaryOperator;
 
     let original = crate::front_end::checked_program(
         "machine identity(value: u8) -> u8 { value }
@@ -708,7 +704,7 @@ fn array_pure_and_computed_operators_reject_semantic_substitution() {
                 for retained in &mut changed.facts.values.scalar_expressions.expressions {
                     if retained.role
                         == (CheckedScalarExpressionRole::ArrayElement {
-                            source: typed_trees_to_checked_trees::checked_trees::CheckedArrayConstructionSource::Statement,
+                            source: checked_trees::CheckedArrayConstructionSource::Statement,
                             element_ordinal: 0,
                         })
                         && let CheckedScalarExpression::IntegerBinary { kind, .. } =
@@ -747,7 +743,7 @@ fn array_pure_and_computed_operators_reject_semantic_substitution() {
 
 #[test]
 fn array_boolean_values_reject_source_and_retained_substitution() {
-    use typed_trees_to_checked_trees::checked_trees::CheckedBooleanExpression;
+    use checked_trees::CheckedBooleanExpression;
 
     let original =
         crate::front_end::checked_program("machine selected() -> [bool; 2] { [true, false] }");
@@ -777,7 +773,7 @@ fn array_boolean_values_reject_source_and_retained_substitution() {
     for retained in &mut changed.facts.values.scalar_expressions.expressions {
         if retained.role
             == (CheckedScalarExpressionRole::ArrayElement {
-                source: typed_trees_to_checked_trees::checked_trees::CheckedArrayConstructionSource::Statement,
+                source: checked_trees::CheckedArrayConstructionSource::Statement,
                 element_ordinal: 0,
             })
         {
@@ -897,10 +893,10 @@ fn array_operator_selection_cannot_change_while_value_and_source_stay_fixed() {
             .facts
             .operators
             .uses
-            .append(typed_trees_to_checked_trees::checked_trees::CheckedOperatorUseFact {
+            .append(checked_trees::CheckedOperatorUseFact {
                 expression: source,
                 spelling: language_core::OperatorSpelling::Add,
-                status: typed_trees_to_checked_trees::checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback,
+                status: checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback,
                 ..Default::default()
             })
     });

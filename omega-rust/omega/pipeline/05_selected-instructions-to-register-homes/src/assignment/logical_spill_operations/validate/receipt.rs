@@ -1,7 +1,5 @@
 use crate::LogicalSpillOperationValidationReceipt;
-use selected_instructions_to_selected_instructions::register_homes::{
-    LogicalSpillOperationPlan, logical_spill_operation_identity,
-};
+use register_homes::{LogicalSpillOperationPlan, logical_spill_operation_identity};
 
 pub(super) fn receipt(plan: &LogicalSpillOperationPlan) -> LogicalSpillOperationValidationReceipt {
     let planned_function_count = plan

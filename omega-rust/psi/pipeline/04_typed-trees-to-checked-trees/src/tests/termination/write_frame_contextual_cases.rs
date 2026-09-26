@@ -1,10 +1,8 @@
 use crate::tests::front_end::typed_program;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
+use typed_trees::expression::ExpressionNode;
+use typed_trees::statement::StatementNode;
 
-fn contextual_case_program(
-    body: &str,
-) -> symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees {
+fn contextual_case_program(body: &str) -> typed_trees::TypedTrees {
     let source = format!(
         r#"
         data View {{ body: &mut u64; }}
@@ -50,9 +48,7 @@ fn visible_paths(paths: Option<Vec<String>>) -> Option<Vec<String>> {
     })
 }
 
-fn statement_frames(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-) -> [Option<Vec<String>>; 2] {
+fn statement_frames(program: &typed_trees::TypedTrees) -> [Option<Vec<String>>; 2] {
     let machine = program
         .machines()
         .iter()
@@ -67,7 +63,7 @@ fn statement_frames(
     else {
         panic!("call");
     };
-    let resolver = crate::validation::CallFrameResolver::new(program).expect("resolver");
+    let resolver = validation::CallFrameResolver::new(program).expect("resolver");
     [
         resolver
             .inferred_state_write_frame(machine, state)
@@ -276,7 +272,7 @@ fn expression_call_payload_moves_use_the_same_case_context() {
         else {
             panic!("result");
         };
-        let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolver");
+        let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
         for (query, actual) in [
             resolver
                 .inferred_state_write_frame(machine, state)
@@ -359,7 +355,7 @@ fn named_state_payload_calls_retain_state_scoped_case_evidence() {
             .iter()
             .find(|machine| machine.name.as_str() == "probe")
             .expect("caller");
-        let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolver");
+        let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
         for _ in 0..2 {
             assert_eq!(
                 resolver

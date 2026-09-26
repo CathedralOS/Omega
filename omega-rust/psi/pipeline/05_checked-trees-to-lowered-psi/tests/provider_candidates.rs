@@ -1,7 +1,4 @@
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use lowered_psi_to_terminal_psi::terminal_production::{
-    TerminalProductionCustody, TerminalProductionTimings,
-};
 use terminal_codec::{decode_module, encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::AcceptTerminalEffects;
@@ -10,6 +7,7 @@ use terminal_interpreter::{
     ProviderInstallationSelection, TerminalEffect, TerminalExecution, TerminalExecutionResult,
     TerminalExecutionStatus, TerminalStructuralValue, admit_provider_installation_from_artifact,
 };
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::OperationKind;
 
 const SOURCE: &str = r#"
@@ -31,8 +29,7 @@ const SOURCE: &str = r#"
     }
 "#;
 
-fn checked_closed_operator_candidates() -> typed_trees_to_checked_trees::checked_trees::CheckedTrees
-{
+fn checked_closed_operator_candidates() -> checked_trees::CheckedTrees {
     let typed = crate::front_end::typed_program(
         r#"
         data Buffer<Element, const Count: u64> { value: i64; }
@@ -112,7 +109,7 @@ fn closed_token_candidates_are_independent_of_provider_selection() {
         )
         .expect("all checked candidates materialize from the same closed demands");
         let artifact =
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            terminal_production::TerminalProductionRequest::new(
                 &checked,
                 TerminalMachineSelection::Name("run"),
             )
@@ -207,16 +204,15 @@ fn closed_token_candidates_are_independent_of_provider_selection() {
 #[test]
 fn closed_operator_candidates_rejoin_distinct_requirement_applications() {
     let checked = checked_closed_operator_candidates();
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("run"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("closed candidate catalog publishes")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("closed candidate catalog publishes")
+    .into_artifact();
     let module = decode_module(artifact.semantic_bytes()).expect("source-free module");
     let proof =
         terminal_codec::decode_proof_bundle(artifact.proof_bytes()).expect("source-free proof");
@@ -243,24 +239,20 @@ fn closed_operator_candidates_rejoin_distinct_requirement_applications() {
                     .is_some_and(|identity| identity.identity() == candidate.candidate_identity)
             })
             .expect("exact provider instance");
-        let symbols = typed_trees_to_checked_trees::validation::TopLevelSymbols::build(
-            &checked.typed,
-            &mut Vec::new(),
-        );
+        let symbols = validation::TopLevelSymbols::build(&checked.typed, &mut Vec::new());
         let conformance = &checked.machine_trait_conformances(machine)[0];
         let template = checked
             .machines()
             .iter()
             .find(|requirement| requirement.symbol == conformance.symbol)
             .expect("authored requirement");
-        let requirement =
-            typed_trees_to_checked_trees::validation::resolve_closed_requirement_application(
-                &checked.typed,
-                machine,
-                template,
-                &symbols,
-            )
-            .expect("exact checked application");
+        let requirement = validation::resolve_closed_requirement_application(
+            &checked.typed,
+            machine,
+            template,
+            &symbols,
+        )
+        .expect("exact checked application");
         assert_eq!(
             candidate.requirement_identity,
             checked
@@ -705,18 +697,17 @@ fn installed_structural_provider_receives_and_settles_the_exact_linear_claim() {
 #[test]
 fn installed_program_storage_provider_transfers_and_settles_both_owned_extent_claims() {
     let checked = crate::front_end::checked_program(PROGRAM_STORAGE_PROVIDER_SOURCE);
-    let produced =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("ProgramLocalProducer::handoff"),
-        )
-        .produce(TerminalProductionCustody {
-            retain_unoptimized: false,
-            entry_identity: Some([0xa5; 32]),
-            callback_custody: (),
-            timings: &mut TerminalProductionTimings::default(),
-        })
-        .expect("receipt-coupled ProgramStorage artifact");
+    let produced = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("ProgramLocalProducer::handoff"),
+    )
+    .produce(TerminalProductionCustody {
+        retain_unoptimized: false,
+        entry_identity: Some([0xa5; 32]),
+        callback_custody: (),
+        timings: &mut TerminalProductionTimings::default(),
+    })
+    .expect("receipt-coupled ProgramStorage artifact");
     let module = decode_module(produced.artifact().semantic_bytes()).expect("semantic module");
     let [candidate] = module.provider_candidates.as_slice() else {
         panic!("one exact ProgramStorage provider candidate")

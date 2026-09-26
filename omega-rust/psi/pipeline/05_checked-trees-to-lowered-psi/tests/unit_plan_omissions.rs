@@ -77,17 +77,17 @@ fn a_root_whose_callee_lacks_a_body_names_the_callee_chain() {
     };
     assert!(matches!(
         omission("Main::leaf"),
-        typed_trees_to_checked_trees::checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction { .. }
+        checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction { .. }
     ));
     assert_eq!(
         omission("Main::relay"),
-        typed_trees_to_checked_trees::checked_trees::CheckedUnitPlanOmissionStage::UnavailableCallee {
+        checked_trees::CheckedUnitPlanOmissionStage::UnavailableCallee {
             target: named("Main::leaf")
         }
     );
     assert_eq!(
         omission("Main::main"),
-        typed_trees_to_checked_trees::checked_trees::CheckedUnitPlanOmissionStage::UnavailableCallee {
+        checked_trees::CheckedUnitPlanOmissionStage::UnavailableCallee {
             target: named("Main::relay")
         }
     );
@@ -228,20 +228,16 @@ fn a_routed_task_start_call_plans_and_owned_settle_reaches_module_production() {
         .and_then(|machine| checked.typed.machine_states(machine).first())
         .expect("Worker::run entry is retained")
         .symbol;
-    let call =
-        checked
-            .expression_table
-            .iter_expressions()
-            .find_map(|(_, expression)| {
-                let typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode::Call(
-                    call,
-                ) = expression
-                else {
-                    return None;
-                };
-                (call.target_symbol == start_requirement).then_some(call)
-            })
-            .expect("the start call is retained in the checked expression table");
+    let call = checked
+        .expression_table
+        .iter_expressions()
+        .find_map(|(_, expression)| {
+            let checked_trees::expression::ExpressionNode::Call(call) = expression else {
+                return None;
+            };
+            (call.target_symbol == start_requirement).then_some(call)
+        })
+        .expect("the start call is retained in the checked expression table");
     let [target] = call.machine_arguments.as_ref() else {
         panic!("start<Worker::run> retains exactly one static machine argument");
     };
@@ -325,7 +321,7 @@ fn a_routed_task_start_call_plans_and_owned_settle_reaches_module_production() {
         "the substituted `arguments: Token` parameter is planned"
     );
     match &boundary.result {
-        typed_trees_to_checked_trees::checked_trees::CheckedBoundaryMachineResultPlan::Structural {
+        checked_trees::CheckedBoundaryMachineResultPlan::Structural {
             type_identity,
             multiplicity,
             ..
@@ -518,9 +514,9 @@ fn a_routed_task_result_into_self_rejects_claim_custody_corruption() {
         })
         .expect("probe establishes the task claim at the start statement");
     fn settle_plan_mut(
-        checked: &mut typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+        checked: &mut checked_trees::CheckedTrees,
         machine: symbols::SymbolHandle,
-    ) -> &mut typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectMachinePlan {
+    ) -> &mut checked_trees::CheckedUnitEffectMachinePlan {
         checked
             .facts
             .flow
@@ -530,9 +526,7 @@ fn a_routed_task_result_into_self_rejects_claim_custody_corruption() {
             .find(|plan| plan.machine == machine)
             .expect("the specialized settle has a Unit plan")
     }
-    let rejects = |checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
-                   expected: &str,
-                   corruption: &str| {
+    let rejects = |checked: &checked_trees::CheckedTrees, expected: &str, corruption: &str| {
         let error = checked_trees_to_lowered_psi::lower_machine(
             checked,
             TerminalMachineSelection::Name("Main::probe"),
@@ -572,11 +566,9 @@ fn a_routed_task_result_into_self_rejects_claim_custody_corruption() {
     let mut projected_claim = baseline.clone();
     settle_plan_mut(&mut projected_claim, specialized).entry_claims[0]
         .path
-        .push(
-            typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field(
-                "provider".to_string(),
-            ),
-        );
+        .push(checked_trees::CheckedUnitStructuralPathSegment::Field(
+            "provider".to_string(),
+        ));
     rejects(
         &projected_claim,
         "Unit structural result claim custody has no exact callee entry claim",
@@ -656,7 +648,7 @@ fn a_routed_task_result_into_self_rejects_claim_custody_corruption() {
 
     // A stray transfer row on the same argument is not an entry-claim proof.
     let mut stray_transfer = baseline.clone();
-    let transfer = typed_trees_to_checked_trees::checked_trees::CheckedUnitClaimTransferPlan {
+    let transfer = checked_trees::CheckedUnitClaimTransferPlan {
         claim_identity: baseline
             .facts
             .flow
@@ -674,7 +666,7 @@ fn a_routed_task_result_into_self_rejects_claim_custody_corruption() {
         .iter_mut()
         .find(|plan| plan.machine == probe)
         .expect("Main::probe has a Unit plan");
-    let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::CallUnit {
+    let checked_trees::CheckedUnitEffectOperationPlan::CallUnit {
         claim_transfers, ..
     } = probe_plan
         .operations
@@ -682,7 +674,7 @@ fn a_routed_task_result_into_self_rejects_claim_custody_corruption() {
         .find(|operation| {
             matches!(
                 operation,
-                typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::CallUnit { .. }
+                checked_trees::CheckedUnitEffectOperationPlan::CallUnit { .. }
             )
         })
         .expect("probe retains its settle call")
@@ -789,7 +781,7 @@ fn a_provider_carrying_argument_still_stops_at_provider_attachment_requirements(
         .expect("Main::probe has an omission row");
     assert!(matches!(
         omission.stage,
-        typed_trees_to_checked_trees::checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
+        checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
             phase: "provider attachment requirements",
             ..
         }
@@ -828,7 +820,7 @@ fn a_shared_task_runtime_place_stops_at_signature_construction() {
         .expect("Main::probe has an omission row");
     assert!(matches!(
         omission.stage,
-        typed_trees_to_checked_trees::checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
+        checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
             phase: "signature",
             ..
         }

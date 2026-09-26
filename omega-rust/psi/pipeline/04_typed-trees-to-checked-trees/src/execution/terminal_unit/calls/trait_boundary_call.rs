@@ -43,22 +43,19 @@ use crate::execution::terminal_unit::{
 pub(super) fn build(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
     entry_claims: &[CheckedUnitEntryClaimPlan],
-    call: &crate::checked_trees::FlowCallFact,
+    call: &checked_trees::FlowCallFact,
     expected_call_result: Option<&super::ExpectedCallValueResult<'_>>,
-    caller_structural_results: &[(
-        CheckedUnitStructuralResultBindingPlan,
-        crate::fact_plan::PlaceRoot,
-    )],
+    caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
     trace: &LocalConstructionTrace,
     coordinate: CheckedUnitCallCoordinate,
     call_site: &crate::semantic::calls::CallSite<'_>,
-    source_site: Option<crate::checked_trees::NominalMachineUseSite>,
-    definition: &symbol_resolved_trees_to_typed_trees::typed_trees::trait_definition::TraitDefinition,
-    signature: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateSignature,
+    source_site: Option<checked_trees::NominalMachineUseSite>,
+    definition: &typed_trees::trait_definition::TraitDefinition,
+    signature: &typed_trees::signature::StateSignature,
     selected_realization: Option<(SymbolHandle, SymbolHandle)>,
 ) -> Option<CheckedUnitEffectOperationPlan> {
     let phase = |name: &'static str| {
@@ -130,11 +127,11 @@ pub(super) fn build(
         signature_type_parameters
             .iter()
             .all(|parameter| match &parameter.kind {
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Type => specialization
+                typed_trees::data::TypeParameterKind::Type => specialization
                     .type_bindings
                     .iter()
                     .any(|binding| binding.parameter == parameter.symbol),
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Machine { .. } => {
+                typed_trees::data::TypeParameterKind::Machine { .. } => {
                     specialization.machine_selections.iter().any(|selection| {
                         selection.parameter == parameter.symbol
                             && usize::try_from(selection.static_machine_ordinal)
@@ -153,10 +150,10 @@ pub(super) fn build(
     // parameter declared at the same telescope ordinal, or a target-owned
     // private slot whose `PrivateCallbackSlot` conformance supplied the
     // evaluated boundary calling plan retained on the use.
-    let nominal_use_at_binder = |ordinal: usize, parameter: &symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameter| {
-        let symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Machine {
+    let nominal_use_at_binder = |ordinal: usize, parameter: &typed_trees::data::TypeParameter| {
+        let typed_trees::data::TypeParameterKind::Machine {
             contract:
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::MachineParameterContract::Nominal {
+                typed_trees::data::MachineParameterContract::Nominal {
                     trait_definition,
                     requirement,
                 },
@@ -215,7 +212,7 @@ pub(super) fn build(
             continue;
         }
         let byte_sequence = byte_sequence_carrier(program, formal, substitutions.as_slice());
-        if crate::validation::is_closed_primitive_array_type(program, formal) {
+        if validation::is_closed_primitive_array_type(program, formal) {
             return None;
         }
         let target_identity = if byte_sequence.is_some() {
@@ -236,7 +233,7 @@ pub(super) fn build(
             formal,
             *argument,
             call.statement_index,
-            crate::checked_trees::CheckedSubsliceSite::CallArgument {
+            checked_trees::CheckedSubsliceSite::CallArgument {
                 call_ordinal: u32::try_from(call.call_ordinal).ok()?,
                 argument_ordinal: u32::try_from(structural_arguments.len()).ok()?,
             },
@@ -274,7 +271,7 @@ pub(super) fn build(
             )?);
             continue;
         }
-        let crate::fact_plan::PlaceRoot::Symbol(source_symbol) = place.root else {
+        let facts::PlaceRoot::Symbol(source_symbol) = place.root else {
             return None;
         };
         // An authored `self.field` argument roots at the `self` parameter's
@@ -284,10 +281,7 @@ pub(super) fn build(
             parameter_root_symbol(machine.symbol, candidate) == source_symbol
                 || candidate.symbol == source_symbol
         })?;
-        if crate::validation::is_closed_primitive_array_type(
-            program,
-            source_parameter.type_reference,
-        ) {
+        if validation::is_closed_primitive_array_type(program, source_parameter.type_reference) {
             return None;
         }
         let source_position = caller_source_parameters
@@ -314,7 +308,7 @@ pub(super) fn build(
             Vec::new()
         } else if matches!(
             place.segments.last(),
-            Some(crate::fact_plan::PlaceSegment::FixedRange { .. })
+            Some(facts::PlaceSegment::FixedRange { .. })
         ) {
             if !matches!(
                 caller_parameter.access,
@@ -426,7 +420,7 @@ pub(super) fn build(
     phase("call operation: boundary result");
     let signature_return =
         substituted_formal_type(program, signature.return_type, substitutions.as_slice());
-    if crate::validation::is_closed_primitive_array_type(program, signature_return) {
+    if validation::is_closed_primitive_array_type(program, signature_return) {
         return None;
     }
     if match expected_call_result {

@@ -7,15 +7,13 @@ use super::{
     BinaryOperator, CheckFacts, ExpressionHandle, ExpressionNode, FlowCallFact, FlowStateFact,
     OperatorSpelling, TypedTrees,
 };
-use crate::validation::{
+use symbols::SymbolHandle;
+use typed_trees::signature::StateParameter;
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
+use validation::{
     StrictArithmeticBindingValue, StrictArithmeticImplicationJudgment,
     StrictArithmeticSymbolBinding,
 };
-use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
-    PrimitiveType, TypeReferenceHandle,
-};
-use symbols::SymbolHandle;
 
 mod arguments;
 
@@ -24,9 +22,9 @@ pub(in crate::checks::contracts) fn proves(
     facts: &CheckFacts,
     caller: &FlowStateFact,
     call: &FlowCallFact,
-    contexts: &[crate::fact_plan::FactContextHandle],
+    contexts: &[facts::FactContextHandle],
     goal: ExpressionHandle,
-    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     prove(program, facts, caller, call, contexts, goal, call_frames).unwrap_or(false)
 }
@@ -36,9 +34,9 @@ fn prove(
     facts: &CheckFacts,
     caller: &FlowStateFact,
     call: &FlowCallFact,
-    contexts: &[crate::fact_plan::FactContextHandle],
+    contexts: &[facts::FactContextHandle],
     goal: ExpressionHandle,
-    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<bool> {
     let site = crate::semantic::calls::find_call_site(
         program,
@@ -156,25 +154,22 @@ fn prove(
         .filter(|fact| {
             !matches!(
                 fact.origin,
-                crate::fact_plan::FactOrigin::CallRequires
-                    | crate::fact_plan::FactOrigin::CallEnsures
+                facts::FactOrigin::CallRequires | facts::FactOrigin::CallEnsures
             )
         })
         .filter_map(|fact| match fact.payload {
-            crate::fact_plan::FactPayload::ContractBooleanExpression {
-                kind: crate::fact_plan::ContractFactKind::Requires,
+            facts::FactPayload::ContractBooleanExpression {
+                kind: facts::ContractFactKind::Requires,
                 expression,
                 instantiated,
                 ..
             } if !instantiated.is_valid() => Some((expression, true)),
-            crate::fact_plan::FactPayload::BooleanValue { expression, value } => {
-                Some((expression, value))
-            }
+            facts::FactPayload::BooleanValue { expression, value } => Some((expression, value)),
             _ => None,
         })
         .collect::<Vec<_>>();
     if head.is_some()
-        && crate::validation::prove_arithmetic_call_requirement(
+        && validation::prove_arithmetic_call_requirement(
             program,
             caller_machine,
             caller_state,
@@ -242,7 +237,7 @@ fn prove(
             // Its exact formal is the destination; reuse checked landing rather
             // than requiring an unrelated literal-stamping pass to have run.
             && !(arguments::is_unlanded_integer(program, *argument)
-                && crate::validation::land_anonymous_integer_expression(
+                && validation::land_anonymous_integer_expression(
                     program, *argument, primitive, |_| false,
                 ).is_some())
         {
@@ -260,7 +255,7 @@ fn prove(
         ) {
             return None;
         }
-        argument_bindings.push(crate::validation::StrictArithmeticExpressionBinding {
+        argument_bindings.push(validation::StrictArithmeticExpressionBinding {
             symbol: parameter.symbol,
             expression: *argument,
         });
@@ -278,21 +273,20 @@ fn prove(
         .filter(|fact| {
             !matches!(
                 fact.origin,
-                crate::fact_plan::FactOrigin::CallRequires
-                    | crate::fact_plan::FactOrigin::CallEnsures
+                facts::FactOrigin::CallRequires | facts::FactOrigin::CallEnsures
             )
         })
         .filter_map(|fact| {
             // Call substitution lives separately from the authored expression.
             // This adapter only consumes declaration-shaped caller facts.
             match fact.payload {
-                crate::fact_plan::FactPayload::ContractBooleanExpression {
-                    kind: crate::fact_plan::ContractFactKind::Requires,
+                facts::FactPayload::ContractBooleanExpression {
+                    kind: facts::ContractFactKind::Requires,
                     expression,
                     instantiated,
                     ..
                 } if !instantiated.is_valid() => Some(expression),
-                crate::fact_plan::FactPayload::BooleanValue {
+                facts::FactPayload::BooleanValue {
                     expression,
                     value: true,
                 } => Some(expression),
@@ -311,7 +305,7 @@ fn prove(
         })
         .collect::<Vec<_>>();
     Some(
-        crate::validation::strict_arithmetic_expression_implication_with_arguments(
+        validation::strict_arithmetic_expression_implication_with_arguments(
             program,
             caller_machine,
             &hypotheses,
@@ -343,7 +337,7 @@ fn true_conjuncts(
             && !facts.operators.uses.iter().any(|(_, operator)| {
                 operator.expression == expression
                     && operator.status
-                        != crate::checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+                        != checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
             })
         {
             pending.extend([binary.right, binary.left]);
@@ -384,7 +378,7 @@ fn positive_comparison_expression(
         };
         if value != (binary.operator == BinaryOperator::Equal)
             || !super::super::prover::has_builtin_operators(program, &facts.operators, expression)
-            || !symbol_resolved_trees_to_typed_trees::typed_trees::operator::has_builtin_spelled_expression_meaning(
+            || !typed_trees::operator::has_builtin_spelled_expression_meaning(
                 program,
                 owner,
                 expression,
@@ -500,7 +494,7 @@ fn comparison_is_supported(
         }
         if let ExpressionNode::Integer(literal) = program.expression_table.expression(expression) {
             let primitive = crate::values::scalar_expression_type(
-                &crate::checked_trees::CheckedScalarExpression::IntegerLiteral {
+                &checked_trees::CheckedScalarExpression::IntegerLiteral {
                     literal: literal.clone(),
                 },
             )?;
@@ -519,7 +513,7 @@ fn comparison_is_supported(
     };
     (left == right || left.is_none() || right.is_none())
         && super::super::prover::has_builtin_operators(program, &facts.operators, expression)
-        && symbol_resolved_trees_to_typed_trees::typed_trees::operator::has_builtin_spelled_expression_meaning(
+        && typed_trees::operator::has_builtin_spelled_expression_meaning(
             program,
             owner,
             expression,

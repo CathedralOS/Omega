@@ -1,22 +1,20 @@
 //! Activation-local primitive backing and fresh storage observations.
 use super::{KnownUnitInteger, LiveDefinitions};
 use crate::LoweringError;
-use crate::calling_conventions::ValueShape;
 use crate::lowering::function_signature::PreparedFunctionSignature;
-use crate::target_operations::{TargetStructuralHomeLayout, TargetStructuralHomeRequirement};
-use crate::target_operations::{
-    TargetUnitOperation, TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
-};
+use abstract_operations::{AbstractFunction, AbstractOperation};
+use calling_conventions::ValueShape;
 use semantic_vocabulary::{
     IeeeFloatFormat, IntegerSign, IntegerType, OperationId, ScalarType, StructuralTypeId,
 };
 use std::collections::{BTreeMap, BTreeSet};
+use target_operations::{TargetStructuralHomeLayout, TargetStructuralHomeRequirement};
+use target_operations::{
+    TargetUnitOperation, TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
+};
 use terminal_psi::{
     StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralTypeDeclaration,
     StructuralTypeShape,
-};
-use terminal_psi_to_abstract_operations::abstract_operations::{
-    AbstractFunction, AbstractOperation,
 };
 
 pub(super) fn is_primitive_reference(
@@ -37,7 +35,7 @@ pub(super) fn is_primitive_reference(
 }
 
 pub(super) fn shape(
-    scalar: terminal_psi_to_abstract_operations::abstract_operations::AbstractResult,
+    scalar: abstract_operations::AbstractResult,
 ) -> Result<ValueShape, LoweringError> {
     native_shape(scalar.scalar_type).ok_or(LoweringError::ValueTypeMismatch(scalar.value))
 }
@@ -131,7 +129,7 @@ fn readable_byte_field(
 
 pub(super) fn retain_result(
     operation: OperationId,
-    result: terminal_psi_to_abstract_operations::abstract_operations::AbstractResult,
+    result: abstract_operations::AbstractResult,
     live: &mut LiveDefinitions,
 ) -> Result<TargetUnitScalarHomeRequirement, LoweringError> {
     let home = TargetUnitScalarHomeRequirement {
@@ -259,7 +257,7 @@ pub(super) fn lower(
                     field,
                 } => (
                     *psi_operation,
-                    terminal_psi_to_abstract_operations::abstract_operations::AbstractResult {
+                    abstract_operations::AbstractResult {
                         value: *result,
                         scalar_type: ScalarType::Boolean,
                     },
@@ -396,11 +394,10 @@ pub(super) fn lower(
                 .insert(
                     result.place,
                     TargetStructuralHomeRequirement {
-                        origin:
-                            crate::target_operations::TargetStructuralHomeOrigin::OperationResult {
-                                operation: *psi_operation,
-                                result: result.clone(),
-                            },
+                        origin: target_operations::TargetStructuralHomeOrigin::OperationResult {
+                            operation: *psi_operation,
+                            result: result.clone(),
+                        },
                         layout: TargetStructuralHomeLayout::Aggregate(shape),
                     },
                 )

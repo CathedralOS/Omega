@@ -263,75 +263,6 @@ backend-visible; full corpus runs only at the end of an item.
   crate holds only orchestration, reports and publication, and
   `omega-rust/pipeline.md`'s "current implementation" paragraph is deleted.
 
-## Fat-stages consolidation
-
-The fold of `omega-rust/` into `pipeline/` + `foundation/` + the binary, per
-[the design](wiki/drafts/designs/fat_stages_consolidation.md) (map:
-`wiki/drafts/designs/fat_stages_map.html`). A stage owns its produced IR, its
-machinery, and its checker module; substeps are modules, never crates; outside
-`pipeline/` only universal substrate and the `omega` binary survive;
-`terminal-psi` stays the lone standalone representation crate. Items land
-leaf-up in the listed order, workspace green at every step — `mbx check` on
-touched crates plus `tools/corpus_gate.py --filter` over affected groups, full
-corpus at the end of an item. Folds are reduce-and-move, not lifts: dead
-machinery dies instead of porting, and each surviving substep enters its stage
-as a module with a typed `in -> out` signature so later promotion to a numbered
-stage is cheap.
-
-- **BINARY-MEGA-FOLD-REMAINDER.** Landed: `omega/compiler`, `omega/build/*`
-  (10 crates), `omega/packages/*` (5), `omega/tooling/*` (3),
-  `omega/backend/artifacts/*` (2), `omega/backend/plans/backend-plan`,
-  `psi/semantics/{build-time-evaluation,checked-interpreter,
-  terminal-fixed-fuel}`, and `backend/runtime/{executable-installation,
-  external-roots, component-publication}` folded into the `omega` binary
-  crate as `omega::<lib>` modules. Remaining (owned by other items):
-  `omega::compiler` vs `omega::compilation` orchestration merging under
-  ONE-DRIVER-PER-STAGE/SOURCE-SET-UNION/BUILD-EVALUATES-ONCE.
-
-- **POST-FOLD-REPAIR.** The consolidation landed on main at `912b490c8f` as
-  one commit over an advancing upstream; this row owns remaining test-build
-  damage and lost pre-fold behavior. Use `mbx check --workspace --all-targets`
-  to enumerate remaining build failures. Rewrite dead-crate spellings to the owning stage
-  (`typed_trees` → `symbol_resolved_trees_to_typed_trees::typed_trees`,
-  `checked_trees`/`fact_plan`/`flow_effects` → `crate::` inside stage 04,
-  `lowered_psi` → `crate::lowered_psi` inside stage 05,
-  `effects`/`calling_conventions` → `abstract_operations_to_target_operations::`,
-  `register_homes` → `selected_instructions_to_register_homes::`,
-  `machine_code` → `post_allocation_machine_to_selected_form_encoding::`,
-  `layout`/`runtime_abi`/`representation_selections`/`program_entry_plan`/`boundary_applications`
-  → `resolved_layout_to_resolved_layout::`, and the compiler/build/packages/
-  tooling surface → `omega::`), and where a caller/callee pair disagrees take
-  main's definition — the fold changed paths, not semantics. One deliberate
-  divergence from upstream `e081a6857b`: `entry_settlement` stays in the
-  binary (`omega::compiler::native::entry_settlement`), because its plan
-  vocabulary is produced by stage 09 and provider planning; stage-00 hosting
-  would need a forward dependency. Acceptance: workspace all-target checks and
-  affected regression tests pass, with the silent-reversion audit closed and
-  with no crate resurrected outside `pipeline/`, `psi/foundation/`, the flat
-  `psi/` boundary layer, or the `omega` binary.
-
-  Stage-05 unit tests still spell `checked_trees_to_lowered_psi::` as an
-  external crate. Changing those references to `crate::` alone is insufficient:
-  downstream stages consume the ordinary library's `LoweredPsi`, while unit
-  tests construct the lib-test copy's distinct type. Move cross-stage tests
-  across an integration-test boundary so producer and consumer share the same
-  representation identity; do not weaken assertions or add unchecked conversions.
-  Reproduce with `mbx nextest run -p checked-trees-to-lowered-psi --lib`.
-
-  SILENT REVERSIONS. Compile-green is not the whole tail: the fold kept older
-  copies of files that commits between `74902921fe` and `5d93a065f5`
-  changed, so their added lines are absent from the folded tree, mostly
-  without a compile error. Found by checking each commit's added lines, with
-  crate-path prefixes stripped, against the folded file: 1,111 lines in 44
-  commits at the fold, 451 in 34 now. Still missing: `dc29e8c817` (79
-  lines), `59becf45ab`, `5ab0dab7e8` (shared builds in `compiler.rs`),
-  `8286328570`, `db39f38a74`, `a07dad44e1` (`result_realization.rs`),
-  `bcc2dab848` and `ebc356fe9d` (repository build-declaration tests),
-  `1a0cab1978`, `c7b645f47c`. `3ac66b7cb2` and `62716b74ec` count as missing
-  only because later commits replaced their lines. Restore each by replaying
-  its diff under the new paths; the fold's own path rewrites are the only
-  intended difference.
-
 ## Immediate product closure
 
 Prioritize unchanged customer programs reaching native execution over additional
@@ -709,7 +640,7 @@ the complete product bar; focused successes below do not establish that baseline
   Scope pause: resume `print_squares` only with a plan from its full source
   closure to native execution, not another isolated helper milestone.
   Independent operation work remains actionable; use the
-  [Terminal production map](omega-rust/psi/pipeline/07_lowered-psi-to-terminal-psi/terminal_production.md)
+  [Terminal production map](omega-rust/psi/compiler/terminal-production/README.md)
   and **TRANSLATION-VALIDATION** in `TASKS_OPTIMIZER.md`.
   Acceptance requires every maintained sample to check and applicable runtime
   oracles to pass on the required hosted matrix. Record unavailable hosts;
@@ -959,7 +890,7 @@ _roots` shows the current shape: `use omega_language_std::targets::uefi_x86_64`
   `capabilities/uses_caller_folder` reject on borrowed storage absent at a
   boundary call. For the shared-view-field shape, this row owns implementing
   [shared-reference copy composition](wiki/spec/language/ownership.md), not a
-  new owner ruling: `omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/validation/proof_contracts/properties.rs` still excludes
+  new owner ruling: `omega-rust/psi/semantics/validation/src/proof_contracts/properties.rs` still excludes
   references from `[copy]` fields even though stored shared views already copy.
   Admit shared carriers while preserving exact loans and qualification facts;
   require the record's explicit `[copy]` declaration. Pin `&mut`/`&write`
@@ -1248,7 +1179,7 @@ contract bounds, and two-sided emitted-call replay already exist. Remaining:
   invent a parallel selection identity or a second proof system.
 
 Owners: `05_checked-trees-to-lowered-psi/src/retention/closed_reach_applications.rs`,
-`omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/validation/machine_calls/static_machine_call_contracts.rs`, and
+`omega-rust/psi/semantics/validation/src/machine_calls/static_machine_call_contracts.rs`, and
 `terminal-verifier/src/validation/reach_applications.rs`. Keep ordinary semantic
 replay distinct from optional producer-correspondence certification; neither
 test coverage nor matching hashes justify a full generic-PCC claim.
@@ -1407,7 +1338,7 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   settlement, private staging, and publication rather than adding an executor.
 
   Owners: `package-compilation/src/source_snapshot/`,
-  `omega-rust/omega/src/package_source/tree/filesystem.rs`, build-output,
+  `omega-rust/omega/packages/sources/acquisition/src/tree/filesystem.rs`, build-output,
   build-evaluation, and compiler publication. Per-file observations and later
   live-tree comparisons do not establish coherent whole-tree capture. Cover
   directory membership/link races and edits restoring compared observations
@@ -1527,8 +1458,8 @@ the source shape; these items track implementation, not further design.
   `builder.tests.group<ExactRequirement>()`, normalized group enablement,
   package-local concrete satisfaction discovery, separate runner roots, and
   Terminal Psi execution gating successful build publication. Own registration
-  in `omega-rust/omega/src/`, compose existing Psi production/verification and
-  interpretation through `omega-rust/omega/docs/compiler/`, and report invocation
+  in `omega-rust/omega/build/`, compose existing Psi production/verification and
+  interpretation through `omega-rust/omega/compiler/`, and report invocation
   outcomes through the normal compile result. Preserve exact product-reference
   identity, private visibility, and source/target provenance; do not discover by
   strings or infer generic applications. Add the optional ordinary std testing
@@ -1575,8 +1506,8 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
   facts may establish unreachable behavior; optional optimization and broad
   public ceilings are not absence proofs.
 
-  Owners: `omega-rust/omega/src/build_evaluation/admission/behavior_exclusions.rs`,
-  `omega-rust/omega/src/compiler/terminal/terminal_artifact/behavior_exclusions.rs`,
+  Owners: `omega-rust/omega/build/build-evaluation/src/admission/behavior_exclusions.rs`,
+  `omega-rust/omega/compiler/src/terminal/terminal_artifact/behavior_exclusions.rs`,
   and Psi operation/guard evidence. BUILD-EXCLUSION-REALIZATION owns physical
   classes and installation, not a duplicate semantic checker.
 
@@ -1637,7 +1568,7 @@ WIRE-RUNTIME-AND-INSTALLATION owns generic executable custody. No compiler graph
 stage, topology-specific IR, or new trusted graph axiom.
 
 - **TOPOLOGY-PLAN-VERIFICATION.** Deliver the Omega build-only package and payment
-  composition project. Reuse `omega-rust/omega/src/topology_plan/` normalization,
+  composition project. Reuse `omega-rust/omega/packages/topology/` normalization,
   policy, certificate, and codec implementations, plus the existing component
   description producer/admission in compiler, build-evaluation, and
   `backend/artifacts/component-description/`.
@@ -2243,7 +2174,7 @@ syntax and other terminal services are not prerequisites.
   `has_owned_or_shared_view_fields` are all false, multiplicity is `Affine`,
   and there are no qualifications, so the gate returns `None`. The classifier
   that should answer is `has_owned_or_shared_view_fields`
-  (`omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/validation/value_custody/storage_contents.rs`): it accepts a `Generic`
+  (`omega-rust/psi/semantics/validation/src/value_custody/storage_contents.rs`): it accepts a `Generic`
   node only when its type arguments are EMPTY, which admits a
   lifetime-parameterized record and drops an instantiated
   `DecodeResult<Relayed<LocalMessage>>` to its `_ => return false`. Widen it
@@ -2264,9 +2195,9 @@ syntax and other terminal services are not prerequisites.
   independently checked evidence for generated codecs' `Derived` trust under
   [public codec agreement](wiki/spec/layouts/codecs.md#agreement-and-trust).
   The no-authored-policy route now exists, but
-  `omega-rust/omega/src/checked_interpreter/interpreter/evaluator/execution/wire_verification.rs`
+  `omega-rust/psi/semantics/checked-interpreter/src/interpreter/evaluator/execution/wire_verification.rs`
   compares Floor/Ceiling members and malformed-input probes.
-  `omega-rust/omega/src/build_evaluation/admission/wire_protocol.rs` reports `Derived` when
+  `omega-rust/omega/build/build-evaluation/src/admission/wire_protocol.rs` reports `Derived` when
   that probe's gaps are empty. Finite examples do not establish the general
   agreement law; comparing placements or a shared field classifier is not
   independent checking of the codec body. Correct probe-only classifications
@@ -2323,7 +2254,7 @@ syntax and other terminal services are not prerequisites.
   receiver mismatch rejection is separate from publication atomicity. That test
   no longer exists -- `c60792d7bd` ("repo: the compiler is tested through the
   corpus gate alone") removed it, and only
-  `omega-rust/omega/src/compiler/report/executable_publication.rs` remains -- so the
+  `omega-rust/omega/compiler/src/report/executable_publication.rs` remains -- so the
   atomicity it guarded is currently unguarded and this instruction cannot be
   followed as written. Re-establish the guard as part of this item rather than
   assuming it still holds.
@@ -2449,7 +2380,7 @@ syntax and other terminal services are not prerequisites.
     not an entry snapshot, and crash ceilings imply no normal guarantee.
   - Complete package-review projections through indexes, case payloads and
     generic fields using Psi's exact carrier/case relation. Keep
-    `omega-rust/omega/tests/package_evidence/callable_policy/case_membership.rs` as the
+    `omega-rust/omega/packages/review/evidence/tests/callable_policy/case_membership.rs` as the
     source/recovery control; saved/result tags need ordinary value custody,
     not re-executed initializers or callee bodies.
   - Extend entry provenance for opaque/content leaves, dynamic indices and
@@ -2657,7 +2588,7 @@ syntax and other terminal services are not prerequisites.
     contain constants. Preserve assumption closure even when proof use erases.
   - Migrate core relations, quotients and examples. Include the replacement
     proof rows assigned by
-    `omega-rust/omega/docs/package-evidence/EVIDENCE_SCHEMA.md` and
+    `omega-rust/omega/packages/review/evidence/EVIDENCE_SCHEMA.md` and
     QUOTIENT-THEOREM-LIFT's congruence-only lift payload.
 
   Acceptance is source → Terminal serialization → independent checking under
@@ -2690,7 +2621,7 @@ syntax and other terminal services are not prerequisites.
   and their independent Terminal verifier.
 
   Reuse `ClosedIntegerRelation`'s exact compound normalization in
-  `omega-rust/psi/proof-admission/src/integer_rules/open_terms.rs` and the free-loop native
+  `omega-rust/psi/semantics/proof-admission/src/integer_rules/open_terms.rs` and the free-loop native
   positive/wrong-update controls. `proof_inductive_gauss_sum` and
   `proof_inductive_climbing_sum` still need STATE-LOCAL-VALUE-FRONTIER's
   value-returning cyclic execution beyond their checked-only routes.
@@ -2918,7 +2849,7 @@ syntax and other terminal services are not prerequisites.
   checked certificates to independent portable replay under
   [loans](wiki/spec/terminal-psi/loans.md).
   Owners: `04_typed-trees-to-checked-trees/src/checks/borrows/`,
-  `omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checked_trees/checked_trees/borrow.rs`, checked-to-lowered publication
+  `omega-rust/psi/representations/checked-trees/src/checked_trees/borrow.rs`, checked-to-lowered publication
   and Terminal verification. Current checking supports immutable normalized
   bounds, requires/domain predicates, incoming guards, immutable whole-result
   call guarantees and transparent propositions. Two premises can already
@@ -2966,7 +2897,7 @@ syntax and other terminal services are not prerequisites.
   proposal validation, native lowering and image replay. Psi's
   `machine_lowering/bounded_callbacks.rs` already delegates ordinary machine
   lowering. The remaining exact single-`u64` identity/Unit recognizer is in
-  `omega-rust/omega/src/compiler/terminal/native_proposal/mod.rs`;
+  `omega-rust/omega/compiler/src/terminal/native_proposal/mod.rs`;
   native thunk/image consumers also reject call-bearing bodies. Replace those
   shape restrictions with requirement, ABI and call-custody checking, not more
   admitted body families. Close hosted private-stack callback occupancy and
@@ -2975,7 +2906,7 @@ syntax and other terminal services are not prerequisites.
   Owners: native proposal construction, `native-realization`'s
   `retained_native_product` and `callback_thunks`, selected-call ABI transport,
   and image private-function/relocation replay. See
-  [receiving custody limits](omega-rust/omega/docs/compiler/README.md#callback-custody-boundaries).
+  [receiving custody limits](omega-rust/omega/compiler/README.md#callback-custody-boundaries).
   Acceptance: the direct witness and
   `source/library/std/tests/callback_materialization_closure.omg` two-slot
   registrar produce native images binding exact function, symbol, relocation,
@@ -3028,7 +2959,7 @@ syntax and other terminal services are not prerequisites.
   [outbound custody](wiki/spec/build/foreign_storage.md#outbound-custody).
   Owners: checked content/call planning, checked-to-lowered retention,
   Terminal boundary validation, native call-site marshaling, and
-  `omega-rust/omega/src/external_roots/program_local/program_local_extents/retained_foreign_arguments.rs`.
+  `omega-rust/omega/backend/runtime/external-roots/src/program_local/program_local_extents/retained_foreign_arguments.rs`.
 
   Shared retained-borrow custody attaches to the invoked Terminal boundary;
   verification checks its exact shared source and retained result loan.
@@ -3257,7 +3188,7 @@ syntax and other terminal services are not prerequisites.
   [installation-bound reach](wiki/spec/build/external_roots.md#installation-bound-reach)
   for component contracts and opaque-carrier completion. Selection and nested
   closure substitution already exist in `provider-planning/installation_reach.rs`
-  and `omega-rust/omega/src/external_roots/root_entry/root_validation.rs`; preserve the selected
+  and `omega-rust/omega/backend/runtime/external-roots/src/root_entry/root_validation.rs`; preserve the selected
   nested-row and unresolved-row controls in `calling_policy_plans/opaque_boundaries.rs`.
 
   The shipped `InterruptAcknowledgement::complete` in `core/interrupt.omg`
@@ -3514,7 +3445,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   (`with_target_configurations`, `ExplicitTargetSet`,
   `TargetCompileConfiguration`) has no production caller; package operations
   loop `for target in targets` one layer up
-  (`omega-rust/omega/src/package_manager/operations/inspect_packages/execution.rs`,
+  (`omega-rust/omega/packages/manager/src/operations/inspect_packages/execution.rs`,
   `CandidateSourcePreparation`), and `NativeInputReuse` deduplicates
   realization inputs after the work is already done. Make target multiplicity
   data: one `AssembledSyntax` retains all targets' qualified declarations
@@ -3653,7 +3584,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   `finalization.rs`, naming an occurrence number rather than the call
   (expression calls already have `undeclared_checked_call_callee`, which names
   the callee). The target-machine filter states the intended rule in
-  `omega-rust/omega/src/build_evaluation/admission/target_machines.rs`: a name
+  `omega-rust/omega/build/build-evaluation/src/admission/target_machines.rs`: a name
   implemented by ONE foreign target is that target's paradigm internal and is
   "filtered silently with its callers" -- but only the declaration is
   filtered, never a caller. Witness: before
@@ -4243,7 +4174,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   The optional receiver-policy path and its acceptance/rejection controls exist.
   Filesystem cohort emitters also have production callers:
   `providers/settlements/source_imports.rs` emits mechanism classifications;
-  `omega-rust/omega/src/package_manager/review/candidate/semantic_bindings.rs` attaches
+  `omega-rust/omega/packages/manager/src/review/candidate/semantic_bindings.rs` attaches
   consumer permission rows. The merge in `02_abstract-operations-to-target-operations/src/provider_admission/mod.rs`
   is a **mechanism-classification** policy, separate from the optional receiver
   permission policy; preserve both exact identities.
@@ -4264,7 +4195,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   Remaining delivery:
 
   - Connect the bounded Linux filesystem plan to native settlement transport.
-    `omega-rust/omega/src/build_evaluation/provider_settlement/canonical_filesystem_host.rs`
+    `omega-rust/omega/build/build-evaluation/src/provider_settlement/canonical_filesystem_host.rs`
     already mints accepted-schema plans for supported positional syscalls.
     `compiler/tests/terminal_authority/filesystem_cohort_witness.rs` calls
     `set_len` and now pins `MissingBoundarySettlement`, not zero provider rows.
@@ -4272,7 +4203,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
     path/slice adaptation or host-error mechanisms. General provider planning
     is not the missing implementation for this witness.
     Preserve settled-provenance replay in
-    `omega-rust/omega/src/package_evidence/capture/providers/policy/replay.rs`, including
+    `omega-rust/omega/packages/review/evidence/src/capture/providers/policy/replay.rs`, including
     changed settlement identity, authored-candidate substitution, and unsupported
     demanded-leaf rejection. Do not exempt ordinary `UniqueCoveringCandidate` plans.
   - Drive console-exit-app, Cathedral native smoke, `cli_mvp` and Squalr through
@@ -4345,7 +4276,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   permission/review rows and the broad filesystem-summary replacement.
 
 - **R5.** Complete compositional caller-visible may-write inference in
-  `omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/validation/machine_calls/calls/write_frames.rs` and its subordinate
+  `omega-rust/psi/semantics/validation/src/machine_calls/calls/write_frames.rs` and its subordinate
   origin/fixpoint owners. A complete frame must name every possible write;
   unknown origins remain opaque and invalidate affected facts. This supplies
   the exact preservation checks required by
@@ -4458,7 +4389,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   `select(forward_array(values)[0])`, including structural-element array
   ingress, residual carrier cleanup and recursive loan/qualification/linear-claim
   custody. Retire superseded shape gates in
-  `omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/validation/machine_calls/calls/expression_scanning/result_realization.rs`
+  `omega-rust/psi/semantics/validation/src/machine_calls/calls/expression_scanning/result_realization.rs`
   as real evaluation/result producers become available, rather than duplicating
   the producer's walk for each destination spelling.
 
@@ -4905,7 +4836,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
     execution coverage in `borrowed_scalar_call_source`.
   - Complete exact saved-value snapshots across actual writes/exclusive
     exposure, plus dependent/public-trait results and subslice bounds.
-    `omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/validation/proof_contracts/contract_entailment/ranking_range/saved_arguments.rs`
+    `omega-rust/psi/semantics/validation/src/proof_contracts/contract_entailment/ranking_range/saved_arguments.rs`
     already accepts stable unwritten mutable carriers; `mut` alone is not
     the gap. Share capture with **CRASH-CONTRACT**, preserving case/index/
     generic/reference/float identities and totality. Current body facts
@@ -4923,7 +4854,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
     build-time admission controls; preserve them rather than folding builtin
     meaning. **OPERATOR-MACHINE-SUPPLY** owns executable supply.
     Nonconstant proof-`Int` arithmetic still needs independent evidence beyond
-    source entailment in `omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/validation/proof_contracts/contract_entailment/arithmetic_judgment.rs`.
+    source entailment in `omega-rust/psi/semantics/validation/src/proof_contracts/contract_entailment/arithmetic_judgment.rs`.
 
   Acceptance: one composed caller tolerates reordered/renamed states and
   inserted computations; selected operands execute left-to-right once,
@@ -5012,7 +4943,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   Reuse the sealed call-graph plans, argument marshalling, nonmoving leases and
   provider-instance claim ledger. Call-side suspension markers already require
   site/plan pairs; `suspension_call_plan_rejects_coordinated_site_and_plan_deletion`
-  pins that control. The [implementation note](omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/task_plans.md)
+  pins that control. The [implementation note](omega-rust/omega/representations/task-plans/README.md)
   distinguishes those static/accounting mechanisms from executable activation.
 
   - Join final physical frame/spill demand, alignment, entry overhead and complete
@@ -5446,7 +5377,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   Std may be replaced, split or absent; only core and the specified
   compiler-injected vocabulary retain toolchain authority. Standalone
   std/alloc still receive broad `Toolchain` classification in
-  `omega-rust/omega/src/compiler/sources/source/source_storage.rs`.
+  `omega-rust/omega/build/build-evaluation/src/sources/source/source_storage.rs`.
   Remove that fallback as remaining consumers acquire exact source-byte
   catalog roles or accepted semantic bindings, not by relabeling a directory.
 
@@ -5462,7 +5393,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   dependency edges and target-correct Console, Filesystem and physical-entry
   bindings. Keep freestanding roots dependency-free. The existing narrow
   roles, including macOS x64 entry, are documented
-  [beside package compilation](omega-rust/omega/docs/package-compilation/semantic_bindings.md).
+  [beside package compilation](omega-rust/omega/build/package-compilation/semantic_bindings.md).
   Route exposed composed-call, ownership, entry and proof failures to their
   capability owners, retaining each customer's intended checking/execution
   acceptance; unrelated blocked features do not stop independent migrations.
@@ -5878,7 +5809,7 @@ but report the missing runtime leg explicitly; it does not close that host row.
   repair, retaining exact selection and package-use authority checks.
   Package command fixtures: reproduce `fixture module path ends in ::fixture`
   in `named_workspace_install::cases`. Fix caller-specific child-test selection
-  in `omega-rust/omega/tests/package_manager/support/named_workspace.rs` and exercise all four
+  in `omega-rust/omega/packages/manager/tests/support/named_workspace.rs` and exercise all four
   consumers, including `package_inspection`, `offline_package_commands`, and
   `source_diff_commands`.
 
@@ -6121,7 +6052,7 @@ but report the missing runtime leg explicitly; it does not close that host row.
   set helps nobody.
 
   1. `public interface selects private domain [u8]::CString`
-     (`omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/validation/declarations/declaration_visibility.rs`). Not the
+     (`omega-rust/psi/semantics/validation/src/declarations/declaration_visibility.rs`). Not the
      `pub domain` at `source/library/std/macos_gui.omg:32` -- `pub domain`
      records `is_public = true`, verified directly on the lowered trees. The
      ELEVEN fixtures under `tests/omega/pass/objc/` declare their OWN
@@ -6203,7 +6134,7 @@ but report the missing runtime leg explicitly; it does not close that host row.
 
   The package-name snake_case migration that `runtime_value_generics` waited on
   is finished: `grep -rhoE '(package|application)\("[a-z0-9]+(-[a-z0-9]+)+"\)'
-  omega-rust/omega/tests/` now returns nothing. Reobserve that
+  omega-rust/omega/compiler/tests/` now returns nothing. Reobserve that
   target before attributing its failures again.
 
 - **RC-PCC-REPLAY.** Close the release gate for artifact/`.proof` pairs:
@@ -6256,7 +6187,7 @@ release acceptance still requires complete coverage. Remaining reported failures
   `ElfDynamicTag::GeneralRelocationEntrySize` is tag 9 and
   `GeneralRelocationEntryByteCount` is emitted beside the `DT_RELA`/`DT_RELASZ`
   pair in
-  `omega-rust/omega/pipeline/09_resolved-layout-to-resolved-layout/src/image_elf/dynamic_executable/dynamic_table/dynamic_tags.rs`. The image
+  `omega-rust/omega/backend/images/image-elf/src/dynamic_executable/dynamic_table/dynamic_tags.rs`. The image
   has not been run since, because verification needs a Linux host.
 
   **SAMPLE-CORPUS** owns current shared sample failures;

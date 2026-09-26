@@ -89,9 +89,7 @@ fn a_foreign_same_spelling_root_cannot_supply_a_reference_origin() {
     else {
         panic!("alias declaration")
     };
-    let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Borrow(
-        borrow,
-    ) = fixture
+    let typed_trees::expression::ExpressionNode::Borrow(borrow) = fixture
         .program
         .expression_table
         .expression(local.initial_value)
@@ -99,7 +97,7 @@ fn a_foreign_same_spelling_root_cannot_supply_a_reference_origin() {
         panic!("explicit borrow")
     };
     let target = borrow.target;
-    let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Name(name) =
+    let typed_trees::expression::ExpressionNode::Name(name) =
         fixture.program.expression_table.expression_mut(target)
     else {
         panic!("retained source name")

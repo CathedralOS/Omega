@@ -4,8 +4,8 @@
 use super::LiveDefinitions;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use crate::target_operations::{TargetStructuralArgument, TargetStructuralParameter};
 use std::collections::{BTreeMap, BTreeSet};
+use target_operations::{TargetStructuralArgument, TargetStructuralParameter};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape};
 
 pub(super) fn is_reference(
@@ -30,7 +30,7 @@ pub(super) fn argument(
     argument: &terminal_psi::StructuralArgument,
     declaration: &terminal_psi::StructuralParameterDeclaration,
     destination: &TargetStructuralParameter,
-    function: &terminal_psi_to_abstract_operations::abstract_operations::AbstractFunction,
+    function: &abstract_operations::AbstractFunction,
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
     live: &LiveDefinitions,
     types: &StructuralTypeLookup<'_>,
@@ -59,20 +59,19 @@ pub(super) fn argument(
         }
         // A join owns its destination storage, not any incoming producer's home.
         let source = match &home.origin {
-            crate::target_operations::TargetStructuralHomeOrigin::OperationResult {
-                operation,
-                ..
-            } => crate::target_operations::TargetStructuralArgumentSource::StructuralHome {
+            target_operations::TargetStructuralHomeOrigin::OperationResult {
+                operation, ..
+            } => target_operations::TargetStructuralArgumentSource::StructuralHome {
                 psi_operation: *operation,
             },
-            crate::target_operations::TargetStructuralHomeOrigin::BlockParameter {
+            target_operations::TargetStructuralHomeOrigin::BlockParameter {
                 block,
                 declaration,
             } => {
                 if argument.access != StructuralAccess::SharedBorrow {
                     return Err(invalid());
                 }
-                crate::target_operations::TargetStructuralArgumentSource::BlockParameter {
+                target_operations::TargetStructuralArgumentSource::BlockParameter {
                     block: *block,
                     place: declaration.place,
                 }
@@ -126,7 +125,7 @@ pub(super) fn argument(
         path: argument.path.clone(),
         root_structural_type: root_type,
         structural_type: selected,
-        shape: crate::calling_conventions::ValueShape::borrowed_reference(
+        shape: calling_conventions::ValueShape::borrowed_reference(
             shape.byte_size,
             shape.alignment,
         ),

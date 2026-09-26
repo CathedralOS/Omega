@@ -1,8 +1,6 @@
 use super::{BoundsCheckResult, RangeFacts, check_indexed_access};
 use crate::tests::front_end::{checked_program_result, typed_program};
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, ExpressionNode, TableIndexedExpression,
-};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableIndexedExpression};
 
 mod length_endpoints;
 mod lower_bounds;
@@ -12,7 +10,7 @@ fn fixture(
     collection_type: &str,
     access: &str,
 ) -> (
-    symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    typed_trees::TypedTrees,
     ExpressionHandle,
     TableIndexedExpression,
 ) {
@@ -920,16 +918,16 @@ fn length_difference_offset_reads_ensured_result_bounds() {
 fn nested_index_traversal_checks_each_collection_extent() {
     for (access, accepted) in [("[3][1]", true), ("[4][1]", false), ("[3][2]", false)] {
         let (program, _, _) = fixture("[[u8; 2]; 4]", access);
-        let frames = crate::validation::CallFrameResolver::new(&program);
+        let frames = validation::CallFrameResolver::new(&program);
         let incoming = crate::checks::ranges::incoming_guards::IncomingGuardIndex::build(
             &program,
             frames.as_ref(),
         );
         let checked = crate::checks::ranges::check_indexed_accesses(
             &program,
-            &crate::checked_trees::CheckedOperatorFacts::default(),
-            &crate::checked_trees::BorrowFacts::default(),
-            &crate::checked_trees::FlowFacts::default(),
+            &checked_trees::CheckedOperatorFacts::default(),
+            &checked_trees::BorrowFacts::default(),
+            &checked_trees::FlowFacts::default(),
             frames.as_ref(),
             &incoming,
             &crate::flow::StateMutationSummaryCache::default(),

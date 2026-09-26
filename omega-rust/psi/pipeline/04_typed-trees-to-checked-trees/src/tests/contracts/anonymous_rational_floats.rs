@@ -1,13 +1,11 @@
 use super::super::lower_typed_trees;
 use super::parse_typed_trees;
 use crate::CheckingRequest;
-use crate::checked_trees::{CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees};
+use checked_trees::{CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees};
 use numerics::literals::FloatFormat;
 use semantic_vocabulary::IeeeFloatValue;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, ExpressionNode,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::statement::StatementNode;
 
 #[derive(Clone, Copy, Debug)]
 enum Destination {

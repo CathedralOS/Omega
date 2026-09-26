@@ -1,15 +1,13 @@
 use language_semantics::declaration_selection::CollectionViewOperation;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, ExpressionNode,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
-use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::machine::Machine;
+use typed_trees::state::State;
 
 use super::super::facts::RangeFacts;
 use super::integers::provable_range_bounds;
 
 pub(in crate::checks::ranges) fn expression_indexable_length(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
     facts: &RangeFacts<'_>,
@@ -68,7 +66,7 @@ pub(in crate::checks::ranges) fn expression_indexable_length(
 }
 
 fn range_result_length(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &RangeFacts<'_>,
     index: ExpressionHandle,
     length: usize,
@@ -90,7 +88,7 @@ fn range_result_length(
 /// `b - a` elements regardless of the base length (window-shrinking length
 /// fact). An open-ended range (`a..`) has no derivable length without the base.
 fn fixed_range_window_length(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &RangeFacts<'_>,
     index: ExpressionHandle,
 ) -> Option<usize> {
@@ -108,7 +106,7 @@ fn fixed_range_window_length(
 }
 
 fn fixed_array_expression_length(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
     facts: &RangeFacts<'_>,

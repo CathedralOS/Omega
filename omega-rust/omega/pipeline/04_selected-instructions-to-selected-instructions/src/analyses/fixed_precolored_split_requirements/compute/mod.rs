@@ -8,16 +8,16 @@ mod work;
 
 use optimization_core::OptimizationWorkBudget;
 
-use crate::register_homes::{
-    FixedPrecoloredIntervalPolicy, FixedPrecoloredSplitRequirementPlan,
-    FixedPrecoloredSplitRequirementPolicy, FunctionAllocationLegality,
-    FunctionFixedPrecoloredIntervals, FunctionFixedPrecoloredSplitRequirements,
-};
 use crate::{
     FixedPrecoloredSplitRequirementError, ValidatedAllocationLegality,
     ValidatedFixedPrecoloredIntervals, ValidatedLiveRanges,
 };
-use target_operations_to_selected_instructions::FunctionLiveRanges;
+use register_homes::{
+    FixedPrecoloredIntervalPolicy, FixedPrecoloredSplitRequirementPlan,
+    FixedPrecoloredSplitRequirementPolicy, FunctionAllocationLegality,
+    FunctionFixedPrecoloredIntervals, FunctionFixedPrecoloredSplitRequirements,
+};
+use selected_instructions::FunctionLiveRanges;
 
 pub(super) fn compute(
     ranges: &ValidatedLiveRanges,

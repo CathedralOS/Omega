@@ -5,16 +5,16 @@
 
 use crate::lowering::expression::lower_expression_into_table;
 use crate::resolution::lowerer::Lowerer;
-use crate::symbol_resolved_trees::types::{
+use arena::HandleSpan;
+use diagnostics::Diagnostic;
+use symbol_resolved_trees::types::{
     ConstrainedTypeReference, ConstrainedTypeReferenceStorage, FixedArrayLength,
     FixedArrayTypeReference, FixedArrayTypeReferenceStorage, GenericTypeReference,
     GenericTypeReferenceStorage, ReferenceTypeReference, ReferenceTypeReferenceStorage,
     SliceTypeReference, SliceTypeReferenceStorage, TypeConstraint, TypeReference,
 };
-use arena::HandleSpan;
-use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use tokens_to_syntax_trees::syntax_trees::{self as syntax, SyntaxTrees};
+use syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_type_reference_handle(
     lowerer: &mut Lowerer,
@@ -150,12 +150,10 @@ pub(crate) fn lower_type_reference_handle(
             .tables
             .types
             .generic_application_origins
-            .insert(
-                crate::symbol_resolved_trees::types::GenericApplicationOrigin {
-                    instance,
-                    application,
-                },
-            );
+            .insert(symbol_resolved_trees::types::GenericApplicationOrigin {
+                instance,
+                application,
+            });
     }
     Ok(lowered)
 }
@@ -435,7 +433,7 @@ fn lower_type_constraint_handle(
                 selection_start,
             );
             Ok(TypeConstraint::Domain(
-                crate::symbol_resolved_trees::types::DomainConstraint {
+                symbol_resolved_trees::types::DomainConstraint {
                     name: crate::lowering::name::lower_name(&domain.name),
                     arguments,
                 },

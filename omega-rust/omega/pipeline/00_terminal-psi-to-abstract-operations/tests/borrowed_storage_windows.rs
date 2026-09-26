@@ -9,6 +9,7 @@
 //! the optimization-unit construction and semantic validation accept them
 //! as structural state events rather than scalar or pure operations.
 
+use abstract_operations::AbstractOperation;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{
     BlockId, CanonicalStructuralPathSegment, ContractId, EdgeId, MachineId, OperationId, PlaceId,
@@ -23,7 +24,6 @@ use terminal_psi::{
     StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
     VocabularyMarker,
 };
-use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
 use terminal_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact};
 use terminal_verifier::{ModuleError, ProofBundle};
 
@@ -235,10 +235,7 @@ fn window_module() -> TerminalModule {
 
 fn lower(
     module: &TerminalModule,
-) -> Result<
-    terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan,
-    ArtifactLoweringError,
-> {
+) -> Result<abstract_operations::AbstractOperationPlan, ArtifactLoweringError> {
     let semantic = encode_module(module).expect("semantic module encodes");
     let proof = encode_proof_section(module, &ProofBundle::default()).expect("empty proof encodes");
     lower_artifact(
@@ -336,7 +333,7 @@ fn window_pair_builds_and_validates_its_optimization_unit() {
     )
     .expect("window pair constructs a verified unit");
     let unit = verified.unit();
-    terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(unit)
+    optimization_unit_semantics::validate_psi_optimization_unit(unit)
         .expect("window unit validates");
     // Provenance keeps the Terminal operation identities through unit
     // construction for both sides of the window.
@@ -345,7 +342,7 @@ fn window_pair_builds_and_validates_its_optimization_unit() {
         assert!(
             node.provenance.iter().any(|row| matches!(
                 row,
-                terminal_psi_to_abstract_operations::optimization_unit::PsiProvenance::Operation(operation)
+                optimization_unit::PsiProvenance::Operation(operation)
                     if *operation == id::<OperationId>(expected)
             )),
             "node lost its Terminal operation provenance"
@@ -359,7 +356,7 @@ fn window_pair_builds_and_validates_its_optimization_unit() {
         _ => unreachable!(),
     }
     assert_ne!(
-        terminal_psi_to_abstract_operations::optimization_unit::recompute_psi_optimization_unit_identity(&changed),
+        optimization_unit::recompute_psi_optimization_unit_identity(&changed),
         unit.identity,
         "field rename must change the canonical unit identity"
     );

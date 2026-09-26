@@ -27,12 +27,12 @@ pub(super) fn primitive_type(
 pub(super) fn capture_is_current<'program>(
     program: &'program TypedTrees,
     facts: &CheckFacts,
-    machine: &'program symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &'program typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     statement_index: usize,
     argument: ExpressionHandle,
     later_arguments: &[ExpressionHandle],
-    frames: Option<&crate::validation::CallFrameResolver<'program>>,
+    frames: Option<&validation::CallFrameResolver<'program>>,
 ) -> bool {
     let parameters = program.state_parameters(state);
     let mut occurrences = Vec::new();
@@ -46,7 +46,7 @@ pub(super) fn capture_is_current<'program>(
         .filter_map(|expression| {
             direct_parameter(program, parameters, *expression)
                 .filter(|parameter| parameter.is_mutable)
-                .map(|parameter| crate::fact_plan::PlaceRoot::Symbol(parameter.symbol))
+                .map(|parameter| facts::PlaceRoot::Symbol(parameter.symbol))
         })
         .collect::<Vec<_>>();
     if captured.is_empty() || later_arguments.is_empty() {
@@ -148,7 +148,7 @@ fn meaning(
         }
         ExpressionNode::Integer(literal) => {
             let primitive = crate::values::scalar_expression_type(
-                &crate::checked_trees::CheckedScalarExpression::IntegerLiteral {
+                &checked_trees::CheckedScalarExpression::IntegerLiteral {
                     literal: literal.clone(),
                 },
             )?;
@@ -170,7 +170,7 @@ fn meaning(
                     program
                         .type_reference_table
                         .type_reference(cast.target_type),
-                    symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named { .. }
+                    typed_trees::types::TypeReferenceNode::Named { .. }
                 )
             {
                 return None;
@@ -180,13 +180,11 @@ fn meaning(
             // Widen the value, not the arithmetic inside its operand. Recursing
             // through meaning keeps wrapping/selected computations out of the
             // mathematical substitution even when the final carrier is Exact.
-            crate::validation::integer_widen_is_total(source.primitive, primitive).then_some(
-                Meaning {
-                    primitive,
-                    domain: ArithmeticDomain::Exact,
-                    type_reference: Some(cast.target_type),
-                },
-            )
+            validation::integer_widen_is_total(source.primitive, primitive).then_some(Meaning {
+                primitive,
+                domain: ArithmeticDomain::Exact,
+                type_reference: Some(cast.target_type),
+            })
         }
         ExpressionNode::Binary(binary) => {
             let spelling = match binary.operator {
@@ -230,7 +228,7 @@ fn meaning(
                     &facts.operators,
                     expression,
                 )
-                || !symbol_resolved_trees_to_typed_trees::typed_trees::operator::has_builtin_spelled_expression_meaning(
+                || !typed_trees::operator::has_builtin_spelled_expression_meaning(
                     program,
                     owner,
                     expression,

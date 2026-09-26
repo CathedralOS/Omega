@@ -4,15 +4,13 @@ use crate::checks::multiplicity::linear_obligations::{LinearClaimTemplate, Linea
 use crate::checks::multiplicity::linear_validation::permission_production::established_provenance;
 use crate::checks::multiplicity::type_multiplicity::{data_field_name, type_multiplicity};
 use language_semantics::{Multiplicity, PermissionEventSource};
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
-    TypeReferenceHandle, TypeReferenceNode,
-};
 use symbols::SymbolHandle;
+use typed_trees::statement::StatementNode;
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn initial_linear_places(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
 ) -> Vec<LinearPlace> {
@@ -102,9 +100,9 @@ pub(crate) fn initial_linear_places(
                 program
                     .type_reference_table
                     .type_reference(local.type_reference),
-                symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named { .. }
-                    | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Generic { .. }
-                    | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::FixedArray { .. }
+                typed_trees::types::TypeReferenceNode::Named { .. }
+                    | typed_trees::types::TypeReferenceNode::Generic { .. }
+                    | typed_trees::types::TypeReferenceNode::FixedArray { .. }
             )
         {
             places.push(LinearPlace {
@@ -129,10 +127,10 @@ pub(crate) fn initial_linear_places(
 /// cannot diverge. Templates keep the checker's fields; every frontier claim
 /// is linear by construction and `conditional` rides the case-segment test.
 pub(crate) fn linear_claim_frontier(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Vec<LinearClaimTemplate> {
-    crate::validation::linear_claim_frontier(program, type_reference)
+    validation::linear_claim_frontier(program, type_reference)
         .into_iter()
         .map(|claim| LinearClaimTemplate {
             path: claim.path,
@@ -144,17 +142,17 @@ pub(crate) fn linear_claim_frontier(
 }
 
 fn claim_place_name(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     root: &str,
-    path: &[crate::fact_plan::PlaceSegment],
+    path: &[facts::PlaceSegment],
 ) -> String {
     let mut name = root.to_owned();
     for segment in path {
         match segment {
-            crate::fact_plan::PlaceSegment::Case { variant } => {
+            facts::PlaceSegment::Case { variant } => {
                 let case = program.data_definitions().iter().find_map(|definition| {
                     program.data_members(definition).iter().find_map(|member| {
-                        let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(candidate) = member else {
+                        let typed_trees::data::DataMember::Variant(candidate) = member else {
                             return None;
                         };
                         (candidate.symbol == *variant).then_some(candidate.name.as_str())
@@ -163,24 +161,24 @@ fn claim_place_name(
                 name.push_str("::");
                 name.push_str(case.unwrap_or("<case>"));
             }
-            crate::fact_plan::PlaceSegment::Field { symbol } => {
+            facts::PlaceSegment::Field { symbol } => {
                 let field = data_field_name(program, *symbol);
                 name.push('.');
                 name.push_str(field.unwrap_or("<field>"));
             }
-            crate::fact_plan::PlaceSegment::FixedIndex { index } => {
+            facts::PlaceSegment::FixedIndex { index } => {
                 name.push('[');
                 name.push_str(&index.to_string());
                 name.push(']');
             }
-            crate::fact_plan::PlaceSegment::FixedRange { start, end } => {
+            facts::PlaceSegment::FixedRange { start, end } => {
                 name.push('[');
                 name.push_str(&start.to_string());
                 name.push_str("..");
                 name.push_str(&end.to_string());
                 name.push(']');
             }
-            crate::fact_plan::PlaceSegment::Index { .. } => name.push_str("[<index>]"),
+            facts::PlaceSegment::Index { .. } => name.push_str("[<index>]"),
         }
     }
     name

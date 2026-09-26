@@ -1,19 +1,17 @@
 //! Rejoin the complete authored successor roster before partitioning its namespaces.
 
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
+use checked_trees::{
+    CheckedScalarStateGraph, CheckedScalarSuccessor, CheckedStructuralAccess,
+    CheckedStructuralControlTransferSourcePlan, CheckedStructuralScalarArgumentSourcePlan,
+    CheckedTrees,
+};
 use language_semantics::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
     PermissionEventSource, PermissionProvenance,
 };
 use symbols::SymbolHandle;
-use typed_trees_to_checked_trees::checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees_to_checked_trees::checked_trees::statement::{
-    StatementNode, TransitionExit, TransitionTargetNode,
-};
-use typed_trees_to_checked_trees::checked_trees::{
-    CheckedScalarStateGraph, CheckedScalarSuccessor, CheckedStructuralAccess,
-    CheckedStructuralControlTransferSourcePlan, CheckedStructuralScalarArgumentSourcePlan,
-    CheckedTrees,
-};
 
 use super::{authored_state, parameter_storage};
 use crate::lowering_error::LoweringError;
@@ -218,14 +216,14 @@ pub(super) fn validate(
             }
             CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
                 root:
-                    typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::Parameter {
+                    checked_trees::CheckedStorageRoot::Parameter {
                         index: source_index,
                     },
                 expression,
             }
             | CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
                 root:
-                    typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::Parameter {
+                    checked_trees::CheckedStorageRoot::Parameter {
                         index: source_index,
                     },
                 expression,
@@ -291,15 +289,15 @@ pub(super) fn validate(
                             || selected.candidate_count != 0
                             || !matches!(
                                 selected.status,
-                                typed_trees_to_checked_trees::checked_trees::CheckedOperatorResolutionStatus::Missing
-                                    | typed_trees_to_checked_trees::checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+                                checked_trees::CheckedOperatorResolutionStatus::Missing
+                                    | checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
                             ))
                 }) {
                     return unsupported(
                         "scalar successor subslice no longer selects builtin range meaning",
                     );
                 }
-                if !typed_trees_to_checked_trees::validation::has_builtin_subslice_meaning(
+                if !validation::has_builtin_subslice_meaning(
                     &checked.typed,
                     machine,
                     Some(state),
@@ -312,16 +310,16 @@ pub(super) fn validate(
                 for (endpoint, role) in [
                     (
                         range.start,
-                        typed_trees_to_checked_trees::checked_trees::CheckedScalarExpressionRole::SubsliceStart {
-                            site: typed_trees_to_checked_trees::checked_trees::CheckedSubsliceSite::TransitionArgument {
+                        checked_trees::CheckedScalarExpressionRole::SubsliceStart {
+                            site: checked_trees::CheckedSubsliceSite::TransitionArgument {
                                 argument_ordinal: retained_target.position,
                             },
                         },
                     ),
                     (
                         range.end,
-                        typed_trees_to_checked_trees::checked_trees::CheckedScalarExpressionRole::SubsliceEnd {
-                            site: typed_trees_to_checked_trees::checked_trees::CheckedSubsliceSite::TransitionArgument {
+                        checked_trees::CheckedScalarExpressionRole::SubsliceEnd {
+                            site: checked_trees::CheckedSubsliceSite::TransitionArgument {
                                 argument_ordinal: retained_target.position,
                             },
                         },
@@ -379,7 +377,7 @@ fn graph_state(
 
 fn source_parameter_position(
     checked: &CheckedTrees,
-    parameters: &[typed_trees_to_checked_trees::checked_trees::signature::StateParameter],
+    parameters: &[checked_trees::signature::StateParameter],
     expression: ExpressionHandle,
 ) -> Result<usize, LoweringError> {
     let ExpressionNode::Name(name) = checked.expression_table.expression(expression) else {
@@ -416,8 +414,7 @@ fn validate_affine_permission(
         .filter(|event| {
             event.machine_symbol == machine
                 && event.state_symbol == state
-                && event.root
-                    == typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(parameter)
+                && event.root == facts::PlaceRoot::Symbol(parameter)
                 && event.access == PermissionAccess::Owned
                 && event.source == permission_source
         });
@@ -442,7 +439,7 @@ fn validate_affine_permission(
 
 pub(crate) fn normalize_machine_state_target(
     checked: &CheckedTrees,
-    machine: &typed_trees_to_checked_trees::checked_trees::machine::Machine,
+    machine: &checked_trees::machine::Machine,
     target: SymbolHandle,
 ) -> Result<SymbolHandle, LoweringError> {
     let states = checked.machine_states(machine);
@@ -474,7 +471,7 @@ pub(crate) fn normalize_machine_state_target(
 fn transition_permission_source(
     checked: &CheckedTrees,
     machine: SymbolHandle,
-    state: &typed_trees_to_checked_trees::checked_trees::state::State,
+    state: &checked_trees::state::State,
     successor: &CheckedScalarSuccessor,
 ) -> Result<PermissionEventSource, LoweringError> {
     let statement_index = successor.statement_ordinal as usize;

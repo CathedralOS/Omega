@@ -10,17 +10,15 @@ mod function;
 use std::collections::BTreeSet;
 
 use crate::{LiveRangeError, ValidatedLiveness};
-use target_operations_to_selected_instructions::register_model::{
-    RegisterOperandAccess, RegisterUnitId,
-};
-use target_operations_to_selected_instructions::{
+use register_model::{RegisterOperandAccess, RegisterUnitId};
+use selected_instructions::{
     ArchitecturalUnitAction, ArchitecturalUnitActionKind, ArchitecturalUnitLiveRange,
     BlockLiveness, BlockPointDomain, DistinctUseDefTie, EarlyClobberConstraint, EarlyClobberUse,
     FunctionLiveRanges, LiveRangeEdgeConnector, LiveRangeFragment, LiveRangePlan, LiveRangePoint,
     LivenessPosition, VirtualFixedConstraint, VirtualFixedConstraintSite, VirtualInterference,
     VirtualLiveRange, VirtualOccurrence,
 };
-use target_operations_to_selected_instructions::{SelectedBlockId, VirtualRegisterId};
+use selected_instructions::{SelectedBlockId, VirtualRegisterId};
 
 use architectural_units::architectural_units;
 #[cfg(test)]

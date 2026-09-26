@@ -1,9 +1,9 @@
 use crate::ValidatedLegalizedOperations;
-use crate::selected_instructions::{SelectedFixedInputConstraint, SelectedSelectionConstraints};
-use abstract_operations_to_target_operations::target_operations::MachineRegister;
+use selected_instructions::{SelectedFixedInputConstraint, SelectedSelectionConstraints};
 use semantic_vocabulary::MachineId;
+use target_operations::MachineRegister;
 
-use crate::register_environment::ValidatedTargetRegisterEnvironment;
+use register_environment::ValidatedTargetRegisterEnvironment;
 
 pub fn selection_constraints(
     legalized: &ValidatedLegalizedOperations,
@@ -17,7 +17,7 @@ pub fn selection_constraints(
                 continue;
             }
             if let [
-                abstract_operations_to_target_operations::calling_conventions::ValueLocation::Register {
+                calling_conventions::ValueLocation::Register {
                     register,
                     value_byte_offset: 0,
                     byte_size: _,

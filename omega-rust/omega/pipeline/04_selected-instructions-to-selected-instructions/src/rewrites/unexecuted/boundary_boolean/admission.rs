@@ -5,15 +5,13 @@
 //! prove one compare operand sits at a carrier-domain pole that fixes the
 //! predicate, or collapses it to equality, without consulting the other.
 use optimization_core::OptimizationWorkBudget;
-use semantic_vocabulary::IntegerValue;
-use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
-use target_operations_to_selected_instructions::register_model::{
-    RegisterInstructionConstraint, RegisterOperandAccess,
-};
-use target_operations_to_selected_instructions::{
+use register_environment::ValidatedTargetRegisterEnvironment;
+use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
+use selected_instructions::{
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionProvenance, VirtualRegisterId,
 };
+use semantic_vocabulary::IntegerValue;
 
 use super::BoundaryBooleanError;
 use crate::ValidatedSelectedAnalysis;
@@ -367,8 +365,8 @@ pub(super) fn rewritten(admitted: &Admission<'_>) -> SelectedInstruction {
                     .operands
                     .iter()
                     .zip([admitted.result])
-                    .map(|(operand, register)| {
-                        target_operations_to_selected_instructions::SelectedOperand {
+                    .map(
+                        |(operand, register)| selected_instructions::SelectedOperand {
                             operand: operand.operand,
                             virtual_register: register,
                             access: operand.access,
@@ -376,8 +374,8 @@ pub(super) fn rewritten(admitted: &Admission<'_>) -> SelectedInstruction {
                             fixed_view: operand.fixed_view,
                             tied_to: operand.tied_to,
                             early_clobber: operand.early_clobber,
-                        }
-                    })
+                        },
+                    )
                     .collect(),
                 implicit_uses: row.implicit_uses.clone(),
                 implicit_defs: row.implicit_defs.clone(),

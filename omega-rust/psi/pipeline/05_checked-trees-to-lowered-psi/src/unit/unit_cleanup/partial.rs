@@ -11,9 +11,7 @@ use super::{
 use crate::producer_result::SourceMappedLowered;
 use crate::unit::attached_unit::bodies::UnitPlans;
 use crate::unit::attached_unit::{UnitClosureRequest, lower_unit_closure};
-use typed_trees_to_checked_trees::checked_trees::{
-    CheckedStructuralAccess, CheckedUnitStructuralArgumentSourcePlan,
-};
+use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralArgumentSourcePlan};
 
 mod anonymous;
 mod residuals;
@@ -676,7 +674,7 @@ fn checked_partial_affine_field_type(field_type: &CheckedUnitStructuralFieldType
         CheckedUnitStructuralFieldType::Structural { .. }
             | CheckedUnitStructuralFieldType::BoundedInteger(_)
             | CheckedUnitStructuralFieldType::ByteSequence(
-                typed_trees_to_checked_trees::checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
+                checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
             )
             | CheckedUnitStructuralFieldType::Scalar(
                 PrimitiveType::Bool

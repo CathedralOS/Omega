@@ -13,9 +13,9 @@ and complete retained FMA coverage, then constructs the private receipt.
 
 The replay mechanisms have distinct authored roles:
 
-- [Local initializers](src/boundary_operator_custody.rs)
+- [Local initializers](src/boundary_operator_custody/local_initializers.rs)
   join selected calls and FMA occurrences at exact state and call coordinates.
-- [Structural returns](../../../omega/pipeline/09_resolved-layout-to-resolved-layout/src/image_emission/installation_record/record_shape/structural_returns.rs)
+- [Structural returns](src/boundary_operator_custody/structural_returns.rs)
   join selected return calls to their expression-role applications.
 - [Float comparisons](src/boundary_operator_custody/float_comparisons.rs)
   check the complete Terminal comparison roster, selected meaning, operand
@@ -23,12 +23,5 @@ The replay mechanisms have distinct authored roles:
 
 Receipt fields remain private. Source custody cannot replace canonical coverage
 or grant downstream realization authority. The product coordinator in
-[terminal_production](src/terminal_production/mod.rs) sequences
-optimization, artifact publication and source receipt construction. Its
-`TerminalProductionRequest::produce` lowers the selected machine
-(05_checked-trees-to-lowered-psi), runs the selected Psi optimization
-(06_lowered-psi-to-lowered-psi), and publishes the canonical artifact through
-this stage; checked-source receipts stay beside the portable artifact, not
-inside it. The [scalar computation and call map](scalar_calls.md) covers
-authored occurrence replay, argument evaluation, and shared ordinary/composed
-call closures.
+[terminal-production](../../compiler/terminal-production/README.md) sequences
+optimization, artifact publication and source receipt construction.

@@ -18,10 +18,13 @@ use optimization_core::OptimizationWorkBudget;
 use crate::{
     RegisterHomeError, ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes,
 };
-use selected_instructions_to_selected_instructions::register_homes::{
+use register_homes::{
     AllocationLegalityIdentity, PostAllocationOptimizationManifestError,
     RecoveryClassificationIdentity, RecoveryClassificationPolicy, SpillChoiceIdentity,
     SpillChoicePolicy,
+};
+use selected_instructions::{
+    LiveRangeIdentity, LivenessIdentity, PressureRematerializationIdentity,
 };
 use selected_instructions_to_selected_instructions::{
     AllocationLegalityError, LiveRangeError, LivenessError,
@@ -30,9 +33,6 @@ use selected_instructions_to_selected_instructions::{
     StagedOptimizedAllocationLegality, StagedOptimizedAllocationLegalityCustodyReceipt,
     ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
     ValidatedPressureRematerialization, ValidatedRecoveryClassifications, ValidatedSpillChoices,
-};
-use target_operations_to_selected_instructions::{
-    LiveRangeIdentity, LivenessIdentity, PressureRematerializationIdentity,
 };
 
 /// Stage the proven rematerialization sweep without attempting terminal
@@ -128,7 +128,7 @@ impl StagedOptimizedActiveResidentRematerialization {
     /// preserves it, so the source's environment is the current one.
     pub const fn register_environment(
         &self,
-    ) -> &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment{
+    ) -> &register_environment::ValidatedTargetRegisterEnvironment {
         self.source.register_environment()
     }
     /// The governing optimizer selections admitted with the retained stage.
@@ -193,8 +193,7 @@ pub struct StagedOptimizedActiveResidentRematerializationCustodyReceipt {
     rematerialization_policy: PressureRematerializationPolicy,
     rematerialization_usage: optimization_core::OptimizationWorkUsage,
     budget: OptimizationWorkBudget,
-    transformed_selected:
-        target_operations_to_selected_instructions::SelectedInstructionPlanIdentity,
+    transformed_selected: selected_instructions::SelectedInstructionPlanIdentity,
     liveness: LivenessIdentity,
     ranges: LiveRangeIdentity,
     legality: AllocationLegalityIdentity,
@@ -243,7 +242,7 @@ impl StagedOptimizedActiveResidentRematerializationCustodyReceipt {
     }
     pub const fn transformed_selected(
         self,
-    ) -> target_operations_to_selected_instructions::SelectedInstructionPlanIdentity {
+    ) -> selected_instructions::SelectedInstructionPlanIdentity {
         self.transformed_selected
     }
     pub const fn liveness(self) -> LivenessIdentity {
@@ -348,8 +347,7 @@ pub struct StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt 
     rematerialization_policy: PressureRematerializationPolicy,
     rematerialization_usage: optimization_core::OptimizationWorkUsage,
     budget: OptimizationWorkBudget,
-    transformed_selected:
-        target_operations_to_selected_instructions::SelectedInstructionPlanIdentity,
+    transformed_selected: selected_instructions::SelectedInstructionPlanIdentity,
     liveness: LivenessIdentity,
     ranges: LiveRangeIdentity,
     legality: AllocationLegalityIdentity,
@@ -395,7 +393,7 @@ impl StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt {
     }
     pub const fn transformed_selected(
         self,
-    ) -> target_operations_to_selected_instructions::SelectedInstructionPlanIdentity {
+    ) -> selected_instructions::SelectedInstructionPlanIdentity {
         self.transformed_selected
     }
     pub const fn liveness(self) -> LivenessIdentity {

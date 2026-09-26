@@ -1,4 +1,4 @@
-use crate::checked_trees::{
+use checked_trees::{
     BorrowAccessKind, BorrowCompatibilityConclusion, BorrowCompatibilityDerivation,
     BorrowCompatibilityFormation, CheckFacts, CheckedBorrowCompatibilityCertificate,
     CheckedBorrowMutationCertificate, FlowStateFact,
@@ -43,7 +43,7 @@ fn mutation_replay_diagnostic(drift: CompatibilityReplayDrift) -> Diagnostic {
 }
 
 pub(super) fn check_statement_borrows<'p>(
-    program: &'p symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &'p typed_trees::TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     stated_premises: &[StatedOrderingPremise],
@@ -55,8 +55,8 @@ pub(super) fn check_statement_borrows<'p>(
     retained_mutation_certificates: &[CheckedBorrowMutationCertificate],
     retained_mutation_certificates_consumed: &mut [bool],
     state_mutation_summaries: &StateMutationSummaryCache,
-    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
-    bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) {
     let Some(state) =
         find_state_in_machine(program, state_flow.machine_symbol, state_flow.state_symbol)
@@ -98,7 +98,7 @@ pub(super) fn check_statement_borrows<'p>(
             continue;
         };
 
-        if let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::RootBinding(binding) = statement_node {
+        if let typed_trees::statement::StatementNode::RootBinding(binding) = statement_node {
             super::calls::check_exclusive_place_use(
                 program,
                 facts,
@@ -409,15 +409,15 @@ pub(super) fn check_statement_borrows<'p>(
 /// Guard/argument calls, carried references and reborrow lineages keep their
 /// existing checks; a syntactic jump alone is not release evidence.
 fn check_call_mutation_borrows<'p>(
-    program: &'p symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &'p typed_trees::TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
-    borrow_state: &crate::checked_trees::StateBorrowFact,
+    borrow_state: &checked_trees::StateBorrowFact,
     stated_premises: &[StatedOrderingPremise],
     diagnostics: &mut Vec<Diagnostic>,
     summary_cache: &StateMutationSummaryCache,
-    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
-    bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) {
     for borrow_call in facts.borrow.calls.span_or_empty(borrow_state.calls) {
         let mutated_places = call_write_accesses(
@@ -506,10 +506,10 @@ fn check_call_mutation_borrows<'p>(
 /// Calls in its guard or arguments are ordinary pre-exit calls. Keep carried
 /// loans out of this judgment: their successor use needs its own correspondence.
 fn source_exiting_without_carried_borrows<'program>(
-    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &'program typed_trees::TypedTrees,
     flow: &FlowStateFact,
-    call: &crate::checked_trees::BorrowCallFact,
-) -> Option<&'program symbol_resolved_trees_to_typed_trees::typed_trees::state::State> {
+    call: &checked_trees::BorrowCallFact,
+) -> Option<&'program typed_trees::state::State> {
     let source = find_state_in_machine(program, flow.machine_symbol, flow.state_symbol)?;
     let target = find_state_in_machine(program, flow.machine_symbol, call.target_symbol)?;
     let site = crate::semantic::calls::find_call_site(
@@ -533,9 +533,8 @@ fn source_exiting_without_carried_borrows<'program>(
     let mut positional = parameters.iter().filter(|parameter| !parameter.is_self);
     for argument in arguments {
         let parameter = positional.next()?;
-        let actual = crate::validation::expression_result_type_reference(
-            program, machine, source, *argument,
-        )?;
+        let actual =
+            validation::expression_result_type_reference(program, machine, source, *argument)?;
         for reference in [parameter.type_reference, actual] {
             // Use the closed lifetime frontier, not the discovery-only owner
             // paths query: an unknown type is not evidence of absent loans.
@@ -563,50 +562,50 @@ fn source_exiting_without_carried_borrows<'program>(
 /// was itself produced by rebasing through the named source, and the pair's
 /// compatibility certificate still retains the honest spatial conclusion.
 pub(super) fn carried_authority(
-    forming_loan: &crate::checked_trees::BorrowLoanFact,
-    active_loan_handle: arena::Handle<crate::checked_trees::BorrowLoanFact>,
-    active_loan: &crate::checked_trees::BorrowLoanFact,
-    active_access: &crate::checked_trees::BorrowAccessKind,
-    containment: crate::checked_trees::CapturedPlaceContainment,
+    forming_loan: &checked_trees::BorrowLoanFact,
+    active_loan_handle: arena::Handle<checked_trees::BorrowLoanFact>,
+    active_loan: &checked_trees::BorrowLoanFact,
+    active_access: &checked_trees::BorrowAccessKind,
+    containment: checked_trees::CapturedPlaceContainment,
 ) -> bool {
     if !active_access.is_exclusive()
         || !matches!(
             containment,
-            crate::checked_trees::CapturedPlaceContainment::Same
-                | crate::checked_trees::CapturedPlaceContainment::RightContainsLeft
+            checked_trees::CapturedPlaceContainment::Same
+                | checked_trees::CapturedPlaceContainment::RightContainsLeft
         )
     {
         return false;
     }
     match forming_loan.lineage {
-        crate::checked_trees::BorrowLoanLineage::Reborrow { parent_loan } => {
+        checked_trees::BorrowLoanLineage::Reborrow { parent_loan } => {
             parent_loan == active_loan_handle
         }
-        crate::checked_trees::BorrowLoanLineage::UnretainedDerived => {
+        checked_trees::BorrowLoanLineage::UnretainedDerived => {
             forming_loan.source_owner_symbol == active_loan.owner_symbol
         }
-        crate::checked_trees::BorrowLoanLineage::DirectRoot => false,
+        checked_trees::BorrowLoanLineage::DirectRoot => false,
     }
 }
 
 fn local_loan_ends_before_successor(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     flow: &FlowStateFact,
-    source: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-    loan_handle: arena::Handle<crate::checked_trees::BorrowLoanFact>,
+    source: &typed_trees::state::State,
+    loan_handle: arena::Handle<checked_trees::BorrowLoanFact>,
 ) -> bool {
     let loan = facts.borrow.loans.get(loan_handle);
-    if loan.lineage != crate::checked_trees::BorrowLoanLineage::DirectRoot
+    if loan.lineage != checked_trees::BorrowLoanLineage::DirectRoot
         || !program
             .statement_table
             .statements(source.statement_nodes)
             .iter()
             .any(|statement| {
-                matches!(statement, symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local)
+                matches!(statement, typed_trees::statement::StatementNode::LocalData(local)
                 if local.symbol == loan.owner_symbol && matches!(
                     program.type_reference_table.type_reference(local.type_reference),
-                    symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { .. }
+                    typed_trees::types::TypeReferenceNode::Reference { .. }
                 ))
             })
     {
@@ -623,10 +622,9 @@ fn local_loan_ends_before_successor(
                 && resource.machine_symbol == flow.machine_symbol
                 && resource.state_symbol == flow.state_symbol
                 && resource.parent_lifetime.root_symbol == loan.root_symbol
-                && resource.weakening_reason
-                    == crate::checked_trees::FlowBorrowWeakeningReason::StateExit
+                && resource.weakening_reason == checked_trees::FlowBorrowWeakeningReason::StateExit
                 && resource.weakening_source
-                    == crate::checked_trees::FlowInvalidationSource::Statement {
+                    == checked_trees::FlowInvalidationSource::Statement {
                         statement_index: source.statement_nodes.count() as usize,
                     }
         })

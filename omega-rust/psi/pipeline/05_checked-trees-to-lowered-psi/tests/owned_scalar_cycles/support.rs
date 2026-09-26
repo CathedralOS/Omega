@@ -1,8 +1,6 @@
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use lowered_psi_to_terminal_psi::terminal_production::{
-    TerminalProductionCustody, TerminalProductionTimings,
-};
 use std::collections::BTreeSet;
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 use semantic_vocabulary::{BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, ValueId};
 use terminal_psi::{
@@ -68,7 +66,7 @@ pub fn publish(source: &str) -> (TerminalModule, ProofBundle, Vec<u8>, Vec<u8>) 
         1,
         "scratch remains owned by the authored state"
     );
-    let typed_trees_to_checked_trees::checked_trees::CheckedScalarStateTerminator::Conditional {
+    let checked_trees::CheckedScalarStateTerminator::Conditional {
         when_true,
         when_false,
         ..
@@ -76,17 +74,14 @@ pub fn publish(source: &str) -> (TerminalModule, ProofBundle, Vec<u8>, Vec<u8>) 
     else {
         panic!("authored selective transition");
     };
-    let typed_trees_to_checked_trees::checked_trees::CheckedScalarBranchDestination::Jump(
-        successor,
-    ) = when_true
-    else {
+    let checked_trees::CheckedScalarBranchDestination::Jump(successor) = when_true else {
         panic!("selected recursive successor");
     };
     assert_eq!(successor.target, states[0].symbol);
     assert_eq!(successor.argument_count, 3);
     assert!(matches!(
         when_false,
-        typed_trees_to_checked_trees::checked_trees::CheckedScalarBranchDestination::Return { .. }
+        checked_trees::CheckedScalarBranchDestination::Return { .. }
     ));
 
     let lowered = checked_trees_to_lowered_psi::lower_machine(
@@ -101,16 +96,15 @@ pub fn publish(source: &str) -> (TerminalModule, ProofBundle, Vec<u8>, Vec<u8>) 
         terminal_codec::decode_debug_map(&lowered.semantic_module, &debug_bytes).unwrap(),
         debug
     );
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("walk"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("publish cyclic walk and reset closure")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("walk"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("publish cyclic walk and reset closure")
+    .into_artifact();
     let module =
         terminal_codec::decode_module(artifact.semantic_bytes()).expect("canonical cycle decode");
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();

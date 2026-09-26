@@ -6,8 +6,7 @@
 //! view it transfers. Construction and its validation
 //! replay both ask this one question, so a newly lowered instruction family
 //! cannot be counted as a use in one and missed in the other.
-use crate::legalized_operations;
-use crate::legalized_operations::{
+use legalized_operations::{
     LegalizedScalarArgument, LegalizedScalarFunction, LegalizedScalarInstructionKind,
 };
 use semantic_vocabulary::PlaceId;
@@ -17,7 +16,7 @@ pub(super) fn referent_used(source: &LegalizedScalarFunction, place: PlaceId) ->
         || source.blocks.iter().any(|block| {
             matches!(
                 &block.terminator,
-                crate::legalized_operations::LegalizedScalarTerminator::StructuralCase {
+                legalized_operations::LegalizedScalarTerminator::StructuralCase {
                     source,
                     ..
                 } if source.place() == place

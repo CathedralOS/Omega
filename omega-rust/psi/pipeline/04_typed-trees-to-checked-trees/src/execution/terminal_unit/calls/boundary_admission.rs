@@ -19,12 +19,9 @@ use crate::execution::terminal_unit::{
 /// `Task<T>` substitutes inside the identity comparison itself.
 pub(crate) fn boundary_value_result_matches(
     program: &TypedTrees,
-    return_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    return_type: typed_trees::types::TypeReferenceHandle,
     expected: &ExpectedCallValueResult<'_>,
-    substitutions: &[(
-        SymbolHandle,
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
-    )],
+    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
 ) -> bool {
     let return_type = substituted_formal_type(program, return_type, substitutions);
     match expected {
@@ -57,13 +54,10 @@ pub(crate) fn boundary_value_result_matches(
 /// byte-sequence carriers, and no other pair of carriers agrees.
 pub(crate) fn boundary_argument_presentation_is_admitted(
     program: &TypedTrees,
-    projected_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
-    parameter_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    projected_type: typed_trees::types::TypeReferenceHandle,
+    parameter_type: typed_trees::types::TypeReferenceHandle,
     target_identity: &str,
-    substitutions: &[(
-        SymbolHandle,
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
-    )],
+    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
 ) -> bool {
     if base_type_identity(program, projected_type, &[])
         .is_some_and(|identity| identity == target_identity)
@@ -80,8 +74,8 @@ pub(crate) fn boundary_argument_presentation_is_admitted(
             ),
         ),
         (
-            Some(crate::checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }),
-            Some(crate::checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }),
+            Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }),
+            Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }),
         )
     )
 }
@@ -93,8 +87,8 @@ pub(crate) fn boundary_argument_presentation_is_admitted(
 /// storage rather than materializing a view local.
 pub(crate) fn fixed_array_slice_view_is_admitted(
     program: &TypedTrees,
-    mut source: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
-    target: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    mut source: typed_trees::types::TypeReferenceHandle,
+    target: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     if let TypeReferenceNode::Reference { referee, .. } =
         program.type_reference_table.type_reference(source)
@@ -103,8 +97,7 @@ pub(crate) fn fixed_array_slice_view_is_admitted(
     }
     let TypeReferenceNode::FixedArray {
         element_type,
-        length:
-            symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::Literal(_),
+        length: typed_trees::types::FixedArrayLength::Literal(_),
     } = program.type_reference_table.type_reference(source)
     else {
         return false;
@@ -131,8 +124,8 @@ pub(crate) fn fixed_array_slice_view_is_admitted(
 /// A fixed byte array lends initialized elements without becoming a bounded owner.
 pub(crate) fn fixed_byte_array_view_is_admitted(
     program: &TypedTrees,
-    mut source: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
-    target: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    mut source: typed_trees::types::TypeReferenceHandle,
+    target: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     if let TypeReferenceNode::Reference { referee, .. } =
         program.type_reference_table.type_reference(source)
@@ -141,8 +134,7 @@ pub(crate) fn fixed_byte_array_view_is_admitted(
     }
     let TypeReferenceNode::FixedArray {
         element_type,
-        length:
-            symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::Literal(_),
+        length: typed_trees::types::FixedArrayLength::Literal(_),
     } = program.type_reference_table.type_reference(source)
     else {
         return false;
@@ -176,10 +168,7 @@ pub(crate) fn fixed_byte_array_view_is_admitted(
 fn provider_attachment_receiver(
     program: &TypedTrees,
     call_site: &crate::semantic::calls::CallSite<'_>,
-) -> Option<(
-    symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
-    Option<SymbolHandle>,
-)> {
+) -> Option<(typed_trees::name::Identifier, Option<SymbolHandle>)> {
     match call_site {
         crate::semantic::calls::CallSite::Statement(call) => {
             let [self_name, field_name] = program.statement_table.name_path_members(call.receiver)
@@ -213,13 +202,13 @@ fn provider_attachment_receiver(
 pub(crate) fn provider_attachment_receiver_field(
     program: &TypedTrees,
     call_site: &crate::semantic::calls::CallSite<'_>,
-) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier> {
+) -> Option<typed_trees::name::Identifier> {
     provider_attachment_receiver(program, call_site).map(|(name, _)| name)
 }
 
 pub(crate) fn provider_attachment_receiver_matches(
     program: &TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    machine: &typed_trees::machine::Machine,
     call_site: &crate::semantic::calls::CallSite<'_>,
     provider_symbol: SymbolHandle,
 ) -> bool {
@@ -247,10 +236,8 @@ pub(crate) fn provider_attachment_receiver_matches(
         {
             return false;
         }
-        symbol_resolved_trees_to_typed_trees::typed_trees::service::exact_bound_service_requirement(
-            program,
-            field.type_reference,
-        ) == Some(provider_symbol)
+        typed_trees::service::exact_bound_service_requirement(program, field.type_reference)
+            == Some(provider_symbol)
             || {
                 // The provider field is spelled `&'a mut <boundary trait>`:
                 // unwrap the mutable borrow (and qualifications) to the

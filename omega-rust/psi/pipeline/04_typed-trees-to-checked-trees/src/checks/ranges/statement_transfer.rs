@@ -10,17 +10,15 @@
 //! per-edge sink: the checking pass emits diagnostics, the collection
 //! pass merges outgoing-edge argument facts.
 
-use crate::validation::CallFrameResolver;
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, ExpressionNode,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
-use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::machine::Machine;
+use typed_trees::state::State;
+use typed_trees::statement::{
     StatementNode, TableAssignment, TableCall, TransitionGuardNode, TransitionTargetHandle,
 };
-use symbols::SymbolHandle;
+use validation::CallFrameResolver;
 
 use super::arrays::fixed_array_type_length;
 use super::assignment_lengths::{assigned_extent, replacement_length, seed_assigned_extent};

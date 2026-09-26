@@ -9,16 +9,14 @@ use super::{
     StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeId,
     StructuralTypeShape, ValueId, identity,
 };
-use crate::calling_conventions::ValueShape;
-use crate::target_operations::{
+use crate::{AdmittedBoundaryExecution, AdmittedBoundarySettlement};
+use abstract_operations::{AbstractBoundaryResult, AbstractFunctionResult, AbstractResult};
+use calling_conventions::ValueShape;
+use target_operations::{
     BoundarySettlementRealization, NormalizedForeignCallBinding, TargetOperationPlan,
     TargetUnitOperation,
 };
-use crate::{AdmittedBoundaryExecution, AdmittedBoundarySettlement};
 use terminal_psi::StructuralPathSegment;
-use terminal_psi_to_abstract_operations::abstract_operations::{
-    AbstractBoundaryResult, AbstractFunctionResult, AbstractResult,
-};
 
 const REQUIREMENT: &str = "Foreign::leaf";
 
@@ -95,7 +93,7 @@ fn binding_for_requirement(
     signature: CallSignature,
 ) -> NormalizedForeignCallBinding {
     let locator = locator_for(native);
-    let boundary_entry_plan = crate::calling_conventions::evaluate_ordinary_boundary_entry_plan(
+    let boundary_entry_plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
         CallingPolicy::native_for_target(native),
         &signature,
     )
@@ -104,13 +102,13 @@ fn binding_for_requirement(
     .clone();
     let provider_plan_report_identity = 0xA1;
     let provider_plan_commitment =
-        crate::task_plans::SameStackProviderPlanCommitment::from_digest([0x42; 32]);
-    let same_stack_contribution = crate::task_plans::admit_same_stack_contribution(
-        crate::task_plans::SameStackContributionAdmissionCandidate {
+        task_plans::SameStackProviderPlanCommitment::from_digest([0x42; 32]);
+    let same_stack_contribution = task_plans::admit_same_stack_contribution(
+        task_plans::SameStackContributionAdmissionCandidate {
             provider_plan_report_identity,
             provider_plan_commitment,
             requirement_identity: requirement.to_owned(),
-            receipt: crate::task_plans::SameStackContributionAdmissionReceiptId::from_normalized_identity(
+            receipt: task_plans::SameStackContributionAdmissionReceiptId::from_normalized_identity(
                 0xA2,
             )
             .unwrap(),
@@ -430,10 +428,8 @@ fn normalized_foreign_mut(
 
 #[test]
 fn foreign_parameter_sources_replay_against_exact_entry_and_block_coordinates() {
-    use crate::target_operations::{TargetScalarBlockValue, TargetUnitScalarArgumentSource};
-    use terminal_psi_to_abstract_operations::abstract_operations::{
-        AbstractParameter, ValueBinding,
-    };
+    use abstract_operations::{AbstractParameter, ValueBinding};
+    use target_operations::{TargetScalarBlockValue, TargetUnitScalarArgumentSource};
 
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
     let incoming = ValueId::new(20).unwrap();
@@ -834,7 +830,7 @@ fn replay_rejects_substituted_scalar_row_coordinates() {
             ),
         ],
     );
-    let different_plan = crate::calling_conventions::evaluate_ordinary_boundary_entry_plan(
+    let different_plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
         CallingPolicy::native_for_target(native),
         &CallSignature {
             parameters: vec![shape, shape],
@@ -845,8 +841,8 @@ fn replay_rejects_substituted_scalar_row_coordinates() {
     .plan()
     .clone();
     let foreign_plan_execution =
-        crate::target_operations::ProviderExecutionBinding::from_execution_record(
-            crate::target_operations::ProviderPlanReportIdentity::new(0xA9).unwrap(),
+        target_operations::ProviderExecutionBinding::from_execution_record(
+            target_operations::ProviderPlanReportIdentity::new(0xA9).unwrap(),
             0xB1,
             0xB2,
             0xB3,
@@ -875,7 +871,7 @@ fn replay_rejects_substituted_scalar_row_coordinates() {
             4 => scalar_arguments[0].parameter_index = 9,
             5 => {
                 scalar_arguments[0].source =
-                    crate::target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
+                    target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
                         defining_operation: OperationId::new(7).unwrap(),
                         source_value: ValueId::new(5).unwrap(),
                         scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
@@ -884,7 +880,7 @@ fn replay_rejects_substituted_scalar_row_coordinates() {
             }
             6 => scalar_arguments[0].placement.shape = ValueShape::integer(8, 8),
             _ => {
-                *result_home = Some(crate::target_operations::TargetUnitScalarHomeRequirement {
+                *result_home = Some(target_operations::TargetUnitScalarHomeRequirement {
                     defining_operation: OperationId::new(7).unwrap(),
                     source_value: ValueId::new(9).unwrap(),
                     scalar_type: ScalarType::Integer(
@@ -909,7 +905,7 @@ fn replay_rejects_substituted_scalar_row_coordinates() {
         else {
             panic!("normalized foreign row")
         };
-        let crate::target_operations::TargetUnitScalarArgumentSource::Home(home) =
+        let target_operations::TargetUnitScalarArgumentSource::Home(home) =
             &mut scalar_arguments[0].source
         else {
             panic!("home source")
@@ -963,19 +959,19 @@ fn replay_rejects_projected_argument_identity_substitutions() {
             4 => structural_arguments[0].access = StructuralAccess::MutableBorrow,
             5 => {
                 structural_arguments[0].destination.locations =
-                    vec![crate::calling_conventions::ValueLocation::Register {
-                        register: crate::calling_conventions::MachineRegister::X86Rax,
+                    vec![calling_conventions::ValueLocation::Register {
+                        register: calling_conventions::MachineRegister::X86Rax,
                         value_byte_offset: 0,
                         byte_size: 4,
                     }]
             }
             6 => {
                 structural_arguments[0].source =
-                    crate::target_operations::TargetStructuralArgumentSource::Placement(
-                        crate::calling_conventions::ValuePlacement {
+                    target_operations::TargetStructuralArgumentSource::Placement(
+                        calling_conventions::ValuePlacement {
                             shape: ValueShape::integer(8, 8),
-                            locations: vec![crate::calling_conventions::ValueLocation::Register {
-                                register: crate::calling_conventions::MachineRegister::X86Rax,
+                            locations: vec![calling_conventions::ValueLocation::Register {
+                                register: calling_conventions::MachineRegister::X86Rax,
                                 value_byte_offset: 0,
                                 byte_size: 8,
                             }],
@@ -988,7 +984,7 @@ fn replay_rejects_projected_argument_identity_substitutions() {
             10 => structural_arguments[0].shape = ValueShape::integer(4, 4),
             _ => {
                 structural_arguments[0].source =
-                    crate::target_operations::TargetStructuralArgumentSource::StructuralHome {
+                    target_operations::TargetStructuralArgumentSource::StructuralHome {
                         psi_operation: OperationId::new(7).unwrap(),
                     }
             }
@@ -1050,8 +1046,8 @@ fn materialized_binding(
     pointer: ValueShape,
 ) -> (
     NormalizedForeignCallBinding,
-    crate::calling_conventions::CallbackMaterializationContext,
-    crate::calling_conventions::NativeParameterId,
+    calling_conventions::CallbackMaterializationContext,
+    calling_conventions::NativeParameterId,
 ) {
     let mut binding = binding(
         native,
@@ -1060,21 +1056,21 @@ fn materialized_binding(
             result: None,
         },
     );
-    let binder = crate::calling_conventions::StaticMachineBinderId::new(81).unwrap();
-    let parameter = crate::calling_conventions::NativeParameterId::new(82).unwrap();
-    let requirement = crate::calling_conventions::CallbackRequirementId::new(83).unwrap();
-    let destination = crate::calling_conventions::NativePlace::Parameter(parameter);
+    let binder = calling_conventions::StaticMachineBinderId::new(81).unwrap();
+    let parameter = calling_conventions::NativeParameterId::new(82).unwrap();
+    let requirement = calling_conventions::CallbackRequirementId::new(83).unwrap();
+    let destination = calling_conventions::NativePlace::Parameter(parameter);
     binding.boundary_entry_plan.call.callback_materializations =
-        vec![crate::calling_conventions::CallbackMaterialization {
+        vec![calling_conventions::CallbackMaterialization {
             binder,
             destination: destination.clone(),
         }];
-    let context = crate::calling_conventions::CallbackMaterializationContext {
-        binders: vec![crate::calling_conventions::CallbackBinderRequirement {
+    let context = calling_conventions::CallbackMaterializationContext {
+        binders: vec![calling_conventions::CallbackBinderRequirement {
             binder,
             requirement,
         }],
-        demands: vec![crate::calling_conventions::NativeCallbackDemand {
+        demands: vec![calling_conventions::NativeCallbackDemand {
             destination,
             requirement,
         }],
@@ -1093,7 +1089,7 @@ fn registrar_callback_slot_replays_from_the_retained_roster() {
             u16::try_from(native.pointer_alignment).unwrap(),
         );
         let (binding, context, parameter) = materialized_binding(native, scalar, pointer);
-        let continuation = crate::function_identity::StateKey {
+        let continuation = function_identity::StateKey {
             machine: symbols::SymbolHandle::from_parts(1, 1),
             state: symbols::SymbolHandle::from_parts(2, 1),
             segment_index: 0,
@@ -1101,12 +1097,12 @@ fn registrar_callback_slot_replays_from_the_retained_roster() {
         let admission = crate::AdmittedNativeCallbackArgument {
             terminal_operation: operation,
             placement_index: 0,
-            callback_function: crate::function_identity::MachineFunctionIdentity::callback_thunk(
+            callback_function: function_identity::MachineFunctionIdentity::callback_thunk(
                 continuation,
                 0,
             )
             .unwrap(),
-            application: crate::calling_conventions::NativeParameterApplication {
+            application: calling_conventions::NativeParameterApplication {
                 parameter,
                 native_ordinal: 1,
                 shape: pointer,
@@ -1235,26 +1231,26 @@ fn mixed_registrar_callback_preserves_authored_formals_around_its_private_slot()
                     result: Some(ValueShape::integer(4, 4)),
                 },
             );
-            let binder = crate::calling_conventions::StaticMachineBinderId::new(81).unwrap();
-            let parameter = crate::calling_conventions::NativeParameterId::new(82).unwrap();
-            let requirement = crate::calling_conventions::CallbackRequirementId::new(83).unwrap();
-            let destination = crate::calling_conventions::NativePlace::Parameter(parameter);
+            let binder = calling_conventions::StaticMachineBinderId::new(81).unwrap();
+            let parameter = calling_conventions::NativeParameterId::new(82).unwrap();
+            let requirement = calling_conventions::CallbackRequirementId::new(83).unwrap();
+            let destination = calling_conventions::NativePlace::Parameter(parameter);
             foreign.boundary_entry_plan.call.callback_materializations =
-                vec![crate::calling_conventions::CallbackMaterialization {
+                vec![calling_conventions::CallbackMaterialization {
                     binder,
                     destination: destination.clone(),
                 }];
-            let context = crate::calling_conventions::CallbackMaterializationContext {
-                binders: vec![crate::calling_conventions::CallbackBinderRequirement {
+            let context = calling_conventions::CallbackMaterializationContext {
+                binders: vec![calling_conventions::CallbackBinderRequirement {
                     binder,
                     requirement,
                 }],
-                demands: vec![crate::calling_conventions::NativeCallbackDemand {
+                demands: vec![calling_conventions::NativeCallbackDemand {
                     destination,
                     requirement,
                 }],
             };
-            let continuation = crate::function_identity::StateKey {
+            let continuation = function_identity::StateKey {
                 machine: symbols::SymbolHandle::from_parts(1, 1),
                 state: symbols::SymbolHandle::from_parts(2, 1),
                 segment_index: 0,
@@ -1262,13 +1258,12 @@ fn mixed_registrar_callback_preserves_authored_formals_around_its_private_slot()
             let admission = crate::AdmittedNativeCallbackArgument {
                 terminal_operation: OperationId::new(7).unwrap(),
                 placement_index: 0,
-                callback_function:
-                    crate::function_identity::MachineFunctionIdentity::callback_thunk(
-                        continuation,
-                        0,
-                    )
-                    .unwrap(),
-                application: crate::calling_conventions::NativeParameterApplication {
+                callback_function: function_identity::MachineFunctionIdentity::callback_thunk(
+                    continuation,
+                    0,
+                )
+                .unwrap(),
+                application: calling_conventions::NativeParameterApplication {
                     parameter,
                     native_ordinal: u32::try_from(callback_ordinal).unwrap(),
                     shape: pointer,
@@ -1368,11 +1363,9 @@ fn mixed_registrar_callback_preserves_authored_formals_around_its_private_slot()
 /// declared scalar shape and source coordinate.
 #[test]
 fn normalized_foreign_boolean_and_floating_arguments_replay_with_exact_sources() {
-    use crate::target_operations::TargetUnitScalarArgumentSource;
+    use abstract_operations::{AbstractParameter, ValueBinding};
     use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
-    use terminal_psi_to_abstract_operations::abstract_operations::{
-        AbstractParameter, ValueBinding,
-    };
+    use target_operations::TargetUnitScalarArgumentSource;
 
     let f32_type = ScalarType::IeeeFloat(IeeeFloatFormat::Binary32);
     let f64_type = ScalarType::IeeeFloat(IeeeFloatFormat::Binary64);
@@ -1498,7 +1491,7 @@ fn normalized_foreign_boolean_and_floating_arguments_replay_with_exact_sources()
             parameters: vec![ValueShape::float(4)],
             result: Some(ValueShape::float(4)),
         };
-        let leaf_plan = crate::calling_conventions::evaluate_ordinary_boundary_entry_plan(
+        let leaf_plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
             CallingPolicy::native_for_target(native),
             &leaf_signature,
         )
@@ -1539,7 +1532,7 @@ fn normalized_foreign_boolean_and_floating_arguments_replay_with_exact_sources()
         assert_eq!(
             scalar_arguments[1].source,
             TargetUnitScalarArgumentSource::BlockParameter(
-                crate::target_operations::TargetScalarBlockValue {
+                target_operations::TargetScalarBlockValue {
                     block: join,
                     value: flag,
                     scalar_type: bool_type,
@@ -1741,7 +1734,7 @@ fn owned_fixture() -> (AbstractOperationPlan, Execution) {
 }
 
 fn owned_signature(native: NativeTarget) -> CallSignature {
-    use crate::calling_conventions::SystemVEightbyteClass;
+    use calling_conventions::SystemVEightbyteClass;
     let quad = match CallingPolicy::native_for_target(native) {
         CallingPolicy::MicrosoftX64 => ValueShape::integer(16, 4),
         _ => ValueShape::homogeneous_float_aggregate(4, 4),
@@ -1976,7 +1969,7 @@ fn normalized_foreign_borrowed_view_descriptors_replay_whole_place_and_stored_fi
 
 #[test]
 fn normalized_foreign_owned_and_descriptor_arguments_reject_substituted_rows() {
-    use crate::target_operations::TargetStructuralArgumentSource;
+    use target_operations::TargetStructuralArgumentSource;
     for native in [NativeTarget::linux_x64(), NativeTarget::windows_x64()] {
         for mutation in 0..8 {
             let (source, execution) = owned_fixture();
@@ -2015,15 +2008,14 @@ fn normalized_foreign_owned_and_descriptor_arguments_reject_substituted_rows() {
                 // A claimed destination that is not the plan's exact
                 // placement refuses.
                 3 => {
-                    structural_arguments[0].destination =
-                        crate::calling_conventions::ValuePlacement {
-                            shape: ValueShape::integer(8, 8),
-                            locations: vec![crate::calling_conventions::ValueLocation::Register {
-                                register: crate::calling_conventions::MachineRegister::X86Rdi,
-                                value_byte_offset: 0,
-                                byte_size: 8,
-                            }],
-                        }
+                    structural_arguments[0].destination = calling_conventions::ValuePlacement {
+                        shape: ValueShape::integer(8, 8),
+                        locations: vec![calling_conventions::ValueLocation::Register {
+                            register: calling_conventions::MachineRegister::X86Rdi,
+                            value_byte_offset: 0,
+                            byte_size: 8,
+                        }],
+                    }
                 }
                 // A mismatched projected type identity refuses.
                 4 => structural_arguments[0].structural_type = StructuralTypeId::new(11).unwrap(),
@@ -2086,15 +2078,14 @@ fn normalized_foreign_owned_and_descriptor_arguments_reject_substituted_rows() {
                 }
                 // Substituted destination placement refuses.
                 _ => {
-                    structural_arguments[0].destination =
-                        crate::calling_conventions::ValuePlacement {
-                            shape: ValueShape::integer(8, 8),
-                            locations: vec![crate::calling_conventions::ValueLocation::Register {
-                                register: crate::calling_conventions::MachineRegister::X86Rdi,
-                                value_byte_offset: 0,
-                                byte_size: 8,
-                            }],
-                        }
+                    structural_arguments[0].destination = calling_conventions::ValuePlacement {
+                        shape: ValueShape::integer(8, 8),
+                        locations: vec![calling_conventions::ValueLocation::Register {
+                            register: calling_conventions::MachineRegister::X86Rdi,
+                            value_byte_offset: 0,
+                            byte_size: 8,
+                        }],
+                    }
                 }
             }
             assert!(
@@ -2278,7 +2269,7 @@ fn normalized_foreign_owned_aggregate_from_call_result_replays_affine_home() {
         };
         assert_eq!(
             structural_arguments[0].source,
-            crate::target_operations::TargetStructuralArgumentSource::StructuralHome {
+            target_operations::TargetStructuralArgumentSource::StructuralHome {
                 psi_operation: OperationId::new(6).unwrap(),
             }
         );
@@ -2295,7 +2286,7 @@ fn normalized_foreign_owned_aggregate_from_call_result_replays_affine_home() {
                 // A substituted producer identity refuses.
                 0 => {
                     structural_arguments[0].source =
-                        crate::target_operations::TargetStructuralArgumentSource::StructuralHome {
+                        target_operations::TargetStructuralArgumentSource::StructuralHome {
                             psi_operation: OperationId::new(7).unwrap(),
                         }
                 }
@@ -2303,17 +2294,14 @@ fn normalized_foreign_owned_aggregate_from_call_result_replays_affine_home() {
                 // home.
                 1 => {
                     structural_arguments[0].source =
-                        crate::target_operations::TargetStructuralArgumentSource::Placement(
-                            crate::calling_conventions::ValuePlacement {
+                        target_operations::TargetStructuralArgumentSource::Placement(
+                            calling_conventions::ValuePlacement {
                                 shape: ValueShape::integer(8, 4),
-                                locations: vec![
-                                    crate::calling_conventions::ValueLocation::Register {
-                                        register:
-                                            crate::calling_conventions::MachineRegister::X86Rax,
-                                        value_byte_offset: 0,
-                                        byte_size: 8,
-                                    },
-                                ],
+                                locations: vec![calling_conventions::ValueLocation::Register {
+                                    register: calling_conventions::MachineRegister::X86Rax,
+                                    value_byte_offset: 0,
+                                    byte_size: 8,
+                                }],
                             },
                         )
                 }

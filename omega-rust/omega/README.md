@@ -16,7 +16,7 @@ These functions return errors instead of printing or terminating the caller.
 Package preparation, accepted policy, trust admission, and artifact publication
 remain part of the operation; another frontend need not reconstruct that sequence.
 Install/update and package inspection already have their own complete operations
-in [package-manager](src/package_manager/operations/mod.rs), with no second wrapper.
+in [package-manager](packages/manager/src/operations/mod.rs), with no second wrapper.
 
 `run_project` owns a distinct temporary directory per invocation. Disposable
 output is cleaned up on success and failure; requested retained output survives,
@@ -27,7 +27,7 @@ unsupported interpretation is a decline, not an agreement.
 The library is synchronous and inherits the compiler's current stack requirements.
 The CLI provisions its existing compiler worker stack; embedded callers must
 provide equivalent stack capacity where needed. This is not a scheduler, command
-bus, or new pipeline protocol. [Compiler orchestration](src/compiler/compiler.rs)
+bus, or new pipeline protocol. [Compiler orchestration](compiler/src/compiler.rs)
 continues to pass representations through ordinary functions.
 
 ## Command surface
@@ -77,7 +77,7 @@ normal invocations do not collect optional timing measurements.
 summary, and publication lines) as a plain-text observation file; there is no
 `--output-only` switch. Required proof and installation
 records remain governed by the requested product. See the
-[compiler product contract](docs/compiler/README.md#product-boundaries-and-observations).
+[compiler product contract](compiler/README.md#product-boundaries-and-observations).
 
 The bundled `source/library/` location is derived from the compiler checkout
 captured at build time. Rebuild the binary from the retained checkout before

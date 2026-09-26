@@ -1,26 +1,18 @@
 //! Join the exact CallPlan to register operands, result fragments, and pointer slots.
 
-use crate::register_model::{
-    RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess,
-};
-use crate::selected_instructions::{SelectedConstraintKeys, SelectedInstructionKind};
 use crate::selection::model::SelectedInstructionError;
-use abstract_operations_to_target_operations::calling_conventions::{
-    IndirectPointerLocation, ValueLocation,
-};
+use calling_conventions::{IndirectPointerLocation, ValueLocation};
+use register_model::{RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess};
+use selected_instructions::{SelectedConstraintKeys, SelectedInstructionKind};
 use semantic_vocabulary::{IntegerSign, ScalarType, ValueId};
 use terminal_psi::StructuralAccess;
 mod borrowed_argument;
 pub(crate) mod normalized_foreign;
 mod owned_argument;
-use crate::legalized_operations::{
-    LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarFunction,
-};
-use crate::register_environment::ValidatedTargetRegisterEnvironment;
-use abstract_operations_to_target_operations::calling_conventions::{
-    CallSignature, CallingPolicy, ValueShape, evaluate_call_plan,
-};
 use borrowed_argument::validate_borrowed_argument;
+use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+use legalized_operations::{LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarFunction};
+use register_environment::ValidatedTargetRegisterEnvironment;
 
 use crate::structural_inputs::structural_reference_input::stack_pointer_offset;
 
@@ -76,7 +68,7 @@ pub(super) fn accepts_stack_parameter_entry(source: &LegalizedScalarFunction) ->
 
 /// One complete scalar ABI stack fragment, excluding borrowed-pointer placement.
 pub(super) fn scalar_stack_placement(
-    placement: &abstract_operations_to_target_operations::calling_conventions::ValuePlacement,
+    placement: &calling_conventions::ValuePlacement,
 ) -> Option<(u32, u16, u16)> {
     match placement.locations.as_slice() {
         [
@@ -88,9 +80,9 @@ pub(super) fn scalar_stack_placement(
             },
         ] if matches!(
             placement.shape.class,
-            abstract_operations_to_target_operations::calling_conventions::ValueClass::Float | abstract_operations_to_target_operations::calling_conventions::ValueClass::Integer
+            calling_conventions::ValueClass::Float | calling_conventions::ValueClass::Integer
         ) && (matches!(*byte_size, 4 | 8)
-            || placement.shape.class == abstract_operations_to_target_operations::calling_conventions::ValueClass::Integer
+            || placement.shape.class == calling_conventions::ValueClass::Integer
                 && matches!(*byte_size, 1 | 2))
             && *byte_size == placement.shape.byte_size
             && *alignment >= placement.shape.alignment
@@ -123,15 +115,12 @@ pub(super) fn register_argument_order(call: &LegalizedScalarCall) -> Vec<usize> 
     // results append definitions after those inputs; they do not change their
     // order. Sorting only the operand roster preserves authored argument identity.
     order.sort_by_key(|index| {
-        call.arguments[*index].placement().shape.class
-            == abstract_operations_to_target_operations::calling_conventions::ValueClass::Float
+        call.arguments[*index].placement().shape.class == calling_conventions::ValueClass::Float
     });
     order
 }
 
-fn placement_register_count(
-    placement: &abstract_operations_to_target_operations::calling_conventions::ValuePlacement,
-) -> usize {
+fn placement_register_count(placement: &calling_conventions::ValuePlacement) -> usize {
     placement
         .locations
         .iter()
@@ -149,8 +138,8 @@ fn placement_register_count(
 }
 
 fn placement_register(
-    placement: &abstract_operations_to_target_operations::calling_conventions::ValuePlacement,
-) -> Option<abstract_operations_to_target_operations::target_operations::MachineRegister> {
+    placement: &calling_conventions::ValuePlacement,
+) -> Option<target_operations::MachineRegister> {
     match placement.locations.as_slice() {
         [
             ValueLocation::Register {
@@ -250,11 +239,8 @@ pub(super) fn unit_key(
 }
 
 /// Physical classification only; source/result admission still owns structural identity.
-pub(super) fn empty_aggregate_placement(
-    placement: &abstract_operations_to_target_operations::calling_conventions::ValuePlacement,
-) -> bool {
-    placement.shape
-        == abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(0, 1)
+pub(super) fn empty_aggregate_placement(placement: &calling_conventions::ValuePlacement) -> bool {
+    placement.shape == calling_conventions::ValueShape::integer(0, 1)
         && placement.locations.is_empty()
 }
 
@@ -468,7 +454,7 @@ pub(super) fn validate(
                     value_byte_offset: 0,
                     byte_size: 8,
                 },
-            ] if placement.shape.class == abstract_operations_to_target_operations::calling_conventions::ValueClass::BorrowedReference
+            ] if placement.shape.class == calling_conventions::ValueClass::BorrowedReference
                 && matches!(
                     call.arguments.get(index),
                     Some(LegalizedScalarArgument::Structural { .. })
@@ -492,7 +478,7 @@ pub(super) fn validate(
                     byte_size,
                     alignment,
                 },
-            ] if placement.shape.class == abstract_operations_to_target_operations::calling_conventions::ValueClass::BorrowedReference
+            ] if placement.shape.class == calling_conventions::ValueClass::BorrowedReference
                 && *byte_size == placement.shape.byte_size
                 && *alignment == placement.shape.alignment
                 && matches!(

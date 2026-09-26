@@ -5,13 +5,13 @@ use super::{
     CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, StatementNode, SymbolHandle,
     unsupported,
 };
-use language_semantics::{
-    Multiplicity, PermissionClaimIdentity, PermissionEventSource, PermissionProvenance,
-};
-use typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode;
-use typed_trees_to_checked_trees::checked_trees::{
+use checked_trees::types::TypeReferenceNode;
+use checked_trees::{
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralPathSegment, FlowOwnedSelectionReceipt,
+};
+use language_semantics::{
+    Multiplicity, PermissionClaimIdentity, PermissionEventSource, PermissionProvenance,
 };
 
 pub(super) fn validate_receipt(
@@ -48,7 +48,7 @@ pub(super) fn validate_receipt(
         // same receipt: the claim set on each transfer names the discharged
         // frontier exactly, so the destination's plain-storage rule widens to
         // the linear-tolerant carrier rule.
-        || !typed_trees_to_checked_trees::validation::has_linear_owned_contents(&checked.typed, reference)
+        || !validation::has_linear_owned_contents(&checked.typed, reference)
         || !matches!(
             checked.expression_table.expression(expression),
             ExpressionNode::Match(_)
@@ -147,10 +147,7 @@ pub(super) fn validate_receipt(
                 != checked.normalized_type_identity(reference))
             || (projected
                 && !(checked.type_multiplicity(source_reference) == Multiplicity::Affine
-                    && typed_trees_to_checked_trees::validation::has_linear_owned_contents(
-                        &checked.typed,
-                        source_reference,
-                    )))
+                    && validation::has_linear_owned_contents(&checked.typed, source_reference)))
             || source.claim_identity != PermissionClaimIdentity::Unknown
             || sources[..ordinal]
                 .iter()
@@ -257,22 +254,18 @@ pub(super) fn validate_receipt(
         // A field leaf inside a record arm fronts its own member type rather
         // than the result type, so the claim frontier replays from the leaf's
         // declared type.
-        let leaf_reference =
-            typed_trees_to_checked_trees::validation::expression_result_type_reference(
-                &checked.typed,
-                owner,
-                authored,
-                transfer.expression,
-            )
-            .ok_or(LoweringError::Unsupported(
-                "selected ownership leaf has no declared type",
-            ))?;
-        let authored = typed_trees_to_checked_trees::validation::affine_owned_value_source(
+        let leaf_reference = validation::expression_result_type_reference(
             &checked.typed,
+            owner,
+            authored,
             transfer.expression,
-            reference,
         )
-        .or_else(|| projected_local_root(checked, transfer.expression));
+        .ok_or(LoweringError::Unsupported(
+            "selected ownership leaf has no declared type",
+        ))?;
+        let authored =
+            validation::affine_owned_value_source(&checked.typed, transfer.expression, reference)
+                .or_else(|| projected_local_root(checked, transfer.expression));
         if authored != Some(source.symbol) {
             return unsupported("selected ownership changed the authored source place");
         }
@@ -284,10 +277,7 @@ pub(super) fn validate_receipt(
         // inside a record arm fronts its own member type rather than the
         // result type, so the frontier replays from the leaf's declared type.
         let leaf_path = ownership.segments.span_or_empty(transfer.path);
-        let expected_claims = typed_trees_to_checked_trees::validation::linear_claim_frontier(
-            &checked.typed,
-            leaf_reference,
-        );
+        let expected_claims = validation::linear_claim_frontier(&checked.typed, leaf_reference);
         let claims = ownership
             .selection_transfer_claims
             .span_or_empty(transfer.claims);
@@ -362,9 +352,7 @@ pub(super) fn validate_leaf(
     checked: &CheckedTrees,
     receipt: &FlowOwnedSelectionReceipt,
     expression: ExpressionHandle,
-    source_arm: arena::Handle<
-        typed_trees_to_checked_trees::checked_trees::expression::TableMatchArm,
-    >,
+    source_arm: arena::Handle<checked_trees::expression::TableMatchArm>,
     place: &CheckedUnitStructuralArgumentPlan,
 ) -> Result<(), LoweringError> {
     let ownership = &checked.facts.flow.ownership;
@@ -380,8 +368,7 @@ pub(super) fn validate_leaf(
     if transfer.source_arm != source_arm
         || !source_plan_matches(checked, receipt.state, source.symbol, &place.source)
         || !place.path.is_empty()
-        || place.access
-            != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
+        || place.access != checked_trees::CheckedStructuralAccess::Owned
         || place.type_identity
             != checked
                 .normalized_type_identity(receipt.type_reference)
@@ -440,7 +427,7 @@ pub(super) fn source_plan_matches(
 /// and declared/result type.
 pub(super) struct ProjectionRoot {
     pub(super) expression: ExpressionHandle,
-    pub(super) reference: typed_trees_to_checked_trees::checked_trees::types::TypeReferenceHandle,
+    pub(super) reference: checked_trees::types::TypeReferenceHandle,
 }
 
 /// Replay one projected selection leaf against the authored expression. The
@@ -452,14 +439,12 @@ pub(super) struct ProjectionRoot {
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_projection(
     checked: &CheckedTrees,
-    machine: &typed_trees_to_checked_trees::checked_trees::machine::Machine,
-    state: &typed_trees_to_checked_trees::checked_trees::state::State,
+    machine: &checked_trees::machine::Machine,
+    state: &checked_trees::state::State,
     receipt: &FlowOwnedSelectionReceipt,
     expression: ExpressionHandle,
-    source_arm: arena::Handle<
-        typed_trees_to_checked_trees::checked_trees::expression::TableMatchArm,
-    >,
-    source_node: &typed_trees_to_checked_trees::checked_trees::CheckedStructuralValue,
+    source_arm: arena::Handle<checked_trees::expression::TableMatchArm>,
+    source_node: &checked_trees::CheckedStructuralValue,
     path: &[CheckedUnitStructuralPathSegment],
     type_identity: &str,
 ) -> Result<ProjectionRoot, LoweringError> {
@@ -481,17 +466,14 @@ pub(super) fn validate_projection(
                 if member.case_variant.is_some() {
                     return unsupported("projected selection cannot move through a case");
                 }
-                let receiver = typed_trees_to_checked_trees::validation::declared_place_type_raw(
+                let receiver = validation::declared_place_type_raw(
                     &checked.typed,
                     machine,
                     Some(state),
                     member.receiver,
                 )
                 .and_then(|reference| {
-                    typed_trees_to_checked_trees::validation::unwrapped_type_reference(
-                        &checked.typed,
-                        reference,
-                    )
+                    validation::unwrapped_type_reference(&checked.typed, reference)
                 })
                 .ok_or(LoweringError::Unsupported(
                     "projected selection receiver has no declared type",
@@ -508,7 +490,7 @@ pub(super) fn validate_projection(
                     .ok_or(LoweringError::Unsupported(
                         "projected selection field owner is absent",
                     ))?;
-                let field = typed_trees_to_checked_trees::validation::exact_data_member_field(
+                let field = validation::exact_data_member_field(
                     &checked.typed,
                     owner,
                     member.member_symbol,
@@ -521,11 +503,9 @@ pub(super) fn validate_projection(
                 if field.relevance.is_erased() {
                     return unsupported("projected selection cannot select an erased field");
                 }
-                segments.push(
-                    typed_trees_to_checked_trees::fact_plan::PlaceSegment::Field {
-                        symbol: field.symbol,
-                    },
-                );
+                segments.push(facts::PlaceSegment::Field {
+                    symbol: field.symbol,
+                });
                 checked_path.push(CheckedUnitStructuralPathSegment::Field(
                     field.path_identity(),
                 ));
@@ -548,26 +528,20 @@ pub(super) fn validate_projection(
                 .ok_or(LoweringError::Unsupported(
                     "projected selection requires a constant fixed index",
                 ))?;
-                let reference = typed_trees_to_checked_trees::validation::declared_place_type_raw(
+                let reference = validation::declared_place_type_raw(
                     &checked.typed,
                     machine,
                     Some(state),
                     indexed.collection,
                 )
                 .and_then(|reference| {
-                    typed_trees_to_checked_trees::validation::unwrapped_type_reference(
-                        &checked.typed,
-                        reference,
-                    )
+                    validation::unwrapped_type_reference(&checked.typed, reference)
                 })
                 .ok_or(LoweringError::Unsupported(
                     "projected selection index has no declared collection",
                 ))?;
                 let TypeReferenceNode::FixedArray {
-                    length:
-                        typed_trees_to_checked_trees::checked_trees::types::FixedArrayLength::Literal(
-                            length,
-                        ),
+                    length: checked_trees::types::FixedArrayLength::Literal(length),
                     ..
                 } = checked.type_reference_table.type_reference(reference)
                 else {
@@ -579,13 +553,11 @@ pub(super) fn validate_projection(
                 {
                     return unsupported("projected selection index is out of bounds");
                 }
-                segments.push(
-                    typed_trees_to_checked_trees::fact_plan::PlaceSegment::FixedIndex {
-                        index: usize::try_from(index).map_err(|_| {
-                            LoweringError::Unsupported("projected selection index exceeds usize")
-                        })?,
-                    },
-                );
+                segments.push(facts::PlaceSegment::FixedIndex {
+                    index: usize::try_from(index).map_err(|_| {
+                        LoweringError::Unsupported("projected selection index exceeds usize")
+                    })?,
+                });
                 checked_path.push(CheckedUnitStructuralPathSegment::FixedIndex(index));
                 cursor = indexed.collection;
             }
@@ -604,15 +576,10 @@ pub(super) fn validate_projection(
         return unsupported("projected selection changed its authored path");
     }
     let leaf_reference =
-        typed_trees_to_checked_trees::validation::expression_result_type_reference(
-            &checked.typed,
-            machine,
-            state,
-            expression,
-        )
-        .ok_or(LoweringError::Unsupported(
-            "projected selection leaf has no declared type",
-        ))?;
+        validation::expression_result_type_reference(&checked.typed, machine, state, expression)
+            .ok_or(LoweringError::Unsupported(
+                "projected selection leaf has no declared type",
+            ))?;
     // The projected leaf type is the moved child's own declared carrier: the
     // arm-value leaf's carrier is the result type, while a record-field leaf
     // fronts its member type. Either way the retained node's type identity
@@ -620,21 +587,17 @@ pub(super) fn validate_projection(
     if checked.normalized_type_identity(leaf_reference).as_str() != type_identity {
         return unsupported("projected selection changed its moved child type");
     }
-    let root_reference =
-        typed_trees_to_checked_trees::validation::expression_result_type_reference(
-            &checked.typed,
-            machine,
-            state,
-            root_expression,
-        )
-        .ok_or(LoweringError::Unsupported(
-            "projected selection root has no declared type",
-        ))?;
+    let root_reference = validation::expression_result_type_reference(
+        &checked.typed,
+        machine,
+        state,
+        root_expression,
+    )
+    .ok_or(LoweringError::Unsupported(
+        "projected selection root has no declared type",
+    ))?;
     if checked.type_multiplicity(root_reference) != Multiplicity::Affine
-        || !typed_trees_to_checked_trees::validation::has_linear_owned_contents(
-            &checked.typed,
-            root_reference,
-        )
+        || !validation::has_linear_owned_contents(&checked.typed, root_reference)
     {
         return unsupported("projected selection root is not an affine owner");
     }
@@ -662,9 +625,7 @@ pub(super) fn validate_projection(
     // with the roster source on the transfer, or a producing call holding no
     // roster entry at all.
     match &source_node.kind {
-        typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Place(
-            argument,
-        ) => {
+        checked_trees::CheckedStructuralValueKind::Place(argument) => {
             let Some(symbol) = symbol else {
                 return unsupported("projected local root lost its symbol");
             };
@@ -672,17 +633,14 @@ pub(super) fn validate_projection(
                 || ownership.selection_sources.get(transfer.source).symbol != symbol
                 || !source_plan_matches(checked, state.symbol, symbol, &argument.source)
                 || !argument.path.is_empty()
-                || argument.access
-                    != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
+                || argument.access != checked_trees::CheckedStructuralAccess::Owned
                 || argument.type_identity
                     != checked.normalized_type_identity(root_reference).as_str()
             {
                 return unsupported("projected selection changed its local root place");
             }
         }
-        typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Call {
-            ..
-        } => {
+        checked_trees::CheckedStructuralValueKind::Call { .. } => {
             if transfer.source.is_valid() {
                 return unsupported("projected selection product held a roster source");
             }
@@ -705,17 +663,14 @@ pub(super) fn validate_projection(
 /// carries.
 pub(super) fn validate_copied_projection(
     checked: &CheckedTrees,
-    machine: &typed_trees_to_checked_trees::checked_trees::machine::Machine,
-    state: &typed_trees_to_checked_trees::checked_trees::state::State,
+    machine: &checked_trees::machine::Machine,
+    state: &checked_trees::state::State,
     expression: ExpressionHandle,
     copied: &CheckedUnitStructuralArgumentPlan,
     path: &[CheckedUnitStructuralPathSegment],
     type_identity: &str,
 ) -> Result<ProjectionRoot, LoweringError> {
-    if copied.access
-        != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
-        || path.is_empty()
-    {
+    if copied.access != checked_trees::CheckedStructuralAccess::SharedBorrow || path.is_empty() {
         return unsupported("copied projection changed its access or path");
     }
     let mut spelled = Vec::new();
@@ -738,31 +693,26 @@ pub(super) fn validate_copied_projection(
     if spelled.as_slice() != path {
         return unsupported("copied projection changed its authored path");
     }
-    let leaf = typed_trees_to_checked_trees::validation::expression_result_type_reference(
-        &checked.typed,
-        machine,
-        state,
-        expression,
-    )
-    .ok_or(LoweringError::Unsupported(
-        "copied projection lost its leaf type",
-    ))?;
+    let leaf =
+        validation::expression_result_type_reference(&checked.typed, machine, state, expression)
+            .ok_or(LoweringError::Unsupported(
+                "copied projection lost its leaf type",
+            ))?;
     if checked.normalized_type_identity(leaf).as_str() != type_identity {
         return unsupported("copied projection changed its copied leaf type");
     }
     let ExpressionNode::Name(_) = checked.expression_table.expression(root_expression) else {
         return unsupported("copied projection root is not a binding name");
     };
-    let root_reference =
-        typed_trees_to_checked_trees::validation::expression_result_type_reference(
-            &checked.typed,
-            machine,
-            state,
-            root_expression,
-        )
-        .ok_or(LoweringError::Unsupported(
-            "copied projection root has no declared type",
-        ))?;
+    let root_reference = validation::expression_result_type_reference(
+        &checked.typed,
+        machine,
+        state,
+        root_expression,
+    )
+    .ok_or(LoweringError::Unsupported(
+        "copied projection root has no declared type",
+    ))?;
     if checked.normalized_type_identity(root_reference).as_str() != copied.type_identity {
         return unsupported("copied projection root is not the borrowed place");
     }

@@ -2,9 +2,7 @@ use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
 
-fn guarded_call(
-    requirement: &str,
-) -> symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees {
+fn guarded_call(requirement: &str) -> typed_trees::TypedTrees {
     parse_typed_trees(&format!(
         r#"
         machine identity(input: bool) -> bool
@@ -240,7 +238,7 @@ fn saved_boolean_guarantees_do_not_confuse_storage_or_call_results_with_entry_va
 
 #[test]
 fn saved_boolean_guarantees_require_exact_source_bound_definitions() {
-    use crate::checked_trees::{
+    use checked_trees::{
         CheckedBooleanExpression as Boolean, CheckedScalarExpression as Scalar,
         CheckedScalarExpressionRole as Role,
     };
@@ -327,7 +325,7 @@ fn saved_boolean_guarantees_require_exact_source_bound_definitions() {
 
 #[test]
 fn mutable_boolean_snapshots_require_exact_store_custody() {
-    use crate::checked_trees::CheckedScalarExpressionRole as Role;
+    use checked_trees::CheckedScalarExpressionRole as Role;
     let checked = lower_typed_trees(
         parse_typed_trees(
             "machine compute(value: bool) -> bool ensures result == !value {
@@ -361,7 +359,7 @@ fn mutable_boolean_snapshots_require_exact_store_custody() {
             4 => plans.source_bindings.get_mut(store).role = Role::StorageInitializer,
             5 => {
                 plans.source_bindings.get_mut(store).expression =
-                    symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid()
+                    typed_trees::expression::ExpressionHandle::invalid()
             }
             6 => {
                 let selected = plans

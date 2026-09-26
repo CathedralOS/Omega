@@ -1,9 +1,9 @@
 //! Shared projected actuals preserve both authored roots through nested calls.
 
-use lowered_psi_to_terminal_psi::terminal_production::{
+use terminal_interpreter::{TerminalExecutionResult, TerminalScalarValue};
+use terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
-use terminal_interpreter::{TerminalExecutionResult, TerminalScalarValue};
 
 #[test]
 fn nested_equality_borrows_distinct_projected_receiver_and_explicit_actual() {
@@ -26,16 +26,15 @@ fn nested_equality_borrows_distinct_projected_receiver_and_explicit_actual() {
         "#
         );
         let checked = crate::front_end::checked_program(&source);
-        let artifact =
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-                &checked,
-                TerminalMachineSelection::Name("value"),
-            )
-            .produce(TerminalProductionCustody::artifact_only(
-                &mut TerminalProductionTimings::default(),
-            ))
-            .expect("nested equality retains both projected shared actuals")
-            .into_artifact();
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("value"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("nested equality retains both projected shared actuals")
+        .into_artifact();
         if expected {
             reject_projected_argument_substitutions(&checked);
         }
@@ -52,10 +51,8 @@ fn nested_equality_borrows_distinct_projected_receiver_and_explicit_actual() {
     }
 }
 
-fn reject_projected_argument_substitutions(
-    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
-) {
-    use typed_trees_to_checked_trees::checked_trees::{
+fn reject_projected_argument_substitutions(checked: &checked_trees::CheckedTrees) {
+    use checked_trees::{
         CheckedScalarComputationStructuralArgument, CheckedUnitStructuralArgumentSourcePlan,
     };
     let argument = checked
@@ -91,18 +88,18 @@ fn reject_projected_argument_substitutions(
         match mutation {
             0 => {
                 argument.path[0] =
-                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field("sibling".into())
+                    checked_trees::CheckedUnitStructuralPathSegment::Field("sibling".into())
             }
             1 => {
                 argument.source =
                     CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 }
             }
-            2 => argument.access = typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow,
+            2 => argument.access = checked_trees::CheckedStructuralAccess::MutableBorrow,
             3 => argument.path.clear(),
             _ => unreachable!(),
         }
         assert!(
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            terminal_production::TerminalProductionRequest::new(
                 &forged,
                 TerminalMachineSelection::Name("value")
             )
@@ -154,14 +151,11 @@ fn reject_projected_argument_substitutions(
         match mutation {
             0 => rows[0].root_symbol = root,
             1 => rows[0].segments = arena::HandleSpan::empty(),
-            2 => {
-                rows[0].kind =
-                    typed_trees_to_checked_trees::checked_trees::BorrowAccessKind::Mutable
-            }
+            2 => rows[0].kind = checked_trees::BorrowAccessKind::Mutable,
             _ => unreachable!(),
         }
         assert!(
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            terminal_production::TerminalProductionRequest::new(
                 &forged,
                 TerminalMachineSelection::Name("value")
             )

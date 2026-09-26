@@ -1,6 +1,6 @@
 //! Exact checked-plan selection and dispatch into one Terminal Psi machine family.
 
-use typed_trees_to_checked_trees::checked_trees::{
+use checked_trees::{
     CheckedDynamicBindingKind, CheckedDynamicDispatchPlan, CheckedReturnPlan,
     CheckedTerminalMachineSelection, CheckedTerminalSignatureEligibility, CheckedTrees,
     CheckedUnitPlan,

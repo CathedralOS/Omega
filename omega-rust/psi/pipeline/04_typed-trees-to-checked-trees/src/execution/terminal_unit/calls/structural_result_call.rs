@@ -17,13 +17,10 @@ use crate::execution::terminal_unit::{
 pub(super) fn build(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
-    caller_structural_results: &[(
-        CheckedUnitStructuralResultBindingPlan,
-        crate::fact_plan::PlaceRoot,
-    )],
+    caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
     trace: &LocalConstructionTrace,
     planned: super::call_operations::PlannedCall<'_>,
     result: &CheckedUnitStructuralResultBindingPlan,
@@ -90,13 +87,13 @@ pub(super) fn build(
                     .nth(argument_index)
                     .is_some_and(|parameter| {
                         !parameter.is_self
-                            && (crate::validation::is_closed_primitive_array_type(
+                            && (validation::is_closed_primitive_array_type(
                                 program,
                                 parameter.type_reference,
-                            ) || crate::validation::has_plain_owned_contents_with_numeric_constraints(
+                            ) || validation::has_plain_owned_contents_with_numeric_constraints(
                                 program,
                                 parameter.type_reference,
-                            ) || crate::validation::reference_result_custody::is_reference_record(
+                            ) || validation::reference_result_custody::is_reference_record(
                                 program,
                                 parameter.type_reference,
                             ))
@@ -109,14 +106,14 @@ pub(super) fn build(
                             // carrier spelling stays mandatory.
                             && (argument.path.is_empty()
                                 || (reference_loan.is_valid()
-                                    && crate::validation::reference_result_custody::is_reference_record(
+                                    && validation::reference_result_custody::is_reference_record(
                                         program,
                                         parameter.type_reference,
                                     )
                                     && argument.path.iter().all(|segment| {
                                         matches!(
                                             segment,
-                                            crate::checked_trees::CheckedUnitStructuralPathSegment::Field(
+                                            checked_trees::CheckedUnitStructuralPathSegment::Field(
                                                 _
                                             )
                                         )
@@ -146,7 +143,7 @@ pub(super) fn build(
             || (matches!(
                 result.multiplicity,
                 Multiplicity::Affine | Multiplicity::Unrestricted
-            ) && crate::validation::has_plain_owned_contents_with_numeric_constraints(
+            ) && validation::has_plain_owned_contents_with_numeric_constraints(
                 program,
                 target_state.return_type,
             ) && matches!(
@@ -156,7 +153,7 @@ pub(super) fn build(
                 TypeReferenceNode::Named { .. }
             ))
             || (result.multiplicity == Multiplicity::Unrestricted
-                && crate::validation::is_closed_primitive_array_type(
+                && validation::is_closed_primitive_array_type(
                     program,
                     target_state.return_type,
                 ))
@@ -182,7 +179,7 @@ pub(super) fn build(
             coordinate,
             source_site,
             result: result.clone(),
-            custody: crate::checked_trees::CheckedStructuralCallCustodyPlan {
+            custody: checked_trees::CheckedStructuralCallCustodyPlan {
                 reference_loan,
                 ..Default::default()
             },

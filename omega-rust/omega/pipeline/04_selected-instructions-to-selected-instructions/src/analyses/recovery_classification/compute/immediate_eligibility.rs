@@ -1,23 +1,23 @@
 //! Exact immediate-u64 eligibility, definition, and future-use reconstruction.
 
-use semantic_vocabulary::{IntegerSign, ScalarType};
-use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
-use target_operations_to_selected_instructions::{
+use register_model::RegisterOperandAccess;
+use selected_instructions::{
     SelectedInstruction, SelectedInstructionKind, SelectedTerminator, VirtualRegisterId,
     VirtualRegisterOrigin,
 };
+use semantic_vocabulary::{IntegerSign, ScalarType};
 
 use crate::RecoveryClassificationError;
-use crate::register_homes::{NoAdmittedRecoveryReason, RecoveryClassification, RecoveryFutureUse};
-use target_operations_to_selected_instructions::VirtualFixedConstraintSite;
+use register_homes::{NoAdmittedRecoveryReason, RecoveryClassification, RecoveryFutureUse};
+use selected_instructions::VirtualFixedConstraintSite;
 
 pub(super) fn classify(
     function: usize,
-    selected: &target_operations_to_selected_instructions::SelectedFunction,
-    ranges: &target_operations_to_selected_instructions::FunctionLiveRanges,
-    choice: &crate::register_homes::SpillChoice,
-    victim: &target_operations_to_selected_instructions::VirtualRegister,
-    range: &target_operations_to_selected_instructions::VirtualLiveRange,
+    selected: &selected_instructions::SelectedFunction,
+    ranges: &selected_instructions::FunctionLiveRanges,
+    choice: &register_homes::SpillChoice,
+    victim: &selected_instructions::VirtualRegister,
+    range: &selected_instructions::VirtualLiveRange,
 ) -> Result<RecoveryClassification, RecoveryClassificationError> {
     if !is_fixed_unsigned_u64(victim.scalar_type) {
         return no_recovery(NoAdmittedRecoveryReason::UnsupportedScalarType);
@@ -83,9 +83,7 @@ pub(super) fn classify(
         || defining.provenance.fuel.is_empty()
         || !defining.provenance.fuel.iter().all(|fuel| {
             fuel.site
-                == terminal_psi_to_abstract_operations::optimization_unit::PsiProvenance::Operation(
-                    defining.provenance.operations[0],
-                )
+                == optimization_unit::PsiProvenance::Operation(defining.provenance.operations[0])
         })
         || !matches!(victim.scalar_type, ScalarType::Integer(integer) if integer.admits(value))
     {
@@ -111,9 +109,9 @@ pub(super) fn classify(
 
 fn unique_definition(
     function: usize,
-    selected: &target_operations_to_selected_instructions::SelectedFunction,
+    selected: &selected_instructions::SelectedFunction,
     victim: VirtualRegisterId,
-    expected: target_operations_to_selected_instructions::SelectedInstructionId,
+    expected: selected_instructions::SelectedInstructionId,
 ) -> Result<&SelectedInstruction, RecoveryClassificationError> {
     let mut definitions = Vec::new();
     for block in &selected.blocks {
@@ -140,11 +138,11 @@ fn unique_definition(
 
 fn future_uses(
     function: usize,
-    selected: &target_operations_to_selected_instructions::SelectedFunction,
-    ranges: &target_operations_to_selected_instructions::FunctionLiveRanges,
-    choice: &crate::register_homes::SpillChoice,
+    selected: &selected_instructions::SelectedFunction,
+    ranges: &selected_instructions::FunctionLiveRanges,
+    choice: &register_homes::SpillChoice,
     victim: VirtualRegisterId,
-    range: &target_operations_to_selected_instructions::VirtualLiveRange,
+    range: &selected_instructions::VirtualLiveRange,
 ) -> Result<Vec<RecoveryFutureUse>, RecoveryClassificationError> {
     let mut uses = Vec::new();
     for occurrence in &range.occurrences {
@@ -192,9 +190,7 @@ fn future_uses(
     Ok(uses)
 }
 
-fn block_instructions(
-    block: &target_operations_to_selected_instructions::SelectedBlock,
-) -> Vec<&SelectedInstruction> {
+fn block_instructions(block: &selected_instructions::SelectedBlock) -> Vec<&SelectedInstruction> {
     let terminator = match &block.terminator {
         SelectedTerminator::ConditionalBranch { instruction, .. }
         | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }

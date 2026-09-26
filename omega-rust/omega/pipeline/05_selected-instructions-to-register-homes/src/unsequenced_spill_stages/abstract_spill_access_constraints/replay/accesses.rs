@@ -6,7 +6,7 @@ use crate::unsequenced_spill_stages::{
     AbstractSpillAccessConstraintError, AbstractSpillAccessKind, AbstractSpillAccessPlacement,
     AbstractSpillMemoryEffect, FunctionAbstractSpillMemoryEffects,
 };
-use target_operations_to_selected_instructions::LiveRangePoint;
+use selected_instructions::LiveRangePoint;
 
 pub(super) fn reconstruct(
     function: usize,
@@ -70,7 +70,7 @@ fn fields(
     u64,
     u64,
     u64,
-    target_operations_to_selected_instructions::SelectedInstructionId,
+    selected_instructions::SelectedInstructionId,
 ) {
     match effect {
         AbstractSpillMemoryEffect::Write {
@@ -108,10 +108,7 @@ fn fields(
 
 fn position(
     effect: AbstractSpillMemoryEffect,
-) -> (
-    target_operations_to_selected_instructions::SelectedBlockId,
-    LiveRangePoint,
-) {
+) -> (selected_instructions::SelectedBlockId, LiveRangePoint) {
     match effect {
         AbstractSpillMemoryEffect::Write { block, point, .. }
         | AbstractSpillMemoryEffect::Read { block, point, .. } => (block, point),

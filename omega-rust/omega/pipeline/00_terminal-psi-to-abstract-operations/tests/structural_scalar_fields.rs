@@ -1,3 +1,4 @@
+use abstract_operations::AbstractOperation;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
@@ -12,7 +13,6 @@ use terminal_psi::{
     StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
     TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
-use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
 use terminal_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact};
 use terminal_verifier::ProofBundle;
 
@@ -265,10 +265,7 @@ fn structural_scalar_field_module() -> TerminalModule {
 
 fn lower(
     module: &TerminalModule,
-) -> Result<
-    terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan,
-    ArtifactLoweringError,
-> {
+) -> Result<abstract_operations::AbstractOperationPlan, ArtifactLoweringError> {
     let semantic = encode_module(module).expect("semantic module encodes");
     let proof = encode_proof_section(module, &ProofBundle::default()).expect("empty proof encodes");
     lower_artifact(
@@ -335,12 +332,12 @@ fn canonical_nested_scalar_reads_retain_the_carrier_path() {
                 field
             )]
         );
-        let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
+        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
             &plan,
             terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
         )
         .expect("nested field unit constructs");
-        terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+        optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
         for replacement in [
             Vec::new(),
             vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
@@ -355,8 +352,8 @@ fn canonical_nested_scalar_reads_retain_the_carrier_path() {
                 _ => unreachable!(),
             }
             changed.identity =
-                terminal_psi_to_abstract_operations::optimization_unit::recompute_psi_optimization_unit_identity(&changed);
-            assert!(terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&changed).is_err());
+                optimization_unit::recompute_psi_optimization_unit_identity(&changed);
+            assert!(optimization_unit_semantics::validate_psi_optimization_unit(&changed).is_err());
         }
     }
 }
@@ -474,7 +471,7 @@ fn owned_record_read_retains_its_actual_root_and_rejects_field_substitution() {
         terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
     )
     .expect("owned record read retains optimizer custody");
-    terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(verified.unit()).unwrap();
+    optimization_unit_semantics::validate_psi_optimization_unit(verified.unit()).unwrap();
     let mut changed = verified.unit().clone();
     let read = changed.functions[0].blocks[0]
         .nodes
@@ -491,9 +488,9 @@ fn owned_record_read_retains_its_actual_root_and_rejects_field_substitution() {
         })
         .unwrap();
     *read = id::<StructuralFieldId>(99);
-    changed.identity = terminal_psi_to_abstract_operations::optimization_unit::recompute_psi_optimization_unit_identity(&changed);
-    assert!(matches!(terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&changed),
-        Err(terminal_psi_to_abstract_operations::optimization_unit_semantics::OptimizationUnitValidationError::InvalidIntegerStructuralField { .. })));
+    changed.identity = optimization_unit::recompute_psi_optimization_unit_identity(&changed);
+    assert!(matches!(optimization_unit_semantics::validate_psi_optimization_unit(&changed),
+        Err(optimization_unit_semantics::OptimizationUnitValidationError::InvalidIntegerStructuralField { .. })));
 }
 
 #[test]

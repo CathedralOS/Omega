@@ -3,9 +3,9 @@
 //! pointer operand's last definition before it in the same block is an
 //! `AddressOffset` whose own base register still holds the read value.
 use optimization_core::OptimizationWorkBudget;
-use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
-use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
-use target_operations_to_selected_instructions::{
+use register_environment::ValidatedTargetRegisterEnvironment;
+use register_model::RegisterOperandAccess;
+use selected_instructions::{
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
     VirtualRegisterId,
 };
@@ -75,7 +75,7 @@ pub(super) fn admitted_offset(
 /// The plan-scan cost every candidate audit shares: one pass over the whole
 /// selected plan's instructions plus one step per block.
 pub(super) fn plan_scan_steps(
-    plan: &target_operations_to_selected_instructions::SelectedInstructionPlan,
+    plan: &selected_instructions::SelectedInstructionPlan,
 ) -> Result<usize, AddressFoldError> {
     plan.functions
         .iter()

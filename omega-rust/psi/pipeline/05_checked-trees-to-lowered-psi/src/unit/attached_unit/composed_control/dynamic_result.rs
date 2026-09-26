@@ -5,11 +5,9 @@ use super::{CheckedTrees, ComposedCatalogs, LoweringError, admission, catalogs};
 
 pub(crate) fn lower_control_catalogs(
     checked: &CheckedTrees,
-    plan: &typed_trees_to_checked_trees::checked_trees::CheckedDynamicScalarCallPlan,
-    continuation: &typed_trees_to_checked_trees::checked_trees::CheckedDynamicUnitContinuationPlan,
-    stored: Option<
-        &typed_trees_to_checked_trees::checked_trees::CheckedDynamicStoredDescriptorPlan,
-    >,
+    plan: &checked_trees::CheckedDynamicScalarCallPlan,
+    continuation: &checked_trees::CheckedDynamicUnitContinuationPlan,
+    stored: Option<&checked_trees::CheckedDynamicStoredDescriptorPlan>,
 ) -> Result<ComposedCatalogs<'static>, LoweringError> {
     let (boundaries, internal_targets) =
         admission::admit_dynamic_continuation(checked, plan, continuation, stored)?;

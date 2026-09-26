@@ -2,13 +2,9 @@ use super::{
     TerminalArtifactInterpretError, TerminalExecutionResult, TerminalInterpretError,
     TerminalScalarValue, checked_arms, encode_module, encode_proof_section, execute,
 };
+use checked_trees::{CheckedScalarExpressionBindings, CheckedScalarExpressionRole};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
-    StatementNode, TransitionGuardNode, TransitionTargetNode,
-};
-use typed_trees_to_checked_trees::checked_trees::{
-    CheckedScalarExpressionBindings, CheckedScalarExpressionRole,
-};
+use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
 const SOURCE: &str = r#"
     machine identity(input: bool) -> bool
@@ -34,7 +30,7 @@ const SOURCE: &str = r#"
 "#;
 
 fn binding_rows(
-    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+    checked: &checked_trees::CheckedTrees,
 ) -> Vec<(
     arena::Handle<CheckedScalarExpressionBindings>,
     CheckedScalarExpressionBindings,
@@ -67,9 +63,7 @@ fn binding_rows(
         .collect()
 }
 
-fn encoded_checked(
-    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
-) -> (Vec<u8>, Vec<u8>) {
+fn encoded_checked(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec<u8>) {
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         checked,
         TerminalMachineSelection::Name("value"),
@@ -166,7 +160,7 @@ fn missing_duplicate_or_rebound_pure_source_rows_reject_for_every_consumed_role(
                         let replacement = changed
                             .typed
                             .expression_table
-                            .insert(symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Boolean(true));
+                            .insert(typed_trees::expression::ExpressionNode::Boolean(true));
                         plans.source_bindings.get_mut(*handle).expression = replacement;
                     }
                     4 => {
@@ -253,7 +247,7 @@ fn reordered_pure_operand_namespaces_cannot_rebind_equal_carrier_values() {
 }
 
 fn replace_authored_expression(
-    checked: &mut typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+    checked: &mut checked_trees::CheckedTrees,
     row: &CheckedScalarExpressionBindings,
 ) {
     let state = checked
@@ -267,11 +261,10 @@ fn replace_authored_expression(
     let mut statement = checked.typed.statement_table.statements(statements)
         [row.statement_ordinal as usize]
         .clone();
-    let replacement = checked.typed.expression_table.insert(
-        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Boolean(
-            true,
-        ),
-    );
+    let replacement = checked
+        .typed
+        .expression_table
+        .insert(typed_trees::expression::ExpressionNode::Boolean(true));
     match (&mut statement, row.role) {
         (
             StatementNode::LocalData(local),
@@ -284,9 +277,7 @@ fn replace_authored_expression(
                 argument_ordinal, ..
             },
         ) => {
-            let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(
-                call,
-            ) = checked
+            let typed_trees::expression::ExpressionNode::Call(call) = checked
                 .typed
                 .expression_table
                 .expression(local.initial_value)
@@ -657,7 +648,7 @@ fn direct_call_outer_custody_rejects_changed_targets_and_local_declarations() {
             let mut changed = checked.clone();
             match mutation {
                 0 => {
-                    let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(call) = changed
+                    let typed_trees::expression::ExpressionNode::Call(call) = changed
                         .typed
                         .expression_table
                         .expression_mut(call_expression)
@@ -686,7 +677,7 @@ fn direct_call_outer_custody_rejects_changed_targets_and_local_declarations() {
                         let value = changed
                             .typed
                             .expression_table
-                            .insert(symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Boolean(true));
+                            .insert(typed_trees::expression::ExpressionNode::Boolean(true));
                         changed
                             .typed
                             .expression_table
@@ -694,7 +685,7 @@ fn direct_call_outer_custody_rejects_changed_targets_and_local_declarations() {
                     } else {
                         arena::HandleSpan::empty()
                     };
-                    let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(call) = changed
+                    let typed_trees::expression::ExpressionNode::Call(call) = changed
                         .typed
                         .expression_table
                         .expression_mut(call_expression)
@@ -806,7 +797,7 @@ fn pure_named_successors_rejoin_source_and_graph_targets_even_without_arguments(
                     .iter_mut()
                     .find(|state| state.state == entry.symbol)
                     .unwrap();
-                let typed_trees_to_checked_trees::checked_trees::CheckedScalarStateTerminator::Conditional {
+                let checked_trees::CheckedScalarStateTerminator::Conditional {
                     when_true,
                     when_false,
                     ..
@@ -815,8 +806,8 @@ fn pure_named_successors_rejoin_source_and_graph_targets_even_without_arguments(
                     panic!("authored conditional jumps");
                 };
                 let (
-                    typed_trees_to_checked_trees::checked_trees::CheckedScalarBranchDestination::Jump(first),
-                    typed_trees_to_checked_trees::checked_trees::CheckedScalarBranchDestination::Jump(second),
+                    checked_trees::CheckedScalarBranchDestination::Jump(first),
+                    checked_trees::CheckedScalarBranchDestination::Jump(second),
                 ) = (when_true, when_false)
                 else {
                     panic!("two named successors");

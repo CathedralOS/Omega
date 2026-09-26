@@ -22,10 +22,8 @@ use super::{
     TargetUnitOperation, ValueId,
 };
 use crate::LegalizationError;
-use abstract_operations_to_target_operations::calling_conventions::{
-    CallSignature, CallingPolicy, EntryControl, ValueLocation,
-};
-use abstract_operations_to_target_operations::target_operations::{
+use calling_conventions::{CallSignature, CallingPolicy, EntryControl, ValueLocation};
+use target_operations::{
     TargetOperationPlan, TargetStructuralParameter, TargetUnitScalarArgumentSource as Source,
     TargetUnitScalarHomeRequirement,
 };
@@ -33,7 +31,7 @@ use abstract_operations_to_target_operations::target_operations::{
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate(
     target: &TargetUnitOperation,
-    source: &terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation,
+    source: &abstract_operations::AbstractOperation,
     function: &TargetFunction,
     parameters: &[TargetStructuralParameter],
     native: &TargetOperationPlan,
@@ -52,7 +50,7 @@ pub(super) fn validate(
             structural_arguments,
             result_home,
         },
-        terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::BoundaryCall {
+        abstract_operations::AbstractOperation::BoundaryCall {
             psi_operation: expected_operation,
             boundary: expected_boundary,
             result,
@@ -136,11 +134,11 @@ pub(super) fn validate(
         .collect::<Result<Vec<_>, LegalizationError>>()?;
     let expected_result = match (result, &declaration.result) {
         (
-            terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Unit,
+            abstract_operations::AbstractBoundaryResult::Unit,
             terminal_psi::BoundaryMachineResult::Unit,
         ) => None,
         (
-            terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Scalar(result),
+            abstract_operations::AbstractBoundaryResult::Scalar(result),
             terminal_psi::BoundaryMachineResult::Scalar(declared),
         ) => {
             if *declared != result.scalar_type
@@ -192,13 +190,13 @@ pub(super) fn validate(
     };
     let validated = match callback {
         Some(callback) => {
-            abstract_operations_to_target_operations::calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
+            calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
                 binding.boundary_entry_plan.clone(),
                 &signature,
                 &callback.registrar_context,
             )
         }
-        None => abstract_operations_to_target_operations::calling_conventions::validate_boundary_entry_plan(
+        None => calling_conventions::validate_boundary_entry_plan(
             binding.boundary_entry_plan.clone(),
             &signature,
         ),

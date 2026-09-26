@@ -5,17 +5,16 @@
 //! the conversion's own bound instead of dissolving into the destination's
 //! carrier or vanishing entirely. A step that cannot describe a normal-return
 //! value fails the capture, never a widened guess.
-use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use crate::fact_plan::IntegerRange;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use facts::IntegerRange;
 use numerics::arithmetic::ArithmeticDomain;
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
+use typed_trees::types::PrimitiveType;
 
 /// A call nested under authored integer conversions: the call itself plus the
 /// conversion steps applied to its result, innermost first. `expression` is
 /// the authored call node that identifies this exact call occurrence.
 pub(super) struct SelectedCall<'a> {
-    pub call:
-        &'a symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
+    pub call: &'a typed_trees::expression::TableCallExpression,
     pub expression: ExpressionHandle,
     conversions: Vec<SelectedConversion>,
 }
@@ -87,8 +86,8 @@ impl SelectedOperand {
 /// carrier starts the conversion fold, mirroring the callee return type in
 /// `selected_call`.
 pub(super) fn selected_operand(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    exact_casts: &[crate::validation::ExactIntegerCastFact],
+    program: &typed_trees::TypedTrees,
+    exact_casts: &[validation::ExactIntegerCastFact],
     state: symbols::SymbolHandle,
     statement_index: usize,
     source: ExpressionHandle,
@@ -159,8 +158,8 @@ pub(super) fn selected_operand(
 /// keeps `scalar_qualified_call_expression`'s same-carrier transparency and
 /// extends it to the remaining fixed-integer cast policies.
 pub(super) fn selected_call<'a>(
-    program: &'a symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    exact_casts: &[crate::validation::ExactIntegerCastFact],
+    program: &'a typed_trees::TypedTrees,
+    exact_casts: &[validation::ExactIntegerCastFact],
     source: ExpressionHandle,
 ) -> Option<SelectedCall<'a>> {
     let mut casts = Vec::new();
@@ -219,15 +218,15 @@ pub(super) fn selected_call<'a>(
 /// the selected-scalar plan has no node for it.
 fn classify(
     expression: ExpressionHandle,
-    cast: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCastExpression,
+    cast: &typed_trees::expression::TableCastExpression,
     source: PrimitiveType,
     target: PrimitiveType,
-    exact_casts: &[crate::validation::ExactIntegerCastFact],
+    exact_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<SelectedConversion> {
     // Fixed-width integer carriers only: Addr and the non-integer primitives
     // are distinct carriers that this slice does not convert.
     crate::values::bounds::primitive_range(target)?;
-    let kind = if source == target || crate::validation::integer_widen_is_total(source, target) {
+    let kind = if source == target || validation::integer_widen_is_total(source, target) {
         ConversionKind::Widen
     } else {
         match cast.domain {

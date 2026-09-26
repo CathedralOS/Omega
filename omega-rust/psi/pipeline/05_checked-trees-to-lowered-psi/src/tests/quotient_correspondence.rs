@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use semantic_vocabulary::PackageKeyIdentity;
 use source::{SourceMap, SourceOrigin};
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use typed_trees::TypedTrees;
 
 use super::super::{LoweringError, lower_machine};
 use crate::proofs::quotient_correspondence::install_non_executable_quotient_correspondences;
@@ -68,7 +68,6 @@ machine admitted(value: EquivalenceClass) -> EquivalenceClass {
 "#;
 
 const TRANSPORT_BACKED_LIFT: &str = r#"
-use omega::language::core::relation;
 
 data Representative {
     case Zero;
@@ -199,10 +198,7 @@ fn quotient_program(source: &str) -> TypedTrees {
 #[test]
 fn retains_and_replays_source_checked_transport_backed_lift_without_execution() {
     let program = quotient_program(TRANSPORT_BACKED_LIFT);
-    let batch =
-        typed_trees_to_checked_trees::validation::extract_non_executable_quotient_correspondences(
-            &program,
-        )
+    let batch = validation::extract_non_executable_quotient_correspondences(&program)
         .expect("extract transport-backed lift");
     let mut module = baseline_module();
     install_non_executable_quotient_correspondences(batch, &mut module)
@@ -295,11 +291,8 @@ fn installs_complete_direct_define_batch_without_executable_authority() {
         "{TOTAL_DIRECT_DEFINE}\n\nmachine admitted_second(value: EquivalenceClass) -> EquivalenceClass {{\n    Quotient::define<representative, representative_respects>(value)\n}}\n"
     );
     let program = quotient_program(&two_defines);
-    assert!(typed_trees_to_checked_trees::validation::validate_program(&program).is_err());
-    let batch =
-        typed_trees_to_checked_trees::validation::extract_non_executable_quotient_correspondences(
-            &program,
-        )
+    assert!(validation::validate_program(&program).is_err());
+    let batch = validation::extract_non_executable_quotient_correspondences(&program)
         .expect("extract complete direct define batch");
     let mut expected = batch
         .clone()
@@ -336,10 +329,7 @@ fn installs_complete_direct_define_batch_without_executable_authority() {
 fn unsupported_request_leaves_the_installed_batch_unchanged() {
     let valid = quotient_program(TOTAL_DIRECT_DEFINE);
     let mut module = baseline_module();
-    let valid_batch =
-        typed_trees_to_checked_trees::validation::extract_non_executable_quotient_correspondences(
-            &valid,
-        )
+    let valid_batch = validation::extract_non_executable_quotient_correspondences(&valid)
         .expect("extract initial proof-only batch");
     install_non_executable_quotient_correspondences(valid_batch, &mut module)
         .expect("install initial proof-only batch");
@@ -349,10 +339,8 @@ fn unsupported_request_leaves_the_installed_batch_unchanged() {
     );
 
     let diagnostics =
-        typed_trees_to_checked_trees::validation::extract_non_executable_quotient_correspondences(
-            &quotient_program(&mixed),
-        )
-        .expect_err("one unsupported request rejects the whole replacement batch");
+        validation::extract_non_executable_quotient_correspondences(&quotient_program(&mixed))
+            .expect_err("one unsupported request rejects the whole replacement batch");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -364,10 +352,7 @@ fn unsupported_request_leaves_the_installed_batch_unchanged() {
 #[test]
 fn replay_failure_leaves_the_module_unchanged() {
     let program = quotient_program(TOTAL_DIRECT_DEFINE);
-    let batch =
-        typed_trees_to_checked_trees::validation::extract_non_executable_quotient_correspondences(
-            &program,
-        )
+    let batch = validation::extract_non_executable_quotient_correspondences(&program)
         .expect("extract proof-only batch");
     let mut module = baseline_module();
     module.entry = semantic_vocabulary::MachineId::new(99).expect("nonzero invalid entry");

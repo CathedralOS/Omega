@@ -3,13 +3,11 @@ use crate::tests::front_end::typed_program;
 use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::loaded_source;
 use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::source;
 use crate::tests::termination::progress_mutation::check_source;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 use symbols::SymbolHandle;
+use typed_trees::expression::ExpressionNode;
+use typed_trees::statement::StatementNode;
 
-fn origin(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-) -> Option<(SymbolHandle, Vec<crate::fact_plan::PlaceSegment>)> {
+fn origin(program: &typed_trees::TypedTrees) -> Option<(SymbolHandle, Vec<facts::PlaceSegment>)> {
     let machine = program
         .machines()
         .iter()
@@ -26,7 +24,7 @@ fn origin(
             _ => None,
         })
         .unwrap();
-    let resolver = crate::validation::CallFrameResolver::new(program).unwrap();
+    let resolver = validation::CallFrameResolver::new(program).unwrap();
     let frame = resolver.inferred_state_write_frame(machine, state);
     let origin = resolver.local_reference_origin_before_statement(
         machine,
@@ -39,7 +37,7 @@ fn origin(
         "reference discovery cannot change cached write frames"
     );
     // Also exercise the opposite query order with a fresh resolver.
-    let fresh = crate::validation::CallFrameResolver::new(program).unwrap();
+    let fresh = validation::CallFrameResolver::new(program).unwrap();
     assert_eq!(
         fresh.local_reference_origin_before_statement(
             machine,
@@ -52,10 +50,7 @@ fn origin(
     origin
 }
 
-fn assert_input_fields(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    fields: &[&str],
-) {
+fn assert_input_fields(program: &typed_trees::TypedTrees, fields: &[&str]) {
     let (root, segments) = origin(program).expect("one supported input load relation");
     let machine = program
         .machines()
@@ -70,7 +65,7 @@ fn assert_input_fields(
         segments
             .iter()
             .map(|segment| match segment {
-                crate::fact_plan::PlaceSegment::Field { symbol } =>
+                facts::PlaceSegment::Field { symbol } =>
                     program.symbols.display_path(*symbol, "::"),
                 _ => panic!("only exact nominal fields: {segments:?}"),
             })

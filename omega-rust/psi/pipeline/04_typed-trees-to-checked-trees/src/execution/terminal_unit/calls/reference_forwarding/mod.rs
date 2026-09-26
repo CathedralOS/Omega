@@ -4,18 +4,18 @@ use crate::execution::terminal_unit::ExpressionNode;
 use crate::execution::terminal_unit::SymbolHandle;
 use crate::execution::terminal_unit::TypedTrees;
 use crate::execution::terminal_unit::types::structural_access_for_type_reference;
-use symbol_resolved_trees_to_typed_trees::typed_trees;
+use typed_trees;
 
 use crate::execution::terminal_unit::types::byte_sequence_carrier;
 
 pub(super) fn preserves_mutable_referent(
     program: &TypedTrees,
-    borrow: &crate::checked_trees::BorrowFacts,
-    borrow_state: &crate::checked_trees::StateBorrowFact,
-    borrow_call: &crate::checked_trees::BorrowCallFact,
-    call: &crate::checked_trees::FlowCallFact,
+    borrow: &checked_trees::BorrowFacts,
+    borrow_state: &checked_trees::StateBorrowFact,
+    borrow_call: &checked_trees::BorrowCallFact,
+    call: &checked_trees::FlowCallFact,
     source_symbol: SymbolHandle,
-    returned_loans: &[arena::Handle<crate::checked_trees::BorrowLoanFact>],
+    returned_loans: &[arena::Handle<checked_trees::BorrowLoanFact>],
 ) -> bool {
     exact_mutable_referent(
         program,
@@ -31,12 +31,12 @@ pub(super) fn preserves_mutable_referent(
 
 fn exact_mutable_referent(
     program: &TypedTrees,
-    borrow: &crate::checked_trees::BorrowFacts,
-    borrow_state: &crate::checked_trees::StateBorrowFact,
-    borrow_call: &crate::checked_trees::BorrowCallFact,
-    call: &crate::checked_trees::FlowCallFact,
+    borrow: &checked_trees::BorrowFacts,
+    borrow_state: &checked_trees::StateBorrowFact,
+    borrow_call: &checked_trees::BorrowCallFact,
+    call: &checked_trees::FlowCallFact,
     source_symbol: SymbolHandle,
-    returned_loans: &[arena::Handle<crate::checked_trees::BorrowLoanFact>],
+    returned_loans: &[arena::Handle<checked_trees::BorrowLoanFact>],
 ) -> Option<()> {
     let state = crate::semantic::calls::find_state_in_machine(
         program,
@@ -84,9 +84,7 @@ fn exact_mutable_referent(
     let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
     // Method calls pass no expression for the receiver: align the formal list
     // with the authored argument list by dropping `self`, then compare kinds.
-    let formals: Vec<
-        &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter,
-    > = parameters
+    let formals: Vec<&typed_trees::signature::StateParameter> = parameters
         .iter()
         .filter(|parameter| !parameter.is_self)
         .collect();
@@ -128,7 +126,7 @@ fn exact_mutable_referent(
     let access = accesses.next()?;
     if accesses.next().is_some()
         || !borrow.access_segments(access).is_empty()
-        || access.kind != crate::checked_trees::BorrowAccessKind::Read
+        || access.kind != checked_trees::BorrowAccessKind::Read
     {
         return None;
     }
@@ -158,9 +156,9 @@ fn exact_mutable_referent(
 
 fn prefix_preserves_parameter(
     program: &TypedTrees,
-    borrow: &crate::checked_trees::BorrowFacts,
-    borrow_state: &crate::checked_trees::StateBorrowFact,
-    call: &crate::checked_trees::FlowCallFact,
+    borrow: &checked_trees::BorrowFacts,
+    borrow_state: &checked_trees::StateBorrowFact,
+    call: &checked_trees::FlowCallFact,
     source_symbol: SymbolHandle,
 ) -> Option<()> {
     let state = crate::semantic::calls::find_state_in_machine(
@@ -169,7 +167,7 @@ fn prefix_preserves_parameter(
         borrow_state.state_symbol,
     )?;
     let statements = program.statement_table.statements(state.statement_nodes);
-    let call_frames = crate::validation::CallFrameResolver::new(program);
+    let call_frames = validation::CallFrameResolver::new(program);
     for (statement_index, statement) in statements.get(..call.statement_index)?.iter().enumerate() {
         let writes = crate::flow::statement_storage_writes(
             program,
@@ -181,7 +179,7 @@ fn prefix_preserves_parameter(
         )?;
         if writes
             .iter()
-            .any(|place| place.root == crate::fact_plan::PlaceRoot::Symbol(source_symbol))
+            .any(|place| place.root == facts::PlaceRoot::Symbol(source_symbol))
         {
             return None;
         }
@@ -215,7 +213,7 @@ fn prefix_preserves_parameter(
         )?;
         if writes
             .iter()
-            .any(|place| place.root == crate::fact_plan::PlaceRoot::Symbol(source_symbol))
+            .any(|place| place.root == facts::PlaceRoot::Symbol(source_symbol))
             && !(preceding.statement_index < call.statement_index
                 && preceding_byte_loan_preserves_carrier(
                     program,
@@ -235,9 +233,9 @@ fn prefix_preserves_parameter(
 /// reference carrier. This does not admit assignments or restore live loans.
 fn preceding_byte_loan_preserves_carrier(
     program: &TypedTrees,
-    borrow: &crate::checked_trees::BorrowFacts,
-    state: &crate::checked_trees::StateBorrowFact,
-    call: &crate::checked_trees::BorrowCallFact,
+    borrow: &checked_trees::BorrowFacts,
+    state: &checked_trees::StateBorrowFact,
+    call: &checked_trees::BorrowCallFact,
     source_symbol: SymbolHandle,
 ) -> bool {
     let Some(source_state) = crate::semantic::calls::find_state_in_machine(
@@ -297,7 +295,7 @@ fn preceding_byte_loan_preserves_carrier(
             .all(|reference| {
                 structural_access_for_type_reference(program, reference)
                     == Some(CheckedStructuralAccess::MutableBorrow)
-                    && crate::checked_trees::is_borrowed_view(byte_sequence_carrier(program, reference, &[]))
+                    && checked_trees::is_borrowed_view(byte_sequence_carrier(program, reference, &[]))
             }))
     {
         return false;
@@ -326,8 +324,7 @@ fn preceding_byte_loan_preserves_carrier(
         && borrow.access_segments(access).is_empty()
         && matches!(
             access.kind,
-            crate::checked_trees::BorrowAccessKind::Read
-                | crate::checked_trees::BorrowAccessKind::Mutable
+            checked_trees::BorrowAccessKind::Read | checked_trees::BorrowAccessKind::Mutable
         )
 }
 

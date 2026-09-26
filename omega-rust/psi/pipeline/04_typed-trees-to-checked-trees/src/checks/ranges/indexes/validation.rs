@@ -35,14 +35,12 @@
 
 use diagnostics::Diagnostic;
 use language_core::operator_spelling::OperatorSpelling;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableIndexedExpression, TableRangeExpression,
 };
-use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
-use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
-    TypeReferenceHandle, TypeReferenceNode,
-};
+use typed_trees::machine::Machine;
+use typed_trees::state::State;
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::super::diagnostics::{
     known_length_range_bound_failure, known_length_range_value_failure,
@@ -80,7 +78,7 @@ pub(super) enum BoundsCheckResult {
 }
 
 pub(in crate::checks::ranges) fn is_builtin_scalar_index(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
     facts: &RangeFacts<'_>,
@@ -107,7 +105,7 @@ pub(in crate::checks::ranges) fn is_builtin_scalar_index(
 }
 
 pub(super) fn check_indexed_access(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
     facts: &RangeFacts<'_>,
@@ -259,7 +257,7 @@ fn with_attribution(message: String, attribution: Option<&str>) -> String {
 /// -> "self.k + 1"), found by name among the state's `let` statements. `None`
 /// when `index_label` is not a reserved `__hoist_` name or has no initializer.
 fn hoist_temp_initializer_label(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     state: &State,
     index_label: &str,
 ) -> Option<String> {
@@ -270,10 +268,10 @@ fn hoist_temp_initializer_label(
 /// The initializer of a hoisted computed-index temp (`__hoist_N`), which its
 /// synthesized `let` assigns immediately before the indexing statement.
 fn hoist_temp_initializer(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     state: &State,
     index_label: &str,
-) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle> {
+) -> Option<typed_trees::expression::ExpressionHandle> {
     if !index_label.starts_with("__hoist_") {
         return None;
     }
@@ -282,7 +280,7 @@ fn hoist_temp_initializer(
         .statements(state.statement_nodes)
         .iter()
         .find_map(|statement| match statement {
-            symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local_data)
+            typed_trees::statement::StatementNode::LocalData(local_data)
                 if local_data.name.as_str() == index_label
                     && local_data.initial_value.is_valid() =>
             {
@@ -303,7 +301,7 @@ fn hoist_temp_initializer(
 /// the fold the backend is guaranteed to reproduce; anything needing a fact
 /// stays `None` and faces the computed-index fence.
 fn literal_only_integer_value(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     index: ExpressionHandle,
 ) -> Option<i64> {
     match program.expression_table.expression(index) {
@@ -320,7 +318,7 @@ fn literal_only_integer_value(
 }
 
 fn zero_offset_reduced_expression(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> ExpressionHandle {
     // Carried facts are keyed on an expression's own spelling, so `x + 0`,
@@ -343,7 +341,7 @@ fn zero_offset_reduced_expression(
 }
 
 fn zero_offset_reduced_range(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     range: &TableRangeExpression,
 ) -> TableRangeExpression {
     let mut reduced = *range;
@@ -356,10 +354,7 @@ fn zero_offset_reduced_range(
     reduced
 }
 
-fn index_is_computed(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    index: ExpressionHandle,
-) -> bool {
+fn index_is_computed(program: &typed_trees::TypedTrees, index: ExpressionHandle) -> bool {
     let mut node = index;
     loop {
         match program.expression_table.expression(node) {
@@ -372,7 +367,7 @@ fn index_is_computed(
 }
 
 fn check_known_length_index(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
     facts: &RangeFacts<'_>,
@@ -442,7 +437,7 @@ fn check_known_length_index(
                 // Standing bounds also cover an immutable parameter's own
                 // `requires` and a field's data `where` facts.
                 let (standing_low, standing_high) =
-                    crate::validation::standing_integer_bounds(program, machine, state, index)
+                    validation::standing_integer_bounds(program, machine, state, index)
                         .unwrap_or_default();
                 // A call index carries its callee's own result contract:
                 // `ensures result < K` / `<= K` / `== K` (and `>=`/`>` for the
@@ -470,7 +465,7 @@ fn check_known_length_index(
                 let (initializer_low, initializer_high) =
                     hoist_temp_initializer(program, state, &index_label)
                         .and_then(|initializer| {
-                            crate::validation::standing_integer_bounds(
+                            validation::standing_integer_bounds(
                                 program,
                                 machine,
                                 state,
@@ -560,7 +555,7 @@ fn check_known_length_index(
 }
 
 fn check_unknown_length_slice_index(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
     facts: &RangeFacts<'_>,
@@ -606,16 +601,13 @@ fn check_unknown_length_slice_index(
 }
 
 fn check_symbolic_extent_index(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
     facts: &RangeFacts<'_>,
     collection: ExpressionHandle,
     index: ExpressionHandle,
-    extent: (
-        symbols::SymbolHandle,
-        symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
-    ),
+    extent: (symbols::SymbolHandle, typed_trees::name::Identifier),
     attribution: Option<&str>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
@@ -688,7 +680,7 @@ fn check_symbolic_extent_index(
 /// the member's own receiver can carry that binding — a deeper projection
 /// would bind a different parameter list.
 fn extent_binds_pending_application(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
     collection: ExpressionHandle,
@@ -700,7 +692,7 @@ fn extent_binds_pending_application(
     let Some(receiver) = expression_type_reference(program, machine, state, member.receiver) else {
         return false;
     };
-    let symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Generic {
+    let typed_trees::types::TypeReferenceNode::Generic {
         base_symbol,
         arguments,
         ..
@@ -733,7 +725,7 @@ fn extent_binds_pending_application(
 /// is still marked pending — i.e. the const application occupying this slot
 /// has not folded yet.
 fn type_reference_has_pending_application(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     reference: TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(reference) {
@@ -762,7 +754,7 @@ fn type_reference_has_pending_application(
 }
 
 fn check_known_length_range_index(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
     facts: &RangeFacts<'_>,

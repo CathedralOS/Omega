@@ -17,17 +17,17 @@
 use std::sync::Arc;
 
 use optimization_core::OptimizationWorkBudget;
-use semantic_vocabulary::PlaceId;
-use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
-use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
-use target_operations_to_selected_instructions::{
+use register_environment::ValidatedTargetRegisterEnvironment;
+use register_model::RegisterOperandAccess;
+use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedBlockId, SelectedBoundarySettlement,
     SelectedCasePayloadTransport, SelectedFunction, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionKind, SelectedInstructionPlan, SelectedMemoryAccess,
     SelectedMemoryAccessRole, SelectedStructuralTransport, SelectedSuccessor,
     SelectedValueTransport, VirtualRegisterId,
 };
+use semantic_vocabulary::PlaceId;
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 use terminal_psi::StructuralPlaceDeclaration;
 
 use super::{StoreMutationMotionError, StoreMutationMotionReceipt, ValidatedStoreMutationMotion};
@@ -620,12 +620,10 @@ fn edge_stops(successor: &SelectedSuccessor, moved: &Moved, carried: &Carried) -
                 base, destination, ..
             } => (
                 match base {
-                    target_operations_to_selected_instructions::SelectedAddressBase::Register(
-                        argument,
-                    ) => Some(argument),
-                    target_operations_to_selected_instructions::SelectedAddressBase::Local(_) => {
-                        None
+                    selected_instructions::SelectedAddressBase::Register(argument) => {
+                        Some(argument)
                     }
+                    selected_instructions::SelectedAddressBase::Local(_) => None,
                 },
                 destination,
                 Some(base),
@@ -638,12 +636,7 @@ fn edge_stops(successor: &SelectedSuccessor, moved: &Moved, carried: &Carried) -
             }
             SubjectStorage::Staging(slot) => {
                 destination == slot
-                    || lent
-                        == Some(
-                            target_operations_to_selected_instructions::SelectedAddressBase::Local(
-                                slot,
-                            ),
-                        )
+                    || lent == Some(selected_instructions::SelectedAddressBase::Local(slot))
             }
         };
         if touches || argument.is_some_and(|argument| writes(&argument)) {
@@ -809,7 +802,7 @@ fn reconvergent_join(
 /// region or leave for the join.
 fn arm_stops(
     function: &SelectedFunction,
-    arm: &target_operations_to_selected_instructions::SelectedBlock,
+    arm: &selected_instructions::SelectedBlock,
     moved: &Moved,
     carried: &Carried,
     moved_store: &SelectedInstruction,

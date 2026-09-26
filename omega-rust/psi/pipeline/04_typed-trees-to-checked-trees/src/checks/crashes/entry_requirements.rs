@@ -2,8 +2,8 @@
 //! after body storage changes. Named-state requirements describe an arrival,
 //! not the invocation snapshot, and must never enter this collection.
 
-use crate::checked_trees::{CheckedOperatorFacts, CrashPredicateIdentity};
-use symbol_resolved_trees_to_typed_trees::typed_trees::{
+use checked_trees::{CheckedOperatorFacts, CrashPredicateIdentity};
+use typed_trees::{
     TypedTrees,
     expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator},
 };
@@ -18,10 +18,10 @@ pub(super) struct EntryRequirements {
 
 pub(super) fn collect(
     program: &TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    machine: &typed_trees::machine::Machine,
     operators: &CheckedOperatorFacts,
     parameter_names: &[String],
-    content_conservation: &[crate::validation::ContentConservationSourcePlan],
+    content_conservation: &[validation::ContentConservationSourcePlan],
     integer_types: &super::IntegerTypeClassification,
 ) -> EntryRequirements {
     let mut result = EntryRequirements::default();
@@ -38,10 +38,10 @@ pub(super) fn collect(
         .machine_contracts(machine)
         .iter()
         .chain(program.state_contracts(entry))
-        .filter(|contract| contract.kind == symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Requires)
+        .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Requires)
     {
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(expression) = fact else {
+            let typed_trees::domain::ProofFact::Expression(expression) = fact else {
                 continue;
             };
             if !has_exact_entry_meaning(program, machine, operators, parameter_names, *expression) {
@@ -84,12 +84,12 @@ pub(super) fn collect(
         .filter(|contract| {
             matches!(
                 contract.kind,
-                symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Crashes { .. }
+                typed_trees::signature::SignatureContractKind::Crashes { .. }
             )
         })
     {
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(expression) = fact else {
+            let typed_trees::domain::ProofFact::Expression(expression) = fact else {
                 continue;
             };
             if !has_exact_entry_meaning(program, machine, operators, parameter_names, *expression) {
@@ -119,7 +119,7 @@ pub(super) fn collect(
 
 fn has_exact_entry_meaning(
     program: &TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    machine: &typed_trees::machine::Machine,
     operators: &CheckedOperatorFacts,
     parameter_names: &[String],
     expression: ExpressionHandle,
@@ -271,12 +271,12 @@ mod tests {
                 .find(|contract| {
                     matches!(
                         contract.kind,
-                        symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Crashes { .. }
+                        typed_trees::signature::SignatureContractKind::Crashes { .. }
                     )
                 })
                 .and_then(|contract| program.proof_facts.span_or_empty(contract.facts).first())
                 .and_then(|fact| match fact {
-                    symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(expression) => Some(*expression),
+                    typed_trees::domain::ProofFact::Expression(expression) => Some(*expression),
                     _ => None,
                 })
                 .expect("exact published route");

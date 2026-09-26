@@ -3,8 +3,6 @@
 //! Alias transfer belongs to validation. This adapter resolves its canonical
 //! names to existing typed symbols and retains only declared, builtin fixed
 //! coordinates from its captured structural origins.
-use crate::checked_trees::expression::ExpressionNode;
-use crate::checked_trees::statement::StatementNode;
 use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression_in_state;
 use crate::flow::canonical_place_from_symbol;
@@ -15,6 +13,8 @@ use crate::flow::push_field_place_segments;
 use crate::flow::resolve_member_symbol_from_type_symbol;
 use crate::flow::symbol_type_symbol;
 use crate::semantic::calls::find_state;
+use checked_trees::expression::ExpressionNode;
+use checked_trees::statement::StatementNode;
 use language_core::is_self_receiver;
 use symbols::SymbolHandle;
 mod coordinates;
@@ -25,7 +25,7 @@ pub(crate) use coordinates::origin_place;
 /// bindings here or change the access routes used by borrow authorization.
 #[cfg(test)]
 pub(crate) fn close_storage_places_over_aliases(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -40,17 +40,17 @@ pub(crate) fn close_storage_places_over_aliases(
         state_symbol,
         statement_index,
         places,
-        crate::validation::CallFrameResolver::new(program).as_ref(),
+        validation::CallFrameResolver::new(program).as_ref(),
     )
 }
 
 pub(crate) fn close_storage_places_over_aliases_with_resolver(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
     mut places: Vec<CanonicalPlace>,
-    resolver: Option<&crate::validation::CallFrameResolver<'_>>,
+    resolver: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     if places.is_empty() {
         return Some(places);
@@ -66,10 +66,8 @@ pub(crate) fn close_storage_places_over_aliases_with_resolver(
     let storage = places.clone();
     // Root normalization and per-origin place assembly are loop invariants:
     // the same roots and aliases recur across every origin-by-place pair.
-    let mut normalized_roots: std::collections::HashMap<
-        crate::fact_plan::PlaceRoot,
-        crate::fact_plan::PlaceRoot,
-    > = std::collections::HashMap::new();
+    let mut normalized_roots: std::collections::HashMap<facts::PlaceRoot, facts::PlaceRoot> =
+        std::collections::HashMap::new();
     let mut seen: std::collections::HashSet<CanonicalPlace> = storage.iter().cloned().collect();
     for origin in origins {
         let (source, exact) = origin_place(program, state, statement_index, &origin)?;
@@ -110,12 +108,12 @@ pub(crate) fn close_storage_places_over_aliases_with_resolver(
 }
 
 pub(super) fn assignment_storage_places(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
     statement: &StatementNode,
-    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     let StatementNode::Assignment(assignment) = statement else {
         return None;
@@ -136,7 +134,7 @@ pub(super) fn assignment_storage_places(
                 indexed.collection
             }
             ExpressionNode::Indexed(_)
-                if !crate::validation::place_has_builtin_coordinates(
+                if !validation::place_has_builtin_coordinates(
                     program,
                     machine,
                     Some(state),
@@ -183,10 +181,10 @@ pub(super) fn assignment_storage_places(
         );
     };
     match target {
-        crate::validation::AssignmentWriteTarget::LocalBindingReplacement { .. } => {
+        validation::AssignmentWriteTarget::LocalBindingReplacement { .. } => {
             direct.map(|place| vec![place])
         }
-        crate::validation::AssignmentWriteTarget::Storage { paths } => {
+        validation::AssignmentWriteTarget::Storage { paths } => {
             if let Some(place) = direct {
                 rebase_local_write_places(
                     program,
@@ -206,13 +204,13 @@ pub(super) fn assignment_storage_places(
 }
 
 fn place_requires_local_write_origin(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: &CanonicalPlace,
-    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let crate::fact_plan::PlaceRoot::Symbol(root) = place.root else {
+    let facts::PlaceRoot::Symbol(root) = place.root else {
         return false;
     };
     let Some(state) = find_state(program, state_symbol) else {
@@ -238,11 +236,11 @@ fn place_requires_local_write_origin(
 /// Equality evidence needs one complete origin, not the conservative union
 /// used to retire facts after a possible write.
 pub(crate) fn rebase_exact_local_place(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: CanonicalPlace,
-    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<CanonicalPlace> {
     if !place_requires_local_write_origin(
         program,
@@ -253,7 +251,7 @@ pub(crate) fn rebase_exact_local_place(
     ) {
         return Some(place);
     }
-    let crate::fact_plan::PlaceRoot::Symbol(root) = place.root else {
+    let facts::PlaceRoot::Symbol(root) = place.root else {
         return None;
     };
     let (machine, state) = crate::semantic::calls::find_state_with_machine(program, state_symbol)?;
@@ -294,11 +292,11 @@ pub(crate) fn rebase_exact_local_place(
 }
 
 pub(super) fn rebase_local_write_places(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: CanonicalPlace,
-    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     if !place_requires_local_write_origin(
         program,
@@ -309,7 +307,7 @@ pub(super) fn rebase_local_write_places(
     ) {
         return Some(vec![place]);
     }
-    let crate::fact_plan::PlaceRoot::Symbol(root) = place.root else {
+    let facts::PlaceRoot::Symbol(root) = place.root else {
         return None;
     };
     let (machine, state) = crate::semantic::calls::find_state_with_machine(program, state_symbol)?;
@@ -360,12 +358,12 @@ pub(super) fn rebase_local_write_places(
 /// finitely many candidate origins (flow/reference_places); a write through
 /// it lands on every candidate's corresponding place.
 fn reference_result_candidate_places(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     root: SymbolHandle,
     place: &CanonicalPlace,
-    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     let candidates = crate::flow::reference_result_candidates_before_statement(
         program,
@@ -386,8 +384,8 @@ fn reference_result_candidate_places(
 }
 
 pub(crate) fn place_from_origin_path(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
     statement_index: usize,
     path: &str,
 ) -> Option<CanonicalPlace> {

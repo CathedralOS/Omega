@@ -24,7 +24,7 @@ use crate::execution::terminal_unit::{
     CheckedUnitStructuralArgumentSourcePlan, ExpressionNode, PrimitiveType,
 };
 
-use crate::checked_trees::{
+use checked_trees::{
     CheckedByteSequenceCarrier, CheckedControlResultPlan, CheckedScalarCaseFieldPlan,
 };
 
@@ -47,8 +47,8 @@ pub(in crate::execution::terminal_unit) fn signature(
             TypeReferenceNode::Named { .. }
         );
         return (unrefined
-            || crate::validation::is_arithmetic_policy_only_integer(program, reference)
-            || crate::validation::closed_scalar_result_range(program, reference).is_some())
+            || validation::is_arithmetic_policy_only_integer(program, reference)
+            || validation::closed_scalar_result_range(program, reference).is_some())
         .then_some(CheckedControlResultPlan::Scalar { primitive_type });
     }
     let multiplicity = crate::checks::type_multiplicity(program, reference);
@@ -65,10 +65,10 @@ pub(in crate::execution::terminal_unit) fn signature(
         || (multiplicity != Multiplicity::Linear
             && (!qualifications.is_empty()
                 || (!view_result
-                    && !crate::validation::has_plain_owned_contents_with_numeric_constraints(
+                    && !validation::has_plain_owned_contents_with_numeric_constraints(
                         program, reference,
                     )
-                    && !crate::validation::has_owned_or_shared_view_fields(program, reference))))
+                    && !validation::has_owned_or_shared_view_fields(program, reference))))
     {
         return None;
     }
@@ -115,7 +115,7 @@ pub(in crate::execution::terminal_unit) fn signature(
             // Borrowed view results carry no payload fields; the reference's
             // stored extent is their whole runtime shape.
             CheckedUnitStructuralTypeShape::ByteSequence(
-                crate::checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. },
+                checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. },
             )
             | CheckedUnitStructuralTypeShape::BorrowedSliceView { .. } => view_result,
             // Primitive scalars returned above as `Scalar`. Other by-value
@@ -153,13 +153,13 @@ pub(in crate::execution::terminal_unit) fn signature(
 pub(super) fn scalar_completion(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     terminator_index: usize,
     primitive_type: PrimitiveType,
-    returned_binding: Option<&crate::checked_trees::CheckedUnitScalarResultBindingPlan>,
+    returned_binding: Option<&checked_trees::CheckedUnitScalarResultBindingPlan>,
     trace: &control::LocalConstructionTrace,
-) -> Option<crate::checked_trees::CheckedScalarReturnPlan> {
+) -> Option<checked_trees::CheckedScalarReturnPlan> {
     trace.phase("state graph: terminator: scalar completion");
     let statements = program.statement_table.statements(state.statement_nodes);
     if let Some(binding) = returned_binding {
@@ -167,9 +167,7 @@ pub(super) fn scalar_completion(
             statements.get(terminator_index..),
             Some([StatementNode::Expression(_)])
         ) && binding.primitive_type == primitive_type)
-            .then_some(crate::checked_trees::CheckedScalarReturnPlan::Binding(
-                *binding,
-            ));
+            .then_some(checked_trees::CheckedScalarReturnPlan::Binding(*binding));
     }
     let (exits, prefix) =
         control::statement_sequence::scalar_control(program, facts, machine, state)?;
@@ -177,21 +175,21 @@ pub(super) fn scalar_completion(
         || exits.primitive_type != primitive_type
         || matches!(
             exits.terminator,
-            crate::checked_trees::CheckedScalarStateTerminator::Crash { .. }
+            checked_trees::CheckedScalarStateTerminator::Crash { .. }
         )
     {
         return None;
     }
-    Some(crate::checked_trees::CheckedScalarReturnPlan::Exits(exits))
+    Some(checked_trees::CheckedScalarReturnPlan::Exits(exits))
 }
 
 pub(super) fn constructor(
     program: &TypedTrees,
     facts: &CheckFacts,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    state: &typed_trees::state::State,
     statement_ordinal: u32,
-    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
-) -> Option<crate::checked_trees::CheckedStructuralCaseReturnPlan> {
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<checked_trees::CheckedStructuralCaseReturnPlan> {
     // A shape classification does not establish fresh linear authority.
     if program.type_multiplicity(state.return_type) == Multiplicity::Linear {
         return None;
@@ -202,7 +200,7 @@ pub(super) fn constructor(
     else {
         return None;
     };
-    let constructor = crate::validation::scalar_case_constructor(program, expression)?;
+    let constructor = validation::scalar_case_constructor(program, expression)?;
     if program.normalized_type_identity(constructor.type_reference)
         != program.normalized_type_identity(state.return_type)
     {
@@ -248,7 +246,7 @@ pub(super) fn constructor(
             expression: expression.clone(),
         });
     }
-    Some(crate::checked_trees::CheckedStructuralCaseReturnPlan {
+    Some(checked_trees::CheckedStructuralCaseReturnPlan {
         statement_ordinal,
         case_identity: variant.path_identity(),
         fields: planned,
@@ -261,8 +259,8 @@ pub(super) fn guarded(
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
     claims: &[CheckedUnitEntryClaimPlan],
     operations: &[CheckedUnitEffectOperationPlan],
@@ -303,7 +301,7 @@ pub(super) fn guarded(
         .map(|arm| &arm.destination)
         .chain(tail.fallback.iter())
     {
-        let crate::checked_trees::CheckedScalarBranchDestination::Return {
+        let checked_trees::CheckedScalarBranchDestination::Return {
             statement_ordinal,
             is_continuation,
         } = destination
@@ -395,13 +393,13 @@ pub(super) fn return_value_operation(
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
     claims: &[CheckedUnitEntryClaimPlan],
     count: &mut usize,
     statement_ordinal: u32,
-    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    expression: typed_trees::expression::ExpressionHandle,
     trace: &control::LocalConstructionTrace,
 ) -> Option<(
     CheckedUnitEffectOperationPlan,
@@ -490,12 +488,12 @@ pub(in crate::execution::terminal_unit) fn view_result_operation(
     program: &TypedTrees,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
     count: &mut usize,
     statement_ordinal: u32,
-    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<CheckedUnitEffectOperationPlan> {
     let return_type = state.return_type;
     let byte_view = matches!(
@@ -521,7 +519,7 @@ pub(in crate::execution::terminal_unit) fn view_result_operation(
     if range.end_inclusive || !range.start.is_valid() || !range.end.is_valid() {
         return None;
     }
-    if !crate::validation::has_builtin_subslice_meaning(program, machine, Some(state), expression) {
+    if !validation::has_builtin_subslice_meaning(program, machine, Some(state), expression) {
         return None;
     }
     let statement_index = usize::try_from(statement_ordinal).ok()?;
@@ -531,7 +529,7 @@ pub(in crate::execution::terminal_unit) fn view_result_operation(
         statement_index,
         indexed.collection,
     )?;
-    let crate::fact_plan::PlaceRoot::Symbol(symbol) = place.root else {
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
         return None;
     };
     let authored = program.state_parameters(state);
@@ -558,7 +556,7 @@ pub(in crate::execution::terminal_unit) fn view_result_operation(
     // a named field and the resolved storage must hold the view's element.
     let mut storage = carrier.type_reference;
     for segment in &place.segments {
-        let crate::fact_plan::PlaceSegment::Field { symbol } = segment else {
+        let facts::PlaceSegment::Field { symbol } = segment else {
             return None;
         };
         storage = program.data_definitions().iter().find_map(|data| {
@@ -585,7 +583,7 @@ pub(in crate::execution::terminal_unit) fn view_result_operation(
     };
     let start = Some(endpoint(range.start)?);
     let end = Some(endpoint(range.end)?);
-    let root = crate::checked_trees::CheckedStorageRoot::Parameter {
+    let root = checked_trees::CheckedStorageRoot::Parameter {
         index: u32::try_from(parameter_index).ok()?,
     };
     let source = if byte_view {
@@ -631,11 +629,11 @@ pub(in crate::execution::terminal_unit) fn view_result_operation(
 fn named_view_result_operation(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    state: &typed_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
     count: &mut usize,
     statement_ordinal: u32,
-    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<CheckedUnitEffectOperationPlan> {
     let return_type = state.return_type;
     let statement_index = usize::try_from(statement_ordinal).ok()?;
@@ -645,7 +643,7 @@ fn named_view_result_operation(
         statement_index,
         expression,
     )?;
-    let crate::fact_plan::PlaceRoot::Symbol(symbol) = place.root else {
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
         return None;
     };
     let authored = program.state_parameters(state);
@@ -696,7 +694,7 @@ fn named_view_result_operation(
     // leaf, so its source path stays empty.
     let mut path = path;
     if !path.is_empty() {
-        path.push(crate::checked_trees::CheckedUnitStructuralPathSegment::Referent);
+        path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
     }
     Some(CheckedUnitEffectOperationPlan::EstablishReference {
         result,

@@ -25,6 +25,10 @@ use crate::unit::{
     lower_installation_machine_service_ceiling, machine_id, operation_id, terminal_scalar_type,
     unsupported, value_id,
 };
+use checked_trees::{
+    CheckedScalarExpression, CheckedUnitCallCoordinate, CheckedUnitScalarControlPlan,
+    CheckedUnitScalarResultBindingPlan,
+};
 use semantic_vocabulary::ScalarType;
 use symbols::SymbolHandle;
 use terminal_psi::{
@@ -32,10 +36,6 @@ use terminal_psi::{
     OperationResult, TerminalDynamicDescriptorArgument, TerminalDynamicDescriptorSource,
     TerminalDynamicDispatchCatalog, TerminalMachine, TerminalMachineResult, Terminator,
     ValueDeclaration,
-};
-use typed_trees_to_checked_trees::checked_trees::{
-    CheckedScalarExpression, CheckedUnitCallCoordinate, CheckedUnitScalarControlPlan,
-    CheckedUnitScalarResultBindingPlan,
 };
 
 /// One forwarded helper's checked body, borrowed from either lane's plan:
@@ -344,8 +344,8 @@ pub(crate) fn materialize_helper_body(
     use crate::emission::operation_emission::buffer::OperationBuffer;
     use crate::emission::operation_emission::calls::CallEmissionContext;
     use crate::unit::attached_unit::argument_evaluation::Evaluation;
-    use typed_trees_to_checked_trees::checked_trees::CheckedScalarExpressionRole;
-    use typed_trees_to_checked_trees::checked_trees::statement::StatementNode;
+    use checked_trees::CheckedScalarExpressionRole;
+    use checked_trees::statement::StatementNode;
 
     let ids = site.ids;
     let source_machine = site.source_machine;
@@ -416,36 +416,33 @@ pub(crate) fn materialize_helper_body(
     };
     // An authored binding is an immutable local with an initializer, at its
     // own statement and next in the scalar namespace.
-    let validate_binding =
-        |local: &typed_trees_to_checked_trees::checked_trees::statement::TableLocalData,
-         binding: &CheckedUnitScalarResultBindingPlan,
-         ordinal: usize,
-         position: usize| {
-            if local.is_mutable
-                || !local.symbol.is_valid()
-                || !checked
-                    .expression_table
-                    .expression_is_valid(local.initial_value)
-            {
-                return unsupported(
-                    "forwarded helper cannot erase storage or an absent initializer",
-                );
-            }
-            if binding.statement_index as usize != ordinal
-                || binding.binding_ordinal as usize != position
-                || checked.primitive_type_reference(local.type_reference)
-                    != Some(binding.primitive_type)
-            {
-                return unsupported("forwarded helper binding order or type drifted");
-            }
-            Ok(())
-        };
+    let validate_binding = |local: &checked_trees::statement::TableLocalData,
+                            binding: &CheckedUnitScalarResultBindingPlan,
+                            ordinal: usize,
+                            position: usize| {
+        if local.is_mutable
+            || !local.symbol.is_valid()
+            || !checked
+                .expression_table
+                .expression_is_valid(local.initial_value)
+        {
+            return unsupported("forwarded helper cannot erase storage or an absent initializer");
+        }
+        if binding.statement_index as usize != ordinal
+            || binding.binding_ordinal as usize != position
+            || checked.primitive_type_reference(local.type_reference)
+                != Some(binding.primitive_type)
+        {
+            return unsupported("forwarded helper binding order or type drifted");
+        }
+        Ok(())
+    };
     for (ordinal, statement) in statements.iter().take(prefix).enumerate() {
         if ordinal == body.call_statement_index as usize {
             let target = match (statement, call_value) {
                 (StatementNode::LocalData(local), Some((call_result, _))) => {
                     validate_binding(local, call_result, ordinal, values.len())?;
-                    let typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode::Call(call) =
+                    let checked_trees::expression::ExpressionNode::Call(call) =
                         checked.expression_table.expression(local.initial_value)
                     else {
                         return unsupported("forwarded helper substituted its call initializer");
@@ -495,9 +492,7 @@ pub(crate) fn materialize_helper_body(
             CheckedScalarExpressionRole::LocalInitializer {
                 binding_ordinal: binding.binding_ordinal,
             },
-            &typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(
-                value.clone(),
-            ),
+            &checked_trees::CheckedCallScalarArgument::Pure(value.clone()),
             values.len(),
             &mut values,
             next_value,
@@ -565,7 +560,7 @@ fn unit_helper_statement_count(
     machine: SymbolHandle,
     state_symbol: SymbolHandle,
 ) -> Result<usize, LoweringError> {
-    use typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode;
+    use checked_trees::types::TypeReferenceNode;
     let (source, state) =
         crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
     let mut result_type = state.return_type;

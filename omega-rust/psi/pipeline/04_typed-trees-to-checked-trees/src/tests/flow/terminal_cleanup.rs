@@ -6,23 +6,21 @@ mod machine_edges_and_projections;
 mod structural_unit_control;
 
 fn scalar_discard_positions(
-    plan: &crate::checked_trees::CheckedStructuralScalarReturnMachinePlan,
+    plan: &checked_trees::CheckedStructuralScalarReturnMachinePlan,
 ) -> Vec<u32> {
     plan.cleanup_actions
         .iter()
         .filter_map(|action| match action {
-            crate::checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(
-                position,
-            ) => Some(*position),
-            crate::checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(_) => {
-                None
+            checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(position) => {
+                Some(*position)
             }
+            checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(_) => None,
         })
         .collect()
 }
 
 fn machine_and_entry_state(
-    checked: &crate::checked_trees::CheckedTrees,
+    checked: &checked_trees::CheckedTrees,
     machine_name: &str,
 ) -> (symbols::SymbolHandle, symbols::SymbolHandle) {
     let machine = checked

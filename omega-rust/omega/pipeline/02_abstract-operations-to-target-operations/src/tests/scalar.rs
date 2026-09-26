@@ -111,7 +111,7 @@ fn scalar_graph_retains_incoming_register_and_stack_abi() {
                 graph.scalar_parameters[count - 1].placement,
                 graph.call_plan.parameters[count - 1]
             );
-            let crate::target_operations::TargetControlTerminator::ReturnScalar {
+            let target_operations::TargetControlTerminator::ReturnScalar {
                 source_value,
                 expression,
                 ..
@@ -123,7 +123,7 @@ fn scalar_graph_retains_incoming_register_and_stack_abi() {
                 *source_value,
                 source.functions[0].parameters[count - 1].value
             );
-            let crate::target_operations::TargetScalarExpression::Integer {
+            let target_operations::TargetScalarExpression::Integer {
                 expression:
                     TargetIntegerExpression::Parameter {
                         parameter_index,
@@ -157,7 +157,7 @@ fn scalar_graph_call_keeps_callee_abi_and_effect_custody() {
                 call_plan,
                 requirement_obligations,
                 crash_continuations,
-                result: crate::target_operations::TargetCallResult::Scalar(result_home),
+                result: target_operations::TargetCallResult::Scalar(result_home),
                 ..
             },
         ] = graph.blocks[0].operations.as_slice()
@@ -171,8 +171,8 @@ fn scalar_graph_call_keeps_callee_abi_and_effect_custody() {
         assert_eq!(requirement_obligations, &[ObligationId::new(700).unwrap()]);
         assert_eq!(crash_continuations.len(), 1);
         assert!(matches!(&graph.blocks[0].terminator,
-            crate::target_operations::TargetControlTerminator::ReturnScalar {
-                expression: crate::target_operations::TargetScalarExpression::Integer {
+            target_operations::TargetControlTerminator::ReturnScalar {
+                expression: target_operations::TargetScalarExpression::Integer {
                     expression: TargetIntegerExpression::ScalarHome(home), ..
                 }, ..
             } if home == result_home));
@@ -263,13 +263,13 @@ pub(super) fn constant_conditional_plan(select_true: bool) -> AbstractOperationP
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             block_entries: vec![
-                terminal_psi_to_abstract_operations::abstract_operations::AbstractBlockEntry {
+                abstract_operations::AbstractBlockEntry {
                     structural_parameters: Vec::new(),
                     block: BlockId::new(1).expect("entry block"),
                     parameters: Vec::new(),
                     operation_offset: 0,
                 },
-                terminal_psi_to_abstract_operations::abstract_operations::AbstractBlockEntry {
+                abstract_operations::AbstractBlockEntry {
                     structural_parameters: Vec::new(),
                     block: BlockId::new(2).expect("true block"),
                     parameters: vec![AbstractParameter {
@@ -278,7 +278,7 @@ pub(super) fn constant_conditional_plan(select_true: bool) -> AbstractOperationP
                     }],
                     operation_offset: 2,
                 },
-                terminal_psi_to_abstract_operations::abstract_operations::AbstractBlockEntry {
+                abstract_operations::AbstractBlockEntry {
                     structural_parameters: Vec::new(),
                     block: BlockId::new(3).expect("false block"),
                     parameters: vec![AbstractParameter {

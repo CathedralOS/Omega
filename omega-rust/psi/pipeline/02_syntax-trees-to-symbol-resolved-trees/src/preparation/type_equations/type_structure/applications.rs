@@ -16,11 +16,9 @@ use diagnostics::Diagnostic;
 use language_semantics::const_value::CanonicalConstValue;
 use numerics::bignum::BigInt;
 use source::SourceSpan;
-use tokens_to_syntax_trees::syntax_trees::identifier::Identifier;
-use tokens_to_syntax_trees::syntax_trees::item::{
-    Item, ItemHandle, TypeParameter, TypeParameterKind,
-};
-use tokens_to_syntax_trees::syntax_trees::types::{
+use syntax_trees::identifier::Identifier;
+use syntax_trees::item::{Item, ItemHandle, TypeParameter, TypeParameterKind};
+use syntax_trees::types::{
     DomainConstraint, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 

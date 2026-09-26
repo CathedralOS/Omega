@@ -155,7 +155,7 @@ fn closed_sum_successor_computations_preserve_later_payload_arguments() {
 
 #[test]
 fn closed_sum_successor_catalogs_reject_duplicate_and_mixed_value_lanes() {
-    use typed_trees_to_checked_trees::checked_trees::{
+    use checked_trees::{
         CheckedLocatedScalarExpression, CheckedScalarExpression, CheckedScalarExpressionBindings,
         CheckedScalarExpressionRole,
     };
@@ -259,7 +259,7 @@ fn closed_sum_exit_roster_rejects_unknown_duplicate_and_missing_receipts() {
             plan.states.iter().any(|state| {
                 matches!(
                     state.terminator,
-                    typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. }
+                    checked_trees::CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. }
                 )
             })
         })
@@ -316,9 +316,9 @@ fn closed_sum_exit_roster_rejects_unknown_duplicate_and_missing_receipts() {
                 4 | 5 => {
                     let mut extra = original.clone();
                     extra.root = if mutation == 4 {
-                        typed_trees_to_checked_trees::fact_plan::PlaceRoot::Unknown
+                        facts::PlaceRoot::Unknown
                     } else {
-                        typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(receiver)
+                        facts::PlaceRoot::Symbol(receiver)
                     };
                     changed.facts.flow.ownership.permissions.insert(extra);
                 }

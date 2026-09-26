@@ -21,7 +21,7 @@ fn shared_statement_resolver_preserves_aliases_across_binding_replacement() {
     let machine = &program.machines()[0];
     let state = &program.machine_states(machine)[0];
     let statements = program.statement_table.statements(state.statement_nodes);
-    let shared_frames = crate::validation::CallFrameResolver::new(&program).expect("valid symbols");
+    let shared_frames = validation::CallFrameResolver::new(&program).expect("valid symbols");
     let fresh: Vec<_> = statements
         .iter()
         .enumerate()
@@ -32,7 +32,7 @@ fn shared_statement_resolver_preserves_aliases_across_binding_replacement() {
                 state.symbol,
                 statement_index,
                 statement,
-                crate::validation::CallFrameResolver::new(&program).as_ref(),
+                validation::CallFrameResolver::new(&program).as_ref(),
             )
         })
         .collect();
@@ -133,7 +133,7 @@ fn assert_direct_alias_store_frame(body: &str, expected_paths: Option<&[&str]>) 
         .iter()
         .find(|machine| machine.name.as_str() == "update")
         .expect("helper");
-    let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolver");
+    let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
     let helper_frame =
         resolver.inferred_state_write_frame(helper, &program.machine_states(helper)[0]);
     assert_eq!(
@@ -199,7 +199,7 @@ fn assert_direct_alias_store_frame(body: &str, expected_paths: Option<&[&str]>) 
         &facts,
         call,
         &cache,
-        crate::validation::CallFrameResolver::new(&program).as_ref(),
+        ::validation::CallFrameResolver::new(&program).as_ref(),
     );
     let Some(expected_paths) = expected_paths else {
         assert!(
@@ -214,7 +214,7 @@ fn assert_direct_alias_store_frame(body: &str, expected_paths: Option<&[&str]>) 
         .map(|path| {
             let segments = expected_segments(&program, path);
             crate::flow::CanonicalPlace {
-                root: crate::fact_plan::PlaceRoot::Symbol(receiver.symbol),
+                root: facts::PlaceRoot::Symbol(receiver.symbol),
                 segments,
             }
         })
@@ -228,10 +228,7 @@ fn assert_direct_alias_store_frame(body: &str, expected_paths: Option<&[&str]>) 
     }
 }
 
-fn expected_segments(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    path: &str,
-) -> Vec<crate::fact_plan::PlaceSegment> {
+fn expected_segments(program: &typed_trees::TypedTrees, path: &str) -> Vec<facts::PlaceSegment> {
     let mut segments = Vec::new();
     for member in path.split('.').filter(|member| !member.is_empty()) {
         let (name, index) = member
@@ -242,15 +239,15 @@ fn expected_segments(
             .iter()
             .flat_map(|definition| program.data_members(definition))
             .find_map(|member| match member {
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
-                    field,
-                ) if field.name.as_str() == name => Some(field.symbol),
+                typed_trees::data::DataMember::Field(field) if field.name.as_str() == name => {
+                    Some(field.symbol)
+                }
                 _ => None,
             })
             .expect("unique fixture field");
-        segments.push(crate::fact_plan::PlaceSegment::Field { symbol });
+        segments.push(facts::PlaceSegment::Field { symbol });
         if let Some(index) = index {
-            segments.push(crate::fact_plan::PlaceSegment::FixedIndex {
+            segments.push(facts::PlaceSegment::FixedIndex {
                 index: index
                     .strip_suffix(']')
                     .expect("index suffix")
@@ -290,15 +287,13 @@ fn shared_boundary_resolver_preserves_exact_and_opaque_storage_frames() {
         .data_members(main)
         .iter()
         .filter_map(|member| match member {
-            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) => {
-                Some(field.symbol)
-            }
+            typed_trees::data::DataMember::Field(field) => Some(field.symbol),
             _ => None,
         })
         .collect();
     let facts = build_borrow_facts(&program);
     let cache = StateMutationSummaryCache::default();
-    let shared_frames = crate::validation::CallFrameResolver::new(&program).expect("valid symbols");
+    let shared_frames = validation::CallFrameResolver::new(&program).expect("valid symbols");
     for name in [
         "Main::good",
         "Main::forward",
@@ -338,7 +333,7 @@ fn shared_boundary_resolver_preserves_exact_and_opaque_storage_frames() {
             &facts,
             call,
             &StateMutationSummaryCache::default(),
-            crate::validation::CallFrameResolver::new(&program).as_ref(),
+            validation::CallFrameResolver::new(&program).as_ref(),
         );
         assert_eq!(writes, fresh, "sharing cannot change the frame for {name}");
         // Without a shared resolver the frame falls back to the declared
@@ -376,8 +371,8 @@ fn shared_boundary_resolver_preserves_exact_and_opaque_storage_frames() {
         for &symbol in &fields {
             assert!(
                 writes.contains(&crate::flow::CanonicalPlace {
-                    root: crate::fact_plan::PlaceRoot::Symbol(receiver.symbol),
-                    segments: vec![crate::fact_plan::PlaceSegment::Field { symbol }],
+                    root: facts::PlaceRoot::Symbol(receiver.symbol),
+                    segments: vec![facts::PlaceSegment::Field { symbol }],
                 }),
                 "{name}: expected field {symbol:?} on {:?}, actual {writes:?}",
                 receiver.symbol
@@ -410,9 +405,8 @@ fn opaque_call_fallback_rebases_known_aliases_and_rejects_unknown_prefixes() {
         .first()
         .expect("pair")
         .symbol;
-    let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
-        receiver,
-    ) = &program.statement_table.statements(state.statement_nodes)[0]
+    let typed_trees::statement::StatementNode::LocalData(receiver) =
+        &program.statement_table.statements(state.statement_nodes)[0]
     else {
         panic!("receiver local")
     };
@@ -421,7 +415,7 @@ fn opaque_call_fallback_rebases_known_aliases_and_rejects_unknown_prefixes() {
         .iter()
         .find(|machine| machine.name.as_str() == "Pair::opaque")
         .expect("opaque");
-    let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolver");
+    let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
     assert!(
         !resolver
             .inferred_state_write_frame(opaque, &program.machine_states(opaque)[0])
@@ -445,12 +439,12 @@ fn opaque_call_fallback_rebases_known_aliases_and_rejects_unknown_prefixes() {
         &facts,
         first,
         &cache,
-        crate::validation::CallFrameResolver::new(&program).as_ref(),
+        ::validation::CallFrameResolver::new(&program).as_ref(),
     );
     assert_eq!(
         first_writes,
         Some(vec![crate::flow::CanonicalPlace {
-            root: crate::fact_plan::PlaceRoot::Symbol(pair),
+            root: facts::PlaceRoot::Symbol(pair),
             segments: Vec::new(),
         }])
     );
@@ -461,7 +455,7 @@ fn opaque_call_fallback_rebases_known_aliases_and_rejects_unknown_prefixes() {
         &facts,
         second,
         &cache,
-        crate::validation::CallFrameResolver::new(&program).as_ref(),
+        ::validation::CallFrameResolver::new(&program).as_ref(),
     );
     assert!(
         second_writes.is_none(),
@@ -479,7 +473,7 @@ fn opaque_call_fallback_rebases_known_aliases_and_rejects_unknown_prefixes() {
         assert_eq!(
             accesses,
             [crate::flow::CanonicalPlace {
-                root: crate::fact_plan::PlaceRoot::Symbol(receiver.symbol),
+                root: facts::PlaceRoot::Symbol(receiver.symbol),
                 segments: Vec::new(),
             }]
         );
@@ -575,7 +569,7 @@ fn local_receiver_origins_survive_direct_and_transitive_mutation_frames() {
                     path.split_once('.').map_or("", |(_, suffix)| suffix),
                 );
                 vec![crate::flow::CanonicalPlace {
-                    root: crate::fact_plan::PlaceRoot::Symbol(parameter.symbol),
+                    root: facts::PlaceRoot::Symbol(parameter.symbol),
                     segments,
                 }]
             };
@@ -586,7 +580,7 @@ fn local_receiver_origins_survive_direct_and_transitive_mutation_frames() {
                 &facts,
                 call,
                 &cache,
-                crate::validation::CallFrameResolver::new(&program).as_ref(),
+                ::validation::CallFrameResolver::new(&program).as_ref(),
             )
             .expect("complete storage frame");
             assert_eq!(writes, expected, "{name} call {index}");
@@ -604,14 +598,14 @@ fn local_receiver_origins_survive_direct_and_transitive_mutation_frames() {
                         .statements(state.statement_nodes)
                         .iter()
                         .find_map(|statement| {
-                            let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) = statement
+                            let typed_trees::statement::StatementNode::LocalData(local) = statement
                             else {
                                 return None;
                             };
                             (local.name.as_str() == local_name).then_some(local.symbol)
                         })
                         .expect("access route local");
-                    expected_accesses[0].root = crate::fact_plan::PlaceRoot::Symbol(local_symbol);
+                    expected_accesses[0].root = facts::PlaceRoot::Symbol(local_symbol);
                 }
             }
             let accesses = crate::flow::call_write_accesses(
@@ -657,17 +651,16 @@ fn transitive_internal_frames_distinguish_exact_and_empty_may_write_sets() {
         .iter()
         .find(|definition| definition.name.as_str() == "Pair")
         .expect("Pair definition");
-    let left_symbol =
-        program
-            .data_members(pair)
-            .iter()
-            .find_map(|member| match member {
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
-                    field,
-                ) if field.name.as_str() == "left" => Some(field.symbol),
-                _ => None,
-            })
-            .expect("Pair.left field");
+    let left_symbol = program
+        .data_members(pair)
+        .iter()
+        .find_map(|member| match member {
+            typed_trees::data::DataMember::Field(field) if field.name.as_str() == "left" => {
+                Some(field.symbol)
+            }
+            _ => None,
+        })
+        .expect("Pair.left field");
     let exercise = program
         .machines()
         .iter()
@@ -702,7 +695,7 @@ fn transitive_internal_frames_distinguish_exact_and_empty_may_write_sets() {
         &facts,
         relay_call,
         &cache,
-        crate::validation::CallFrameResolver::new(&program).as_ref(),
+        ::validation::CallFrameResolver::new(&program).as_ref(),
     )
     .expect("complete storage frame");
     let observe_writes = call_mutated_places(
@@ -712,7 +705,7 @@ fn transitive_internal_frames_distinguish_exact_and_empty_may_write_sets() {
         &facts,
         observe_call,
         &cache,
-        crate::validation::CallFrameResolver::new(&program).as_ref(),
+        ::validation::CallFrameResolver::new(&program).as_ref(),
     )
     .expect("complete storage frame");
 
@@ -720,8 +713,8 @@ fn transitive_internal_frames_distinguish_exact_and_empty_may_write_sets() {
     assert_eq!(
         relay_writes[0],
         crate::flow::CanonicalPlace {
-            root: crate::fact_plan::PlaceRoot::Symbol(pair_symbol),
-            segments: vec![crate::fact_plan::PlaceSegment::Field {
+            root: facts::PlaceRoot::Symbol(pair_symbol),
+            segments: vec![facts::PlaceSegment::Field {
                 symbol: left_symbol
             }],
         }
@@ -785,14 +778,14 @@ fn bijective_recursive_frame_reaches_its_finite_fixed_point() {
         &facts,
         call,
         &cache,
-        crate::validation::CallFrameResolver::new(&program).as_ref(),
+        ::validation::CallFrameResolver::new(&program).as_ref(),
     )
     .expect("complete storage frame");
 
     assert_eq!(writes.len(), 2, "finite permutation frame: {writes:?}");
     for symbol in parameter_symbols {
         assert!(writes.iter().any(|write| {
-            write.root == crate::fact_plan::PlaceRoot::Symbol(symbol) && write.segments.is_empty()
+            write.root == facts::PlaceRoot::Symbol(symbol) && write.segments.is_empty()
         }));
     }
 }

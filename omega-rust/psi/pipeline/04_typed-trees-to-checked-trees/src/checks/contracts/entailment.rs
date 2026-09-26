@@ -1,6 +1,6 @@
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
 use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
+use typed_trees::expression::ExpressionHandle;
 
 #[cfg(test)]
 mod tests;
@@ -10,8 +10,8 @@ mod tests;
 /// but absence of a validation error is not evidence for any postcondition.
 pub(super) struct ProvenExitExpressions<'program, 'frames> {
     program: &'program TypedTrees,
-    classification: &'program symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::ProofOnlyClassification,
-    resolver: Option<&'frames crate::validation::CallFrameResolver<'program>>,
+    classification: &'program typed_trees::proof_only::ProofOnlyClassification,
+    resolver: Option<&'frames validation::CallFrameResolver<'program>>,
     /// Postconditions validation already proved on this program, by machine.
     validated: &'frames [(SymbolHandle, Vec<ExpressionHandle>)],
     machines: Vec<MachineEntailmentOutcome>,
@@ -29,8 +29,8 @@ impl<'program, 'frames> ProvenExitExpressions<'program, 'frames> {
     /// exactly as an unconstructable resolver did before.
     pub(super) fn new(
         program: &'program TypedTrees,
-        classification: &'program symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::ProofOnlyClassification,
-        resolver: Option<&'frames crate::validation::CallFrameResolver<'program>>,
+        classification: &'program typed_trees::proof_only::ProofOnlyClassification,
+        resolver: Option<&'frames validation::CallFrameResolver<'program>>,
         validated: &'frames [(SymbolHandle, Vec<ExpressionHandle>)],
     ) -> Self {
         Self {
@@ -44,7 +44,7 @@ impl<'program, 'frames> ProvenExitExpressions<'program, 'frames> {
 
     pub(super) fn for_machine(
         &mut self,
-        facts: &crate::checked_trees::CheckFacts,
+        facts: &checked_trees::CheckFacts,
         machine_symbol: SymbolHandle,
     ) -> &MachineEntailmentOutcome {
         let position = self
@@ -66,7 +66,7 @@ impl<'program, 'frames> ProvenExitExpressions<'program, 'frames> {
                         .find(|(symbol, _)| *symbol == machine_symbol)
                     {
                         Some((_, proven)) => proven.clone(),
-                        None => crate::validation::proven_machine_contract_expressions(
+                        None => validation::proven_machine_contract_expressions(
                             self.program,
                             machine_symbol,
                         ),
@@ -79,20 +79,18 @@ impl<'program, 'frames> ProvenExitExpressions<'program, 'frames> {
                     // from the authored guarantee. Match through the existing
                     // exact conformance law, and independently require every
                     // supporting authored conjunct to have been proved.
-                    let inherited = crate::validation::matched_machine_law_guarantees(
-                        self.program,
-                        machine_symbol,
-                    )
-                    .into_iter()
-                    .filter(|matching| {
-                        matching.machine == machine_symbol
-                            && matching
-                                .source_expressions
-                                .iter()
-                                .all(|source| expressions.contains(source))
-                    })
-                    .map(|matching| matching.expression)
-                    .collect::<Vec<_>>();
+                    let inherited =
+                        validation::matched_machine_law_guarantees(self.program, machine_symbol)
+                            .into_iter()
+                            .filter(|matching| {
+                                matching.machine == machine_symbol
+                                    && matching
+                                        .source_expressions
+                                        .iter()
+                                        .all(|source| expressions.contains(source))
+                            })
+                            .map(|matching| matching.expression)
+                            .collect::<Vec<_>>();
                     expressions.extend(inherited);
                 }
                 self.machines.push(MachineEntailmentOutcome {
@@ -109,16 +107,10 @@ impl<'program, 'frames> ProvenExitExpressions<'program, 'frames> {
 /// Integral reflexivity is independent of parameter substitution. An
 /// inherited signature keeps its own formal symbol, not the implementing
 /// machine's parameter identity. Floating equality is deliberately excluded.
-pub(super) fn integral_parameter_reflexivity(
-    program: &TypedTrees,
-    fact: &crate::fact_plan::Fact,
-) -> bool {
-    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-        BinaryOperator, ExpressionNode,
-    };
-    use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
-    let crate::fact_plan::FactPayload::ContractBooleanExpression { expression, .. } = fact.payload
-    else {
+pub(super) fn integral_parameter_reflexivity(program: &TypedTrees, fact: &facts::Fact) -> bool {
+    use typed_trees::expression::{BinaryOperator, ExpressionNode};
+    use typed_trees::types::TypeReferenceNode;
+    let facts::FactPayload::ContractBooleanExpression { expression, .. } = fact.payload else {
         return false;
     };
     let ExpressionNode::Binary(comparison) = program.expression_table.expression(expression) else {
@@ -176,20 +168,17 @@ pub(super) fn integral_parameter_reflexivity(
 pub(super) fn transparent_proposition_proves_exit(
     program: &TypedTrees,
     outcome: &MachineEntailmentOutcome,
-    state_flow: &crate::checked_trees::FlowStateFact,
-    fact: &crate::fact_plan::Fact,
+    state_flow: &checked_trees::FlowStateFact,
+    fact: &facts::Fact,
 ) -> bool {
     if outcome.machine != state_flow.machine_symbol || !outcome.entry_premises_preserved {
         return false;
     }
-    let crate::fact_plan::FactPayload::ContractPropositionApplication { fact: source, .. } =
-        fact.payload
+    let facts::FactPayload::ContractPropositionApplication { fact: source, .. } = fact.payload
     else {
         return false;
     };
-    let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(
-        application,
-    ) = program.proof_facts.get(source)
+    let typed_trees::domain::ProofFact::Proposition(application) = program.proof_facts.get(source)
     else {
         return false;
     };
@@ -206,12 +195,7 @@ pub(super) fn transparent_proposition_proves_exit(
     ) else {
         return false;
     };
-    crate::validation::transparent_proposition_application_entailed(
-        program,
-        machine,
-        state,
-        application,
-    )
+    validation::transparent_proposition_application_entailed(program, machine, state, application)
 }
 
 /// Entry-context proofs do not establish a mutable subject's exit revision.
@@ -219,10 +203,10 @@ pub(super) fn transparent_proposition_proves_exit(
 /// parameter assignments must also be absent: they are not outward effects.
 fn entry_premises_are_preserved(
     program: &TypedTrees,
-    facts: &crate::checked_trees::CheckFacts,
+    facts: &checked_trees::CheckFacts,
     machine_symbol: SymbolHandle,
-    classification: &symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::ProofOnlyClassification,
-    resolver: Option<&crate::validation::CallFrameResolver<'_>>,
+    classification: &typed_trees::proof_only::ProofOnlyClassification,
+    resolver: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     let Some(machine) = crate::lookup::machine_by_symbol(program, machine_symbol) else {
         return false;
@@ -244,7 +228,7 @@ fn entry_premises_are_preserved(
                 .any(|statement| {
                     matches!(
                         statement,
-                        symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Assignment(_)
+                        typed_trees::statement::StatementNode::Assignment(_)
                     )
                 })
                 && mutation.state_write_frames.iter().any(|frame| {
@@ -260,13 +244,13 @@ fn entry_premises_are_preserved(
 /// judgment or import an unproved callee guarantee.
 pub(super) fn structural_call_requirement(
     program: &TypedTrees,
-    facts: &crate::checked_trees::CheckFacts,
-    state_flow: &crate::checked_trees::FlowStateFact,
-    call_flow: &crate::checked_trees::FlowCallFact,
+    facts: &checked_trees::CheckFacts,
+    state_flow: &checked_trees::FlowStateFact,
+    call_flow: &checked_trees::FlowCallFact,
     expression: ExpressionHandle,
-    resolver: Option<&crate::validation::CallFrameResolver<'_>>,
+    resolver: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let classification = crate::validation::proof_only_classification(program);
+    let classification = validation::proof_only_classification(program);
     let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
         return false;
     };
@@ -301,7 +285,7 @@ pub(super) fn structural_call_requirement(
         call_flow.call_ordinal,
     )
     .is_some_and(|target| target.is_valid());
-    crate::validation::structural_call_requirement_entailed(
+    validation::structural_call_requirement_entailed(
         program,
         machine,
         state.symbol,
@@ -315,21 +299,20 @@ pub(super) fn structural_call_requirement(
 
 fn isolated_proof_values(
     program: &TypedTrees,
-    facts: &crate::checked_trees::CheckFacts,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    classification: &symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::ProofOnlyClassification,
-    resolver: &crate::validation::CallFrameResolver<'_>,
+    facts: &checked_trees::CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    classification: &typed_trees::proof_only::ProofOnlyClassification,
+    resolver: &validation::CallFrameResolver<'_>,
 ) -> bool {
     if !classification.is_proof_machine(program, machine) {
         return false;
     }
-    let isolated_parameters =
-        |state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State| {
-            program.state_parameters(state).iter().all(|parameter| {
-                !parameter.is_mutable
-                    && resolver.proof_value_is_caller_isolated(parameter.type_reference)
-            })
-        };
+    let isolated_parameters = |state: &typed_trees::state::State| {
+        program.state_parameters(state).iter().all(|parameter| {
+            !parameter.is_mutable
+                && resolver.proof_value_is_caller_isolated(parameter.type_reference)
+        })
+    };
     program.machine_states(machine).iter().all(|state| {
         isolated_parameters(state)
             && program
@@ -337,14 +320,14 @@ fn isolated_proof_values(
                 .statements(state.statement_nodes)
                 .iter()
                 .all(|statement| match statement {
-                    symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Assignment(_) => false,
-                    symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) => {
-                        if crate::validation::is_arm_pattern_marker(statement) {
+                    typed_trees::statement::StatementNode::Assignment(_) => false,
+                    typed_trees::statement::StatementNode::LocalData(local) => {
+                        if validation::is_arm_pattern_marker(statement) {
                             // The marker's Unit type is validation metadata.
                             // Resolve its real subject through the same place
                             // law as destructure validation, then inspect the
                             // complete carrier, including every payload field.
-                            crate::validation::declared_place_type_raw(
+                            validation::declared_place_type_raw(
                                 program,
                                 machine,
                                 Some(state),

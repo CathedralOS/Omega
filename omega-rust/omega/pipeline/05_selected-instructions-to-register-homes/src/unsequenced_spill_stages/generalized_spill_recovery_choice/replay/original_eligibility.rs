@@ -2,27 +2,25 @@
 
 use std::collections::BTreeMap;
 
+use optimization_unit::ValueDefinitionSite;
+use register_model::RegisterOperandAccess;
+use selected_instructions::{SelectedInstruction, SelectedTerminator, VirtualRegisterOrigin};
 use semantic_vocabulary::{IntegerCarrier, IntegerSign, ScalarType};
-use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
-use target_operations_to_selected_instructions::{
-    SelectedInstruction, SelectedTerminator, VirtualRegisterOrigin,
-};
-use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
 use crate::unsequenced_spill_stages::{
     GeneralizedSpillRecoveryChoiceError, GeneralizedSpillRecoveryResident,
 };
-use target_operations_to_selected_instructions::{LiveRangePoint, VirtualFixedConstraintSite};
+use selected_instructions::{LiveRangePoint, VirtualFixedConstraintSite};
 
 use super::{checked, to_u64};
-use target_operations_to_selected_instructions::{FunctionLiveRanges, LiveRangeFragment};
+use selected_instructions::{FunctionLiveRanges, LiveRangeFragment};
 
 pub(super) fn replay(
-    register: target_operations_to_selected_instructions::VirtualRegisterId,
-    block: target_operations_to_selected_instructions::SelectedBlockId,
+    register: selected_instructions::VirtualRegisterId,
+    block: selected_instructions::SelectedBlockId,
     point: LiveRangePoint,
     resident: GeneralizedSpillRecoveryResident,
-    selected: &target_operations_to_selected_instructions::SelectedFunction,
+    selected: &selected_instructions::SelectedFunction,
     ranges: &FunctionLiveRanges,
     steps: &mut u64,
 ) -> Result<bool, GeneralizedSpillRecoveryChoiceError> {
@@ -83,7 +81,7 @@ pub(super) fn replay(
     };
     let definition_site_ok = matches!(
         value.definition_site,
-        Some(ValueDefinitionSite::Node { block: source, .. }) if matches!(selected_block.origin, target_operations_to_selected_instructions::SelectedBlockOrigin::Source(authored) if authored == source)
+        Some(ValueDefinitionSite::Node { block: source, .. }) if matches!(selected_block.origin, selected_instructions::SelectedBlockOrigin::Source(authored) if authored == source)
     );
     if !scalar_ok
         || !definition_site_ok

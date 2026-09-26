@@ -5,6 +5,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use abstract_operations::AbstractOperationPlan;
 use optimization_core::{BaselineDecisionLog, BaselineDecisionLogDecodeError};
 use optimization_core::{
     OptimizationCandidateVerdict, OptimizationExecutionPhase, OptimizationIdentityBundle,
@@ -12,19 +13,18 @@ use optimization_core::{
     OptimizationSelections, OptimizationUnitIdentity, OptimizationValidatorIdentity,
     OptimizedAbstractPlanProjectionIdentity, TargetCostModelIdentity, TransformationLedgerIdentity,
 };
-use semantic_vocabulary::FuelScheduleIdentity;
-use terminal_psi::TerminalPsiIdentity;
-use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput;
-use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan;
-use terminal_psi_to_abstract_operations::optimization_unit::{
+use optimization_unit::{
     InvalidPsiTransformationLedger, ProvenanceDisposition, PsiOptimizationUnit, PsiProvenance,
     PsiRealizationSite, PsiTransformationLedger,
 };
+use semantic_vocabulary::FuelScheduleIdentity;
+use terminal_psi::TerminalPsiIdentity;
+use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput;
 
 use crate::validation::{
     validate_transformed_psi_optimization_unit, validate_verified_psi_optimization_unit,
 };
-use terminal_psi_to_abstract_operations::optimization_unit_semantics::OptimizationUnitValidationError;
+use optimization_unit_semantics::OptimizationUnitValidationError;
 
 mod custody;
 mod error;

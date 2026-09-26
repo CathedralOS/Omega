@@ -1,9 +1,8 @@
 //! Evaluated normalized foreign calls keep admitted provider custody through
 //! projection and reject substituted bindings, executions, and arguments.
 use crate::{legalize_target_operations, validate_legalized_operations};
-use abstract_operations_to_target_operations::target_operations::{
-    BoundarySettlementRealization, NormalizedForeignCallBinding, TargetOperationPlan,
-    TargetUnitOperation,
+use abstract_operations::{
+    AbstractBoundaryResult, AbstractOperation, AbstractOperationPlan, AbstractResult,
 };
 use abstract_operations_to_target_operations::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement,
@@ -13,8 +12,9 @@ use semantic_vocabulary::{
     ScalarType, StructuralFieldId, StructuralTypeId, ValueId,
 };
 use target::NativeTarget;
-use terminal_psi_to_abstract_operations::abstract_operations::{
-    AbstractBoundaryResult, AbstractOperation, AbstractOperationPlan, AbstractResult,
+use target_operations::{
+    BoundarySettlementRealization, NormalizedForeignCallBinding, TargetOperationPlan,
+    TargetUnitOperation,
 };
 
 const REQUIREMENT: &str = "Foreign::leaf";
@@ -83,11 +83,11 @@ fn locator_for(native: NativeTarget) -> target::NormalizedForeignLocator {
 
 fn binding(
     native: NativeTarget,
-    signature: abstract_operations_to_target_operations::calling_conventions::CallSignature,
+    signature: calling_conventions::CallSignature,
 ) -> NormalizedForeignCallBinding {
     let locator = locator_for(native);
-    let boundary_entry_plan = abstract_operations_to_target_operations::calling_conventions::evaluate_ordinary_boundary_entry_plan(
-        abstract_operations_to_target_operations::calling_conventions::CallingPolicy::native_for_target(native),
+    let boundary_entry_plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+        calling_conventions::CallingPolicy::native_for_target(native),
         &signature,
     )
     .expect("evaluated entry plan")
@@ -95,13 +95,13 @@ fn binding(
     .clone();
     let provider_plan_report_identity = 0xA1;
     let provider_plan_commitment =
-        abstract_operations_to_target_operations::task_plans::SameStackProviderPlanCommitment::from_digest([0x42; 32]);
-    let same_stack_contribution = abstract_operations_to_target_operations::task_plans::admit_same_stack_contribution(
-        abstract_operations_to_target_operations::task_plans::SameStackContributionAdmissionCandidate {
+        task_plans::SameStackProviderPlanCommitment::from_digest([0x42; 32]);
+    let same_stack_contribution = task_plans::admit_same_stack_contribution(
+        task_plans::SameStackContributionAdmissionCandidate {
             provider_plan_report_identity,
             provider_plan_commitment,
             requirement_identity: REQUIREMENT.to_owned(),
-            receipt: abstract_operations_to_target_operations::task_plans::SameStackContributionAdmissionReceiptId::from_normalized_identity(
+            receipt: task_plans::SameStackContributionAdmissionReceiptId::from_normalized_identity(
                 0xA2,
             )
             .unwrap(),
@@ -173,10 +173,8 @@ fn lower(
     .unwrap()
 }
 
-fn seed(
-    source: &AbstractOperationPlan,
-) -> terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit {
-    terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
+fn seed(source: &AbstractOperationPlan) -> optimization_unit::PsiOptimizationUnit {
+    optimization_unit::reconstruct_psi_optimization_unit_seed(
         source,
         FuelScheduleIdentity::new(1).unwrap(),
     )
@@ -308,15 +306,15 @@ fn flat_record_fixture() -> (AbstractOperationPlan, Execution) {
 }
 
 fn normalized_foreign_instruction(
-    plan: &crate::legalized_operations::LegalizedOperationPlan,
-) -> &crate::legalized_operations::LegalizedNormalizedForeignCall {
+    plan: &legalized_operations::LegalizedOperationPlan,
+) -> &legalized_operations::LegalizedNormalizedForeignCall {
     plan.scalar_functions[0].blocks[0]
         .instructions
         .iter()
         .find_map(|instruction| match &instruction.kind {
-            crate::legalized_operations::LegalizedScalarInstructionKind::NormalizedForeignCall(
-                call,
-            ) => Some(call),
+            legalized_operations::LegalizedScalarInstructionKind::NormalizedForeignCall(call) => {
+                Some(call)
+            }
             _ => None,
         })
         .expect("normalized foreign instruction")
@@ -331,13 +329,10 @@ fn scalar_lane_projects_exact_custody_and_replays() {
         NativeTarget::macos_arm64(),
     ] {
         let (source, execution) = scalar_fixture();
-        let shape =
-            abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(
-                4, 4,
-            );
+        let shape = calling_conventions::ValueShape::integer(4, 4);
         let binding = binding(
             native,
-            abstract_operations_to_target_operations::calling_conventions::CallSignature {
+            calling_conventions::CallSignature {
                 parameters: vec![shape],
                 result: None,
             },
@@ -372,18 +367,12 @@ fn flat_record_lane_projects_source_rooted_borrow_and_replays() {
     let pointer = u16::try_from(native.pointer_size).unwrap();
     let binding = binding(
         native,
-        abstract_operations_to_target_operations::calling_conventions::CallSignature {
-            parameters: vec![
-                abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(
-                    pointer,
-                    u16::try_from(native.pointer_alignment).unwrap(),
-                ),
-            ],
-            result: Some(
-                abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(
-                    4, 4,
-                ),
-            ),
+        calling_conventions::CallSignature {
+            parameters: vec![calling_conventions::ValueShape::integer(
+                pointer,
+                u16::try_from(native.pointer_alignment).unwrap(),
+            )],
+            result: Some(calling_conventions::ValueShape::integer(4, 4)),
         },
     );
     let target = lower(&source, native, &execution, binding.clone());
@@ -416,7 +405,7 @@ fn flat_record_lane_projects_source_rooted_borrow_and_replays() {
     assert_eq!(result_home.defining_operation, OperationId::new(7).unwrap());
     assert_eq!(
         result_home.shape,
-        abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(4, 4)
+        calling_conventions::ValueShape::integer(4, 4)
     );
     validate_legalized_operations(&target, &source, &unit, legal.plan().clone())
         .expect("independent replay");
@@ -457,18 +446,14 @@ fn mixed_arguments_preserve_authored_order_through_selection_and_replay() {
                 },
             );
         }
-        let scalar_shape =
-            abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(
-                4, 4,
-            );
-        let pointer_shape =
-            abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(
-                native.pointer_size as u16,
-                native.pointer_alignment as u16,
-            );
+        let scalar_shape = calling_conventions::ValueShape::integer(4, 4);
+        let pointer_shape = calling_conventions::ValueShape::integer(
+            native.pointer_size as u16,
+            native.pointer_alignment as u16,
+        );
         let binding = binding(
             native,
-            abstract_operations_to_target_operations::calling_conventions::CallSignature {
+            calling_conventions::CallSignature {
                 parameters: vec![scalar_shape, pointer_shape, scalar_shape],
                 result: Some(scalar_shape),
             },
@@ -508,7 +493,7 @@ fn mixed_arguments_preserve_authored_order_through_selection_and_replay() {
             );
         }
         let environment =
-            crate::register_environment::baseline_target_register_environment(native).unwrap();
+            register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = crate::selection_constraints(&legal, &environment);
         let selected = crate::select_instructions(
             &legal,
@@ -527,7 +512,7 @@ fn mixed_arguments_preserve_authored_order_through_selection_and_replay() {
         .unwrap();
         let function = &selected.plan().functions[0];
         let call = &function.normalized_foreign_calls[0];
-        let slot = crate::selected_instructions::LocalStorageSlotId::Boundary {
+        let slot = selected_instructions::LocalStorageSlotId::Boundary {
             operation: call.operation,
         };
         let instructions = &function.blocks[0].instructions;
@@ -539,15 +524,13 @@ fn mixed_arguments_preserve_authored_order_through_selection_and_replay() {
             .iter()
             .position(|instruction| {
                 instruction.kind
-                    == crate::selected_instructions::SelectedInstructionKind::SaveFloatingControl {
-                        slot,
-                    }
+                    == selected_instructions::SelectedInstructionKind::SaveFloatingControl { slot }
             })
             .expect("save before argument staging");
         assert!(save_position < call_position);
         assert_eq!(
             instructions[call_position + 1].kind,
-            crate::selected_instructions::SelectedInstructionKind::RestoreFloatingControl { slot }
+            selected_instructions::SelectedInstructionKind::RestoreFloatingControl { slot }
         );
         assert!(
             instructions[save_position..=call_position + 2]
@@ -585,8 +568,8 @@ fn mixed_arguments_preserve_authored_order_through_selection_and_replay() {
                     .swap(call_position, call_position + 1),
                 4 => {
                     function.blocks[0].instructions[call_position + 1].kind =
-                        crate::selected_instructions::SelectedInstructionKind::RestoreFloatingControl {
-                            slot: crate::selected_instructions::LocalStorageSlotId::Boundary {
+                        selected_instructions::SelectedInstructionKind::RestoreFloatingControl {
+                            slot: selected_instructions::LocalStorageSlotId::Boundary {
                                 operation: OperationId::new(999).unwrap(),
                             },
                         };
@@ -616,9 +599,7 @@ fn mixed_arguments_preserve_authored_order_through_selection_and_replay() {
 
 #[test]
 fn mixed_scalar_banks_and_stack_arguments_replay_with_exact_types() {
-    use abstract_operations_to_target_operations::calling_conventions::{
-        ValueLocation, ValueShape,
-    };
+    use calling_conventions::{ValueLocation, ValueShape};
     use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
     let types = [
         ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
@@ -702,7 +683,7 @@ fn mixed_scalar_banks_and_stack_arguments_replay_with_exact_types() {
                 );
                 let binding = binding(
                     native,
-                    abstract_operations_to_target_operations::calling_conventions::CallSignature {
+                    calling_conventions::CallSignature {
                         parameters,
                         result: Some(shapes[result_index]),
                     },
@@ -747,8 +728,7 @@ fn mixed_scalar_banks_and_stack_arguments_replay_with_exact_types() {
                     );
                 }
                 let environment =
-                    crate::register_environment::baseline_target_register_environment(native)
-                        .unwrap();
+                    register_environment::baseline_target_register_environment(native).unwrap();
                 let constraints = crate::selection_constraints(&legal, &environment);
                 let selected = crate::select_instructions(
                     &legal,
@@ -798,11 +778,10 @@ fn mixed_scalar_banks_and_stack_arguments_replay_with_exact_types() {
 fn replay_rejects_substituted_binding_execution_arguments_and_home() {
     let native = NativeTarget::linux_x64();
     let (source, execution) = scalar_fixture();
-    let shape =
-        abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(4, 4);
+    let shape = calling_conventions::ValueShape::integer(4, 4);
     let binding = binding(
         native,
-        abstract_operations_to_target_operations::calling_conventions::CallSignature {
+        calling_conventions::CallSignature {
             parameters: vec![shape],
             result: None,
         },
@@ -810,17 +789,17 @@ fn replay_rejects_substituted_binding_execution_arguments_and_home() {
     let target = lower(&source, native, &execution, binding);
     let unit = seed(&source);
     let legal = legalize_target_operations(&target, &source, &unit).unwrap();
-    let different_execution = abstract_operations_to_target_operations::target_operations::ProviderExecutionBinding::from_execution_record(
-        abstract_operations_to_target_operations::target_operations::ProviderPlanReportIdentity::new(0xA1).unwrap(),
+    let different_execution = target_operations::ProviderExecutionBinding::from_execution_record(
+        target_operations::ProviderPlanReportIdentity::new(0xA1).unwrap(),
         0xC1,
         0xC2,
         0xC3,
         0xC4,
     )
     .unwrap();
-    let different_plan = abstract_operations_to_target_operations::calling_conventions::evaluate_ordinary_boundary_entry_plan(
-        abstract_operations_to_target_operations::calling_conventions::CallingPolicy::native_for_target(native),
-        &abstract_operations_to_target_operations::calling_conventions::CallSignature {
+    let different_plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+        calling_conventions::CallingPolicy::native_for_target(native),
+        &calling_conventions::CallSignature {
             parameters: vec![shape, shape],
             result: None,
         },
@@ -845,7 +824,7 @@ fn replay_rejects_substituted_binding_execution_arguments_and_home() {
             4 => {
                 let call = normalized_foreign_call_mut(&mut changed);
                 call.scalar_arguments[0].source =
-                    abstract_operations_to_target_operations::target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
+                    target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
                         defining_operation: OperationId::new(7).unwrap(),
                         source_value: ValueId::new(5).unwrap(),
                         scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
@@ -854,7 +833,7 @@ fn replay_rejects_substituted_binding_execution_arguments_and_home() {
             }
             5 => {
                 normalized_foreign_call_mut(&mut changed).result_home =
-                    Some(abstract_operations_to_target_operations::target_operations::TargetUnitScalarHomeRequirement {
+                    Some(target_operations::TargetUnitScalarHomeRequirement {
                         defining_operation: OperationId::new(7).unwrap(),
                         source_value: ValueId::new(9).unwrap(),
                         scalar_type: ScalarType::Integer(
@@ -869,14 +848,14 @@ fn replay_rejects_substituted_binding_execution_arguments_and_home() {
                     .retain(|instruction| {
                         !matches!(
                             instruction.kind,
-                            crate::legalized_operations::LegalizedScalarInstructionKind::NormalizedForeignCall(_)
+                            legalized_operations::LegalizedScalarInstructionKind::NormalizedForeignCall(_)
                         )
                     });
                 continue;
             }
             _ => {
                 *normalized_foreign_kind_mut(&mut changed) =
-                    crate::legalized_operations::LegalizedScalarInstructionKind::HostedWriteByteI32 {
+                    legalized_operations::LegalizedScalarInstructionKind::HostedWriteByteI32 {
                         boundary: BoundaryMachineId::new(1).unwrap(),
                         source: ValueId::new(5).unwrap(),
                     }
@@ -892,8 +871,8 @@ fn replay_rejects_substituted_binding_execution_arguments_and_home() {
     // provider plan identity; a different plan identity breaks the same-stack
     // cross-check.
     let foreign_plan_execution =
-        abstract_operations_to_target_operations::target_operations::ProviderExecutionBinding::from_execution_record(
-            abstract_operations_to_target_operations::target_operations::ProviderPlanReportIdentity::new(0xA9).unwrap(),
+        target_operations::ProviderExecutionBinding::from_execution_record(
+            target_operations::ProviderPlanReportIdentity::new(0xA9).unwrap(),
             0xB1,
             0xB2,
             0xB3,
@@ -940,17 +919,9 @@ fn flat_record_replay_rejects_projection_and_result_home_drift() {
     let (source, execution) = flat_record_fixture();
     let binding = binding(
         native,
-        abstract_operations_to_target_operations::calling_conventions::CallSignature {
-            parameters: vec![
-                abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(
-                    8, 8,
-                ),
-            ],
-            result: Some(
-                abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(
-                    4, 4,
-                ),
-            ),
+        calling_conventions::CallSignature {
+            parameters: vec![calling_conventions::ValueShape::integer(8, 8)],
+            result: Some(calling_conventions::ValueShape::integer(4, 4)),
         },
     );
     let target = lower(&source, native, &execution, binding);
@@ -981,14 +952,13 @@ fn flat_record_replay_rejects_projection_and_result_home_drift() {
                     .unwrap()
                     .source_value = ValueId::new(9).unwrap()
             }
-            _ => normalized_foreign_call_mut(&mut changed)
-                .result_home
-                .as_mut()
-                .unwrap()
-                .shape =
-                abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(
-                    8, 8,
-                ),
+            _ => {
+                normalized_foreign_call_mut(&mut changed)
+                    .result_home
+                    .as_mut()
+                    .unwrap()
+                    .shape = calling_conventions::ValueShape::integer(8, 8)
+            }
         }
         assert!(
             validate_legalized_operations(&target, &source, &unit, changed).is_err(),
@@ -998,13 +968,13 @@ fn flat_record_replay_rejects_projection_and_result_home_drift() {
 }
 
 fn normalized_foreign_kind_mut(
-    plan: &mut crate::legalized_operations::LegalizedOperationPlan,
-) -> &mut crate::legalized_operations::LegalizedScalarInstructionKind {
+    plan: &mut legalized_operations::LegalizedOperationPlan,
+) -> &mut legalized_operations::LegalizedScalarInstructionKind {
     plan.scalar_functions[0].blocks[0]
         .instructions
         .iter_mut()
         .find_map(|instruction| match &mut instruction.kind {
-            kind @ crate::legalized_operations::LegalizedScalarInstructionKind::NormalizedForeignCall(
+            kind @ legalized_operations::LegalizedScalarInstructionKind::NormalizedForeignCall(
                 _,
             ) => Some(kind),
             _ => None,
@@ -1013,9 +983,9 @@ fn normalized_foreign_kind_mut(
 }
 
 fn normalized_foreign_call_mut(
-    plan: &mut crate::legalized_operations::LegalizedOperationPlan,
-) -> &mut crate::legalized_operations::LegalizedNormalizedForeignCall {
-    let crate::legalized_operations::LegalizedScalarInstructionKind::NormalizedForeignCall(call) =
+    plan: &mut legalized_operations::LegalizedOperationPlan,
+) -> &mut legalized_operations::LegalizedNormalizedForeignCall {
+    let legalized_operations::LegalizedScalarInstructionKind::NormalizedForeignCall(call) =
         normalized_foreign_kind_mut(plan)
     else {
         panic!("normalized foreign instruction")

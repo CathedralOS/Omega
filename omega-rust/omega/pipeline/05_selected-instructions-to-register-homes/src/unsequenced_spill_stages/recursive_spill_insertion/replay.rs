@@ -10,28 +10,28 @@ use crate::unsequenced_spill_stages::{
     RecursiveSpillInsertionPolicy, RecursiveSpillSlot, RecursiveSpillStoredValue,
     ValidatedGeneralizedSpillInsertion, ValidatedGeneralizedSpillRecoveryActions,
 };
-use selected_instructions_to_selected_instructions::register_homes::LogicalSpillStorageClass;
-use target_operations_to_selected_instructions::LiveRangePoint;
+use register_homes::LogicalSpillStorageClass;
+use selected_instructions::LiveRangePoint;
 
 const SLOT_BYTES: u64 = 8;
 
 #[derive(Clone)]
 struct ReplayRow {
     slot: RecursiveSpillSlot,
-    store_instruction: target_operations_to_selected_instructions::SelectedInstructionId,
+    store_instruction: selected_instructions::SelectedInstructionId,
     before_reload: Option<GeneralizedSpillActionId>,
     stored_value: RecursiveSpillStoredValue,
-    source_view: target_operations_to_selected_instructions::register_model::RegisterViewId,
-    reload_instruction: target_operations_to_selected_instructions::SelectedInstructionId,
-    destination_class: target_operations_to_selected_instructions::register_model::RegisterClassId,
+    source_view: register_model::RegisterViewId,
+    reload_instruction: selected_instructions::SelectedInstructionId,
+    destination_class: register_model::RegisterClassId,
     rewrites: Vec<ReplayRewrite>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct ReplayRewrite {
-    block: target_operations_to_selected_instructions::SelectedBlockId,
+    block: selected_instructions::SelectedBlockId,
     point: LiveRangePoint,
-    instruction: target_operations_to_selected_instructions::SelectedInstructionId,
+    instruction: selected_instructions::SelectedInstructionId,
     operand: u16,
 }
 

@@ -1,7 +1,8 @@
 //! Scalar-result roots share primitive referents with their computed callees.
 
-use lowered_psi_to_terminal_psi::terminal_production::{
-    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+use checked_trees::{
+    CheckedScalarComputationHandle, CheckedScalarComputationKind, CheckedScalarExpression,
+    CheckedTrees,
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_interpreter::AcceptTerminalEffects;
@@ -10,11 +11,10 @@ use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralPrimitiveValue, TerminalStructuralValue,
 };
-use terminal_psi::{OperationKind, StructuralAccess, TerminalMachineResult};
-use typed_trees_to_checked_trees::checked_trees::{
-    CheckedScalarComputationHandle, CheckedScalarComputationKind, CheckedScalarExpression,
-    CheckedTrees,
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
+use terminal_psi::{OperationKind, StructuralAccess, TerminalMachineResult};
 
 const SOURCE: &str = r#"
 machine stamp(value: &mut u64, number: u64) -> u64 { value = number; number }
@@ -321,16 +321,15 @@ fn execute(
     expected: ExecutionExpectations<'_>,
 ) -> terminal_psi::TerminalModule {
     let checked = crate::front_end::checked_program(source);
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("enter"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("mixed root publishes its complete borrowed scalar call closure")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("mixed root publishes its complete borrowed scalar call closure")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     let profile = proof_admission::AdmissionProfile::default();
@@ -502,16 +501,15 @@ fn execute(
 
 fn publish_original(source: &str) -> CheckedTrees {
     let checked = crate::front_end::checked_program(source);
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("enter"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("unmodified scalar root must publish before testing custody mutations")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("unmodified scalar root must publish before testing custody mutations")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     terminal_verifier::verify_module(
@@ -551,7 +549,7 @@ fn calls_to(checked: &CheckedTrees, name: &str) -> Vec<CheckedScalarComputationH
 
 fn reject(checked: &CheckedTrees, mutation: &str) {
     assert!(
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+        terminal_production::TerminalProductionRequest::new(
             checked,
             TerminalMachineSelection::Name("enter")
         )
@@ -726,7 +724,7 @@ fn scalar_root_rejects_swapped_same_typed_borrowed_actuals() {
             .get_mut(structural_arguments.start())
             .as_place_mut()
             .expect("retained primitive parameter place");
-        let typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
+        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
             &mut argument.source
         else {
             panic!("root primitive parameter borrow");

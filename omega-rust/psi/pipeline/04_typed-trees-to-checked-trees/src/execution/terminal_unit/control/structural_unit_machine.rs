@@ -1,9 +1,5 @@
 //! Building the control machine of one structural unit.
 
-use crate::checked_trees::{
-    CheckedStructuralRankedArgumentPlan, CheckedStructuralRankedGuardPlan,
-    CheckedStructuralRankedSccEdgePlan, CheckedStructuralRankedSccPlan,
-};
 use crate::execution::terminal_unit::calls::structural_scalar_signature;
 use crate::execution::terminal_unit::types::{
     ShapeCollector, checked_no_code_affine_discard_positions, is_unit, machine_binders, state_flow,
@@ -17,6 +13,10 @@ use crate::execution::terminal_unit::{
     PermissionEventKind, PermissionEventSource, PrimitiveType, StatementNode, TransitionExit,
     TransitionGuardNode, TransitionTargetNode, TypedTrees,
 };
+use checked_trees::{
+    CheckedStructuralRankedArgumentPlan, CheckedStructuralRankedGuardPlan,
+    CheckedStructuralRankedSccEdgePlan, CheckedStructuralRankedSccPlan,
+};
 
 /// Bind one closed scalar return to an exact affine structural entry frontier.
 /// This is deliberately separate from the primitive scalar graph: structural
@@ -25,8 +25,8 @@ pub(crate) fn build_structural_unit_control_machine(
     program: &TypedTrees,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
+    machine: &typed_trees::machine::Machine,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<CheckedStructuralUnitControlMachinePlan> {
     let states = program.machine_states(machine);
     if states.len() < 2 {
@@ -152,7 +152,7 @@ pub(crate) fn build_structural_unit_control_machine(
                                 return None;
                             }
                             return Some(CheckedStructuralControlTransferPlan {
-                                source: crate::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: u32::try_from(source_index).ok()? },
+                                source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: u32::try_from(source_index).ok()? },
                                 target_parameter_index: u32::try_from(target_parameter_index)
                                     .ok()?,
                             });
@@ -170,7 +170,7 @@ pub(crate) fn build_structural_unit_control_machine(
                             0,
                             *argument,
                         )?;
-                        let crate::fact_plan::PlaceRoot::Symbol(root) = place.root else {
+                        let facts::PlaceRoot::Symbol(root) = place.root else {
                             return None;
                         };
                         if !place.segments.is_empty() {
@@ -190,7 +190,7 @@ pub(crate) fn build_structural_unit_control_machine(
                             return None;
                         }
                         Some(CheckedStructuralControlTransferPlan {
-                            source: crate::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: u32::try_from(source_index).ok()? },
+                            source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: u32::try_from(source_index).ok()? },
                             target_parameter_index: u32::try_from(target_parameter_index).ok()?,
                         })
                     })
@@ -220,7 +220,7 @@ pub(crate) fn build_structural_unit_control_machine(
                                 Some(CheckedScalarExpression::Boolean(expression))
                                     if target.primitive_type == PrimitiveType::Bool =>
                                 {
-                                    let crate::checked_trees::CheckedBooleanExpression::Parameter {
+                                    let checked_trees::CheckedBooleanExpression::Parameter {
                                         position,
                                     } = expression.as_ref()
                                     else {
@@ -254,7 +254,7 @@ pub(crate) fn build_structural_unit_control_machine(
                             }
                             Some(CheckedStructuralScalarArgumentPlan {
                                 argument_ordinal,
-                                source: crate::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: u32::try_from(source_index).ok()? },
+                                source: checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: u32::try_from(source_index).ok()? },
                                 target_scalar_parameter_index: u32::try_from(target_index).ok()?,
                                 primitive_type: target.primitive_type,
                             })
@@ -320,10 +320,10 @@ pub(crate) fn build_structural_unit_control_machine(
                     Some(CheckedScalarExpression::Boolean(expression))
                         if matches!(
                             expression.as_ref(),
-                            crate::checked_trees::CheckedBooleanExpression::Parameter { .. }
+                            checked_trees::CheckedBooleanExpression::Parameter { .. }
                         ) =>
                     {
-                        let crate::checked_trees::CheckedBooleanExpression::Parameter { position } =
+                        let checked_trees::CheckedBooleanExpression::Parameter { position } =
                             expression.as_ref()
                         else {
                             unreachable!()
@@ -345,7 +345,7 @@ pub(crate) fn build_structural_unit_control_machine(
                 };
                 let build_successor =
                     |statement_ordinal: u32,
-                     transition: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableTransition|
+                     transition: &typed_trees::statement::TableTransition|
                      -> Option<CheckedStructuralControlSuccessorPlan> {
                         let TransitionTargetNode::Named {
                             path, arguments, ..
@@ -386,7 +386,7 @@ pub(crate) fn build_structural_unit_control_machine(
                                         return None;
                                     }
                                     return Some(CheckedStructuralControlTransferPlan {
-                                        source: crate::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: u32::try_from(source_index).ok()? },
+                                        source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: u32::try_from(source_index).ok()? },
                                         target_parameter_index: u32::try_from(
                                             target_parameter_index,
                                         )
@@ -406,7 +406,7 @@ pub(crate) fn build_structural_unit_control_machine(
                                     usize::try_from(statement_ordinal).ok()?,
                                     *argument,
                                 )?;
-                                let crate::fact_plan::PlaceRoot::Symbol(root) = place.root else {
+                                let facts::PlaceRoot::Symbol(root) = place.root else {
                                     return None;
                                 };
                                 if !place.segments.is_empty() {
@@ -426,7 +426,7 @@ pub(crate) fn build_structural_unit_control_machine(
                                     return None;
                                 }
                                 Some(CheckedStructuralControlTransferPlan {
-                                    source: crate::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: u32::try_from(source_index).ok()? },
+                                    source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: u32::try_from(source_index).ok()? },
                                     target_parameter_index: u32::try_from(target_parameter_index)
                                         .ok()?,
                                 })
@@ -458,7 +458,7 @@ pub(crate) fn build_structural_unit_control_machine(
                                         Some(CheckedScalarExpression::Boolean(expression))
                                             if target.primitive_type == PrimitiveType::Bool =>
                                         {
-                                            let crate::checked_trees::CheckedBooleanExpression::Parameter {
+                                            let checked_trees::CheckedBooleanExpression::Parameter {
                                             position,
                                         } = expression.as_ref()
                                         else {
@@ -492,7 +492,7 @@ pub(crate) fn build_structural_unit_control_machine(
                                     }
                                     Some(CheckedStructuralScalarArgumentPlan {
                                         argument_ordinal,
-                                        source: crate::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: u32::try_from(source_index)
+                                        source: checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: u32::try_from(source_index)
                                             .ok()? },
                                         target_scalar_parameter_index: u32::try_from(target_index)
                                             .ok()?,

@@ -1,10 +1,10 @@
 //! `match` on a scalar-payload sum subject admits case classifiers and lowers
 //! to ordered case-membership selections instead of value-pattern comparison.
 use super::check;
-use crate::checked_trees::CheckedScalarComputationKind;
+use checked_trees::CheckedScalarComputationKind;
 
 fn case_membership_conditions(
-    checked: &crate::checked_trees::CheckedTrees,
+    checked: &checked_trees::CheckedTrees,
 ) -> Vec<CheckedScalarComputationKind> {
     checked
         .facts
@@ -48,7 +48,7 @@ fn local_sum_subject_dispatches_through_place_membership() {
         };
         assert!(matches!(
             subject,
-            crate::checked_trees::CheckedScalarComputationStructuralArgument::Place(_)
+            checked_trees::CheckedScalarComputationStructuralArgument::Place(_)
         ));
     }
 }
@@ -71,10 +71,10 @@ fn self_field_sum_subject_dispatches_through_parameter_membership() {
         };
         assert!(matches!(
             subject,
-            crate::checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)
+            checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)
                 if matches!(
                     argument.source,
-                    crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
                 ) && !argument.path.is_empty()
         ));
     }

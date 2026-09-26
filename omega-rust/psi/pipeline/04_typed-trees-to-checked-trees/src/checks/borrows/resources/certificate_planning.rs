@@ -1,12 +1,6 @@
 //! Planning resource installation, containment certificates and restored
 //! call uses from shared cohort observations.
 
-use crate::checked_trees::{
-    BorrowFacts, CheckedBorrowResourceLifecyclePhase, CheckedDirectBorrowLoanResource,
-    CheckedReborrowAccessEffect, CheckedReborrowContainmentKind,
-    CheckedReborrowResourceDisposition, FlowFacts, FlowInvalidationSource,
-    ParentLexicalStatusAtChildEnd,
-};
 use crate::checks::borrows::resources::reborrow_drafts::{
     CheckedReborrowContainmentCertificateDraft, CheckedReborrowDispositionEventDraft,
     CheckedReborrowLoanResourceDraft, CheckedReborrowRestoredCallUseCertificateDraft,
@@ -15,6 +9,12 @@ use crate::checks::borrows::resources::reborrow_drafts::{
 use crate::checks::borrows::resources::resource_reconstruction::span_handle;
 use crate::checks::borrows::resources::retained_validation::{
     reborrow_containment_drift, reborrow_resource_drift, reborrow_restored_call_use_drift,
+};
+use checked_trees::{
+    BorrowFacts, CheckedBorrowResourceLifecyclePhase, CheckedDirectBorrowLoanResource,
+    CheckedReborrowAccessEffect, CheckedReborrowContainmentKind,
+    CheckedReborrowResourceDisposition, FlowFacts, FlowInvalidationSource,
+    ParentLexicalStatusAtChildEnd,
 };
 use diagnostics::Diagnostic;
 
@@ -139,11 +139,11 @@ pub(crate) fn plan_reborrow_containment_certificates(
 }
 
 fn exact_shared_cohort_observation(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     flow: &FlowFacts,
-    flow_state: &crate::checked_trees::FlowStateFact,
-    borrow_state: &crate::checked_trees::StateBorrowFact,
+    flow_state: &checked_trees::FlowStateFact,
+    borrow_state: &checked_trees::StateBorrowFact,
     cohort: &[(usize, &CheckedReborrowLoanResourceDraft)],
     mutation_statement_index: usize,
 ) -> bool {
@@ -199,7 +199,7 @@ fn exact_shared_cohort_observation(
                         program
                             .type_reference_table
                             .type_reference(parameter.type_reference),
-                        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference {
+                        typed_trees::types::TypeReferenceNode::Reference {
                             access: language_semantics::ReferenceAccess::Shared,
                             ..
                         }
@@ -232,7 +232,7 @@ fn exact_shared_cohort_observation(
         && accesses.iter().zip(cohort).all(|(access, (_, member))| {
             access.root_symbol == member.owner_symbol
                 && borrow.access_segments(access).is_empty()
-                && access.kind == crate::checked_trees::BorrowAccessKind::Read
+                && access.kind == checked_trees::BorrowAccessKind::Read
         })
 }
 
@@ -246,7 +246,7 @@ fn exact_shared_cohort_observation(
 /// authority.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn plan_reborrow_restored_call_uses(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     flow: &FlowFacts,
     direct: &[CheckedDirectBorrowLoanResource],
@@ -270,8 +270,7 @@ pub(crate) fn plan_reborrow_restored_call_uses(
         };
         let exclusive_reactivation = matches!(
             child.access,
-            crate::checked_trees::BorrowAccessKind::Mutable
-                | crate::checked_trees::BorrowAccessKind::WriteOnly
+            checked_trees::BorrowAccessKind::Mutable | checked_trees::BorrowAccessKind::WriteOnly
         ) && child.access_effect
             == CheckedReborrowAccessEffect::ExclusiveSuspension;
         let shared_cohort = reborrows
@@ -281,13 +280,13 @@ pub(crate) fn plan_reborrow_restored_call_uses(
             .collect::<Vec<_>>();
         let bounded_shared_freeze = matches!(shared_cohort.len(), 1..=3)
             && shared_cohort.iter().all(|(_, member)| {
-                member.access == crate::checked_trees::BorrowAccessKind::Read
+                member.access == checked_trees::BorrowAccessKind::Read
                     && member.access_effect == CheckedReborrowAccessEffect::SharedFreeze
                     && member.machine_symbol == child.machine_symbol
                     && member.state_symbol == child.state_symbol
                     && member.parent_lexical_status == ParentLexicalStatusAtChildEnd::LivePastChild
                     && member.weakening_reason
-                        == crate::checked_trees::FlowBorrowWeakeningReason::LastUseExpired
+                        == checked_trees::FlowBorrowWeakeningReason::LastUseExpired
                     && member.weakening_source == child.weakening_source
                     && !reborrows
                         .iter()
@@ -296,12 +295,11 @@ pub(crate) fn plan_reborrow_restored_call_uses(
         if parent.loan != child.parent_loan
             || parent.machine_symbol != child.machine_symbol
             || parent.state_symbol != child.state_symbol
-            || parent.access != crate::checked_trees::BorrowAccessKind::Mutable
+            || parent.access != checked_trees::BorrowAccessKind::Mutable
             || !parent.owner_path.is_empty()
             || (!exclusive_reactivation && !bounded_shared_freeze)
             || child.parent_lexical_status != ParentLexicalStatusAtChildEnd::LivePastChild
-            || child.weakening_reason
-                != crate::checked_trees::FlowBorrowWeakeningReason::LastUseExpired
+            || child.weakening_reason != checked_trees::FlowBorrowWeakeningReason::LastUseExpired
             || reborrows
                 .iter()
                 .any(|candidate| candidate.parent_loan == child.loan)
@@ -486,7 +484,7 @@ pub(crate) fn plan_reborrow_restored_call_uses(
         {
             continue;
         }
-        let symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference {
+        let typed_trees::types::TypeReferenceNode::Reference {
             access: language_core::ReferenceAccess::Mutable,
             ..
         } = program
@@ -505,7 +503,7 @@ pub(crate) fn plan_reborrow_restored_call_uses(
         };
         if access.root_symbol != parent.owner_symbol
             || !borrow.access_segments(access).is_empty()
-            || access.kind != crate::checked_trees::BorrowAccessKind::Read
+            || access.kind != checked_trees::BorrowAccessKind::Read
         {
             continue;
         }
@@ -519,7 +517,7 @@ pub(crate) fn plan_reborrow_restored_call_uses(
             .filter(|constraint| {
                 matches!(
                     constraint.kind,
-                    crate::checked_trees::FlowConstraintKind::BorrowCall { .. }
+                    checked_trees::FlowConstraintKind::BorrowCall { .. }
                 )
             })
             .collect::<Vec<_>>();
@@ -528,7 +526,7 @@ pub(crate) fn plan_reborrow_restored_call_uses(
             .filter(|constraint| {
                 matches!(
                     constraint.kind,
-                    crate::checked_trees::FlowConstraintKind::BorrowAccess { .. }
+                    checked_trees::FlowConstraintKind::BorrowAccess { .. }
                 )
             })
             .collect::<Vec<_>>();
@@ -537,7 +535,7 @@ pub(crate) fn plan_reborrow_restored_call_uses(
             .enumerate()
             .filter(|(_, constraint)| {
                 constraint.kind
-                    == crate::checked_trees::FlowConstraintKind::BorrowLoan { loan: parent.loan }
+                    == checked_trees::FlowConstraintKind::BorrowLoan { loan: parent.loan }
             })
             .filter_map(|(offset, _)| span_handle(call.entry_constraints, offset))
             .collect::<Vec<_>>();
@@ -546,9 +544,7 @@ pub(crate) fn plan_reborrow_restored_call_uses(
             .filter(|constraint| {
                 shared_cohort.iter().any(|(_, member)| {
                     constraint.kind
-                        == crate::checked_trees::FlowConstraintKind::BorrowLoan {
-                            loan: member.loan,
-                        }
+                        == checked_trees::FlowConstraintKind::BorrowLoan { loan: member.loan }
                 })
             })
             .count();
@@ -562,11 +558,11 @@ pub(crate) fn plan_reborrow_restored_call_uses(
             continue;
         };
         if borrow_call_constraint.kind
-            != (crate::checked_trees::FlowConstraintKind::BorrowCall {
+            != (checked_trees::FlowConstraintKind::BorrowCall {
                 call: *borrow_call_handle,
             })
             || access_constraint.kind
-                != (crate::checked_trees::FlowConstraintKind::BorrowAccess {
+                != (checked_trees::FlowConstraintKind::BorrowAccess {
                     access: access_handle,
                 })
             || child_constraint_count != 0
@@ -585,7 +581,7 @@ pub(crate) fn plan_reborrow_restored_call_uses(
         let [mutated_place] = mutated_places.as_slice() else {
             continue;
         };
-        if mutated_place.root != crate::fact_plan::PlaceRoot::Symbol(parent.owner_symbol)
+        if mutated_place.root != facts::PlaceRoot::Symbol(parent.owner_symbol)
             || !mutated_place.segments.is_empty()
         {
             continue;
@@ -605,7 +601,7 @@ pub(crate) fn plan_reborrow_restored_call_uses(
             borrow_call: *borrow_call_handle,
             call_access: access_handle,
             parent_entry_constraint: *parent_entry_constraint,
-            carrier_place: crate::checked_trees::CapturedPlace {
+            carrier_place: checked_trees::CapturedPlace {
                 root_symbol: parent.owner_symbol,
                 segments: Vec::new(),
             },

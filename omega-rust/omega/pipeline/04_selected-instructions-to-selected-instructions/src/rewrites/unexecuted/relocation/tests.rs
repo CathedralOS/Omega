@@ -1,14 +1,9 @@
 use optimization_core::OptimizationUnitIdentity;
-use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
-    IntegerValue, MachineId, OperationId, PlaceId, ScalarType, ValueId,
-};
-use target::NativeTarget;
-use target_operations_to_selected_instructions::register_environment::{
+use optimization_unit::ValueDefinitionSite;
+use register_environment::{
     ValidatedTargetRegisterEnvironment, baseline_target_register_environment,
 };
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
-use target_operations_to_selected_instructions::{
+use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedBoundarySettlement,
     SelectedBoundarySettlementPayload, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedMemoryAccess,
@@ -16,8 +11,13 @@ use target_operations_to_selected_instructions::{
     SelectedTerminator, SelectedValueBinding, SelectedValueTransport, VirtualRegister,
     VirtualRegisterId, VirtualRegisterOrigin,
 };
+use semantic_vocabulary::{
+    BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
+    IntegerValue, MachineId, OperationId, PlaceId, ScalarType, ValueId,
+};
+use target::NativeTarget;
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
-use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
 use super::{
     MemberRunRelocationError, MemberRunRelocationReceipt, ValidatedMemberRunRelocation,
@@ -63,7 +63,7 @@ const EDGE_DB: u64 = 14;
 
 fn register(
     id: VirtualRegisterId,
-    class: target_operations_to_selected_instructions::register_model::RegisterClassId,
+    class: register_model::RegisterClassId,
     origin: VirtualRegisterOrigin,
 ) -> VirtualRegister {
     VirtualRegister {
@@ -163,7 +163,7 @@ fn result_register(
     id: VirtualRegisterId,
     instruction: SelectedInstructionId,
     value: u64,
-    class: target_operations_to_selected_instructions::register_model::RegisterClassId,
+    class: register_model::RegisterClassId,
 ) -> VirtualRegister {
     register(
         id,
@@ -1155,7 +1155,7 @@ fn an_edge_transport_conflicting_with_a_member_refuses() {
     let source = mutated(target, |function, _| {
         if let SelectedTerminator::Jump { successor, .. } = &mut function.blocks[0].terminator {
             successor.bindings.push(SelectedValueBinding {
-                semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
+                semantic: abstract_operations::ValueBinding {
                     parameter: ValueId::new(50).unwrap(),
                     argument: ValueId::new(51).unwrap(),
                     scalar_type: ScalarType::Integer(

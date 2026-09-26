@@ -1,7 +1,7 @@
 //! Exact normal-return occurrences shared by exit proof consumers.
 
-use crate::checked_trees::FlowExitFact;
-use symbol_resolved_trees_to_typed_trees::typed_trees::{
+use checked_trees::FlowExitFact;
+use typed_trees::{
     TypedTrees,
     expression::{ExpressionHandle, ExpressionNode},
     machine::Machine,

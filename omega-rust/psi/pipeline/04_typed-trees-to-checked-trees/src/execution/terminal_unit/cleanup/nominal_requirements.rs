@@ -14,8 +14,8 @@ use crate::execution::terminal_unit::{
 pub(crate) fn nominal_cleanup_boolean_requirements(
     program: &TypedTrees,
     facts: &CheckFacts,
-    cleanup_machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    cleanup_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    cleanup_machine: &typed_trees::machine::Machine,
+    cleanup_state: &typed_trees::state::State,
     cleanup_receiver: &StateParameter,
 ) -> Option<Vec<CheckedUnitNominalAffineCleanupRequirementPlan>> {
     let checked_requires =
@@ -37,8 +37,8 @@ pub(crate) fn nominal_cleanup_boolean_requirements(
 pub(crate) fn nominal_scalar_caller_requirements(
     program: &TypedTrees,
     facts: &CheckFacts,
-    caller_machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    caller_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    caller_machine: &typed_trees::machine::Machine,
+    caller_state: &typed_trees::state::State,
     source_parameters: &[StateParameter],
     scalar_parameters: &[CheckedStructuralScalarParameterPlan],
 ) -> Option<(
@@ -98,8 +98,8 @@ pub(crate) fn nominal_scalar_caller_requirements(
 pub(crate) fn nominal_cleanup_caller_boolean_requirements(
     program: &TypedTrees,
     facts: &CheckFacts,
-    caller_machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    caller_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    caller_machine: &typed_trees::machine::Machine,
+    caller_state: &typed_trees::state::State,
     source_parameters: &[StateParameter],
 ) -> Option<Vec<CheckedUnitNominalAffineCallerRequirementPlan>> {
     let (structural, scalar) = nominal_scalar_caller_requirements(
@@ -116,14 +116,12 @@ pub(crate) fn nominal_cleanup_caller_boolean_requirements(
 pub(crate) fn direct_integer_requirement(
     program: &TypedTrees,
     machine: SymbolHandle,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    state: &typed_trees::state::State,
     source_parameters: &[StateParameter],
     scalar_parameters: &[CheckedStructuralScalarParameterPlan],
-    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<CheckedStructuralScalarIntegerBoundRequirementPlan> {
-    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-        BinaryOperator, ExpressionNode,
-    };
+    use typed_trees::expression::{BinaryOperator, ExpressionNode};
 
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
         return None;
@@ -138,7 +136,7 @@ pub(crate) fn direct_integer_requirement(
         if !place.segments.is_empty() {
             return None;
         }
-        let crate::fact_plan::PlaceRoot::Symbol(root) = place.root else {
+        let facts::PlaceRoot::Symbol(root) = place.root else {
             return None;
         };
         let source_position = source_parameters.iter().position(|parameter| {
@@ -415,10 +413,10 @@ pub(crate) fn canonical_nominal_cleanup_requirements(
 
 pub(crate) fn nominal_cleanup_missing_requirement_diagnostic(
     program: &TypedTrees,
-    caller_machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    caller_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    caller_machine: &typed_trees::machine::Machine,
+    caller_state: &typed_trees::state::State,
     source_parameter: &StateParameter,
-    cleanup_machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    cleanup_machine: &typed_trees::machine::Machine,
     missing: CheckedUnitNominalAffineCleanupRequirementPlan,
 ) -> Diagnostic {
     let edge = format!(
@@ -437,11 +435,11 @@ pub(crate) fn nominal_cleanup_missing_requirement_diagnostic(
 
 pub(crate) fn scalar_nominal_cleanup_missing_requirement_diagnostic(
     program: &TypedTrees,
-    caller_machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    caller_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    caller_machine: &typed_trees::machine::Machine,
+    caller_state: &typed_trees::state::State,
     return_statement_ordinal: u32,
     source_parameter: &StateParameter,
-    cleanup_machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    cleanup_machine: &typed_trees::machine::Machine,
     missing: CheckedUnitNominalAffineCleanupRequirementPlan,
 ) -> Diagnostic {
     let edge = format!(
@@ -464,7 +462,7 @@ pub(crate) fn checked_requires_expressions(
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
-) -> Option<Vec<symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle>> {
+) -> Option<Vec<typed_trees::expression::ExpressionHandle>> {
     let mut expressions = Vec::new();
     for (_, checked) in facts.proof.contract_facts.iter().filter(|(_, checked)| {
         matches!(checked.owner, ContractProofFactOwner::Machine { machine_symbol } if machine_symbol == machine)
@@ -485,11 +483,9 @@ pub(crate) fn direct_boolean_field_requirement(
     program: &TypedTrees,
     state: SymbolHandle,
     root_parameter: &StateParameter,
-    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<CheckedUnitNominalAffineCleanupRequirementPlan> {
-    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-        BinaryOperator, UnaryOperator,
-    };
+    use typed_trees::expression::{BinaryOperator, UnaryOperator};
 
     let (field_expression, expected) = match program.expression_table.expression(expression) {
         ExpressionNode::Member(_) => (expression, true),
@@ -533,10 +529,10 @@ pub(crate) fn direct_boolean_field_requirement(
     };
     let place =
         crate::flow::canonical_place_from_expression_in_state(program, state, 0, field_expression)?;
-    let [crate::fact_plan::PlaceSegment::Field { symbol }] = place.segments.as_slice() else {
+    let [facts::PlaceSegment::Field { symbol }] = place.segments.as_slice() else {
         return None;
     };
-    if place.root != crate::fact_plan::PlaceRoot::Symbol(root_parameter.symbol)
+    if place.root != facts::PlaceRoot::Symbol(root_parameter.symbol)
         || !program.data_definitions().iter().any(|data| {
             program.data_members(data).iter().any(|member| {
                 matches!(member, DataMember::Field(field)

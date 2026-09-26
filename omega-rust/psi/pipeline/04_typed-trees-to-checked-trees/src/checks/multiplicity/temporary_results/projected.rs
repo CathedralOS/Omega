@@ -13,15 +13,15 @@ use language_semantics::PermissionEventSource;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &mut CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
-    calls: &[crate::checked_trees::FlowCallFact],
+    calls: &[checked_trees::FlowCallFact],
     event: &crate::flow::DiscoveredMoveEvent,
     permissions: &mut Vec<FlowPermissionEventFact>,
 ) {
-    let crate::fact_plan::PlaceRoot::Expression(expression) = event.root else {
+    let facts::PlaceRoot::Expression(expression) = event.root else {
         return;
     };
     let FlowOwnershipEventSource::Call {
@@ -42,8 +42,7 @@ pub(super) fn append(
         || !path.iter().all(|segment| {
             matches!(
                 segment,
-                crate::fact_plan::PlaceSegment::Field { .. }
-                    | crate::fact_plan::PlaceSegment::FixedIndex { .. }
+                facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
             )
         })
         || permission_kind_for_move(program, facts, machine, state, event)
@@ -84,7 +83,7 @@ pub(super) fn append(
                         | TypeReferenceNode::Generic { .. }
                         | TypeReferenceNode::FixedArray { .. }
                 ) && type_multiplicity(program, reference) == Multiplicity::Affine
-                    && crate::validation::has_plain_owned_contents(program, reference)
+                    && validation::has_plain_owned_contents(program, reference)
                     && !type_carries_linear_obligation(program, reference)
             })
     };
@@ -147,12 +146,12 @@ pub(super) fn append(
 // Only traverse the selected branch. Untouched siblings are maximal residuals,
 // not leaf expansion, and retain their exact authored field/index identities.
 fn complement(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     state: SymbolHandle,
     statement: usize,
     root: &crate::flow::CanonicalPlace,
-    selected: &[crate::fact_plan::PlaceSegment],
-    output: &mut Vec<Vec<crate::fact_plan::PlaceSegment>>,
+    selected: &[facts::PlaceSegment],
+    output: &mut Vec<Vec<facts::PlaceSegment>>,
 ) -> Option<()> {
     let Some(next) = selected.first() else {
         return Some(());
@@ -172,23 +171,20 @@ fn complement(
                 .data_members(data)
                 .iter()
                 .map(|member| match member {
-                    symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
-                        field,
-                    ) => Some(crate::fact_plan::PlaceSegment::Field {
-                        symbol: field.symbol,
-                    }),
+                    typed_trees::data::DataMember::Field(field) => {
+                        Some(facts::PlaceSegment::Field {
+                            symbol: field.symbol,
+                        })
+                    }
                     _ => None,
                 })
                 .collect::<Option<Vec<_>>>()?
         }
         TypeReferenceNode::FixedArray {
-            length:
-                symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::Literal(
-                    length,
-                ),
+            length: typed_trees::types::FixedArrayLength::Literal(length),
             ..
         } if *length > 0 => (0..*length)
-            .map(|index| crate::fact_plan::PlaceSegment::FixedIndex { index })
+            .map(|index| facts::PlaceSegment::FixedIndex { index })
             .collect(),
         _ => return None,
     };
@@ -207,7 +203,7 @@ fn complement(
                 continue;
             }
             if type_multiplicity(program, reference) != Multiplicity::Affine
-                || !crate::validation::has_plain_owned_contents(program, reference)
+                || !validation::has_plain_owned_contents(program, reference)
             {
                 return None;
             }

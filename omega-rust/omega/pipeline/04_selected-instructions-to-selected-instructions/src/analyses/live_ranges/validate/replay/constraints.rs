@@ -3,17 +3,15 @@
 use std::collections::BTreeSet;
 
 use crate::LiveRangeError;
-use target_operations_to_selected_instructions::VirtualRegisterId;
-use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
-use target_operations_to_selected_instructions::{
-    DistinctUseDefTie, EarlyClobberConstraint, EarlyClobberUse,
-};
+use register_model::RegisterOperandAccess;
+use selected_instructions::VirtualRegisterId;
+use selected_instructions::{DistinctUseDefTie, EarlyClobberConstraint, EarlyClobberUse};
 
 use super::fragments::{checked_after, checked_before};
 
 pub(super) fn reject_unsupported(
     function: usize,
-    live: &target_operations_to_selected_instructions::FunctionLiveness,
+    live: &selected_instructions::FunctionLiveness,
 ) -> Result<(), LiveRangeError> {
     for operand in &live.operand_positions {
         if operand.access == RegisterOperandAccess::UseDef {
@@ -29,7 +27,7 @@ pub(super) fn reject_unsupported(
 
 pub(super) fn derive_early_clobbers(
     function: usize,
-    live: &target_operations_to_selected_instructions::FunctionLiveness,
+    live: &selected_instructions::FunctionLiveness,
 ) -> Result<Vec<EarlyClobberConstraint>, LiveRangeError> {
     let mut rows = Vec::new();
     for block in &live.blocks {
@@ -257,7 +255,7 @@ fn merge_tied_components(
 
 pub(super) fn derive_ties(
     function: usize,
-    live: &target_operations_to_selected_instructions::FunctionLiveness,
+    live: &selected_instructions::FunctionLiveness,
 ) -> Result<Vec<DistinctUseDefTie>, LiveRangeError> {
     let mut result = Vec::new();
     for definition in live

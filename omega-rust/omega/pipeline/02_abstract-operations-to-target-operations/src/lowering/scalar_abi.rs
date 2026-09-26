@@ -1,14 +1,12 @@
 use crate::LoweringError;
-use crate::calling_conventions::ValueShape;
-use crate::calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use crate::target_operations::{
-    MixedStructuralScalarFunctionAbi, ScalarAbiValue, ScalarFunctionAbi,
-};
+use abstract_operations::AbstractFunction;
+use abstract_operations::AbstractOperation;
+use calling_conventions::ValueShape;
+use calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
 use semantic_vocabulary::{IeeeFloatFormat, IntegerType, ScalarType};
 use target::NativeTarget;
-use terminal_psi_to_abstract_operations::abstract_operations::AbstractFunction;
-use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
+use target_operations::{MixedStructuralScalarFunctionAbi, ScalarAbiValue, ScalarFunctionAbi};
 
 pub(super) fn derive_mixed_structural_scalar_function_abi(
     function: &AbstractFunction,
@@ -190,8 +188,10 @@ pub(super) fn fixed_native_integer_shape(scalar_type: IntegerType) -> Option<Val
 #[cfg(test)]
 mod tests {
     use super::{derive_fixed_scalar_function_abi, derive_mixed_structural_scalar_function_abi};
-    use crate::calling_conventions::{ValueLocation, ValueShape};
     use crate::lowering::structural_type_lookup::StructuralTypeLookup;
+    use abstract_operations::AbstractResult;
+    use abstract_operations::{AbstractFunction, AbstractFunctionResult, AbstractParameter};
+    use calling_conventions::{ValueLocation, ValueShape};
     use semantic_vocabulary::{
         BlockId, IeeeFloatFormat, IntegerSign, IntegerType, MachineId, PlaceId, ScalarType,
         StructuralFieldId, StructuralTypeId, ValueId,
@@ -200,10 +200,6 @@ mod tests {
     use terminal_psi::{
         StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralTypeDeclaration,
         StructuralTypeShape,
-    };
-    use terminal_psi_to_abstract_operations::abstract_operations::AbstractResult;
-    use terminal_psi_to_abstract_operations::abstract_operations::{
-        AbstractFunction, AbstractFunctionResult, AbstractParameter,
     };
 
     #[test]
@@ -519,7 +515,7 @@ mod tests {
             assert_eq!(abi.call_plan.parameters.len(), 1);
             assert_eq!(
                 abi.structural_parameters[0].shape.class,
-                crate::calling_conventions::ValueClass::BorrowedReference
+                calling_conventions::ValueClass::BorrowedReference
             );
             assert_eq!(
                 abi.structural_parameters[0].placement,

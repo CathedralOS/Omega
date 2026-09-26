@@ -1,13 +1,11 @@
 use language_semantics::declaration_selection::CollectionMeasure;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, ExpressionNode,
-};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 use super::super::super::expressions::expression_integer_value;
 use super::super::super::facts::RangeFacts;
 
 pub(in crate::checks::ranges::guards) fn seed_length_greater_than_fact(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &mut RangeFacts<'_>,
     possible_length: ExpressionHandle,
     possible_lower_bound: ExpressionHandle,
@@ -24,7 +22,7 @@ pub(in crate::checks::ranges::guards) fn seed_length_greater_than_fact(
 }
 
 pub(in crate::checks::ranges::guards) fn seed_length_at_least_fact(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &mut RangeFacts<'_>,
     possible_length: ExpressionHandle,
     possible_lower_bound: ExpressionHandle,
@@ -36,7 +34,7 @@ pub(in crate::checks::ranges::guards) fn seed_length_at_least_fact(
 }
 
 pub(in crate::checks::ranges::guards) fn seed_length_not_zero_fact(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &mut RangeFacts<'_>,
     possible_length: ExpressionHandle,
     possible_zero: ExpressionHandle,
@@ -48,7 +46,7 @@ pub(in crate::checks::ranges::guards) fn seed_length_not_zero_fact(
 }
 
 pub(in crate::checks::ranges::guards) fn seed_length_equality_fact(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &mut RangeFacts<'_>,
     left: ExpressionHandle,
     right: ExpressionHandle,
@@ -60,7 +58,7 @@ pub(in crate::checks::ranges::guards) fn seed_length_equality_fact(
 }
 
 fn seed_minimum_length_fact(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &mut RangeFacts<'_>,
     possible_length: ExpressionHandle,
     minimum_length: i64,
@@ -80,7 +78,7 @@ fn seed_minimum_length_fact(
 }
 
 fn seed_length_equality_side(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &mut RangeFacts<'_>,
     value: ExpressionHandle,
     possible_length: ExpressionHandle,

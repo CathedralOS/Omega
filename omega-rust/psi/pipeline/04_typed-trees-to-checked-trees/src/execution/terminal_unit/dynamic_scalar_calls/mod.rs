@@ -38,11 +38,11 @@ pub(super) fn build_checked_dynamic_dispatch_plans(
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     boundaries: &[CheckedBoundaryMachinePlan],
-) -> crate::checked_trees::CheckedDynamicDispatchPlans {
+) -> checked_trees::CheckedDynamicDispatchPlans {
     let binding_facts = facts.dynamic_conformances.binding_facts();
-    let mut plans = crate::checked_trees::CheckedDynamicDispatchPlans {
+    let mut plans = checked_trees::CheckedDynamicDispatchPlans {
         transfers: build_checked_dynamic_descriptor_transfers(program, facts, &binding_facts),
-        ..crate::checked_trees::CheckedDynamicDispatchPlans::default()
+        ..checked_trees::CheckedDynamicDispatchPlans::default()
     };
 
     for machine in program.machines() {

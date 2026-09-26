@@ -1,11 +1,10 @@
 //! One-call acyclic target closure beneath composed Unit leaves.
 
-use super::{CheckedTrees, lower_machine};
+use super::{CheckedTrees, LoweringError, lower_machine};
 use crate::TerminalMachineSelection;
+use checked_trees::CheckedUnitEffectOperationPlan;
 use terminal_psi::{Operation, OperationKind};
-use typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan;
-fn checked_transitive_internal_calls() -> typed_trees_to_checked_trees::checked_trees::CheckedTrees
-{
+fn checked_transitive_internal_calls() -> checked_trees::CheckedTrees {
     crate::front_end::checked_program(
         r#"
             data Root {}
@@ -23,7 +22,7 @@ fn checked_transitive_internal_calls() -> typed_trees_to_checked_trees::checked_
     )
 }
 
-fn checked_depth_two_internal_calls() -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
+fn checked_depth_two_internal_calls() -> checked_trees::CheckedTrees {
     crate::front_end::checked_program(
         r#"
             data Root {}
@@ -168,8 +167,7 @@ fn transitive_internal_target_rejects_nested_identity_and_plan_corruption() {
     let rejects = |checked: &CheckedTrees| {
         assert!(matches!(
             lower_machine(checked, TerminalMachineSelection::Name("Root::enter")),
-            Err(crate::LoweringError::Unsupported(_)
-                | crate::LoweringError::InvalidUnitMachinePlan { .. })
+            Err(LoweringError::Unsupported(_) | LoweringError::InvalidUnitMachinePlan { .. })
         ));
     };
 

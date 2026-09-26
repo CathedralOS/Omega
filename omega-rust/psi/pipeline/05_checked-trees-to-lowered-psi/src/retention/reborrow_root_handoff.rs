@@ -1,3 +1,9 @@
+use checked_trees::{
+    BorrowAccessKind, BorrowLoanOwnerSegment, CheckedBorrowResourceDispositionTarget,
+    CheckedBorrowResourceLifecyclePhase, CheckedParentBorrowResource, CheckedReborrowAccessEffect,
+    CheckedReborrowContainmentKind, CheckedReborrowResourceDisposition, FlowBorrowWeakeningReason,
+    FlowConstraintKind, FlowInvalidationSource, ParentLexicalStatusAtChildEnd,
+};
 use semantic_vocabulary::MachineId;
 use sha2::{Digest, Sha256};
 use terminal_psi::{
@@ -5,16 +11,10 @@ use terminal_psi::{
     TerminalBorrowPlace, TerminalBorrowPlaceSegment, TerminalReborrowRootHandoff,
     TerminalReborrowRootHandoffStep,
 };
-use typed_trees_to_checked_trees::checked_trees::{
-    BorrowAccessKind, BorrowLoanOwnerSegment, CheckedBorrowResourceDispositionTarget,
-    CheckedBorrowResourceLifecyclePhase, CheckedParentBorrowResource, CheckedReborrowAccessEffect,
-    CheckedReborrowContainmentKind, CheckedReborrowResourceDisposition, FlowBorrowWeakeningReason,
-    FlowConstraintKind, FlowInvalidationSource, ParentLexicalStatusAtChildEnd,
-};
 
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
-use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
+use checked_trees::CheckedTrees;
 
 pub(crate) fn identity(
     checked: &CheckedTrees,
@@ -86,29 +86,28 @@ pub(crate) fn owner_path(
 
 pub(crate) fn place_segments(
     checked: &CheckedTrees,
-    segments: &[typed_trees_to_checked_trees::fact_plan::PlaceSegment],
+    segments: &[facts::PlaceSegment],
 ) -> Result<Vec<TerminalBorrowPlaceSegment>, LoweringError> {
     segments
         .iter()
         .map(|segment| {
             Ok(match segment {
-                typed_trees_to_checked_trees::fact_plan::PlaceSegment::Field { symbol } => {
+                facts::PlaceSegment::Field { symbol } => {
                     TerminalBorrowPlaceSegment::Field(identity(checked, *symbol)?)
                 }
-                typed_trees_to_checked_trees::fact_plan::PlaceSegment::Case { variant } => {
+                facts::PlaceSegment::Case { variant } => {
                     TerminalBorrowPlaceSegment::Case(identity(checked, *variant)?)
                 }
-                typed_trees_to_checked_trees::fact_plan::PlaceSegment::FixedIndex { index } => {
+                facts::PlaceSegment::FixedIndex { index } => {
                     TerminalBorrowPlaceSegment::FixedIndex(ordinal(*index)?)
                 }
-                typed_trees_to_checked_trees::fact_plan::PlaceSegment::FixedRange {
-                    start,
-                    end,
-                } => TerminalBorrowPlaceSegment::FixedRange {
-                    start: ordinal(*start)?,
-                    end: ordinal(*end)?,
-                },
-                typed_trees_to_checked_trees::fact_plan::PlaceSegment::Index { .. } => {
+                facts::PlaceSegment::FixedRange { start, end } => {
+                    TerminalBorrowPlaceSegment::FixedRange {
+                        start: ordinal(*start)?,
+                        end: ordinal(*end)?,
+                    }
+                }
+                facts::PlaceSegment::Index { .. } => {
                     return unsupported("dynamic projection cannot publish reborrow root custody");
                 }
             })
@@ -118,7 +117,7 @@ pub(crate) fn place_segments(
 
 pub(crate) fn place(
     checked: &CheckedTrees,
-    place: &typed_trees_to_checked_trees::checked_trees::CapturedPlace,
+    place: &checked_trees::CapturedPlace,
 ) -> Result<TerminalBorrowPlace, LoweringError> {
     Ok(TerminalBorrowPlace {
         root_identity: identity(checked, place.root_symbol)?,
@@ -136,7 +135,7 @@ pub(crate) fn access(kind: BorrowAccessKind) -> StructuralAccess {
 
 fn retained_parent_status(
     checked: &CheckedTrees,
-    child: &typed_trees_to_checked_trees::checked_trees::CheckedReborrowLoanResource,
+    child: &checked_trees::CheckedReborrowLoanResource,
 ) -> Result<ParentLexicalStatusAtChildEnd, LoweringError> {
     let parent = checked
         .facts

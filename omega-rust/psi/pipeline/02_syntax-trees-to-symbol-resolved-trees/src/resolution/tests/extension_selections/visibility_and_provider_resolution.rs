@@ -113,12 +113,12 @@ fn resolves_wire_owned_nested_field_type_identity() {
         .iter()
         .find(|schema| schema.name.as_str() == "Message")
         .expect("Message wire schema");
-    let [crate::symbol_resolved_trees::wire::WireMember::Field(header)] =
+    let [symbol_resolved_trees::wire::WireMember::Field(header)] =
         program.wire_members(message.members)
     else {
         panic!("Message should retain one wire field")
     };
-    let crate::symbol_resolved_trees::types::TypeReference::Named { symbol, name } =
+    let symbol_resolved_trees::types::TypeReference::Named { symbol, name } =
         &header.type_reference
     else {
         panic!("nested wire field should retain its named type")
@@ -177,13 +177,12 @@ fn resolves_machine_and_trait_const_parameter_carrier_types() {
         &program.machine_type_parameters(machine)[0],
         &program.trait_type_parameters(trait_definition)[0],
     ] {
-        let crate::symbol_resolved_trees::data::TypeParameterKind::Const { type_reference } =
+        let symbol_resolved_trees::data::TypeParameterKind::Const { type_reference } =
             &parameter.kind
         else {
             panic!("const parameter")
         };
-        let crate::symbol_resolved_trees::types::TypeReference::Named { symbol, name } =
-            type_reference
+        let symbol_resolved_trees::types::TypeReference::Named { symbol, name } = type_reference
         else {
             panic!("named const carrier")
         };
@@ -223,7 +222,7 @@ fn resolves_provider_selection_type_paths_to_exact_symbols() {
         .statements(state.statement_nodes)
         .iter()
         .find_map(|statement| match statement {
-            crate::symbol_resolved_trees::statement::StatementNode::Expression(expression) => {
+            symbol_resolved_trees::statement::StatementNode::Expression(expression) => {
                 provider_selection_expression(&program, *expression)
             }
             _ => None,
@@ -278,7 +277,7 @@ fn resolves_top_level_requirement_provider_selection_to_exact_machine_symbol() {
         .statements(state.statement_nodes)
         .iter()
         .find_map(|statement| match statement {
-            crate::symbol_resolved_trees::statement::StatementNode::Expression(expression) => {
+            symbol_resolved_trees::statement::StatementNode::Expression(expression) => {
                 provider_selection_expression(&program, *expression)
             }
             _ => None,
@@ -355,10 +354,10 @@ fn authored_build_selection_paths_cannot_fall_back_to_extension_declarations() {
         .statements(state.statement_nodes)
         .iter()
         .filter_map(|statement| match statement {
-            crate::symbol_resolved_trees::statement::StatementNode::Call(call) => {
+            symbol_resolved_trees::statement::StatementNode::Call(call) => {
                 Some((call.target.as_str(), call.machine_arguments.as_ref()))
             }
-            crate::symbol_resolved_trees::statement::StatementNode::Expression(expression) => {
+            symbol_resolved_trees::statement::StatementNode::Expression(expression) => {
                 provider_selection_expression(&program, *expression)
                     .map(|call| (call.target.as_str(), call.machine_arguments.as_ref()))
             }
@@ -379,15 +378,15 @@ fn authored_build_selection_paths_cannot_fall_back_to_extension_declarations() {
 }
 
 fn provider_selection_expression(
-    program: &crate::symbol_resolved_trees::SymbolResolvedTrees,
-    expression: crate::symbol_resolved_trees::expression::ExpressionHandle,
-) -> Option<&crate::symbol_resolved_trees::expression::TableCallExpression> {
+    program: &symbol_resolved_trees::SymbolResolvedTrees,
+    expression: symbol_resolved_trees::expression::ExpressionHandle,
+) -> Option<&symbol_resolved_trees::expression::TableCallExpression> {
     use language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionLateBinding,
         AuthoredDeclarationSelectionTarget,
     };
     let expressions = &program.tables.bodies.expressions;
-    let crate::symbol_resolved_trees::expression::ExpressionNode::Call(call) =
+    let symbol_resolved_trees::expression::ExpressionNode::Call(call) =
         expressions.expression(expression)
     else {
         return None;
@@ -472,16 +471,14 @@ fn resolves_name_owned_conformance_telescope_in_its_own_scope() {
         .span_or_empty(conformance.arguments)
         .first()
         .expect("Source trait argument");
-    let crate::symbol_resolved_trees::types::TypeReference::Named { symbol, name } =
-        source_argument
+    let symbol_resolved_trees::types::TypeReference::Named { symbol, name } = source_argument
     else {
         panic!("Source should remain a named reference");
     };
     assert_eq!(name.as_str(), "Source");
     assert_eq!(*symbol, parameters[0].symbol);
 
-    let crate::symbol_resolved_trees::data::TypeParameterKind::Machine { contract } =
-        &parameters[2].kind
+    let symbol_resolved_trees::data::TypeParameterKind::Machine { contract } = &parameters[2].kind
     else {
         panic!("Convert should be a machine parameter");
     };
@@ -493,7 +490,7 @@ fn resolves_name_owned_conformance_telescope_in_its_own_scope() {
         .state_parameters(contract.parameters)
         .first()
         .expect("Convert value parameter");
-    let crate::symbol_resolved_trees::types::TypeReference::Named { symbol, name } =
+    let symbol_resolved_trees::types::TypeReference::Named { symbol, name } =
         &contract_parameter.type_reference
     else {
         panic!("contract parameter should remain named");
@@ -527,12 +524,11 @@ fn resolves_forward_declared_nominal_machine_parameter_to_exact_requirement() {
         .machine_type_parameters(machine)
         .first()
         .expect("Selected parameter");
-    let crate::symbol_resolved_trees::data::TypeParameterKind::Machine { contract } =
-        &parameter.kind
+    let symbol_resolved_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind
     else {
         panic!("Selected should be a machine parameter");
     };
-    let crate::symbol_resolved_trees::data::MachineParameterContract::Nominal {
+    let symbol_resolved_trees::data::MachineParameterContract::Nominal {
         trait_definition,
         requirement,
         authored_path,
@@ -560,7 +556,7 @@ fn resolves_forward_declared_nominal_machine_parameter_to_exact_requirement() {
         ["WindowProcedure", "call"]
     );
     assert_ne!(parameter.symbol, requirement_row.symbol);
-    let crate::symbol_resolved_trees::data::MachineParameterContractView::Nominal {
+    let symbol_resolved_trees::data::MachineParameterContractView::Nominal {
         trait_definition,
         requirement,
     } = program

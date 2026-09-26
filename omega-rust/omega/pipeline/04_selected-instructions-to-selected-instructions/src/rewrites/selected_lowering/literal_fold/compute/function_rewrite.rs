@@ -1,7 +1,7 @@
 //! Producer application and dense-identifier reconstruction for one function.
 
-use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
-use target_operations_to_selected_instructions::{
+use register_model::RegisterOperandAccess;
+use selected_instructions::{
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionProvenance,
     SelectedOperand, SelectedTerminator, VirtualRegisterId, VirtualRegisterOrigin,
 };
@@ -202,16 +202,16 @@ fn redensify(
         };
         for successor in successors {
             for binding in &mut successor.structural_bindings {
-                if let target_operations_to_selected_instructions::SelectedStructuralTransport::Descriptor {
+                if let selected_instructions::SelectedStructuralTransport::Descriptor {
                     argument,
                     ..
                 }
-                | target_operations_to_selected_instructions::SelectedStructuralTransport::WholeValue {
+                | selected_instructions::SelectedStructuralTransport::WholeValue {
                     argument,
                     ..
                 }
-                | target_operations_to_selected_instructions::SelectedStructuralTransport::Address {
-                    base: target_operations_to_selected_instructions::SelectedAddressBase::Register(argument),
+                | selected_instructions::SelectedStructuralTransport::Address {
+                    base: selected_instructions::SelectedAddressBase::Register(argument),
                     ..
                 } = &mut binding.transport
                 {
@@ -221,14 +221,14 @@ fn redensify(
             if let Some(case) = &mut successor.structural_case {
                 for payload in &mut case.payloads {
                     match &mut payload.transport {
-                        target_operations_to_selected_instructions::SelectedCasePayloadTransport::Unused => {}
-                        target_operations_to_selected_instructions::SelectedCasePayloadTransport::Unmaterialized {
+                        selected_instructions::SelectedCasePayloadTransport::Unused => {}
+                        selected_instructions::SelectedCasePayloadTransport::Unmaterialized {
                             parameter,
                         } => {
                             *parameter =
                                 lower_register(function_index, *parameter, removed_register)?;
                         }
-                        target_operations_to_selected_instructions::SelectedCasePayloadTransport::Registers {
+                        selected_instructions::SelectedCasePayloadTransport::Registers {
                             argument,
                             parameter,
                         } => {
@@ -241,7 +241,7 @@ fn redensify(
                 }
             }
             for binding in &mut successor.bindings {
-                if let target_operations_to_selected_instructions::SelectedValueTransport::Registers {
+                if let selected_instructions::SelectedValueTransport::Registers {
                     argument,
                     parameter,
                 } = &mut binding.transport
@@ -326,7 +326,7 @@ fn lower_register(
 }
 
 fn selected_operand(
-    constraint: &target_operations_to_selected_instructions::register_model::RegisterOperandConstraint,
+    constraint: &register_model::RegisterOperandConstraint,
     register: VirtualRegisterId,
 ) -> SelectedOperand {
     SelectedOperand {

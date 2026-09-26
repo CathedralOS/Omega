@@ -8,10 +8,8 @@ mod nominal_callbacks_and_reach;
 use crate::terminal_identities::service_id;
 use crate::tests::{SymbolHandle, TerminalModule};
 use language_semantics::{ServiceReachId, ServiceReachRowId, ServiceReachSummary};
-use lowered_psi_to_terminal_psi::terminal_production::{
-    TerminalProductionCustody, TerminalProductionTimings,
-};
 use semantic_vocabulary::ServiceId;
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 fn nominal_schema_forwarding_module() -> terminal_psi::TerminalModule {
     let checked = crate::front_end::checked_program(
@@ -28,18 +26,15 @@ fn nominal_schema_forwarding_module() -> terminal_psi::TerminalModule {
         pub machine enter(value: u64) -> u64 { outer<selected>(value) }
     "#,
     );
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "enter",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("nominal schema forwarded through a private helper")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("nominal schema forwarded through a private helper")
+    .into_artifact();
     drop(checked);
     terminal_codec::decode_module(artifact.semantic_bytes()).expect("forwarded schema reload")
 }
@@ -90,7 +85,7 @@ fn summary(row: ServiceReachRowId) -> ServiceReachSummary {
     }
 }
 
-fn checked_public_reach_wrapper() -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
+fn checked_public_reach_wrapper() -> checked_trees::CheckedTrees {
     crate::front_end::checked_program(
         r#"
             pub boundary trait Audit { machine record() reaches Audit; }

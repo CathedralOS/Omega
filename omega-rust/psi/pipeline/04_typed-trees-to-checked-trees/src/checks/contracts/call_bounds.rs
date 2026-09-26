@@ -1,10 +1,8 @@
 //! Call requirements over arithmetic values bounded independently of snapshots.
 
-use crate::checked_trees::{
-    CheckFacts, CheckedOperatorResolutionStatus, FlowCallFact, FlowStateFact,
-};
+use checked_trees::{CheckFacts, CheckedOperatorResolutionStatus, FlowCallFact, FlowStateFact};
 use language_core::OperatorSpelling;
-use symbol_resolved_trees_to_typed_trees::typed_trees::{
+use typed_trees::{
     TypedTrees,
     expression::{BinaryOperator, ExpressionHandle, ExpressionNode},
 };
@@ -141,22 +139,17 @@ fn prove(
             if !super::prover::has_builtin_operators(program, &facts.operators, argument) {
                 return None;
             }
-            let (low, high) = crate::validation::immutable_integer_expression_bounds(
-                program, machine, state, argument,
-            )?;
+            let (low, high) =
+                validation::immutable_integer_expression_bounds(program, machine, state, argument)?;
             Some(((Some(low), Some(high)), Some(parameter.type_reference)))
         }
         // A field of the shared receiver holds what every store to it
         // enforces at each read, so those bounds hold at arrival. The
         // callee's own `requires` are never read here.
         ExpressionNode::Member(_) if transition && receiver_rooted(program, callee, expression) => {
-            let bounds = crate::validation::stored_integer_bounds(
-                program,
-                callee,
-                callee_state,
-                expression,
-            )?;
-            let place_type = crate::validation::declared_place_type_raw(
+            let bounds =
+                validation::stored_integer_bounds(program, callee, callee_state, expression)?;
+            let place_type = validation::declared_place_type_raw(
                 program,
                 callee,
                 Some(callee_state),
@@ -168,7 +161,7 @@ fn prove(
     };
     let ((left_low, left_high), left_type) = operand(binary.left)?;
     let ((right_low, right_high), right_type) = operand(binary.right)?;
-    if !symbol_resolved_trees_to_typed_trees::typed_trees::operator::has_builtin_spelled_expression_meaning(
+    if !typed_trees::operator::has_builtin_spelled_expression_meaning(
         program,
         callee.symbol,
         expression,
@@ -193,7 +186,7 @@ fn prove(
 /// Whether a member chain reads a field of the machine's own receiver.
 fn receiver_rooted(
     program: &TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    machine: &typed_trees::machine::Machine,
     mut expression: ExpressionHandle,
 ) -> bool {
     loop {

@@ -17,9 +17,7 @@ fn named_call_anonymous_literal_uses_its_exact_formal_destination() {
     }
 }
 
-fn checked(
-    source: &str,
-) -> Result<crate::checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
+fn checked(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     checked_program_result(source)
 }
 
@@ -625,7 +623,7 @@ fn computed_boolean_actual_does_not_inherit_callee_conformance_operator_scope() 
             .machine_specializations
             .iter()
             .any(
-                |specialization| !symbol_resolved_trees_to_typed_trees::typed_trees::operator::selected_trait_operator_meanings(
+                |specialization| !typed_trees::operator::selected_trait_operator_meanings(
                     &checked.typed,
                     specialization.instance,
                     language_core::OperatorSpelling::Equal,
@@ -660,7 +658,7 @@ fn computed_boolean_selected_actual_rejects_without_later_checked_operator_rows(
         .machine_specializations
         .iter()
         .find(|specialization| {
-            !symbol_resolved_trees_to_typed_trees::typed_trees::operator::selected_trait_operator_meanings(
+            !typed_trees::operator::selected_trait_operator_meanings(
                 &checked,
                 specialization.instance,
                 language_core::OperatorSpelling::Equal,
@@ -691,14 +689,14 @@ fn computed_boolean_selected_actual_rejects_without_later_checked_operator_rows(
                 .is_some_and(|parameters| {
                     parameters.len() == 1
                         && checked.primitive_type_reference(parameters[0].type_reference)
-                            == Some(symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::Bool)
+                            == Some(typed_trees::types::PrimitiveType::Bool)
                 })
         })
         .expect("selected equality feeds the Bool callee");
     let parameters =
         crate::semantic::calls::call_target_parameters(&checked, call.target_symbol).unwrap();
     let expression = checked.expression_table.iter_expressions().find_map(|(expression, node)|
-        matches!(node, symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Name(path) if path.symbol == parameters[0].symbol).then_some(expression)).unwrap();
+        matches!(node, typed_trees::expression::ExpressionNode::Name(path) if path.symbol == parameters[0].symbol).then_some(expression)).unwrap();
     let site = crate::semantic::calls::find_call_site(
         &checked,
         state.machine_symbol,
@@ -713,7 +711,7 @@ fn computed_boolean_selected_actual_rejects_without_later_checked_operator_rows(
     assert!(
         !crate::checks::contracts::evaluator::call_site_proves_boolean_contract_expression(
             &checked,
-            &crate::checked_trees::CheckedOperatorFacts::default(),
+            &checked_trees::CheckedOperatorFacts::default(),
             state,
             call,
             &site,

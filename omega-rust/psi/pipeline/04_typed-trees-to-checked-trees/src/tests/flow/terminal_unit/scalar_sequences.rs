@@ -33,21 +33,14 @@ fn array_sequence_rejoins_every_nested_constant_projection_selection() {
         .find(|machine| machine.symbol == symbol)
         .unwrap();
     let state = &checked.machine_states(machine)[0];
-    let [
-        symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Expression(
-            expression,
-        ),
-    ] = checked.statement_table.statements(state.statement_nodes)
+    let [typed_trees::statement::StatementNode::Expression(expression)] =
+        checked.statement_table.statements(state.statement_nodes)
     else {
         panic!("array completion");
     };
-    let source = crate::validation::scalar_array_elements(
-        &checked.typed,
-        symbol,
-        *expression,
-        state.return_type,
-    )
-    .expect("nested array source");
+    let source =
+        validation::scalar_array_elements(&checked.typed, symbol, *expression, state.return_type)
+            .expect("nested array source");
     assert_eq!(source.projections.len(), 2);
     assert_eq!(source.elements.len(), 2);
     assert!(
@@ -61,14 +54,14 @@ fn array_sequence_rejoins_every_nested_constant_projection_selection() {
     for projection in source.projections {
         let mut changed = checked.clone();
         let mut uses = arena::Arena::new();
-        uses.append(crate::checked_trees::CheckedOperatorUseFact {
+        uses.append(checked_trees::CheckedOperatorUseFact {
             expression: projection,
             spelling: language_core::OperatorSpelling::Index,
-            status: crate::checked_trees::CheckedOperatorResolutionStatus::Resolved,
+            status: checked_trees::CheckedOperatorResolutionStatus::Resolved,
             selected_operator_symbol: symbols::SymbolHandle::from_parts(1, 1),
             ..Default::default()
         });
-        changed.facts.operators = crate::checked_trees::CheckedOperatorFacts::with_roots(
+        changed.facts.operators = checked_trees::CheckedOperatorFacts::with_roots(
             uses,
             arena::Arena::new(),
             arena::Arena::new(),
@@ -90,7 +83,7 @@ fn array_sequence_rejoins_every_nested_constant_projection_selection() {
 
 #[test]
 fn array_sequence_requires_exact_computation_call_roots() {
-    use crate::checked_trees::{CheckedCallScalarArgument, CheckedScalarComputationKind};
+    use checked_trees::{CheckedCallScalarArgument, CheckedScalarComputationKind};
     let checked = checked(
         "machine identity(value: u8) -> u8 { value }
         machine values(value: u8) -> [u8;2] { [identity(value), identity(value)] }",
@@ -186,7 +179,7 @@ fn array_sequence_requires_exact_computation_call_roots() {
 
 #[test]
 fn array_sequence_does_not_require_statically_skipped_call_occurrences() {
-    use crate::checked_trees::{CheckedCallScalarArgument, CheckedScalarComputationKind};
+    use checked_trees::{CheckedCallScalarArgument, CheckedScalarComputationKind};
     let checked = checked("machine helper(value: bool) -> bool { value }
         machine values(value: bool) -> [bool;2] { [false && helper(value), true || helper(value)] }");
     let symbol = machine_named(&checked, "values");

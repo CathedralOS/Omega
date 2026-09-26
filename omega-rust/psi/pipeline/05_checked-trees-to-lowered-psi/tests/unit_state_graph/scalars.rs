@@ -68,9 +68,7 @@ fn an_initial_nonzero_argument_is_not_an_invariant_after_rebinding_to_zero() {
     ));
 }
 
-fn effects(
-    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
-) -> Vec<(Vec<u8>, i128)> {
+fn effects(checked: &checked_trees::CheckedTrees) -> Vec<(Vec<u8>, i128)> {
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -236,7 +234,7 @@ fn scalar_prefix_cannot_drop_reorder_or_retarget_authored_writes() {
             }
             2 => {
                 entry.bindings[1].destination =
-                    typed_trees_to_checked_trees::checked_trees::CheckedScalarBindingDestination::Immutable;
+                    checked_trees::CheckedScalarBindingDestination::Immutable;
             }
             _ => unreachable!(),
         }
@@ -273,14 +271,14 @@ fn expression_successors_rejoin_the_exact_selected_source_operand() {
         .find(|plan| plan.machine == relay)
         .unwrap()
         .states[0];
-    let typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional { when_false, .. } =
+    let checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional { when_false, .. } =
         &entry.terminator
     else {
         panic!("conditional");
     };
     let state = entry.state;
     let ordinal = when_false.statement_ordinal;
-    let role = typed_trees_to_checked_trees::checked_trees::CheckedScalarExpressionRole::TransitionArgument {
+    let role = checked_trees::CheckedScalarExpressionRole::TransitionArgument {
         argument_ordinal: 1,
     };
     let source_handle = changed
@@ -294,9 +292,10 @@ fn expression_successors_rejoin_the_exact_selected_source_operand() {
         })
         .unwrap()
         .0;
-    let unrelated = changed.typed.expression_table.insert(
-        typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode::Boolean(false),
-    );
+    let unrelated = changed
+        .typed
+        .expression_table
+        .insert(checked_trees::expression::ExpressionNode::Boolean(false));
     changed
         .facts
         .values

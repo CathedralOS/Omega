@@ -4,15 +4,11 @@ use super::{
 };
 use crate::legalize_target_operations;
 use crate::validate_legalized_operations;
-use abstract_operations_to_target_operations::target_operations::{
-    TargetControlTerminator, TargetScalarExpression,
-};
+use target_operations::{TargetControlTerminator, TargetScalarExpression};
 
 #[test]
 fn literal_negation_retains_its_operation_and_exact_operand() {
-    use abstract_operations_to_target_operations::target_operations::{
-        TargetBooleanExpression, TargetUnitOperation,
-    };
+    use target_operations::{TargetBooleanExpression, TargetUnitOperation};
 
     for native in [
         target::NativeTarget::linux_x64(),
@@ -54,7 +50,7 @@ fn literal_negation_retains_its_operation_and_exact_operand() {
                 abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
             )
             .unwrap();
-            let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
+            let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
                 &source,
                 previous.fuel_schedule,
             )
@@ -140,7 +136,7 @@ fn operation_operands_and_returns_reject_reconstructed_boolean_trees() {
     )
     .unwrap();
     let unit =
-        terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(&source, previous.fuel_schedule)
+        optimization_unit::reconstruct_psi_optimization_unit_seed(&source, previous.fuel_schedule)
             .unwrap();
     let legal = legalize_target_operations(&target, &source, &unit).unwrap();
     for replace_return in [false, true] {
@@ -150,7 +146,7 @@ fn operation_operands_and_returns_reject_reconstructed_boolean_trees() {
             .operations
             .iter()
             .filter_map(|operation| match operation {
-                abstract_operations_to_target_operations::target_operations::TargetUnitOperation::ScalarDefinition {
+                target_operations::TargetUnitOperation::ScalarDefinition {
                     expression: TargetScalarExpression::Boolean(expression),
                     ..
                 } => Some(expression.clone()),
@@ -170,7 +166,7 @@ fn operation_operands_and_returns_reject_reconstructed_boolean_trees() {
                 .operations
                 .iter_mut()
                 .filter_map(|operation| match operation {
-                    abstract_operations_to_target_operations::target_operations::TargetUnitOperation::ScalarDefinition {
+                    target_operations::TargetUnitOperation::ScalarDefinition {
                         expression: TargetScalarExpression::Boolean(expression),
                         ..
                     } => Some(expression),
@@ -178,7 +174,7 @@ fn operation_operands_and_returns_reject_reconstructed_boolean_trees() {
                 })
                 .nth(1)
                 .unwrap();
-            let abstract_operations_to_target_operations::target_operations::TargetBooleanExpression::Not { operand, .. } = second else {
+            let target_operations::TargetBooleanExpression::Not { operand, .. } = second else {
                 panic!("Boolean not")
             };
             **operand = observations[0].clone();

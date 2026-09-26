@@ -6,27 +6,25 @@ use super::{
     ValueLocation, VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
-use crate::selected_instructions::{
-    FrameStorageSlotId, LocalStorageSlotId, SelectedMemoryAccessRole,
-};
+use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId, SelectedMemoryAccessRole};
 
 pub(super) fn argument(
     source: &LegalizedScalarFunction,
-    operation: &crate::legalized_operations::LegalizedScalarInstruction,
+    operation: &legalized_operations::LegalizedScalarInstruction,
     argument_index: usize,
     semantic: &terminal_psi::StructuralArgument,
-    target: &abstract_operations_to_target_operations::target_operations::TargetStructuralArgument,
+    target: &target_operations::TargetStructuralArgument,
     builder: &mut Builder<'_>,
 ) -> Result<Vec<VirtualRegisterId>, SelectedInstructionError> {
     let place = semantic.place;
     let slot = match target.source {
-        abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
+        target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
             Some(LocalStorageSlotId::Structural {
                 operation: psi_operation,
                 place,
             })
         }
-        abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::Placement(_) => None,
+        target_operations::TargetStructuralArgumentSource::Placement(_) => None,
         _ => return Err(SelectedInstructionError::custody()),
     };
     // Call custody has already rejoined the exact producer or parameter type.
@@ -109,15 +107,15 @@ pub(super) fn argument(
                 _ => None,
             });
     let outgoing = if let Some(stack_byte_offset) = outgoing_offset {
-        let slot = crate::selected_instructions::OutgoingArgumentSlotId {
+        let slot = selected_instructions::OutgoingArgumentSlotId {
             operation: operation.operation,
             argument_index: argument_index
                 .try_into()
                 .map_err(|_| SelectedInstructionError::custody())?,
             role: if indirect.is_some() {
-                crate::selected_instructions::OutgoingArgumentSlotRole::ValueCopy
+                selected_instructions::OutgoingArgumentSlotRole::ValueCopy
             } else {
-                crate::selected_instructions::OutgoingArgumentSlotRole::Argument
+                selected_instructions::OutgoingArgumentSlotRole::Argument
             },
         };
         if builder
@@ -141,7 +139,7 @@ pub(super) fn argument(
             })
             .fold(target.shape.alignment, u16::max);
         let alignment = if indirect.is_some()
-            && source.call_plan.policy == abstract_operations_to_target_operations::calling_conventions::CallingPolicy::MicrosoftX64
+            && source.call_plan.policy == calling_conventions::CallingPolicy::MicrosoftX64
         {
             alignment.max(16)
         } else {
@@ -150,7 +148,7 @@ pub(super) fn argument(
         builder
             .transport
             .slots
-            .push(crate::selected_instructions::SelectedOutgoingArgumentSlot {
+            .push(selected_instructions::SelectedOutgoingArgumentSlot {
                 id: slot,
                 byte_size: u32::from(target.shape.byte_size),
                 alignment,
@@ -253,17 +251,17 @@ pub(super) fn argument(
     if let Some((pointer_location, _)) = indirect {
         let (_, address) = outgoing.ok_or_else(|| SelectedInstructionError::custody())?;
         match pointer_location {
-            abstract_operations_to_target_operations::calling_conventions::IndirectPointerLocation::Register(_) => registers.push(address),
-            abstract_operations_to_target_operations::calling_conventions::IndirectPointerLocation::Stack {
+            calling_conventions::IndirectPointerLocation::Register(_) => registers.push(address),
+            calling_conventions::IndirectPointerLocation::Stack {
                 stack_byte_offset,
                 alignment,
             } => {
-                let slot = crate::selected_instructions::OutgoingArgumentSlotId {
+                let slot = selected_instructions::OutgoingArgumentSlotId {
                     operation: operation.operation,
                     argument_index: argument_index
                         .try_into()
                         .map_err(|_| SelectedInstructionError::custody())?,
-                    role: crate::selected_instructions::OutgoingArgumentSlotRole::Argument,
+                    role: selected_instructions::OutgoingArgumentSlotRole::Argument,
                 };
                 if builder
                     .transport
@@ -276,7 +274,7 @@ pub(super) fn argument(
                 builder
                     .transport
                     .slots
-                    .push(crate::selected_instructions::SelectedOutgoingArgumentSlot {
+                    .push(selected_instructions::SelectedOutgoingArgumentSlot {
                         id: slot,
                         byte_size: 8,
                         alignment,
@@ -321,7 +319,7 @@ fn outgoing_memory(
     builder
         .transport
         .memory
-        .push(crate::selected_instructions::SelectedMemoryAccess {
+        .push(selected_instructions::SelectedMemoryAccess {
             instruction: SelectedInstructionId(
                 builder
                     .instructions
@@ -329,7 +327,7 @@ fn outgoing_memory(
                     .try_into()
                     .map_err(|_| SelectedInstructionError::custody())?,
             ),
-            origin: crate::selected_instructions::SelectedMemoryAccessOrigin::Operation(operation),
+            origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(operation),
             place,
             byte_offset,
             byte_count,

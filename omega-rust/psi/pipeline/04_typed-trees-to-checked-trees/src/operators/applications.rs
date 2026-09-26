@@ -1,25 +1,25 @@
-use crate::checked_trees::{
+use checked_trees::{
     CheckedBoundaryOperatorApplicationArgument, CheckedBoundaryOperatorApplicationDemand,
     CheckedBoundaryOperatorApplicationUseSite, CheckedOperatorFacts,
     CheckedOperatorResolutionStatus, CheckedOperatorUseFact,
     CheckedSymbolicBoundaryOperatorApplicationArgument,
     CheckedSymbolicBoundaryOperatorApplicationDemand, CheckedValueOrigin,
 };
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
-use symbol_resolved_trees_to_typed_trees::typed_trees::operator::ClosedOperatorApplicationArgument;
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle;
+use typed_trees::TypedTrees;
+use typed_trees::expression::ExpressionNode;
+use typed_trees::operator::ClosedOperatorApplicationArgument;
+use typed_trees::statement::StatementNode;
+use typed_trees::types::TypeReferenceHandle;
 
 use super::{expression_type_reference_for_origin, indexed_operand_types};
 
 pub(crate) fn bind_boundary_operator_application_demands(
     program: &TypedTrees,
-    validated: &[crate::validation::ValidatedBoundaryOperatorApplication],
+    validated: &[validation::ValidatedBoundaryOperatorApplication],
     operators: &mut CheckedOperatorFacts,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let mut symbol_diagnostics = Vec::new();
-    let symbols = crate::validation::TopLevelSymbols::build(program, &mut symbol_diagnostics);
+    let symbols = validation::TopLevelSymbols::build(program, &mut symbol_diagnostics);
     if symbol_diagnostics
         .iter()
         .any(diagnostics::Diagnostic::is_error)
@@ -33,13 +33,11 @@ pub(crate) fn bind_boundary_operator_application_demands(
         if operator_use.status != CheckedOperatorResolutionStatus::Resolved {
             continue;
         }
-        let Some(operator) =
-            symbol_resolved_trees_to_typed_trees::typed_trees::operator::declaration_by_symbol(
-                program,
-                operator_use.selected_operator_symbol,
-            )
-            .filter(|operator| operator.is_boundary)
-        else {
+        let Some(operator) = typed_trees::operator::declaration_by_symbol(
+            program,
+            operator_use.selected_operator_symbol,
+        )
+        .filter(|operator| operator.is_boundary) else {
             continue;
         };
         let operand_types = spelled_operand_types(program, operator_use);
@@ -67,10 +65,7 @@ pub(crate) fn bind_boundary_operator_application_demands(
 
     for application in validated {
         let Some(operator) =
-            symbol_resolved_trees_to_typed_trees::typed_trees::operator::declaration_by_symbol(
-                program,
-                application.requirement,
-            )
+            typed_trees::operator::declaration_by_symbol(program, application.requirement)
         else {
             diagnostics.push(diagnostics::Diagnostic::error(
                 "validated boundary application names no operator declaration",
@@ -84,9 +79,7 @@ pub(crate) fn bind_boundary_operator_application_demands(
             continue;
         }
         match application.site {
-            crate::validation::ValidatedBoundaryOperatorApplicationUseSite::Expression(
-                expression,
-            ) => {
+            validation::ValidatedBoundaryOperatorApplicationUseSite::Expression(expression) => {
                 let ExpressionNode::Call(call) = program.expression_table.expression(expression)
                 else {
                     diagnostics.push(diagnostics::Diagnostic::error(
@@ -94,7 +87,7 @@ pub(crate) fn bind_boundary_operator_application_demands(
                     ));
                     continue;
                 };
-                if symbol_resolved_trees_to_typed_trees::typed_trees::operator::resolve_named_expression_call(program, call)
+                if typed_trees::operator::resolve_named_expression_call(program, call)
                     .is_none_or(|selected| selected.symbol != application.requirement)
                 {
                     diagnostics.push(diagnostics::Diagnostic::error(
@@ -123,7 +116,7 @@ pub(crate) fn bind_boundary_operator_application_demands(
                     if application.arguments.iter().any(|argument| {
                         matches!(
                             argument,
-                            crate::validation::ValidatedBoundaryOperatorApplicationArgument::TypeBinder { .. }
+                            validation::ValidatedBoundaryOperatorApplicationArgument::TypeBinder { .. }
                         )
                     }) {
                         if let Some((machine_symbol, arguments)) =
@@ -169,9 +162,7 @@ pub(crate) fn bind_boundary_operator_application_demands(
                     }
                 }
             }
-            crate::validation::ValidatedBoundaryOperatorApplicationUseSite::Statement(
-                statement,
-            ) => {
+            validation::ValidatedBoundaryOperatorApplicationUseSite::Statement(statement) => {
                 let StatementNode::Call(call) = program.statement_table.statement(statement) else {
                     diagnostics.push(diagnostics::Diagnostic::error(
                         "validated named operator application no longer names a call statement",
@@ -187,7 +178,7 @@ pub(crate) fn bind_boundary_operator_application_demands(
                 if application.arguments.iter().any(|argument| {
                     matches!(
                         argument,
-                        crate::validation::ValidatedBoundaryOperatorApplicationArgument::TypeBinder { .. }
+                        validation::ValidatedBoundaryOperatorApplicationArgument::TypeBinder { .. }
                     )
                 }) {
                     diagnostics.push(diagnostics::Diagnostic::error(
@@ -268,8 +259,8 @@ pub(crate) fn bind_boundary_operator_application_demands(
 
 fn checked_spelled_boundary_application(
     program: &TypedTrees,
-    symbols: &crate::validation::TopLevelSymbols<'_>,
-    operator: &symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition,
+    symbols: &validation::TopLevelSymbols<'_>,
+    operator: &typed_trees::operator::OperatorDefinition,
     operator_use: &CheckedOperatorUseFact,
     operand_types: &[Option<TypeReferenceHandle>],
 ) -> Result<Option<CheckedBoundaryOperatorApplicationDemand>, diagnostics::Diagnostic> {
@@ -277,13 +268,13 @@ fn checked_spelled_boundary_application(
         program.expression_table.expression(operator_use.expression),
         ExpressionNode::Indexed(_)
     ) {
-        symbol_resolved_trees_to_typed_trees::typed_trees::operator::closed_indexed_operator_application_for_operands(
+        typed_trees::operator::closed_indexed_operator_application_for_operands(
             program,
             operator,
             operand_types,
         )
     } else {
-        symbol_resolved_trees_to_typed_trees::typed_trees::operator::closed_operator_application_for_operands(
+        typed_trees::operator::closed_operator_application_for_operands(
             program,
             operator,
             operand_types,
@@ -292,7 +283,7 @@ fn checked_spelled_boundary_application(
     let Some(bindings) = bindings else {
         return Ok(None);
     };
-    crate::validation::validate_closed_operator_application(program, symbols, operator, &bindings)?;
+    validation::validate_closed_operator_application(program, symbols, operator, &bindings)?;
     Ok(Some(checked_boundary_application_from_bindings(
         operator,
         operator_use.application_site(),
@@ -311,16 +302,16 @@ fn checked_spelled_boundary_application(
 /// own, so they stay out of this cohort for now.
 fn spelled_symbolic_boundary_application(
     program: &TypedTrees,
-    operator: &symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition,
+    operator: &typed_trees::operator::OperatorDefinition,
     operator_use: &CheckedOperatorUseFact,
     operand_types: &[Option<TypeReferenceHandle>],
 ) -> Option<CheckedSymbolicBoundaryOperatorApplicationDemand> {
-    if operator_use.occurrence != crate::checked_trees::CheckedOperatorOccurrence::Expression {
+    if operator_use.occurrence != checked_trees::CheckedOperatorOccurrence::Expression {
         return None;
     }
     let machine_symbol = operator_use.origin.machine_symbol()?;
     let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
-    let arguments = symbol_resolved_trees_to_typed_trees::typed_trees::operator::symbolic_operator_type_application_for_operands(
+    let arguments = typed_trees::operator::symbolic_operator_type_application_for_operands(
         program,
         machine,
         operator,
@@ -350,7 +341,7 @@ fn spelled_symbolic_boundary_application(
 }
 
 fn checked_boundary_application_from_bindings(
-    operator: &symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition,
+    operator: &typed_trees::operator::OperatorDefinition,
     site: CheckedBoundaryOperatorApplicationUseSite,
     bindings: Vec<ClosedOperatorApplicationArgument>,
 ) -> CheckedBoundaryOperatorApplicationDemand {
@@ -393,9 +384,9 @@ fn checked_boundary_application_from_bindings(
 
 fn rejoin_validated_arguments(
     program: &TypedTrees,
-    symbols: &crate::validation::TopLevelSymbols<'_>,
-    operator: &symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition,
-    validated: &[crate::validation::ValidatedBoundaryOperatorApplicationArgument],
+    symbols: &validation::TopLevelSymbols<'_>,
+    operator: &typed_trees::operator::OperatorDefinition,
+    validated: &[validation::ValidatedBoundaryOperatorApplicationArgument],
     operand_types: Option<&[Option<TypeReferenceHandle>]>,
     diagnostics: &mut Vec<diagnostics::Diagnostic>,
 ) -> Option<Vec<CheckedBoundaryOperatorApplicationArgument>> {
@@ -404,8 +395,8 @@ fn rejoin_validated_arguments(
         || parameters.iter().any(|parameter| {
             !matches!(
                 parameter.kind,
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Type
-                    | symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Const { .. }
+                typed_trees::data::TypeParameterKind::Type
+                    | typed_trees::data::TypeParameterKind::Const { .. }
             )
         })
         || validated.len() != parameters.len()
@@ -420,7 +411,7 @@ fn rejoin_validated_arguments(
     for (ordinal, (argument, parameter)) in validated.iter().zip(parameters).enumerate() {
         let (binder_owner, binder_ordinal, binder_symbol, closed_argument, checked_argument) =
             match argument {
-                crate::validation::ValidatedBoundaryOperatorApplicationArgument::Type {
+                validation::ValidatedBoundaryOperatorApplicationArgument::Type {
                     binder_owner,
                     binder_ordinal,
                     binder_symbol,
@@ -440,7 +431,7 @@ fn rejoin_validated_arguments(
                         type_reference: *type_reference,
                     },
                 ),
-                crate::validation::ValidatedBoundaryOperatorApplicationArgument::Const {
+                validation::ValidatedBoundaryOperatorApplicationArgument::Const {
                     binder_owner,
                     binder_ordinal,
                     binder_symbol,
@@ -463,9 +454,7 @@ fn rejoin_validated_arguments(
                         value: value.clone(),
                     },
                 ),
-                crate::validation::ValidatedBoundaryOperatorApplicationArgument::TypeBinder {
-                    ..
-                } => {
+                validation::ValidatedBoundaryOperatorApplicationArgument::TypeBinder { .. } => {
                     diagnostics.push(diagnostics::Diagnostic::error(
                         "symbolic boundary application entered closed-application replay",
                     ));
@@ -485,13 +474,13 @@ fn rejoin_validated_arguments(
         checked.push(checked_argument);
     }
     if let Err(diagnostic) =
-        crate::validation::validate_closed_operator_application(program, symbols, operator, &closed)
+        validation::validate_closed_operator_application(program, symbols, operator, &closed)
     {
         diagnostics.push(diagnostic);
         return None;
     }
     if let Some(operand_types) = operand_types {
-        let Some(rederived) = symbol_resolved_trees_to_typed_trees::typed_trees::operator::closed_operator_application_for_operands(
+        let Some(rederived) = typed_trees::operator::closed_operator_application_for_operands(
             program,
             operator,
             operand_types,
@@ -513,8 +502,8 @@ fn rejoin_validated_arguments(
 
 fn rejoin_validated_symbolic_arguments(
     program: &TypedTrees,
-    operator: &symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition,
-    validated: &[crate::validation::ValidatedBoundaryOperatorApplicationArgument],
+    operator: &typed_trees::operator::OperatorDefinition,
+    validated: &[validation::ValidatedBoundaryOperatorApplicationArgument],
     operand_types: &[Option<TypeReferenceHandle>],
     origin: CheckedValueOrigin,
     diagnostics: &mut Vec<diagnostics::Diagnostic>,
@@ -525,12 +514,9 @@ fn rejoin_validated_symbolic_arguments(
     let parameters = program.operator_type_parameters(operator);
     if !operator.lifetime_parameters.is_empty()
         || parameters.is_empty()
-        || parameters.iter().any(|parameter| {
-            !matches!(
-                parameter.kind,
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Type
-            )
-        })
+        || parameters
+            .iter()
+            .any(|parameter| !matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type))
         || parameters.len() != validated.len()
     {
         diagnostics.push(diagnostics::Diagnostic::error(
@@ -540,7 +526,7 @@ fn rejoin_validated_symbolic_arguments(
     }
 
     let machine_symbol = validated.first().and_then(|argument| match argument {
-        crate::validation::ValidatedBoundaryOperatorApplicationArgument::TypeBinder {
+        validation::ValidatedBoundaryOperatorApplicationArgument::TypeBinder {
             machine_owner,
             ..
         } => Some(*machine_owner),
@@ -559,7 +545,7 @@ fn rejoin_validated_symbolic_arguments(
         return None;
     }
     let machine_parameters = program.machine_type_parameters(machine);
-    let rederived = symbol_resolved_trees_to_typed_trees::typed_trees::operator::symbolic_operator_type_application_for_operands(
+    let rederived = typed_trees::operator::symbolic_operator_type_application_for_operands(
         program,
         machine,
         operator,
@@ -576,7 +562,7 @@ fn rejoin_validated_symbolic_arguments(
     for (ordinal, ((argument, parameter), expected)) in
         validated.iter().zip(parameters).zip(&rederived).enumerate()
     {
-        let crate::validation::ValidatedBoundaryOperatorApplicationArgument::TypeBinder {
+        let validation::ValidatedBoundaryOperatorApplicationArgument::TypeBinder {
             binder_owner,
             binder_ordinal,
             binder_symbol,
@@ -599,7 +585,7 @@ fn rejoin_validated_symbolic_arguments(
             || *machine_owner != machine_symbol
             || machine_parameter.is_none_or(|candidate| {
                 candidate.symbol != *machine_binder_symbol
-                    || !matches!(candidate.kind, symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Type)
+                    || !matches!(candidate.kind, typed_trees::data::TypeParameterKind::Type)
             })
             || expected.operator_binder_symbol != *binder_symbol
             || expected.machine_binder_ordinal != *machine_binder_ordinal
@@ -625,7 +611,7 @@ fn rejoin_validated_symbolic_arguments(
 
 fn named_expression_operand_types(
     program: &TypedTrees,
-    call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
+    call: &typed_trees::expression::TableCallExpression,
     origin: CheckedValueOrigin,
 ) -> Vec<Option<TypeReferenceHandle>> {
     let mut operand_types = Vec::new();
@@ -642,7 +628,7 @@ fn named_expression_operand_types(
             .iter()
             .map(|argument| {
                 expression_type_reference_for_origin(program, *argument, origin).or_else(|| {
-                    crate::validation::landed_integer_literal_type_reference(program, *argument)
+                    validation::landed_integer_literal_type_reference(program, *argument)
                 })
             }),
     );
@@ -653,7 +639,7 @@ fn spelled_operand_types(
     program: &TypedTrees,
     operator_use: &CheckedOperatorUseFact,
 ) -> Vec<Option<TypeReferenceHandle>> {
-    if operator_use.occurrence != crate::checked_trees::CheckedOperatorOccurrence::Expression {
+    if operator_use.occurrence != checked_trees::CheckedOperatorOccurrence::Expression {
         return operator_use
             .operands(program)
             .unwrap_or_default()

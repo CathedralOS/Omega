@@ -3,12 +3,10 @@ use super::super::super::super::CheckedComposedUnitControlTerminatorPlan;
 use super::super::super::{CheckedUnitEffectOperationPlan, Multiplicity, unsupported};
 use super::super::{CheckedTrees, LoweringError};
 use super::{CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan, edges};
-use typed_trees_to_checked_trees::checked_trees::data::DataMember;
-use typed_trees_to_checked_trees::checked_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode,
-};
-use typed_trees_to_checked_trees::checked_trees::statement::{StatementNode, TransitionGuardNode};
-use typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode;
+use checked_trees::data::DataMember;
+use checked_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use checked_trees::statement::{StatementNode, TransitionGuardNode};
+use checked_trees::types::TypeReferenceNode;
 
 fn root(
     checked: &CheckedTrees,
@@ -59,12 +57,12 @@ pub(super) fn case_test(
 fn result_source<'a>(
     checked: &'a CheckedTrees,
     machine: symbols::SymbolHandle,
-    source: &typed_trees_to_checked_trees::checked_trees::state::State,
+    source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
 ) -> Result<
     (
         symbols::SymbolHandle,
-        &'a typed_trees_to_checked_trees::checked_trees::data::DataDefinition,
+        &'a checked_trees::data::DataDefinition,
         language_semantics::PermissionProvenance,
     ),
     LoweringError,
@@ -73,13 +71,11 @@ fn result_source<'a>(
     else {
         return unsupported("Unit case has no structural subject");
     };
-    if subject.access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
-        || !subject.path.is_empty()
-    {
+    if subject.access != checked_trees::CheckedStructuralAccess::Owned || !subject.path.is_empty() {
         return unsupported("Unit case subject is not whole owned custody");
     }
     let (symbol, reference, provenance) = match subject.source {
-        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
             let retained = state
                 .structural_parameters
                 .get(parameter_index as usize)
@@ -90,7 +86,7 @@ fn result_source<'a>(
                 .ok_or(LoweringError::Unsupported(
                     "Unit case source parameter missing",
                 ))?;
-            if retained.access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
+            if retained.access != checked_trees::CheckedStructuralAccess::Owned
                 || retained.multiplicity != Multiplicity::Affine
                 || !retained.qualifications.is_empty()
                 || retained.type_identity != subject.type_identity
@@ -103,7 +99,7 @@ fn result_source<'a>(
                 language_semantics::PermissionProvenance::Unknown,
             )
         }
-        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal,
         } => {
             let mut matching = state
@@ -176,7 +172,7 @@ fn result_source<'a>(
         ))?;
     if checked.type_multiplicity(reference) != Multiplicity::Affine
         || checked.normalized_type_identity(reference).as_str() != subject.type_identity
-        || !typed_trees_to_checked_trees::validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, reference)
+        || !validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, reference)
         || checked
             .data_members(declaration)
             .iter()
@@ -199,7 +195,7 @@ fn result_source<'a>(
 pub(super) fn validate_markers(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
-    source: &typed_trees_to_checked_trees::checked_trees::state::State,
+    source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
     end: usize,
 ) -> Result<usize, LoweringError> {
@@ -314,7 +310,7 @@ pub(super) fn validate_markers(
 pub(super) fn validate(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
-    source: &typed_trees_to_checked_trees::checked_trees::state::State,
+    source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
     tail: &[StatementNode],
     ordinal: usize,
@@ -326,7 +322,7 @@ pub(super) fn validate(
     let (result_symbol, declaration, expected_provenance) =
         result_source(checked, plan.machine, source, state)?;
     if state.structural_parameters.iter().enumerate().any(|(index, parameter)| {
-        !(matches!(subject.source, typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } if parameter_index as usize == index)) && (parameter.multiplicity != Multiplicity::Unrestricted || !matches!(parameter.access, typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow | typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow))
+        !(matches!(subject.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } if parameter_index as usize == index)) && (parameter.multiplicity != Multiplicity::Unrestricted || !matches!(parameter.access, checked_trees::CheckedStructuralAccess::SharedBorrow | checked_trees::CheckedStructuralAccess::MutableBorrow))
     }) { return unsupported("Unit case has unrelated owned parameter cleanup"); }
     let mut has_result_discard = false;
     super::result_custody::validate_disposition_roster(checked, plan.machine, source, state)?;
@@ -343,11 +339,12 @@ pub(super) fn validate(
                 && event.kind == language_semantics::PermissionEventKind::AffineDrop
         })
     {
-        if event.root != typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(result_symbol) {
-            if checked.state_parameters(source).iter().any(|parameter| {
-                event.root
-                    == typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(parameter.symbol)
-            }) {
+        if event.root != facts::PlaceRoot::Symbol(result_symbol) {
+            if checked
+                .state_parameters(source)
+                .iter()
+                .any(|parameter| event.root == facts::PlaceRoot::Symbol(parameter.symbol))
+            {
                 return unsupported("Unit case discards an unrelated entry parameter");
             }
             continue;
@@ -380,16 +377,16 @@ pub(super) fn validate(
         if case.successor.transfers.iter().any(|transfer| {
             match (&subject.source, &transfer.source) {
                 (
-                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                         parameter_index,
                     },
-                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index },
+                    checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index },
                 ) => parameter_index == index,
                 (
-                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         binding_ordinal: subject,
                     },
-                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult {
+                    checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult {
                         binding_ordinal,
                     },
                 ) => subject == binding_ordinal,
@@ -479,10 +476,8 @@ pub(super) fn validate(
             .iter()
             .find(|target| target.state == case.successor.target_state)
             .ok_or(LoweringError::Unsupported("Unit case target missing"))?;
-        let typed_trees_to_checked_trees::checked_trees::statement::TransitionTargetNode::Named {
-            arguments,
-            ..
-        } = checked.statement_table.transition_target(transition.target)
+        let checked_trees::statement::TransitionTargetNode::Named { arguments, .. } =
+            checked.statement_table.transition_target(transition.target)
         else {
             return unsupported("Unit case target is not named");
         };

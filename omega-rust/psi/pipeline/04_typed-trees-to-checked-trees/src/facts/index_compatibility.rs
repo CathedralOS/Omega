@@ -1,26 +1,24 @@
-use crate::checked_trees::{
+use arena::HandleSpan;
+use checked_trees::{
     CheckedOperatorFacts, ContractProofFactKind, FlowFacts, FlowSemanticContextRef,
     IndexCompatibilityDischarge, IndexCompatibilityFact, IndexCompatibilityFacts, ProofFacts,
 };
-use crate::fact_plan::{FactHandle, FactPayload, FactPlan, ProgramPoint};
-use arena::HandleSpan;
 use diagnostics::Diagnostic;
+use facts::{FactHandle, FactPayload, FactPlan, ProgramPoint};
 use language_semantics::SemanticDomainId;
 use language_semantics::const_value::boolean_literal_spelling;
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
-use symbol_resolved_trees_to_typed_trees::typed_trees::data::{DataMember, TypeParameterKind};
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+use symbols::{SymbolHandle, SymbolKind};
+use typed_trees::TypedTrees;
+use typed_trees::data::{DataMember, TypeParameterKind};
+use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, StaticMachineArgument,
 };
-use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
-use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
-    StatementNode, TransitionTargetNode,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
+use typed_trees::machine::Machine;
+use typed_trees::state::State;
+use typed_trees::statement::{StatementNode, TransitionTargetNode};
+use typed_trees::types::{
     DomainConstraint, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
-use symbols::{SymbolHandle, SymbolKind};
 
 #[cfg(test)]
 mod tests;
@@ -44,7 +42,7 @@ struct CompatibilityKey {
 }
 
 struct ResolvedStateCall<'program, 'flow> {
-    fact: &'flow crate::checked_trees::FlowCallFact,
+    fact: &'flow checked_trees::FlowCallFact,
     site: crate::semantic::calls::CallSite<'program>,
 }
 
@@ -56,7 +54,7 @@ impl<'program, 'flow> StateCallIndex<'program, 'flow> {
     fn new(
         program: &'program TypedTrees,
         flow: &'flow FlowFacts,
-        state_flow: &'flow crate::checked_trees::FlowStateFact,
+        state_flow: &'flow checked_trees::FlowStateFact,
     ) -> Self {
         let calls = flow
             .control
@@ -554,7 +552,7 @@ fn append_expression_compatibilities(
 
 fn construction_field_type(
     program: &TypedTrees,
-    definition: &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition,
+    definition: &typed_trees::data::DataDefinition,
     case_name: Option<&str>,
     field_name: &str,
 ) -> Option<TypeReferenceHandle> {
@@ -709,7 +707,7 @@ fn append_unevidenced_establishment_diagnostics(
 /// names custody state, so the write must refuse the value the cast minted.
 fn append_unevidenced_cast_mint_diagnostic(
     program: &TypedTrees,
-    cast: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCastExpression,
+    cast: &typed_trees::expression::TableCastExpression,
     value: ExpressionHandle,
     target_type: TypeReferenceHandle,
     point: ProgramPoint,
@@ -1054,7 +1052,7 @@ fn fact_substitutions<'program>(
 fn call_flow_at_point(
     flow: &FlowFacts,
     point: ProgramPoint,
-) -> Option<&crate::checked_trees::FlowCallFact> {
+) -> Option<&checked_trees::FlowCallFact> {
     let (machine_symbol, state_symbol, statement_index, call_ordinal) = match point {
         ProgramPoint::Call {
             machine_symbol,
@@ -1947,7 +1945,7 @@ fn substituted_expressions_equal(
 
 fn expression_name_atom<'program>(
     program: &'program TypedTrees,
-    path: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableNamePath,
+    path: &typed_trees::expression::TableNamePath,
 ) -> Option<&'program str> {
     let [only] = program.expression_table.name_path_members(path.members) else {
         return None;
@@ -2057,7 +2055,7 @@ fn expression_indexed_instances(
     ) {
         collect_type_indexed_instances(program, type_reference, &mut instances, &mut Vec::new());
     } else if let Some(type_reference) =
-        crate::validation::declared_place_type_raw(program, machine, Some(state), expression)
+        validation::declared_place_type_raw(program, machine, Some(state), expression)
     {
         collect_type_indexed_instances(program, type_reference, &mut instances, &mut Vec::new());
     }
@@ -2118,9 +2116,8 @@ fn append_call_result_ensured_instances(
         if contract.kind != ContractProofFactKind::Ensures {
             continue;
         }
-        let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(
-            membership,
-        ) = program.proof_facts.get(contract.fact)
+        let typed_trees::domain::ProofFact::Membership(membership) =
+            program.proof_facts.get(contract.fact)
         else {
             continue;
         };
@@ -2161,7 +2158,7 @@ fn append_call_result_ensured_instances(
 
 /// Whether a contract subject is the bare reserved `result` name: an
 /// unresolved single-member path spelled `result`, the same discriminator
-/// `crate::validation::reserved_result_owner` applies before it looks the owning
+/// `validation::reserved_result_owner` applies before it looks the owning
 /// machine up. That owner lookup scans machines only, and a boundary trait
 /// signature's `result` has no machine; the facts read here are already
 /// scoped to one call's own contract row, so the spelling suffices.
@@ -2265,7 +2262,7 @@ fn domain_label(program: &TypedTrees, name: &str, arguments: &[TypeReferenceHand
 
 fn qualification_label(
     program: &TypedTrees,
-    cast: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCastExpression,
+    cast: &typed_trees::expression::TableCastExpression,
 ) -> String {
     let name = program
         .expression_table

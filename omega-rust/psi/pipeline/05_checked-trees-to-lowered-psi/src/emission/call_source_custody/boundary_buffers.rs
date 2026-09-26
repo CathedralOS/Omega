@@ -3,13 +3,13 @@
 use super::{authored, literal_arguments, projected_receivers};
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
-use symbols::SymbolHandle;
-use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
-use typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode;
-use typed_trees_to_checked_trees::checked_trees::types::{PrimitiveType, TypeReferenceNode};
-use typed_trees_to_checked_trees::checked_trees::{
+use checked_trees::CheckedTrees;
+use checked_trees::expression::ExpressionNode;
+use checked_trees::types::{PrimitiveType, TypeReferenceNode};
+use checked_trees::{
     CheckedStructuralAccess, CheckedUnitEffectOperationPlan, CheckedUnitStructuralParameterPlan,
 };
+use symbols::SymbolHandle;
 
 pub(super) fn validate(
     checked: &CheckedTrees,
@@ -44,29 +44,27 @@ pub(super) fn validate(
     let (machine, state) =
         crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
     let signature = authored::target_signature(checked, machine.symbol, call.source_target)?;
-    let byte_view_access =
-        |parameter: &typed_trees_to_checked_trees::checked_trees::signature::StateParameter| {
-            let TypeReferenceNode::Reference {
-                access, referee, ..
-            } = checked
-                .type_reference_table
-                .type_reference(parameter.type_reference)
-            else {
-                return None;
-            };
-            let TypeReferenceNode::Slice { element_type } =
-                checked.type_reference_table.type_reference(*referee)
-            else {
-                return None;
-            };
-            (checked.primitive_type_reference(*element_type) == Some(PrimitiveType::U8)
-                && matches!(
-                    access,
-                    language_core::ReferenceAccess::Shared
-                        | language_core::ReferenceAccess::Mutable
-                ))
-            .then_some(*access)
+    let byte_view_access = |parameter: &checked_trees::signature::StateParameter| {
+        let TypeReferenceNode::Reference {
+            access, referee, ..
+        } = checked
+            .type_reference_table
+            .type_reference(parameter.type_reference)
+        else {
+            return None;
         };
+        let TypeReferenceNode::Slice { element_type } =
+            checked.type_reference_table.type_reference(*referee)
+        else {
+            return None;
+        };
+        (checked.primitive_type_reference(*element_type) == Some(PrimitiveType::U8)
+            && matches!(
+                access,
+                language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable
+            ))
+        .then_some(*access)
+    };
     if !signature
         .parameters
         .iter()
@@ -84,7 +82,7 @@ pub(super) fn validate(
         let fixed_window = argument.path.iter().any(|segment| {
             matches!(
                 segment,
-                typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::FixedByteRange { .. }
+                checked_trees::CheckedUnitStructuralPathSegment::FixedByteRange { .. }
             )
         });
         let expression = call
@@ -113,18 +111,11 @@ pub(super) fn validate(
             }
             _ => (target, None),
         };
-        let backing_type = typed_trees_to_checked_trees::validation::declared_place_type_raw(
-            &checked.typed,
-            machine,
-            Some(state),
-            backing,
-        )
-        .and_then(|reference| {
-            typed_trees_to_checked_trees::validation::unwrapped_type_reference(
-                &checked.typed,
-                reference,
-            )
-        });
+        let backing_type =
+            validation::declared_place_type_raw(&checked.typed, machine, Some(state), backing)
+                .and_then(|reference| {
+                    validation::unwrapped_type_reference(&checked.typed, reference)
+                });
         // Existing shared literals and live view descriptors have their own
         // source-custody rules. This owner additionally replays fixed backing
         // and its call window, including the selected range operation.
@@ -151,7 +142,7 @@ pub(super) fn validate(
             // This remains a call loan of the backing rather than a store into
             // a synthetic array whose size happens to match the window.
             if range.end_inclusive
-                || !typed_trees_to_checked_trees::validation::has_builtin_subslice_meaning(
+                || !validation::has_builtin_subslice_meaning(
                     &checked.typed,
                     machine,
                     Some(state),
@@ -165,10 +156,7 @@ pub(super) fn validate(
             ))?;
             let TypeReferenceNode::FixedArray {
                 element_type,
-                length:
-                    typed_trees_to_checked_trees::checked_trees::types::FixedArrayLength::Literal(
-                        extent,
-                    ),
+                length: checked_trees::types::FixedArrayLength::Literal(extent),
             } = checked.type_reference_table.type_reference(backing_type)
             else {
                 return unsupported("byte window requires fixed-array backing");
@@ -198,7 +186,7 @@ pub(super) fn validate(
                 return unsupported("byte window exceeds its exact byte backing");
             }
             source.path.push(
-                typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::FixedByteRange { start, end },
+                checked_trees::CheckedUnitStructuralPathSegment::FixedByteRange { start, end },
             );
         }
         let parameter = argument
@@ -234,7 +222,7 @@ pub(super) fn validate(
 
 fn is_fixed_byte_array(
     checked: &CheckedTrees,
-    parameter: &typed_trees_to_checked_trees::checked_trees::signature::StateParameter,
+    parameter: &checked_trees::signature::StateParameter,
     shared: bool,
 ) -> bool {
     let TypeReferenceNode::Reference {
@@ -252,7 +240,7 @@ fn is_fixed_byte_array(
     }
     let TypeReferenceNode::FixedArray {
         element_type,
-        length: typed_trees_to_checked_trees::checked_trees::types::FixedArrayLength::Literal(_),
+        length: checked_trees::types::FixedArrayLength::Literal(_),
     } = checked.type_reference_table.type_reference(*referee)
     else {
         return false;

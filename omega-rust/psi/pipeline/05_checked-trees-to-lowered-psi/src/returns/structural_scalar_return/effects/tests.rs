@@ -63,8 +63,10 @@ fn pure_primitive_reference_returns_reject_signature_and_return_custody_substitu
             1 => {
                 plan.structural_parameters.pop();
             }
-            2 => plan.structural_parameters[0].access =
-                typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow,
+            2 => {
+                plan.structural_parameters[0].access =
+                    checked_trees::CheckedStructuralAccess::MutableBorrow
+            }
             3 => plan.scalar_parameters[0].source_position = 0,
             4 => plan.return_statement_ordinal = 1,
             5 => {

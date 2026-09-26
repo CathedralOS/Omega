@@ -5,13 +5,9 @@ use super::{
 };
 use crate::TerminalMachineSelection;
 use crate::tests::{checked_source_with_core_service, lower_machine};
-use lowered_psi_to_terminal_psi::terminal_production::{
-    TerminalProductionCustody, TerminalProductionTimings,
-};
+use checked_trees::{CheckedBooleanExpression, CheckedScalarExpression};
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationKind, Terminator};
-use typed_trees_to_checked_trees::checked_trees::{
-    CheckedBooleanExpression, CheckedScalarExpression,
-};
 
 #[test]
 fn lowers_exact_named_dynamic_field_call_without_selecting_ambient_lookalike() {
@@ -98,18 +94,15 @@ fn lowers_exact_named_dynamic_field_call_without_selecting_ambient_lookalike() {
             ))
     );
 
-    let _artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Main::run",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("direct dynamic module has canonical source-free encoding")
-        .into_artifact();
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("direct dynamic module has canonical source-free encoding")
+    .into_artifact();
 }
 
 #[test]
@@ -161,9 +154,7 @@ fn rejects_source_path_and_machine_contract_tampering() {
 
     let mut contract = direct_dynamic_checked();
     direct_plan_mut(&mut contract).realization_contract_commitment =
-        typed_trees_to_checked_trees::checked_trees::MachineContractCommitment::from_digest(
-            [0xA5; 32],
-        );
+        checked_trees::MachineContractCommitment::from_digest([0xA5; 32]);
     assert_eq!(
         unsupported_message(&contract),
         "direct dynamic machine requires an unsupported contract lane"
@@ -171,9 +162,7 @@ fn rejects_source_path_and_machine_contract_tampering() {
 
     let mut caller_contract = direct_dynamic_checked();
     direct_plan_mut(&mut caller_contract).caller_contract_commitment =
-        typed_trees_to_checked_trees::checked_trees::MachineContractCommitment::from_digest(
-            [0x5A; 32],
-        );
+        checked_trees::MachineContractCommitment::from_digest([0x5A; 32]);
     assert_eq!(
         unsupported_message(&caller_contract),
         "direct dynamic machine requires an unsupported contract lane"
@@ -235,18 +224,15 @@ fn lowers_checked_integer_field_store_through_the_selected_dynamic_realization()
         }]
     ));
 
-    let _artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Main::run",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("integer store route has canonical source-free encoding")
-        .into_artifact();
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("integer store route has canonical source-free encoding")
+    .into_artifact();
 }
 
 #[test]
@@ -314,19 +300,12 @@ fn lowers_nested_projected_mutating_realization_path_before_its_scalar_return() 
     assert_eq!(
         store.carrier_path,
         [
-            typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field(
-                "envelope".into()
-            ),
-            typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field(
-                "payload".into()
-            ),
+            checked_trees::CheckedUnitStructuralPathSegment::Field("envelope".into()),
+            checked_trees::CheckedUnitStructuralPathSegment::Field("payload".into()),
         ]
     );
     assert_eq!(store.field_identity, "value");
-    assert_eq!(
-        store.primitive_type,
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U16
-    );
+    assert_eq!(store.primitive_type, typed_trees::types::PrimitiveType::U16);
 
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
         .expect("projected realization lowers");
@@ -455,18 +434,15 @@ fn lowers_dynamic_scalar_result_into_console_effect_control() {
         2
     );
     assert_eq!(lowered.source_call_occurrences.len(), 3);
-    let _artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Main::run",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("direct dynamic result control has canonical source-free encoding")
-        .into_artifact();
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("direct dynamic result control has canonical source-free encoding")
+    .into_artifact();
 
     let mut wrong_self = lowered.semantic_module.clone();
     let realization_attachment = wrong_self

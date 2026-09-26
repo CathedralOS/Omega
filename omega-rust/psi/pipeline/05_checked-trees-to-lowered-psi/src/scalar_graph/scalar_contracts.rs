@@ -13,12 +13,12 @@ use crate::emission::scalar_types::terminal_scalar_type;
 use crate::proofs::contract_predicates::canonical_equality;
 use crate::proofs::contract_predicates::{PredicateTerms, connective};
 use crate::terminal_identities::{allocate_dense, value_id};
-use semantic_vocabulary::{ProofTerm, ProofTermField, ScalarType};
-use terminal_psi::ErasedProofFormal;
-use typed_trees_to_checked_trees::checked_trees::{
+use checked_trees::{
     CheckedErasedProofParameterPlan, CheckedProofTerm, CheckedStructuralScalarParameterPlan,
     CheckedTrees,
 };
+use semantic_vocabulary::{ProofTerm, ProofTermField, ScalarType};
+use terminal_psi::ErasedProofFormal;
 
 mod namespace;
 mod result_range;

@@ -1,8 +1,6 @@
 use std::collections::BTreeMap;
 
-use register_homes_to_post_allocation_machine::PostAllocationMachineInstruction;
-use target::Architecture;
-use target_operations_to_selected_instructions::isa_aarch64::{
+use isa_aarch64::{
     validate_aarch64_selected_i64_less_than_branch_form,
     validate_aarch64_selected_i64_less_than_widened_branch_form,
     validate_aarch64_selected_nonzero_branch_form,
@@ -10,16 +8,18 @@ use target_operations_to_selected_instructions::isa_aarch64::{
     validate_aarch64_selected_u64_less_than_branch_form,
     validate_aarch64_selected_u64_less_than_widened_branch_form,
 };
-use target_operations_to_selected_instructions::isa_x86_64::{
+use isa_x86_64::{
     validate_x86_64_selected_i64_less_than_branch_form,
     validate_x86_64_selected_nonzero_branch_form,
     validate_x86_64_selected_u64_less_than_branch_form,
 };
-use target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel;
-use target_operations_to_selected_instructions::{
+use physical_instructions::PostAllocationMachineInstruction;
+use register_model::ValidatedPhysicalRegisterModel;
+use selected_instructions::{
     MachineEncodedEffects, MachineSizeKnowledge, SelectedBlock, SelectedBlockId,
     SelectedInstruction, SelectedTerminator,
 };
+use target::Architecture;
 
 use super::super::{
     OptimizedResolvedSelectedFormLayoutError, ResolvedBranchEvidence,
@@ -61,7 +61,7 @@ pub(super) fn validate(
                     if displacement != actual.byte_displacement {
                         return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
                     }
-                    target_operations_to_selected_instructions::isa_x86_64::validate_x86_64_selected_jump_form(
+                    isa_x86_64::validate_x86_64_selected_jump_form(
                         physical,
                         machine.alternative.key,
                         displacement,
@@ -77,7 +77,7 @@ pub(super) fn validate(
                     if displacement != actual.byte_displacement {
                         return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
                     }
-                    target_operations_to_selected_instructions::isa_aarch64::validate_aarch64_selected_jump_form(
+                    isa_aarch64::validate_aarch64_selected_jump_form(
                         physical,
                         machine.alternative.key,
                         displacement,
@@ -208,10 +208,7 @@ fn decode(
     bytes: &[u8],
     widened: bool,
 ) -> Result<
-    (
-        Vec<target_operations_to_selected_instructions::register_model::RegisterViewId>,
-        MachineEncodedEffects,
-    ),
+    (Vec<register_model::RegisterViewId>, MachineEncodedEffects),
     OptimizedResolvedSelectedFormLayoutError,
 > {
     let footprint = match (architecture, predicate) {

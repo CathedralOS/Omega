@@ -7,6 +7,9 @@ use super::{
     AbstractBlockEntry, AbstractOperation, AbstractOperationPlan, AbstractParameter, IntegerValue,
     NativeTarget, ScalarType, block, edge, operation, value,
 };
+use abstract_operations::{
+    AbstractBoundaryResult, AbstractStructuralCasePayloadBinding, AbstractStructuralCaseSuccessor,
+};
 use semantic_vocabulary::{
     BlockId, OperationId, PlaceId, StructuralCaseId, StructuralFieldId, StructuralTypeId, ValueId,
 };
@@ -14,9 +17,6 @@ use terminal_psi::{
     BoundaryMachineResult, BoundaryStructuralResultDeclaration, StructuralCaseDeclaration,
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralOperationResult, StructuralTypeDeclaration, StructuralTypeShape,
-};
-use terminal_psi_to_abstract_operations::abstract_operations::{
-    AbstractBoundaryResult, AbstractStructuralCasePayloadBinding, AbstractStructuralCaseSuccessor,
 };
 
 fn fixture() -> AbstractOperationPlan {
@@ -167,30 +167,30 @@ fn fixture() -> AbstractOperationPlan {
 
 fn lower(
     plan: &AbstractOperationPlan,
-) -> Result<crate::target_operations::TargetOperationPlan, crate::LoweringError> {
+) -> Result<target_operations::TargetOperationPlan, crate::LoweringError> {
     let mut bindings = vec![
         crate::AdmittedBoundarySettlement {
             boundary: plan.boundary_machines[0].id,
             execution: crate::AdmittedBoundaryExecution::CompilerBuiltin(
-                crate::target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
+                target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
             ),
-            realization: crate::target_operations::HostedWriteByteI32Realization.into(),
+            realization: target_operations::HostedWriteByteI32Realization.into(),
         },
         crate::AdmittedBoundarySettlement {
             boundary: plan.boundary_machines[1].id,
             execution: crate::AdmittedBoundaryExecution::CompilerBuiltin(
-                crate::target_operations::CompilerBuiltinExecution::HostedReadByte,
+                target_operations::CompilerBuiltinExecution::HostedReadByte,
             ),
-            realization: crate::target_operations::HostedReadByteRealization.into(),
+            realization: target_operations::HostedReadByteRealization.into(),
         },
     ];
     if let Some(exit) = plan.boundary_machines.get(2) {
         bindings.push(crate::AdmittedBoundarySettlement {
             boundary: exit.id,
             execution: crate::AdmittedBoundaryExecution::CompilerBuiltin(
-                crate::target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
+                target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
             ),
-            realization: crate::target_operations::HostedExitProcessI32Realization.into(),
+            realization: target_operations::HostedExitProcessI32Realization.into(),
         });
     }
     crate::lower_to_target_operations(
@@ -217,8 +217,8 @@ fn structural_case_graph_preserves_reordered_blocks_and_ordinary_continuation() 
             .collect::<Vec<_>>(),
         vec![block(10), block(30), block(20), block(40)]
     );
-    let crate::target_operations::TargetControlTerminator::StructuralCase {
-        source: crate::target_operations::TargetStructuralCaseSource::Home(source),
+    let target_operations::TargetControlTerminator::StructuralCase {
+        source: target_operations::TargetStructuralCaseSource::Home(source),
         cases,
     } = &graph.blocks[0].terminator
     else {
@@ -232,7 +232,7 @@ fn structural_case_graph_preserves_reordered_blocks_and_ordinary_continuation() 
     assert_eq!((cases[0].case_tag, cases[1].case_tag), (0, 1));
     assert_eq!(
         cases[1].payloads[0].parameter,
-        crate::target_operations::TargetScalarBlockValue {
+        target_operations::TargetScalarBlockValue {
             block: block(20),
             value: value(20),
             scalar_type: plan.functions[0].block_entries[2].parameters[0].scalar_type
@@ -244,7 +244,7 @@ fn structural_case_graph_preserves_reordered_blocks_and_ordinary_continuation() 
         TargetUnitOperation::IntegerConstant { psi_operation, result, value: IntegerValue::Signed(33), .. } if psi_operation == operation(1) && result == value(1)
     ));
     assert!(
-        matches!(graph.blocks[3].terminator, crate::target_operations::TargetControlTerminator::Return { psi_edge, .. } if psi_edge == edge(6))
+        matches!(graph.blocks[3].terminator, target_operations::TargetControlTerminator::Return { psi_edge, .. } if psi_edge == edge(6))
     );
 }
 
@@ -263,7 +263,7 @@ fn structural_case_graph_retains_nominal_return_after_exit_and_rejects_later_wor
     let lowered = lower(&plan).unwrap();
     let graph = &lowered.functions[0].graph;
     assert!(
-        matches!(graph.blocks[3].terminator, crate::target_operations::TargetControlTerminator::Return { psi_edge, .. } if psi_edge == edge(6))
+        matches!(graph.blocks[3].terminator, target_operations::TargetControlTerminator::Return { psi_edge, .. } if psi_edge == edge(6))
     );
     let mut later_constant = plan.functions[0].operations[0].clone();
     let AbstractOperation::IntegerConstant {
@@ -326,7 +326,7 @@ fn structural_case_graph_retains_source_until_later_dispatch_cleanup() {
     let lowered = lower(&plan).unwrap();
     let graph = &lowered.functions[0].graph;
     for (position, expected_count) in [(0, 0), (3, 1)] {
-        let crate::target_operations::TargetControlTerminator::StructuralCase { cases, .. } =
+        let target_operations::TargetControlTerminator::StructuralCase { cases, .. } =
             &graph.blocks[position].terminator
         else {
             panic!("case")
@@ -413,7 +413,7 @@ fn hosted_byte_read_rejects_reordered_result_even_with_matching_dispatch() {
 
 fn lower_owned(
     plan: &AbstractOperationPlan,
-) -> Result<crate::target_operations::TargetOperationPlan, crate::LoweringError> {
+) -> Result<target_operations::TargetOperationPlan, crate::LoweringError> {
     crate::lower_to_target_operations(
         plan,
         crate::TargetLoweringRequest {
@@ -421,9 +421,9 @@ fn lower_owned(
             settlements: &[crate::AdmittedBoundarySettlement {
                 boundary: plan.boundary_machines[0].id,
                 execution: crate::AdmittedBoundaryExecution::CompilerBuiltin(
-                    crate::target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
+                    target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
                 ),
-                realization: crate::target_operations::HostedWriteByteI32Realization.into(),
+                realization: target_operations::HostedWriteByteI32Realization.into(),
             }],
             installation: None,
             native_callbacks: &[],
@@ -474,7 +474,7 @@ fn owned_arrival_fixture() -> AbstractOperationPlan {
             psi_edge: edge(20),
             target: block(15),
             bindings: Vec::new(),
-            structural_bindings: vec![terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding {
+            structural_bindings: vec![abstract_operations::AbstractStructuralBinding {
                 parameter: parameter.place,
                 argument: terminal_psi::StructuralArgument {
                     place: PlaceId::new(20).unwrap(),
@@ -507,8 +507,8 @@ fn owned_sum_arrival_uses_its_actual_block_declaration_and_complete_layout() {
     let lowered =
         lower_owned(&source).expect("owned result transfers into an observed sum parameter");
     let graph = &lowered.functions[0].graph;
-    let crate::target_operations::TargetControlTerminator::StructuralCase {
-        source: crate::target_operations::TargetStructuralCaseSource::Home(home),
+    let target_operations::TargetControlTerminator::StructuralCase {
+        source: target_operations::TargetStructuralCaseSource::Home(home),
         ..
     } = &graph.blocks[1].terminator
     else {
@@ -516,7 +516,7 @@ fn owned_sum_arrival_uses_its_actual_block_declaration_and_complete_layout() {
     };
     assert_eq!(
         home.origin,
-        crate::target_operations::TargetStructuralHomeOrigin::BlockParameter {
+        target_operations::TargetStructuralHomeOrigin::BlockParameter {
             block: block(15),
             declaration: source.functions[0].block_entries[1].structural_parameters[0].clone(),
         }
@@ -524,7 +524,7 @@ fn owned_sum_arrival_uses_its_actual_block_declaration_and_complete_layout() {
     assert!(home.operation_result().is_none());
     assert_eq!(home.place(), PlaceId::new(21).unwrap());
     assert_eq!(home.layout.sum().unwrap().cases.len(), 2);
-    let crate::target_operations::TargetControlTerminator::Jump { successor } =
+    let target_operations::TargetControlTerminator::Jump { successor } =
         &graph.blocks[0].terminator
     else {
         panic!("jump");
@@ -619,14 +619,13 @@ fn owned_sum_diamond_retains_destination_identity_and_rejects_sibling_sources() 
     };
     *psi_edge = edge(90);
     structural_bindings[0].argument.place = PlaceId::new(22).unwrap();
-    let successor =
-        |identity| terminal_psi_to_abstract_operations::abstract_operations::AbstractSuccessor {
-            psi_edge: edge(identity),
-            target: block(identity),
-            bindings: Vec::new(),
-            structural_bindings: Vec::new(),
-            trivial_affine_discards: Vec::new(),
-        };
+    let successor = |identity| abstract_operations::AbstractSuccessor {
+        psi_edge: edge(identity),
+        target: block(identity),
+        bindings: Vec::new(),
+        structural_bindings: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    };
     function.operations.splice(
         1..3,
         [
@@ -656,8 +655,8 @@ fn owned_sum_diamond_retains_destination_identity_and_rejects_sibling_sources() 
     let lowered =
         lower_owned(&source).expect("two independently established values join one owned home");
     let graph = &lowered.functions[0].graph;
-    let crate::target_operations::TargetControlTerminator::StructuralCase {
-        source: crate::target_operations::TargetStructuralCaseSource::Home(home),
+    let target_operations::TargetControlTerminator::StructuralCase {
+        source: target_operations::TargetStructuralCaseSource::Home(home),
         ..
     } = &graph.blocks[3].terminator
     else {
@@ -665,7 +664,7 @@ fn owned_sum_diamond_retains_destination_identity_and_rejects_sibling_sources() 
     };
     assert_eq!(
         home.origin,
-        crate::target_operations::TargetStructuralHomeOrigin::BlockParameter {
+        target_operations::TargetStructuralHomeOrigin::BlockParameter {
             block: block(15),
             declaration: source.functions[0].block_entries[3].structural_parameters[0].clone(),
         }
@@ -695,16 +694,16 @@ fn hosted_read_and_write_settlements_replay_and_reject_forged_rows() {
         crate::AdmittedBoundarySettlement {
             boundary: plan.boundary_machines[0].id,
             execution: crate::AdmittedBoundaryExecution::CompilerBuiltin(
-                crate::target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
+                target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
             ),
-            realization: crate::target_operations::HostedWriteByteI32Realization.into(),
+            realization: target_operations::HostedWriteByteI32Realization.into(),
         },
         crate::AdmittedBoundarySettlement {
             boundary: plan.boundary_machines[1].id,
             execution: crate::AdmittedBoundaryExecution::CompilerBuiltin(
-                crate::target_operations::CompilerBuiltinExecution::HostedReadByte,
+                target_operations::CompilerBuiltinExecution::HostedReadByte,
             ),
-            realization: crate::target_operations::HostedReadByteRealization.into(),
+            realization: target_operations::HostedReadByteRealization.into(),
         },
     ];
     for native in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
@@ -746,22 +745,22 @@ fn hosted_read_and_write_settlements_replay_and_reject_forged_rows() {
                 match mutation {
                     0 => *psi_operation = OperationId::new(909).unwrap(),
                     1 => *boundary = BoundaryMachineId::new(909).unwrap(),
-                    2 => *result = crate::target_operations::TargetBoundaryResult::Unit,
+                    2 => *result = target_operations::TargetBoundaryResult::Unit,
                     3 => {
-                        let crate::target_operations::TargetBoundaryResult::Structural(home) = result
+                        let target_operations::TargetBoundaryResult::Structural(home) = result
                         else {
                             panic!("structural result")
                         };
-                        home.layout = crate::target_operations::TargetStructuralHomeLayout::Aggregate(
-                            crate::calling_conventions::ValueShape::integer(4, 4),
+                        home.layout = target_operations::TargetStructuralHomeLayout::Aggregate(
+                            calling_conventions::ValueShape::integer(4, 4),
                         );
                     }
                     4 => {
-                        let crate::target_operations::TargetBoundaryResult::Structural(home) = result
+                        let target_operations::TargetBoundaryResult::Structural(home) = result
                         else {
                             panic!("structural result")
                         };
-                        let crate::target_operations::TargetStructuralHomeLayout::Sum(layout) =
+                        let target_operations::TargetStructuralHomeLayout::Sum(layout) =
                             &mut home.layout
                         else {
                             panic!("sum layout")
@@ -769,11 +768,11 @@ fn hosted_read_and_write_settlements_replay_and_reject_forged_rows() {
                         layout.tag_byte_offset = 4;
                     }
                     5 => {
-                        let crate::target_operations::TargetBoundaryResult::Structural(home) = result
+                        let target_operations::TargetBoundaryResult::Structural(home) = result
                         else {
                             panic!("structural result")
                         };
-                        let crate::target_operations::TargetStructuralHomeOrigin::OperationResult {
+                        let target_operations::TargetStructuralHomeOrigin::OperationResult {
                             result: declared,
                             ..
                         } = &mut home.origin
@@ -783,11 +782,11 @@ fn hosted_read_and_write_settlements_replay_and_reject_forged_rows() {
                         declared.multiplicity = StructuralMultiplicity::Unrestricted;
                     }
                     6 => {
-                        let crate::target_operations::TargetBoundaryResult::Structural(home) = result
+                        let target_operations::TargetBoundaryResult::Structural(home) = result
                         else {
                             panic!("structural result")
                         };
-                        let crate::target_operations::TargetStructuralHomeOrigin::OperationResult {
+                        let target_operations::TargetStructuralHomeOrigin::OperationResult {
                             result: declared,
                             ..
                         } = &mut home.origin
@@ -797,27 +796,27 @@ fn hosted_read_and_write_settlements_replay_and_reject_forged_rows() {
                         declared.place = PlaceId::new(909).unwrap();
                     }
                     7 => {
-                        *realization = crate::target_operations::BoundaryRealization::HostedWriteByteI32(
-                            crate::target_operations::HostedWriteByteI32Realization,
+                        *realization = target_operations::BoundaryRealization::HostedWriteByteI32(
+                            target_operations::HostedWriteByteI32Realization,
                         )
                     }
                     8 => {
-                        *execution = crate::target_operations::BoundaryExecutionBinding::CompilerBuiltin(
-                            crate::target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
+                        *execution = target_operations::BoundaryExecutionBinding::CompilerBuiltin(
+                            target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
                         )
                     }
                     9 => runtime_scalar_arguments.push(
-                        crate::target_operations::TargetUnitScalarCallArgument {
+                        target_operations::TargetUnitScalarCallArgument {
                             parameter_index: 0,
-                            source: crate::target_operations::TargetUnitScalarArgumentSource::Parameter {
+                            source: target_operations::TargetUnitScalarArgumentSource::Parameter {
                                 parameter_index: 0,
                                 source_value: value(1),
                                 scalar_type,
                             },
-                            placement: crate::calling_conventions::ValuePlacement {
-                                shape: crate::calling_conventions::ValueShape::integer(4, 4),
-                                locations: vec![crate::calling_conventions::ValueLocation::Register {
-                                    register: crate::calling_conventions::MachineRegister::X86Rax,
+                            placement: calling_conventions::ValuePlacement {
+                                shape: calling_conventions::ValueShape::integer(4, 4),
+                                locations: vec![calling_conventions::ValueLocation::Register {
+                                    register: calling_conventions::MachineRegister::X86Rax,
                                     value_byte_offset: 0,
                                     byte_size: 4,
                                 }],
@@ -829,14 +828,14 @@ fn hosted_read_and_write_settlements_replay_and_reject_forged_rows() {
                         path: Vec::new(),
                         access: terminal_psi::StructuralAccess::SharedBorrow,
                     }),
-                    11 => scalar_arguments.push(crate::target_operations::BoundaryScalarArgument {
+                    11 => scalar_arguments.push(target_operations::BoundaryScalarArgument {
                         source_value: value(1),
                         scalar_type,
                         immediate: IntegerValue::Signed(1),
-                        destination: crate::calling_conventions::MachineRegister::X86Rax,
+                        destination: calling_conventions::MachineRegister::X86Rax,
                     }),
                     12 => {
-                        completion_claim_sources.push(terminal_psi_to_abstract_operations::abstract_operations::CompletionClaimSource {
+                        completion_claim_sources.push(abstract_operations::CompletionClaimSource {
                             claim: semantic_vocabulary::ClaimId::new(909).unwrap(),
                             entry: None,
                             content: None,
@@ -913,7 +912,7 @@ fn hosted_read_and_write_settlements_replay_and_reject_forged_rows() {
             };
             match mutation {
                 0..=2 => {
-                    let crate::target_operations::TargetUnitScalarArgumentSource::BlockParameter(
+                    let target_operations::TargetUnitScalarArgumentSource::BlockParameter(
                         parameter,
                     ) = &mut runtime_scalar_arguments[0].source
                     else {
@@ -927,7 +926,7 @@ fn hosted_read_and_write_settlements_replay_and_reject_forged_rows() {
                 }
                 _ => {
                     runtime_scalar_arguments[0].source =
-                        crate::target_operations::TargetUnitScalarArgumentSource::Parameter {
+                        target_operations::TargetUnitScalarArgumentSource::Parameter {
                             parameter_index: 0,
                             source_value: value(20),
                             scalar_type,
@@ -956,7 +955,7 @@ fn hosted_read_and_write_settlements_replay_and_reject_forged_rows() {
         else {
             panic!("write settlement row")
         };
-        let crate::target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
+        let target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
             defining_operation,
             ..
         } = &mut runtime_scalar_arguments[0].source
@@ -1022,9 +1021,8 @@ fn owned_parameter_root_dispatches_from_its_prepared_parameter_and_sum_layout() 
     let source = parameter_root_fixture();
     let lowered = lower_owned(&source).expect("an owned sum parameter dispatches without a home");
     let graph = &lowered.functions[0].graph;
-    let crate::target_operations::TargetControlTerminator::StructuralCase {
-        source:
-            crate::target_operations::TargetStructuralCaseSource::Parameter { parameter, layout },
+    let target_operations::TargetControlTerminator::StructuralCase {
+        source: target_operations::TargetStructuralCaseSource::Parameter { parameter, layout },
         cases,
     } = &graph.blocks[0].terminator
     else {

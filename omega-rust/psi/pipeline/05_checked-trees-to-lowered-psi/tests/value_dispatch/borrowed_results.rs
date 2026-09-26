@@ -68,10 +68,7 @@ const UNCHAINED_SOURCE: &str = "data Payload { left: u64; right: u64; }
     }";
 
 /// One authored local's statement index and symbol, by name.
-fn local(
-    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
-    name: &str,
-) -> (usize, symbols::SymbolHandle) {
+fn local(checked: &checked_trees::CheckedTrees, name: &str) -> (usize, symbols::SymbolHandle) {
     let machine = checked
         .machines()
         .iter()
@@ -88,9 +85,11 @@ fn local(
         .iter()
         .enumerate()
         .find_map(|(index, statement)| match statement {
-            typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(
-                local,
-            ) if checked.typed.symbols.name(local.symbol) == name => Some((index, local.symbol)),
+            checked_trees::statement::StatementNode::LocalData(local)
+                if checked.typed.symbols.name(local.symbol) == name =>
+            {
+                Some((index, local.symbol))
+            }
             _ => None,
         })
         .unwrap_or_else(|| panic!("local {name} exists"))
@@ -99,8 +98,8 @@ fn local(
 /// The SharedBorrow `Reference` argument plans retained for one source's
 /// match arms, keyed by root local name.
 fn borrowed_arms(
-    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
-) -> Vec<&typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan> {
+    checked: &checked_trees::CheckedTrees,
+) -> Vec<&checked_trees::CheckedUnitStructuralArgumentPlan> {
     checked
         .facts
         .values
@@ -108,8 +107,8 @@ fn borrowed_arms(
         .nodes
         .iter()
         .filter_map(|(_, node)| match &node.kind {
-            typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Reference { source }
-                if source.access == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow =>
+            checked_trees::CheckedStructuralValueKind::Reference { source }
+                if source.access == checked_trees::CheckedStructuralAccess::SharedBorrow =>
             {
                 Some(source)
             }
@@ -121,7 +120,7 @@ fn borrowed_arms(
 /// Asserts the exact loans and retained arm provenance, returning both maps
 /// keyed by root local name.
 fn checked_borrowed_selection(
-    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+    checked: &checked_trees::CheckedTrees,
 ) -> (BTreeMap<String, String>, BTreeMap<String, String>) {
     let (view_statement, view_symbol) = local(checked, "view");
     // Every arm's source stays borrowed for the result's whole live range:
@@ -132,12 +131,8 @@ fn checked_borrowed_selection(
         assert_eq!(loan.owner_symbol, view_symbol, "every arm loan owns `view`");
         assert_eq!(loan.statement_index, view_statement);
         assert_eq!(loan.last_use_statement_index, view_statement + 1);
-        assert!(matches!(
-            loan.kind,
-            typed_trees_to_checked_trees::checked_trees::BorrowAccessKind::Read
-        ));
-        let [typed_trees_to_checked_trees::fact_plan::PlaceSegment::Field { symbol }] =
-            checked.facts.borrow.loan_segments(loan)
+        assert!(matches!(loan.kind, checked_trees::BorrowAccessKind::Read));
+        let [facts::PlaceSegment::Field { symbol }] = checked.facts.borrow.loan_segments(loan)
         else {
             panic!("each borrowed arm lends exactly one projected field");
         };
@@ -150,16 +145,12 @@ fn checked_borrowed_selection(
     // argument rooted at the exact local along exactly its authored path.
     let mut planned = BTreeMap::new();
     for arm in borrowed_arms(checked) {
-        let typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
+        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
             arm.source
         else {
             panic!("borrowed arm must root at an exact local: {arm:?}");
         };
-        let [
-            typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field(
-                field,
-            ),
-        ] = arm.path.as_slice()
+        let [checked_trees::CheckedUnitStructuralPathSegment::Field(field)] = arm.path.as_slice()
         else {
             panic!("borrowed arm keeps exactly the authored field path: {arm:?}");
         };
@@ -247,7 +238,7 @@ fn planned_borrow_arms(source: &str) -> (Vec<(String, String)>, Option<String>) 
     let mut arms: Vec<(String, String)> = borrowed_arms(&checked)
         .iter()
         .map(|arm| {
-            let typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
+            let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
                 arm.source
             else {
                 panic!("borrowed arm roots at an exact local: {arm:?}");
@@ -256,7 +247,7 @@ fn planned_borrow_arms(source: &str) -> (Vec<(String, String)>, Option<String>) 
                 .path
                 .iter()
                 .map(|segment| match segment {
-                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field(field) => field.clone(),
+                    checked_trees::CheckedUnitStructuralPathSegment::Field(field) => field.clone(),
                     other => panic!("borrowed arm keeps only authored field segments: {other:?}"),
                 })
                 .collect::<Vec<_>>()
@@ -460,7 +451,7 @@ fn borrowed_selection_call_consumer_forwards_the_established_view() {
                 .nodes
                 .get(root.root);
             match &node.kind {
-                typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationKind::Call {
+                checked_trees::CheckedScalarComputationKind::Call {
                     structural_arguments,
                     ..
                 } if root.state == state.symbol => Some(
@@ -478,20 +469,20 @@ fn borrowed_selection_call_consumer_forwards_the_established_view() {
     let [Some(arguments)] = call_arguments.as_slice() else {
         panic!("choose plans exactly one structural call: {call_arguments:?}");
     };
-    let [typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)] = *arguments
+    let [checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)] = *arguments
     else {
         panic!("read's argument is one place: {arguments:?}");
     };
     assert_eq!(
         argument.source,
-        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
             symbol: view_symbol
         },
         "the call observes `view` itself"
     );
     assert_eq!(
         argument.access,
-        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
+        checked_trees::CheckedStructuralAccess::SharedBorrow
     );
     assert!(argument.path.is_empty());
 
@@ -694,18 +685,17 @@ fn established_reference_local_call_forwards_the_direct_borrow() {
     assert_eq!(loan.owner_symbol, view_symbol);
     assert_eq!(loan.statement_index, view_statement);
     assert_eq!(loan.last_use_statement_index, view_statement + 1);
-    assert!(matches!(
-        loan.kind,
-        typed_trees_to_checked_trees::checked_trees::BorrowAccessKind::Read
-    ));
+    assert!(matches!(loan.kind, checked_trees::BorrowAccessKind::Read));
     let a_symbol = checked
         .statement_table
         .statements(state.statement_nodes)
         .iter()
         .find_map(|statement| match statement {
-            typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(
-                local,
-            ) if checked.typed.symbols.name(local.symbol) == "a" => Some(local.symbol),
+            checked_trees::statement::StatementNode::LocalData(local)
+                if checked.typed.symbols.name(local.symbol) == "a" =>
+            {
+                Some(local.symbol)
+            }
             _ => None,
         })
         .expect("local `a` exists");
@@ -728,7 +718,7 @@ fn established_reference_local_call_forwards_the_direct_borrow() {
                 .nodes
                 .get(root.root);
             match &node.kind {
-                typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationKind::Call {
+                checked_trees::CheckedScalarComputationKind::Call {
                     structural_arguments,
                     ..
                 } if root.state == state.symbol => Some(
@@ -746,20 +736,20 @@ fn established_reference_local_call_forwards_the_direct_borrow() {
     let [Some(arguments)] = call_argument.as_slice() else {
         panic!("choose plans exactly one structural call: {call_argument:?}");
     };
-    let [typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)] = *arguments
+    let [checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)] = *arguments
     else {
         panic!("read's argument is one place: {arguments:?}");
     };
     assert_eq!(
         argument.source,
-        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
             symbol: view_symbol
         },
         "the call observes `view` itself"
     );
     assert_eq!(
         argument.access,
-        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
+        checked_trees::CheckedStructuralAccess::SharedBorrow
     );
     assert!(argument.path.is_empty());
 
@@ -773,22 +763,19 @@ fn established_reference_local_call_forwards_the_direct_borrow() {
         .root_at(state.symbol, u32::try_from(view_statement).unwrap())
         .expect("a bare `&a` initializer produces a structural-value root");
     let node = checked.facts.values.structural_values.nodes.get(root.root);
-    let typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Reference {
-        source,
-    } = &node.kind
-    else {
+    let checked_trees::CheckedStructuralValueKind::Reference { source } = &node.kind else {
         panic!("the direct borrow establishes a shared-borrow reference: {node:?}");
     };
     assert_eq!(
         source.source,
-        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
             symbol: a_symbol
         },
         "the borrowed establishment names its exact local"
     );
     assert_eq!(
         source.access,
-        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
+        checked_trees::CheckedStructuralAccess::SharedBorrow
     );
     assert!(source.path.is_empty(), "a whole-place borrow has no path");
 
@@ -1021,22 +1008,17 @@ const INDEXED_PARAMETERS_SOURCE: &str = "data Payload { left: u64; right: u64; }
 /// The exact loans behind `view`'s indexed arms, keyed by root name: each
 /// arm lends its `items[ordinal]` element place for the view's whole live
 /// range.
-fn indexed_loans(
-    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
-) -> BTreeMap<String, usize> {
+fn indexed_loans(checked: &checked_trees::CheckedTrees) -> BTreeMap<String, usize> {
     let (view_statement, view_symbol) = local(checked, "view");
     let mut lent = BTreeMap::new();
     for (_, loan) in checked.facts.borrow.loans.iter() {
         assert_eq!(loan.owner_symbol, view_symbol, "every arm loan owns `view`");
         assert_eq!(loan.statement_index, view_statement);
         assert_eq!(loan.last_use_statement_index, view_statement + 1);
-        assert!(matches!(
-            loan.kind,
-            typed_trees_to_checked_trees::checked_trees::BorrowAccessKind::Read
-        ));
+        assert!(matches!(loan.kind, checked_trees::BorrowAccessKind::Read));
         let [
-            typed_trees_to_checked_trees::fact_plan::PlaceSegment::Field { symbol },
-            typed_trees_to_checked_trees::fact_plan::PlaceSegment::FixedIndex { index },
+            facts::PlaceSegment::Field { symbol },
+            facts::PlaceSegment::FixedIndex { index },
         ] = checked.facts.borrow.loan_segments(loan)
         else {
             panic!("each indexed arm lends an exact field-plus-ordinal element place");
@@ -1053,17 +1035,14 @@ fn indexed_loans(
 /// Each retained `SharedBorrow` indexed arm's source plan paired with its
 /// projected `items` ordinal, in plan order.
 fn indexed_arms(
-    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
-) -> Vec<(
-    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan,
-    u64,
-)> {
+    checked: &checked_trees::CheckedTrees,
+) -> Vec<(checked_trees::CheckedUnitStructuralArgumentSourcePlan, u64)> {
     borrowed_arms(checked)
         .iter()
         .map(|arm| {
             let [
-                typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field(field),
-                typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index),
+                checked_trees::CheckedUnitStructuralPathSegment::Field(field),
+                checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index),
             ] = arm.path.as_slice()
             else {
                 panic!("indexed borrowed arm keeps the authored field+ordinal path: {arm:?}");
@@ -1192,7 +1171,7 @@ fn borrowed_selection_keeps_indexed_local_provenance() {
     assert_eq!(lent["y"], 1, "the false arm lends `y.items[1]`");
     let mut planned = BTreeMap::new();
     for (source, index) in indexed_arms(&checked) {
-        let typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
+        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
             source
         else {
             panic!("a local-rooted indexed arm stays a structural local: {source:?}");
@@ -1213,7 +1192,7 @@ fn borrowed_selection_rejoins_parameter_rooted_indexed_places() {
     assert_eq!(lent["y"], 1, "the false arm lends `y.items[1]`");
     let mut planned = BTreeMap::new();
     for (source, index) in indexed_arms(&checked) {
-        let typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
+        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
             source
         else {
             panic!("a parameter-rooted indexed arm keeps its dense position: {source:?}");
@@ -1288,8 +1267,8 @@ fn borrowed_selection_indexed_replay_rejects_mutated_provenance() {
         .nodes
         .iter()
         .filter_map(|(handle, node)| match &node.kind {
-            typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Reference { source }
-                if source.access == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow =>
+            checked_trees::CheckedStructuralValueKind::Reference { source }
+                if source.access == checked_trees::CheckedStructuralAccess::SharedBorrow =>
             {
                 Some(handle)
             }
@@ -1300,7 +1279,7 @@ fn borrowed_selection_indexed_replay_rejects_mutated_provenance() {
     for mutation in 0..4 {
         let mut changed = checked.clone();
         for handle in &arm_handles {
-            let typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Reference { source } = &mut changed
+            let checked_trees::CheckedStructuralValueKind::Reference { source } = &mut changed
                 .facts
                 .values
                 .structural_values
@@ -1315,14 +1294,14 @@ fn borrowed_selection_indexed_replay_rejects_mutated_provenance() {
                 // `&x.items[0]` / `&y.items[1]` expressions.
                 0 => {
                     source.path = vec![
-                        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field("items".to_owned()),
-                        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(9),
+                        checked_trees::CheckedUnitStructuralPathSegment::Field("items".to_owned()),
+                        checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(9),
                     ];
                 }
                 // Dropping the ordinal fabricates a whole-field borrow the
                 // authored target never named.
                 1 => {
-                    source.path = vec![typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field(
+                    source.path = vec![checked_trees::CheckedUnitStructuralPathSegment::Field(
                         "items".to_owned(),
                     )];
                 }
@@ -1330,9 +1309,9 @@ fn borrowed_selection_indexed_replay_rejects_mutated_provenance() {
                 // borrow's exact root.
                 2 => {
                     source.source =
-                        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                             parameter_index: match source.source {
-                                typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                                     parameter_index,
                                 } => 1 - parameter_index,
                                 _ => panic!("indexed arms keep parameter roots"),
@@ -1341,10 +1320,7 @@ fn borrowed_selection_indexed_replay_rejects_mutated_provenance() {
                 }
                 // An owned join fabricates custody the shared borrow never
                 // carried.
-                _ => {
-                    source.access =
-                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
-                }
+                _ => source.access = checked_trees::CheckedStructuralAccess::Owned,
             }
         }
         let error = checked_trees_to_lowered_psi::lower_machine(
@@ -1370,7 +1346,7 @@ fn borrowed_selection_replay_rejects_mutated_arm_provenance() {
     let arm_roots: Vec<symbols::SymbolHandle> = borrowed_arms(&checked)
         .iter()
         .map(|arm| match arm.source {
-            typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
                 symbol
             }
             _ => panic!("borrowed arm roots at an exact local"),
@@ -1384,8 +1360,8 @@ fn borrowed_selection_replay_rejects_mutated_arm_provenance() {
         .nodes
         .iter()
         .filter_map(|(handle, node)| match &node.kind {
-            typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Reference { source }
-                if source.access == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow =>
+            checked_trees::CheckedStructuralValueKind::Reference { source }
+                if source.access == checked_trees::CheckedStructuralAccess::SharedBorrow =>
             {
                 Some(handle)
             }
@@ -1396,7 +1372,7 @@ fn borrowed_selection_replay_rejects_mutated_arm_provenance() {
     for mutation in 0..3 {
         let mut changed = checked.clone();
         for handle in &arm_handles {
-            let typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Reference { source } = &mut changed
+            let checked_trees::CheckedStructuralValueKind::Reference { source } = &mut changed
                 .facts
                 .values
                 .structural_values
@@ -1410,12 +1386,12 @@ fn borrowed_selection_replay_rejects_mutated_arm_provenance() {
                 // Substituting the other arm's root moves the borrow's origin.
                 0 => {
                     source.source =
-                        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                             symbol: arm_roots
                                 .iter()
                                 .copied()
                                 .find(|root| match source.source {
-                                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+                                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
                                         *root != symbol
                                     }
                                     _ => false,
@@ -1426,16 +1402,13 @@ fn borrowed_selection_replay_rejects_mutated_arm_provenance() {
                 // A changed field path can no longer replay the authored
                 // `&place` expression.
                 1 => {
-                    source.path = vec![typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field(
+                    source.path = vec![checked_trees::CheckedUnitStructuralPathSegment::Field(
                         "right".to_owned(),
                     )];
                 }
                 // An owned join fabricates custody the shared borrow never
                 // carried.
-                _ => {
-                    source.access =
-                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
-                }
+                _ => source.access = checked_trees::CheckedStructuralAccess::Owned,
             }
         }
         let error = checked_trees_to_lowered_psi::lower_machine(

@@ -3,17 +3,15 @@ use super::LiveDefinitions;
 use super::{observations, structural_case};
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use crate::target_operations::{
-    TargetBooleanExpression, TargetScalarExpression, TerminalPsiProvenance,
+use abstract_operations::{
+    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractParameter,
 };
-use crate::target_operations::{TargetControlSuccessor, TargetControlTerminator};
 use semantic_vocabulary::{PlaceId, ScalarType, StructuralTypeId};
 use std::collections::BTreeSet;
+use target_operations::{TargetBooleanExpression, TargetScalarExpression, TerminalPsiProvenance};
+use target_operations::{TargetControlSuccessor, TargetControlTerminator};
 use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralPathSegment, TerminalAffineCleanupAction,
-};
-use terminal_psi_to_abstract_operations::abstract_operations::{
-    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractParameter,
 };
 
 // An unobserved owned arrival has no live storage home, so its discard keys
@@ -191,18 +189,17 @@ pub(super) fn lower_terminator(
         }
         Ok(actions)
     };
-    let successor =
-        |live: &mut LiveDefinitions,
-         edge: &terminal_psi_to_abstract_operations::abstract_operations::AbstractSuccessor|
-         -> Result<TargetControlSuccessor, LoweringError> {
-            Ok(TargetControlSuccessor {
-                psi_edge: edge.psi_edge,
-                target: edge.target,
-                bindings: edge.bindings.clone(),
-                structural_bindings: edge.structural_bindings.clone(),
-                cleanup_actions: cleanup(live, &edge.trivial_affine_discards)?,
-            })
-        };
+    let successor = |live: &mut LiveDefinitions,
+                     edge: &abstract_operations::AbstractSuccessor|
+     -> Result<TargetControlSuccessor, LoweringError> {
+        Ok(TargetControlSuccessor {
+            psi_edge: edge.psi_edge,
+            target: edge.target,
+            bindings: edge.bindings.clone(),
+            structural_bindings: edge.structural_bindings.clone(),
+            cleanup_actions: cleanup(live, &edge.trivial_affine_discards)?,
+        })
+    };
     match operation {
         AbstractOperation::Crash {
             psi_edge,
@@ -280,7 +277,7 @@ pub(super) fn lower_terminator(
                 provenance.edges.push(*psi_edge);
                 return Ok(TargetControlTerminator::ReturnStructural {
                     psi_edge: *psi_edge,
-                    source: crate::target_operations::TargetStructuralReturnSource::Parameter(
+                    source: target_operations::TargetStructuralReturnSource::Parameter(
                         actual.clone(),
                     ),
                     cleanup_actions,
@@ -310,7 +307,7 @@ pub(super) fn lower_terminator(
                 provenance.edges.push(*psi_edge);
                 return Ok(TargetControlTerminator::ReturnStructural {
                     psi_edge: *psi_edge,
-                    source: crate::target_operations::TargetStructuralReturnSource::Home(home),
+                    source: target_operations::TargetStructuralReturnSource::Home(home),
                     cleanup_actions,
                 });
             }
@@ -339,7 +336,7 @@ pub(super) fn lower_terminator(
             provenance.edges.push(*psi_edge);
             Ok(TargetControlTerminator::ReturnStructural {
                 psi_edge: *psi_edge,
-                source: crate::target_operations::TargetStructuralReturnSource::Home(home.clone()),
+                source: target_operations::TargetStructuralReturnSource::Home(home.clone()),
                 cleanup_actions,
             })
         }

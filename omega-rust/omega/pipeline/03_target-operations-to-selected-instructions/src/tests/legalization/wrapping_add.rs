@@ -1,16 +1,14 @@
 //! Modular arithmetic retains ordered, width-normalized SSA definitions.
-use crate::legalized_operations::LegalizedScalarInstructionKind;
-use crate::selected_instructions::SelectedInstructionKind;
-use abstract_operations_to_target_operations::target_operations::{
-    TargetIntegerExpression, TargetScalarExpression, TargetUnitOperation,
+use abstract_operations::{
+    AbstractFunctionResult, AbstractOperation, AbstractParameter, AbstractResult,
 };
+use legalized_operations::LegalizedScalarInstructionKind;
+use selected_instructions::SelectedInstructionKind;
 use semantic_vocabulary::{
     EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, OperationId, ScalarType, ValueId,
 };
 use target::NativeTarget;
-use terminal_psi_to_abstract_operations::abstract_operations::{
-    AbstractFunctionResult, AbstractOperation, AbstractParameter, AbstractResult,
-};
+use target_operations::{TargetIntegerExpression, TargetScalarExpression, TargetUnitOperation};
 
 use crate::{
     legalize_target_operations, select_instructions, validate_legalized_operations,
@@ -71,12 +69,12 @@ fn wrapping_add_replays_width_policy_snapshot_and_normalized_consumers() {
                     abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
                 )
                 .unwrap();
-                let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
+                let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
                     &source,
                     FuelScheduleIdentity::new(1).unwrap(),
                 )
                 .unwrap();
-                terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+                optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
                 let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
                 validate_legalized_operations(&target, &source, &unit, legalized.plan().clone())
                     .unwrap();
@@ -156,8 +154,7 @@ fn wrapping_add_replays_width_policy_snapshot_and_normalized_consumers() {
                 }
 
                 let environment =
-                    crate::register_environment::baseline_target_register_environment(native)
-                        .unwrap();
+                    register_environment::baseline_target_register_environment(native).unwrap();
                 let constraints = crate::selection_constraints(&legalized, &environment);
                 let selected = select_instructions(
                     &legalized,

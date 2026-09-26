@@ -369,9 +369,7 @@ fn direct_crash_causes_require_matching_routes_during_independent_verification()
 
 #[test]
 fn direct_crash_fallback_custody_mutations_reject_before_publication() {
-    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
-        StatementNode, TransitionExit, TransitionGuardNode,
-    };
+    use typed_trees::statement::{StatementNode, TransitionExit, TransitionGuardNode};
 
     for computed in [false, true] {
         let checked = checked_arms(&custody_source(computed), false);
@@ -402,9 +400,7 @@ fn direct_crash_fallback_custody_mutations_reject_before_publication() {
         };
         assert_eq!(
             fallback.exit,
-            TransitionExit::Crash(
-                symbol_resolved_trees_to_typed_trees::typed_trees::signature::CrashCause::Trap
-            )
+            TransitionExit::Crash(typed_trees::signature::CrashCause::Trap)
         );
         for mutation in 0..10 {
             let mut changed = checked.clone();
@@ -428,7 +424,7 @@ fn direct_crash_fallback_custody_mutations_reject_before_publication() {
                 match mutation {
                     0 => {
                         fallback.exit =
-                            TransitionExit::Crash(symbol_resolved_trees_to_typed_trees::typed_trees::signature::CrashCause::Abort)
+                            TransitionExit::Crash(typed_trees::signature::CrashCause::Abort)
                     }
                     1 => fallback.exit = TransitionExit::Ordinary,
                     2 => fallback.target = selected.target,
@@ -464,12 +460,12 @@ fn direct_crash_fallback_custody_mutations_reject_before_publication() {
                     .iter_mut()
                     .find(|candidate| candidate.state == state.symbol)
                     .unwrap();
-                let typed_trees_to_checked_trees::checked_trees::CheckedScalarStateTerminator::Conditional { when_false, .. } =
+                let checked_trees::CheckedScalarStateTerminator::Conditional { when_false, .. } =
                     &mut graph_state.terminator
                 else {
                     panic!("conditional crash fallback");
                 };
-                let typed_trees_to_checked_trees::checked_trees::CheckedScalarBranchDestination::Crash { statement_ordinal } =
+                let checked_trees::CheckedScalarBranchDestination::Crash { statement_ordinal } =
                     when_false
                 else {
                     panic!("exact crash destination");

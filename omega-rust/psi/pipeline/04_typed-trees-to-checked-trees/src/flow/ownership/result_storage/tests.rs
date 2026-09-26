@@ -1,16 +1,11 @@
 use super::{DataMember, TypeReferenceHandle, TypeReferenceNode};
-use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use crate::flow::CanonicalPlace;
 use crate::flow::ownership::result_storage::is_private_result_place;
 use crate::tests::front_end::typed_program;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 
-fn fixture(
-    result_type: &str,
-) -> (
-    symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    CanonicalPlace,
-) {
+fn fixture(result_type: &str) -> (typed_trees::TypedTrees, CanonicalPlace) {
     let program = typed_program(&format!(
         "data Leaf {{ value: u64; }}
          data Inner {{ leaf: Leaf; }}
@@ -35,17 +30,17 @@ fn fixture(
         })
         .expect("fixture forward call");
     let place = CanonicalPlace {
-        root: crate::fact_plan::PlaceRoot::Expression(expression),
+        root: facts::PlaceRoot::Expression(expression),
         segments: Vec::new(),
     };
     (program, place)
 }
 
 fn field(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     owner: &str,
     name: &str,
-) -> (crate::fact_plan::PlaceSegment, TypeReferenceHandle) {
+) -> (facts::PlaceSegment, TypeReferenceHandle) {
     let definition = program
         .data_definitions()
         .iter()
@@ -56,7 +51,7 @@ fn field(
         .iter()
         .find_map(|member| match member {
             DataMember::Field(field) if field.name.as_str() == name => Some((
-                crate::fact_plan::PlaceSegment::Field {
+                facts::PlaceSegment::Field {
                     symbol: field.symbol,
                 },
                 field.type_reference,
@@ -67,10 +62,10 @@ fn field(
 }
 
 fn case_path(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     owner: &str,
     name: &str,
-) -> Vec<crate::fact_plan::PlaceSegment> {
+) -> Vec<facts::PlaceSegment> {
     let definition = program
         .data_definitions()
         .iter()
@@ -87,26 +82,23 @@ fn case_path(
         })
         .expect("fixture case");
     vec![
-        crate::fact_plan::PlaceSegment::Case {
+        facts::PlaceSegment::Case {
             variant: variant.symbol,
         },
-        crate::fact_plan::PlaceSegment::Field {
+        facts::PlaceSegment::Field {
             symbol: program.data_payload_fields(variant)[0].symbol,
         },
     ]
 }
 
 fn call_expression(place: &CanonicalPlace) -> ExpressionHandle {
-    let crate::fact_plan::PlaceRoot::Expression(expression) = place.root else {
+    let facts::PlaceRoot::Expression(expression) = place.root else {
         panic!("fixture expression root")
     };
     expression
 }
 
-fn result_type(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    place: &CanonicalPlace,
-) -> TypeReferenceHandle {
+fn result_type(program: &typed_trees::TypedTrees, place: &CanonicalPlace) -> TypeReferenceHandle {
     let ExpressionNode::Call(call) = program.expression_table.expression(call_expression(place))
     else {
         panic!("fixture call root")
@@ -127,7 +119,7 @@ fn owned_result_fields_and_nested_fixed_arrays_are_private_storage() {
         ],
         vec![
             field(&program, "Outer", "items").0,
-            crate::fact_plan::PlaceSegment::FixedIndex { index: 1 },
+            facts::PlaceSegment::FixedIndex { index: 1 },
             field(&program, "Inner", "leaf").0,
         ],
     ] {
@@ -136,8 +128,8 @@ fn owned_result_fields_and_nested_fixed_arrays_are_private_storage() {
     }
     let (program, mut place) = fixture("[[Inner; 2]; 2]");
     place.segments = vec![
-        crate::fact_plan::PlaceSegment::FixedIndex { index: 0 },
-        crate::fact_plan::PlaceSegment::FixedIndex { index: 1 },
+        facts::PlaceSegment::FixedIndex { index: 0 },
+        facts::PlaceSegment::FixedIndex { index: 1 },
         field(&program, "Inner", "leaf").0,
     ];
     assert!(is_private_result_place(&program, &place));
@@ -169,7 +161,7 @@ fn reference_results_never_prove_private_referent_storage() {
         assert!(!is_private_result_place(&program, &place), "{reference}");
     }
     let (program, mut place) = fixture("&[Inner]");
-    place.segments = vec![crate::fact_plan::PlaceSegment::FixedIndex { index: 0 }];
+    place.segments = vec![facts::PlaceSegment::FixedIndex { index: 0 }];
     assert!(!is_private_result_place(&program, &place));
 }
 
@@ -186,7 +178,7 @@ fn reference_fields_are_slots_but_traversing_their_referents_is_not_private() {
     assert!(is_private_result_place(&program, &place));
     place
         .segments
-        .push(crate::fact_plan::PlaceSegment::FixedIndex { index: 0 });
+        .push(facts::PlaceSegment::FixedIndex { index: 0 });
     assert!(!is_private_result_place(&program, &place));
 }
 
@@ -199,17 +191,14 @@ fn bare_slice_types_cannot_be_treated_as_owned_fixed_array_storage() {
     program
         .type_reference_table
         .substitute_node(items_type, TypeReferenceNode::Slice { element_type });
-    place.segments = vec![
-        items,
-        crate::fact_plan::PlaceSegment::FixedIndex { index: 0 },
-    ];
+    place.segments = vec![items, facts::PlaceSegment::FixedIndex { index: 0 }];
     assert!(!is_private_result_place(&program, &place));
 
     let result = result_type(&program, &place);
     program
         .type_reference_table
         .substitute_node(result, TypeReferenceNode::Slice { element_type });
-    place.segments = vec![crate::fact_plan::PlaceSegment::FixedIndex { index: 0 }];
+    place.segments = vec![facts::PlaceSegment::FixedIndex { index: 0 }];
     assert!(!is_private_result_place(&program, &place));
 }
 
@@ -237,7 +226,7 @@ fn case_payload_paths_require_the_exact_variant_and_field_pair() {
 fn absent_and_foreign_field_selectors_cannot_recover_from_matching_names() {
     let (program, mut place) = fixture("Outer");
     for segments in [
-        vec![crate::fact_plan::PlaceSegment::Field {
+        vec![facts::PlaceSegment::Field {
             symbol: SymbolHandle::invalid(),
         }],
         vec![field(&program, "Foreign", "inner").0],
@@ -245,8 +234,8 @@ fn absent_and_foreign_field_selectors_cannot_recover_from_matching_names() {
             field(&program, "Outer", "inner").0,
             field(&program, "Foreign", "inner").0,
         ],
-        vec![crate::fact_plan::PlaceSegment::FixedIndex { index: 0 }],
-        vec![crate::fact_plan::PlaceSegment::FixedRange { start: 0, end: 1 }],
+        vec![facts::PlaceSegment::FixedIndex { index: 0 }],
+        vec![facts::PlaceSegment::FixedRange { start: 0, end: 1 }],
     ] {
         place.segments = segments;
         assert!(!is_private_result_place(&program, &place), "{place:?}");
@@ -393,7 +382,7 @@ fn fixed_arrays_require_a_live_element_type_at_the_root_and_final_projection() {
         };
         place
             .segments
-            .push(crate::fact_plan::PlaceSegment::FixedIndex { index: 0 });
+            .push(facts::PlaceSegment::FixedIndex { index: 0 });
         assert!(is_private_result_place(&program, &place));
         let TypeReferenceNode::FixedArray { length, .. } = program
             .type_reference_table
@@ -430,11 +419,11 @@ fn caller_places_and_non_call_expression_roots_are_not_private_results() {
         .expression_table
         .insert(ExpressionNode::Boolean(true));
     for root in [
-        crate::fact_plan::PlaceRoot::Unknown,
-        crate::fact_plan::PlaceRoot::Symbol(caller_parameter),
-        crate::fact_plan::PlaceRoot::Expression(boolean),
-        crate::fact_plan::PlaceRoot::Expression(ExpressionHandle::invalid()),
-        crate::fact_plan::PlaceRoot::TypeReference(result_type(&program, &place)),
+        facts::PlaceRoot::Unknown,
+        facts::PlaceRoot::Symbol(caller_parameter),
+        facts::PlaceRoot::Expression(boolean),
+        facts::PlaceRoot::Expression(ExpressionHandle::invalid()),
+        facts::PlaceRoot::TypeReference(result_type(&program, &place)),
     ] {
         place.root = root;
         assert!(!is_private_result_place(&program, &place), "{root:?}");

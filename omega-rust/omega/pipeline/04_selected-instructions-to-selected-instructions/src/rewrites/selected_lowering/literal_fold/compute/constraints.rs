@@ -1,10 +1,10 @@
 //! Producer selection of admitted immediate-form constraints.
 
-use target_operations_to_selected_instructions::register_model::{
+use register_model::{
     RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess,
     TargetRegisterEnvironmentConstraintKeys, ValidatedRegisterConstraintCatalog,
 };
-use target_operations_to_selected_instructions::{
+use selected_instructions::{
     MachineEffectDeclaration, MachineSemanticKind, SelectedInstructionKind,
     ValidatedMachineEffectCatalog,
 };
@@ -171,7 +171,7 @@ fn validate_immediate_row(
     row: &RegisterInstructionConstraint,
 ) -> Result<(), LiteralFoldError> {
     let unit_effects = rule.unit_effects();
-    let clean = |operands: &[&target_operations_to_selected_instructions::register_model::RegisterOperandConstraint]| {
+    let clean = |operands: &[&register_model::RegisterOperandConstraint]| {
         operands
             .iter()
             .all(|operand| unit_effects.admits_operand(operand))

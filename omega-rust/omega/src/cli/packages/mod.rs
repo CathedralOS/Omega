@@ -3,7 +3,7 @@
 pub(crate) mod audit;
 pub(crate) mod source;
 
-use omega::package_manager::{
+use package_manager::{
     PackageCommand, PackageCommandOptions, PackageCommandStatus, execute_package_command,
 };
 

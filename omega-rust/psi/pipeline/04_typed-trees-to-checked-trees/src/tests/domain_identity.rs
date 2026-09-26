@@ -1,11 +1,9 @@
 use crate::tests::front_end::checked_program;
 
 fn specializations_for<'program>(
-    checked: &'program crate::checked_trees::CheckedTrees,
+    checked: &'program checked_trees::CheckedTrees,
     machine_name: &str,
-) -> Vec<
-    &'program symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::MachineSpecialization,
-> {
+) -> Vec<&'program typed_trees::typed_trees::MachineSpecialization> {
     checked
         .machine_specializations
         .iter()

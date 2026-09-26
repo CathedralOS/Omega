@@ -1,12 +1,12 @@
 //! Qualification correspondences and their replayed types.
 
-use crate::fact_plan::{FactPlace, PlaceRoot, PlaceSegment};
 use diagnostics::Diagnostic;
+use facts::{FactPlace, PlaceRoot, PlaceSegment};
 use symbols::SymbolHandle;
 
 pub(crate) fn validate_qualification_correspondences(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    semantic: &crate::fact_plan::FactPlan,
+    program: &typed_trees::TypedTrees,
+    semantic: &facts::FactPlan,
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
     let mut retained = Vec::new();
@@ -29,7 +29,7 @@ pub(crate) fn validate_qualification_correspondences(
             ));
             continue;
         }
-        let crate::fact_plan::ProgramPoint::Statement {
+        let facts::ProgramPoint::Statement {
             machine_symbol,
             state_symbol,
             statement_index,
@@ -98,7 +98,7 @@ pub(crate) fn validate_qualification_correspondences(
             ));
             continue;
         }
-        if destination.origin != crate::fact_plan::FactOrigin::StatementTransfer
+        if destination.origin != facts::FactOrigin::StatementTransfer
             || destination.point != correspondence.formation
         {
             diagnostics.push(Diagnostic::error(
@@ -117,11 +117,10 @@ pub(crate) fn validate_qualification_correspondences(
             ));
             continue;
         }
-        if crate::fact_plan::QualificationPayloadIdentity::from_fact_payload(source.payload)
+        if facts::QualificationPayloadIdentity::from_fact_payload(source.payload)
             != Some(correspondence.payload)
-            || crate::fact_plan::QualificationPayloadIdentity::from_fact_payload(
-                destination.payload,
-            ) != Some(correspondence.payload)
+            || facts::QualificationPayloadIdentity::from_fact_payload(destination.payload)
+                != Some(correspondence.payload)
             || !exact_correspondence_payload(program, correspondence.payload)
         {
             diagnostics.push(Diagnostic::error(
@@ -133,11 +132,11 @@ pub(crate) fn validate_qualification_correspondences(
 }
 
 fn exact_correspondence_payload(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    payload: crate::fact_plan::QualificationPayloadIdentity,
+    program: &typed_trees::TypedTrees,
+    payload: facts::QualificationPayloadIdentity,
 ) -> bool {
     match payload {
-        crate::fact_plan::QualificationPayloadIdentity::DomainMembership {
+        facts::QualificationPayloadIdentity::DomainMembership {
             domain,
             domain_symbol,
             semantic_domain,
@@ -148,14 +147,14 @@ fn exact_correspondence_payload(
                 && program.symbols.get(domain_symbol).kind == symbols::SymbolKind::Domain
                 && program.domain_path_members.span(domain).is_some()
         }
-        crate::fact_plan::QualificationPayloadIdentity::CarryPermission { .. }
-        | crate::fact_plan::QualificationPayloadIdentity::CarryOrigin => true,
+        facts::QualificationPayloadIdentity::CarryPermission { .. }
+        | facts::QualificationPayloadIdentity::CarryOrigin => true,
     }
 }
 
 fn exact_correspondence_evidence_source(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    evidence: crate::fact_plan::QualificationEvidence,
+    program: &typed_trees::TypedTrees,
+    evidence: facts::QualificationEvidence,
 ) -> bool {
     evidence.source_symbol.is_valid()
         && evidence.requirement_symbol == SymbolHandle::invalid()
@@ -167,9 +166,9 @@ fn exact_correspondence_evidence_source(
 }
 
 fn exact_correspondence_place(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    semantic: &crate::fact_plan::FactPlan,
-    handle: crate::fact_plan::PlaceHandle,
+    program: &typed_trees::TypedTrees,
+    semantic: &facts::FactPlan,
+    handle: facts::PlaceHandle,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     formation_statement_index: usize,
@@ -210,7 +209,7 @@ fn exact_correspondence_place(
                 };
                 let field = if let Some(variant_symbol) = selected_variant.take() {
                     program.data_members(data).iter().find_map(|member| {
-                        let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant) = member else {
+                        let typed_trees::data::DataMember::Variant(variant) = member else {
                             return None;
                         };
                         (variant.symbol == variant_symbol).then(|| {
@@ -222,7 +221,7 @@ fn exact_correspondence_place(
                     })
                 } else {
                     program.data_members(data).iter().find_map(|member| {
-                        let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) = member else {
+                        let typed_trees::data::DataMember::Field(field) = member else {
                             return None;
                         };
                         (field.symbol == *symbol).then_some(field)
@@ -244,7 +243,7 @@ fn exact_correspondence_place(
                     return false;
                 };
                 if !program.data_members(data).iter().any(|member| {
-                    matches!(member, symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(candidate)
+                    matches!(member, typed_trees::data::DataMember::Variant(candidate)
                         if candidate.symbol == *variant)
                 }) {
                     return false;
@@ -257,14 +256,14 @@ fn exact_correspondence_place(
                 }
                 loop {
                     match program.type_reference_table.type_reference(current) {
-                        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { referee, .. }
-                        | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained {
+                        typed_trees::types::TypeReferenceNode::Reference { referee, .. }
+                        | typed_trees::types::TypeReferenceNode::Constrained {
                             base_type: referee,
                             ..
                         } => current = *referee,
-                        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::FixedArray {
+                        typed_trees::types::TypeReferenceNode::FixedArray {
                             element_type,
-                            length: symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::Literal(length),
+                            length: typed_trees::types::FixedArrayLength::Literal(length),
                         } if *index < *length => {
                             current = *element_type;
                             break;
@@ -280,12 +279,12 @@ fn exact_correspondence_place(
 }
 
 pub(crate) fn replay_root_type_reference(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     formation_statement_index: usize,
     root: SymbolHandle,
-) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
+) -> Option<typed_trees::types::TypeReferenceHandle> {
     let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
     let state = program
         .machine_states(machine)
@@ -318,7 +317,7 @@ pub(crate) fn replay_root_type_reference(
                 .iter()
                 .take(formation_statement_index)
                 .filter_map(|statement| {
-                    let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) = statement else {
+                    let typed_trees::statement::StatementNode::LocalData(local) = statement else {
                         return None;
                     };
                     (local.symbol == root).then_some(local.type_reference)
@@ -331,16 +330,16 @@ pub(crate) fn replay_root_type_reference(
 }
 
 pub(crate) fn replay_data_type(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    program: &typed_trees::TypedTrees,
+    type_reference: typed_trees::types::TypeReferenceHandle,
     machine_symbol: SymbolHandle,
-) -> Option<&symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition> {
+) -> Option<&typed_trees::data::DataDefinition> {
     match program.type_reference_table.type_reference(type_reference) {
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { referee, .. }
-        | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained {
+        typed_trees::types::TypeReferenceNode::Reference { referee, .. }
+        | typed_trees::types::TypeReferenceNode::Constrained {
             base_type: referee, ..
         } => replay_data_type(program, *referee, machine_symbol),
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named { symbol, name }
+        typed_trees::types::TypeReferenceNode::Named { symbol, name }
             if symbol.is_valid()
                 && program.symbols.get(*symbol).kind == symbols::SymbolKind::Data =>
         {
@@ -349,7 +348,7 @@ pub(crate) fn replay_data_type(
                 .iter()
                 .find(|definition| definition.symbol == *symbol && definition.name == *name)
         }
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named { symbol, name }
+        typed_trees::types::TypeReferenceNode::Named { symbol, name }
             if *symbol == machine_symbol && name.as_str() == "Self" =>
         {
             let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;

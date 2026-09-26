@@ -3,11 +3,8 @@ use semantic_vocabulary::MachineId;
 
 pub(super) fn project_ownership_frontiers(
     input: &VerifiedPsiOptimizationInput,
-) -> Result<
-    Vec<crate::optimization_unit::OwnershipFrontierFact>,
-    VerifiedPsiOptimizationUnitBuildError,
-> {
-    use crate::optimization_unit::OwnershipFrontierSite as Site;
+) -> Result<Vec<optimization_unit::OwnershipFrontierFact>, VerifiedPsiOptimizationUnitBuildError> {
+    use optimization_unit::OwnershipFrontierSite as Site;
 
     let mut facts = Vec::new();
     let context = input.context();
@@ -48,7 +45,7 @@ pub(super) fn project_ownership_frontiers(
                     frontiers.edge_entry(edge),
                 )?;
                 if let Some(snapshot) = frontiers.edge_exit(edge) {
-                    facts.push(crate::optimization_unit::OwnershipFrontierFact::new(
+                    facts.push(optimization_unit::OwnershipFrontierFact::new(
                         input.plan().psi,
                         machine.id,
                         Site::EdgeExit(edge),
@@ -63,16 +60,16 @@ pub(super) fn project_ownership_frontiers(
 }
 
 fn push_ownership_frontier(
-    facts: &mut Vec<crate::optimization_unit::OwnershipFrontierFact>,
+    facts: &mut Vec<optimization_unit::OwnershipFrontierFact>,
     psi: terminal_psi::TerminalPsiIdentity,
     machine: MachineId,
-    site: crate::optimization_unit::OwnershipFrontierSite,
+    site: optimization_unit::OwnershipFrontierSite,
     snapshot: Option<&terminal_verifier::VerifiedStructuralOwnershipFrontier>,
 ) -> Result<(), VerifiedPsiOptimizationUnitBuildError> {
     let snapshot = snapshot.ok_or(
         VerifiedPsiOptimizationUnitBuildError::MissingStructuralFrontier { machine, site },
     )?;
-    facts.push(crate::optimization_unit::OwnershipFrontierFact::new(
+    facts.push(optimization_unit::OwnershipFrontierFact::new(
         psi,
         machine,
         site,
@@ -83,35 +80,31 @@ fn push_ownership_frontier(
 
 fn ownership_frontier_snapshot(
     snapshot: &terminal_verifier::VerifiedStructuralOwnershipFrontier,
-) -> crate::optimization_unit::OwnershipFrontierSnapshot {
-    crate::optimization_unit::OwnershipFrontierSnapshot {
+) -> optimization_unit::OwnershipFrontierSnapshot {
+    optimization_unit::OwnershipFrontierSnapshot {
         claims: snapshot
             .claims()
             .iter()
-            .map(
-                |claim| crate::optimization_unit::OwnershipFrontierLiveClaim {
-                    claim: claim.claim,
-                    input: claim.input,
-                    path: claim.path.clone(),
-                    multiplicity: claim.multiplicity,
-                },
-            )
+            .map(|claim| optimization_unit::OwnershipFrontierLiveClaim {
+                claim: claim.claim,
+                input: claim.input,
+                path: claim.path.clone(),
+                multiplicity: claim.multiplicity,
+            })
             .collect(),
         owned_places: snapshot
             .owned_places()
             .iter()
-            .map(
-                |place| crate::optimization_unit::OwnershipFrontierOwnedPlace {
-                    place: place.place,
-                    multiplicity: place.multiplicity,
-                },
-            )
+            .map(|place| optimization_unit::OwnershipFrontierOwnedPlace {
+                place: place.place,
+                multiplicity: place.multiplicity,
+            })
             .collect(),
         partial_custody: snapshot
             .partial_custody()
             .iter()
             .map(
-                |partial| crate::optimization_unit::OwnershipFrontierPartialCustody {
+                |partial| optimization_unit::OwnershipFrontierPartialCustody {
                     place: partial.place,
                     moved_paths: partial.moved_paths.clone(),
                 },

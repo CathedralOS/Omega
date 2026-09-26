@@ -30,20 +30,14 @@ use crate::monomorphization::identities::{
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
 use sha2::Sha256;
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
-use symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind;
-use symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, ExpressionNode, StaticMachineArgument,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateSignature;
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
-    StatementHandle, StatementNode,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
-    TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-};
 use symbols::{SymbolHandle, SymbolKind};
+use typed_trees::TypedTrees;
+use typed_trees::data::TypeParameterKind;
+use typed_trees::domain::ProofFact;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
+use typed_trees::signature::StateSignature;
+use typed_trees::statement::{StatementHandle, StatementNode};
+use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 mod attached_methods;
 pub(crate) use attached_methods::validate_selected_attached_method_bounds;
@@ -84,15 +78,13 @@ struct CandidateTemplate {
     template_name: String,
     state_symbols: Vec<SymbolHandle>,
     type_parameters: Vec<(SymbolHandle, String)>,
-    parameter_bounds: Vec<Vec<crate::validation::DeclaredPropertyRequirement>>,
-    conformance_bounds:
-        Vec<symbol_resolved_trees_to_typed_trees::typed_trees::machine::GenericConformanceBound>,
+    parameter_bounds: Vec<Vec<validation::DeclaredPropertyRequirement>>,
+    conformance_bounds: Vec<typed_trees::machine::GenericConformanceBound>,
     const_parameters: Vec<(SymbolHandle, String, TypeReferenceHandle)>,
     /// Const-slot ordinals declared as runtime-capable Value binders.
     value_const_parameters: Vec<usize>,
     machine_parameters: Vec<(SymbolHandle, String, StateSignature)>,
-    evidence_parameters:
-        Vec<symbol_resolved_trees_to_typed_trees::typed_trees::machine::GenericConformanceBound>,
+    evidence_parameters: Vec<typed_trees::machine::GenericConformanceBound>,
 }
 
 /// Discovery owns a template; each selected application borrows that immutable
@@ -108,7 +100,7 @@ struct Candidate<'template> {
     machine_bindings: Vec<Option<StaticMachineArgument>>,
     evidence_bindings: Vec<Option<StaticMachineArgument>>,
     inferred_conformance_arguments: Vec<SymbolHandle>,
-    selected_bound_applications: Vec<symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::ClosedConformanceApplication>,
+    selected_bound_applications: Vec<typed_trees::typed_trees::ClosedConformanceApplication>,
     conflicted: bool,
 }
 
@@ -198,7 +190,7 @@ struct SpecializationKey {
 /// only once no pending endpoint fold can still supply the missing binding.
 pub(crate) fn monomorphize_generic_machine_value_calls_with_selections(
     program: &mut TypedTrees,
-    retained: &mut crate::validation::ValidatedStaticMachineSelections,
+    retained: &mut validation::ValidatedStaticMachineSelections,
     enforce_complete_concrete_selections: bool,
 ) -> Result<(), Vec<Diagnostic>> {
     loop {
@@ -258,8 +250,8 @@ pub(crate) fn monomorphize_generic_machine_value_calls_with_selections(
         result_locals::refresh_generic_call_results(program, &candidates, &selections)?;
         // All templates in this round share the complete original call graph.
         // Per-instance inference would mix capture with newly selected clones.
-        let operational = crate::validation::infer_operational_may(program);
-        let service_reaches = crate::validation::infer_service_reaches(program, &operational);
+        let operational = validation::infer_operational_may(program);
+        let service_reaches = validation::infer_service_reaches(program, &operational);
         let mut diagnostics = Vec::new();
         let mut applied_any = false;
         for (candidate_index, candidate) in candidates.iter().enumerate() {
@@ -344,7 +336,9 @@ pub(crate) fn monomorphize_generic_machine_value_calls_with_selections(
             return Ok(());
         }
         refresh_closed_domain_instance_identities(program).map_err(|error| vec![error])?;
-        retained.extend(crate::validation::validate_static_machine_selections_with_facts(program)?);
+        retained.extend(validation::validate_static_machine_selections_with_facts(
+            program,
+        )?);
     }
 }
 
@@ -353,10 +347,7 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
         program: &TypedTrees,
         arguments: &[StaticMachineArgument],
         literals: &mut Vec<String>,
-        types: &mut Vec<(
-            SymbolHandle,
-            symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
-        )>,
+        types: &mut Vec<(SymbolHandle, typed_trees::name::Identifier)>,
     ) {
         for argument in arguments {
             if let Some(literal) = const_arguments::spelling(program, argument)
@@ -406,15 +397,15 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
             .type_reference_table
             .fixed_array_lengths()
             .filter_map(|(_, length)| match length {
-                symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::Literal(value) => Some(value.to_string()),
-                symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::ConstParameter { .. }
-                | symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::ConstCall { .. } => None,
+                typed_trees::types::FixedArrayLength::Literal(value) => Some(value.to_string()),
+                typed_trees::types::FixedArrayLength::ConstParameter { .. }
+                | typed_trees::types::FixedArrayLength::ConstCall { .. } => None,
             }),
     );
     // Open array extents also participate in inference. Retain their binder
     // identity so another occurrence cannot prematurely close the same slot.
     for (_, length) in program.type_reference_table.fixed_array_lengths() {
-        if let symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::ConstParameter { symbol, name } = length {
+        if let typed_trees::types::FixedArrayLength::ConstParameter { symbol, name } = length {
             types.push((*symbol, name.clone()));
         }
     }
@@ -435,12 +426,9 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
             program
                 .type_reference_table
                 .insert(TypeReferenceNode::Named {
-                symbol: SymbolHandle::invalid(),
-                name:
-                    symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated(
-                        literal,
-                    ),
-            });
+                    symbol: SymbolHandle::invalid(),
+                    name: typed_trees::name::Identifier::generated(literal),
+                });
         }
     }
     for (symbol, name) in types {
@@ -508,7 +496,7 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
                 .type_reference_table
                 .insert(TypeReferenceNode::Named {
                     symbol,
-                    name: symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated_static(atom.symbol_name()),
+                    name: typed_trees::name::Identifier::generated_static(atom.symbol_name()),
                 });
         }
     }
@@ -532,7 +520,7 @@ fn apply_call_specializations(
     template: &Candidate,
     selections: &[CallSelection],
     candidate_index: usize,
-    service_reaches: &crate::flow_effects::ServiceReachInferencePlan,
+    service_reaches: &flow_effects::ServiceReachInferencePlan,
 ) -> Result<bool, Vec<Diagnostic>> {
     let groups = unique_complete_selections(program, selections, candidate_index);
     if groups.is_empty() {
@@ -722,7 +710,7 @@ fn conformance_symbol_identity(program: &TypedTrees, symbol: SymbolHandle) -> St
 
 fn normalized_machine_identity(
     program: &TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    machine: &typed_trees::machine::Machine,
 ) -> Option<String> {
     let declaration = conformance_symbol_identity(program, machine.symbol);
     let overload = program
@@ -764,11 +752,8 @@ pub(crate) fn refresh_closed_domain_instance_identities(
             else {
                 continue;
             };
-            let index_parameters =
-                symbol_resolved_trees_to_typed_trees::typed_trees::domain::index_parameters(
-                    program, &domain,
-                );
-            let identity = symbol_resolved_trees_to_typed_trees::typed_trees::domain::indexed_domain_instance_name(
+            let index_parameters = typed_trees::domain::index_parameters(program, &domain);
+            let identity = typed_trees::domain::indexed_domain_instance_name(
                 program,
                 &domain,
                 index_parameters,
@@ -817,14 +802,11 @@ pub(crate) fn refresh_closed_domain_instance_identities(
         else {
             continue;
         };
-        let index_parameters =
-            symbol_resolved_trees_to_typed_trees::typed_trees::domain::index_parameters(
-                program, &domain,
-            );
+        let index_parameters = typed_trees::domain::index_parameters(program, &domain);
         let arguments = program
             .type_reference_table
             .type_reference_handles(arguments);
-        let identity = symbol_resolved_trees_to_typed_trees::typed_trees::domain::indexed_domain_instance_name(
+        let identity = typed_trees::domain::indexed_domain_instance_name(
             program,
             &domain,
             index_parameters,
@@ -842,10 +824,7 @@ pub(crate) fn refresh_closed_domain_instance_identities(
 
     let mut membership_updates = Vec::new();
     for (handle, fact) in program.proof_facts.iter() {
-        let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(
-            membership,
-        ) = fact
-        else {
+        let typed_trees::domain::ProofFact::Membership(membership) = fact else {
             continue;
         };
         if !membership.domain_symbol.is_valid() {
@@ -861,10 +840,7 @@ pub(crate) fn refresh_closed_domain_instance_identities(
         let arguments = program
             .type_reference_table
             .type_reference_handles(membership.domain_arguments);
-        let parameters =
-            symbol_resolved_trees_to_typed_trees::typed_trees::domain::index_parameters(
-                program, domain,
-            );
+        let parameters = typed_trees::domain::index_parameters(program, domain);
         if arguments.len() != membership.domain_arguments.len()
             || arguments.len() != parameters.len()
             || arguments.iter().any(|argument| {
@@ -877,16 +853,15 @@ pub(crate) fn refresh_closed_domain_instance_identities(
                 "membership instance has missing or invalid domain arguments",
             ));
         }
-        let identity = symbol_resolved_trees_to_typed_trees::typed_trees::domain::indexed_domain_instance_name(
+        let identity = typed_trees::domain::indexed_domain_instance_name(
             program, domain, parameters, arguments,
         )?;
         membership_updates.push((handle, identity));
     }
     for (handle, identity) in membership_updates {
         let semantic_domain = program.semantic_domains.intern(&identity);
-        if let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(
-            membership,
-        ) = program.proof_facts.get_mut(handle)
+        if let typed_trees::domain::ProofFact::Membership(membership) =
+            program.proof_facts.get_mut(handle)
         {
             membership.semantic_domain = semantic_domain;
         }
@@ -904,21 +879,21 @@ fn remapped_symbol(symbol: SymbolHandle, symbols: &[(SymbolHandle, SymbolHandle)
 fn closed_operator_realizations_for_machine(
     program: &TypedTrees,
     machine_symbol: SymbolHandle,
-) -> Result<Vec<symbol_resolved_trees_to_typed_trees::typed_trees::operator::ClosedOperatorRealizationApplication>, Diagnostic>{
+) -> Result<Vec<typed_trees::operator::ClosedOperatorRealizationApplication>, Diagnostic> {
     let machine = crate::lookup::machine_by_symbol(program, machine_symbol)
         .expect("specialized machine must remain in the typed program");
     program
         .machine_trait_conformances(machine)
         .iter()
         .filter_map(|conformance| {
-            symbol_resolved_trees_to_typed_trees::typed_trees::operator::declaration_by_symbol(
+            typed_trees::operator::declaration_by_symbol(
                 program,
                 conformance.requirement_symbol,
             )
             .map(|operator| (conformance, operator))
         })
         .map(|(conformance, operator)| {
-            symbol_resolved_trees_to_typed_trees::typed_trees::operator::closed_operator_realization_application(
+            typed_trees::operator::closed_operator_realization_application(
                 program, machine, operator,
             )
             .filter(|application| application.requirement_symbol == conformance.requirement_symbol)
@@ -940,11 +915,8 @@ fn closed_operator_realizations_for_machine(
 fn specialized_attached_data(
     program: &TypedTrees,
     candidate: &Candidate,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-) -> Option<(
-    symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
-    SymbolHandle,
-)> {
+    machine: &typed_trees::machine::Machine,
+) -> Option<(typed_trees::name::Identifier, SymbolHandle)> {
     let attached = machine.attached_data.as_ref()?;
     let parameter_index = candidate
         .template
@@ -965,7 +937,7 @@ fn specialized_attached_data(
 
 fn resolve_specialized_receiver_calls(
     program: &mut TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    machine: &typed_trees::machine::Machine,
 ) {
     let states = program.machine_states(machine).to_vec();
     let mut statement_updates = Vec::new();

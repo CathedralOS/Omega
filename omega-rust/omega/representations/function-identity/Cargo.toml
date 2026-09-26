@@ -1,0 +1,12 @@
+[package]
+name = "function-identity"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "function_identity"
+path = "src/lib.rs"
+
+[dependencies]
+symbols = { path = "../../../psi/foundation/symbols" }

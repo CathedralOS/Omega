@@ -2,14 +2,6 @@
 //! incoming values, builds entry, requires, invalidation, and exit contexts
 //! (`call_phases`), adds carry and domain facts to the exit, then appends boundary
 //! edges. The functions after it answer callee return-type and qualification queries.
-use crate::checked_trees::expression::ExpressionHandle;
-use crate::checked_trees::{
-    BorrowCallFact, BorrowFacts, DomainFacts, FlowCallFact, FlowConstraintKind, FlowConstraintRef,
-    FlowSemanticContextRef, ProofFacts,
-};
-use crate::fact_plan::{
-    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
-};
 use crate::flow::CallFlowContexts;
 use crate::flow::FlowBuildContext;
 use crate::flow::append_call_boundary_edges;
@@ -24,18 +16,26 @@ use crate::flow::reference_spans;
 use crate::flow::retained_constraint_refs;
 use crate::flow::retained_flow_contexts;
 use arena::HandleSpan;
+use checked_trees::expression::ExpressionHandle;
+use checked_trees::{
+    BorrowCallFact, BorrowFacts, DomainFacts, FlowCallFact, FlowConstraintKind, FlowConstraintRef,
+    FlowSemanticContextRef, ProofFacts,
+};
+use facts::{
+    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
+};
 use symbols::SymbolHandle;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build_call_flow_fact<'plans>(
-    program: &'plans symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &'plans typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     proof: &ProofFacts,
     semantic: &mut FactPlan,
     domains: &DomainFacts,
     build: &mut FlowBuildContext<'plans>,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     active_contexts: &mut arena::HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut arena::HandleSpan<FlowConstraintRef>,
     borrow_call: &BorrowCallFact,
@@ -162,10 +162,10 @@ pub(super) fn build_call_flow_fact<'plans>(
 /// intentionally not copied, so qualification weakening cannot launder carry.
 /// Conditional aggregates and every n-ary shape wait for P1c path mappings.
 fn memoized_call_target_return_type<'plans>(
-    program: &'plans symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &'plans typed_trees::TypedTrees,
     build: &mut FlowBuildContext<'plans>,
     target: SymbolHandle,
-) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
+) -> Option<typed_trees::types::TypeReferenceHandle> {
     *build
         .call_target_returns
         .entry(target)
@@ -173,11 +173,10 @@ fn memoized_call_target_return_type<'plans>(
 }
 
 pub(super) fn memoized_call_target_parameters<'plans>(
-    program: &'plans symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &'plans typed_trees::TypedTrees,
     build: &mut FlowBuildContext<'plans>,
     target: SymbolHandle,
-) -> Option<&'plans [symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter]>
-{
+) -> Option<&'plans [typed_trees::signature::StateParameter]> {
     *build
         .call_target_parameters
         .entry(target)
@@ -185,7 +184,7 @@ pub(super) fn memoized_call_target_parameters<'plans>(
 }
 
 pub(super) fn memoized_find_call_site<'plans>(
-    program: &'plans symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &'plans typed_trees::TypedTrees,
     build: &mut FlowBuildContext<'plans>,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
@@ -207,11 +206,11 @@ pub(super) fn memoized_find_call_site<'plans>(
 }
 
 fn append_one_to_one_call_carry_facts<'plans>(
-    program: &'plans symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &'plans typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext<'plans>,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     borrow_call: &BorrowCallFact,
     entry: &CallFlowContexts,
     exit: &mut CallFlowContexts,
@@ -369,11 +368,11 @@ fn append_one_to_one_call_carry_facts<'plans>(
 /// stay proven through the borrowed source place and are deliberately absent
 /// here so a later source write still invalidates them.
 fn append_call_result_field_domain_facts<'plans>(
-    program: &'plans symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &'plans typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext<'plans>,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     borrow_call: &BorrowCallFact,
     exit: &mut CallFlowContexts,
 ) {
@@ -428,7 +427,7 @@ fn append_call_result_field_domain_facts<'plans>(
     for (path, domain_symbol, semantic_domain) in paths.iter() {
         let place = crate::semantic::places::append_place_with_segments(
             semantic,
-            crate::fact_plan::PlaceRoot::Expression(expression),
+            facts::PlaceRoot::Expression(expression),
             path,
         );
         let fact = semantic.append_fact(Fact {
@@ -466,11 +465,11 @@ fn append_call_result_field_domain_facts<'plans>(
 /// membership; naming a mutable parameter is the out-parameter establishment
 /// the callee owed — either way the caller sees the same honest claim.
 fn append_call_parameter_domain_facts<'plans>(
-    program: &'plans symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &'plans typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext<'plans>,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     borrow_call: &BorrowCallFact,
     exit: &mut CallFlowContexts,
 ) {
@@ -580,9 +579,9 @@ fn append_call_parameter_domain_facts<'plans>(
 }
 
 pub(crate) fn call_target_return_type(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     target_state_symbol: SymbolHandle,
-) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
+) -> Option<typed_trees::types::TypeReferenceHandle> {
     if let Some(state) = crate::semantic::calls::find_state(program, target_state_symbol) {
         return Some(state.return_type);
     }
@@ -609,9 +608,9 @@ pub(crate) fn call_target_return_type(
 /// atom lookup keeps this a read over seeded symbols — a package cannot supply
 /// a substitute signature for an unnameable intrinsic.
 fn asm_intrinsic_result_type(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     target: SymbolHandle,
-) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
+) -> Option<typed_trees::types::TypeReferenceHandle> {
     let atom = match program.symbols.builtin_function_for_symbol(target)? {
         symbols::BuiltinFunction::AsmPortIn => symbols::BuiltinTypeAtom::U8,
         symbols::BuiltinFunction::AsmSnapshotFlags
@@ -646,9 +645,9 @@ fn asm_intrinsic_result_type(
 /// bodyless requirement. State and signature symbols are globally unique, so
 /// each source contributes at most once.
 fn collect_callable_contracts(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     target: SymbolHandle,
-) -> Vec<&symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContract> {
+) -> Vec<&typed_trees::signature::SignatureContract> {
     let mut contracts = Vec::new();
     for machine in program.machines() {
         for (position, state) in program.machine_states(machine).iter().enumerate() {
@@ -675,10 +674,10 @@ fn collect_callable_contracts(
 /// map lookup each for the state and signature locations rather than the
 /// whole machines x states x trait-signatures walk.
 fn collect_callable_contracts_indexed<'plans>(
-    program: &'plans symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &'plans typed_trees::TypedTrees,
     build: &mut FlowBuildContext<'plans>,
     target: SymbolHandle,
-) -> Vec<&'plans symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContract> {
+) -> Vec<&'plans typed_trees::signature::SignatureContract> {
     let mut contracts = Vec::new();
     if let Some((machine_index, state_index)) = build.state_location(program, target) {
         let machine = &program.machines()[machine_index];
@@ -701,10 +700,10 @@ fn collect_callable_contracts_indexed<'plans>(
 /// in D` in ensures rather than on the carrier type; that is still an exact
 /// result promise, not issuer authorization or an argument qualification.
 pub(crate) fn call_result_qualification_identities(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     target: SymbolHandle,
 ) -> Vec<(
-    Vec<crate::fact_plan::PlaceSegment>,
+    Vec<facts::PlaceSegment>,
     SymbolHandle,
     language_semantics::SemanticDomainId,
 )> {
@@ -721,11 +720,11 @@ pub(crate) fn call_result_qualification_identities(
 /// scans. Used inside `call_result_identities`, so each target pays the
 /// indexed lookup at most once per build.
 fn call_result_qualification_identities_indexed<'plans>(
-    program: &'plans symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &'plans typed_trees::TypedTrees,
     build: &mut FlowBuildContext<'plans>,
     target: SymbolHandle,
 ) -> Vec<(
-    Vec<crate::fact_plan::PlaceSegment>,
+    Vec<facts::PlaceSegment>,
     SymbolHandle,
     language_semantics::SemanticDomainId,
 )> {
@@ -751,18 +750,18 @@ fn call_result_qualification_identities_indexed<'plans>(
 /// peeled carrier is a reference yield none, so every caller can skip the
 /// row build without consulting the (return_type-keyed) domain rows.
 fn result_type_carries_identity_rows(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    return_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    program: &typed_trees::TypedTrees,
+    return_type: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     let mut carrier = return_type;
-    while let symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
+    while let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
         program.type_reference_table.type_reference(carrier)
     {
         carrier = *base_type;
     }
     !matches!(
         program.type_reference_table.type_reference(carrier),
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { .. }
+        typed_trees::types::TypeReferenceNode::Reference { .. }
     )
 }
 
@@ -770,10 +769,10 @@ fn result_type_carries_identity_rows(
 /// type-level constraint domains. Independent of the callable's contracts,
 /// so callers may memoize them per return type.
 fn result_type_domain_rows(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    return_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    program: &typed_trees::TypedTrees,
+    return_type: typed_trees::types::TypeReferenceHandle,
 ) -> Vec<(
-    Vec<crate::fact_plan::PlaceSegment>,
+    Vec<facts::PlaceSegment>,
     SymbolHandle,
     language_semantics::SemanticDomainId,
 )> {
@@ -788,14 +787,12 @@ fn result_type_domain_rows(
 }
 
 fn result_identity_rows(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    return_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
-    parameters: Option<
-        &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter],
-    >,
-    contracts: &[&symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContract],
+    program: &typed_trees::TypedTrees,
+    return_type: typed_trees::types::TypeReferenceHandle,
+    parameters: Option<&[typed_trees::signature::StateParameter]>,
+    contracts: &[&typed_trees::signature::SignatureContract],
 ) -> Vec<(
-    Vec<crate::fact_plan::PlaceSegment>,
+    Vec<facts::PlaceSegment>,
     SymbolHandle,
     language_semantics::SemanticDomainId,
 )> {
@@ -808,26 +805,24 @@ fn result_identity_rows(
 }
 
 fn append_ensures_result_rows(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    parameters: Option<
-        &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter],
-    >,
-    contracts: &[&symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContract],
+    program: &typed_trees::TypedTrees,
+    parameters: Option<&[typed_trees::signature::StateParameter]>,
+    contracts: &[&typed_trees::signature::SignatureContract],
     domains: &mut Vec<(
-        Vec<crate::fact_plan::PlaceSegment>,
+        Vec<facts::PlaceSegment>,
         SymbolHandle,
         language_semantics::SemanticDomainId,
     )>,
 ) {
     for contract in contracts
         .iter()
-        .filter(|contract| contract.kind == symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Ensures)
+        .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Ensures)
     {
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(membership) = fact else {
+            let typed_trees::domain::ProofFact::Membership(membership) = fact else {
                 continue;
             };
-            let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Name(result) =
+            let typed_trees::expression::ExpressionNode::Name(result) =
                 program.expression_table.expression(membership.value)
             else {
                 continue;
@@ -867,7 +862,7 @@ fn append_ensures_result_rows(
 /// position and whether the claim came from the parameter's declared type
 /// rather than an authored `ensures`.
 pub(crate) fn call_parameter_qualification_identities(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     target: SymbolHandle,
 ) -> Vec<(
     usize,
@@ -886,7 +881,7 @@ pub(crate) fn call_parameter_qualification_identities(
 /// lookups and symbol indexes, memoized per target inside
 /// `call_parameter_identities`.
 fn call_parameter_qualification_identities_indexed<'plans>(
-    program: &'plans symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &'plans typed_trees::TypedTrees,
     build: &mut FlowBuildContext<'plans>,
     target: SymbolHandle,
 ) -> Vec<(
@@ -903,9 +898,9 @@ fn call_parameter_qualification_identities_indexed<'plans>(
 }
 
 fn parameter_identity_rows(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    parameters: &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter],
-    contracts: &[&symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContract],
+    program: &typed_trees::TypedTrees,
+    parameters: &[typed_trees::signature::StateParameter],
+    contracts: &[&typed_trees::signature::SignatureContract],
 ) -> Vec<(
     usize,
     SymbolHandle,
@@ -915,10 +910,10 @@ fn parameter_identity_rows(
     let mut rows = Vec::new();
     for contract in contracts
         .iter()
-        .filter(|contract| contract.kind == symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Ensures)
+        .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Ensures)
     {
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(membership) = fact else {
+            let typed_trees::domain::ProofFact::Membership(membership) = fact else {
                 continue;
             };
             let Some(position) = ensured_parameter_position(program, parameters, membership.value)
@@ -952,7 +947,7 @@ fn parameter_identity_rows(
             program
                 .type_reference_table
                 .type_reference(parameter.type_reference),
-            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { access, .. }
+            typed_trees::types::TypeReferenceNode::Reference { access, .. }
                 if access.is_exclusive()
         ) {
             continue;
@@ -976,11 +971,11 @@ fn parameter_identity_rows(
 /// none when the subject is the reserved `result`, a projection, or no exact
 /// parameter of the callable.
 pub(crate) fn ensured_parameter_position(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    parameters: &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter],
-    value: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    program: &typed_trees::TypedTrees,
+    parameters: &[typed_trees::signature::StateParameter],
+    value: typed_trees::expression::ExpressionHandle,
 ) -> Option<usize> {
-    let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Name(path) =
+    let typed_trees::expression::ExpressionNode::Name(path) =
         program.expression_table.expression(value)
     else {
         return None;

@@ -46,7 +46,7 @@ pub(crate) fn lower_evidence_producer_provenance(
                 {
                     return None;
                 }
-                let typed_trees_to_checked_trees::checked_trees::EvidenceAssignmentSource::ProducerConformance {
+                let checked_trees::EvidenceAssignmentSource::ProducerConformance {
                     conformance,
                     evidence_trait,
                     rows,
@@ -116,13 +116,13 @@ pub(crate) fn lower_evidence_producer_provenance(
                                 .symbols
                                 .display_path(row.realization_state, "::"),
                             source: match row.source {
-                                typed_trees_to_checked_trees::checked_trees::DynamicConformanceRowSource::Inline => {
+                                checked_trees::DynamicConformanceRowSource::Inline => {
                                     EvidenceProducerRowSource::Inline
                                 }
-                                typed_trees_to_checked_trees::checked_trees::DynamicConformanceRowSource::Reference => {
+                                checked_trees::DynamicConformanceRowSource::Reference => {
                                     EvidenceProducerRowSource::Reference
                                 }
-                                typed_trees_to_checked_trees::checked_trees::DynamicConformanceRowSource::TraitDefault => {
+                                checked_trees::DynamicConformanceRowSource::TraitDefault => {
                                     EvidenceProducerRowSource::TraitDefault
                                 }
                             },

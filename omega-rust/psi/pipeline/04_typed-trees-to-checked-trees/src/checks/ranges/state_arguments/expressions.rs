@@ -1,6 +1,4 @@
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, ExpressionNode,
-};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 use super::calls::collect_state_argument_facts_for_call;
 use super::{StateArgumentContext, StateArgumentFacts};
@@ -19,7 +17,7 @@ pub(super) fn collect_state_argument_facts_from_expression(
     if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) {
         collect_state_argument_facts_from_expression(context, facts, dispatch.subject, collected);
         for arm in program.expression_table.match_arms(dispatch.arms) {
-            if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+            if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                 collect_state_argument_facts_from_expression(context, facts, pattern, collected);
             }
             let mut selected_facts = facts.clone();
@@ -29,7 +27,7 @@ pub(super) fn collect_state_argument_facts_from_expression(
                 arm.value,
                 collected,
             );
-            if matches!(arm.pattern, symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Wildcard) {
+            if matches!(arm.pattern, typed_trees::expression::MatchPattern::Wildcard) {
                 break;
             }
         }

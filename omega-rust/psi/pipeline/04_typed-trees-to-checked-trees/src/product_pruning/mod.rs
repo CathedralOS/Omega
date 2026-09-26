@@ -69,13 +69,11 @@
 
 use std::collections::HashSet;
 
-use crate::checked_trees::CheckedTrees;
+use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use sha2::{Digest, Sha256};
-use symbol_resolved_trees_to_typed_trees::typed_trees::{
-    AuthoredDeclarationSelectionOccurrenceId, TypedTrees,
-};
 use symbols::SymbolHandle;
+use typed_trees::{AuthoredDeclarationSelectionOccurrenceId, TypedTrees};
 
 mod dependencies;
 mod rewrite;
@@ -468,8 +466,8 @@ mod tests {
 
     use std::collections::HashSet;
 
-    use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
-    use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+    use typed_trees::TypedTrees;
+    use typed_trees::machine::Machine;
 
     fn checked(source: &str) -> CheckedTrees {
         checked_program(source)

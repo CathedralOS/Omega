@@ -1,7 +1,10 @@
+use checked_trees::{
+    CheckedCallScalarArgument, CheckedScalarComputationKind, CheckedScalarExpressionRole,
+    CheckedUnitEffectOperationPlan,
+};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
@@ -9,10 +12,7 @@ use terminal_interpreter::{
     TerminalExecutionResult, TerminalInterpretError, TerminalScalarValue, TerminalStructuralValue,
     interpret_terminal_artifact_measured,
 };
-use typed_trees_to_checked_trees::checked_trees::{
-    CheckedCallScalarArgument, CheckedScalarComputationKind, CheckedScalarExpressionRole,
-    CheckedUnitEffectOperationPlan,
-};
+use typed_trees::statement::StatementNode;
 
 const IDENTITY: &str = r#"
     machine identity(input: u8) -> u8
@@ -21,10 +21,7 @@ const IDENTITY: &str = r#"
     { input }
 "#;
 
-fn encoded(
-    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
-    locals: &[&str],
-) -> (Vec<u8>, Vec<u8>) {
+fn encoded(checked: &checked_trees::CheckedTrees, locals: &[&str]) -> (Vec<u8>, Vec<u8>) {
     let machine = checked
         .typed
         .machines()
@@ -311,7 +308,7 @@ fn successive_computed_outer_calls_reset_arguments_and_admit_no_self_attached_he
 
 #[test]
 fn embedded_static_scalar_helpers_retain_transitive_computation_targets() {
-    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+    use typed_trees::expression::ExpressionNode;
 
     for boundary in [false, true] {
         let outer = outer("first: u8, second: u8", "first, second", boundary);
@@ -437,10 +434,8 @@ fn embedded_static_scalar_helpers_retain_transitive_computation_targets() {
     }
 }
 
-fn assert_static_qualifier_custody(
-    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
-) {
-    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+fn assert_static_qualifier_custody(checked: &checked_trees::CheckedTrees) {
+    use typed_trees::expression::ExpressionNode;
 
     let owner = checked
         .typed
@@ -1053,9 +1048,8 @@ fn nested_argument_roots_and_call_occurrences_rejoin_authored_source() {
                 );
             }
             let mut changed = checked.clone();
-            let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(
-                call,
-            ) = changed.typed.expression_table.expression_mut(authored)
+            let typed_trees::expression::ExpressionNode::Call(call) =
+                changed.typed.expression_table.expression_mut(authored)
             else {
                 panic!("live nested authored call");
             };

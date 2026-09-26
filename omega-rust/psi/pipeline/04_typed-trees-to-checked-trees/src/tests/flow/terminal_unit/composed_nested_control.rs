@@ -5,12 +5,12 @@ use crate::tests::flow::terminal_unit::checked_with_service;
 use crate::tests::flow::terminal_unit::machine_named;
 
 fn conditional_successors(
-    state: &crate::checked_trees::CheckedComposedUnitControlStatePlan,
+    state: &checked_trees::CheckedComposedUnitControlStatePlan,
 ) -> (
-    &crate::checked_trees::CheckedStructuralControlSuccessorPlan,
-    &crate::checked_trees::CheckedStructuralControlSuccessorPlan,
+    &checked_trees::CheckedStructuralControlSuccessorPlan,
+    &checked_trees::CheckedStructuralControlSuccessorPlan,
 ) {
-    let crate::checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {
+    let checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {
         when_true,
         when_false,
         ..
@@ -53,7 +53,7 @@ fn composes_nested_boolean_control_with_one_scalar_handoff() {
     let [entry, dispatch, inner_yes, inner_no, outer_no] = plan.states.as_slice() else {
         panic!("nested composed control retains exactly five states")
     };
-    let crate::checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {
+    let checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {
         when_true,
         when_false,
         ..
@@ -66,12 +66,12 @@ fn composes_nested_boolean_control_with_one_scalar_handoff() {
     assert!(matches!(
         when_true.scalar_arguments.as_slice(),
         [argument]
-            if argument.source == (crate::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 1 })
+            if argument.source == (checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 1 })
                 && argument.target_scalar_parameter_index == 0
     ));
     assert!(matches!(
         dispatch.terminator,
-        crate::checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
+        checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
     ));
     for leaf in [inner_yes, inner_no, outer_no] {
         assert!(matches!(
@@ -276,7 +276,7 @@ fn composes_a_provider_boundary_prefix_with_implicit_self_edges() {
         when_true.scalar_arguments.as_slice(),
         [argument]
             if argument.argument_ordinal == 1
-                && argument.source == (crate::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 1 })
+                && argument.source == (checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 1 })
                 && argument.target_scalar_parameter_index == 0
     ));
     assert_eq!(plan.provider_attachment_requirements.len(), 2);
@@ -318,9 +318,8 @@ fn composes_three_frontiers_with_recursive_scalar_suffix_handoffs() {
     for (index, expected_arguments) in [2, 1, 0].into_iter().enumerate() {
         let control = &plan.states[index];
         assert_eq!(control.scalar_parameters.len(), 3 - index);
-        let crate::checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {
-            when_true,
-            ..
+        let checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {
+            when_true, ..
         } = &control.terminator
         else {
             panic!("every control state remains conditional")
@@ -329,7 +328,7 @@ fn composes_three_frontiers_with_recursive_scalar_suffix_handoffs() {
         for (argument_index, argument) in when_true.scalar_arguments.iter().enumerate() {
             assert_eq!(
                 argument.source,
-                crate::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
+                checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
                     index: (argument_index + 1) as u32
                 }
             );
@@ -385,13 +384,13 @@ fn composes_balanced_control_with_a_convergent_leaf() {
     assert!(matches!(
         entry_true.scalar_arguments.as_slice(),
         [argument]
-            if argument.source == (crate::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 1 })
+            if argument.source == (checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 1 })
                 && argument.target_scalar_parameter_index == 0
     ));
     assert!(matches!(
         entry_false.scalar_arguments.as_slice(),
         [argument]
-            if argument.source == (crate::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 2 })
+            if argument.source == (checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 2 })
                 && argument.target_scalar_parameter_index == 0
     ));
     let (_, left_false) = conditional_successors(left);

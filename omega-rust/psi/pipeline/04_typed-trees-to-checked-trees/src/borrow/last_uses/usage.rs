@@ -1,5 +1,5 @@
-use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use crate::checked_trees::statement::StatementNode;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::statement::StatementNode;
 use symbols::SymbolHandle;
 
 mod expressions;
@@ -16,7 +16,7 @@ use transitions::{
 use crate::borrow::tracker::BorrowOwnerSegment;
 
 pub(super) fn statement_uses_local_name(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     statement: &StatementNode,
     local_name: &str,
 ) -> bool {
@@ -72,7 +72,7 @@ pub(super) fn statement_uses_local_name(
 }
 
 pub(super) fn statement_uses_symbol(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     statement: &StatementNode,
     symbol: SymbolHandle,
 ) -> bool {
@@ -120,7 +120,7 @@ pub(super) fn statement_uses_symbol(
 }
 
 pub(super) fn statement_uses_place_symbol(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     statement: &StatementNode,
@@ -150,7 +150,7 @@ pub(super) fn statement_uses_place_symbol(
         StatementNode::Expression(expression) => expression_uses(*expression),
         StatementNode::LocalData(local_data) => expression_uses(local_data.initial_value),
         StatementNode::Transition(transition) => {
-            matches!(transition.guard, symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionGuardNode::When(expression) if expression_uses(expression))
+            matches!(transition.guard, typed_trees::statement::TransitionGuardNode::When(expression) if expression_uses(expression))
                 || transition_target_uses_place_symbol(
                     program,
                     state_symbol,
@@ -173,7 +173,7 @@ pub(super) fn statement_uses_place_symbol(
 }
 
 pub(super) fn statement_uses_owner_path(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     statement: &StatementNode,
@@ -213,7 +213,7 @@ pub(super) fn statement_uses_owner_path(
         StatementNode::Expression(expression) => uses(*expression),
         StatementNode::LocalData(local_data) => uses(local_data.initial_value),
         StatementNode::Transition(transition) => {
-            matches!(transition.guard, symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionGuardNode::When(expression) if uses(expression))
+            matches!(transition.guard, typed_trees::statement::TransitionGuardNode::When(expression) if uses(expression))
                 || transition_target_uses_owner_path(
                     program,
                     state_symbol,
@@ -238,9 +238,9 @@ pub(super) fn statement_uses_owner_path(
 }
 
 pub(super) fn owner_path_overlaps_place_segments(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     owner_path: &[BorrowOwnerSegment],
-    place_segments: &[crate::fact_plan::PlaceSegment],
+    place_segments: &[facts::PlaceSegment],
 ) -> bool {
     owner_path
         .iter()
@@ -248,23 +248,23 @@ pub(super) fn owner_path_overlaps_place_segments(
         .all(|(owner, place)| match (owner, place) {
             (
                 BorrowOwnerSegment::Field(owner_symbol),
-                crate::fact_plan::PlaceSegment::Field {
+                facts::PlaceSegment::Field {
                     symbol: place_symbol,
                 },
             ) => !place_symbol.is_valid() || owner_symbol == place_symbol,
             (
                 BorrowOwnerSegment::Case(owner_variant),
-                crate::fact_plan::PlaceSegment::Case {
+                facts::PlaceSegment::Case {
                     variant: place_variant,
                 },
             ) => owner_variant == place_variant,
             (
                 BorrowOwnerSegment::FixedIndex(owner_index),
-                crate::fact_plan::PlaceSegment::FixedIndex { index: place_index },
+                facts::PlaceSegment::FixedIndex { index: place_index },
             ) => owner_index == place_index,
             (
                 BorrowOwnerSegment::FixedIndex(owner_index),
-                crate::fact_plan::PlaceSegment::Index { expression },
+                facts::PlaceSegment::Index { expression },
             ) => program
                 .expression_table
                 .constant_integer_value(*expression)
@@ -272,15 +272,14 @@ pub(super) fn owner_path_overlaps_place_segments(
                 .is_none_or(|place_index| *owner_index == place_index),
             (
                 BorrowOwnerSegment::DynamicIndex,
-                crate::fact_plan::PlaceSegment::FixedIndex { .. }
-                | crate::fact_plan::PlaceSegment::Index { .. },
+                facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. },
             ) => true,
             _ => false,
         })
 }
 
 fn expression_uses_owner_path(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
@@ -294,7 +293,7 @@ fn expression_uses_owner_path(
         expression,
     )
     .is_some_and(|place| {
-        matches!(place.root, crate::fact_plan::PlaceRoot::Symbol(root) if root == owner_symbol)
+        matches!(place.root, facts::PlaceRoot::Symbol(root) if root == owner_symbol)
             && owner_path_overlaps_place_segments(program, owner_path, &place.segments)
     }) {
         return true;
@@ -313,7 +312,7 @@ fn expression_uses_owner_path(
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => recurse(dispatch.subject)
             || program.expression_table.match_arms(dispatch.arms).iter().any(|arm| {
-                matches!(arm.pattern, symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) if recurse(pattern))
+                matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(pattern) if recurse(pattern))
                     || recurse(arm.value)
             }),
         ExpressionNode::Atomic(atomic) => recurse(atomic.value),
@@ -355,10 +354,10 @@ fn expression_uses_owner_path(
 }
 
 fn transition_target_uses_owner_path(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    target: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode,
+    target: &typed_trees::statement::TransitionTargetNode,
     owner_symbol: SymbolHandle,
     owner_path: &[BorrowOwnerSegment],
 ) -> bool {
@@ -373,26 +372,26 @@ fn transition_target_uses_owner_path(
         )
     };
     match target {
-        symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => program
+        typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => program
             .statement_table
             .expression_handles(*arguments)
             .iter()
             .any(|argument| uses(*argument)),
-        symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Value(expression) => uses(*expression),
-        symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::SelfTarget
-        | symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Terminal => false,
+        typed_trees::statement::TransitionTargetNode::Value(expression) => uses(*expression),
+        typed_trees::statement::TransitionTargetNode::SelfTarget
+        | typed_trees::statement::TransitionTargetNode::Terminal => false,
     }
 }
 
 fn transition_target_uses_place_symbol(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    target: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode,
+    target: &typed_trees::statement::TransitionTargetNode,
     symbol: SymbolHandle,
 ) -> bool {
     match target {
-        symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => program
+        typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => program
             .statement_table
             .expression_handles(*arguments)
             .iter()
@@ -405,7 +404,7 @@ fn transition_target_uses_place_symbol(
                     symbol,
                 )
             }),
-        symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Value(expression) => {
+        typed_trees::statement::TransitionTargetNode::Value(expression) => {
             expression_uses_place_symbol(
                 program,
                 state_symbol,
@@ -414,7 +413,7 @@ fn transition_target_uses_place_symbol(
                 symbol,
             )
         }
-        symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::SelfTarget
-        | symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Terminal => false,
+        typed_trees::statement::TransitionTargetNode::SelfTarget
+        | typed_trees::statement::TransitionTargetNode::Terminal => false,
     }
 }

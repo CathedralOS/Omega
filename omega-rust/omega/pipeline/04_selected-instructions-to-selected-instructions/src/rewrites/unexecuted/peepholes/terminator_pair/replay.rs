@@ -13,9 +13,8 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use optimization_core::OptimizationWorkBudget;
-use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
-use target_operations_to_selected_instructions::{
+use register_environment::ValidatedTargetRegisterEnvironment;
+use selected_instructions::{
     MachineAlternative, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
     MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
@@ -23,6 +22,7 @@ use target_operations_to_selected_instructions::{
     SelectedInstructionKind, SelectedInstructionPlan, SelectedTerminator,
     ValidatedMachineEffectCatalog,
 };
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::{TerminatorPairError, TerminatorPairReceipt, ValidatedTerminatorPair};
 use crate::ValidatedSelectedAnalysis;
@@ -326,7 +326,7 @@ pub fn validate_terminator_pair_fold(
 /// kind — the descriptor's operand-resolution axis restated as a direct
 /// grammar match.
 fn replayed_operands(
-    function: &target_operations_to_selected_instructions::SelectedFunction,
+    function: &selected_instructions::SelectedFunction,
     producer: &SelectedInstruction,
 ) -> Result<(u64, u64), TerminatorPairError> {
     match producer.kind {
@@ -384,11 +384,11 @@ fn replayed_operands(
 /// contract: the register the flag computation reads is the operand's own,
 /// undecorated.
 fn replay_use(
-    operand: &target_operations_to_selected_instructions::SelectedOperand,
+    operand: &selected_instructions::SelectedOperand,
     position: usize,
-) -> Result<target_operations_to_selected_instructions::VirtualRegisterId, TerminatorPairError> {
+) -> Result<selected_instructions::VirtualRegisterId, TerminatorPairError> {
     if operand.operand != position as u16
-        || operand.access != target_operations_to_selected_instructions::register_model::RegisterOperandAccess::Use
+        || operand.access != register_model::RegisterOperandAccess::Use
         || operand.fixed_view.is_some()
         || operand.tied_to.is_some()
         || operand.early_clobber
@@ -406,7 +406,7 @@ fn decided_successor(
     consumer_kind: MachineSemanticKind,
     left: u64,
     right: u64,
-) -> Option<&target_operations_to_selected_instructions::SelectedSuccessor> {
+) -> Option<&selected_instructions::SelectedSuccessor> {
     match (terminator, consumer_kind) {
         (
             SelectedTerminator::ConditionalBranch {
@@ -503,9 +503,9 @@ fn branch_alternative(
 /// none when the catalog does not declare exactly one such form.
 fn effect_declaration(
     catalog: &ValidatedMachineEffectCatalog,
-    semantic: target_operations_to_selected_instructions::MachineSemanticKind,
-    constraint: target_operations_to_selected_instructions::register_model::RegisterConstraintKey,
-) -> Option<&target_operations_to_selected_instructions::MachineEffectDeclaration> {
+    semantic: selected_instructions::MachineSemanticKind,
+    constraint: register_model::RegisterConstraintKey,
+) -> Option<&selected_instructions::MachineEffectDeclaration> {
     let mut matches = catalog.catalog().declarations.iter().filter(|declaration| {
         declaration.semantic == semantic && declaration.constraint == constraint
     });

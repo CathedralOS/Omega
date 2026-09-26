@@ -56,11 +56,11 @@ mod validation;
 use std::sync::Arc;
 
 use optimization_core::OptimizationUnitIdentity;
-use semantic_vocabulary::FuelScheduleIdentity;
-use target_operations_to_selected_instructions::{
+use selected_instructions::{
     CopyRemovalIdentity, SelectedInstructionId, SelectedInstructionPlan,
     SelectedInstructionPlanIdentity,
 };
+use semantic_vocabulary::FuelScheduleIdentity;
 
 pub(crate) use rewrite::remove_selected_copy;
 pub(crate) use validation::{measured_steps, validate_copy_removal};

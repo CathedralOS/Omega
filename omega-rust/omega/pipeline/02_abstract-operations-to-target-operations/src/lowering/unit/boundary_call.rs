@@ -6,14 +6,10 @@ use super::super::scalar_abi::fixed_native_integer_shape;
 use super::super::structural_layout::structural_sum_layout;
 use super::scalar_call::{KnownUnitInteger, insert_known_unit_integer};
 use crate::LoweringError;
-use crate::calling_conventions::{
-    CallSignature, CallingPolicy, ValueLocation, ValuePlacement, ValueShape, evaluate_call_plan,
-};
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use crate::target_operations::{
-    BoundaryByteSequenceArgument, BoundaryRealization, BoundarySettlementBinding,
-    TargetStructuralParameter, TargetUnitOperation, TargetUnitScalarCallArgument,
-    TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
+use abstract_operations::{AbstractFunction, AbstractOperation};
+use calling_conventions::{
+    CallSignature, CallingPolicy, ValueLocation, ValuePlacement, ValueShape, evaluate_call_plan,
 };
 use semantic_vocabulary::{
     BoundaryMachineId, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType,
@@ -21,10 +17,12 @@ use semantic_vocabulary::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 use target::{Architecture, NativeTarget, ObjectFormat};
-use terminal_psi::{StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape};
-use terminal_psi_to_abstract_operations::abstract_operations::{
-    AbstractFunction, AbstractOperation,
+use target_operations::{
+    BoundaryByteSequenceArgument, BoundaryRealization, BoundarySettlementBinding,
+    TargetStructuralParameter, TargetUnitOperation, TargetUnitScalarCallArgument,
+    TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
 };
+use terminal_psi::{StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape};
 
 mod normalized_foreign;
 
@@ -44,10 +42,7 @@ pub(in crate::lowering) fn lower_boundary_call(
     structural_types: &StructuralTypeLookup<'_>,
     boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
-    native_callbacks: &BTreeMap<
-        OperationId,
-        crate::target_operations::TargetNativeCallbackArgument,
-    >,
+    native_callbacks: &BTreeMap<OperationId, target_operations::TargetNativeCallbackArgument>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
@@ -59,7 +54,7 @@ pub(in crate::lowering) fn lower_boundary_call(
     scalar_homes: &mut BTreeMap<ValueId, TargetUnitScalarHomeRequirement>,
     booleans: &BTreeMap<ValueId, (OperationId, bool)>,
     ieee_float_constants: &BTreeMap<ValueId, (OperationId, semantic_vocabulary::IeeeFloatValue)>,
-    scalar_block_parameters: &BTreeMap<ValueId, crate::target_operations::TargetScalarBlockValue>,
+    scalar_block_parameters: &BTreeMap<ValueId, target_operations::TargetScalarBlockValue>,
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
     nonreturning_boundary: &mut bool,
@@ -83,7 +78,7 @@ pub(in crate::lowering) fn lower_boundary_call(
                 .get(boundary)
                 .copied()
                 .ok_or(LoweringError::UnknownBoundarySettlement(*boundary))?;
-            if let crate::target_operations::BoundarySettlementRealization::NormalizedForeignCall(
+            if let target_operations::BoundarySettlementRealization::NormalizedForeignCall(
                 foreign,
             ) = &binding.realization
             {
@@ -135,9 +130,9 @@ pub(in crate::lowering) fn lower_boundary_call(
                     || !completion_receipts.is_empty()
                     || (result_home.is_some() && function.attachment.is_none())
                     || foreign.boundary_entry_plan.call.policy
-                        != crate::calling_conventions::CallingPolicy::native_for_target(target)
+                        != calling_conventions::CallingPolicy::native_for_target(target)
                     || foreign.boundary_entry_plan.call.entry_control
-                        != crate::calling_conventions::EntryControl::CallReturn
+                        != calling_conventions::EntryControl::CallReturn
                     || foreign.locator.target().native_target() != target
                     || native_callback.is_some_and(|callback| {
                         callback.terminal_operation != *psi_operation
@@ -146,7 +141,7 @@ pub(in crate::lowering) fn lower_boundary_call(
                 {
                     return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
                 }
-                let crate::target_operations::BoundaryExecutionBinding::AdmittedProvider(
+                let target_operations::BoundaryExecutionBinding::AdmittedProvider(
                     provider_execution,
                 ) = binding.execution
                 else {
@@ -178,19 +173,19 @@ pub(in crate::lowering) fn lower_boundary_call(
                 provenance.operations.push(*psi_operation);
                 return Ok(());
             }
-            let crate::target_operations::BoundarySettlementRealization::Builtin(realization) =
+            let target_operations::BoundarySettlementRealization::Builtin(realization) =
                 binding.realization
             else {
                 unreachable!("normalized foreign settlement returns above")
             };
             let target_result = match result {
-                terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Unit => {
+                abstract_operations::AbstractBoundaryResult::Unit => {
                     if !declaration.result.is_unit() {
                         return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
                     }
-                    crate::target_operations::TargetBoundaryResult::Unit
+                    target_operations::TargetBoundaryResult::Unit
                 }
-                terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Structural(result) => {
+                abstract_operations::AbstractBoundaryResult::Structural(result) => {
                     let terminal_psi::BoundaryMachineResult::Structural(expected) =
                         &declaration.result
                     else {
@@ -210,18 +205,18 @@ pub(in crate::lowering) fn lower_boundary_call(
                         shape_cache,
                         active,
                     )?;
-                    crate::target_operations::TargetBoundaryResult::Structural(
-                        crate::target_operations::TargetStructuralHomeRequirement {
+                    target_operations::TargetBoundaryResult::Structural(
+                        target_operations::TargetStructuralHomeRequirement {
                             origin:
-                                crate::target_operations::TargetStructuralHomeOrigin::OperationResult {
+                                target_operations::TargetStructuralHomeOrigin::OperationResult {
                                     operation: *psi_operation,
                                     result: result.clone(),
                                 },
-                            layout: crate::target_operations::TargetStructuralHomeLayout::Sum(layout),
+                            layout: target_operations::TargetStructuralHomeLayout::Sum(layout),
                         },
                     )
                 }
-                terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Scalar(result) => {
+                abstract_operations::AbstractBoundaryResult::Scalar(result) => {
                     // A scalar boundary result is honest only when the closed
                     // realization itself emits the bytes producing it. The
                     // direct port read is that shape: `in al, dx` leaves one
@@ -247,7 +242,7 @@ pub(in crate::lowering) fn lower_boundary_call(
                     {
                         return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
                     }
-                    crate::target_operations::TargetBoundaryResult::Scalar(
+                    target_operations::TargetBoundaryResult::Scalar(
                         TargetUnitScalarHomeRequirement {
                             defining_operation: *psi_operation,
                             source_value: result.value,
@@ -265,12 +260,12 @@ pub(in crate::lowering) fn lower_boundary_call(
                     (realization, &target_result),
                     (
                         BoundaryRealization::DirectPortReadU8(_),
-                        crate::target_operations::TargetBoundaryResult::Scalar(_)
+                        target_operations::TargetBoundaryResult::Scalar(_)
                     )
                 )
                 && !matches!(
                     &target_result,
-                    crate::target_operations::TargetBoundaryResult::Unit
+                    target_operations::TargetBoundaryResult::Unit
                 )
             {
                 return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
@@ -370,8 +365,7 @@ pub(in crate::lowering) fn lower_boundary_call(
                     });
                 }
                 BoundaryRealization::HostedReadByte(_) => {
-                    let crate::target_operations::TargetBoundaryResult::Structural(home) =
-                        &target_result
+                    let target_operations::TargetBoundaryResult::Structural(home) = &target_result
                     else {
                         return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
                     };
@@ -407,7 +401,7 @@ pub(in crate::lowering) fn lower_boundary_call(
                             }
                             _ => false,
                         };
-                    if !crate::target_operations::HostedReadByteRealization::supports_target(target)
+                    if !target_operations::HostedReadByteRealization::supports_target(target)
                         || !valid_payload
                         || !arguments.is_empty()
                         || !structural_arguments.is_empty()
@@ -417,7 +411,7 @@ pub(in crate::lowering) fn lower_boundary_call(
                         || !completion_receipts.is_empty()
                         || !matches!(
                             &target_result,
-                            crate::target_operations::TargetBoundaryResult::Structural(home)
+                            target_operations::TargetBoundaryResult::Structural(home)
                                 if home.layout.sum().is_some_and(|layout| layout.tag_byte_offset == 0
                                     && layout.tag_shape == ValueShape::integer(4, 4))
                         )
@@ -455,13 +449,9 @@ pub(in crate::lowering) fn lower_boundary_call(
                     let exits_process =
                         matches!(realization, BoundaryRealization::HostedExitProcessI32(_));
                     let supports_target = if exits_process {
-                        crate::target_operations::HostedExitProcessI32Realization::supports_target(
-                            target,
-                        )
+                        target_operations::HostedExitProcessI32Realization::supports_target(target)
                     } else {
-                        crate::target_operations::HostedWriteByteI32Realization::supports_target(
-                            target,
-                        )
+                        target_operations::HostedWriteByteI32Realization::supports_target(target)
                     };
                     if exits_process && !supports_target {
                         return Err(LoweringError::HostedExitProcessUnsupportedTarget {
@@ -508,7 +498,7 @@ pub(in crate::lowering) fn lower_boundary_call(
                             != Some(ValuePlacement {
                                 shape: ValueShape::integer(1, 1),
                                 locations: vec![ValueLocation::Register {
-                                    register: crate::calling_conventions::MachineRegister::X86Rax,
+                                    register: calling_conventions::MachineRegister::X86Rax,
                                     value_byte_offset: 0,
                                     byte_size: 1,
                                 }],
@@ -524,8 +514,7 @@ pub(in crate::lowering) fn lower_boundary_call(
                     {
                         return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
                     }
-                    let crate::target_operations::TargetBoundaryResult::Scalar(home) =
-                        &target_result
+                    let target_operations::TargetBoundaryResult::Scalar(home) = &target_result
                     else {
                         return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
                     };

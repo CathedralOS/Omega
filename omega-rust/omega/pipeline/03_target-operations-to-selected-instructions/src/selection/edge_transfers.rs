@@ -1,11 +1,9 @@
 //! Physical edge preparation retains one semantic edge and explicit implementation control.
-use crate::selected_instructions::{
-    SelectedBlockOrigin, SelectedSuccessorRole, SelectedValueTransport,
-};
-use crate::selected_instructions::{
+use crate::selection::model::SelectedInstructionError;
+use selected_instructions::{SelectedBlockOrigin, SelectedSuccessorRole, SelectedValueTransport};
+use selected_instructions::{
     SelectedFunction, SelectedSuccessor, SelectedTerminator, VirtualRegisterId,
 };
-use crate::selection::model::SelectedInstructionError;
 mod addresses;
 mod construction;
 #[cfg(test)]
@@ -57,22 +55,22 @@ fn instruction_count(function: &SelectedFunction) -> usize {
 }
 
 fn stored_transport(
-    transport: crate::selected_instructions::SelectedStructuralTransport,
+    transport: selected_instructions::SelectedStructuralTransport,
 ) -> Option<(
     VirtualRegisterId,
-    crate::selected_instructions::LocalStorageSlotId,
+    selected_instructions::LocalStorageSlotId,
     u32,
     bool,
 )> {
     match transport {
         // An address transport stores a pointer it forms, never bytes it reads.
-        crate::selected_instructions::SelectedStructuralTransport::Unused
-        | crate::selected_instructions::SelectedStructuralTransport::Address { .. } => None,
-        crate::selected_instructions::SelectedStructuralTransport::Descriptor {
+        selected_instructions::SelectedStructuralTransport::Unused
+        | selected_instructions::SelectedStructuralTransport::Address { .. } => None,
+        selected_instructions::SelectedStructuralTransport::Descriptor {
             argument,
             destination,
         } => Some((argument, destination, 16, false)),
-        crate::selected_instructions::SelectedStructuralTransport::WholeValue {
+        selected_instructions::SelectedStructuralTransport::WholeValue {
             argument,
             destination,
             byte_size,

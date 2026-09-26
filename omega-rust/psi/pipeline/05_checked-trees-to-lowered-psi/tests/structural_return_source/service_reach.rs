@@ -3,11 +3,11 @@ use super::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter, TerminalStructuralResult,
     TerminalStructuralValue, decode_module,
 };
-use lowered_psi_to_terminal_psi::terminal_production::{
-    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
-};
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 const NOMINAL_CALLBACK: &str = r#"
     data ByteUnit {}
     data CountedQuantity<Unit> { magnitude: u64; }
@@ -42,16 +42,15 @@ fn nominal_linear_callback_result_accepts_mixed_scalar_arguments() {
     ] {
         let source = mixed_callback_source(body);
         let checked = crate::front_end::checked_program(&source);
-        let artifact =
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-                &checked,
-                TerminalMachineSelection::Name("Main::demand"),
-            )
-            .produce(TerminalProductionCustody::artifact_only(
-                &mut TerminalProductionTimings::default(),
-            ))
-            .expect("publish scalar arguments around a live linear callback result")
-            .into_artifact();
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("Main::demand"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("publish scalar arguments around a live linear callback result")
+        .into_artifact();
         drop(checked);
         execute_identity(&artifact, 32);
         // Computed operands cross ordinary continuation parameters; their
@@ -137,16 +136,15 @@ fn mixed_linear_call_rejects_changed_source_operand_positions() {
         "let forwarded: Region in Owned = Selected(region); Main::with_markers(Main::marker(7), forwarded, Main::marker(9))",
     ] {
         let checked = crate::front_end::checked_program(&mixed_callback_source(body));
-        let _artifact =
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-                &checked,
-                TerminalMachineSelection::Name("Main::demand"),
-            )
-            .produce(TerminalProductionCustody::artifact_only(
-                &mut TerminalProductionTimings::default(),
-            ))
-            .expect("unchanged mixed call publishes")
-            .into_artifact();
+        let _artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("Main::demand"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("unchanged mixed call publishes")
+        .into_artifact();
         for mutation in ["scalar_order", "scalar_arity", "claim_position"] {
             let mut invalid = checked.clone();
             let operation = invalid.facts.flow.terminal_unit_effects.composed_machines
@@ -154,10 +152,10 @@ fn mixed_linear_call_rejects_changed_source_operand_positions() {
             .flat_map(|machine| &mut machine.states)
             .flat_map(|state| &mut state.operations)
             .find(|operation| matches!(operation,
-                typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::StructuralCall { scalar_arguments, .. }
+                checked_trees::CheckedUnitEffectOperationPlan::StructuralCall { scalar_arguments, .. }
                 if scalar_arguments.len() == 2))
             .expect("mixed call in the shared graph");
-            let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::StructuralCall {
+            let checked_trees::CheckedUnitEffectOperationPlan::StructuralCall {
                 scalar_arguments,
                 custody,
                 ..
@@ -174,7 +172,7 @@ fn mixed_linear_call_rejects_changed_source_operand_positions() {
                 _ => unreachable!(),
             }
             assert!(
-                lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                terminal_production::TerminalProductionRequest::new(
                     &invalid,
                     TerminalMachineSelection::Name("Main::demand")
                 )
@@ -193,16 +191,15 @@ fn mixed_linear_call_replay_rejects_stale_values_and_claims() {
     let checked = crate::front_end::checked_program(&mixed_callback_source(
         "let first: Region in Owned = Main::with_markers(7, region, 9); Main::with_markers(11, first, 13)",
     ));
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("Main::demand"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("publish mixed producer and consumer")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::demand"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("publish mixed producer and consumer")
+    .into_artifact();
     drop(checked);
     execute_identity(&artifact, 32);
     let module = decode_module(artifact.semantic_bytes()).expect("reload without source");
@@ -311,16 +308,15 @@ fn nominal_linear_callback_result_feeds_an_ordinary_call() {
     ] {
         let source = NOMINAL_CALLBACK.replace("{ Selected(region) }", &format!("{{ {body} }}"));
         let checked = crate::front_end::checked_program(&source);
-        let artifact =
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-                &checked,
-                TerminalMachineSelection::Name("Main::demand"),
-            )
-            .produce(TerminalProductionCustody::artifact_only(
-                &mut TerminalProductionTimings::default(),
-            ))
-            .expect("publish successive calls carrying one qualified linear claim")
-            .into_artifact();
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("Main::demand"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("publish successive calls carrying one qualified linear claim")
+        .into_artifact();
         drop(checked);
         execute_identity(&artifact, 8);
         let mut module = decode_module(artifact.semantic_bytes()).expect("reload result handoff");
@@ -401,16 +397,15 @@ fn nominal_linear_callback_result_frontier_rejects_stale_and_future_places() {
         "{ let first: Region in Owned = Selected(region); let second: Region in Owned = Main::forward(first); Main::forward(second) }",
     );
     let checked = crate::front_end::checked_program(&source);
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("Main::demand"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("publish three successive calls")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::demand"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("publish three successive calls")
+    .into_artifact();
     drop(checked);
     execute_identity(&artifact, 10);
     let module = decode_module(artifact.semantic_bytes()).expect("reload three-call frontier");
@@ -518,16 +513,15 @@ fn nominal_linear_callback_result_rejects_stale_consumer_custody() {
         "{ let forwarded: Region in Owned = Selected(region); Main::forward(forwarded) }",
     );
     let checked = crate::front_end::checked_program(&source);
-    let _artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("Main::demand"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("unmodified result handoff publishes")
-        .into_artifact();
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::demand"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("unmodified result handoff publishes")
+    .into_artifact();
     for mutation in [
         "moved_parameter",
         "future_result",
@@ -540,10 +534,10 @@ fn nominal_linear_callback_result_rejects_stale_consumer_custody() {
             .flat_map(|machine| &mut machine.states)
             .flat_map(|state| &mut state.operations)
             .find(|operation| matches!(operation,
-                typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::StructuralCall { structural_arguments, .. }
+                checked_trees::CheckedUnitEffectOperationPlan::StructuralCall { structural_arguments, .. }
                 if structural_arguments.iter().any(|argument| argument.source_structural_result_binding_ordinal().is_some())))
             .expect("ordinary result consumer");
-        let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::StructuralCall {
+        let checked_trees::CheckedUnitEffectOperationPlan::StructuralCall {
             structural_arguments,
             result,
             custody,
@@ -555,13 +549,13 @@ fn nominal_linear_callback_result_rejects_stale_consumer_custody() {
         match mutation {
             "moved_parameter" => {
                 structural_arguments[0].source =
-                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                         parameter_index: 0,
                     }
             }
             "future_result" => {
                 structural_arguments[0].source =
-                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         binding_ordinal: result.binding_ordinal,
                     }
             }
@@ -570,7 +564,7 @@ fn nominal_linear_callback_result_rejects_stale_consumer_custody() {
             _ => unreachable!(),
         }
         assert!(
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            terminal_production::TerminalProductionRequest::new(
                 &invalid,
                 TerminalMachineSelection::Name("Main::demand")
             )
@@ -595,16 +589,15 @@ fn nominal_linear_callback_publishes_and_executes_with_exact_reach() {
             panic!("one exact nominal callback application");
         };
         let commitment = specialization.commitment.as_bytes();
-        let artifact =
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-                &checked,
-                TerminalMachineSelection::Name("Main::demand"),
-            )
-            .produce(TerminalProductionCustody::artifact_only(
-                &mut TerminalProductionTimings::default(),
-            ))
-            .expect("publish transitive nominal linear callback")
-            .into_artifact();
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("Main::demand"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("publish transitive nominal linear callback")
+        .into_artifact();
         drop(checked);
         let module =
             decode_module(artifact.semantic_bytes()).expect("reload source-free semantics");
@@ -696,11 +689,11 @@ fn nominal_linear_callback_rejects_stale_checked_call_custody() {
             .find(|operation| {
                 matches!(
                     operation,
-                    typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::StructuralCall { .. }
+                    checked_trees::CheckedUnitEffectOperationPlan::StructuralCall { .. }
                 )
             })
             .expect("ordinary structural call");
-        let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::StructuralCall {
+        let checked_trees::CheckedUnitEffectOperationPlan::StructuralCall {
             coordinate,
             custody,
             result,
@@ -719,7 +712,7 @@ fn nominal_linear_callback_rejects_stale_checked_call_custody() {
             _ => unreachable!(),
         }
         assert!(
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            terminal_production::TerminalProductionRequest::new(
                 &invalid,
                 TerminalMachineSelection::Name("Main::demand")
             )
@@ -767,7 +760,7 @@ fn nominal_linear_callback_rejects_changed_source_claim_lineage() {
             .get_mut(event)
             .claim_identity = PermissionClaimIdentity::Unknown;
         assert!(
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            terminal_production::TerminalProductionRequest::new(
                 &invalid,
                 TerminalMachineSelection::Name("Main::demand")
             )
@@ -837,16 +830,15 @@ fn structural_call_retains_generic_callee_reach_after_publication() {
         };
         let expected_commitment = specialization.commitment.as_bytes();
         let expected_argument = specialization.const_argument_identities[0].clone();
-        let artifact =
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-                &checked,
-                TerminalMachineSelection::Name("Main::through_call"),
-            )
-            .produce(TerminalProductionCustody::artifact_only(
-                &mut TerminalProductionTimings::default(),
-            ))
-            .expect("publish linear structural call")
-            .into_artifact();
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("Main::through_call"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("publish linear structural call")
+        .into_artifact();
         drop(checked);
         let module =
             decode_module(artifact.semantic_bytes()).expect("reload without source custody");
@@ -940,7 +932,7 @@ fn structural_call_rejects_stale_source_coordinates_and_same_shaped_targets() {
             .find(|plan| plan.machine == caller)
             .expect("shared caller plan");
         let [
-            typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::StructuralCall {
+            checked_trees::CheckedUnitEffectOperationPlan::StructuralCall {
                 coordinate,
                 target_machine,
                 target_state,
@@ -962,7 +954,7 @@ fn structural_call_rejects_stale_source_coordinates_and_same_shaped_targets() {
             _ => unreachable!(),
         }
         assert!(
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            terminal_production::TerminalProductionRequest::new(
                 &invalid,
                 TerminalMachineSelection::Name("Main::through_call")
             )

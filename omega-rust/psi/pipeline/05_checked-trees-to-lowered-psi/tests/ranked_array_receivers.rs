@@ -1,5 +1,6 @@
 //! Checked ranked receivers retain primitive-array types through canonical Psi.
 
+use checked_trees::CheckedStructuralAccess;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use semantic_vocabulary::{
     IeeeFloatFormat, IntegerSign, IntegerType, ScalarType, StructuralPlaceKind, StructuralTypeId,
@@ -10,7 +11,6 @@ use terminal_psi::{
     TerminalRankedScc, Terminator,
 };
 use terminal_verifier::{ModuleError, VerificationError};
-use typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess;
 
 const SOURCE: &str = r#"
     data Root { values: [u64; 3]; }

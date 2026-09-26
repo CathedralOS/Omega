@@ -1,6 +1,4 @@
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator,
-};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 
 use super::{BooleanExpressionOwner, ContractExpressionEvaluator};
 
@@ -224,7 +222,7 @@ impl ContractExpressionEvaluator<'_, '_> {
                                 target_machine.symbol
                             }
                         };
-                        symbol_resolved_trees_to_typed_trees::typed_trees::operator::has_builtin_spelled_expression_meaning(
+                        typed_trees::operator::has_builtin_spelled_expression_meaning(
                             self.program,
                             owner_symbol,
                             expression,
@@ -250,10 +248,8 @@ impl ContractExpressionEvaluator<'_, '_> {
         &self,
         expression: ExpressionHandle,
         owner: BooleanExpressionOwner,
-    ) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
-        use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
-            PrimitiveType, TypeReferenceNode,
-        };
+    ) -> Option<typed_trees::types::TypeReferenceHandle> {
+        use typed_trees::types::{PrimitiveType, TypeReferenceNode};
         let reference = match self.program.expression_table.expression(expression) {
             ExpressionNode::Name(path) => {
                 if !path.symbol.is_valid()
@@ -286,7 +282,7 @@ impl ContractExpressionEvaluator<'_, '_> {
                             .iter()
                             .take(self.statement_index)
                             .find_map(|statement| {
-                                let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) =
+                                let typed_trees::statement::StatementNode::LocalData(local) =
                                     statement
                                 else {
                                     return None;

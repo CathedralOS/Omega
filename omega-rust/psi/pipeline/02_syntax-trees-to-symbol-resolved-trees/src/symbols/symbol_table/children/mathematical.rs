@@ -1,4 +1,4 @@
-use crate::symbol_resolved_trees::SymbolResolvedTrees;
+use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTableAppender};
 
 use super::super::names::symbol_seed;
@@ -12,7 +12,7 @@ pub(in crate::symbols) fn insert_mathematical_symbol_children(
     builder: &mut impl SymbolTableAppender,
     program: &SymbolResolvedTrees,
     definition_symbol: SymbolHandle,
-    definition: &crate::symbol_resolved_trees::mathematical::MathematicalDefinition,
+    definition: &symbol_resolved_trees::mathematical::MathematicalDefinition,
     has_sources: bool,
 ) {
     builder.insert_children(
@@ -25,7 +25,7 @@ pub(in crate::symbols) fn insert_mathematical_symbol_children(
             .iter()
             .map(|binder| {
                 let kind = match binder.kind {
-                    crate::symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
+                    symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
                         SymbolKind::MachineParameter
                     }
                     _ => SymbolKind::TypeParameter,

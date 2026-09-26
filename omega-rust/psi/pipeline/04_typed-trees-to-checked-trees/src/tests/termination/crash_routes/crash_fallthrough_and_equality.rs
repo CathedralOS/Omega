@@ -105,7 +105,7 @@ fn direct_crash_fallthrough_does_not_confuse_state_and_entry_parameters() {
 
 fn check_fallthrough_coverage(
     source: &str,
-) -> Result<crate::checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
+) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     checked_program_result(source)
 }
 
@@ -280,7 +280,7 @@ fn checked_call_fallthrough_projects_unselected_arm_facts() {
     let [bucket] = call.surviving_buckets() else {
         panic!("the guarded route survives operand substitution");
     };
-    assert_eq!(bucket.cause(), crate::checked_trees::CrashCause::Trap);
+    assert_eq!(bucket.cause(), checked_trees::CrashCause::Trap);
     assert!(
         !call.path_guard_consequences().is_empty(),
         "the unselected arm contributes its entry-term fact at the call"
@@ -435,12 +435,12 @@ fn crash_bucket_identity_includes_cause_routes_and_unconditional_presence() {
     let grouped = crash("grouped");
     assert_eq!(
         grouped.interface(),
-        crate::checked_trees::CrashInterface::PublishedCeiling
+        checked_trees::CrashInterface::PublishedCeiling
     );
     assert_eq!(grouped.published().len(), 1);
     assert_eq!(
         grouped.published()[0].cause(),
-        crate::checked_trees::CrashCause::Trap
+        checked_trees::CrashCause::Trap
     );
     assert_eq!(grouped.published()[0].alternative_guards().len(), 2);
     assert!(!grouped.published()[0].is_unconditional());
@@ -478,8 +478,7 @@ fn empty_record_equality_retains_existing_boolean_constant_carriers() {
         let [bucket] = contract.crash.published() else {
             panic!("{name} should publish one crash bucket")
         };
-        let [crate::checked_trees::CrashRouteGuard::Predicate(predicate)] =
-            bucket.alternative_guards()
+        let [checked_trees::CrashRouteGuard::Predicate(predicate)] = bucket.alternative_guards()
         else {
             panic!("{name} should publish one predicate")
         };
@@ -488,17 +487,13 @@ fn empty_record_equality_retains_existing_boolean_constant_carriers() {
 
     assert_eq!(
         scalar("equal"),
-        Some(crate::checked_trees::CheckedBooleanExpression::Constant(
-            true
-        ))
+        Some(checked_trees::CheckedBooleanExpression::Constant(true))
     );
     assert_eq!(
         scalar("not_equal"),
-        Some(crate::checked_trees::CheckedBooleanExpression::Not(
-            Box::new(crate::checked_trees::CheckedBooleanExpression::Constant(
-                true
-            ))
-        ))
+        Some(checked_trees::CheckedBooleanExpression::Not(Box::new(
+            checked_trees::CheckedBooleanExpression::Constant(true)
+        )))
     );
 }
 
@@ -564,8 +559,7 @@ fn address_field_equality_stays_outside_structural_crash_predicates() {
         let [bucket] = contract.crash.published() else {
             panic!("{name} should publish one crash bucket")
         };
-        let [crate::checked_trees::CrashRouteGuard::Predicate(predicate)] =
-            bucket.alternative_guards()
+        let [checked_trees::CrashRouteGuard::Predicate(predicate)] = bucket.alternative_guards()
         else {
             panic!("{name} should publish one predicate")
         };
@@ -622,54 +616,46 @@ fn ieee_float_fields_retain_atomic_structural_equality() {
         let [bucket] = contract.crash.published() else {
             panic!("{name} should publish one crash bucket")
         };
-        let [crate::checked_trees::CrashRouteGuard::Predicate(predicate)] =
-            bucket.alternative_guards()
+        let [checked_trees::CrashRouteGuard::Predicate(predicate)] = bucket.alternative_guards()
         else {
             panic!("{name} should publish one predicate")
         };
         predicate.scalar_expression().cloned().expect("scalar term")
     };
-    let format = |expression: &crate::checked_trees::CheckedBooleanExpression| match expression {
-        crate::checked_trees::CheckedBooleanExpression::IeeeFloatComparison {
-            primitive_type,
-            ..
-        } => Some(*primitive_type),
+    let format = |expression: &checked_trees::CheckedBooleanExpression| match expression {
+        checked_trees::CheckedBooleanExpression::IeeeFloatComparison { primitive_type, .. } => {
+            Some(*primitive_type)
+        }
         _ => None,
     };
 
     assert_eq!(
         format(&scalar("narrow")),
-        Some(symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::F32)
+        Some(typed_trees::types::PrimitiveType::F32)
     );
     assert_eq!(
         format(&scalar("wide")),
-        Some(symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::F64)
+        Some(typed_trees::types::PrimitiveType::F64)
     );
     assert!(matches!(
         scalar("narrow_not_equal"),
-        crate::checked_trees::CheckedBooleanExpression::IeeeFloatComparison {
-            kind: crate::checked_trees::CheckedIeeeFloatComparisonKind::NotEqual,
-            primitive_type:
-                symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::F32,
+        checked_trees::CheckedBooleanExpression::IeeeFloatComparison {
+            kind: checked_trees::CheckedIeeeFloatComparisonKind::NotEqual,
+            primitive_type: typed_trees::types::PrimitiveType::F32,
             ..
         }
     ));
-    let crate::checked_trees::CheckedBooleanExpression::And { left, right } = scalar("whole")
-    else {
+    let checked_trees::CheckedBooleanExpression::And { left, right } = scalar("whole") else {
         panic!("two-field float record equality is one conjunction")
     };
     assert!(matches!(
         scalar("whole_not_equal"),
-        crate::checked_trees::CheckedBooleanExpression::Not(operand)
-            if matches!(*operand, crate::checked_trees::CheckedBooleanExpression::And { .. })
+        checked_trees::CheckedBooleanExpression::Not(operand)
+            if matches!(*operand, checked_trees::CheckedBooleanExpression::And { .. })
     ));
     let formats = [format(&left), format(&right)];
-    assert!(formats.contains(&Some(
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::F32
-    )));
-    assert!(formats.contains(&Some(
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::F64
-    )));
+    assert!(formats.contains(&Some(typed_trees::types::PrimitiveType::F32)));
+    assert!(formats.contains(&Some(typed_trees::types::PrimitiveType::F64)));
 }
 
 #[test]
@@ -713,12 +699,11 @@ fn byte_sequence_fields_retain_atomic_content_equality() {
         let [bucket] = contract.crash.published() else {
             panic!("{name} should publish one crash bucket")
         };
-        let [crate::checked_trees::CrashRouteGuard::Predicate(predicate)] =
-            bucket.alternative_guards()
+        let [checked_trees::CrashRouteGuard::Predicate(predicate)] = bucket.alternative_guards()
         else {
             panic!("{name} should publish one predicate")
         };
-        let crate::checked_trees::CheckedBooleanExpression::And { left, right } = predicate
+        let checked_trees::CheckedBooleanExpression::And { left, right } = predicate
             .scalar_expression()
             .expect("whole-record equality remains a checked expression")
         else {
@@ -727,20 +712,20 @@ fn byte_sequence_fields_retain_atomic_content_equality() {
         assert!(
             matches!(
                 left.as_ref(),
-                crate::checked_trees::CheckedBooleanExpression::ByteSequenceEqual { .. }
+                checked_trees::CheckedBooleanExpression::ByteSequenceEqual { .. }
             ) || matches!(
                 right.as_ref(),
-                crate::checked_trees::CheckedBooleanExpression::ByteSequenceEqual { .. }
+                checked_trees::CheckedBooleanExpression::ByteSequenceEqual { .. }
             ),
             "{name} should retain byte content equality as one atomic leaf"
         );
         assert!(
             matches!(
                 left.as_ref(),
-                crate::checked_trees::CheckedBooleanExpression::Equal { .. }
+                checked_trees::CheckedBooleanExpression::Equal { .. }
             ) || matches!(
                 right.as_ref(),
-                crate::checked_trees::CheckedBooleanExpression::Equal { .. }
+                checked_trees::CheckedBooleanExpression::Equal { .. }
             ),
             "{name} should retain its scalar sibling independently"
         );
@@ -776,8 +761,7 @@ fn payloadless_sum_equality_retains_closed_case_roster() {
         let [bucket] = contract.crash.published() else {
             panic!("{name} should publish one crash bucket")
         };
-        let [crate::checked_trees::CrashRouteGuard::Predicate(predicate)] =
-            bucket.alternative_guards()
+        let [checked_trees::CrashRouteGuard::Predicate(predicate)] = bucket.alternative_guards()
         else {
             panic!("{name} should publish one predicate")
         };
@@ -786,21 +770,21 @@ fn payloadless_sum_equality_retains_closed_case_roster() {
 
     assert!(matches!(
         expression("equal"),
-        crate::checked_trees::CheckedBooleanExpression::PayloadlessSumEqual { cases, .. }
+        checked_trees::CheckedBooleanExpression::PayloadlessSumEqual { cases, .. }
             if cases == ["Off", "On"]
     ));
     assert!(matches!(
         expression("not_equal"),
-        crate::checked_trees::CheckedBooleanExpression::Not(operand)
+        checked_trees::CheckedBooleanExpression::Not(operand)
             if matches!(operand.as_ref(),
-                crate::checked_trees::CheckedBooleanExpression::PayloadlessSumEqual { cases, .. }
+                checked_trees::CheckedBooleanExpression::PayloadlessSumEqual { cases, .. }
                     if cases.len() == 2 && cases[0] == "Off" && cases[1] == "On")
     ));
 }
 
 #[test]
 fn nested_payload_bearing_sum_equality_retains_record_case_payload_paths() {
-    use crate::checked_trees::{
+    use checked_trees::{
         CheckedBooleanExpression, CheckedScalarExpression,
         CheckedStructuralPredicatePathSegment as Path,
     };
@@ -873,8 +857,7 @@ fn nested_payload_bearing_sum_equality_retains_record_case_payload_paths() {
     let [bucket] = contract.crash.published() else {
         panic!("equal should publish one crash bucket")
     };
-    let [crate::checked_trees::CrashRouteGuard::Predicate(predicate)] = bucket.alternative_guards()
-    else {
+    let [checked_trees::CrashRouteGuard::Predicate(predicate)] = bucket.alternative_guards() else {
         panic!("equal should publish one predicate")
     };
     let expression = predicate
@@ -902,7 +885,7 @@ fn nested_payload_bearing_sum_equality_retains_record_case_payload_paths() {
 
 #[test]
 fn payload_sum_equality_expands_acyclic_nested_records_with_exact_paths() {
-    use crate::checked_trees::{
+    use checked_trees::{
         CheckedBooleanExpression, CheckedScalarExpression,
         CheckedStructuralPredicatePathSegment as Path,
     };
@@ -979,8 +962,7 @@ fn payload_sum_equality_expands_acyclic_nested_records_with_exact_paths() {
         let [bucket] = contract.crash.published() else {
             panic!("{name} should publish one crash bucket")
         };
-        let [crate::checked_trees::CrashRouteGuard::Predicate(predicate)] =
-            bucket.alternative_guards()
+        let [checked_trees::CrashRouteGuard::Predicate(predicate)] = bucket.alternative_guards()
         else {
             panic!("{name} should publish one predicate")
         };
@@ -1011,7 +993,7 @@ fn payload_sum_equality_expands_acyclic_nested_records_with_exact_paths() {
 
 #[test]
 fn payload_sum_equality_expands_acyclic_nested_sums_with_exact_paths() {
-    use crate::checked_trees::{
+    use checked_trees::{
         CheckedBooleanExpression, CheckedScalarExpression,
         CheckedStructuralPredicatePathSegment as Path,
     };
@@ -1094,8 +1076,7 @@ fn payload_sum_equality_expands_acyclic_nested_sums_with_exact_paths() {
         let [bucket] = contract.crash.published() else {
             panic!("{name} should publish one crash bucket")
         };
-        let [crate::checked_trees::CrashRouteGuard::Predicate(predicate)] =
-            bucket.alternative_guards()
+        let [checked_trees::CrashRouteGuard::Predicate(predicate)] = bucket.alternative_guards()
         else {
             panic!("{name} should publish one predicate")
         };

@@ -8,12 +8,8 @@
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-use target_operations_to_selected_instructions::register_model::{
-    RegisterOperandAccess, RegisterUnitId,
-};
-use target_operations_to_selected_instructions::{
-    SelectedFunction, SelectedValueTransport, VirtualRegisterId,
-};
+use register_model::{RegisterOperandAccess, RegisterUnitId};
+use selected_instructions::{SelectedFunction, SelectedValueTransport, VirtualRegisterId};
 
 use super::{LivenessError, block_instructions, control};
 
@@ -88,9 +84,9 @@ impl FunctionFlow {
                 if let Some(case) = &successor.structural_case {
                     substitutions.extend(case.payloads.iter().filter_map(|payload| {
                         match payload.transport {
-                            target_operations_to_selected_instructions::SelectedCasePayloadTransport::Registers { argument, parameter } => Some((parameter, argument)),
-                            target_operations_to_selected_instructions::SelectedCasePayloadTransport::Unused
-                            | target_operations_to_selected_instructions::SelectedCasePayloadTransport::Unmaterialized { .. } => None,
+                            selected_instructions::SelectedCasePayloadTransport::Registers { argument, parameter } => Some((parameter, argument)),
+                            selected_instructions::SelectedCasePayloadTransport::Unused
+                            | selected_instructions::SelectedCasePayloadTransport::Unmaterialized { .. } => None,
                         }
                     }));
                 }

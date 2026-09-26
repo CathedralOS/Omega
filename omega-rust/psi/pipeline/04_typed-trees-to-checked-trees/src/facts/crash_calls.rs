@@ -17,7 +17,6 @@ mod summary_predicates;
 #[cfg(test)]
 mod tests;
 
-use crate::checked_trees::CrashPredicateExpression;
 use crate::facts::crash_calls::private_summaries::{
     infer_private_body_summaries, requirement_signature,
 };
@@ -27,16 +26,17 @@ use crate::facts::crash_calls::route_substitution::{
 use crate::facts::crash_calls::summary_predicates::{
     SummaryCrashBucket, normalize_summary_buckets,
 };
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use checked_trees::CrashPredicateExpression;
 use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
 
 pub(super) fn crash_predicate_from_expression(
     program: &TypedTrees,
-    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    expression: typed_trees::expression::ExpressionHandle,
     parameter_names: &[String],
-    content_conservation: Option<&[crate::validation::ContentConservationSourcePlan]>,
+    content_conservation: Option<&[validation::ContentConservationSourcePlan]>,
 ) -> CrashPredicateExpression {
-    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+    use typed_trees::expression::ExpressionNode;
 
     if let Some(conservation) = content_conservation.and_then(|plans| {
         plans
@@ -184,14 +184,14 @@ pub(super) fn crash_predicate_from_expression(
 /// without reopening source trees.
 pub(super) fn attach_checked_crash_calls(
     program: &TypedTrees,
-    operators: &crate::checked_trees::CheckedOperatorFacts,
-    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
-    semantic: &crate::fact_plan::FactPlan,
-    flow: &crate::checked_trees::FlowFacts,
-    content_conservation: &[crate::validation::ContentConservationSourcePlan],
-    crash_capsules: &[crate::checked_trees::CrashContractCapsule],
-    plans: &mut [crate::checked_trees::MachineContractPlan],
-    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
+    operators: &checked_trees::CheckedOperatorFacts,
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
+    semantic: &facts::FactPlan,
+    flow: &checked_trees::FlowFacts,
+    content_conservation: &[validation::ContentConservationSourcePlan],
+    crash_capsules: &[checked_trees::CrashContractCapsule],
+    plans: &mut [checked_trees::MachineContractPlan],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) {
     let inferred_body_summaries = infer_private_body_summaries(
         program,
@@ -204,10 +204,8 @@ pub(super) fn attach_checked_crash_calls(
         plans,
         call_frames,
     );
-    let mut calls_by_caller = Vec::<(
-        SymbolHandle,
-        Vec<crate::checked_trees::CheckedCrashCallSite>,
-    )>::new();
+    let mut calls_by_caller =
+        Vec::<(SymbolHandle, Vec<checked_trees::CheckedCrashCallSite>)>::new();
     for (_, state_flow) in flow.control.states.iter() {
         for call_flow in flow.control.calls.span_or_empty(state_flow.calls) {
             let Some((target_machine_symbol, target_state_symbol)) =
@@ -399,8 +397,8 @@ pub(super) fn attach_checked_crash_calls(
                     calls_by_caller.len() - 1
                 });
             calls_by_caller[caller_index].1.push(
-                crate::checked_trees::CheckedCrashCallSite::new_with_commitment(
-                    crate::checked_trees::CrashCallSiteLocation::new(
+                checked_trees::CheckedCrashCallSite::new_with_commitment(
+                    checked_trees::CrashCallSiteLocation::new(
                         state_flow.state_symbol,
                         u32::try_from(call_flow.statement_index)
                             .expect("statement ordinal exceeds checked crash-call identity range"),
@@ -433,9 +431,9 @@ pub(super) fn attach_checked_crash_calls(
 
 pub(crate) fn infer_checked_machine_crash_causes(
     program: &TypedTrees,
-    facts: &crate::checked_trees::CheckFacts,
+    facts: &checked_trees::CheckFacts,
     machine: SymbolHandle,
-) -> Option<Vec<crate::checked_trees::CrashCause>> {
+) -> Option<Vec<checked_trees::CrashCause>> {
     let mut matching = infer_checked_crash_causes(program, facts)
         .into_iter()
         .filter(|(candidate, _)| *candidate == machine);
@@ -445,9 +443,9 @@ pub(crate) fn infer_checked_machine_crash_causes(
 
 pub(crate) fn infer_checked_crash_causes(
     program: &TypedTrees,
-    facts: &crate::checked_trees::CheckFacts,
-) -> Vec<(SymbolHandle, Vec<crate::checked_trees::CrashCause>)> {
-    let content_conservation = crate::validation::content_conservation_plans(program);
+    facts: &checked_trees::CheckFacts,
+) -> Vec<(SymbolHandle, Vec<checked_trees::CrashCause>)> {
+    let content_conservation = validation::content_conservation_plans(program);
     // Validation-only exact-cast facts are not retained in CheckedTrees. They
     // feed only CallArgumentSubstitution.scalar, never its identity. Guard
     // retention, equality and fixed-point closure still use the identity

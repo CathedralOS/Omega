@@ -43,8 +43,8 @@ pub(super) enum ExplicitArgumentCapacity {
 #[allow(clippy::too_many_arguments)]
 pub(super) fn collect_call_proposals(
     program: &TypedTrees,
-    caller_machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    caller_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    caller_machine: &typed_trees::machine::Machine,
+    caller_state: &typed_trees::state::State,
     candidates: &[Candidate],
     callee_states: &[CalleeState],
     target_symbol: SymbolHandle,
@@ -110,14 +110,14 @@ pub(super) fn collect_call_proposals(
         // evidence, so the shared result-type evaluator supplies the actual
         // type when no place declaration exists. An unresolved result still
         // declines to propose, keeping underdetermined calls rejecting.
-        let Some(actual) = crate::validation::declared_place_type_raw(
+        let Some(actual) = validation::declared_place_type_raw(
             program,
             caller_machine,
             Some(caller_state),
             *argument,
         )
         .or_else(|| {
-            crate::validation::expression_result_type_reference(
+            validation::expression_result_type_reference(
                 program,
                 caller_machine,
                 caller_state,
@@ -215,7 +215,7 @@ pub(super) fn collect_call_selections(
                 );
                 match program.statement_table.statement(handle) {
                     StatementNode::Call(call)
-                        if symbol_resolved_trees_to_typed_trees::typed_trees::operator::declaration_by_symbol(
+                        if typed_trees::operator::declaration_by_symbol(
                             program,
                             call.target_symbol,
                         )
@@ -247,7 +247,7 @@ pub(super) fn collect_call_selections(
                     StatementNode::LocalData(local) if local.initial_value.is_valid() => {
                         if let ExpressionNode::Call(call) =
                             program.expression_table.expression(local.initial_value)
-                            && symbol_resolved_trees_to_typed_trees::typed_trees::operator::resolve_named_expression_call(program, call)
+                            && typed_trees::operator::resolve_named_expression_call(program, call)
                                 .is_none()
                         {
                             covered_expressions.insert(local.initial_value);
@@ -276,7 +276,7 @@ pub(super) fn collect_call_selections(
                     StatementNode::Expression(expression) => {
                         if let ExpressionNode::Call(call) =
                             program.expression_table.expression(*expression)
-                            && symbol_resolved_trees_to_typed_trees::typed_trees::operator::resolve_named_expression_call(program, call)
+                            && typed_trees::operator::resolve_named_expression_call(program, call)
                                 .is_none()
                         {
                             covered_expressions.insert(*expression);
@@ -366,7 +366,7 @@ pub(super) fn collect_call_selections(
                 else {
                     continue;
                 };
-                if symbol_resolved_trees_to_typed_trees::typed_trees::operator::resolve_named_expression_call(program, call).is_some() {
+                if typed_trees::operator::resolve_named_expression_call(program, call).is_some() {
                     continue;
                 }
                 covered_expressions.insert(expression);
@@ -421,7 +421,7 @@ pub(super) fn collect_call_selections(
         let ExpressionNode::Call(call) = expression else {
             continue;
         };
-        if symbol_resolved_trees_to_typed_trees::typed_trees::operator::resolve_named_expression_call(program, call).is_some() {
+        if typed_trees::operator::resolve_named_expression_call(program, call).is_some() {
             continue;
         }
         let Some(callee) = resolve_callee(callee_states, call.target_symbol, call.target.as_str())
@@ -472,27 +472,22 @@ pub(super) fn collect_call_selections(
 /// (`Box::settle`) or a receiver whose declared type cannot be recovered.
 fn expression_receiver_type(
     program: &TypedTrees,
-    caller_machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    caller_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    caller_machine: &typed_trees::machine::Machine,
+    caller_state: &typed_trees::state::State,
     receiver: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     if !receiver.is_valid() {
         return None;
     }
-    crate::validation::declared_place_type_raw(
-        program,
-        caller_machine,
-        Some(caller_state),
-        receiver,
-    )
-    .or_else(|| {
-        crate::validation::expression_result_type_reference(
-            program,
-            caller_machine,
-            caller_state,
-            receiver,
-        )
-    })
+    validation::declared_place_type_raw(program, caller_machine, Some(caller_state), receiver)
+        .or_else(|| {
+            validation::expression_result_type_reference(
+                program,
+                caller_machine,
+                caller_state,
+                receiver,
+            )
+        })
 }
 
 /// A statement call retains its receiver as a name path plus the root and
@@ -503,9 +498,9 @@ fn expression_receiver_type(
 /// member symbols, so only the leaf's own declared type remains usable.
 fn statement_receiver_type(
     program: &TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    state: &typed_trees::state::State,
     site: CallSite,
-    call: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableCall,
+    call: &typed_trees::statement::TableCall,
 ) -> Option<TypeReferenceHandle> {
     if !call.receiver_root_symbol.is_valid() || !call.receiver_symbol.is_valid() {
         return None;
@@ -515,7 +510,7 @@ fn statement_receiver_type(
     let segments = match members.len() {
         0 => return None,
         1 => Vec::new(),
-        2 => vec![crate::fact_plan::PlaceSegment::Field {
+        2 => vec![facts::PlaceSegment::Field {
             symbol: call.receiver_symbol,
         }],
         _ => return declared_member_type(program, call.receiver_symbol),
@@ -525,7 +520,7 @@ fn statement_receiver_type(
         state.symbol,
         statement_index,
         &crate::flow::CanonicalPlace {
-            root: crate::fact_plan::PlaceRoot::Symbol(call.receiver_root_symbol),
+            root: facts::PlaceRoot::Symbol(call.receiver_root_symbol),
             segments,
         },
     )
@@ -545,12 +540,10 @@ fn declared_member_type(
             .data_members(data)
             .iter()
             .find_map(|member| match member {
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
-                    field,
-                ) => (field.symbol == member_symbol).then_some(field.type_reference),
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
-                    variant,
-                ) => program
+                typed_trees::data::DataMember::Field(field) => {
+                    (field.symbol == member_symbol).then_some(field.type_reference)
+                }
+                typed_trees::data::DataMember::Variant(variant) => program
                     .data_payload_fields(variant)
                     .iter()
                     .find_map(|field| {

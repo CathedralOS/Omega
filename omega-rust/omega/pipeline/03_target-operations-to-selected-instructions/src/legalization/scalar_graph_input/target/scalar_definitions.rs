@@ -8,9 +8,7 @@ use crate::legalization::scalar_graph_input::target::location_matches;
 use crate::legalization::scalar_graph_input::{
     saturating_carrier, supports_wrapping_division, trapping_form,
 };
-use abstract_operations_to_target_operations::target_operations::{
-    ScalarAbiValue, TargetUnitScalarArgumentSource as Source,
-};
+use target_operations::{ScalarAbiValue, TargetUnitScalarArgumentSource as Source};
 
 pub(super) fn validate(
     target: &TargetUnitOperation,

@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
 use optimization_core::OptimizationWorkBudget;
-use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
-use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
-use target_operations_to_selected_instructions::{
+use register_environment::ValidatedTargetRegisterEnvironment;
+use register_model::RegisterOperandAccess;
+use selected_instructions::{
     SelectedFunction, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
 };
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::{AddressFoldError, AddressFoldReceipt, ValidatedAddressFold, admission};
 use crate::ValidatedSelectedAnalysis;

@@ -1,4 +1,4 @@
-use crate::legalized_operations::{LegalizedOperationPlan, LegalizedOperationPlanIdentity};
+use legalized_operations::{LegalizedOperationPlan, LegalizedOperationPlanIdentity};
 use optimization_core::OptimizationValidatorIdentity;
 
 pub(crate) fn legalization_validator_identity() -> OptimizationValidatorIdentity {
@@ -97,7 +97,7 @@ pub enum LegalizationError {
     /// diagnostic instead of collapsing into `SourceCustodyMismatch`.
     UnsupportedScalarOperation {
         machine: semantic_vocabulary::MachineId,
-        operation: terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation,
+        operation: abstract_operations::AbstractOperation,
     },
     UnsupportedSourceShape {
         function: usize,

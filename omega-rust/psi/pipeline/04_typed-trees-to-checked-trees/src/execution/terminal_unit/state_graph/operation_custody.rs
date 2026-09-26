@@ -12,7 +12,7 @@ use super::{
 
 pub(super) fn admit(
     program: &TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    state: &typed_trees::state::State,
     operations: &mut [CheckedUnitEffectOperationPlan],
     trace: &control::LocalConstructionTrace,
 ) -> Option<()> {
@@ -185,7 +185,7 @@ pub(super) fn admit(
                 && destination.access == CheckedStructuralAccess::Owned
                 && matches!(
                     value.source,
-                    crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         ..
                     }
                 )
@@ -203,7 +203,7 @@ pub(super) fn admit(
                 if affine_discards.iter().all(|discard| {
                     matches!(
                     discard.source,
-                    crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         ..
                     }
                 )

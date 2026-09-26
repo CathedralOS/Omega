@@ -42,7 +42,7 @@ fn seeded_continuation_appends_a_plain_type_generic_machine_exactly_once() {
     };
     assert!(matches!(
         type_parameter.kind,
-        crate::typed_trees::data::TypeParameterKind::Type
+        typed_trees::data::TypeParameterKind::Type
     ));
     let [state] = typed.machine_states(generated) else {
         panic!("generated machine retains one entry state")
@@ -50,7 +50,7 @@ fn seeded_continuation_appends_a_plain_type_generic_machine_exactly_once() {
     let [value] = typed.state_parameters(state) else {
         panic!("generated machine retains one value parameter")
     };
-    let crate::typed_trees::types::TypeReferenceNode::Reference { referee, .. } = typed
+    let typed_trees::types::TypeReferenceNode::Reference { referee, .. } = typed
         .type_reference_table
         .type_reference(value.type_reference)
     else {
@@ -58,7 +58,7 @@ fn seeded_continuation_appends_a_plain_type_generic_machine_exactly_once() {
     };
     assert!(matches!(
         typed.type_reference_table.type_reference(*referee),
-        crate::typed_trees::types::TypeReferenceNode::Named { symbol, name }
+        typed_trees::types::TypeReferenceNode::Named { symbol, name }
             if *symbol == type_parameter.symbol && name.as_str() == "T"
     ));
 }
@@ -80,11 +80,11 @@ fn seeded_continuation_retains_generic_machine_type_property_bounds() {
     };
     assert!(matches!(
         type_parameter.kind,
-        crate::typed_trees::data::TypeParameterKind::Type
+        typed_trees::data::TypeParameterKind::Type
     ));
     assert_eq!(
         type_parameter.bounds,
-        crate::typed_trees::data::DataProperties {
+        typed_trees::data::DataProperties {
             carry: None,
             multiplicity: language_semantics::Multiplicity::Unrestricted,
         },
@@ -101,7 +101,7 @@ fn seeded_continuation_retains_generic_machine_type_property_bounds() {
     let [value] = typed.state_parameters(state) else {
         panic!("generated machine retains one value parameter")
     };
-    let crate::typed_trees::types::TypeReferenceNode::Reference { referee, .. } = typed
+    let typed_trees::types::TypeReferenceNode::Reference { referee, .. } = typed
         .type_reference_table
         .type_reference(value.type_reference)
     else {
@@ -109,7 +109,7 @@ fn seeded_continuation_retains_generic_machine_type_property_bounds() {
     };
     assert!(matches!(
         typed.type_reference_table.type_reference(*referee),
-        crate::typed_trees::types::TypeReferenceNode::Named { symbol, name }
+        typed_trees::types::TypeReferenceNode::Named { symbol, name }
             if *symbol == type_parameter.symbol && name.as_str() == "T"
     ));
 }
@@ -138,7 +138,7 @@ fn seeded_continuation_retains_generic_machine_four_axis_carry_bound() {
     };
     assert_eq!(
         type_parameter.bounds,
-        crate::typed_trees::data::DataProperties {
+        typed_trees::data::DataProperties {
             carry: Some(language_semantics::CarryPolicy::PERMISSIVE),
             multiplicity: language_semantics::Multiplicity::Affine,
         },
@@ -172,11 +172,10 @@ fn seeded_continuation_retains_a_structural_static_machine_binder() {
         typed.symbols.get(type_parameter.symbol).parent,
         generated.symbol
     );
-    let crate::typed_trees::data::TypeParameterKind::Machine { contract } = &type_parameter.kind
-    else {
+    let typed_trees::data::TypeParameterKind::Machine { contract } = &type_parameter.kind else {
         panic!("Selected remains a static-machine binder")
     };
-    let crate::typed_trees::data::MachineParameterContract::Structural(signature) = contract else {
+    let typed_trees::data::MachineParameterContract::Structural(signature) = contract else {
         panic!("Selected retains its structural callback contract")
     };
     assert_eq!(signature.symbol, type_parameter.symbol);
@@ -189,7 +188,7 @@ fn seeded_continuation_retains_a_structural_static_machine_binder() {
         typed
             .type_reference_table
             .type_reference(contract_value.type_reference),
-        crate::typed_trees::types::TypeReferenceNode::Named { symbol, name }
+        typed_trees::types::TypeReferenceNode::Named { symbol, name }
             if typed.symbols.builtin_type_atom(*symbol) == Some(symbols::BuiltinTypeAtom::U64)
                 && name.as_str() == "u64"
     ));
@@ -197,7 +196,7 @@ fn seeded_continuation_retains_a_structural_static_machine_binder() {
         typed
             .type_reference_table
             .type_reference(signature.return_type),
-        crate::typed_trees::types::TypeReferenceNode::Named { symbol, name }
+        typed_trees::types::TypeReferenceNode::Named { symbol, name }
             if typed.symbols.builtin_type_atom(*symbol) == Some(symbols::BuiltinTypeAtom::U64)
                 && name.as_str() == "u64"
     ));
@@ -208,7 +207,7 @@ fn seeded_continuation_retains_a_structural_static_machine_binder() {
             .any(|(_, expression)| {
                 matches!(
                     expression,
-                    crate::typed_trees::expression::ExpressionNode::Call(call)
+                    typed_trees::expression::ExpressionNode::Call(call)
                         if call.target_symbol == type_parameter.symbol
                 )
             })
@@ -251,11 +250,10 @@ fn seeded_continuation_retains_a_base_owned_nominal_static_machine_binder() {
     let [type_parameter] = typed.machine_type_parameters(generated) else {
         panic!("generated machine retains one exact static-machine parameter")
     };
-    let crate::typed_trees::data::TypeParameterKind::Machine { contract } = &type_parameter.kind
-    else {
+    let typed_trees::data::TypeParameterKind::Machine { contract } = &type_parameter.kind else {
         panic!("Selected remains a static-machine binder")
     };
-    let crate::typed_trees::data::MachineParameterContract::Nominal {
+    let typed_trees::data::MachineParameterContract::Nominal {
         trait_definition,
         requirement: retained_requirement,
     } = contract
@@ -264,7 +262,7 @@ fn seeded_continuation_retains_a_base_owned_nominal_static_machine_binder() {
     };
     assert_eq!(*trait_definition, operation.symbol);
     assert_eq!(*retained_requirement, requirement.symbol);
-    let crate::typed_trees::data::MachineParameterContractView::Nominal {
+    let typed_trees::data::MachineParameterContractView::Nominal {
         trait_definition: retained_trait,
         requirement: retained_signature,
     } = typed
@@ -282,7 +280,7 @@ fn seeded_continuation_retains_a_base_owned_nominal_static_machine_binder() {
             .any(|(_, expression)| {
                 matches!(
                     expression,
-                    crate::typed_trees::expression::ExpressionNode::Call(call)
+                    typed_trees::expression::ExpressionNode::Call(call)
                         if call.target_symbol == type_parameter.symbol
                 )
             })
@@ -326,11 +324,10 @@ fn seeded_continuation_retains_an_extension_owned_nominal_static_machine_binder(
     let [type_parameter] = typed.machine_type_parameters(generated) else {
         panic!("generated machine retains one exact static-machine parameter")
     };
-    let crate::typed_trees::data::TypeParameterKind::Machine { contract } = &type_parameter.kind
-    else {
+    let typed_trees::data::TypeParameterKind::Machine { contract } = &type_parameter.kind else {
         panic!("Selected remains a static-machine binder")
     };
-    let crate::typed_trees::data::MachineParameterContractView::Nominal {
+    let typed_trees::data::MachineParameterContractView::Nominal {
         trait_definition,
         requirement: selected_requirement,
     } = typed
@@ -419,8 +416,8 @@ fn seeded_nominal_machine_gate_replays_the_exact_base_requirement_pair() {
     else {
         unreachable!()
     };
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameterKind::Machine {
-        contract: syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::MachineParameterContract::Nominal { requirement, .. },
+    let symbol_resolved_trees::data::TypeParameterKind::Machine {
+        contract: symbol_resolved_trees::data::MachineParameterContract::Nominal { requirement, .. },
     } = &mut drifted.kind
     else {
         panic!("Selected retains a resolved nominal contract")
@@ -446,15 +443,15 @@ fn seeded_nominal_machine_gate_replays_the_exact_base_requirement_pair() {
     else {
         unreachable!()
     };
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameterKind::Machine {
+    let symbol_resolved_trees::data::TypeParameterKind::Machine {
         contract:
-            syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::MachineParameterContract::Nominal { authored_path, .. },
+            symbol_resolved_trees::data::MachineParameterContract::Nominal { authored_path, .. },
     } = &mut drifted.kind
     else {
         unreachable!()
     };
     *authored_path.last_mut().expect("Trait::requirement path") =
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName::generated("other");
+        symbol_resolved_trees::name::DiagnosticName::generated("other");
     assert!(
         !seeded_extension_shape_is_supported(
             &path_drift,
@@ -474,11 +471,11 @@ fn seeded_nominal_machine_gate_replays_the_exact_base_requirement_pair() {
     else {
         unreachable!()
     };
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameterKind::Machine { contract } = &mut drifted.kind
+    let symbol_resolved_trees::data::TypeParameterKind::Machine { contract } = &mut drifted.kind
     else {
         unreachable!()
     };
-    *contract = syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::MachineParameterContract::RequirementIdentity;
+    *contract = symbol_resolved_trees::data::MachineParameterContract::RequirementIdentity;
     assert!(
         !seeded_extension_shape_is_supported(
             &declaration_identity,
@@ -554,7 +551,7 @@ fn seeded_continuation_appends_a_lifetime_generic_machine_with_exact_binder_cust
         panic!("generated machine retains one value parameter")
     };
     for type_reference in [value.type_reference, state.return_type] {
-        let crate::typed_trees::types::TypeReferenceNode::Reference {
+        let typed_trees::types::TypeReferenceNode::Reference {
             referee, lifetime, ..
         } = typed.type_reference_table.type_reference(type_reference)
         else {
@@ -563,7 +560,7 @@ fn seeded_continuation_appends_a_lifetime_generic_machine_with_exact_binder_cust
         assert_eq!(lifetime.as_ref().map(|name| name.as_str()), Some("loan"));
         assert!(matches!(
             typed.type_reference_table.type_reference(*referee),
-            crate::typed_trees::types::TypeReferenceNode::Named { symbol, name }
+            typed_trees::types::TypeReferenceNode::Named { symbol, name }
                 if *symbol == type_parameter.symbol && name.as_str() == "T"
         ));
     }
@@ -590,14 +587,13 @@ fn seeded_continuation_appends_a_scalar_const_generic_machine_with_exact_binder_
         typed.symbols.get(const_parameter.symbol).parent,
         generated.symbol
     );
-    let crate::typed_trees::data::TypeParameterKind::Const { type_reference } =
-        &const_parameter.kind
+    let typed_trees::data::TypeParameterKind::Const { type_reference } = &const_parameter.kind
     else {
         panic!("generated machine retains the const binder kind")
     };
     assert!(matches!(
         typed.type_reference_table.type_reference(*type_reference),
-        crate::typed_trees::types::TypeReferenceNode::Named { symbol, name }
+        typed_trees::types::TypeReferenceNode::Named { symbol, name }
             if typed.symbols.builtin_type_atom(*symbol) == Some(symbols::BuiltinTypeAtom::U64)
                 && name.as_str() == "u64"
     ));
@@ -607,7 +603,7 @@ fn seeded_continuation_appends_a_scalar_const_generic_machine_with_exact_binder_
     let [value] = typed.state_parameters(state) else {
         panic!("generated machine retains one value parameter")
     };
-    let crate::typed_trees::types::TypeReferenceNode::FixedArray { length, .. } = typed
+    let typed_trees::types::TypeReferenceNode::FixedArray { length, .. } = typed
         .type_reference_table
         .type_reference(value.type_reference)
     else {
@@ -615,7 +611,7 @@ fn seeded_continuation_appends_a_scalar_const_generic_machine_with_exact_binder_
     };
     assert!(matches!(
         length,
-        crate::typed_trees::types::FixedArrayLength::ConstParameter { symbol, name }
+        typed_trees::types::FixedArrayLength::ConstParameter { symbol, name }
             if *symbol == const_parameter.symbol && name.as_str() == "N"
     ));
 }
@@ -641,8 +637,7 @@ fn seeded_continuation_appends_a_structured_const_generic_machine_with_exact_cus
         typed.symbols.get(const_parameter.symbol).parent,
         generated.symbol
     );
-    let crate::typed_trees::data::TypeParameterKind::Const { type_reference } =
-        &const_parameter.kind
+    let typed_trees::data::TypeParameterKind::Const { type_reference } = &const_parameter.kind
     else {
         panic!("generated machine retains the structured const binder kind")
     };
@@ -653,7 +648,7 @@ fn seeded_continuation_appends_a_structured_const_generic_machine_with_exact_cus
         .expect("retained structured const carrier");
     assert!(matches!(
         typed.type_reference_table.type_reference(*type_reference),
-        crate::typed_trees::types::TypeReferenceNode::Named { symbol, name }
+        typed_trees::types::TypeReferenceNode::Named { symbol, name }
             if *symbol == config.symbol && name.as_str() == "Config"
     ));
     let indexed = typed
@@ -667,7 +662,7 @@ fn seeded_continuation_appends_a_structured_const_generic_machine_with_exact_cus
     let [value] = typed.state_parameters(state) else {
         panic!("generated machine retains one value parameter")
     };
-    let crate::typed_trees::types::TypeReferenceNode::Generic {
+    let typed_trees::types::TypeReferenceNode::Generic {
         base_symbol,
         arguments,
         ..
@@ -686,7 +681,7 @@ fn seeded_continuation_appends_a_structured_const_generic_machine_with_exact_cus
     };
     assert!(matches!(
         typed.type_reference_table.type_reference(*argument),
-        crate::typed_trees::types::TypeReferenceNode::Named { symbol, name }
+        typed_trees::types::TypeReferenceNode::Named { symbol, name }
             if *symbol == const_parameter.symbol && name.as_str() == "C"
     ));
 }
@@ -722,19 +717,15 @@ fn seeded_structured_const_machine_gate_replays_carrier_and_value_occurrence_exa
     else {
         unreachable!()
     };
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameterKind::Const { type_reference } =
+    let symbol_resolved_trees::data::TypeParameterKind::Const { type_reference } =
         &mut parameter.kind
     else {
         unreachable!()
     };
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Named {
-        name,
-        ..
-    } = type_reference
-    else {
+    let symbol_resolved_trees::types::TypeReference::Named { name, .. } = type_reference else {
         unreachable!()
     };
-    *name = syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName::generated("WrongConfig");
+    *name = symbol_resolved_trees::name::DiagnosticName::generated("WrongConfig");
     assert!(
         !seeded_extension_shape_is_supported(
             &carrier_name_drift,
@@ -752,9 +743,7 @@ fn seeded_structured_const_machine_gate_replays_carrier_and_value_occurrence_exa
     let [value] = resolved.state_parameters(state.parameters) else {
         panic!("generated machine retains one value parameter")
     };
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Generic(
-        application,
-    ) = &value.type_reference
+    let symbol_resolved_trees::types::TypeReference::Generic(application) = &value.type_reference
     else {
         panic!("value remains an indexed generic application")
     };
@@ -767,15 +756,11 @@ fn seeded_structured_const_machine_gate_replays_carrier_and_value_occurrence_exa
     else {
         panic!("indexed application retains one structured const argument")
     };
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Named {
-        symbol,
-        name,
-    } = argument
-    else {
+    let symbol_resolved_trees::types::TypeReference::Named { symbol, name } = argument else {
         unreachable!()
     };
     assert_eq!(*symbol, const_parameter.symbol);
-    *name = syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName::generated("WrongC");
+    *name = symbol_resolved_trees::name::DiagnosticName::generated("WrongC");
     assert!(
         !seeded_extension_shape_is_supported(
             &occurrence_name_drift,

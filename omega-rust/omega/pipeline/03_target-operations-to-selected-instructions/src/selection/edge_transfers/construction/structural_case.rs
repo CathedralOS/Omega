@@ -7,8 +7,7 @@ use super::{
     VirtualRegisterId, VirtualRegisterOrigin,
 };
 use crate::SelectedInstructionError;
-use crate::selected_instructions;
-use crate::selected_instructions::{
+use selected_instructions::{
     FrameStorageSlotId, SelectedCasePayloadTransport, SelectedLocalStorageSlot,
     SelectedMemoryAccess, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
 };
@@ -41,7 +40,7 @@ pub(super) fn prepare(
         return Ok(None);
     }
     let (place, byte_bound) = match case.source {
-        crate::selected_instructions::SelectedCaseDispatchSource::Local { slot } => {
+        selected_instructions::SelectedCaseDispatchSource::Local { slot } => {
             let slot = slots
                 .iter()
                 .find(|row| row.id == slot)
@@ -51,10 +50,8 @@ pub(super) fn prepare(
                 slot.byte_size,
             )
         }
-        crate::selected_instructions::SelectedCaseDispatchSource::Borrowed {
-            place,
-            byte_size,
-            ..
+        selected_instructions::SelectedCaseDispatchSource::Borrowed {
+            place, byte_size, ..
         } => (place, byte_size),
     };
     let bridge_id = SelectedBlockId(block_position.try_into().map_err(|_| invalid())?);
@@ -110,7 +107,7 @@ pub(super) fn prepare(
             ..Default::default()
         };
         let pointer = match case.source {
-            crate::selected_instructions::SelectedCaseDispatchSource::Local { slot } => {
+            selected_instructions::SelectedCaseDispatchSource::Local { slot } => {
                 let slot = slots
                     .iter()
                     .find(|row| row.id == slot)
@@ -156,9 +153,7 @@ pub(super) fn prepare(
             }
             // The referent pointer was retained at entry; the bridge needs no
             // addressing instruction of its own.
-            crate::selected_instructions::SelectedCaseDispatchSource::Borrowed {
-                pointer, ..
-            } => {
+            selected_instructions::SelectedCaseDispatchSource::Borrowed { pointer, .. } => {
                 if registers.get(pointer.0 as usize).is_none_or(|register| {
                     register.scalar_type
                         != ScalarType::Integer(

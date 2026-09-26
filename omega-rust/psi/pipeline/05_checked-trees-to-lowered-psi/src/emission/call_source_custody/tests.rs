@@ -171,20 +171,20 @@ fn dynamic_indexed_shared_receiver_lane_pends_on_upstream_legs() {
                  the emitted RuntimeIndex segment and terminal production"
             ),
         }
-        match lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+        match terminal_production::TerminalProductionRequest::new(
             &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name("run"),
+            terminal_production::TerminalMachineSelection::Name("run"),
         )
         .produce(
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionCustody::artifact_only(
-                &mut lowered_psi_to_terminal_psi::terminal_production::TerminalProductionTimings::default(),
+            terminal_production::TerminalProductionCustody::artifact_only(
+                &mut terminal_production::TerminalProductionTimings::default(),
             ),
         ) {
             Err(error) => match error.error() {
                 // `LoweringError` arrives through terminal-production's own
                 // dependency edge, so this test cannot name the variant —
                 // compare the rendered `Unsupported("…")` instead.
-                lowered_psi_to_terminal_psi::terminal_production::TerminalArtifactProductionError::Lowering(inner) => {
+                terminal_production::TerminalArtifactProductionError::Lowering(inner) => {
                     assert_eq!(
                         format!("{inner}"),
                         format!("Unsupported({expected:?})"),

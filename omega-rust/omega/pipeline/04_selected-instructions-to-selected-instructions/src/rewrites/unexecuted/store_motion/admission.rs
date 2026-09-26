@@ -86,15 +86,15 @@
 //! the crossed block's end instead of rejecting: an earlier landing on the
 //! proven path is still a real motion.
 use optimization_core::OptimizationWorkBudget;
-use semantic_vocabulary::PlaceId;
-use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
-use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
-use target_operations_to_selected_instructions::{
+use register_environment::ValidatedTargetRegisterEnvironment;
+use register_model::RegisterOperandAccess;
+use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedBlockId, SelectedCasePayloadTransport,
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
     SelectedMemoryAccess, SelectedMemoryAccessRole, SelectedStructuralTransport, SelectedSuccessor,
     SelectedValueTransport, VirtualRegisterId,
 };
+use semantic_vocabulary::PlaceId;
 use terminal_psi::StructuralPlaceDeclaration;
 
 use super::StoreMutationMotionError;
@@ -872,12 +872,10 @@ fn edge_stops(successor: &SelectedSuccessor, moved: &Moved, carried: &Carried) -
                 base, destination, ..
             } => (
                 match base {
-                    target_operations_to_selected_instructions::SelectedAddressBase::Register(
-                        argument,
-                    ) => Some(argument),
-                    target_operations_to_selected_instructions::SelectedAddressBase::Local(_) => {
-                        None
+                    selected_instructions::SelectedAddressBase::Register(argument) => {
+                        Some(argument)
                     }
+                    selected_instructions::SelectedAddressBase::Local(_) => None,
                 },
                 destination,
                 Some(base),
@@ -890,12 +888,7 @@ fn edge_stops(successor: &SelectedSuccessor, moved: &Moved, carried: &Carried) -
             }
             SubjectStorage::Staging(slot) => {
                 destination == slot
-                    || lent
-                        == Some(
-                            target_operations_to_selected_instructions::SelectedAddressBase::Local(
-                                slot,
-                            ),
-                        )
+                    || lent == Some(selected_instructions::SelectedAddressBase::Local(slot))
             }
         };
         if touches || argument.is_some_and(|argument| writes(&argument)) {
@@ -1061,7 +1054,7 @@ fn reconvergent_join(
 /// join.
 fn arm_stops(
     function: &SelectedFunction,
-    arm: &target_operations_to_selected_instructions::SelectedBlock,
+    arm: &selected_instructions::SelectedBlock,
     moved: &Moved,
     carried: &Carried,
     moved_store: &SelectedInstruction,
@@ -1100,10 +1093,7 @@ pub(super) fn shifted_boundary_settlements(
     source_index: usize,
     target_block: SelectedBlockId,
     insert_index: usize,
-) -> Result<
-    Vec<target_operations_to_selected_instructions::SelectedBoundarySettlement>,
-    StoreMutationMotionError,
-> {
+) -> Result<Vec<selected_instructions::SelectedBoundarySettlement>, StoreMutationMotionError> {
     let source_body = function
         .blocks
         .iter()

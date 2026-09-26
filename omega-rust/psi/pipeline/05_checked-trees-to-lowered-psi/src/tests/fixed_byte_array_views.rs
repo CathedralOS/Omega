@@ -1,19 +1,15 @@
 //! Source-produced fixed-array loans retain initialized backing and exact extent.
 use super::{byte_sequence_write, lower_machine};
 use crate::TerminalMachineSelection;
-use lowered_psi_to_terminal_psi::terminal_production::{
-    TerminalProductionCustody, TerminalProductionTimings,
-};
+use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment};
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionStatus, TerminalStructuralByteArrayValue,
     TerminalStructuralValue,
 };
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::StructuralPathSegment;
-use typed_trees_to_checked_trees::checked_trees::{
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
-};
 
 fn array_fixture(
     length: usize,
@@ -38,11 +34,13 @@ fn array_fixture(
     };
     let checked =
         crate::front_end::checked_program(&format!("{}\n{caller}", byte_sequence_write::PUT));
-    lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+    terminal_production::TerminalProductionRequest::new(
         &checked,
-        lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-            if field { "Record::run" } else { "run" },
-        ),
+        terminal_production::TerminalMachineSelection::Name(if field {
+            "Record::run"
+        } else {
+            "run"
+        }),
     )
     .produce(TerminalProductionCustody::artifact_only(
         &mut TerminalProductionTimings::default(),
@@ -292,18 +290,15 @@ fn fixed_byte_windows_replay_authored_endpoints() {
          machine Record::run(&mut self) {{ {invocation}; }}",
             byte_sequence_write::PUT
         ));
-        let _artifact =
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-                &checked,
-                lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                    "Record::run",
-                ),
-            )
-            .produce(TerminalProductionCustody::artifact_only(
-                &mut TerminalProductionTimings::default(),
-            ))
-            .unwrap()
-            .into_artifact();
+        let _artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            terminal_production::TerminalMachineSelection::Name("Record::run"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap()
+        .into_artifact();
         // Each substitute is itself a valid array window. Bounds validation alone
         // cannot establish that it is the window the caller actually authored.
         for (start, end) in [(0, 2), (1, 2), (3, 3)] {
@@ -343,18 +338,15 @@ fn fixed_byte_array_views_replay_authored_field_and_access() {
          machine Record::run(&mut self) {{ put(&mut self.out,65); }}",
         byte_sequence_write::PUT
     ));
-    let _artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Record::run",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .unwrap()
-        .into_artifact();
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Record::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     for change_access in [false, true] {
         let mut changed = checked.clone();
         let call = changed
@@ -374,8 +366,7 @@ fn fixed_byte_array_views_replay_authored_field_and_access() {
             panic!("call")
         };
         if change_access {
-            structural_arguments[0].access =
-                typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow;
+            structural_arguments[0].access = checked_trees::CheckedStructuralAccess::SharedBorrow;
         } else {
             structural_arguments[0].path =
                 vec![CheckedUnitStructuralPathSegment::Field("other".into())];

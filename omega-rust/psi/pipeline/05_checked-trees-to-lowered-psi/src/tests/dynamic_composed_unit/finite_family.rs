@@ -15,13 +15,11 @@ use super::{
 };
 use crate::TerminalMachineSelection;
 use crate::tests::lower_machine;
-use lowered_psi_to_terminal_psi::terminal_production::{
-    TerminalProductionCustody, TerminalProductionTimings,
-};
+use checked_trees::CheckedDynamicBinding::{Direct, Joined, Rebound};
+use checked_trees::CheckedDynamicDispatchPlan::{Scalar, Unit};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationKind, OperationResult};
-use typed_trees_to_checked_trees::checked_trees::CheckedDynamicBinding::{Direct, Joined, Rebound};
-use typed_trees_to_checked_trees::checked_trees::CheckedDynamicDispatchPlan::{Scalar, Unit};
 
 const WIDTH_16: &str = "named(integer-const(16))";
 const WIDTH_32: &str = "named(integer-const(32))";
@@ -180,18 +178,15 @@ fn lowers_a_direct_family_call_to_the_selected_tuple_row() {
     );
     assert_eq!(dispatch.realization, callable.machine);
 
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Main::run",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("the family module encodes canonically")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("the family module encodes canonically")
+    .into_artifact();
     assert_eq!(
         terminal_codec::decode_module(artifact.semantic_bytes())
             .expect("the family module decodes"),
@@ -258,18 +253,15 @@ fn rebound_family_call_retains_every_tuple_row_callable() {
     );
     assert_eq!(dispatch.realization, thirty_two_callable.machine);
 
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Main::run",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("the rebound family module encodes canonically")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("the rebound family module encodes canonically")
+    .into_artifact();
     assert_eq!(
         terminal_codec::decode_module(artifact.semantic_bytes())
             .expect("the rebound family module decodes"),
@@ -292,7 +284,7 @@ fn forwarded_family_call_exposes_every_tuple_row_on_the_parameter_interface() {
     };
     assert!(matches!(
         plan.origin,
-        typed_trees_to_checked_trees::checked_trees::CheckedDynamicScalarCallOrigin::Forwarded { .. }
+        checked_trees::CheckedDynamicScalarCallOrigin::Forwarded { .. }
     ));
     assert_eq!(plan.family_tuple.as_ref(), [WIDTH_16.to_owned()]);
 
@@ -339,18 +331,15 @@ fn forwarded_family_call_exposes_every_tuple_row_on_the_parameter_interface() {
         application.rows
     );
 
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Main::run",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("the forwarded family module encodes canonically")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("the forwarded family module encodes canonically")
+    .into_artifact();
     assert_eq!(
         terminal_codec::decode_module(artifact.semantic_bytes())
             .expect("the forwarded family module decodes"),
@@ -405,18 +394,15 @@ fn joined_family_call_materializes_the_tuple_roster_once() {
         assert_eq!(application.rows.len(), 2);
         assert_eq!(application.realization_callables.len(), 2);
     }
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Main::run",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("the joined family module encodes canonically")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("the joined family module encodes canonically")
+    .into_artifact();
     assert_eq!(
         terminal_codec::decode_module(artifact.semantic_bytes())
             .expect("the joined family module decodes"),
@@ -487,18 +473,15 @@ fn lowers_a_family_unit_call_without_a_scalar_result() {
         OperationKind::CallUnit { callee, .. } if callee == callable.machine
     ));
 
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Main::run",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("the family Unit module encodes canonically")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("the family Unit module encodes canonically")
+    .into_artifact();
     assert_eq!(
         terminal_codec::decode_module(artifact.semantic_bytes())
             .expect("the family Unit module decodes"),

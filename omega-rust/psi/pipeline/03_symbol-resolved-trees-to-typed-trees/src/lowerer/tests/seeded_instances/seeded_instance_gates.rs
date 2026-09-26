@@ -20,7 +20,7 @@ fn seeded_local_instance_gate_rejects_origin_and_declaration_mutations() {
         .generic_instance
         .as_ref()
     {
-        Some(syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Generic(origin)) => origin.base_symbol,
+        Some(symbol_resolved_trees::types::TypeReference::Generic(origin)) => origin.base_symbol,
         _ => unreachable!(),
     };
     let template_index = (frontier..resolved.data_definitions.len())
@@ -37,29 +37,19 @@ fn seeded_local_instance_gate_rejects_origin_and_declaration_mutations() {
     assert!(exact_top_level_data_symbol(&resolved, template));
     assert!(exact_top_level_data_symbol(&resolved, instance));
     assert!(exact_top_level_data_symbol(&resolved, wrapper));
-    let [
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Field(
-            template_field,
-        ),
-    ] = resolved.data_members(template.members)
+    let [symbol_resolved_trees::data::DataMember::Field(template_field)] =
+        resolved.data_members(template.members)
     else {
         panic!("one template field")
     };
-    let [
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Field(
-            instance_field,
-        ),
-    ] = resolved.data_members(instance.members)
+    let [symbol_resolved_trees::data::DataMember::Field(instance_field)] =
+        resolved.data_members(instance.members)
     else {
         panic!("one instance field")
     };
     let [
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Field(
-            first_wrapper_field,
-        ),
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Field(
-            second_wrapper_field,
-        ),
+        symbol_resolved_trees::data::DataMember::Field(first_wrapper_field),
+        symbol_resolved_trees::data::DataMember::Field(second_wrapper_field),
     ] = resolved.data_members(wrapper.members)
     else {
         panic!("two wrapper fields")
@@ -91,28 +81,22 @@ fn seeded_local_instance_gate_rejects_origin_and_declaration_mutations() {
     );
 
     let mut wrong_origin = resolved.clone();
-    let Some(
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Generic(
-            origin,
-        ),
-    ) = wrong_origin.data_definitions[instance_index]
+    let Some(symbol_resolved_trees::types::TypeReference::Generic(origin)) = wrong_origin
+        .data_definitions[instance_index]
         .generic_instance
         .as_mut()
     else {
         unreachable!()
     };
-    origin.base_name = syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName::generated("Other");
+    origin.base_name = symbol_resolved_trees::name::DiagnosticName::generated("Other");
     assert!(!plain_data_extension_shape_is_supported(
         &wrong_origin,
         frontier
     ));
 
     let mut missing_argument = resolved.clone();
-    let Some(
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Generic(
-            origin,
-        ),
-    ) = missing_argument.data_definitions[instance_index]
+    let Some(symbol_resolved_trees::types::TypeReference::Generic(origin)) = missing_argument
+        .data_definitions[instance_index]
         .generic_instance
         .as_mut()
     else {
@@ -126,7 +110,7 @@ fn seeded_local_instance_gate_rejects_origin_and_declaration_mutations() {
 
     let mut wrong_instance_identity = resolved.clone();
     wrong_instance_identity.data_definitions[instance_index].name =
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName::generated("Cell<u64>");
+        symbol_resolved_trees::name::DiagnosticName::generated("Cell<u64>");
     assert!(!plain_data_extension_shape_is_supported(
         &wrong_instance_identity,
         frontier
@@ -142,9 +126,7 @@ fn seeded_local_instance_gate_rejects_origin_and_declaration_mutations() {
     );
 
     let mut wrong_substitution_name = resolved.clone();
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Field(
-        instance_field,
-    ) = wrong_substitution_name
+    let symbol_resolved_trees::data::DataMember::Field(instance_field) = wrong_substitution_name
         .tables
         .declarations
         .data_members
@@ -152,23 +134,19 @@ fn seeded_local_instance_gate_rejects_origin_and_declaration_mutations() {
     else {
         unreachable!()
     };
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Named {
-        name,
-        ..
-    } = &mut instance_field.type_reference
+    let symbol_resolved_trees::types::TypeReference::Named { name, .. } =
+        &mut instance_field.type_reference
     else {
         unreachable!()
     };
-    *name = syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName::generated("u64");
+    *name = symbol_resolved_trees::name::DiagnosticName::generated("u64");
     assert!(
         !plain_data_extension_shape_is_supported(&wrong_substitution_name, frontier),
         "the substituted builtin spelling must remain joined to its symbol"
     );
 
     let mut wrong_wrapper_type_name = resolved.clone();
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Field(
-        wrapper_field,
-    ) = wrong_wrapper_type_name
+    let symbol_resolved_trees::data::DataMember::Field(wrapper_field) = wrong_wrapper_type_name
         .tables
         .declarations
         .data_members
@@ -176,14 +154,12 @@ fn seeded_local_instance_gate_rejects_origin_and_declaration_mutations() {
     else {
         unreachable!()
     };
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Named {
-        name,
-        ..
-    } = &mut wrapper_field.type_reference
+    let symbol_resolved_trees::types::TypeReference::Named { name, .. } =
+        &mut wrapper_field.type_reference
     else {
         unreachable!()
     };
-    *name = syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName::generated("Cell<u64>");
+    *name = symbol_resolved_trees::name::DiagnosticName::generated("Cell<u64>");
     assert!(
         !plain_data_extension_shape_is_supported(&wrong_wrapper_type_name, frontier),
         "a wrapper use's diagnostic name cannot drift from the selected instance"
@@ -199,27 +175,18 @@ fn seeded_local_instance_gate_rejects_origin_and_declaration_mutations() {
         .source_span();
     wrong_parent.data_definitions[template_index].symbol = authored_symbol;
     wrong_parent.data_definitions[template_index].name =
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName::new(
-            "Authored",
-            template_span,
-        );
+        symbol_resolved_trees::name::DiagnosticName::new("Authored", template_span);
     wrong_parent.data_definitions[instance_index].name =
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName::new(
-            "Authored<u32>",
-            instance_span,
-        );
-    let Some(
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Generic(
-            origin,
-        ),
-    ) = wrong_parent.data_definitions[instance_index]
+        symbol_resolved_trees::name::DiagnosticName::new("Authored<u32>", instance_span);
+    let Some(symbol_resolved_trees::types::TypeReference::Generic(origin)) = wrong_parent
+        .data_definitions[instance_index]
         .generic_instance
         .as_mut()
     else {
         unreachable!()
     };
     origin.base_symbol = authored_symbol;
-    origin.base_name = syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName::generated("Authored");
+    origin.base_name = symbol_resolved_trees::name::DiagnosticName::generated("Authored");
     assert!(
         !plain_data_extension_shape_is_supported(&wrong_parent, frontier),
         "coordinated top-level identity retarget cannot detach parameter/field children"
@@ -243,7 +210,7 @@ fn seeded_local_instance_gate_rejects_origin_and_declaration_mutations() {
     let mut lifetime_template = resolved.clone();
     lifetime_template.data_definitions[template_index]
         .lifetime_parameters
-        .push(syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName::generated(
+        .push(symbol_resolved_trees::name::DiagnosticName::generated(
             "scope",
         ));
     assert!(!plain_data_extension_shape_is_supported(
@@ -261,8 +228,8 @@ fn seeded_local_instance_gate_rejects_origin_and_declaration_mutations() {
 
     let mut quotient_wrapper = resolved.clone();
     quotient_wrapper.data_definitions[wrapper_index].quotient =
-        Some(syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::QuotientDefinition {
-            carrier: syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Unit,
+        Some(symbol_resolved_trees::data::QuotientDefinition {
+            carrier: symbol_resolved_trees::types::TypeReference::Unit,
             relation: Vec::new(),
             relation_symbol: symbols::SymbolHandle::invalid(),
             equivalence: None,
@@ -312,7 +279,7 @@ fn seeded_local_instance_replays_carried_case_where_facts() {
         .data_members(instance_members)
         .iter()
         .find_map(|member| match member {
-            syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Variant(variant)
+            symbol_resolved_trees::data::DataMember::Variant(variant)
                 if variant.name.as_str() == "Range" =>
             {
                 Some(variant)
@@ -320,15 +287,12 @@ fn seeded_local_instance_replays_carried_case_where_facts() {
             _ => None,
         })
         .expect("instance Range case");
-    let [
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::domain::ProofFact::Expression(
-            fact_expression,
-        ),
-    ] = resolved.proof_facts(range.where_facts)
+    let [symbol_resolved_trees::domain::ProofFact::Expression(fact_expression)] =
+        resolved.proof_facts(range.where_facts)
     else {
         panic!("the instance carries one expression case fact")
     };
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::expression::ExpressionNode::Binary(binary) = resolved
+    let symbol_resolved_trees::expression::ExpressionNode::Binary(binary) = resolved
         .tables
         .bodies
         .expressions
@@ -338,13 +302,13 @@ fn seeded_local_instance_replays_carried_case_where_facts() {
     };
     assert_eq!(
         binary.operator,
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::expression::BinaryOperator::LessOrEqual
+        symbol_resolved_trees::expression::BinaryOperator::LessOrEqual
     );
 
     // A rewritten carried fact (`lo >= hi`) is not the template's fact: the
     // replay rejects the pair rather than trusting the producer's copy.
     let mut corrupted = resolved.clone();
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::expression::ExpressionNode::Binary(binary) = corrupted
+    let symbol_resolved_trees::expression::ExpressionNode::Binary(binary) = corrupted
         .tables
         .bodies
         .expressions
@@ -352,7 +316,7 @@ fn seeded_local_instance_replays_carried_case_where_facts() {
     else {
         unreachable!()
     };
-    binary.operator = syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::expression::BinaryOperator::GreaterOrEqual;
+    binary.operator = symbol_resolved_trees::expression::BinaryOperator::GreaterOrEqual;
     assert!(
         !plain_data_extension_shape_is_supported(&corrupted, frontier),
         "a rewritten carried fact must fail the template/instance replay"
@@ -369,9 +333,7 @@ fn seeded_local_instance_replays_carried_case_where_facts() {
             .expect("member handle overflow"),
         instance_members.start().generation(),
     );
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Variant(
-        variant,
-    ) = dropped
+    let symbol_resolved_trees::data::DataMember::Variant(variant) = dropped
         .tables
         .declarations
         .data_members
@@ -431,7 +393,7 @@ fn seeded_local_instance_replays_decided_type_equality_facts() {
             .data_members(no_members)
             .iter()
             .find_map(|member| match member {
-                syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Variant(variant)
+                symbol_resolved_trees::data::DataMember::Variant(variant)
                     if variant.name.as_str() == "Integer" =>
                 {
                     Some(variant)
@@ -439,7 +401,7 @@ fn seeded_local_instance_replays_decided_type_equality_facts() {
                 _ => None,
             })
             .expect("instance Integer case");
-        let [syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::domain::ProofFact::Expression(fact)] =
+        let [symbol_resolved_trees::domain::ProofFact::Expression(fact)] =
             resolved.proof_facts(integer.where_facts)
         else {
             panic!("the refuted instance carries one expression case fact")
@@ -447,7 +409,7 @@ fn seeded_local_instance_replays_decided_type_equality_facts() {
         *fact
     };
     let mut corrupted = resolved.clone();
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::expression::ExpressionNode::Integer(literal) =
+    let symbol_resolved_trees::expression::ExpressionNode::Integer(literal) =
         corrupted.tables.bodies.expressions.expression_mut(witness)
     else {
         unreachable!()
@@ -485,7 +447,7 @@ fn seeded_local_instance_replays_decided_type_equality_facts() {
         .iter()
         .enumerate()
         .find_map(|(offset, member)| match member {
-            syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Variant(variant)
+            symbol_resolved_trees::data::DataMember::Variant(variant)
                 if variant.name.as_str() == "Integer" =>
             {
                 Some(offset)
@@ -501,9 +463,7 @@ fn seeded_local_instance_replays_decided_type_equality_facts() {
             .expect("member handle overflow"),
         yes_members.start().generation(),
     );
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Variant(
-        variant,
-    ) = fabricated
+    let symbol_resolved_trees::data::DataMember::Variant(variant) = fabricated
         .tables
         .declarations
         .data_members
@@ -513,9 +473,7 @@ fn seeded_local_instance_replays_decided_type_equality_facts() {
     };
     let mut facts = arena::HandleSpan::empty();
     facts.push_contiguous(fabricated.tables.declarations.proof_facts.insert(
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::domain::ProofFact::Expression(
-            witness,
-        ),
+        symbol_resolved_trees::domain::ProofFact::Expression(witness),
     ));
     variant.where_facts = facts;
     assert!(
@@ -546,9 +504,7 @@ fn seeded_nested_local_instance_gate_rejects_dependency_and_reachability_mutatio
 
     let mut wrong_nested_member = resolved.clone();
     let outer_members = wrong_nested_member.data_definitions[outer_instance_index].members;
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Field(
-        inner,
-    ) = wrong_nested_member
+    let symbol_resolved_trees::data::DataMember::Field(inner) = wrong_nested_member
         .tables
         .declarations
         .data_members
@@ -556,8 +512,7 @@ fn seeded_nested_local_instance_gate_rejects_dependency_and_reachability_mutatio
     else {
         unreachable!()
     };
-    inner.type_reference =
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Unit;
+    inner.type_reference = symbol_resolved_trees::types::TypeReference::Unit;
     assert!(
         !plain_data_extension_shape_is_supported(&wrong_nested_member, frontier),
         "a nested synthesized field must replay the exact inner instance"
@@ -566,9 +521,7 @@ fn seeded_nested_local_instance_gate_rejects_dependency_and_reachability_mutatio
     let mut wrong_template_application = resolved.clone();
     let outer_template_members =
         wrong_template_application.data_definitions[outer_template_index].members;
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Field(
-        inner,
-    ) = wrong_template_application
+    let symbol_resolved_trees::data::DataMember::Field(inner) = wrong_template_application
         .tables
         .declarations
         .data_members
@@ -576,30 +529,26 @@ fn seeded_nested_local_instance_gate_rejects_dependency_and_reachability_mutatio
     else {
         unreachable!()
     };
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Generic(
-        application,
-    ) = &mut inner.type_reference
+    let symbol_resolved_trees::types::TypeReference::Generic(application) =
+        &mut inner.type_reference
     else {
         unreachable!()
     };
-    application.base_name = syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName::generated("Other");
+    application.base_name = symbol_resolved_trees::name::DiagnosticName::generated("Other");
     assert!(
         !plain_data_extension_shape_is_supported(&wrong_template_application, frontier),
         "a local template application cannot drift from its exact base symbol"
     );
 
     let mut wrong_inner_origin = resolved.clone();
-    let Some(
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Generic(
-            origin,
-        ),
-    ) = wrong_inner_origin.data_definitions[cell_instance_index]
+    let Some(symbol_resolved_trees::types::TypeReference::Generic(origin)) = wrong_inner_origin
+        .data_definitions[cell_instance_index]
         .generic_instance
         .as_mut()
     else {
         unreachable!()
     };
-    origin.base_name = syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName::generated("Other");
+    origin.base_name = symbol_resolved_trees::name::DiagnosticName::generated("Other");
     assert!(
         !plain_data_extension_shape_is_supported(&wrong_inner_origin, frontier),
         "a transitive dependency must retain its exact synthesis origin"
@@ -607,9 +556,7 @@ fn seeded_nested_local_instance_gate_rejects_dependency_and_reachability_mutatio
 
     let mut unreachable_instances = resolved;
     let wrapper_members = unreachable_instances.data_definitions[wrapper_index].members;
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Field(
-        value,
-    ) = unreachable_instances
+    let symbol_resolved_trees::data::DataMember::Field(value) = unreachable_instances
         .tables
         .declarations
         .data_members
@@ -617,8 +564,7 @@ fn seeded_nested_local_instance_gate_rejects_dependency_and_reachability_mutatio
     else {
         unreachable!()
     };
-    value.type_reference =
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Unit;
+    value.type_reference = symbol_resolved_trees::types::TypeReference::Unit;
     assert!(
         !plain_data_extension_shape_is_supported(&unreachable_instances, frontier),
         "an internally coherent but unreachable synthesized subgraph is not admitted"
@@ -645,15 +591,11 @@ fn seeded_local_sum_instance_gate_rejects_case_and_payload_mutations() {
     let template_members = resolved.data_definitions[template_index].members;
     let instance_members = resolved.data_definitions[instance_index].members;
     let template_some = match &resolved.data_members(template_members)[1] {
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Variant(
-            variant,
-        ) => variant,
+        symbol_resolved_trees::data::DataMember::Variant(variant) => variant,
         _ => panic!("Maybe::Some template case"),
     };
     let instance_some = match &resolved.data_members(instance_members)[1] {
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Variant(
-            variant,
-        ) => variant,
+        symbol_resolved_trees::data::DataMember::Variant(variant) => variant,
         _ => panic!("Maybe<u32>::Some instance case"),
     };
     assert_ne!(template_some.symbol, instance_some.symbol);
@@ -676,13 +618,12 @@ fn seeded_local_sum_instance_gate_rejects_case_and_payload_mutations() {
     );
 
     let mut wrong_case_parent = resolved.clone();
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Variant(
-        instance_some_mut,
-    ) = &mut wrong_case_parent
-        .tables
-        .declarations
-        .data_members
-        .span_mut_or_empty(instance_members)[1]
+    let symbol_resolved_trees::data::DataMember::Variant(instance_some_mut) =
+        &mut wrong_case_parent
+            .tables
+            .declarations
+            .data_members
+            .span_mut_or_empty(instance_members)[1]
     else {
         unreachable!()
     };
@@ -693,13 +634,12 @@ fn seeded_local_sum_instance_gate_rejects_case_and_payload_mutations() {
     );
 
     let mut wrong_case_identity = resolved.clone();
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Variant(
-        instance_some_mut,
-    ) = &mut wrong_case_identity
-        .tables
-        .declarations
-        .data_members
-        .span_mut_or_empty(instance_members)[1]
+    let symbol_resolved_trees::data::DataMember::Variant(instance_some_mut) =
+        &mut wrong_case_identity
+            .tables
+            .declarations
+            .data_members
+            .span_mut_or_empty(instance_members)[1]
     else {
         unreachable!()
     };
@@ -710,13 +650,12 @@ fn seeded_local_sum_instance_gate_rejects_case_and_payload_mutations() {
     );
 
     let mut wrong_retired_payload = resolved.clone();
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Variant(
-        instance_some_mut,
-    ) = &mut wrong_retired_payload
-        .tables
-        .declarations
-        .data_members
-        .span_mut_or_empty(instance_members)[1]
+    let symbol_resolved_trees::data::DataMember::Variant(instance_some_mut) =
+        &mut wrong_retired_payload
+            .tables
+            .declarations
+            .data_members
+            .span_mut_or_empty(instance_members)[1]
     else {
         unreachable!()
     };
@@ -727,9 +666,8 @@ fn seeded_local_sum_instance_gate_rejects_case_and_payload_mutations() {
     );
 
     let mut wrong_payload_substitution = resolved.clone();
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Variant(
-        instance_some_mut,
-    ) = &wrong_payload_substitution.data_members(instance_members)[1]
+    let symbol_resolved_trees::data::DataMember::Variant(instance_some_mut) =
+        &wrong_payload_substitution.data_members(instance_members)[1]
     else {
         unreachable!()
     };
@@ -739,21 +677,19 @@ fn seeded_local_sum_instance_gate_rejects_case_and_payload_mutations() {
         .declarations
         .data_payload_fields
         .span_mut_or_empty(payload)[0]
-        .type_reference =
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Unit;
+        .type_reference = symbol_resolved_trees::types::TypeReference::Unit;
     assert!(
         !plain_data_extension_shape_is_supported(&wrong_payload_substitution, frontier),
         "payload substitution must replay the exact type argument"
     );
 
     let mut wrong_payload_parent = resolved.clone();
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Variant(
-        instance_some_mut,
-    ) = &mut wrong_payload_parent
-        .tables
-        .declarations
-        .data_members
-        .span_mut_or_empty(instance_members)[1]
+    let symbol_resolved_trees::data::DataMember::Variant(instance_some_mut) =
+        &mut wrong_payload_parent
+            .tables
+            .declarations
+            .data_members
+            .span_mut_or_empty(instance_members)[1]
     else {
         unreachable!()
     };
@@ -786,26 +722,24 @@ fn seeded_lifetime_instance_gate_rejects_binder_and_application_mutations() {
 
     let mut wrong_instance_binder = resolved.clone();
     wrong_instance_binder.data_definitions[instance_index].lifetime_parameters[0] =
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName::generated("other");
+        symbol_resolved_trees::name::DiagnosticName::generated("other");
     assert!(
         !plain_data_extension_shape_is_supported(&wrong_instance_binder, frontier),
         "the instance must retain the template's exact erased lifetime binder"
     );
 
     let mut missing_application_lifetime = resolved.clone();
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Field(
-        wrapper_field,
-    ) = &mut missing_application_lifetime
-        .tables
-        .declarations
-        .data_members
-        .span_mut_or_empty(wrapper_members)[0]
+    let symbol_resolved_trees::data::DataMember::Field(wrapper_field) =
+        &mut missing_application_lifetime
+            .tables
+            .declarations
+            .data_members
+            .span_mut_or_empty(wrapper_members)[0]
     else {
         unreachable!()
     };
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Generic(
-        application,
-    ) = &mut wrapper_field.type_reference
+    let symbol_resolved_trees::types::TypeReference::Generic(application) =
+        &mut wrapper_field.type_reference
     else {
         unreachable!()
     };
@@ -816,46 +750,43 @@ fn seeded_lifetime_instance_gate_rejects_binder_and_application_mutations() {
     );
 
     let mut unknown_application_lifetime = resolved.clone();
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Field(
-        wrapper_field,
-    ) = &mut unknown_application_lifetime
-        .tables
-        .declarations
-        .data_members
-        .span_mut_or_empty(wrapper_members)[0]
+    let symbol_resolved_trees::data::DataMember::Field(wrapper_field) =
+        &mut unknown_application_lifetime
+            .tables
+            .declarations
+            .data_members
+            .span_mut_or_empty(wrapper_members)[0]
     else {
         unreachable!()
     };
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Generic(
-        application,
-    ) = &mut wrapper_field.type_reference
+    let symbol_resolved_trees::types::TypeReference::Generic(application) =
+        &mut wrapper_field.type_reference
     else {
         unreachable!()
     };
     application.lifetime_arguments[0] =
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName::generated("other");
+        symbol_resolved_trees::name::DiagnosticName::generated("other");
     assert!(
         !plain_data_extension_shape_is_supported(&unknown_application_lifetime, frontier),
         "a local instance application can name only an owning lifetime binder"
     );
 
     let mut wrong_reference_lifetime = resolved;
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Field(
-        instance_field,
-    ) = &mut wrong_reference_lifetime
-        .tables
-        .declarations
-        .data_members
-        .span_mut_or_empty(instance_members)[0]
+    let symbol_resolved_trees::data::DataMember::Field(instance_field) =
+        &mut wrong_reference_lifetime
+            .tables
+            .declarations
+            .data_members
+            .span_mut_or_empty(instance_members)[0]
     else {
         unreachable!()
     };
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Reference(reference) =
+    let symbol_resolved_trees::types::TypeReference::Reference(reference) =
         &mut instance_field.type_reference
     else {
         unreachable!()
     };
-    reference.lifetime = Some(syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName::generated(
+    reference.lifetime = Some(symbol_resolved_trees::name::DiagnosticName::generated(
         "other",
     ));
     assert!(
@@ -891,9 +822,7 @@ fn seeded_nested_lifetime_instance_gate_rejects_internal_edge_mutations() {
         .clone();
 
     let mut unknown_template_lifetime = resolved.clone();
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Field(
-        field,
-    ) = &mut unknown_template_lifetime
+    let symbol_resolved_trees::data::DataMember::Field(field) = &mut unknown_template_lifetime
         .tables
         .declarations
         .data_members
@@ -901,23 +830,20 @@ fn seeded_nested_lifetime_instance_gate_rejects_internal_edge_mutations() {
     else {
         unreachable!()
     };
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Generic(
-        application,
-    ) = &mut field.type_reference
+    let symbol_resolved_trees::types::TypeReference::Generic(application) =
+        &mut field.type_reference
     else {
         unreachable!()
     };
     application.lifetime_arguments[0] =
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName::generated("other");
+        symbol_resolved_trees::name::DiagnosticName::generated("other");
     assert!(
         !plain_data_extension_shape_is_supported(&unknown_template_lifetime, frontier),
         "a nested template application can name only an owning lifetime binder"
     );
 
     let mut missing_instance_lifetime = resolved.clone();
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Field(
-        field,
-    ) = &mut missing_instance_lifetime
+    let symbol_resolved_trees::data::DataMember::Field(field) = &mut missing_instance_lifetime
         .tables
         .declarations
         .data_members
@@ -925,9 +851,8 @@ fn seeded_nested_lifetime_instance_gate_rejects_internal_edge_mutations() {
     else {
         unreachable!()
     };
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Generic(
-        application,
-    ) = &mut field.type_reference
+    let symbol_resolved_trees::types::TypeReference::Generic(application) =
+        &mut field.type_reference
     else {
         unreachable!()
     };
@@ -938,9 +863,7 @@ fn seeded_nested_lifetime_instance_gate_rejects_internal_edge_mutations() {
     );
 
     let mut reordered_instance_lifetimes = resolved.clone();
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Field(
-        field,
-    ) = &mut reordered_instance_lifetimes
+    let symbol_resolved_trees::data::DataMember::Field(field) = &mut reordered_instance_lifetimes
         .tables
         .declarations
         .data_members
@@ -948,9 +871,8 @@ fn seeded_nested_lifetime_instance_gate_rejects_internal_edge_mutations() {
     else {
         unreachable!()
     };
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Generic(
-        application,
-    ) = &mut field.type_reference
+    let symbol_resolved_trees::types::TypeReference::Generic(application) =
+        &mut field.type_reference
     else {
         unreachable!()
     };
@@ -961,9 +883,7 @@ fn seeded_nested_lifetime_instance_gate_rejects_internal_edge_mutations() {
     );
 
     let mut redirected_instance = resolved;
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Field(
-        field,
-    ) = &mut redirected_instance
+    let symbol_resolved_trees::data::DataMember::Field(field) = &mut redirected_instance
         .tables
         .declarations
         .data_members
@@ -971,9 +891,8 @@ fn seeded_nested_lifetime_instance_gate_rejects_internal_edge_mutations() {
     else {
         unreachable!()
     };
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Generic(
-        application,
-    ) = &mut field.type_reference
+    let symbol_resolved_trees::types::TypeReference::Generic(application) =
+        &mut field.type_reference
     else {
         unreachable!()
     };
@@ -1000,7 +919,7 @@ fn seeded_lifetime_type_argument_gate_rejects_origin_routing_mutations() {
         .find(|index| {
             matches!(
                 resolved.data_definitions[*index].generic_instance.as_ref(),
-                Some(syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Generic(origin))
+                Some(symbol_resolved_trees::types::TypeReference::Generic(origin))
                     if origin.base_name.as_str() == "Holder"
             )
         })
@@ -1013,14 +932,12 @@ fn seeded_lifetime_type_argument_gate_rejects_origin_routing_mutations() {
         .generic_instance
         .as_ref()
     {
-        Some(syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Generic(origin)) => origin.arguments,
+        Some(symbol_resolved_trees::types::TypeReference::Generic(origin)) => origin.arguments,
         _ => unreachable!(),
     };
 
     let mut reordered_lifetimes = resolved.clone();
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Generic(
-        argument,
-    ) = &mut reordered_lifetimes
+    let symbol_resolved_trees::types::TypeReference::Generic(argument) = &mut reordered_lifetimes
         .tables
         .declarations
         .child_type_references
@@ -1035,9 +952,7 @@ fn seeded_lifetime_type_argument_gate_rejects_origin_routing_mutations() {
     );
 
     let mut missing_lifetime = resolved.clone();
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Generic(
-        argument,
-    ) = &mut missing_lifetime
+    let symbol_resolved_trees::types::TypeReference::Generic(argument) = &mut missing_lifetime
         .tables
         .declarations
         .child_type_references
@@ -1052,9 +967,7 @@ fn seeded_lifetime_type_argument_gate_rejects_origin_routing_mutations() {
     );
 
     let mut redirected_argument = resolved;
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Generic(
-        argument,
-    ) = &mut redirected_argument
+    let symbol_resolved_trees::types::TypeReference::Generic(argument) = &mut redirected_argument
         .tables
         .declarations
         .child_type_references
@@ -1099,13 +1012,13 @@ fn seeded_arithmetic_domain_argument_gate_rejects_identity_mutations() {
         .find(|definition| definition.name.as_str() == "Cell<u32 in Wrapping>")
         .expect("closed constrained Cell instance");
     let origin_arguments = match instance.generic_instance.as_ref() {
-        Some(syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Generic(origin)) => origin.arguments,
+        Some(symbol_resolved_trees::types::TypeReference::Generic(origin)) => origin.arguments,
         _ => unreachable!(),
     };
     let instance_members = instance.members;
 
     let mut changed_origin_domain = resolved.clone();
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Constrained(argument) =
+    let symbol_resolved_trees::types::TypeReference::Constrained(argument) =
         &mut changed_origin_domain
             .tables
             .declarations
@@ -1122,7 +1035,7 @@ fn seeded_arithmetic_domain_argument_gate_rejects_identity_mutations() {
     else {
         unreachable!()
     };
-    *constraint = syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeConstraint::ArithmeticDomain(
+    *constraint = symbol_resolved_trees::types::TypeConstraint::ArithmeticDomain(
         numerics::arithmetic::ArithmeticDomain::Saturating,
     );
     assert!(
@@ -1131,9 +1044,7 @@ fn seeded_arithmetic_domain_argument_gate_rejects_identity_mutations() {
     );
 
     let mut changed_field_domain = resolved.clone();
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Field(
-        field,
-    ) = &mut changed_field_domain
+    let symbol_resolved_trees::data::DataMember::Field(field) = &mut changed_field_domain
         .tables
         .declarations
         .data_members
@@ -1141,7 +1052,7 @@ fn seeded_arithmetic_domain_argument_gate_rejects_identity_mutations() {
     else {
         unreachable!()
     };
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Constrained(field_type) =
+    let symbol_resolved_trees::types::TypeReference::Constrained(field_type) =
         &field.type_reference
     else {
         unreachable!()
@@ -1155,7 +1066,7 @@ fn seeded_arithmetic_domain_argument_gate_rejects_identity_mutations() {
     else {
         unreachable!()
     };
-    *constraint = syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeConstraint::ArithmeticDomain(
+    *constraint = symbol_resolved_trees::types::TypeConstraint::ArithmeticDomain(
         numerics::arithmetic::ArithmeticDomain::Saturating,
     );
     assert!(
@@ -1164,7 +1075,7 @@ fn seeded_arithmetic_domain_argument_gate_rejects_identity_mutations() {
     );
 
     let mut changed_base_identity = resolved.clone();
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Constrained(argument) = &changed_base_identity
+    let symbol_resolved_trees::types::TypeReference::Constrained(argument) = &changed_base_identity
         .tables
         .declarations
         .child_type_references
@@ -1173,10 +1084,7 @@ fn seeded_arithmetic_domain_argument_gate_rejects_identity_mutations() {
         unreachable!()
     };
     let base_type = argument.base_type;
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Named {
-        name,
-        ..
-    } = changed_base_identity
+    let symbol_resolved_trees::types::TypeReference::Named { name, .. } = changed_base_identity
         .tables
         .declarations
         .child_type_references
@@ -1184,14 +1092,14 @@ fn seeded_arithmetic_domain_argument_gate_rejects_identity_mutations() {
     else {
         unreachable!()
     };
-    *name = syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName::generated("u64");
+    *name = symbol_resolved_trees::name::DiagnosticName::generated("u64");
     assert!(
         !plain_data_extension_shape_is_supported(&changed_base_identity, frontier),
         "a constrained argument cannot spoof its exact carrier identity"
     );
 
     let mut changed_constraint_kind = resolved;
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Constrained(argument) =
+    let symbol_resolved_trees::types::TypeReference::Constrained(argument) =
         &changed_constraint_kind
             .tables
             .declarations
@@ -1209,8 +1117,8 @@ fn seeded_arithmetic_domain_argument_gate_rejects_identity_mutations() {
     else {
         unreachable!()
     };
-    *constraint = syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeConstraint::Named(
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName::generated("Wrapping"),
+    *constraint = symbol_resolved_trees::types::TypeConstraint::Named(
+        symbol_resolved_trees::name::DiagnosticName::generated("Wrapping"),
     );
     assert!(
         !plain_data_extension_shape_is_supported(&changed_constraint_kind, frontier),
@@ -1256,7 +1164,7 @@ fn seeded_unindexed_declared_domain_argument_rejoins_exact_identity() {
         .find(|definition| definition.name.as_str() == "Cell<Token in Issued>")
         .expect("closed declared-domain Cell instance");
     let origin_arguments = match instance.generic_instance.as_ref() {
-        Some(syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Generic(origin)) => origin.arguments,
+        Some(symbol_resolved_trees::types::TypeReference::Generic(origin)) => origin.arguments,
         _ => unreachable!(),
     };
     let instance_members = instance.members;
@@ -1275,7 +1183,7 @@ fn seeded_unindexed_declared_domain_argument_rejoins_exact_identity() {
         .clone();
 
     let mut changed_origin_domain = resolved.clone();
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Constrained(argument) = &changed_origin_domain
+    let symbol_resolved_trees::types::TypeReference::Constrained(argument) = &changed_origin_domain
         .tables
         .declarations
         .child_type_references
@@ -1284,11 +1192,7 @@ fn seeded_unindexed_declared_domain_argument_rejoins_exact_identity() {
         unreachable!()
     };
     let constraints = argument.constraints;
-    let [
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeConstraint::Domain(
-            domain,
-        ),
-    ] = changed_origin_domain
+    let [symbol_resolved_trees::types::TypeConstraint::Domain(domain)] = changed_origin_domain
         .tables
         .types
         .constraints
@@ -1303,9 +1207,7 @@ fn seeded_unindexed_declared_domain_argument_rejoins_exact_identity() {
     );
 
     let mut changed_field_domain = resolved.clone();
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Field(
-        field,
-    ) = &changed_field_domain
+    let symbol_resolved_trees::data::DataMember::Field(field) = &changed_field_domain
         .tables
         .declarations
         .data_members
@@ -1313,17 +1215,13 @@ fn seeded_unindexed_declared_domain_argument_rejoins_exact_identity() {
     else {
         unreachable!()
     };
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Constrained(field_type) =
+    let symbol_resolved_trees::types::TypeReference::Constrained(field_type) =
         &field.type_reference
     else {
         unreachable!()
     };
     let field_constraints = field_type.constraints;
-    let [
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeConstraint::Domain(
-            domain,
-        ),
-    ] = changed_field_domain
+    let [symbol_resolved_trees::types::TypeConstraint::Domain(domain)] = changed_field_domain
         .tables
         .types
         .constraints
@@ -1338,7 +1236,7 @@ fn seeded_unindexed_declared_domain_argument_rejoins_exact_identity() {
     );
 
     let mut detached_domain_name = resolved.clone();
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference::Constrained(argument) = &detached_domain_name
+    let symbol_resolved_trees::types::TypeReference::Constrained(argument) = &detached_domain_name
         .tables
         .declarations
         .child_type_references
@@ -1347,11 +1245,7 @@ fn seeded_unindexed_declared_domain_argument_rejoins_exact_identity() {
         unreachable!()
     };
     let constraints = argument.constraints;
-    let [
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeConstraint::Domain(
-            domain,
-        ),
-    ] = detached_domain_name
+    let [symbol_resolved_trees::types::TypeConstraint::Domain(domain)] = detached_domain_name
         .tables
         .types
         .constraints
@@ -1359,7 +1253,7 @@ fn seeded_unindexed_declared_domain_argument_rejoins_exact_identity() {
     else {
         unreachable!()
     };
-    domain.name = syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName::generated("Issued");
+    domain.name = symbol_resolved_trees::name::DiagnosticName::generated("Issued");
     assert!(
         !plain_data_extension_shape_is_supported(&detached_domain_name, frontier),
         "a same-spelled domain without an authored selection cannot mint identity"
@@ -1372,16 +1266,16 @@ fn seeded_unindexed_declared_domain_argument_rejoins_exact_identity() {
         .iter()
         .find(|definition| definition.name.as_str() == "Cell<Token in Issued>")
         .expect("typed declared-domain Cell instance");
-    let [crate::typed_trees::data::DataMember::Field(field)] = typed.data_members(instance) else {
+    let [typed_trees::data::DataMember::Field(field)] = typed.data_members(instance) else {
         panic!("typed declared-domain Cell instance retains one field")
     };
-    let crate::typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } = typed
+    let typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } = typed
         .type_reference_table
         .type_reference(field.type_reference)
     else {
         panic!("typed instance field retains its constraint")
     };
-    let [crate::typed_trees::types::TypeConstraintNode::Domain(domain)] =
+    let [typed_trees::types::TypeConstraintNode::Domain(domain)] =
         typed.type_reference_table.constraints(*constraints)
     else {
         panic!("typed instance field retains one declared domain")

@@ -1,5 +1,5 @@
 use super::filter_expired_borrow_loans;
-use crate::checked_trees::{
+use checked_trees::{
     BorrowFacts, BorrowLoanFact, FlowBorrowWeakeningFact, FlowBorrowWeakeningReason,
     FlowConstraintKind, FlowConstraintRef, FlowInvalidationSource,
 };

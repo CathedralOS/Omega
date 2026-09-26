@@ -12,7 +12,7 @@ use crate::rewrites::runtime_spill::tests::{
     baseline_target_register_environment, budget, selected_instruction_plan_identity,
 };
 use crate::{spill_selected_runtime_value, validate_runtime_spill};
-use target_operations_to_selected_instructions::{
+use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedLocalStorageSlot, SelectedValueBinding,
     SelectedValueTransport,
 };
@@ -520,7 +520,7 @@ fn an_escaping_slot_address_keeps_the_victim_private() {
             unreachable!()
         };
         successor.bindings.push(SelectedValueBinding {
-            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
+            semantic: abstract_operations::ValueBinding {
                 parameter: ValueId::new(2).unwrap(),
                 argument: ValueId::new(9).unwrap(),
                 scalar_type,

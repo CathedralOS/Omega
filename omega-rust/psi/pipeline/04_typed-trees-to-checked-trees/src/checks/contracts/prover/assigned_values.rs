@@ -1,15 +1,15 @@
 //! Domain predicates over exact, live assignment values. Mutation invalidation
 //! owns their lifetime; this consumer neither replays a body nor assumes zeros.
 
-use crate::fact_plan::{FactContextHandle, FactPayload, FactPlace, FactPlan, PlaceHandle};
 use crate::flow::{
     CanonicalPlace, canonical_place_from_semantic_place, normalized_event_place_root,
     relative_place_segments_from_expression,
 };
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
-use symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
+use facts::{FactContextHandle, FactPayload, FactPlace, FactPlan, PlaceHandle};
 use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
+use typed_trees::domain::ProofFact;
+use typed_trees::expression::ExpressionHandle;
 
 use super::scalars::{self, ScalarValue};
 use crate::values::literal_at_place;
@@ -42,8 +42,8 @@ pub(super) fn prove_domain(
 /// evidence.
 pub(in crate::checks::contracts) fn segments_cover_subject(
     program: &TypedTrees,
-    candidate: &[crate::fact_plan::PlaceSegment],
-    subject: &[crate::fact_plan::PlaceSegment],
+    candidate: &[facts::PlaceSegment],
+    subject: &[facts::PlaceSegment],
 ) -> bool {
     candidate.len() == subject.len()
         && candidate
@@ -57,22 +57,22 @@ pub(in crate::checks::contracts) fn segments_cover_subject(
 
 fn segment_covers_subject(
     program: &TypedTrees,
-    candidate: crate::fact_plan::PlaceSegment,
-    subject: crate::fact_plan::PlaceSegment,
+    candidate: facts::PlaceSegment,
+    subject: facts::PlaceSegment,
 ) -> bool {
-    let crate::fact_plan::PlaceSegment::FixedRange { start, end } = candidate else {
+    let facts::PlaceSegment::FixedRange { start, end } = candidate else {
         return false;
     };
     if start >= end {
         return false;
     }
     match subject {
-        crate::fact_plan::PlaceSegment::FixedIndex { index } => start <= index && index < end,
-        crate::fact_plan::PlaceSegment::FixedRange {
+        facts::PlaceSegment::FixedIndex { index } => start <= index && index < end,
+        facts::PlaceSegment::FixedRange {
             start: subject_start,
             end: subject_end,
         } => subject_start < subject_end && start <= subject_start && subject_end <= end,
-        crate::fact_plan::PlaceSegment::Index { expression } => {
+        facts::PlaceSegment::Index { expression } => {
             // Only the complete extent covers an unresolved selector. A
             // constant expression narrows from any containing extent; a
             // non-literal selector is universal only inside `0..usize::MAX`.
@@ -109,12 +109,11 @@ fn prove_domain_by_extent_enumeration(
     let Some(position) = subject
         .segments
         .iter()
-        .position(|segment| matches!(segment, crate::fact_plan::PlaceSegment::FixedRange { .. }))
+        .position(|segment| matches!(segment, facts::PlaceSegment::FixedRange { .. }))
     else {
         return false;
     };
-    let crate::fact_plan::PlaceSegment::FixedRange { start, end } = subject.segments[position]
-    else {
+    let facts::PlaceSegment::FixedRange { start, end } = subject.segments[position] else {
         return false;
     };
     let indices: Vec<usize> = if start == 0 && end == usize::MAX {
@@ -125,8 +124,7 @@ fn prove_domain_by_extent_enumeration(
     !indices.is_empty()
         && indices.iter().all(|index| {
             let mut element = subject.clone();
-            element.segments[position] =
-                crate::fact_plan::PlaceSegment::FixedIndex { index: *index };
+            element.segments[position] = facts::PlaceSegment::FixedIndex { index: *index };
             prove_domain_at_place(program, semantic, contexts, &element, domain)
         })
 }
@@ -163,7 +161,7 @@ fn recorded_element_extent(
                 .enumerate()
                 .all(|(at, (candidate, subject))| {
                     if at == position {
-                        matches!(candidate, crate::fact_plan::PlaceSegment::FixedIndex { .. })
+                        matches!(candidate, facts::PlaceSegment::FixedIndex { .. })
                     } else {
                         crate::flow::canonical_place_segments_equal(*candidate, *subject)
                     }
@@ -171,7 +169,7 @@ fn recorded_element_extent(
         {
             continue;
         }
-        if let crate::fact_plan::PlaceSegment::FixedIndex { index } = candidate.segments[position] {
+        if let facts::PlaceSegment::FixedIndex { index } = candidate.segments[position] {
             indices.push(index);
         }
     }
@@ -464,12 +462,10 @@ mod tests {
         ExpressionHandle, FactPayload, FactPlace, FactPlan, ScalarValue, literal_at_place,
         scalar_value_at_place,
     };
-    use crate::fact_plan::{Fact, PlaceRoot, ProgramPoint};
     use crate::flow::CanonicalPlace;
     use crate::tests::front_end::typed_program;
-    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-        ExpressionNode, TableBinaryExpression,
-    };
+    use facts::{Fact, PlaceRoot, ProgramPoint};
+    use typed_trees::expression::{ExpressionNode, TableBinaryExpression};
 
     #[test]
     fn scalar_lookup_requires_live_exact_literal_evidence_not_initializers() {
@@ -481,7 +477,7 @@ mod tests {
             .statements(state.statement_nodes)
             .iter()
             .filter_map(|statement| match statement {
-                symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) => {
+                typed_trees::statement::StatementNode::LocalData(local) => {
                     Some((local.symbol, local.initial_value))
                 }
                 _ => None,
@@ -521,14 +517,14 @@ mod tests {
             scalar_value_at_place(&program, &semantic, [semantic.contexts.get(live)], &other),
             None
         );
-        let arithmetic = program
-            .expression_table
-            .insert(ExpressionNode::Binary(TableBinaryExpression {
-            left: literal,
-            operator:
-                symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Add,
-            right: literal,
-        }));
+        let arithmetic =
+            program
+                .expression_table
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left: literal,
+                    operator: typed_trees::expression::BinaryOperator::Add,
+                    right: literal,
+                }));
         let nonliteral = append(
             &mut semantic,
             FactPayload::AssignedValue { value: arithmetic },

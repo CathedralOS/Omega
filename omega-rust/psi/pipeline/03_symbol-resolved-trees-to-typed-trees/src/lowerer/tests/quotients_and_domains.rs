@@ -253,7 +253,7 @@ fn transparent_proposition_alias_normalizes_to_its_expansion() {
             let [contract] = typed.machine_contracts(machine) else {
                 panic!("machine should retain one contract");
             };
-            let [crate::typed_trees::domain::ProofFact::Proposition(application)] =
+            let [typed_trees::domain::ProofFact::Proposition(application)] =
                 typed.proof_facts.span_or_empty(contract.facts)
             else {
                 panic!("contract should retain one proposition application");
@@ -339,12 +339,12 @@ fn preserves_structural_recast_targets_through_typed_lowering() {
         .statements(state.statement_nodes)
         .iter()
         .filter_map(|statement| match statement {
-            crate::typed_trees::statement::StatementNode::LocalData(local) => Some(local),
+            typed_trees::statement::StatementNode::LocalData(local) => Some(local),
             _ => None,
         })
         .collect::<Vec<_>>();
 
-    let crate::typed_trees::expression::ExpressionNode::Borrow(fixed_borrow) = typed_trees
+    let typed_trees::expression::ExpressionNode::Borrow(fixed_borrow) = typed_trees
         .expression_table
         .expression(locals[0].initial_value)
     else {
@@ -354,7 +354,7 @@ fn preserves_structural_recast_targets_through_typed_lowering() {
         fixed_borrow.access,
         language_semantics::ReferenceAccess::Shared
     );
-    let crate::typed_trees::expression::ExpressionNode::Cast(fixed) =
+    let typed_trees::expression::ExpressionNode::Cast(fixed) =
         typed_trees.expression_table.expression(fixed_borrow.target)
     else {
         panic!("fixed-array shared-borrow target should remain a cast");
@@ -363,13 +363,13 @@ fn preserves_structural_recast_targets_through_typed_lowering() {
         typed_trees
             .type_reference_table
             .type_reference(fixed.target_type),
-        crate::typed_trees::types::TypeReferenceNode::FixedArray {
-            length: crate::typed_trees::types::FixedArrayLength::Literal(4),
+        typed_trees::types::TypeReferenceNode::FixedArray {
+            length: typed_trees::types::FixedArrayLength::Literal(4),
             ..
         }
     ));
 
-    let crate::typed_trees::expression::ExpressionNode::Borrow(slice_borrow) = typed_trees
+    let typed_trees::expression::ExpressionNode::Borrow(slice_borrow) = typed_trees
         .expression_table
         .expression(locals[1].initial_value)
     else {
@@ -379,7 +379,7 @@ fn preserves_structural_recast_targets_through_typed_lowering() {
         slice_borrow.access,
         language_semantics::ReferenceAccess::Shared
     );
-    let crate::typed_trees::expression::ExpressionNode::Cast(slice) =
+    let typed_trees::expression::ExpressionNode::Cast(slice) =
         typed_trees.expression_table.expression(slice_borrow.target)
     else {
         panic!("slice shared-borrow target should remain a cast");
@@ -388,7 +388,7 @@ fn preserves_structural_recast_targets_through_typed_lowering() {
         typed_trees
             .type_reference_table
             .type_reference(slice.target_type),
-        crate::typed_trees::types::TypeReferenceNode::Slice { .. }
+        typed_trees::types::TypeReferenceNode::Slice { .. }
     ));
 }
 
@@ -419,7 +419,7 @@ fn lowers_domain_definitions() {
     assert_eq!(domain.name.as_str(), "Player::Alive");
     let facts = typed_trees.proof_facts(domain);
     assert_eq!(facts.len(), 2);
-    let crate::typed_trees::domain::ProofFact::Membership(membership) = &facts[0] else {
+    let typed_trees::domain::ProofFact::Membership(membership) = &facts[0] else {
         panic!("first domain fact should be membership")
     };
     assert!(membership.domain_symbol.is_valid());
@@ -475,7 +475,7 @@ fn lowers_case_union_domain_proofs_from_exact_resolved_symbols() {
                 .data_members(definition.members)
                 .iter()
                 .filter_map(|member| match member {
-                    syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Variant(variant) => {
+                    symbol_resolved_trees::data::DataMember::Variant(variant) => {
                         Some(variant.symbol)
                     }
                     _ => None,
@@ -491,12 +491,11 @@ fn lowers_case_union_domain_proofs_from_exact_resolved_symbols() {
         .iter()
         .find(|domain| domain.name.as_str() == "Command::Interactive")
         .expect("interactive domain");
-    let [crate::typed_trees::domain::ProofFact::Expression(expression)] =
-        typed_trees.proof_facts(domain)
+    let [typed_trees::domain::ProofFact::Expression(expression)] = typed_trees.proof_facts(domain)
     else {
         panic!("case union should lower as one proof expression");
     };
-    let crate::typed_trees::expression::ExpressionNode::Binary(union) =
+    let typed_trees::expression::ExpressionNode::Binary(union) =
         typed_trees.expression_table.expression(*expression)
     else {
         panic!("proof expression should remain a union");
@@ -506,12 +505,12 @@ fn lowers_case_union_domain_proofs_from_exact_resolved_symbols() {
         .into_iter()
         .zip(expected_symbols.1)
     {
-        let crate::typed_trees::expression::ExpressionNode::Binary(equality) =
+        let typed_trees::expression::ExpressionNode::Binary(equality) =
             typed_trees.expression_table.expression(expression)
         else {
             panic!("case membership should lower to exact tag equality");
         };
-        let crate::typed_trees::expression::ExpressionNode::Name(case) =
+        let typed_trees::expression::ExpressionNode::Name(case) =
             typed_trees.expression_table.expression(equality.right)
         else {
             panic!("tag equality should retain an exact case path");
@@ -577,20 +576,20 @@ fn normalizes_domain_constraints_by_short_name_and_carrier() {
         .data_members(holder)
         .iter()
         .filter_map(|member| match member {
-            crate::typed_trees::data::DataMember::Field(field) => {
+            typed_trees::data::DataMember::Field(field) => {
                 Some((field.name.as_str(), field.type_reference))
             }
-            crate::typed_trees::data::DataMember::Variant(_) => None,
+            typed_trees::data::DataMember::Variant(_) => None,
         })
         .collect::<std::collections::HashMap<_, _>>();
 
     let constraint_for = |type_reference| {
-        let crate::typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } =
+        let typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } =
             typed.type_reference_table.type_reference(type_reference)
         else {
             panic!("constrained field")
         };
-        let [crate::typed_trees::types::TypeConstraintNode::Domain(domain)] =
+        let [typed_trees::types::TypeConstraintNode::Domain(domain)] =
             typed.type_reference_table.constraints(*constraints)
         else {
             panic!("one domain constraint")
@@ -618,7 +617,7 @@ fn normalizes_domain_constraints_by_short_name_and_carrier() {
         unsigned_domain.establishment_routes
     );
 
-    let crate::typed_trees::types::TypeReferenceNode::Generic { arguments, .. } = typed
+    let typed_trees::types::TypeReferenceNode::Generic { arguments, .. } = typed
         .type_reference_table
         .type_reference(fields["boxed_signed"])
     else {
@@ -642,7 +641,7 @@ fn normalizes_domain_constraints_by_short_name_and_carrier() {
 
 #[test]
 fn retains_closed_compiler_domain_subjects_and_layout_schema_report_fingerprint() {
-    use crate::typed_trees::types::{
+    use typed_trees::types::{
         DomainConstraintSubject, OmegaLayoutGrammar, TypeConstraintNode, TypeReferenceNode,
     };
 
@@ -667,10 +666,10 @@ fn retains_closed_compiler_domain_subjects_and_layout_schema_report_fingerprint(
         .data_members(holder)
         .iter()
         .filter_map(|member| match member {
-            crate::typed_trees::data::DataMember::Field(field) => {
+            typed_trees::data::DataMember::Field(field) => {
                 Some((field.name.as_str(), field.type_reference))
             }
-            crate::typed_trees::data::DataMember::Variant(_) => None,
+            typed_trees::data::DataMember::Variant(_) => None,
         })
         .collect::<std::collections::HashMap<_, _>>();
     let domain_for = |type_reference| {
@@ -749,17 +748,17 @@ fn symbol_backed_domain_spelling_cannot_spoof_compiler_subject() {
         .data_members(holder)
         .iter()
         .find_map(|member| match member {
-            crate::typed_trees::data::DataMember::Field(field) => Some(field),
-            crate::typed_trees::data::DataMember::Variant(_) => None,
+            typed_trees::data::DataMember::Field(field) => Some(field),
+            typed_trees::data::DataMember::Variant(_) => None,
         })
         .expect("value field");
-    let crate::typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } = typed
+    let typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } = typed
         .type_reference_table
         .type_reference(field.type_reference)
     else {
         panic!("constrained field")
     };
-    let [crate::typed_trees::types::TypeConstraintNode::Domain(domain)] =
+    let [typed_trees::types::TypeConstraintNode::Domain(domain)] =
         typed.type_reference_table.constraints(*constraints)
     else {
         panic!("one domain constraint")
@@ -768,7 +767,7 @@ fn symbol_backed_domain_spelling_cannot_spoof_compiler_subject() {
     assert!(domain.symbol.is_valid());
     assert_eq!(
         domain.subject,
-        crate::typed_trees::types::DomainConstraintSubject::Declared
+        typed_trees::types::DomainConstraintSubject::Declared
     );
 }
 
@@ -791,11 +790,11 @@ fn carry_alias_expansion_retains_closed_invalid_symbol_atoms() {
         .data_members(holder)
         .iter()
         .find_map(|member| match member {
-            crate::typed_trees::data::DataMember::Field(field) => Some(field),
-            crate::typed_trees::data::DataMember::Variant(_) => None,
+            typed_trees::data::DataMember::Field(field) => Some(field),
+            typed_trees::data::DataMember::Variant(_) => None,
         })
         .expect("value field");
-    let crate::typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } = typed
+    let typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } = typed
         .type_reference_table
         .type_reference(field.type_reference)
     else {
@@ -806,7 +805,7 @@ fn carry_alias_expansion_retains_closed_invalid_symbol_atoms() {
         .constraints(*constraints)
         .iter()
         .map(|constraint| match constraint {
-            crate::typed_trees::types::TypeConstraintNode::Domain(domain) => {
+            typed_trees::types::TypeConstraintNode::Domain(domain) => {
                 assert!(!domain.symbol.is_valid());
                 domain.subject
             }
@@ -817,7 +816,7 @@ fn carry_alias_expansion_retains_closed_invalid_symbol_atoms() {
     assert_eq!(
         subjects,
         language_semantics::CarryPermission::ALL
-            .map(crate::typed_trees::types::DomainConstraintSubject::Carry)
+            .map(typed_trees::types::DomainConstraintSubject::Carry)
     );
 }
 
@@ -880,13 +879,11 @@ fn expands_transparent_domain_aliases_before_semantic_normalization() {
         .proof_facts(prepared)
         .iter()
         .map(|fact| match fact {
-            crate::typed_trees::domain::ProofFact::Membership(membership) => {
-                membership.domain_symbol
-            }
-            crate::typed_trees::domain::ProofFact::Expression(_) => {
+            typed_trees::domain::ProofFact::Membership(membership) => membership.domain_symbol,
+            typed_trees::domain::ProofFact::Expression(_) => {
                 panic!("alias should expand to membership atoms")
             }
-            crate::typed_trees::domain::ProofFact::Proposition(_) => {
+            typed_trees::domain::ProofFact::Proposition(_) => {
                 panic!("domain alias should not become a proposition application")
             }
         })
@@ -902,10 +899,10 @@ fn expands_transparent_domain_aliases_before_semantic_normalization() {
         .data_members(holder)
         .iter()
         .filter_map(|member| match member {
-            crate::typed_trees::data::DataMember::Field(field) => {
+            typed_trees::data::DataMember::Field(field) => {
                 Some((field.name.as_str(), field.type_reference))
             }
-            crate::typed_trees::data::DataMember::Variant(_) => None,
+            typed_trees::data::DataMember::Variant(_) => None,
         })
         .collect::<std::collections::HashMap<_, _>>();
     assert_eq!(
@@ -924,15 +921,14 @@ fn expands_transparent_domain_aliases_before_semantic_normalization() {
         .iter()
         .flat_map(|state| typed.statement_table.statements(state.statement_nodes))
         .any(|statement| {
-            let crate::typed_trees::statement::StatementNode::Expression(expression) = statement
-            else {
+            let typed_trees::statement::StatementNode::Expression(expression) = statement else {
                 return false;
             };
             matches!(
                 typed.expression_table.expression(*expression),
-                crate::typed_trees::expression::ExpressionNode::Binary(binary)
+                typed_trees::expression::ExpressionNode::Binary(binary)
                     if binary.operator
-                        == crate::typed_trees::expression::BinaryOperator::And
+                        == typed_trees::expression::BinaryOperator::And
             )
         });
     assert!(
@@ -963,7 +959,7 @@ fn parameter_domain_conjunction_synthesizes_each_membership_contract() {
         .state_contracts(state)
         .iter()
         .map(|contract| {
-            let [crate::typed_trees::domain::ProofFact::Membership(membership)] =
+            let [typed_trees::domain::ProofFact::Membership(membership)] =
                 typed.proof_facts.span_or_empty(contract.facts)
             else {
                 panic!("one synthesized membership fact")
@@ -1111,8 +1107,8 @@ fn preserves_domain_operator_declarations() {
 fn lower_packaged_sources(
     sources: &[(&str, &str)],
 ) -> (
-    syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::SymbolResolvedTrees,
-    crate::typed_trees::TypedTrees,
+    symbol_resolved_trees::SymbolResolvedTrees,
+    typed_trees::TypedTrees,
 ) {
     use std::path::PathBuf;
 
@@ -1136,23 +1132,23 @@ fn lower_packaged_sources(
 }
 
 fn utf8_constraint_on_line(
-    typed: &crate::typed_trees::TypedTrees,
-) -> crate::typed_trees::types::DomainConstraint {
+    typed: &typed_trees::TypedTrees,
+) -> typed_trees::types::DomainConstraint {
     let line = typed
         .data_definitions()
         .iter()
         .find(|data| data.name.as_str() == "Line")
         .expect("Line data");
-    let [crate::typed_trees::data::DataMember::Field(field)] = typed.data_members(line) else {
+    let [typed_trees::data::DataMember::Field(field)] = typed.data_members(line) else {
         panic!("Line carries one field")
     };
-    let crate::typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } = typed
+    let typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } = typed
         .type_reference_table
         .type_reference(field.type_reference)
     else {
         panic!("constrained field")
     };
-    let [crate::typed_trees::types::TypeConstraintNode::Domain(domain)] =
+    let [typed_trees::types::TypeConstraintNode::Domain(domain)] =
         typed.type_reference_table.constraints(*constraints)
     else {
         panic!("one domain constraint")

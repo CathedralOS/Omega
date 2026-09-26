@@ -7,14 +7,14 @@ use crate::lowering::type_reference::lower_type_reference_handle;
 use crate::resolution::lowerer::Lowerer;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
-use tokens_to_syntax_trees::syntax_trees::{self as syntax, SyntaxTrees};
+use syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_operator_definition(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     operator: &syntax::item::OperatorDefinition,
-) -> Result<crate::symbol_resolved_trees::operator::OperatorDefinition, Diagnostic> {
-    Ok(crate::symbol_resolved_trees::operator::OperatorDefinition {
+) -> Result<symbol_resolved_trees::operator::OperatorDefinition, Diagnostic> {
+    Ok(symbol_resolved_trees::operator::OperatorDefinition {
         is_public: operator.is_public,
         is_boundary: operator.is_boundary,
         symbol: Default::default(),
@@ -41,7 +41,7 @@ fn lower_operator_name(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     name: HandleSpan<syntax::identifier::Identifier>,
-) -> HandleSpan<crate::symbol_resolved_trees::name::DiagnosticName> {
+) -> HandleSpan<symbol_resolved_trees::name::DiagnosticName> {
     let mut span = HandleSpan::empty();
 
     for member in syntax_trees.items.identifier_path_members(name) {
@@ -101,7 +101,7 @@ pub(crate) fn lower_bare_bodyless_signature(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
-) -> Result<crate::symbol_resolved_trees::operator::OperatorDefinition, Diagnostic> {
+) -> Result<symbol_resolved_trees::operator::OperatorDefinition, Diagnostic> {
     let name = machine.name.as_str();
     let (namespace, leaf) = name.rsplit_once("::").unwrap_or(("", name));
     let family = CatalogFamily::naming(namespace, leaf);
@@ -174,7 +174,7 @@ pub(crate) fn lower_bare_bodyless_signature(
                 )),
             );
     }
-    Ok(crate::symbol_resolved_trees::operator::OperatorDefinition {
+    Ok(symbol_resolved_trees::operator::OperatorDefinition {
         is_public: machine.is_public,
         is_boundary: false,
         symbol: Default::default(),

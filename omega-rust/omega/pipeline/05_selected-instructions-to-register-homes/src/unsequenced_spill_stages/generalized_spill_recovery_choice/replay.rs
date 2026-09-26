@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use target_operations_to_selected_instructions::register_model::{
+use register_model::{
     RegisterViewId, TargetRegisterEnvironmentConstraintKeys, ValidatedPhysicalRegisterModel,
     ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
     target_register_environment_identity,
@@ -16,10 +16,10 @@ use crate::unsequenced_spill_stages::{
     GeneralizedSpillRecoveryResident, GeneralizedSpillRecoveryVictimChoice,
     ValidatedGeneralizedReloadValueHomes, ValidatedGeneralizedSpillRecoveryWorklist,
 };
+use selected_instructions::LiveRangePoint;
 use selected_instructions_to_selected_instructions::{
     ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedSelectedAnalysis,
 };
-use target_operations_to_selected_instructions::LiveRangePoint;
 
 mod original_eligibility;
 
@@ -392,7 +392,7 @@ fn replay_roots(
 
 fn replay_view(
     function: usize,
-    class: target_operations_to_selected_instructions::register_model::RegisterClassId,
+    class: register_model::RegisterClassId,
     id: RegisterViewId,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<(), GeneralizedSpillRecoveryChoiceError> {

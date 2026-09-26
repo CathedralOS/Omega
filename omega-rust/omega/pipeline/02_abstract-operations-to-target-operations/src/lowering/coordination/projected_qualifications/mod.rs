@@ -1,8 +1,6 @@
 //! Optimizer module role: executable entrance. Fail-closed target-lowering admission for projected qualification custody.
 
-use terminal_psi_to_abstract_operations::abstract_operations::{
-    AbstractOperation, AbstractOperationPlan,
-};
+use abstract_operations::{AbstractOperation, AbstractOperationPlan};
 
 use crate::LoweringError;
 

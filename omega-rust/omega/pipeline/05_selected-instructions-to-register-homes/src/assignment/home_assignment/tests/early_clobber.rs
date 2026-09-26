@@ -1,13 +1,11 @@
-use target_operations_to_selected_instructions::register_model::{RegisterClassId, RegisterViewId};
-use target_operations_to_selected_instructions::{
-    SelectedBlockId, SelectedInstructionId, VirtualRegisterId,
-};
+use register_model::{RegisterClassId, RegisterViewId};
+use selected_instructions::{SelectedBlockId, SelectedInstructionId, VirtualRegisterId};
 
 use super::fixtures::*;
 use super::{compute_function, validate};
 use crate::RegisterHomeError;
-use selected_instructions_to_selected_instructions::register_homes::VirtualEarlyClobberPointLegality;
-use target_operations_to_selected_instructions::{
+use register_homes::VirtualEarlyClobberPointLegality;
+use selected_instructions::{
     DistinctUseDefTie, EarlyClobberConstraint, EarlyClobberUse, LiveRangePoint, LivenessPosition,
     VirtualLiveRange,
 };

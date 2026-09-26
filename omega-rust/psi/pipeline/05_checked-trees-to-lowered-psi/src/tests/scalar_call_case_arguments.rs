@@ -1,15 +1,11 @@
 //! A case actual retains its constructor and each authored payload occurrence.
-use super::lower_machine;
+use super::{LoweringError, lower_machine};
 use crate::TerminalMachineSelection;
-use lowered_psi_to_terminal_psi::terminal_production::{
-    TerminalProductionCustody, TerminalProductionTimings,
-};
+use checked_trees::{CheckedScalarComputationKind, CheckedScalarComputationStructuralArgument};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationKind, ScalarCaseField, StructuralAccess, StructuralTypeShape};
-use typed_trees_to_checked_trees::checked_trees::{
-    CheckedScalarComputationKind, CheckedScalarComputationStructuralArgument,
-};
 
 const ORDERED_CONSTRUCTOR: &str = r#"
 data Unrelated [copy] { case Other; }
@@ -66,10 +62,7 @@ machine choose(selector: i32, value: &mut u64) -> Choice {
 }
 "#;
 
-fn ordered_plan_index(
-    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
-    name: &str,
-) -> usize {
+fn ordered_plan_index(checked: &checked_trees::CheckedTrees, name: &str) -> usize {
     let machine = checked
         .machines()
         .iter()
@@ -87,22 +80,17 @@ fn ordered_plan_index(
 
 #[test]
 fn ordered_structural_constructor_replays_guards_fallback_and_exact_values() {
-    use typed_trees_to_checked_trees::checked_trees::{
-        CheckedComposedUnitControlTerminatorPlan, CheckedUnitEffectOperationPlan,
-    };
+    use checked_trees::{CheckedComposedUnitControlTerminatorPlan, CheckedUnitEffectOperationPlan};
     let checked = crate::front_end::checked_program(ORDERED_CONSTRUCTOR);
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "MemoryAlignment::from",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("source ordered constructor reaches canonical Terminal")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("MemoryAlignment::from"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("source ordered constructor reaches canonical Terminal")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     for (input, expected) in [
         (i32::MIN, "Alignment1"),
@@ -171,7 +159,7 @@ fn ordered_structural_constructor_replays_guards_fallback_and_exact_values() {
                 &changed,
                 TerminalMachineSelection::Name("MemoryAlignment::from")
             ),
-            Err(crate::LoweringError::Unsupported(
+            Err(LoweringError::Unsupported(
                 "composed Unit attachment disagrees with its authored owner"
             ))
         ),
@@ -367,18 +355,15 @@ fn ordered_constructor_local_sum_lends_original_result_to_scalar_getter() {
 #[test]
 fn ordered_structural_payload_effects_preserve_selected_mutation_and_reject_substitution() {
     let checked = crate::front_end::checked_program(ORDERED_PAYLOAD_EFFECTS);
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "choose",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("selected payload effects reach canonical Terminal")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("choose"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("selected payload effects reach canonical Terminal")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let entry = module
         .machines

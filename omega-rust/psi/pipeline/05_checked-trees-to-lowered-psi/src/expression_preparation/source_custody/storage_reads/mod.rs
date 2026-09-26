@@ -16,7 +16,7 @@ mod tests;
 /// comparisons use the same operand normalization as the checked producer.
 pub(super) fn validate(
     checked: &CheckedTrees,
-    binding: &typed_trees_to_checked_trees::checked_trees::CheckedScalarExpressionBindings,
+    binding: &checked_trees::CheckedScalarExpressionBindings,
     source: &SourceRoot,
 ) -> Result<(), LoweringError> {
     let (_, retained) = checked
@@ -104,7 +104,7 @@ enum ReadScope {
     Entry,
     NormalResult {
         machine: symbols::SymbolHandle,
-        return_type: typed_trees_to_checked_trees::checked_trees::types::TypeReferenceHandle,
+        return_type: checked_trees::types::TypeReferenceHandle,
         primitive: PrimitiveType,
     },
 }
@@ -227,9 +227,7 @@ fn validate_reads(
             scope.preceding_statements(),
             expression,
             primitive,
-            &typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(
-                retained.clone(),
-            ),
+            &checked_trees::CheckedCallScalarArgument::Pure(retained.clone()),
         )?;
     }
     Ok(())
@@ -243,13 +241,13 @@ pub(super) fn guard_subject(
     let ExpressionNode::Binary(binary) = checked.expression_table.expression(expression) else {
         return expression;
     };
-    if binary.operator != typed_trees_to_checked_trees::checked_trees::expression::BinaryOperator::Equal
+    if binary.operator != checked_trees::expression::BinaryOperator::Equal
         || checked
             .facts
             .operators
             .expression_use(expression)
             .is_some_and(|operator| {
-                operator.status != typed_trees_to_checked_trees::checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+                operator.status != checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
             })
     {
         return expression;
@@ -270,15 +268,10 @@ enum ReadKind {
     Parameter,
     Local,
     Result,
-    OwnedField(
-        Vec<typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment>,
-    ),
-    IndexedPrimitive(
-        Vec<typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment>,
-    ),
+    OwnedField(Vec<checked_trees::CheckedStructuralPredicatePathSegment>),
+    IndexedPrimitive(Vec<checked_trees::CheckedStructuralPredicatePathSegment>),
     CaseMembership {
-        path:
-            Vec<typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment>,
+        path: Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
         case: String,
     },
 }
@@ -290,8 +283,7 @@ struct ReadNamespace<'checked> {
     scalar: Vec<symbols::SymbolHandle>,
     /// Proof-only erased formals in their dense roster order.
     erased_scalar: Vec<symbols::SymbolHandle>,
-    structural:
-        &'checked [typed_trees_to_checked_trees::checked_trees::signature::StateParameter],
+    structural: &'checked [checked_trees::signature::StateParameter],
     owned_field_paths: Vec<Vec<usize>>,
     unmatched_member_paths: Vec<Vec<usize>>,
     // Structural positions are authored positions, including scalar formals.
@@ -329,8 +321,8 @@ impl ReadNamespace<'_> {
 
 fn owned_record<'checked>(
     checked: &'checked CheckedTrees,
-    parameter: &typed_trees_to_checked_trees::checked_trees::signature::StateParameter,
-) -> Option<&'checked typed_trees_to_checked_trees::checked_trees::data::DataDefinition> {
+    parameter: &checked_trees::signature::StateParameter,
+) -> Option<&'checked checked_trees::data::DataDefinition> {
     if parameter.is_self
         || parameter.is_const
         || parameter.is_mutable
@@ -342,9 +334,7 @@ fn owned_record<'checked>(
     {
         return None;
     }
-    let typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Named {
-        symbol, ..
-    } = checked
+    let checked_trees::types::TypeReferenceNode::Named { symbol, .. } = checked
         .type_reference_table
         .type_reference(parameter.type_reference)
     else {
@@ -359,12 +349,10 @@ fn owned_record<'checked>(
         .filter(|data| data.symbol == *symbol);
     let definition = definitions.next()?;
     if definitions.next().is_some()
-        || checked.data_members(definition).iter().any(|member| {
-            matches!(
-                member,
-                typed_trees_to_checked_trees::checked_trees::data::DataMember::Variant(_)
-            )
-        })
+        || checked
+            .data_members(definition)
+            .iter()
+            .any(|member| matches!(member, checked_trees::data::DataMember::Variant(_)))
     {
         return None;
     }
@@ -373,7 +361,7 @@ fn owned_record<'checked>(
 
 fn authored_owned_field(
     checked: &CheckedTrees,
-    state: &typed_trees_to_checked_trees::checked_trees::state::State,
+    state: &checked_trees::state::State,
     expression: ExpressionHandle,
 ) -> Result<Option<(symbols::SymbolHandle, PrimitiveType, ReadKind)>, LoweringError> {
     let ExpressionNode::Member(member) = checked.expression_table.expression(expression) else {
@@ -407,7 +395,7 @@ fn authored_owned_field(
         .data_members(owner)
         .iter()
         .filter_map(|candidate| match candidate {
-            typed_trees_to_checked_trees::checked_trees::data::DataMember::Field(field)
+            checked_trees::data::DataMember::Field(field)
                 if field.symbol == member.member_symbol =>
             {
                 Some(field)
@@ -431,19 +419,14 @@ fn authored_owned_field(
         return Ok(None);
     };
     if field.relevance.is_erased() || checked.data_members(owner).iter().filter(|candidate| {
-        matches!(candidate, typed_trees_to_checked_trees::checked_trees::data::DataMember::Field(candidate)
+        matches!(candidate, checked_trees::data::DataMember::Field(candidate)
             if candidate.name == field.name || field.identity.is_some() && candidate.identity == field.identity)
     }).count() != 1 {
         return unsupported("owned scalar field has no unique relevant identity");
     }
     let (machine, _) = authored_state(checked, state.symbol)?;
-    if typed_trees_to_checked_trees::validation::declared_place_type_raw(
-        &checked.typed,
-        machine,
-        Some(state),
-        expression,
-    )
-    .and_then(|reference| checked.primitive_type_reference(reference))
+    if validation::declared_place_type_raw(&checked.typed, machine, Some(state), expression)
+        .and_then(|reference| checked.primitive_type_reference(reference))
         != Some(primitive)
     {
         return unsupported("owned scalar field differs from its declared place type");
@@ -453,7 +436,7 @@ fn authored_owned_field(
         parameter.symbol,
         primitive,
         ReadKind::OwnedField(vec![
-            typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Field(identity),
+            checked_trees::CheckedStructuralPredicatePathSegment::Field(identity),
         ]),
     )))
 }
@@ -465,41 +448,30 @@ fn authored_owned_field(
 /// keep their existing member/storage owners.
 fn authored_indexed_primitive_read(
     checked: &CheckedTrees,
-    state: &typed_trees_to_checked_trees::checked_trees::state::State,
+    state: &checked_trees::state::State,
     scope: ReadScope,
-    machine: &typed_trees_to_checked_trees::checked_trees::machine::Machine,
+    machine: &checked_trees::machine::Machine,
     expression: ExpressionHandle,
 ) -> Result<Option<(symbols::SymbolHandle, PrimitiveType, ReadKind)>, LoweringError> {
-    let Some(primitive) = typed_trees_to_checked_trees::validation::declared_place_type_raw(
-        &checked.typed,
-        machine,
-        Some(state),
-        expression,
-    )
-    .and_then(|reference| {
-        typed_trees_to_checked_trees::validation::unrestricted_builtin_primitive(
-            &checked.typed,
-            reference,
-        )
-    })
-    .filter(|primitive| supported_mutable_parameter(*primitive)) else {
+    let Some(primitive) =
+        validation::declared_place_type_raw(&checked.typed, machine, Some(state), expression)
+            .and_then(|reference| {
+                validation::unrestricted_builtin_primitive(&checked.typed, reference)
+            })
+            .filter(|primitive| supported_mutable_parameter(*primitive))
+    else {
         return Ok(None);
     };
     // A bounded byte field's element is a bounds-checked byte read whose only
     // storage read is its selector, not a projected primitive leaf.
     if let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(expression)
-        && typed_trees_to_checked_trees::validation::declared_place_type_raw(
+        && validation::declared_place_type_raw(
             &checked.typed,
             machine,
             Some(state),
             indexed.collection,
         )
-        .and_then(|collection| {
-            typed_trees_to_checked_trees::validation::bounded_byte_buffer_capacity(
-                &checked.typed,
-                collection,
-            )
-        })
+        .and_then(|collection| validation::bounded_byte_buffer_capacity(&checked.typed, collection))
         .is_some()
     {
         return Ok(None);
@@ -516,7 +488,7 @@ fn authored_indexed_primitive_read(
     if !source.path.iter().any(|segment| {
         matches!(
             segment,
-            typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_)
+            checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_)
         )
     }) {
         return Ok(None);
@@ -525,11 +497,11 @@ fn authored_indexed_primitive_read(
         .path
         .iter()
         .map(|segment| match segment {
-            typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => Ok(
-                typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Field(identity.clone()),
+            checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => Ok(
+                checked_trees::CheckedStructuralPredicatePathSegment::Field(identity.clone()),
             ),
-            typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => {
-                Ok(typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(*index))
+            checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => {
+                Ok(checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(*index))
             }
             _ => unsupported("indexed primitive read has an unsupported case projection"),
         })
@@ -543,7 +515,7 @@ fn authored_indexed_primitive_read(
 
 fn collect_owned_field(
     parameter_position: u32,
-    field_path: &[typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment],
+    field_path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     primitive: PrimitiveType,
     namespace: &ReadNamespace,
     path: &[usize],
@@ -552,7 +524,7 @@ fn collect_owned_field(
     if field_path.iter().any(|segment| {
         matches!(
             segment,
-            typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_)
+            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_)
         )
     }) {
         reads.push((
@@ -569,7 +541,7 @@ fn collect_owned_field(
     }
     // Nested, indexed, receiver and borrowed projections retain their existing owners.
     if !supported_mutable_parameter(primitive)
-        || !matches!(field_path, [typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Field(_)])
+        || !matches!(field_path, [checked_trees::CheckedStructuralPredicatePathSegment::Field(_)])
         // Match members present in typed source, including equality expanded
         // during typing. Later plan-only expansion has no source member here.
         || !namespace.owned_field_paths.iter().any(|authored| authored == path)
@@ -592,9 +564,9 @@ fn collect_owned_field(
 
 fn authored_storage_read(
     checked: &CheckedTrees,
-    state: &typed_trees_to_checked_trees::checked_trees::state::State,
+    state: &checked_trees::state::State,
     scope: ReadScope,
-    name: &typed_trees_to_checked_trees::checked_trees::expression::TableNamePath,
+    name: &checked_trees::expression::TableNamePath,
 ) -> Result<Option<(symbols::SymbolHandle, PrimitiveType, ReadKind)>, LoweringError> {
     if !name.symbol.is_valid()
         || name.symbol != name.head_symbol
@@ -685,7 +657,7 @@ fn authored_storage_read(
 
 fn collect_authored_storage_reads(
     checked: &CheckedTrees,
-    state: &typed_trees_to_checked_trees::checked_trees::state::State,
+    state: &checked_trees::state::State,
     scope: ReadScope,
     expression: ExpressionHandle,
     path: &mut Vec<usize>,
@@ -694,7 +666,7 @@ fn collect_authored_storage_reads(
     member_paths: &mut Vec<Vec<usize>>,
     unmatched_member_paths: &mut Vec<Vec<usize>>,
 ) -> Result<(), LoweringError> {
-    use typed_trees_to_checked_trees::checked_trees::expression::BinaryOperator;
+    use checked_trees::expression::BinaryOperator;
     if !checked.expression_table.expression_is_valid(expression) || active.contains(&expression) {
         return unsupported("scalar storage source contains a stale or cyclic expression");
     }
@@ -724,10 +696,7 @@ fn collect_authored_storage_reads(
                 return_type,
                 primitive,
             } = scope
-                && let Some(owner) = typed_trees_to_checked_trees::validation::reserved_result_owner(
-                    &checked.typed,
-                    expression,
-                )
+                && let Some(owner) = validation::reserved_result_owner(&checked.typed, expression)
             {
                 if owner != (machine, return_type) {
                     return unsupported("normal predicate result belongs to another contract");
@@ -748,19 +717,19 @@ fn collect_authored_storage_reads(
             // retain existing structural-read owners. A retained field, length,
             // or predicate tag cannot turn a closed value (or a corrupted
             // receiver) into a storage read.
-            if !typed_trees_to_checked_trees::validation::place_has_builtin_coordinates(
+            if !validation::place_has_builtin_coordinates(
                 &checked.typed,
                 machine,
                 Some(state),
                 expression,
-            ) || typed_trees_to_checked_trees::validation::declared_place_type_raw(
+            ) || validation::declared_place_type_raw(
                 &checked.typed,
                 machine,
                 Some(state),
                 expression,
             )
             .is_none()
-                && typed_trees_to_checked_trees::validation::collection_length_receiver(
+                && validation::collection_length_receiver(
                     &checked.typed,
                     machine,
                     Some(state),
@@ -786,11 +755,7 @@ fn collect_authored_storage_reads(
                 && let ExpressionNode::StructLiteral(literal) =
                     checked.expression_table.expression(member.receiver)
                 && literal.case_name.is_none()
-                && typed_trees_to_checked_trees::validation::closed_record_scalar_projection(
-                    &checked.typed,
-                    expression,
-                )
-                .is_none()
+                && validation::closed_record_scalar_projection(&checked.typed, expression).is_none()
             {
                 return unsupported("closed record member lost its complete authored projection");
             }

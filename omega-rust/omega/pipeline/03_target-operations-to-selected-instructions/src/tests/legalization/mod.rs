@@ -32,17 +32,17 @@ mod wrapping_division;
 /// verifier accepted. A runtime-selected path element's bound reaches
 /// legalization only through such a fact.
 pub(crate) fn accept_referenced_obligations(
-    unit: terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
-) -> terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit {
+    unit: optimization_unit::PsiOptimizationUnit,
+) -> optimization_unit::PsiOptimizationUnit {
     let facts = unit
         .functions
         .iter()
         .flat_map(|function| {
             function.facts.iter().filter_map(|fact| match fact {
-                terminal_psi_to_abstract_operations::optimization_unit::OptimizationFact::OperationObligationReference {
+                optimization_unit::OptimizationFact::OperationObligationReference {
                     obligation,
                     support,
-                } => Some(terminal_psi_to_abstract_operations::optimization_unit::AcceptedObligationFact::new(
+                } => Some(optimization_unit::AcceptedObligationFact::new(
                     unit.psi,
                     [4; 32],
                     function.machine,
@@ -54,24 +54,22 @@ pub(crate) fn accept_referenced_obligations(
             })
         })
         .collect();
-    terminal_psi_to_abstract_operations::optimization_unit::attach_accepted_obligation_facts(
-        unit, facts,
-    )
-    .expect("each referenced obligation has one owner")
+    optimization_unit::attach_accepted_obligation_facts(unit, facts)
+        .expect("each referenced obligation has one owner")
 }
 
 /// The legalized runtime traversal of `value` at `stride` inside an array of
 /// `extent` elements, carrying the unit's accepted certificate for
 /// `obligation` at `operation`.
 pub(crate) fn runtime_operand(
-    unit: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
+    unit: &optimization_unit::PsiOptimizationUnit,
     operation: semantic_vocabulary::OperationId,
-    operand: terminal_psi_to_abstract_operations::abstract_operations::AbstractResult,
+    operand: abstract_operations::AbstractResult,
     stride: u32,
     extent: u64,
     obligation: semantic_vocabulary::ObligationId,
-) -> crate::legalized_operations::LegalizedRuntimeIndexOperand {
-    crate::legalized_operations::LegalizedRuntimeIndexOperand {
+) -> legalized_operations::LegalizedRuntimeIndexOperand {
+    legalized_operations::LegalizedRuntimeIndexOperand {
         operand,
         stride,
         extent,

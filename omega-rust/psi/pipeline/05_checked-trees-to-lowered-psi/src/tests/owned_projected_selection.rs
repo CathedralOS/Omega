@@ -63,9 +63,7 @@ fn projected_edges(
         .collect()
 }
 
-fn projection_handles(
-    checked: &CheckedTrees,
-) -> Vec<typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueHandle> {
+fn projection_handles(checked: &CheckedTrees) -> Vec<checked_trees::CheckedStructuralValueHandle> {
     checked
         .facts
         .values
@@ -75,7 +73,7 @@ fn projection_handles(
         .filter_map(|(handle, node)| {
             matches!(
                 node.kind,
-                typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Projection { .. }
+                checked_trees::CheckedStructuralValueKind::Projection { .. }
             )
             .then_some(handle)
         })
@@ -153,20 +151,20 @@ fn projected_owned_selection_rejects_mutated_projection_evidence() {
                 assert_eq!(handles.len(), 2);
                 for handle in handles {
                     let node = checked.facts.values.structural_values.nodes.get_mut(handle);
-                    let typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Projection { path, .. } =
+                    let checked_trees::CheckedStructuralValueKind::Projection { path, .. } =
                         &mut node.kind
                     else {
                         unreachable!()
                     };
                     path[0] =
-                        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field("second".into());
+                        checked_trees::CheckedUnitStructuralPathSegment::Field("second".into());
                 }
             }
             // The leaf identity must equal the receipt's result type.
             1 => {
                 for handle in projection_handles(&checked) {
                     let node = checked.facts.values.structural_values.nodes.get_mut(handle);
-                    let typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueKind::Projection {
+                    let checked_trees::CheckedStructuralValueKind::Projection {
                         type_identity, ..
                     } = &mut node.kind
                     else {
@@ -187,7 +185,7 @@ fn projected_owned_selection_rejects_mutated_projection_evidence() {
                         .expect("transfer path")
                 };
                 *checked.facts.flow.ownership.segments.get_mut(span.start()) =
-                    typed_trees_to_checked_trees::fact_plan::PlaceSegment::FixedIndex { index: 0 };
+                    facts::PlaceSegment::FixedIndex { index: 0 };
             }
             // A call-product transfer must not gain a roster source.
             _ => {

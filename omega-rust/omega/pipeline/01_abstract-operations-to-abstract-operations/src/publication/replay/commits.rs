@@ -24,10 +24,8 @@ pub(super) struct ReplayedAppliedDecision {
 
 pub(super) struct ReplayedCommits {
     pub(super) applied: Vec<ReplayedAppliedDecision>,
-    pub(super) revisions: BTreeMap<
-        OptimizationUnitIdentity,
-        terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
-    >,
+    pub(super) revisions:
+        BTreeMap<OptimizationUnitIdentity, optimization_unit::PsiOptimizationUnit>,
 }
 
 pub(super) fn replay(
@@ -65,7 +63,7 @@ pub(super) fn replay(
             ));
         }
         let accepted =
-            terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_rewrite_candidate(&unit, declaration)
+            optimization_unit_semantics::validate_psi_rewrite_candidate(&unit, declaration)
                 .map_err(OptimizedAbstractProjectionError::CandidateReplay)?;
         if accepted.candidate() != commit.candidate
             || accepted.validator() != commit.validator
@@ -106,7 +104,7 @@ pub(super) fn contract_for(
 
 pub(super) fn bind_contract(
     candidate: OptimizationCandidateIdentity,
-    declaration: &terminal_psi_to_abstract_operations::optimization_unit::PsiRewriteCandidate,
+    declaration: &optimization_unit::PsiRewriteCandidate,
     contract: OptimizationRuleContract,
 ) -> Result<(), OptimizedAbstractProjectionError> {
     let axis = if declaration.required_analyses() != contract.required_analyses() {

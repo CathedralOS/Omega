@@ -8,40 +8,37 @@
 //! it across the checked boundary so Unit call construction can substitute
 //! the requirement's formals and bind the selected provider.
 
-use crate::validation::{ValidatedNominalMachineUseSite, ValidatedRequirementCallSpecialization};
+use validation::{ValidatedNominalMachineUseSite, ValidatedRequirementCallSpecialization};
 
 pub(crate) fn build_requirement_call_specialization_facts(
     specializations: Vec<ValidatedRequirementCallSpecialization>,
-) -> Result<crate::checked_trees::RequirementCallSpecializationFacts, Vec<diagnostics::Diagnostic>>
-{
+) -> Result<checked_trees::RequirementCallSpecializationFacts, Vec<diagnostics::Diagnostic>> {
     let checked = specializations
         .into_iter()
         .map(
-            |specialization| crate::checked_trees::CheckedRequirementCallSpecialization {
+            |specialization| checked_trees::CheckedRequirementCallSpecialization {
                 site: match specialization.site {
                     ValidatedNominalMachineUseSite::Statement(handle) => {
-                        crate::checked_trees::NominalMachineUseSite::Statement(handle)
+                        checked_trees::NominalMachineUseSite::Statement(handle)
                     }
                     ValidatedNominalMachineUseSite::Expression(handle) => {
-                        crate::checked_trees::NominalMachineUseSite::Expression(handle)
+                        checked_trees::NominalMachineUseSite::Expression(handle)
                     }
                 },
                 registration_operation: specialization.registration_operation,
                 type_bindings: specialization
                     .type_bindings
                     .iter()
-                    .map(
-                        |binding| crate::checked_trees::CheckedRequirementCallTypeBinding {
-                            parameter: binding.parameter,
-                            actual: binding.actual,
-                        },
-                    )
+                    .map(|binding| checked_trees::CheckedRequirementCallTypeBinding {
+                        parameter: binding.parameter,
+                        actual: binding.actual,
+                    })
                     .collect(),
                 machine_selections: specialization
                     .machine_selections
                     .iter()
                     .map(
-                        |selection| crate::checked_trees::CheckedRequirementCallMachineSelection {
+                        |selection| checked_trees::CheckedRequirementCallMachineSelection {
                             static_machine_ordinal: selection.static_machine_ordinal,
                             parameter: selection.parameter,
                             selected_machine: selection.selected_machine,
@@ -52,6 +49,6 @@ pub(crate) fn build_requirement_call_specialization_facts(
             },
         )
         .collect::<Vec<_>>();
-    crate::checked_trees::RequirementCallSpecializationFacts::try_with_specializations(checked)
+    checked_trees::RequirementCallSpecializationFacts::try_with_specializations(checked)
         .map_err(|message| vec![diagnostics::Diagnostic::error(message)])
 }

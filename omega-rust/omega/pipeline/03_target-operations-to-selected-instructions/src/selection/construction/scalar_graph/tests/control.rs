@@ -10,11 +10,9 @@ use super::{
     ValueDefinitionSite, ValueId, ValueLocation, ValueShape, VirtualRegisterId, build,
     evaluate_call_plan, fixture, returned,
 };
-use crate::legalized_operations::{
-    LegalizedScalarComparison as Comparison, LegalizedScalarSuccessor,
-};
-use terminal_psi_to_abstract_operations::abstract_operations::ValueBinding;
-use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinition;
+use abstract_operations::ValueBinding;
+use legalized_operations::{LegalizedScalarComparison as Comparison, LegalizedScalarSuccessor};
+use optimization_unit::ValueDefinition;
 
 pub(super) fn graph(
     target: target::NativeTarget,
@@ -181,7 +179,7 @@ fn boolean_not_branch_suffix_preserves_each_operation_and_polarity() {
         target::NativeTarget::macos_arm64(),
     ] {
         let environment =
-            crate::register_environment::baseline_target_register_environment(target).unwrap();
+            register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -272,7 +270,7 @@ fn boolean_entry_is_snapshotted_before_calls_and_tested_at_its_branch() {
         target::NativeTarget::macos_arm64(),
     ] {
         let environment =
-            crate::register_environment::baseline_target_register_environment(target).unwrap();
+            register_environment::baseline_target_register_environment(target).unwrap();
         let mut source = graph(target, Comparison::Equal, false);
         source.call_plan = evaluate_call_plan(
             CallingPolicy::native_for_target(target),
@@ -361,7 +359,7 @@ fn scalar_control_keeps_blocks_branches_calls_and_parallel_bindings() {
         target::NativeTarget::macos_arm64(),
     ] {
         let environment =
-            crate::register_environment::baseline_target_register_environment(target).unwrap();
+            register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -486,7 +484,7 @@ fn graph_zero_equality_retains_fuel_and_does_not_elide_shared_zero() {
         target::NativeTarget::linux_arm64(),
     ] {
         let environment =
-            crate::register_environment::baseline_target_register_environment(target).unwrap();
+            register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -604,7 +602,7 @@ fn graph_zero_equality_retains_fuel_and_does_not_elide_shared_zero() {
 
 #[test]
 fn edge_transport_names_durable_call_result_not_abi_temporary() {
-    use crate::selected_instructions::SelectedValueTransport;
+    use selected_instructions::SelectedValueTransport;
     for target in [
         target::NativeTarget::linux_x64(),
         target::NativeTarget::linux_arm64(),
@@ -612,7 +610,7 @@ fn edge_transport_names_durable_call_result_not_abi_temporary() {
         target::NativeTarget::macos_arm64(),
     ] {
         let environment =
-            crate::register_environment::baseline_target_register_environment(target).unwrap();
+            register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),

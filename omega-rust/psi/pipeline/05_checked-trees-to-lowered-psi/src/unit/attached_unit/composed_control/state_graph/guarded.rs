@@ -15,19 +15,17 @@ use super::{
     edges,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
-use typed_trees_to_checked_trees::checked_trees::CheckedScalarBranchDestination;
+use checked_trees::CheckedScalarBranchDestination;
 
 pub(super) fn validate(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
-    source: &typed_trees_to_checked_trees::checked_trees::state::State,
+    source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
     start: usize,
 ) -> Result<(), LoweringError> {
     let (
-        typed_trees_to_checked_trees::checked_trees::CheckedControlResultPlan::Structural(
-            signature,
-        ),
+        checked_trees::CheckedControlResultPlan::Structural(signature),
         CheckedComposedUnitControlTerminatorPlan::Guarded {
             arms,
             fallback,
@@ -110,20 +108,20 @@ pub(super) fn validate(
             return unsupported("ordered structural destination is not its retained value return");
         };
         let expression = match statements.get(*statement_ordinal as usize) {
-            Some(typed_trees_to_checked_trees::checked_trees::statement::StatementNode::Expression(expression))
+            Some(checked_trees::statement::StatementNode::Expression(expression))
                 if !is_continuation =>
             {
                 *expression
             }
-            Some(typed_trees_to_checked_trees::checked_trees::statement::StatementNode::Transition(transition))
-                if transition.exit == typed_trees_to_checked_trees::checked_trees::statement::TransitionExit::Ordinary =>
+            Some(checked_trees::statement::StatementNode::Transition(transition))
+                if transition.exit == checked_trees::statement::TransitionExit::Ordinary =>
             {
                 let target = if *is_continuation {
                     transition.continuation
                 } else {
                     transition.target
                 };
-                let typed_trees_to_checked_trees::checked_trees::statement::TransitionTargetNode::Value(expression) =
+                let checked_trees::statement::TransitionTargetNode::Value(expression) =
                     checked.statement_table.transition_target(target)
                 else {
                     return unsupported("ordered return substituted a named destination");

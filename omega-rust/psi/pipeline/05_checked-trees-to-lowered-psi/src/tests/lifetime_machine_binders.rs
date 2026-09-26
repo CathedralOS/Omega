@@ -47,7 +47,7 @@ fn lifetime_declared_view_return_reaches_same_frontier_as_plain_twin() {
     assert!(
         matches!(
             error,
-            crate::LoweringError::Unsupported(message)
+            crate::lowering_error::LoweringError::Unsupported(message)
                 if message.contains("ordered structural destination")
         ),
         "unexpected decline: {error:?}"
@@ -70,8 +70,8 @@ fn generic_type_parameter_machines_stay_outside_graph_custody() {
     assert!(
         matches!(
             error,
-            crate::LoweringError::InvalidUnitMachinePlan { .. }
-                | crate::LoweringError::Unsupported(_)
+            crate::lowering_error::LoweringError::InvalidUnitMachinePlan { .. }
+                | crate::lowering_error::LoweringError::Unsupported(_)
         ),
         "unexpected outcome: {error:?}"
     );

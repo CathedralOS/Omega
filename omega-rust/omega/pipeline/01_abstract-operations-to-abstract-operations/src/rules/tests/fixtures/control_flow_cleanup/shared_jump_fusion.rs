@@ -1,12 +1,10 @@
-use semantic_vocabulary::{BlockId, EdgeId, FuelScheduleIdentity, MachineId, ScalarType, ValueId};
-use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
-use terminal_psi_to_abstract_operations::abstract_operations::{
+use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
     AbstractOperationPlan, AbstractParameter, AbstractSuccessor,
 };
-use terminal_psi_to_abstract_operations::optimization_unit::{
-    PsiOptimizationUnit, reconstruct_psi_optimization_unit_seed,
-};
+use optimization_unit::{PsiOptimizationUnit, reconstruct_psi_optimization_unit_seed};
+use semantic_vocabulary::{BlockId, EdgeId, FuelScheduleIdentity, MachineId, ScalarType, ValueId};
+use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 use super::super::id;
 

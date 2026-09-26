@@ -1,0 +1,13 @@
+[package]
+name = "terminal-fuel"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "terminal_fuel"
+path = "src/lib.rs"
+
+[dependencies]
+semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
+terminal-psi = { path = "../../representations/terminal-psi" }

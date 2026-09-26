@@ -25,19 +25,17 @@ use source::SourceMap;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 use symbols::{SourceScopedTopLevelBinding, SymbolHandle};
-use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
-use tokens_to_syntax_trees::syntax_trees::expression::{
+use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
 };
-use tokens_to_syntax_trees::syntax_trees::identifier::Identifier;
-use tokens_to_syntax_trees::syntax_trees::item::{
+use syntax_trees::identifier::Identifier;
+use syntax_trees::item::{
     ConformanceBody, ConformanceItem, ConformanceMember, Item, ItemHandle, Machine,
     SatisfiesClause, State, StateSignatureNode,
 };
-use tokens_to_syntax_trees::syntax_trees::statement::StatementNode;
-use tokens_to_syntax_trees::syntax_trees::types::{
-    FixedArrayLength, TypeReferenceHandle, TypeReferenceNode,
-};
+use syntax_trees::statement::StatementNode;
+use syntax_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Clone)]
 struct TraitDefaultsInput {
@@ -227,10 +225,8 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
     let mut reported_conflicts = HashSet::new();
     for conformance in conformances {
         let subject = match &conformance.declaration.subject {
-            tokens_to_syntax_trees::syntax_trees::item::ConformanceSubject::Carrier(type_name) => {
-                Some(type_name)
-            }
-            tokens_to_syntax_trees::syntax_trees::item::ConformanceSubject::Subjectless => None,
+            syntax_trees::item::ConformanceSubject::Carrier(type_name) => Some(type_name),
+            syntax_trees::item::ConformanceSubject::Subjectless => None,
         };
         let subject_symbol = subject.and_then(|name| selection.data_symbol(name));
         if subject.is_some() && subject_symbol.is_none() {
@@ -908,13 +904,11 @@ fn exact_unargumented_requirement_owner(
 /// conformance selected instead of a same-leaf generated spelling.
 fn attached_subject(declaration: &ConformanceItem) -> Identifier {
     match &declaration.subject {
-        tokens_to_syntax_trees::syntax_trees::item::ConformanceSubject::Carrier(type_name) => {
-            type_name.clone()
-        }
+        syntax_trees::item::ConformanceSubject::Carrier(type_name) => type_name.clone(),
         // Closed conformances overwrite the provisional attachment with their
         // own subject when the member is lowered; the parsed alias only keeps
         // the synthesized machine well-formed until then.
-        tokens_to_syntax_trees::syntax_trees::item::ConformanceSubject::Subjectless => declaration
+        syntax_trees::item::ConformanceSubject::Subjectless => declaration
             .alias
             .as_ref()
             .expect("parsed subjectless conformances are named")

@@ -66,11 +66,8 @@ fn named_transition_nonliteral_bounds_reject_insufficient_or_unrelated_guards() 
             }}"
         );
         let program = parse_typed_trees(&source);
-        let plan = crate::proof_engine::obligations::build_proof_plan(&program);
-        assert!(
-            crate::proof_engine::checker::check_proof_plan(&plan).is_err(),
-            "{source}"
-        );
+        let plan = proof::obligations::build_proof_plan(&program);
+        assert!(proof::checker::check_proof_plan(&plan).is_err(), "{source}");
     }
 }
 
@@ -117,19 +114,21 @@ fn named_transition_arithmetic_query_rejects_selected_and_effectful_trees() {
             }}"
         );
         let program = parse_typed_trees(&source);
-        let plan = crate::proof_engine::obligations::build_proof_plan(&program);
+        let plan = proof::obligations::build_proof_plan(&program);
         let obligation = plan
             .obligations
             .iter()
             .find_map(|(_, obligation)| match obligation {
-                crate::proof_engine::obligations::ProofObligation::BoundedTransitionArgument(
-                    argument,
-                ) if argument.parameter.as_str() == "delivered" => Some(argument),
+                proof::obligations::ProofObligation::BoundedTransitionArgument(argument)
+                    if argument.parameter.as_str() == "delivered" =>
+                {
+                    Some(argument)
+                }
                 _ => None,
             })
             .expect("bounded argument occurrence");
         assert_eq!(
-            crate::validation::arrival_integer_expression_bounds(
+            validation::arrival_integer_expression_bounds(
                 &program,
                 obligation.machine_symbol,
                 obligation.state_symbol,
@@ -150,19 +149,19 @@ fn named_transition_range_evidence_belongs_to_its_exact_occurrence() {
             state accept(delivered: u32 [0..=4]) -> u32 { delivered }
         }",
     );
-    let plan = crate::proof_engine::obligations::build_proof_plan(&program);
+    let plan = proof::obligations::build_proof_plan(&program);
     let obligation = plan
         .obligations
         .iter()
         .find_map(|(_, obligation)| match obligation {
-            crate::proof_engine::obligations::ProofObligation::BoundedTransitionArgument(
-                argument,
-            ) => Some(argument),
+            proof::obligations::ProofObligation::BoundedTransitionArgument(argument) => {
+                Some(argument)
+            }
             _ => None,
         })
         .expect("bounded argument occurrence");
     let query = |statement_index, expression| {
-        crate::validation::arrival_integer_expression_bounds(
+        validation::arrival_integer_expression_bounds(
             &program,
             obligation.machine_symbol,
             obligation.state_symbol,
@@ -178,7 +177,7 @@ fn named_transition_range_evidence_belongs_to_its_exact_occurrence() {
     assert_eq!(
         query(
             obligation.statement_index,
-            symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid()
+            typed_trees::expression::ExpressionHandle::invalid()
         ),
         None
     );
@@ -192,14 +191,12 @@ fn named_transition_integer_query_does_not_truncate_anonymous_division() {
             state finish(delivered: i32 [6..=6]) -> i32 { delivered }
         }",
     );
-    let plan = crate::proof_engine::obligations::build_proof_plan(&program);
+    let plan = proof::obligations::build_proof_plan(&program);
     for (_, obligation) in plan.obligations.iter() {
-        if let crate::proof_engine::obligations::ProofObligation::BoundedTransitionArgument(
-            argument,
-        ) = obligation
+        if let proof::obligations::ProofObligation::BoundedTransitionArgument(argument) = obligation
         {
             assert_eq!(
-                crate::validation::arrival_integer_expression_bounds(
+                validation::arrival_integer_expression_bounds(
                     &program,
                     argument.machine_symbol,
                     argument.state_symbol,
@@ -210,7 +207,7 @@ fn named_transition_integer_query_does_not_truncate_anonymous_division() {
             );
         }
     }
-    assert!(crate::proof_engine::checker::check_proof_plan(&plan).is_err());
+    assert!(proof::checker::check_proof_plan(&plan).is_err());
 }
 
 fn rejects_range(source: &str) {
@@ -503,28 +500,26 @@ fn guarded_transition_argument_certificate_is_independently_accepted() {
             state advance(delivered: u64 [1..=128]) -> u64 { delivered }
         }",
     );
-    let plan = crate::proof_engine::obligations::build_proof_plan(&program);
+    let plan = proof::obligations::build_proof_plan(&program);
     let obligation = plan
         .obligations
         .iter()
         .find_map(|(_, obligation)| match obligation {
-            crate::proof_engine::obligations::ProofObligation::BoundedTransitionArgument(
-                argument,
-            ) => Some(argument),
+            proof::obligations::ProofObligation::BoundedTransitionArgument(argument) => {
+                Some(argument)
+            }
             _ => None,
         })
         .expect("bounded argument occurrence");
-    let target = crate::proof_engine::obligations::IntegerRange {
+    let target = proof::obligations::IntegerRange {
         minimum: numerics::bignum::BigInt::from_i64(1),
         maximum: numerics::bignum::BigInt::from_i64(128),
     };
     assert_eq!(
-        crate::proof_engine::checker::guarded_transition_integer_verdict(
-            &plan, obligation, &target, 1
-        ),
-        crate::proof_engine::checker::CertificateVerdict::Certified,
+        proof::checker::guarded_transition_integer_verdict(&plan, obligation, &target, 1),
+        proof::checker::CertificateVerdict::Certified,
     );
-    crate::proof_engine::checker::check_proof_plan(&plan).expect("plan checks");
+    proof::checker::check_proof_plan(&plan).expect("plan checks");
 }
 
 #[test]
@@ -538,28 +533,26 @@ fn guarded_transition_argument_certificate_stays_uncovered_when_unproven() {
             state advance(delivered: u64 [1..=128]) -> u64 { delivered }
         }",
     );
-    let plan = crate::proof_engine::obligations::build_proof_plan(&program);
+    let plan = proof::obligations::build_proof_plan(&program);
     let obligation = plan
         .obligations
         .iter()
         .find_map(|(_, obligation)| match obligation {
-            crate::proof_engine::obligations::ProofObligation::BoundedTransitionArgument(
-                argument,
-            ) => Some(argument),
+            proof::obligations::ProofObligation::BoundedTransitionArgument(argument) => {
+                Some(argument)
+            }
             _ => None,
         })
         .expect("bounded argument occurrence");
-    let target = crate::proof_engine::obligations::IntegerRange {
+    let target = proof::obligations::IntegerRange {
         minimum: numerics::bignum::BigInt::from_i64(1),
         maximum: numerics::bignum::BigInt::from_i64(128),
     };
     assert_eq!(
-        crate::proof_engine::checker::guarded_transition_integer_verdict(
-            &plan, obligation, &target, 1
-        ),
-        crate::proof_engine::checker::CertificateVerdict::Uncovered,
+        proof::checker::guarded_transition_integer_verdict(&plan, obligation, &target, 1),
+        proof::checker::CertificateVerdict::Uncovered,
     );
-    assert!(crate::proof_engine::checker::check_proof_plan(&plan).is_err());
+    assert!(proof::checker::check_proof_plan(&plan).is_err());
 }
 
 #[test]
@@ -574,28 +567,26 @@ fn anonymous_landed_arguments_stay_off_the_guarded_certificate_route() {
             state finish(delivered: i32 [6..=6]) -> i32 { delivered }
         }",
     );
-    let plan = crate::proof_engine::obligations::build_proof_plan(&program);
+    let plan = proof::obligations::build_proof_plan(&program);
     let obligation = plan
         .obligations
         .iter()
         .find_map(|(_, obligation)| match obligation {
-            crate::proof_engine::obligations::ProofObligation::BoundedTransitionArgument(
-                argument,
-            ) => Some(argument),
+            proof::obligations::ProofObligation::BoundedTransitionArgument(argument) => {
+                Some(argument)
+            }
             _ => None,
         })
         .expect("bounded argument occurrence");
-    let target = crate::proof_engine::obligations::IntegerRange {
+    let target = proof::obligations::IntegerRange {
         minimum: numerics::bignum::BigInt::from_i64(6),
         maximum: numerics::bignum::BigInt::from_i64(6),
     };
     assert_eq!(
-        crate::proof_engine::checker::guarded_transition_integer_verdict(
-            &plan, obligation, &target, 1
-        ),
-        crate::proof_engine::checker::CertificateVerdict::Uncovered,
+        proof::checker::guarded_transition_integer_verdict(&plan, obligation, &target, 1),
+        proof::checker::CertificateVerdict::Uncovered,
     );
-    assert!(crate::proof_engine::checker::check_proof_plan(&plan).is_err());
+    assert!(proof::checker::check_proof_plan(&plan).is_err());
 }
 
 #[test]
@@ -615,8 +606,8 @@ fn bounded_argument_proof_independently_preserves_negation_polarity() {
             }}"
         );
         let program = parse_typed_trees(&source);
-        let plan = crate::proof_engine::obligations::build_proof_plan(&program);
-        match crate::proof_engine::checker::check_proof_plan(&plan) {
+        let plan = proof::obligations::build_proof_plan(&program);
+        match proof::checker::check_proof_plan(&plan) {
             Ok(()) => assert!(accepted, "{source}"),
             Err(diagnostics) => {
                 assert!(!accepted, "{source}\n{diagnostics:#?}");

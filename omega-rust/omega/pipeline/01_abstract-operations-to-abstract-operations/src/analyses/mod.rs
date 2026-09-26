@@ -26,6 +26,10 @@ pub(crate) use control_flow::{
     validate_countdown_invariant_constant_placement_analysis, validate_counted_loop_analysis,
 };
 pub use manager::{AnalysisManager, AnalysisManagerError};
+#[cfg(any(test, feature = "test-support"))]
+pub use optimization_unit::{
+    ValueRangeFact, ValueRangeScope, ValueRangeSupport, value_range_fact_identity,
+};
 pub use revision::AnalysisRevision;
 pub use semantic::{
     EffectClass, EffectKnowledge, EffectSummaryAnalysis, OwnershipFrontierAnalysis, ScalarConstant,
@@ -34,10 +38,6 @@ pub use semantic::{
 #[cfg(test)]
 pub(crate) use semantic::{
     ExecutableEdgeKnowledge, PlaceAliasRelation, PlaceView, ScalarConstantSupport,
-};
-#[cfg(any(test, feature = "test-support"))]
-pub use terminal_psi_to_abstract_operations::optimization_unit::{
-    ValueRangeFact, ValueRangeScope, ValueRangeSupport, value_range_fact_identity,
 };
 
 #[cfg(test)]

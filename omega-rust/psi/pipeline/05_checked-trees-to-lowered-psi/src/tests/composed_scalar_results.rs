@@ -5,31 +5,28 @@
 
 use super::lower_machine;
 use crate::TerminalMachineSelection;
-use lowered_psi_to_terminal_psi::terminal_production::{
-    TerminalProductionCustody, TerminalProductionTimings,
+use checked_trees::{
+    CheckedComposedUnitControlTerminatorPlan, CheckedControlResultPlan, CheckedScalarReturnPlan,
 };
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralInputs, TerminalStructuralValue,
 };
-use typed_trees_to_checked_trees::checked_trees::{
-    CheckedComposedUnitControlTerminatorPlan, CheckedControlResultPlan, CheckedScalarReturnPlan,
-};
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 /// Publish `entry`, independently check the artifact, run it with one opaque
 /// input per structural parameter, and return the scalar it completes with.
 fn run_entry(source: &str, entry: &str) -> TerminalScalarValue {
     let checked = crate::front_end::checked_program(source);
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(entry),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .unwrap_or_else(|error| panic!("{entry} publishes one terminal artifact: {error:?}"))
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name(entry),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap_or_else(|error| panic!("{entry} publishes one terminal artifact: {error:?}"))
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).expect("decode module");
     let machine = module
         .machines
@@ -69,9 +66,9 @@ fn run_entry(source: &str, entry: &str) -> TerminalScalarValue {
 
 /// The published state graph of `machine`, or the omission that stopped it.
 fn state_graph<'checked>(
-    checked: &'checked typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+    checked: &'checked checked_trees::CheckedTrees,
     machine: &str,
-) -> &'checked typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlMachinePlan {
+) -> &'checked checked_trees::CheckedComposedUnitControlMachinePlan {
     checked
         .facts
         .flow
@@ -132,7 +129,7 @@ fn counting_loop_returns_its_leaf_expression_to_an_ordinary_caller() {
     assert_eq!(
         graph.result,
         CheckedControlResultPlan::Scalar {
-            primitive_type: typed_trees_to_checked_trees::checked_trees::types::PrimitiveType::I32,
+            primitive_type: checked_trees::types::PrimitiveType::I32,
         }
     );
     assert!(matches!(
@@ -173,8 +170,8 @@ fn a_constant_true_transition_is_an_unconditional_jump() {
     let entry = &checked.machine_states(machine)[0];
     assert!(matches!(
         checked.statement_table.statements(entry.statement_nodes).last(),
-        Some(typed_trees_to_checked_trees::checked_trees::statement::StatementNode::Transition(transition))
-            if transition.guard == typed_trees_to_checked_trees::checked_trees::statement::TransitionGuardNode::Always
+        Some(checked_trees::statement::StatementNode::Transition(transition))
+            if transition.guard == checked_trees::statement::TransitionGuardNode::Always
     ));
     assert_eq!(
         signed_32(run_entry(CONSTANT_TRUE_TRANSITION, "Tally::main")),
@@ -295,8 +292,7 @@ fn forged_scalar_completions_reject_lowering() {
             let CheckedScalarReturnPlan::Binding(binding) = completion else {
                 unreachable!()
             };
-            binding.primitive_type =
-                typed_trees_to_checked_trees::checked_trees::types::PrimitiveType::I64;
+            binding.primitive_type = checked_trees::types::PrimitiveType::I64;
         }),
         "a returned binding with another carrier must reject"
     );
@@ -305,9 +301,8 @@ fn forged_scalar_completions_reject_lowering() {
             let CheckedScalarReturnPlan::Exits(exits) = completion else {
                 panic!("value-only transitions complete through their exit roster");
             };
-            let typed_trees_to_checked_trees::checked_trees::CheckedScalarStateTerminator::Return {
-                statement_ordinal,
-            } = &mut exits.terminator
+            let checked_trees::CheckedScalarStateTerminator::Return { statement_ordinal } =
+                &mut exits.terminator
             else {
                 return;
             };
@@ -431,7 +426,7 @@ fn a_unit_caller_reaches_a_receiver_free_multi_state_view_callee() {
     assert_eq!(
         graph.result,
         CheckedControlResultPlan::Scalar {
-            primitive_type: typed_trees_to_checked_trees::checked_trees::types::PrimitiveType::U64,
+            primitive_type: checked_trees::types::PrimitiveType::U64,
         }
     );
     assert!(
@@ -449,7 +444,7 @@ fn a_unit_caller_reaches_a_receiver_free_multi_state_view_callee() {
         };
         assert_eq!(
             line.access,
-            typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
+            checked_trees::CheckedStructuralAccess::SharedBorrow
         );
         assert!(!line.is_self);
     }

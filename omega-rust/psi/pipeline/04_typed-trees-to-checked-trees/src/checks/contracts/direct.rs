@@ -1,4 +1,4 @@
-use crate::fact_plan::FactPlace;
+use facts::FactPlace;
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
 
@@ -10,10 +10,10 @@ mod guard_values;
 mod match_patterns;
 
 pub(super) fn direct_context_proves_boolean_expression(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    semantic: &crate::fact_plan::FactPlan,
-    context: &crate::fact_plan::FactContext,
-    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    program: &typed_trees::TypedTrees,
+    semantic: &facts::FactPlan,
+    context: &facts::FactContext,
+    expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
     let required_label = program.expression_table.display_name(expression);
 
@@ -29,7 +29,7 @@ pub(super) fn direct_context_proves_boolean_expression(
                 &|value| value,
             );
         }
-        if let crate::fact_plan::FactPayload::BooleanValue {
+        if let facts::FactPayload::BooleanValue {
             expression: guard,
             value,
         } = fact.payload
@@ -53,22 +53,21 @@ pub(super) fn direct_context_proves_boolean_expression(
 }
 
 pub(super) fn direct_context_proves_instantiated_boolean_expression(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    semantic: &crate::fact_plan::FactPlan,
-    context: &crate::fact_plan::FactContext,
-    contexts: &[crate::fact_plan::FactContextHandle],
+    program: &typed_trees::TypedTrees,
+    semantic: &facts::FactPlan,
+    context: &facts::FactContext,
+    contexts: &[facts::FactContextHandle],
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
     call_site: &crate::semantic::calls::CallSite<'_>,
     target_state: &(impl ContractTargetParameters + ?Sized),
-    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
     let parameters = target_state.contract_parameters(program);
     let arguments = crate::semantic::calls::call_site_argument_expressions(program, call_site);
     let substitute = |expression| {
-        let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Name(
-            path,
-        ) = program.expression_table.expression(expression)
+        let typed_trees::expression::ExpressionNode::Name(path) =
+            program.expression_table.expression(expression)
         else {
             return expression;
         };
@@ -162,18 +161,18 @@ pub(super) fn direct_context_proves_instantiated_boolean_expression(
 
 #[allow(clippy::too_many_arguments)]
 fn instantiated_live_value_proves(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    semantic: &crate::fact_plan::FactPlan,
-    context: &crate::fact_plan::FactContext,
-    contexts: &[crate::fact_plan::FactContextHandle],
+    program: &typed_trees::TypedTrees,
+    semantic: &facts::FactPlan,
+    context: &facts::FactContext,
+    contexts: &[facts::FactContextHandle],
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
     call_site: &crate::semantic::calls::CallSite<'_>,
     target: &(impl ContractTargetParameters + ?Sized),
-    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
     use super::prover::{ScalarValue, evaluate_scalar};
-    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+    use typed_trees::expression::ExpressionNode;
 
     let parameters = target.contract_parameters(program);
     let arguments = crate::semantic::calls::call_site_argument_expressions(program, call_site);
@@ -241,7 +240,7 @@ fn instantiated_live_value_proves(
                 return Some(value);
             }
             semantic.context_view(context).facts().find_map(|fact| {
-                let crate::fact_plan::FactPayload::BooleanValue {
+                let facts::FactPayload::BooleanValue {
                     expression: guard,
                     value,
                 } = fact.payload
@@ -264,16 +263,16 @@ fn instantiated_live_value_proves(
 /// narrows to its currently recorded element or the read refuses.
 #[allow(clippy::too_many_arguments)]
 fn projected_formal_leaf_value(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    semantic: &crate::fact_plan::FactPlan,
-    contexts: &[crate::fact_plan::FactContextHandle],
+    program: &typed_trees::TypedTrees,
+    semantic: &facts::FactPlan,
+    contexts: &[facts::FactContextHandle],
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
-    parameters: &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter],
-    arguments: &[symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle],
-    leaf: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
-) -> Option<crate::fact_plan::ScalarValue> {
-    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+    parameters: &[typed_trees::signature::StateParameter],
+    arguments: &[typed_trees::expression::ExpressionHandle],
+    leaf: typed_trees::expression::ExpressionHandle,
+) -> Option<facts::ScalarValue> {
+    use typed_trees::expression::ExpressionNode;
 
     // `room.exits.len` selects no storage: `len` on a fixed array is the
     // declared type's literal extent, so the receiver only has to be the
@@ -289,7 +288,7 @@ fn projected_formal_leaf_value(
         return projected_collection_extent(program, parameters, member.receiver);
     }
     let mut required = projected_leaf_place(program, leaf)?;
-    let crate::fact_plan::PlaceRoot::Symbol(formal) = required.root else {
+    let facts::PlaceRoot::Symbol(formal) = required.root else {
         return None;
     };
     // `self`'s projections stay with the receiver's own substitution owner;
@@ -307,7 +306,7 @@ fn projected_formal_leaf_value(
     )?;
     actual.segments.append(&mut required.segments);
     for segment in &mut actual.segments {
-        let crate::fact_plan::PlaceSegment::Index { expression } = *segment else {
+        let facts::PlaceSegment::Index { expression } = *segment else {
             continue;
         };
         // A stored selector narrows to the fixed element it currently names.
@@ -321,20 +320,18 @@ fn projected_formal_leaf_value(
         ) else {
             continue;
         };
-        let Some(crate::fact_plan::ScalarValue::Integer(value)) =
-            super::prover::scalar_value_at_place(
-                program,
-                semantic,
-                contexts
-                    .iter()
-                    .map(|context| semantic.contexts.get(*context)),
-                &selector,
-            )
-        else {
+        let Some(facts::ScalarValue::Integer(value)) = super::prover::scalar_value_at_place(
+            program,
+            semantic,
+            contexts
+                .iter()
+                .map(|context| semantic.contexts.get(*context)),
+            &selector,
+        ) else {
             continue;
         };
         if let Some(index) = value.to_u64().and_then(|value| usize::try_from(value).ok()) {
-            *segment = crate::fact_plan::PlaceSegment::FixedIndex { index };
+            *segment = facts::PlaceSegment::FixedIndex { index };
         }
     }
     super::prover::scalar_value_at_place(
@@ -355,12 +352,12 @@ fn projected_formal_leaf_value(
 /// literal extent resolves; a slice or const-parameter length stays runtime
 /// evidence this route does not own.
 fn projected_collection_extent(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    parameters: &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter],
-    receiver: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
-) -> Option<crate::fact_plan::ScalarValue> {
+    program: &typed_trees::TypedTrees,
+    parameters: &[typed_trees::signature::StateParameter],
+    receiver: typed_trees::expression::ExpressionHandle,
+) -> Option<facts::ScalarValue> {
     let required = projected_leaf_place(program, receiver)?;
-    let crate::fact_plan::PlaceRoot::Symbol(formal) = required.root else {
+    let facts::PlaceRoot::Symbol(formal) = required.root else {
         return None;
     };
     if !parameters
@@ -372,7 +369,7 @@ fn projected_collection_extent(
     }
     let reference = crate::flow::expression_place_type_reference(program, receiver, &[])?;
     let length = crate::checks::ranges::fixed_array_type_length(program, reference)?;
-    Some(crate::fact_plan::ScalarValue::Integer(
+    Some(facts::ScalarValue::Integer(
         numerics::bignum::BigInt::from_u64(u64::try_from(length).ok()?),
     ))
 }
@@ -383,10 +380,10 @@ fn projected_collection_extent(
 /// evidence the source did not name. Kept local because the sibling owner
 /// lives inside `prover`'s private module.
 fn projected_leaf_place(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    leaf: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    program: &typed_trees::TypedTrees,
+    leaf: typed_trees::expression::ExpressionHandle,
 ) -> Option<crate::flow::CanonicalPlace> {
-    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
+    use typed_trees::expression::ExpressionNode;
 
     let mut current = leaf;
     let mut visited = Vec::new();

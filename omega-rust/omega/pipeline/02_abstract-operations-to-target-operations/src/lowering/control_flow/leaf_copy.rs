@@ -6,13 +6,11 @@
 use super::LiveDefinitions;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use crate::target_operations::{TargetUnitOperation, TerminalPsiProvenance};
+use abstract_operations::{AbstractFunction, AbstractOperation};
 use semantic_vocabulary::{OperationId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
+use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
 use terminal_psi::{StructuralOperationResult, StructuralPathSegment};
-use terminal_psi_to_abstract_operations::abstract_operations::{
-    AbstractFunction, AbstractOperation,
-};
 
 /// A leaf copy reads an owned home or a readable parameter root; the
 /// verifier's copyable-path replay already excluded every other source kind.

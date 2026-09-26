@@ -7,22 +7,20 @@ use crate::SpillChoiceError;
 use crate::analyses::spill_choice::compute::WorkCounter;
 use crate::analyses::spill_choice::compute::reject_constraint_topologies;
 
-use crate::register_homes::{
+use register_homes::{
     FunctionAllocationLegality, VirtualPointLegality, VirtualRegisterAllocationLegality,
 };
-use semantic_vocabulary::MachineId;
-use target_operations_to_selected_instructions::register_model::{
+use register_model::{
     PhysicalRegisterModel, RegisterClass, RegisterClassId, RegisterUnit, RegisterUnitId,
     RegisterUnitKind, RegisterView, RegisterViewId, RegisterWriteSemantics,
     validate_physical_register_model,
 };
-use target_operations_to_selected_instructions::{
+use selected_instructions::{
     EarlyClobberConstraint, EarlyClobberUse, FunctionLiveRanges, LiveRangeFragment,
     LivenessPosition, VirtualLiveRange,
 };
-use target_operations_to_selected_instructions::{
-    SelectedBlockId, SelectedInstructionId, VirtualRegisterId,
-};
+use selected_instructions::{SelectedBlockId, SelectedInstructionId, VirtualRegisterId};
+use semantic_vocabulary::MachineId;
 
 fn physical() -> ValidatedPhysicalRegisterModel {
     validate_physical_register_model(PhysicalRegisterModel {
@@ -127,7 +125,7 @@ fn spill_choice_admits_untied_early_clobber_but_refuses_its_pressure() {
     let mut early_legality = legality(&[(0, 1), (0, 1), (2, 2)]);
     early_legality.virtual_registers[2]
         .early_clobber_points
-        .push(crate::register_homes::VirtualEarlyClobberPointLegality {
+        .push(register_homes::VirtualEarlyClobberPointLegality {
             block: SelectedBlockId(0),
             position: LivenessPosition(0),
             instruction: SelectedInstructionId(1),
@@ -204,7 +202,7 @@ fn spill_choice_admits_untied_early_clobber_but_refuses_its_pressure() {
     }
     free_legality.virtual_registers[2]
         .early_clobber_points
-        .push(crate::register_homes::VirtualEarlyClobberPointLegality {
+        .push(register_homes::VirtualEarlyClobberPointLegality {
             block: SelectedBlockId(0),
             position: LivenessPosition(0),
             instruction: SelectedInstructionId(1),
@@ -227,7 +225,7 @@ fn spill_choice_admits_untied_early_clobber_but_refuses_its_pressure() {
 
     let mut tied = ranges(&[(0, 0), (1, 1), (2, 2)]);
     tied.tied_pairs.extend([
-        target_operations_to_selected_instructions::DistinctUseDefTie {
+        selected_instructions::DistinctUseDefTie {
             block: SelectedBlockId(0),
             position: LivenessPosition(0),
             instruction: SelectedInstructionId(0),
@@ -239,7 +237,7 @@ fn spill_choice_admits_untied_early_clobber_but_refuses_its_pressure() {
             def_point: LiveRangePoint(1),
             class: RegisterClassId(0),
         },
-        target_operations_to_selected_instructions::DistinctUseDefTie {
+        selected_instructions::DistinctUseDefTie {
             block: SelectedBlockId(0),
             position: LivenessPosition(1),
             instruction: SelectedInstructionId(1),
@@ -261,7 +259,7 @@ fn spill_choice_admits_untied_early_clobber_but_refuses_its_pressure() {
     // rides beside it.
     let mut composed = ranges(&[(0, 0), (1, 2), (2, 2), (3, 3)]);
     composed.tied_pairs.extend([
-        target_operations_to_selected_instructions::DistinctUseDefTie {
+        selected_instructions::DistinctUseDefTie {
             block: SelectedBlockId(0),
             position: LivenessPosition(0),
             instruction: SelectedInstructionId(0),
@@ -273,7 +271,7 @@ fn spill_choice_admits_untied_early_clobber_but_refuses_its_pressure() {
             def_point: LiveRangePoint(1),
             class: RegisterClassId(0),
         },
-        target_operations_to_selected_instructions::DistinctUseDefTie {
+        selected_instructions::DistinctUseDefTie {
             block: SelectedBlockId(0),
             position: LivenessPosition(1),
             instruction: SelectedInstructionId(1),

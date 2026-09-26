@@ -13,16 +13,14 @@
 use std::collections::BTreeSet;
 
 use optimization_core::OptimizationWorkBudget;
-use semantic_vocabulary::IntegerValue;
-use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
-use target_operations_to_selected_instructions::register_model::{
-    RegisterInstructionConstraint, RegisterOperandAccess,
-};
-use target_operations_to_selected_instructions::{
+use register_environment::ValidatedTargetRegisterEnvironment;
+use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
+use selected_instructions::{
     MachineEffectDeclaration, MachineSemanticKind, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionKind, SelectedInstructionProvenance, SelectedOperand,
     ValidatedMachineEffectCatalog,
 };
+use semantic_vocabulary::IntegerValue;
 
 use super::ConditionMaterializationError;
 use super::pair::{
@@ -364,7 +362,7 @@ pub(super) fn rewritten(admitted: &AdmittedPair<'_>) -> SelectedInstruction {
 fn effect_declaration(
     catalog: &ValidatedMachineEffectCatalog,
     semantic: MachineSemanticKind,
-    constraint: target_operations_to_selected_instructions::register_model::RegisterConstraintKey,
+    constraint: register_model::RegisterConstraintKey,
 ) -> Option<&MachineEffectDeclaration> {
     let mut matches = catalog.catalog().declarations.iter().filter(|declaration| {
         declaration.semantic == semantic && declaration.constraint == constraint

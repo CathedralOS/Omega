@@ -48,10 +48,8 @@ fn parallel_early_definitions_reject_malformed_or_tied_participants() {
                 tied.operands[1].early_clobber = false;
                 tied.operands[1].tied_to = Some(0);
                 selected.blocks[0].instructions.push(tied);
-                let target_operations_to_selected_instructions::SelectedTerminator::Return {
-                    instruction,
-                    ..
-                } = &mut selected.blocks[0].terminator
+                let selected_instructions::SelectedTerminator::Return { instruction, .. } =
+                    &mut selected.blocks[0].terminator
                 else {
                     unreachable!()
                 };

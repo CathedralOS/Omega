@@ -1,5 +1,5 @@
 //! Scalar-graph module assembly regressions.
-use super::{ScalarType, SymbolHandle, lower_machine};
+use super::{LoweringError, ScalarType, SymbolHandle, lower_machine};
 use crate::TerminalMachineSelection;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
@@ -13,13 +13,11 @@ use crate::scalar_graph::scalar_graph_module::build_scalar_graph_module;
 use crate::terminal_identities::{
     TERMINAL_MACHINE_IDENTITY_STRIDE, block_id, contract_id, edge_id, machine_id, value_id,
 };
-use lowered_psi_to_terminal_psi::terminal_production::{
-    TerminalProductionCustody, TerminalProductionTimings,
-};
-use terminal_psi::Terminator;
-use typed_trees_to_checked_trees::checked_trees::{
+use checked_trees::{
     CheckedBooleanExpression, CheckedScalarExpression, CheckedUnitEffectOperationPlan,
 };
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
+use terminal_psi::Terminator;
 
 #[test]
 fn scalar_graph_replays_parameter_qualification_contracts_from_source() {
@@ -41,10 +39,10 @@ fn scalar_graph_replays_parameter_qualification_contracts_from_source() {
         match mutation {
             0 => {
                 changed.typed.signature_contracts.get_mut(contract).kind =
-                    typed_trees_to_checked_trees::checked_trees::signature::SignatureContractKind::Ensures
+                    checked_trees::signature::SignatureContractKind::Ensures
             }
             1 => {
-                let typed_trees_to_checked_trees::checked_trees::domain::ProofFact::Membership(membership) =
+                let checked_trees::domain::ProofFact::Membership(membership) =
                     changed.typed.proof_facts.get_mut(fact)
                 else {
                     panic!("membership")
@@ -52,17 +50,17 @@ fn scalar_graph_replays_parameter_qualification_contracts_from_source() {
                 membership.domain_symbol = SymbolHandle::invalid();
             }
             2 => {
-                let typed_trees_to_checked_trees::checked_trees::domain::ProofFact::Membership(membership) =
+                let checked_trees::domain::ProofFact::Membership(membership) =
                     changed.typed.proof_facts.get_mut(fact)
                 else {
                     panic!("membership")
                 };
-                membership.value = typed_trees_to_checked_trees::checked_trees::expression::ExpressionHandle::invalid();
+                membership.value = checked_trees::expression::ExpressionHandle::invalid();
             }
             _ => {
                 *changed.typed.proof_facts.get_mut(fact) =
-                    typed_trees_to_checked_trees::checked_trees::domain::ProofFact::Expression(
-                        typed_trees_to_checked_trees::checked_trees::expression::ExpressionHandle::invalid(),
+                    checked_trees::domain::ProofFact::Expression(
+                        checked_trees::expression::ExpressionHandle::invalid(),
                     )
             }
         }
@@ -71,7 +69,7 @@ fn scalar_graph_replays_parameter_qualification_contracts_from_source() {
         assert!(
             matches!(
                 error,
-                crate::LoweringError::Unsupported(
+                LoweringError::Unsupported(
                     "scalar state contract is not carried by its qualified signature"
                 )
             ),
@@ -86,18 +84,15 @@ fn scalar_completion_after_array_calls_replays_its_expression_and_statement_orde
         "../../../../../../tests/omega/pass/collections/owned_array_scalar_comparisons/main.omg"
     ));
     for entry in ["scalar_comparison", "array_comparison"] {
-        let artifact =
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-                &checked,
-                lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                    entry,
-                ),
-            )
-            .produce(TerminalProductionCustody::artifact_only(
-                &mut TerminalProductionTimings::default(),
-            ))
-            .expect("comparison completes the ordered array/call body in Terminal")
-            .into_artifact();
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            terminal_production::TerminalMachineSelection::Name(entry),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("comparison completes the ordered array/call body in Terminal")
+        .into_artifact();
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
         let profile = proof_admission::AdmissionProfile::default();
@@ -174,12 +169,11 @@ fn scalar_completion_after_array_calls_replays_its_expression_and_statement_orde
                         _ => None,
                     })
                     .unwrap();
-                *value =
-                    typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(
-                        CheckedScalarExpression::Boolean(Box::new(
-                            CheckedBooleanExpression::Constant(true),
-                        )),
-                    );
+                *value = checked_trees::CheckedCallScalarArgument::Pure(
+                    CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::Constant(
+                        true,
+                    ))),
+                );
             }
             2 => plan.scalar_result.as_mut().unwrap().statement_index = 0,
             3 => {
@@ -197,11 +191,9 @@ fn scalar_completion_after_array_calls_replays_its_expression_and_statement_orde
             _ => unreachable!(),
         }
         assert!(
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            terminal_production::TerminalProductionRequest::new(
                 &changed,
-                lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                    "scalar_comparison"
-                )
+                terminal_production::TerminalMachineSelection::Name("scalar_comparison")
             )
             .produce(TerminalProductionCustody::artifact_only(
                 &mut TerminalProductionTimings::default()

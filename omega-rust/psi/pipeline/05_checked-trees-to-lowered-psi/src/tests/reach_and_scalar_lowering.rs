@@ -3,11 +3,13 @@ use crate::TerminalMachineSelection;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::integer::LoweredIntegerBinaryKind;
 use crate::lower_machine;
+use crate::lowering_error::LoweringError;
 use crate::proofs::crash_routes::checked_boolean_proposition;
 use crate::retention::conformance_applications::lower_closed_conformance_applications;
 use crate::scalar_graph::shared_runtime_parameters::normalize_shared_boolean_comparison_leaves;
 use crate::terminal_identities::{operation_id, service_id, value_id};
 use crate::unit::attached_unit::lower_root_service_reach;
+use checked_trees::CheckedBooleanExpression;
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::integer_policy::IntegerPolicyPrimitive;
 use semantic_vocabulary::{IeeeFloatFormat, Proposition, PropositionContext, ScalarType};
@@ -16,7 +18,6 @@ use terminal_psi::{
     StructuralTypeShape, ValueDeclaration,
 };
 use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::checked_trees::CheckedBooleanExpression;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
@@ -241,15 +242,13 @@ fn emitted_direct_structural_float_leaf_rejoins_owner_root_and_member_path() {
     );
 
     let mut path_drift = checked;
-    let typed_trees_to_checked_trees::checked_trees::CheckedFloatProjectionSource::DirectStructuralLeaf(leaf) =
+    let checked_trees::CheckedFloatProjectionSource::DirectStructuralLeaf(leaf) =
         &mut path_drift.facts.proof.float_meaning_projections[0].source
     else {
         panic!("checked structural source expected")
     };
     leaf.field.path[0] =
-        typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Field(
-            "missing".to_owned(),
-        );
+        checked_trees::CheckedStructuralPredicatePathSegment::Field("missing".to_owned());
     assert!(
         lower_machine(
             &path_drift,
@@ -282,7 +281,7 @@ fn direct_float_result_proof_only_contract_rejects_additional_value_clauses() {
     // the closed-literal contract shape is ever selected.
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("result")),
-        Err(crate::LoweringError::Unsupported(
+        Err(LoweringError::Unsupported(
             "scalar contract contains an unsupported clause"
         ))
     ));
@@ -302,7 +301,7 @@ fn direct_float_result_proof_only_contract_replays_expression_and_owner() {
 
     let mut expression_drift = checked.clone();
     expression_drift.facts.proof.float_meaning_equalities[0].source_expression =
-        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid();
+        typed_trees::expression::ExpressionHandle::invalid();
     assert!(lower_machine(&expression_drift, TerminalMachineSelection::Name("result")).is_err());
 
     let mut owner_drift = checked;
@@ -312,7 +311,7 @@ fn direct_float_result_proof_only_contract_replays_expression_and_owner() {
         .find(|machine| owner_drift.symbols.name(machine.symbol) == "other")
         .expect("other machine")
         .symbol;
-    let typed_trees_to_checked_trees::checked_trees::CheckedFloatProjectionSource::DirectMachineResult(result) =
+    let checked_trees::CheckedFloatProjectionSource::DirectMachineResult(result) =
         &mut owner_drift.facts.proof.float_meaning_projections[0].source
     else {
         panic!("direct result source expected")

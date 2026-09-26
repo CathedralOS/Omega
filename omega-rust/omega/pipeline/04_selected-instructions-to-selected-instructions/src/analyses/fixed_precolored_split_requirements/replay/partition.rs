@@ -2,16 +2,16 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use target_operations_to_selected_instructions::register_model::RegisterViewId;
+use register_model::RegisterViewId;
 
 use crate::FixedPrecoloredSplitRequirementError;
-use crate::register_homes::{
+use register_homes::{
     FixedPrecoloredInterval, FixedPrecoloredRegisterSplitRequirements,
     FixedPrecoloredSourceFragmentRequirements, FixedPrecoloredSourceSegment,
     FixedPrecoloredSourceSegmentId, FixedPrecoloredSourceSegmentOpening, VirtualPointLegality,
     VirtualRegisterAllocationLegality,
 };
-use target_operations_to_selected_instructions::{LiveRangePoint, VirtualLiveRange};
+use selected_instructions::{LiveRangePoint, VirtualLiveRange};
 
 use super::{cuts::CutRows, topology, work::Work};
 

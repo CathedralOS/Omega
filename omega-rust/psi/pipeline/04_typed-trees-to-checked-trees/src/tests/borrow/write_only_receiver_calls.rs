@@ -58,7 +58,7 @@ fn write_only_parameter_nonobserving_statement_call_checks() {
         .operations
         .iter()
         .find_map(|operation| match operation {
-            crate::checked_trees::CheckedUnitEffectOperationPlan::CallUnit {
+            checked_trees::CheckedUnitEffectOperationPlan::CallUnit {
                 structural_arguments,
                 ..
             } => Some(structural_arguments),

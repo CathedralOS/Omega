@@ -9,22 +9,18 @@ use super::{
     VirtualRegisterOrigin,
 };
 
-use crate::register_homes::{
+use optimization_unit::ValueDefinitionSite;
+use register_homes::{
     EntryFixedViewTransition, FixedPrecoloredHomeDomainId, FixedPrecoloredSourceSegmentId,
     FunctionAllocationLegality, VirtualRegisterAllocationLegality,
 };
-use semantic_vocabulary::{BlockId, EdgeId, IntegerType, IntegerValue, MachineId, ValueId};
-use target_operations_to_selected_instructions::register_model::{
+use register_model::{
     RegisterClassId, RegisterConstraintFamily, RegisterConstraintId, RegisterConstraintKey,
     RegisterOperandConstraint, RegisterViewId,
 };
-use target_operations_to_selected_instructions::{
-    LiveRangeEdgeConnector, LiveRangePoint, LivenessPosition,
-};
-use target_operations_to_selected_instructions::{
-    SelectedBlock, SelectedBlockId, SelectedFunction, SelectedSuccessor,
-};
-use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
+use selected_instructions::{LiveRangeEdgeConnector, LiveRangePoint, LivenessPosition};
+use selected_instructions::{SelectedBlock, SelectedBlockId, SelectedFunction, SelectedSuccessor};
+use semantic_vocabulary::{BlockId, EdgeId, IntegerType, IntegerValue, MachineId, ValueId};
 
 fn key(variant: u32) -> RegisterConstraintKey {
     RegisterConstraintKey {
@@ -136,14 +132,14 @@ pub(crate) fn fixture() -> (
         blocks: vec![
             SelectedBlock {
                 id: SelectedBlockId(0),
-                origin: target_operations_to_selected_instructions::SelectedBlockOrigin::Source(
+                origin: selected_instructions::SelectedBlockOrigin::Source(
                     BlockId::new(1).unwrap(),
                 ),
                 instructions: vec![compare],
                 terminator: SelectedTerminator::ConditionalBranch {
                     instruction: branch,
                     when_nonzero: SelectedSuccessor {
-                        role: target_operations_to_selected_instructions::SelectedSuccessorRole::Semantic,
+                        role: selected_instructions::SelectedSuccessorRole::Semantic,
                         structural_case: None,
                         structural_bindings: Vec::new(),
                         psi_edge: EdgeId::new(1).unwrap(),
@@ -153,7 +149,7 @@ pub(crate) fn fixture() -> (
                         fuel: Vec::new(),
                     },
                     when_zero: SelectedSuccessor {
-                        role: target_operations_to_selected_instructions::SelectedSuccessorRole::Semantic,
+                        role: selected_instructions::SelectedSuccessorRole::Semantic,
                         structural_case: None,
                         structural_bindings: Vec::new(),
                         psi_edge: EdgeId::new(2).unwrap(),
@@ -166,7 +162,7 @@ pub(crate) fn fixture() -> (
             },
             SelectedBlock {
                 id: SelectedBlockId(1),
-                origin: target_operations_to_selected_instructions::SelectedBlockOrigin::Source(
+                origin: selected_instructions::SelectedBlockOrigin::Source(
                     BlockId::new(2).unwrap(),
                 ),
                 instructions: Vec::new(),
@@ -177,7 +173,7 @@ pub(crate) fn fixture() -> (
             },
             SelectedBlock {
                 id: SelectedBlockId(2),
-                origin: target_operations_to_selected_instructions::SelectedBlockOrigin::Source(
+                origin: selected_instructions::SelectedBlockOrigin::Source(
                     BlockId::new(3).unwrap(),
                 ),
                 instructions: Vec::new(),
@@ -654,7 +650,7 @@ pub(crate) fn immediate_fixture() -> (
         blocks: vec![
             SelectedBlock {
                 id: SelectedBlockId(0),
-                origin: target_operations_to_selected_instructions::SelectedBlockOrigin::Source(
+                origin: selected_instructions::SelectedBlockOrigin::Source(
                     BlockId::new(1).unwrap(),
                 ),
                 instructions: vec![
@@ -675,7 +671,7 @@ pub(crate) fn immediate_fixture() -> (
                 terminator: SelectedTerminator::Jump {
                     instruction: instruction(3, SelectedInstructionKind::Jump, Vec::new()),
                     successor: SelectedSuccessor {
-                        role: target_operations_to_selected_instructions::SelectedSuccessorRole::Semantic,
+                        role: selected_instructions::SelectedSuccessorRole::Semantic,
                         structural_case: None,
                         structural_bindings: Vec::new(),
                         psi_edge: EdgeId::new(1).unwrap(),
@@ -688,7 +684,7 @@ pub(crate) fn immediate_fixture() -> (
             },
             SelectedBlock {
                 id: SelectedBlockId(1),
-                origin: target_operations_to_selected_instructions::SelectedBlockOrigin::Source(
+                origin: selected_instructions::SelectedBlockOrigin::Source(
                     BlockId::new(2).unwrap(),
                 ),
                 instructions: Vec::new(),

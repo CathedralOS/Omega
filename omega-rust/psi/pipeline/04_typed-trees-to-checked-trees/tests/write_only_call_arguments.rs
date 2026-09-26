@@ -8,28 +8,20 @@
 //! argument still must satisfy the callee's `&write` contract, and ordinary
 //! reads through write-only projections remain rejected everywhere else.
 
-use typed_trees_to_checked_trees::checked_trees::{
+use checked_trees::{
     BorrowAccessKind, CheckedStructuralAccess, CheckedUnitEffectMachinePlan,
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralPathSegment,
 };
 
-fn check(
-    source: &str,
-) -> Result<typed_trees_to_checked_trees::checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>>
-{
+fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     typed_trees_to_checked_trees::lower_typed_trees(
         typed(source)?,
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
 }
 
-fn typed(
-    source: &str,
-) -> Result<
-    symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    Vec<diagnostics::Diagnostic>,
-> {
+fn typed(source: &str) -> Result<typed_trees::TypedTrees, Vec<diagnostics::Diagnostic>> {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
         .unwrap();
@@ -65,7 +57,7 @@ fn rendered(source: &str) -> String {
 }
 
 fn unit_plan<'a>(
-    checked: &'a typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+    checked: &'a checked_trees::CheckedTrees,
     name: &str,
 ) -> &'a CheckedUnitEffectMachinePlan {
     let machine = checked
@@ -86,7 +78,7 @@ fn unit_plan<'a>(
 
 fn scalar_call_structural_arguments(
     plan: &CheckedUnitEffectMachinePlan,
-) -> &[typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan] {
+) -> &[checked_trees::CheckedUnitStructuralArgumentPlan] {
     plan.operations
         .iter()
         .find_map(|operation| {
@@ -241,11 +233,7 @@ fn transition_target_argument_admits_literal_indexed_write_only_subloan() {
                     access.kind == BorrowAccessKind::WriteOnly
                         && access.root_symbol == values
                         && borrow.access_segments.span_or_empty(access.segments)
-                            == [
-                                typed_trees_to_checked_trees::fact_plan::PlaceSegment::FixedIndex {
-                                    index: 1,
-                                },
-                            ]
+                            == [facts::PlaceSegment::FixedIndex { index: 1 }]
                 })
         }),
         "the transition target retains the write-only projected access"

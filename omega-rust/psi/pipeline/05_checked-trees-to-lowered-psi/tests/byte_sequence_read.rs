@@ -23,13 +23,11 @@ const SOURCE: &str = r#"
     }
 "#;
 
-fn checked(source: &str) -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
+fn checked(source: &str) -> checked_trees::CheckedTrees {
     check(source).expect("check")
 }
 
-fn check(
-    source: &str,
-) -> Result<typed_trees_to_checked_trees::checked_trees::CheckedTrees, Vec<String>> {
+fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<String>> {
     crate::front_end::checked_program_result(source).map_err(|diagnostics| {
         diagnostics
             .into_iter()
@@ -62,8 +60,8 @@ fn execute(source: &str) -> Vec<bool> {
     )
     .expect("guarded read has an executable helper closure");
     let expected = execute_lowered(&lowered);
-    let selections = terminal_codec::optimization::PsiOptimizationSelections::new([
-        terminal_codec::optimization::PsiOptimization::DeadPureScalarElimination,
+    let selections = optimization::PsiOptimizationSelections::new([
+        optimization::PsiOptimization::DeadPureScalarElimination,
     ])
     .unwrap();
     let optimized = lowered_psi_to_lowered_psi::run_psi_optimization(lowered, selections)
@@ -72,7 +70,7 @@ fn execute(source: &str) -> Vec<bool> {
     expected
 }
 
-fn execute_lowered(lowered: &checked_trees_to_lowered_psi::lowered_psi::LoweredPsi) -> Vec<bool> {
+fn execute_lowered(lowered: &lowered_psi::LoweredPsi) -> Vec<bool> {
     let mut flags = Flags::default();
     let result = interpret_terminal_artifact_measured(
         &encode_module(&lowered.semantic_module).unwrap(),
@@ -148,11 +146,11 @@ fn bare_scalar_parameters_do_not_become_empty_structural_field_reads() {
     let expressions = &checked.facts.values.scalar_expressions.expressions;
     assert!(expressions.iter().any(|located| matches!(
         located.expression,
-        typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::Parameter { .. }
+        checked_trees::CheckedScalarExpression::Parameter { .. }
     )));
     assert!(expressions.iter().all(|located| !matches!(
         located.expression,
-        typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::StructuralParameterField { .. }
+        checked_trees::CheckedScalarExpression::StructuralParameterField { .. }
     )));
 }
 

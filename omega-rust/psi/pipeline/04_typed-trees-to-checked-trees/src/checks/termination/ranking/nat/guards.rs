@@ -1,6 +1,4 @@
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode,
-};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
 use super::super::patterns;
 
@@ -17,17 +15,17 @@ fn reverse(operator: BinaryOperator) -> BinaryOperator {
 }
 
 fn exact_parameter(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     expression: ExpressionHandle,
-    parameter: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter,
+    parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
     matches!(program.expression_table.expression(expression),
         ExpressionNode::Name(name) if name.symbol == parameter.symbol)
 }
 
 fn positive(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
     guards: &[patterns::GuardFact],
     nonnegative: bool,
     matches: impl Fn(ExpressionHandle) -> bool,
@@ -42,8 +40,8 @@ fn positive(
 /// `remaining > 0 && acc < 1000` carries the same positivity as `remaining >
 /// 0` alone.
 fn positive_guard(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
     guard: &patterns::GuardFact,
     nonnegative: bool,
     matches: &impl Fn(ExpressionHandle) -> bool,
@@ -97,12 +95,12 @@ fn positive_guard(
 }
 
 pub(super) fn guard_is_positive_parameter(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
     guards: &[patterns::GuardFact],
-    parameter: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter,
+    parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
-    use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
+    use typed_trees::types::PrimitiveType;
     let nonnegative = matches!(
         program.primitive_type_reference(parameter.type_reference),
         Some(PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64)
@@ -113,10 +111,10 @@ pub(super) fn guard_is_positive_parameter(
 }
 
 pub(super) fn guard_is_positive_parameter_member(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
     guards: &[patterns::GuardFact],
-    parameter: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter,
+    parameter: &typed_trees::signature::StateParameter,
     member_name: &str,
 ) -> bool {
     positive(program, state, guards, false, |expression| {
@@ -127,11 +125,11 @@ pub(super) fn guard_is_positive_parameter_member(
 }
 
 pub(super) fn guard_is_index_below_limit(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
     guards: &[patterns::GuardFact],
-    index_parameter: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter,
-    limit_parameter: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter,
+    index_parameter: &typed_trees::signature::StateParameter,
+    limit_parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
     guards.iter().any(|guard| {
         if !super::has_builtin_meaning(program, state, guard.expression) {

@@ -23,13 +23,13 @@ use crate::rewrites::runtime_spill::tests::{budget, fixture};
 use crate::spill_selected_runtime_value;
 use crate::spill_selected_runtime_value_with_span_policy;
 use crate::validate_runtime_spill;
-use semantic_vocabulary::{OperationId, PlaceId};
-use target_operations_to_selected_instructions::register_model::RegisterUnitId;
-use target_operations_to_selected_instructions::{
+use register_model::RegisterUnitId;
+use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedLocalStorageSlot, SelectedMemoryAccess,
     SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedStructuralBinding,
     SelectedStructuralTransport, SelectedSuccessorRole,
 };
+use semantic_vocabulary::{OperationId, PlaceId};
 use terminal_psi::StructuralAccess;
 
 fn targets() -> [NativeTarget; 4] {
@@ -64,7 +64,7 @@ fn destination() -> (LocalStorageSlotId, PlaceId) {
 /// matching `ReadPlace` memory accesses. Returns the chunk instruction ids.
 fn snapshot_loads(
     source: &mut ValidatedRuntimeSpill,
-    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
     chunks: &[(u32, u8)],
 ) -> Vec<SelectedInstructionId> {
     let keys = environment.selected_keys();
@@ -136,7 +136,7 @@ fn snapshot_loads(
 /// address) after the snapshot loads, with their memory accesses.
 fn destination_stores(
     source: &mut ValidatedRuntimeSpill,
-    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
     chunks: &[(u32, u8)],
     whole: bool,
 ) {
@@ -149,7 +149,7 @@ fn destination_stores(
         byte_size,
         alignment: 8,
     });
-    let emit = |function: &mut target_operations_to_selected_instructions::SelectedFunction,
+    let emit = |function: &mut selected_instructions::SelectedFunction,
                 instruction,
                 kind,
                 row,
@@ -254,8 +254,7 @@ fn structural_binding(source: &mut ValidatedRuntimeSpill, transport: SelectedStr
     successor
         .structural_bindings
         .push(SelectedStructuralBinding {
-        semantic:
-            terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding {
+            semantic: abstract_operations::AbstractStructuralBinding {
                 parameter: parameter_place,
                 argument: terminal_psi::StructuralArgument {
                     place: argument_place(),
@@ -263,8 +262,8 @@ fn structural_binding(source: &mut ValidatedRuntimeSpill, transport: SelectedStr
                     access: StructuralAccess::SharedBorrow,
                 },
             },
-        transport,
-    });
+            transport,
+        });
 }
 
 fn seal(source: &mut ValidatedRuntimeSpill) {
@@ -326,8 +325,8 @@ fn whole_value_fixture(target: NativeTarget, byte_size: u16) -> ValidatedRuntime
 }
 
 fn bridge_terminator_binding(
-    function: &target_operations_to_selected_instructions::SelectedFunction,
-) -> target_operations_to_selected_instructions::SelectedStructuralTransport {
+    function: &selected_instructions::SelectedFunction,
+) -> selected_instructions::SelectedStructuralTransport {
     let SelectedTerminator::Jump { successor, .. } = &function.blocks[1].terminator else {
         unreachable!()
     };
@@ -335,9 +334,9 @@ fn bridge_terminator_binding(
 }
 
 fn bridge_instruction(
-    function: &target_operations_to_selected_instructions::SelectedFunction,
+    function: &selected_instructions::SelectedFunction,
     id: u32,
-) -> &target_operations_to_selected_instructions::SelectedInstruction {
+) -> &selected_instructions::SelectedInstruction {
     function.blocks[1]
         .instructions
         .iter()
@@ -473,9 +472,9 @@ fn whole_value_snapshot_argument_moves_to_its_chunk_reload() {
 /// The first view declared on the victim's register class — the pin a chunk
 /// operand would carry when the ABI fixed its unit.
 fn victim_class_view(
-    function: &target_operations_to_selected_instructions::SelectedFunction,
-    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
-) -> target_operations_to_selected_instructions::register_model::RegisterViewId {
+    function: &selected_instructions::SelectedFunction,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+) -> register_model::RegisterViewId {
     let class = function.virtual_registers[1].class;
     environment
         .physical()
@@ -492,8 +491,8 @@ fn victim_class_view(
 /// no home in that class survives, so a unit writer carrying it closes the
 /// shared reload under either span policy.
 fn victim_class_units(
-    function: &target_operations_to_selected_instructions::SelectedFunction,
-    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
+    function: &selected_instructions::SelectedFunction,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Vec<RegisterUnitId> {
     let class = function.virtual_registers[1].class;
     let physical = environment.physical().model();
@@ -514,7 +513,7 @@ fn victim_class_units(
 /// units makes it a unit writer; both close the shared reload.
 fn insert_copy(
     source: &mut ValidatedRuntimeSpill,
-    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
     id: u32,
     before: Option<u32>,
     operands: [VirtualRegisterId; 2],

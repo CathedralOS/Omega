@@ -5,25 +5,25 @@
 //! constraint row after selection and rewrites. These witnesses corrupt one
 //! operand-contract field at a time against real target constraint rows.
 
-use semantic_vocabulary::{
-    BlockId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId, ScalarType,
-};
-use target::NativeTarget;
-use target_operations_to_selected_instructions::register_environment::{
+use optimization_unit::{FuelSettlement, PsiProvenance};
+use register_environment::{
     ValidatedTargetRegisterEnvironment, baseline_target_register_environment,
 };
-use target_operations_to_selected_instructions::register_model::{
+use register_model::{
     RegisterClassId, RegisterInstructionConstraint, RegisterOperandAccess, RegisterViewId,
     ValidatedRegisterConstraintCatalog,
 };
-use target_operations_to_selected_instructions::{
+use selected_instructions::{
     BlockMachineEffects, FunctionMachineEffects, InstructionMachineEffects, SelectedBlock,
     SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance, SelectedOperand,
     SelectedTerminator, ValidatedMachineEffectCatalog, VirtualRegister, VirtualRegisterId,
     VirtualRegisterOrigin,
 };
-use terminal_psi_to_abstract_operations::optimization_unit::{FuelSettlement, PsiProvenance};
+use semantic_vocabulary::{
+    BlockId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId, ScalarType,
+};
+use target::NativeTarget;
 
 use super::{MachineEffectError, validate_function, validate_instruction};
 
@@ -33,14 +33,11 @@ fn environment() -> ValidatedTargetRegisterEnvironment {
 }
 
 fn catalog(environment: &ValidatedTargetRegisterEnvironment) -> ValidatedMachineEffectCatalog {
-    target_operations_to_selected_instructions::isa_x86_64::validate_x86_64_machine_effect_catalog(
+    isa_x86_64::validate_x86_64_machine_effect_catalog(
         environment.target(),
         environment.constraints(),
-        target_operations_to_selected_instructions::isa_x86_64::x86_64_machine_effect_catalog(
-            environment.target(),
-            environment.constraints(),
-        )
-        .expect("x86-64 machine-effect catalog"),
+        isa_x86_64::x86_64_machine_effect_catalog(environment.target(), environment.constraints())
+            .expect("x86-64 machine-effect catalog"),
     )
     .expect("validated x86-64 machine-effect catalog")
 }

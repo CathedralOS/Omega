@@ -3,16 +3,16 @@
 //! parameter — or the stored `&` field's referent leaf for member projections —
 //! with no subslice producer to lower. Partial subslices keep the derived-place
 //! `ByteSequenceSubslice`/`ElementViewSubslice` sources.
-use crate::checked_trees::{
+use crate::tests::flow::terminal_unit::{checked, machine_named};
+use checked_trees::{
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralPathSegment,
 };
-use crate::tests::flow::terminal_unit::{checked, machine_named};
 
 fn establish<'a>(
-    checked: &'a crate::checked_trees::CheckedTrees,
+    checked: &'a checked_trees::CheckedTrees,
     name: &str,
-) -> &'a crate::checked_trees::CheckedUnitStructuralArgumentPlan {
+) -> &'a checked_trees::CheckedUnitStructuralArgumentPlan {
     let plan = checked
         .facts
         .flow
@@ -51,7 +51,7 @@ fn parameter_whole_view_return_names_the_carrier_parameter() {
     assert!(source.path.is_empty());
     assert_eq!(
         source.access,
-        crate::checked_trees::CheckedStructuralAccess::SharedBorrow
+        checked_trees::CheckedStructuralAccess::SharedBorrow
     );
 }
 

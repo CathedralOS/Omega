@@ -22,7 +22,6 @@ use super::realization_callables::{
 };
 use super::receivers::{DynamicReceiverPlace, dynamic_receiver_place, statement_receiver_place};
 use super::result_lanes::DynamicResultLane;
-use crate::checked_trees::{CheckedDynamicBinding, CheckedDynamicDispatchPlan};
 use crate::execution::terminal_unit::types::{
     ShapeCollector, machine_binders, structural_access_for_type_reference, terminal_field_identity,
 };
@@ -32,8 +31,9 @@ use crate::execution::terminal_unit::{
     StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees,
 };
 use crate::semantic::calls::CallSite;
-use symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier;
-use symbol_resolved_trees_to_typed_trees::typed_trees::type_identity::TypeIdentityRequest;
+use checked_trees::{CheckedDynamicBinding, CheckedDynamicDispatchPlan};
+use typed_trees::name::Identifier;
+use typed_trees::type_identity::TypeIdentityRequest;
 
 /// The parts of one authored call a dynamic lane reads, whichever form the
 /// call's result gives it: a Unit call is a statement, a scalar call an
@@ -41,7 +41,7 @@ use symbol_resolved_trees_to_typed_trees::typed_trees::type_identity::TypeIdenti
 pub(super) struct AuthoredCall<'program> {
     pub(super) target_symbol: SymbolHandle,
     pub(super) target: &'program Identifier,
-    pub(super) machine_arguments: &'program [symbol_resolved_trees_to_typed_trees::typed_trees::expression::StaticMachineArgument],
+    pub(super) machine_arguments: &'program [typed_trees::expression::StaticMachineArgument],
     pub(super) argument_count: usize,
     /// No evidence term names one of the callee's obligations.
     pub(super) evidence_free: bool,
@@ -54,8 +54,8 @@ pub(super) struct AuthoredCall<'program> {
 
 #[derive(Clone, Copy)]
 enum AuthoredReceiver<'program> {
-    Expression(symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle),
-    Statement(&'program symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableCall),
+    Expression(typed_trees::expression::ExpressionHandle),
+    Statement(&'program typed_trees::statement::TableCall),
 }
 
 impl<'program> AuthoredCall<'program> {
@@ -114,8 +114,7 @@ pub(super) struct ForwardedDispatch {
 pub(super) struct DynamicCallCustody<HelperBody> {
     /// The final forwarded helper; `None` for a local call.
     pub(super) forwarded: Option<ForwardedDispatch>,
-    pub(super) forwarding_transfers:
-        Vec<crate::checked_trees::CheckedDynamicDescriptorTransferPlan>,
+    pub(super) forwarding_transfers: Vec<checked_trees::CheckedDynamicDescriptorTransferPlan>,
     /// The forwarded helper bodies, outermost first; empty for a local call.
     pub(super) forwarding_helpers: Vec<HelperBody>,
     pub(super) caller_machine: SymbolHandle,
@@ -124,11 +123,11 @@ pub(super) struct DynamicCallCustody<HelperBody> {
     pub(super) caller_multiplicity: language_semantics::Multiplicity,
     pub(super) caller_parameter_access: CheckedStructuralAccess,
     pub(super) caller_contract_report_fingerprint: u64,
-    pub(super) caller_contract_commitment: crate::checked_trees::MachineContractCommitment,
+    pub(super) caller_contract_commitment: checked_trees::MachineContractCommitment,
     pub(super) caller_service_reach: ServiceReachSummary,
     pub(super) coordinate: CheckedUnitCallCoordinate,
     pub(super) receiver_binding: SymbolHandle,
-    pub(super) selection: crate::checked_trees::DynamicConformanceBindingFact,
+    pub(super) selection: checked_trees::DynamicConformanceBindingFact,
     pub(super) source_parameter_position: u32,
     pub(super) source_access: CheckedStructuralAccess,
     pub(super) source_field: SymbolHandle,
@@ -144,10 +143,9 @@ pub(super) struct DynamicCallCustody<HelperBody> {
     pub(super) realization_state: SymbolHandle,
     pub(super) realization_identity: String,
     pub(super) family_tuple: Box<[String]>,
-    pub(super) realization_callables:
-        Vec<crate::checked_trees::CheckedDynamicRealizationCallablePlan>,
+    pub(super) realization_callables: Vec<checked_trees::CheckedDynamicRealizationCallablePlan>,
     pub(super) realization_contract_report_fingerprint: u64,
-    pub(super) realization_contract_commitment: crate::checked_trees::MachineContractCommitment,
+    pub(super) realization_contract_commitment: checked_trees::MachineContractCommitment,
     pub(super) checked_call_service_reach: ServiceReachSummary,
 }
 
@@ -157,13 +155,11 @@ pub(super) struct DynamicCaller<'program, 'facts> {
     pub(super) program: &'program TypedTrees,
     pub(super) facts: &'facts CheckFacts,
     pub(super) boundaries: &'facts [CheckedBoundaryMachinePlan],
-    pub(super) machine:
-        &'program symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    pub(super) state: &'program symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    pub(super) machine: &'program typed_trees::machine::Machine,
+    pub(super) state: &'program typed_trees::state::State,
     pub(super) statements: &'program [StatementNode],
-    pub(super) stored: Option<&'facts crate::checked_trees::DynamicDescriptorStorageFact>,
-    pub(super) source_definition:
-        &'program symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition,
+    pub(super) stored: Option<&'facts checked_trees::DynamicDescriptorStorageFact>,
+    pub(super) source_definition: &'program typed_trees::data::DataDefinition,
 }
 
 /// Build one checked dynamic call under its result lane. The call either
@@ -174,15 +170,15 @@ pub(super) struct DynamicCaller<'program, 'facts> {
 pub(super) fn build_checked_dynamic_call<'program, 'facts, Lane: DynamicResultLane>(
     program: &'program TypedTrees,
     facts: &'facts CheckFacts,
-    binding_facts: &crate::checked_trees::DynamicConformanceBindingFacts,
-    machine: &'program symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &'program symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-    flow_call: &crate::checked_trees::FlowCallFact,
+    binding_facts: &checked_trees::DynamicConformanceBindingFacts,
+    machine: &'program typed_trees::machine::Machine,
+    state: &'program typed_trees::state::State,
+    flow_call: &checked_trees::FlowCallFact,
     call_site: CallSite<'program>,
     shapes: &mut ShapeCollector<'_>,
     boundaries: &'facts [CheckedBoundaryMachinePlan],
     forwarded: Option<ForwardedDynamicCall<'program, '_, Lane::HelperBody>>,
-    stored: Option<&'facts crate::checked_trees::DynamicDescriptorStorageFact>,
+    stored: Option<&'facts checked_trees::DynamicDescriptorStorageFact>,
 ) -> Option<CheckedDynamicDispatchPlan> {
     if !Lane::authors(&call_site) || (stored.is_some() && !Lane::STORES_DESCRIPTORS) {
         return None;
@@ -616,7 +612,7 @@ pub(super) fn build_checked_dynamic_call<'program, 'facts, Lane: DynamicResultLa
             let destination_field_identity =
                 terminal_field_identity(program, storage.destination_field)?;
             CheckedDynamicBinding::Stored {
-                descriptor: crate::checked_trees::CheckedDynamicStoredDescriptorPlan {
+                descriptor: checked_trees::CheckedDynamicStoredDescriptorPlan {
                     storage: storage.clone(),
                     destination_type_identity,
                     destination_field_identity,
@@ -644,17 +640,17 @@ fn sole<T>(mut candidates: impl Iterator<Item = T>) -> Option<T> {
 fn checked_rebound_dynamic_selection(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     statements: &[StatementNode],
     call_statement_index: usize,
-    initial: &crate::checked_trees::DynamicConformanceBindingFact,
-    rebound: &crate::checked_trees::DynamicConformanceBindingFact,
+    initial: &checked_trees::DynamicConformanceBindingFact,
+    rebound: &checked_trees::DynamicConformanceBindingFact,
     source_parameter_position: u32,
     caller_parameter_access: CheckedStructuralAccess,
     source_access: CheckedStructuralAccess,
     source_type_identity: &str,
-) -> Option<crate::checked_trees::CheckedDynamicSelectionPlan> {
+) -> Option<checked_trees::CheckedDynamicSelectionPlan> {
     if initial.statement_index.checked_add(1)? != rebound.statement_index
         || rebound.statement_index.checked_add(1)? != call_statement_index
         || initial.binding != rebound.binding
@@ -681,7 +677,7 @@ fn checked_rebound_dynamic_selection(
     if initial_source_type_identity != source_type_identity {
         return None;
     }
-    Some(crate::checked_trees::CheckedDynamicSelectionPlan {
+    Some(checked_trees::CheckedDynamicSelectionPlan {
         fact: initial.clone(),
         field: source_field,
         path: source_path,
@@ -692,9 +688,9 @@ fn checked_rebound_dynamic_selection(
 fn checked_source_argument(
     program: &TypedTrees,
     facts: &CheckFacts,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    state: &typed_trees::state::State,
     statements: &[StatementNode],
-    selection: &crate::checked_trees::DynamicConformanceBindingFact,
+    selection: &checked_trees::DynamicConformanceBindingFact,
 ) -> Option<(u32, CheckedStructuralAccess, CheckedStructuralAccess)> {
     let self_parameters = program
         .state_parameters(state)
@@ -799,9 +795,9 @@ fn checked_source_argument(
         selection.statement_index,
         cast.value,
     )?;
-    if source_place.root != crate::fact_plan::PlaceRoot::Symbol(self_parameter.symbol)
+    if source_place.root != facts::PlaceRoot::Symbol(self_parameter.symbol)
         || source_place.segments
-            != [crate::fact_plan::PlaceSegment::Field {
+            != [facts::PlaceSegment::Field {
                 symbol: selection.source_symbol,
             }]
     {
@@ -813,8 +809,8 @@ fn checked_source_argument(
 
 fn checked_self_attachment_source(
     program: &TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    selection: &crate::checked_trees::DynamicConformanceBindingFact,
+    machine: &typed_trees::machine::Machine,
+    selection: &checked_trees::DynamicConformanceBindingFact,
 ) -> Option<(SymbolHandle, Vec<CheckedUnitStructuralPathSegment>, String)> {
     let [self_name, field_name] = selection.source_path.as_slice() else {
         return None;
@@ -839,9 +835,7 @@ fn checked_self_attachment_source(
         .data_members(attachment)
         .iter()
         .filter_map(|member| {
-            let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) =
-                member
-            else {
+            let typed_trees::data::DataMember::Field(field) = member else {
                 return None;
             };
             (field.symbol == selection.source_symbol).then_some(field)

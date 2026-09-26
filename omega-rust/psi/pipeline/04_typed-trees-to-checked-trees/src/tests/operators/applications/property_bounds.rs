@@ -5,18 +5,16 @@ use crate::tests::front_end::{checked_program, typed_program};
 fn same_spelled_foreign_nominal_does_not_inherit_declared_property() {
     let copy_symbol = SymbolHandle::from_arena_index(201);
     let foreign_symbol = SymbolHandle::from_arena_index(202);
-    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
-    program.push_data_definition(
-        symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition {
-            symbol: copy_symbol,
-            name: Identifier::generated("Shared"),
-            properties: symbol_resolved_trees_to_typed_trees::typed_trees::data::DataProperties {
-                multiplicity: language_semantics::Multiplicity::Unrestricted,
-                ..Default::default()
-            },
+    let mut program = typed_trees::TypedTrees::default();
+    program.push_data_definition(typed_trees::data::DataDefinition {
+        symbol: copy_symbol,
+        name: Identifier::generated("Shared"),
+        properties: typed_trees::data::DataProperties {
+            multiplicity: language_semantics::Multiplicity::Unrestricted,
             ..Default::default()
         },
-    );
+        ..Default::default()
+    });
     let foreign_type = program
         .type_reference_table
         .insert(TypeReferenceNode::Named {
@@ -24,15 +22,15 @@ fn same_spelled_foreign_nominal_does_not_inherit_declared_property() {
             name: Identifier::generated("Shared"),
         });
     let mut diagnostics = Vec::new();
-    let symbols = crate::validation::TopLevelSymbols::build(&program, &mut diagnostics);
+    let symbols = validation::TopLevelSymbols::build(&program, &mut diagnostics);
     assert!(diagnostics.is_empty());
 
-    assert!(!crate::validation::type_satisfies_declared_property(
+    assert!(!validation::type_satisfies_declared_property(
         &program,
         &symbols,
         &[],
         foreign_type,
-        crate::validation::DeclaredPropertyRequirement::Copy,
+        validation::DeclaredPropertyRequirement::Copy,
     ));
 }
 
@@ -60,7 +58,7 @@ fn closed_type_satisfying_property_bound_retains_exact_checked_application() {
         panic!("one closed property-bounded boundary application")
     };
     let [
-        crate::checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
+        checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
             binder_owner,
             binder_ordinal,
             binder_symbol,
@@ -97,7 +95,7 @@ fn closed_type_not_satisfying_property_bound_is_rejected_by_validation() {
         }
         "#,
     );
-    let diagnostics = crate::validation::validate_program(&typed)
+    let diagnostics = validation::validate_program(&typed)
         .expect_err("LinearValue must not satisfy the operator's [copy] bound");
 
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -121,7 +119,7 @@ fn explicit_bounded_type_argument_must_equal_operand_inference() {
         }
         "#,
     );
-    let diagnostics = crate::validation::validate_program(&typed)
+    let diagnostics = validation::validate_program(&typed)
         .expect_err("the explicit bounded type must agree with operand inference");
 
     assert!(diagnostics.iter().any(|diagnostic| {

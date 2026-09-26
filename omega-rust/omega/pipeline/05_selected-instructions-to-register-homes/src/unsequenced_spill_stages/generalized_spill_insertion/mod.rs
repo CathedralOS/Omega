@@ -19,17 +19,15 @@ use crate::unsequenced_spill_stages::{
     ValidatedSpillRecoveryActions,
 };
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
-use selected_instructions_to_selected_instructions::register_homes::{
+use register_homes::{
     AllocatorAvailabilityIdentity, LogicalReloadValueId, LogicalSpillStorageClass,
     LogicalSpillStorageId,
 };
-use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
-use target_operations_to_selected_instructions::register_model::{
-    RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity,
-};
-use target_operations_to_selected_instructions::{
+use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
+use selected_instructions::{
     LiveRangePoint, SelectedBlockId, SelectedInstructionId, VirtualRegisterId,
 };
+use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 
 pub fn schedule_generalized_spill_insertion(
     first: &ValidatedAbstractSpillInsertion,

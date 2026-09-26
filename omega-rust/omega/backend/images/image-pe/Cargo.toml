@@ -1,0 +1,17 @@
+[package]
+name = "image-pe"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "image_pe"
+path = "src/lib.rs"
+
+[dependencies]
+calling-conventions = { path = "../../../representations/calling-conventions" }
+arena = { path = "../../../../psi/foundation/arena" }
+diagnostics = { path = "../../../../psi/foundation/diagnostics" }
+image = { path = "../image" }
+object-file = { path = "../../object/object-file" }
+target = { path = "../../../representations/target" }

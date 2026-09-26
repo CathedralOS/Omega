@@ -10,16 +10,13 @@
 //! A forged activation/weakening plus a deleted certificate must not erase a
 //! comparison. This replay does not create or restore resource authority.
 
-use crate::checked_trees::statement::StatementNode;
-use crate::checked_trees::{
+use arena::{Arena, Handle, HandleSpan};
+use checked_trees::statement::StatementNode;
+use checked_trees::{
     CheckFacts, FlowBorrowWeakeningReason, FlowConstraintKind, FlowConstraintRef, FlowStateFact,
 };
-use arena::{Arena, Handle, HandleSpan};
 
-pub(super) fn matches_source(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    facts: &CheckFacts,
-) -> bool {
+pub(super) fn matches_source(program: &typed_trees::TypedTrees, facts: &CheckFacts) -> bool {
     let expected = crate::borrow::build_borrow_facts(program);
     // There are no call judgments to authenticate in a call-free program.
     // Other borrow/resource validators still own its formation and mutations.
@@ -115,7 +112,7 @@ pub(super) fn matches_source(
 /// Called only after the source-owned borrow roster has matched. Use the
 /// producer's source filters without its retained activation/weakening rows.
 pub(super) fn matches_entry_loans(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
 ) -> bool {

@@ -17,16 +17,14 @@
 //! expression-root dependencies alone do
 //! not establish that a computed actual still denotes its captured value.
 
-use crate::checked_trees::{CheckedOperatorFacts, FlowCallFact, FlowStateFact};
-use crate::fact_plan::{FactPayload, FactPlace, FactPlan, PlaceRoot};
 use crate::flow::CanonicalPlace;
 use crate::semantic::calls::CallSite;
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, ExpressionNode,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+use checked_trees::{CheckedOperatorFacts, FlowCallFact, FlowStateFact};
+use facts::{FactPayload, FactPlace, FactPlan, PlaceRoot};
 use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::machine::Machine;
 
 pub(in crate::checks) mod arithmetic;
 pub(in crate::checks) mod callable;
@@ -47,12 +45,12 @@ struct Invocation<'program> {
 
 pub(super) fn proves(
     program: &TypedTrees,
-    facts: &crate::checked_trees::CheckFacts,
+    facts: &checked_trees::CheckFacts,
     caller: &FlowStateFact,
     call: &FlowCallFact,
-    contexts: &[crate::fact_plan::FactContextHandle],
+    contexts: &[facts::FactContextHandle],
     expression: ExpressionHandle,
-    frames: Option<&crate::validation::CallFrameResolver<'_>>,
+    frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     let operators = &facts.operators;
     let semantic = &facts.semantic;
@@ -87,7 +85,7 @@ pub(super) fn proves(
             guarantee.expression,
             frames,
         ) {
-            arithmetic_hypotheses.push(crate::validation::ScopedArithmeticHypothesis {
+            arithmetic_hypotheses.push(validation::ScopedArithmeticHypothesis {
                 proposition,
                 holds: true,
             });
@@ -118,12 +116,12 @@ pub(super) fn proves(
 
 fn capture_preserved(
     program: &TypedTrees,
-    borrow: &crate::checked_trees::BorrowFacts,
+    borrow: &checked_trees::BorrowFacts,
     caller: &Machine,
     supplied: &Invocation<'_>,
-    frame: crate::fact_plan::NormalizedWriteFrame,
+    frame: facts::NormalizedWriteFrame,
     guarantee: ExpressionHandle,
-    frames: &crate::validation::CallFrameResolver<'_>,
+    frames: &validation::CallFrameResolver<'_>,
 ) -> bool {
     let Some(mut writes) = crate::flow::frame_storage_writes(
         program,
@@ -168,7 +166,7 @@ fn capture_preserved(
         &mut occurrences,
     );
     occurrences.into_iter().all(|occurrence| {
-        if crate::validation::reserved_result_place(program, occurrence)
+        if validation::reserved_result_place(program, occurrence)
             .is_some_and(|result| result.machine_symbol == supplied.callable.owner_symbol())
             || bound_literal(program, supplied, occurrence).is_some()
         {
@@ -291,7 +289,7 @@ fn receiver_place(program: &TypedTrees, invocation: &Invocation<'_>) -> Option<C
     )?;
     (matches!(place.root, PlaceRoot::Symbol(symbol) if symbol.is_valid())
         && !place.segments.iter().any(|segment| {
-            matches!(segment, crate::fact_plan::PlaceSegment::Index { .. })
+            matches!(segment, facts::PlaceSegment::Index { .. })
                 || crate::flow::place_segment_has_unresolved_identity(*segment)
         }))
     .then_some(place)
@@ -340,7 +338,7 @@ fn exclusive_borrow_place(
     let place = crate::flow::canonical_place_from_expression(program, expression)?;
     (matches!(place.root, PlaceRoot::Symbol(symbol) if symbol.is_valid())
         && !place.segments.iter().any(|segment| {
-            matches!(segment, crate::fact_plan::PlaceSegment::Index { .. })
+            matches!(segment, facts::PlaceSegment::Index { .. })
                 || crate::flow::place_segment_has_unresolved_identity(*segment)
         }))
     .then_some(place)
@@ -382,7 +380,7 @@ fn builtin_predicate(
 fn predicates_match(
     program: &TypedTrees,
     semantic: &FactPlan,
-    contexts: &[crate::fact_plan::FactContextHandle],
+    contexts: &[facts::FactContextHandle],
     required: &Invocation<'_>,
     left: ExpressionHandle,
     supplied: &Invocation<'_>,
@@ -511,7 +509,7 @@ fn actual_projection(
     program: &TypedTrees,
     invocation: &Invocation<'_>,
     expression: ExpressionHandle,
-) -> Option<(ExpressionHandle, Vec<crate::fact_plan::PlaceSegment>)> {
+) -> Option<(ExpressionHandle, Vec<facts::PlaceSegment>)> {
     direct_place(program, expression)?;
     crate::semantic::places::call_contract_argument_projection(
         program,
@@ -525,7 +523,7 @@ fn bound_literal(
     program: &TypedTrees,
     invocation: &Invocation<'_>,
     expression: ExpressionHandle,
-) -> Option<crate::fact_plan::ScalarValue> {
+) -> Option<facts::ScalarValue> {
     super::scalars::literal(program, expression).or_else(|| {
         let (value, remaining) = actual_projection(program, invocation, expression)?;
         if !remaining.is_empty() {
@@ -540,7 +538,7 @@ fn bound_place(
     invocation: &Invocation<'_>,
     expression: ExpressionHandle,
 ) -> Option<CanonicalPlace> {
-    if let Some(result) = crate::validation::reserved_result_place(program, expression) {
+    if let Some(result) = validation::reserved_result_place(program, expression) {
         if result.machine_symbol != invocation.callable.owner_symbol() {
             return None;
         }
@@ -566,7 +564,7 @@ fn bound_place(
 fn captured_place(
     program: &TypedTrees,
     semantic: &FactPlan,
-    contexts: &[crate::fact_plan::FactContextHandle],
+    contexts: &[facts::FactContextHandle],
     mut place: CanonicalPlace,
 ) -> Option<CanonicalPlace> {
     // Flow copies this provenance with a whole-value copy and removes it on
@@ -628,16 +626,14 @@ mod prerequisite_roster_probes {
     use super::{
         Invocation, direct_place, invocation, receiver_place, stable_arguments, stable_value,
     };
-    use crate::checked_trees::FlowStateFact;
-    use crate::fact_plan::PlaceRoot;
     use crate::semantic::calls::{CallSite, call_site_argument_expressions};
     use crate::tests::front_end::typed_program;
-    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-        ExpressionHandle, ExpressionNode,
-    };
-    use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
-    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
+    use checked_trees::FlowStateFact;
+    use facts::PlaceRoot;
     use symbols::SymbolHandle;
+    use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+    use typed_trees::state::State;
+    use typed_trees::statement::StatementNode;
 
     const SOURCE: &str = r#"
         data Pair {
@@ -684,16 +680,13 @@ mod prerequisite_roster_probes {
         }
     "#;
 
-    fn program() -> symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees {
+    fn program() -> typed_trees::TypedTrees {
         typed_program(SOURCE)
     }
 
     /// Machine names keep their qualified diagnostic spelling
     /// (`Main::main`); a leaf name matches its final member.
-    fn machine_named(
-        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-        name: &str,
-    ) -> SymbolHandle {
+    fn machine_named(program: &typed_trees::TypedTrees, name: &str) -> SymbolHandle {
         program
             .machines()
             .iter()
@@ -706,7 +699,7 @@ mod prerequisite_roster_probes {
     }
 
     fn machine_state<'program>(
-        program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        program: &'program typed_trees::TypedTrees,
         machine_name: &str,
         state_name: &str,
     ) -> (SymbolHandle, &'program State) {
@@ -730,7 +723,7 @@ mod prerequisite_roster_probes {
     }
 
     fn invocation_at<'program>(
-        program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        program: &'program typed_trees::TypedTrees,
         statement: usize,
         ordinal: usize,
     ) -> Option<Invocation<'program>> {
@@ -743,18 +736,12 @@ mod prerequisite_roster_probes {
         invocation(program, &caller, statement, ordinal)
     }
 
-    fn statement(
-        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-        index: usize,
-    ) -> &StatementNode {
+    fn statement(program: &typed_trees::TypedTrees, index: usize) -> &StatementNode {
         let (_, state) = machine_state(program, "main", "main");
         &program.statement_table.statements(state.statement_nodes)[index]
     }
 
-    fn initializer(
-        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-        index: usize,
-    ) -> ExpressionHandle {
+    fn initializer(program: &typed_trees::TypedTrees, index: usize) -> ExpressionHandle {
         let StatementNode::LocalData(local) = statement(program, index) else {
             panic!("statement {index} is not a local binding");
         };
@@ -763,7 +750,7 @@ mod prerequisite_roster_probes {
 
     /// The sole actual of the expression call at `statement`/`ordinal`.
     fn only_argument(
-        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        program: &typed_trees::TypedTrees,
         statement: usize,
         ordinal: usize,
     ) -> ExpressionHandle {

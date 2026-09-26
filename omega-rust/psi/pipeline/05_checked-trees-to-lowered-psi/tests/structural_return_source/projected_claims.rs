@@ -2,12 +2,12 @@ use super::{
     AdmissionProfile, TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,
     TerminalFuelMeter, TerminalStructuralResult, TerminalStructuralValue, decode_module,
 };
-use lowered_psi_to_terminal_psi::terminal_production::{
-    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
-};
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
-pub(super) fn checked(length: usize) -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
+pub(super) fn checked(length: usize) -> checked_trees::CheckedTrees {
     // The same customer is also run through the CLI with the bundled library.
     // The stage-local harness supplies only its imported content vocabulary.
     let source = include_str!(concat!(env!("CARGO_MANIFEST_DIR"),
@@ -22,16 +22,15 @@ pub(super) fn checked(length: usize) -> typed_trees_to_checked_trees::checked_tr
 fn projected_claims_survive_nominal_mixed_call_chains_without_source() {
     for length in [1, 2, 3] {
         let checked = checked(length);
-        let artifact =
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-                &checked,
-                TerminalMachineSelection::Name("Main::demand"),
-            )
-            .produce(TerminalProductionCustody::artifact_only(
-                &mut TerminalProductionTimings::default(),
-            ))
-            .expect("publish projected return custody")
-            .into_artifact();
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("Main::demand"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("publish projected return custody")
+        .into_artifact();
         drop(checked);
         let module = decode_module(artifact.semantic_bytes()).expect("reload semantics");
         let caller = module
@@ -141,7 +140,7 @@ fn projected_claims_reject_changed_checked_custody() {
                     .clear();
             }
             "result_qualification" => {
-                let typed_trees_to_checked_trees::checked_trees::CheckedControlResultPlan::Structural(result) = &mut plan.result
+                let checked_trees::CheckedControlResultPlan::Structural(result) = &mut plan.result
                 else {
                     panic!("structural result")
                 };
@@ -155,11 +154,11 @@ fn projected_claims_reject_changed_checked_custody() {
                     .find(|operation| {
                         matches!(
                             operation,
-                            typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::StructuralCall { .. }
+                            checked_trees::CheckedUnitEffectOperationPlan::StructuralCall { .. }
                         )
                     })
                     .unwrap();
-                let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::StructuralCall {
+                let checked_trees::CheckedUnitEffectOperationPlan::StructuralCall {
                     custody, ..
                 } = operation
                 else {
@@ -184,7 +183,7 @@ fn projected_claims_reject_changed_checked_custody() {
             }
         }
         assert!(
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            terminal_production::TerminalProductionRequest::new(
                 &invalid,
                 TerminalMachineSelection::Name("Main::demand")
             )
@@ -200,16 +199,15 @@ fn projected_claims_reject_changed_checked_custody() {
 #[test]
 fn projected_claims_reject_incomplete_portable_return_frontiers() {
     let checked = checked(2);
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("Main::demand"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("publish projected returns")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::demand"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("publish projected returns")
+    .into_artifact();
     drop(checked);
     let module = decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();

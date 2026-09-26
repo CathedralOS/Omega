@@ -9,7 +9,7 @@ mod cycles;
 mod scalar_arrays;
 mod structural_cases;
 mod transfers;
-use terminal_psi_to_abstract_operations::abstract_operations::AbstractSuccessor;
+use abstract_operations::AbstractSuccessor;
 
 fn block(value: u64) -> BlockId {
     BlockId::new(value).unwrap()
@@ -120,7 +120,7 @@ fn fixture() -> AbstractOperationPlan {
 }
 fn lower(
     plan: &AbstractOperationPlan,
-) -> Result<crate::target_operations::TargetOperationPlan, crate::LoweringError> {
+) -> Result<target_operations::TargetOperationPlan, crate::LoweringError> {
     crate::lower_to_target_operations(
         plan,
         crate::TargetLoweringRequest {
@@ -128,9 +128,9 @@ fn lower(
             settlements: &[crate::AdmittedBoundarySettlement {
                 boundary: plan.boundary_machines[0].id,
                 execution: crate::AdmittedBoundaryExecution::CompilerBuiltin(
-                    crate::target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
+                    target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
                 ),
-                realization: crate::target_operations::HostedWriteByteI32Realization.into(),
+                realization: target_operations::HostedWriteByteI32Realization.into(),
             }],
             installation: None,
             native_callbacks: &[],
@@ -150,7 +150,7 @@ fn ordinary_unit_graph_retains_selected_edges_join_and_return() {
     let graph = &caller.graph;
     assert_eq!(graph.entry, block(1));
     assert_eq!(graph.blocks.len(), 4);
-    let crate::target_operations::TargetControlTerminator::Conditional {
+    let target_operations::TargetControlTerminator::Conditional {
         condition_source,
         when_true,
         when_false,
@@ -163,7 +163,7 @@ fn ordinary_unit_graph_retains_selected_edges_join_and_return() {
     assert_eq!((when_true.target, when_false.target), (block(2), block(3)));
     assert!(matches!(
         graph.blocks[3].terminator,
-        crate::target_operations::TargetControlTerminator::Return { .. }
+        target_operations::TargetControlTerminator::Return { .. }
     ));
     assert_eq!(
         caller.provenance.edges,
@@ -214,7 +214,7 @@ fn ordinary_unit_graph_retains_linear_call_continuations() {
     let graph = &caller.graph;
     assert_eq!(graph.blocks.len(), 2);
     assert!(
-        matches!(&graph.blocks[0].terminator, crate::target_operations::TargetControlTerminator::Jump { successor } if successor.target == block(4))
+        matches!(&graph.blocks[0].terminator, target_operations::TargetControlTerminator::Jump { successor } if successor.target == block(4))
     );
     assert_eq!(
         caller.provenance.operations,

@@ -71,7 +71,7 @@ pub(crate) fn lower_boundary_crash_routes(
 /// normalize before lowering: `false` contributes nothing and `true` is the
 /// unconditional guard.
 pub(crate) fn lower_formal_crash_routes(
-    buckets: &[typed_trees_to_checked_trees::checked_trees::CrashRouteBucket],
+    buckets: &[checked_trees::CrashRouteBucket],
     scalar_types: &[ScalarType],
 ) -> Result<Vec<terminal_psi::CrashRouteBucket>, LoweringError> {
     let parameters = scalar_types
@@ -92,22 +92,19 @@ pub(crate) fn lower_formal_crash_routes(
                 .alternative_guards()
                 .iter()
                 .filter_map(|guard| match guard {
-                    typed_trees_to_checked_trees::checked_trees::CrashRouteGuard::Predicate(
-                        predicate,
-                    ) => match predicate.scalar_expression() {
-                        Some(CheckedBooleanExpression::Constant(false)) => None,
-                        Some(CheckedBooleanExpression::Constant(true)) => Some(
-                            typed_trees_to_checked_trees::checked_trees::CrashRouteGuard::Truth,
-                        ),
-                        _ => Some(guard.clone()),
-                    },
+                    checked_trees::CrashRouteGuard::Predicate(predicate) => {
+                        match predicate.scalar_expression() {
+                            Some(CheckedBooleanExpression::Constant(false)) => None,
+                            Some(CheckedBooleanExpression::Constant(true)) => {
+                                Some(checked_trees::CrashRouteGuard::Truth)
+                            }
+                            _ => Some(guard.clone()),
+                        }
+                    }
                     _ => Some(guard.clone()),
                 })
                 .collect();
-            typed_trees_to_checked_trees::checked_trees::CrashRouteBucket::new(
-                bucket.cause(),
-                guards,
-            )
+            checked_trees::CrashRouteBucket::new(bucket.cause(), guards)
         })
         .collect::<Vec<_>>();
     lower_checked_crash_route_buckets(&normalized, &parameters)
@@ -138,7 +135,7 @@ pub(crate) fn lower_checked_crash_exit(
     statement_ordinal: u32,
     source_claims: &[(PermissionClaimIdentity, ClaimId)],
 ) -> Result<LoweredCrashExit, LoweringError> {
-    use typed_trees_to_checked_trees::checked_trees::statement::{
+    use checked_trees::statement::{
         StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
     };
 
@@ -194,12 +191,8 @@ pub(crate) fn lower_checked_crash_exit(
         return unsupported("explicit crash has no body-derived checked crash-site row");
     };
     let authored_cause = match authored_cause {
-        typed_trees_to_checked_trees::checked_trees::signature::CrashCause::Trap => {
-            typed_trees_to_checked_trees::checked_trees::CrashCause::Trap
-        }
-        typed_trees_to_checked_trees::checked_trees::signature::CrashCause::Abort => {
-            typed_trees_to_checked_trees::checked_trees::CrashCause::Abort
-        }
+        checked_trees::signature::CrashCause::Trap => checked_trees::CrashCause::Trap,
+        checked_trees::signature::CrashCause::Abort => checked_trees::CrashCause::Abort,
     };
     if checked_site.cause() != authored_cause {
         return unsupported("checked crash cause disagrees with its authored transition");
@@ -218,40 +211,37 @@ pub(crate) fn lower_checked_crash_exit(
         .iter()
         .chain(checked_site.path_guard_consequences())
         .collect::<BTreeSet<_>>();
-    let site_guard =
-        covering_bucket
-            .alternative_guards()
-            .iter()
-            .filter_map(|guard| match guard {
-                typed_trees_to_checked_trees::checked_trees::CrashRouteGuard::Truth => None,
-                typed_trees_to_checked_trees::checked_trees::CrashRouteGuard::Predicate(
-                    predicate,
-                ) if site_identities.contains(predicate) => Some(
+    let site_guard = covering_bucket
+        .alternative_guards()
+        .iter()
+        .filter_map(|guard| match guard {
+            checked_trees::CrashRouteGuard::Truth => None,
+            checked_trees::CrashRouteGuard::Predicate(predicate)
+                if site_identities.contains(predicate) =>
+            {
+                Some(
                     predicate
                         .scalar_expression()
                         .cloned()
                         .ok_or(LoweringError::Unsupported(
                             "guarded crash site is outside structured scalar predicate lowering",
                         )),
-                ),
-                typed_trees_to_checked_trees::checked_trees::CrashRouteGuard::Predicate(_) => None,
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+                )
+            }
+            checked_trees::CrashRouteGuard::Predicate(_) => None,
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     if !covering_bucket
         .alternative_guards()
-        .contains(&typed_trees_to_checked_trees::checked_trees::CrashRouteGuard::Truth)
+        .contains(&checked_trees::CrashRouteGuard::Truth)
         && site_guard.is_empty()
     {
         return unsupported("guarded crash site has no structured covering predicate");
     }
     Ok(LoweredCrashExit {
         cause: match checked_site.cause() {
-            typed_trees_to_checked_trees::checked_trees::CrashCause::Trap => {
-                TerminalCrashCause::Trap
-            }
-            typed_trees_to_checked_trees::checked_trees::CrashCause::Abort => {
-                TerminalCrashCause::Abort
-            }
+            checked_trees::CrashCause::Trap => TerminalCrashCause::Trap,
+            checked_trees::CrashCause::Abort => TerminalCrashCause::Abort,
         },
         site_guard,
         frontier_lower_bound: lower_checked_crash_frontier(
@@ -262,7 +252,7 @@ pub(crate) fn lower_checked_crash_exit(
 }
 
 pub(crate) fn lower_checked_crash_route_buckets(
-    buckets: &[typed_trees_to_checked_trees::checked_trees::CrashRouteBucket],
+    buckets: &[checked_trees::CrashRouteBucket],
     parameters: &[ValueDeclaration],
 ) -> Result<Vec<terminal_psi::CrashRouteBucket>, LoweringError> {
     buckets
@@ -272,10 +262,10 @@ pub(crate) fn lower_checked_crash_route_buckets(
                 .alternative_guards()
                 .iter()
                 .map(|guard| match guard {
-                    typed_trees_to_checked_trees::checked_trees::CrashRouteGuard::Truth => {
+                    checked_trees::CrashRouteGuard::Truth => {
                         Ok(terminal_psi::CrashRouteGuard::Truth)
                     }
-                    typed_trees_to_checked_trees::checked_trees::CrashRouteGuard::Predicate(predicate) => {
+                    checked_trees::CrashRouteGuard::Predicate(predicate) => {
                         let expression = predicate.scalar_expression().ok_or(
                             LoweringError::Unsupported(
                                 "guarded crash route is outside structured scalar predicate lowering",
@@ -293,8 +283,8 @@ pub(crate) fn lower_checked_crash_route_buckets(
             alternatives.dedup();
             Ok(terminal_psi::CrashRouteBucket {
                 cause: match bucket.cause() {
-                    typed_trees_to_checked_trees::checked_trees::CrashCause::Trap => TerminalCrashCause::Trap,
-                    typed_trees_to_checked_trees::checked_trees::CrashCause::Abort => TerminalCrashCause::Abort,
+                    checked_trees::CrashCause::Trap => TerminalCrashCause::Trap,
+                    checked_trees::CrashCause::Abort => TerminalCrashCause::Abort,
                 },
                 alternatives,
             })

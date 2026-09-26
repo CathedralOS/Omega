@@ -7,9 +7,7 @@ use super::{
 use crate::TerminalMachineSelection;
 use language_semantics::SemanticDomainId;
 
-fn root(
-    checked: &CheckedTrees,
-) -> typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationRoot {
+fn root(checked: &CheckedTrees) -> checked_trees::CheckedScalarComputationRoot {
     let machine = checked
         .machines()
         .iter()
@@ -424,12 +422,11 @@ fn indexed_call_replay_rechecks_parameter_contract_instance() {
             .proof_facts
             .iter()
             .find_map(|(handle, fact)| {
-                matches!(fact, symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(_)).then_some(handle)
+                matches!(fact, typed_trees::domain::ProofFact::Membership(_)).then_some(handle)
             })
             .expect("qualified parameter requirement");
-        let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(
-            membership,
-        ) = checked.typed.proof_facts.get_mut(membership)
+        let typed_trees::domain::ProofFact::Membership(membership) =
+            checked.typed.proof_facts.get_mut(membership)
         else {
             panic!("membership");
         };

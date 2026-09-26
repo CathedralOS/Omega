@@ -3,14 +3,12 @@
 use super::LiveDefinitions;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use crate::target_operations::{TargetUnitOperation, TerminalPsiProvenance};
+use abstract_operations::{AbstractFunction, AbstractOperation};
 use semantic_vocabulary::{IntegerSign, IntegerType, PlaceId};
 use std::collections::{BTreeMap, BTreeSet};
+use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
 use terminal_psi::{
     StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralTypeShape,
-};
-use terminal_psi_to_abstract_operations::abstract_operations::{
-    AbstractFunction, AbstractOperation,
 };
 
 /// Keep replacement as one ordered operation. Capacity is a destination bound,

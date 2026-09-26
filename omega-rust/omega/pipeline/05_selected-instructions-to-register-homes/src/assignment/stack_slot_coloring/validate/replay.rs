@@ -1,11 +1,11 @@
 use crate::{StackSlotColoringError, ValidatedLogicalSpillOperations};
-use selected_instructions_to_selected_instructions::register_homes::{
+use register_homes::{
     FunctionLogicalSpillOperations, FunctionStackSlotColoring, LogicalSpillStorageClass,
     LogicalSpillStorageId, StackSlotAssignment,
 };
-use target_operations_to_selected_instructions::SelectedBlockId;
+use selected_instructions::SelectedBlockId;
 
-use target_operations_to_selected_instructions::LiveRangePoint;
+use selected_instructions::LiveRangePoint;
 
 const SLOT_BYTES: u64 = 8;
 

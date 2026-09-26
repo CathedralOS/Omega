@@ -1,14 +1,12 @@
 //! Materialized runtime bounds over selected operations, never source syntax.
 
-use crate::checked_trees::{
+use checked_trees::{
     CheckedIntegerBinaryKind, CheckedScalarExpression, CheckedStructuralPredicatePathSegment,
 };
-use crate::fact_plan::IntegerRange;
+use facts::IntegerRange;
 use numerics::{arithmetic::ArithmeticDomain, bignum::BigInt, literals::LandedIntegerType};
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
-    PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
-};
 use symbols::SymbolHandle;
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 mod sources;
 #[cfg(test)]
@@ -332,7 +330,7 @@ fn binary(
 /// reference supplies no declared bound and the caller keeps the raw carrier.
 /// `None` also means "no tightening available"; it is never an error.
 pub(crate) fn declared_bounds(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     mut reference: TypeReferenceHandle,
     primitive_type: PrimitiveType,
 ) -> Option<IntegerRange> {
@@ -356,7 +354,7 @@ pub(crate) fn declared_bounds(
             } => {
                 for constraint in program.type_reference_table.constraints(*constraints) {
                     match constraint {
-                        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode::Range {
+                        typed_trees::types::TypeConstraintNode::Range {
                             minimum,
                             maximum,
                             end_inclusive,
@@ -364,8 +362,8 @@ pub(crate) fn declared_bounds(
                             // The same closed-endpoint evaluation as source
                             // range validation; failure is no bound, never a
                             // guessed one.
-                            let low = crate::validation::closed_integer_range_bound(program, *minimum)?;
-                            let high = crate::validation::closed_integer_range_maximum(
+                            let low = validation::closed_integer_range_bound(program, *minimum)?;
+                            let high = validation::closed_integer_range_maximum(
                                 program,
                                 *maximum,
                                 *end_inclusive,
@@ -381,7 +379,7 @@ pub(crate) fn declared_bounds(
                                 },
                             });
                         }
-                        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode::ArithmeticDomain(domain)
+                        typed_trees::types::TypeConstraintNode::ArithmeticDomain(domain)
                             if *domain != ArithmeticDomain::Exact =>
                         {
                             return None;

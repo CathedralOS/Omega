@@ -1,7 +1,5 @@
 use super::super::OptimizedSelectedFormEncodingError;
-use crate::machine_code::{
-    SelectedFormEncoding, SelectedFormEncodingCounts, SelectedFormEncodingState,
-};
+use machine_code::{SelectedFormEncoding, SelectedFormEncodingCounts, SelectedFormEncodingState};
 
 pub(super) fn validate(
     artifact: &SelectedFormEncoding,
@@ -49,10 +47,10 @@ pub(super) fn validate(
 #[cfg(test)]
 mod tests {
     use super::{OptimizedSelectedFormEncodingError, validate};
-    use crate::machine_code::SelectedFormEncodingIdentity;
-    use crate::machine_code::{SelectedFormEncoding, SelectedFormEncodingCounts};
-    use register_homes_to_post_allocation_machine::PostAllocationMachineIdentity;
-    use target_operations_to_selected_instructions::SelectedInstructionPlanIdentity;
+    use machine_code::SelectedFormEncodingIdentity;
+    use machine_code::{SelectedFormEncoding, SelectedFormEncodingCounts};
+    use physical_instructions::PostAllocationMachineIdentity;
+    use selected_instructions::SelectedInstructionPlanIdentity;
 
     #[test]
     fn raw_encoding_rejects_reauthenticated_counts_and_stale_identity() {

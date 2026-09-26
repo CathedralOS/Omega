@@ -4,13 +4,13 @@
 //! selected policy and owns custody-stage dispatch; lower rungs separate
 //! carriers, execution/replay, scheduling receipts, and work accounting.
 
-use crate::register_homes::{RecoveryClassificationPolicy, SpillChoicePolicy};
 use crate::{ValidatedSelectedAnalysis, resolve_selected_lowering_rules};
 use optimization_core::{
     Optimization, OptimizationSelectionIdentity, OptimizationSelections, OptimizationWorkBudget,
     OptimizationWorkUsage, SelectedLoweringOptimizationCompletionIdentity,
 };
-use target_operations_to_selected_instructions::SelectedInstructionPlanIdentity;
+use register_homes::{RecoveryClassificationPolicy, SpillChoicePolicy};
+use selected_instructions::SelectedInstructionPlanIdentity;
 
 use crate::StagedOptimizedAllocationLegality;
 
@@ -188,9 +188,9 @@ pub struct StagedSelectedLoweringOptimizationCustodyReceipt {
     iterations: Vec<StagedOptimizedLiteralFoldIterationReceipt>,
     attempt: StagedOptimizedLiteralFoldAttemptReceipt,
     final_selected: SelectedInstructionPlanIdentity,
-    final_liveness: target_operations_to_selected_instructions::LivenessIdentity,
-    final_ranges: target_operations_to_selected_instructions::LiveRangeIdentity,
-    final_legality: crate::register_homes::AllocationLegalityIdentity,
+    final_liveness: selected_instructions::LivenessIdentity,
+    final_ranges: selected_instructions::LiveRangeIdentity,
+    final_legality: register_homes::AllocationLegalityIdentity,
     final_virtual_register_count: usize,
 }
 
@@ -231,17 +231,13 @@ impl StagedSelectedLoweringOptimizationCustodyReceipt {
     pub const fn final_selected(&self) -> SelectedInstructionPlanIdentity {
         self.final_selected
     }
-    pub const fn final_liveness(
-        &self,
-    ) -> target_operations_to_selected_instructions::LivenessIdentity {
+    pub const fn final_liveness(&self) -> selected_instructions::LivenessIdentity {
         self.final_liveness
     }
-    pub const fn final_ranges(
-        &self,
-    ) -> target_operations_to_selected_instructions::LiveRangeIdentity {
+    pub const fn final_ranges(&self) -> selected_instructions::LiveRangeIdentity {
         self.final_ranges
     }
-    pub const fn final_legality(&self) -> crate::register_homes::AllocationLegalityIdentity {
+    pub const fn final_legality(&self) -> register_homes::AllocationLegalityIdentity {
         self.final_legality
     }
     pub const fn final_virtual_register_count(&self) -> usize {
@@ -252,12 +248,12 @@ impl StagedSelectedLoweringOptimizationCustodyReceipt {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StagedOptimizedLiteralFoldAttemptReceipt {
     source_selected: SelectedInstructionPlanIdentity,
-    source_ranges: target_operations_to_selected_instructions::LiveRangeIdentity,
-    source_legality: crate::register_homes::AllocationLegalityIdentity,
-    choices: crate::register_homes::SpillChoiceIdentity,
+    source_ranges: selected_instructions::LiveRangeIdentity,
+    source_legality: register_homes::AllocationLegalityIdentity,
+    choices: register_homes::SpillChoiceIdentity,
     choice_policy: SpillChoicePolicy,
     choice_usage: OptimizationWorkUsage,
-    recovery: crate::register_homes::RecoveryClassificationIdentity,
+    recovery: register_homes::RecoveryClassificationIdentity,
     recovery_policy: RecoveryClassificationPolicy,
     recovery_usage: OptimizationWorkUsage,
     fold: LiteralFoldIdentity,
@@ -271,15 +267,13 @@ impl StagedOptimizedLiteralFoldAttemptReceipt {
     pub const fn source_selected(self) -> SelectedInstructionPlanIdentity {
         self.source_selected
     }
-    pub const fn source_ranges(
-        self,
-    ) -> target_operations_to_selected_instructions::LiveRangeIdentity {
+    pub const fn source_ranges(self) -> selected_instructions::LiveRangeIdentity {
         self.source_ranges
     }
-    pub const fn source_legality(self) -> crate::register_homes::AllocationLegalityIdentity {
+    pub const fn source_legality(self) -> register_homes::AllocationLegalityIdentity {
         self.source_legality
     }
-    pub const fn choices(self) -> crate::register_homes::SpillChoiceIdentity {
+    pub const fn choices(self) -> register_homes::SpillChoiceIdentity {
         self.choices
     }
     pub const fn choice_policy(self) -> SpillChoicePolicy {
@@ -288,7 +282,7 @@ impl StagedOptimizedLiteralFoldAttemptReceipt {
     pub const fn choice_usage(self) -> OptimizationWorkUsage {
         self.choice_usage
     }
-    pub const fn recovery(self) -> crate::register_homes::RecoveryClassificationIdentity {
+    pub const fn recovery(self) -> register_homes::RecoveryClassificationIdentity {
         self.recovery
     }
     pub const fn recovery_policy(self) -> RecoveryClassificationPolicy {
@@ -320,9 +314,9 @@ pub struct StagedOptimizedLiteralFoldCustodyReceipt {
     iterations: Vec<StagedOptimizedLiteralFoldIterationReceipt>,
     transformations: Vec<LiteralFoldIdentity>,
     final_selected: SelectedInstructionPlanIdentity,
-    final_liveness: target_operations_to_selected_instructions::LivenessIdentity,
-    final_ranges: target_operations_to_selected_instructions::LiveRangeIdentity,
-    final_legality: crate::register_homes::AllocationLegalityIdentity,
+    final_liveness: selected_instructions::LivenessIdentity,
+    final_ranges: selected_instructions::LiveRangeIdentity,
+    final_legality: register_homes::AllocationLegalityIdentity,
     final_virtual_register_count: usize,
     final_entry_transition_count: usize,
 }
@@ -340,17 +334,13 @@ impl StagedOptimizedLiteralFoldCustodyReceipt {
     pub const fn final_selected(&self) -> SelectedInstructionPlanIdentity {
         self.final_selected
     }
-    pub const fn final_liveness(
-        &self,
-    ) -> target_operations_to_selected_instructions::LivenessIdentity {
+    pub const fn final_liveness(&self) -> selected_instructions::LivenessIdentity {
         self.final_liveness
     }
-    pub const fn final_ranges(
-        &self,
-    ) -> target_operations_to_selected_instructions::LiveRangeIdentity {
+    pub const fn final_ranges(&self) -> selected_instructions::LiveRangeIdentity {
         self.final_ranges
     }
-    pub const fn final_legality(&self) -> crate::register_homes::AllocationLegalityIdentity {
+    pub const fn final_legality(&self) -> register_homes::AllocationLegalityIdentity {
         self.final_legality
     }
     pub const fn final_virtual_register_count(&self) -> usize {
@@ -364,36 +354,34 @@ impl StagedOptimizedLiteralFoldCustodyReceipt {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StagedOptimizedLiteralFoldIterationReceipt {
     source_selected: SelectedInstructionPlanIdentity,
-    source_ranges: target_operations_to_selected_instructions::LiveRangeIdentity,
-    source_legality: crate::register_homes::AllocationLegalityIdentity,
-    choices: crate::register_homes::SpillChoiceIdentity,
+    source_ranges: selected_instructions::LiveRangeIdentity,
+    source_legality: register_homes::AllocationLegalityIdentity,
+    choices: register_homes::SpillChoiceIdentity,
     choice_policy: SpillChoicePolicy,
     choice_usage: OptimizationWorkUsage,
-    recovery: crate::register_homes::RecoveryClassificationIdentity,
+    recovery: register_homes::RecoveryClassificationIdentity,
     recovery_policy: RecoveryClassificationPolicy,
     recovery_usage: OptimizationWorkUsage,
     fold: LiteralFoldIdentity,
     fold_policy: LiteralFoldPolicy,
     fold_usage: OptimizationWorkUsage,
     transformed_selected: SelectedInstructionPlanIdentity,
-    fresh_liveness: target_operations_to_selected_instructions::LivenessIdentity,
-    fresh_ranges: target_operations_to_selected_instructions::LiveRangeIdentity,
-    fresh_legality: crate::register_homes::AllocationLegalityIdentity,
+    fresh_liveness: selected_instructions::LivenessIdentity,
+    fresh_ranges: selected_instructions::LiveRangeIdentity,
+    fresh_legality: register_homes::AllocationLegalityIdentity,
 }
 
 impl StagedOptimizedLiteralFoldIterationReceipt {
     pub const fn source_selected(self) -> SelectedInstructionPlanIdentity {
         self.source_selected
     }
-    pub const fn source_ranges(
-        self,
-    ) -> target_operations_to_selected_instructions::LiveRangeIdentity {
+    pub const fn source_ranges(self) -> selected_instructions::LiveRangeIdentity {
         self.source_ranges
     }
-    pub const fn source_legality(self) -> crate::register_homes::AllocationLegalityIdentity {
+    pub const fn source_legality(self) -> register_homes::AllocationLegalityIdentity {
         self.source_legality
     }
-    pub const fn choices(self) -> crate::register_homes::SpillChoiceIdentity {
+    pub const fn choices(self) -> register_homes::SpillChoiceIdentity {
         self.choices
     }
     pub const fn choice_policy(self) -> SpillChoicePolicy {
@@ -402,7 +390,7 @@ impl StagedOptimizedLiteralFoldIterationReceipt {
     pub const fn choice_usage(self) -> OptimizationWorkUsage {
         self.choice_usage
     }
-    pub const fn recovery(self) -> crate::register_homes::RecoveryClassificationIdentity {
+    pub const fn recovery(self) -> register_homes::RecoveryClassificationIdentity {
         self.recovery
     }
     pub const fn recovery_policy(self) -> RecoveryClassificationPolicy {
@@ -423,17 +411,13 @@ impl StagedOptimizedLiteralFoldIterationReceipt {
     pub const fn transformed_selected(self) -> SelectedInstructionPlanIdentity {
         self.transformed_selected
     }
-    pub const fn fresh_liveness(
-        self,
-    ) -> target_operations_to_selected_instructions::LivenessIdentity {
+    pub const fn fresh_liveness(self) -> selected_instructions::LivenessIdentity {
         self.fresh_liveness
     }
-    pub const fn fresh_ranges(
-        self,
-    ) -> target_operations_to_selected_instructions::LiveRangeIdentity {
+    pub const fn fresh_ranges(self) -> selected_instructions::LiveRangeIdentity {
         self.fresh_ranges
     }
-    pub const fn fresh_legality(self) -> crate::register_homes::AllocationLegalityIdentity {
+    pub const fn fresh_legality(self) -> register_homes::AllocationLegalityIdentity {
         self.fresh_legality
     }
 }

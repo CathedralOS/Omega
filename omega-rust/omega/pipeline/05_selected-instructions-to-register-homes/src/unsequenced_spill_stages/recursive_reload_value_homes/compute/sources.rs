@@ -6,10 +6,10 @@ use crate::unsequenced_spill_stages::{
     GeneralizedReloadValueHomeOutcome, GeneralizedSpillActionId, RecursiveReloadValueHomeError,
     RecursiveSpillEvent, RecursiveSpillStoredValue,
 };
-use target_operations_to_selected_instructions::LiveRangePoint;
+use selected_instructions::LiveRangePoint;
 
 use super::{ReloadSpec, homes};
-use selected_instructions_to_selected_instructions::register_homes::FunctionAllocationLegality;
+use register_homes::FunctionAllocationLegality;
 
 #[derive(Clone, Copy)]
 struct StoreRow {
@@ -172,10 +172,7 @@ fn resolve_source_register(
     function: usize,
     action: GeneralizedSpillActionId,
     stores: &BTreeMap<GeneralizedSpillActionId, StoreRow>,
-) -> Result<
-    target_operations_to_selected_instructions::VirtualRegisterId,
-    RecursiveReloadValueHomeError,
-> {
+) -> Result<selected_instructions::VirtualRegisterId, RecursiveReloadValueHomeError> {
     let mut current = action;
     for _ in 0..=stores.len() {
         let row = stores

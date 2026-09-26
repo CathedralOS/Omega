@@ -1,20 +1,18 @@
-use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
-use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
-use target_operations_to_selected_instructions::{
+use optimization_unit::ValueDefinitionSite;
+use register_model::RegisterOperandAccess;
+use selected_instructions::{
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedTerminator,
     VirtualRegisterId, VirtualRegisterOrigin,
 };
-use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
+use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
 
 use crate::LogicalSpillOperationError;
-use selected_instructions_to_selected_instructions::register_homes::{
+use register_homes::{
     FunctionAllocationLegality, FunctionSpillChoices, LogicalReloadValueId, LogicalSpillAction,
     LogicalSpillReload, LogicalSpillStorage, LogicalSpillStorageClass, LogicalSpillStorageId,
     LogicalSpillStore, LogicalSpillUseRewrite,
 };
-use target_operations_to_selected_instructions::{
-    FunctionLiveRanges, VirtualFixedConstraintSite, VirtualLiveRange,
-};
+use selected_instructions::{FunctionLiveRanges, VirtualFixedConstraintSite, VirtualLiveRange};
 
 pub(in crate::assignment::logical_spill_operations) fn compute_action(
     function_index: usize,
@@ -86,7 +84,7 @@ pub(in crate::assignment::logical_spill_operations) fn compute_action(
     };
     if !matches!(
         victim.definition_site,
-        Some(ValueDefinitionSite::Node { block, .. }) if matches!(selected_block.origin, target_operations_to_selected_instructions::SelectedBlockOrigin::Source(authored) if authored == block)
+        Some(ValueDefinitionSite::Node { block, .. }) if matches!(selected_block.origin, selected_instructions::SelectedBlockOrigin::Source(authored) if authored == block)
     ) {
         return Err(LogicalSpillOperationError::UnsupportedOrigin {
             function: function_index,
@@ -303,8 +301,7 @@ fn selected_register(
     function: usize,
     selected: &SelectedFunction,
     register: VirtualRegisterId,
-) -> Result<&target_operations_to_selected_instructions::VirtualRegister, LogicalSpillOperationError>
-{
+) -> Result<&selected_instructions::VirtualRegister, LogicalSpillOperationError> {
     selected
         .virtual_registers
         .iter()
@@ -326,7 +323,7 @@ fn range(
 
 fn find_instruction(
     selected: &SelectedFunction,
-    block: target_operations_to_selected_instructions::SelectedBlockId,
+    block: selected_instructions::SelectedBlockId,
     instruction: SelectedInstructionId,
 ) -> Option<&SelectedInstruction> {
     let block = selected

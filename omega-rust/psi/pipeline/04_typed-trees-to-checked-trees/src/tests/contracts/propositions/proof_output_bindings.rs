@@ -66,8 +66,7 @@ fn immediate_proof_output_binds_a_fresh_erased_evidence_term() {
             (forwarding.machine_symbol == relay.symbol).then_some(forwarding)
         })
         .expect("relay output forwarding");
-    let crate::checked_trees::EvidenceAssignmentSource::Forwarded { term } = forwarding.source
-    else {
+    let checked_trees::EvidenceAssignmentSource::Forwarded { term } = forwarding.source else {
         panic!("the caller-local proof output must forward by exact term identity")
     };
     assert_eq!(term, caller_output);
@@ -491,7 +490,7 @@ fn proof_output_terms_are_copyable_and_have_no_use_count() {
         .filter(|(_, forwarding)| {
             matches!(
                 forwarding.source,
-                crate::checked_trees::EvidenceAssignmentSource::Forwarded { term }
+                checked_trees::EvidenceAssignmentSource::Forwarded { term }
                     if term == first
             )
         })
@@ -505,7 +504,7 @@ fn proof_output_terms_are_copyable_and_have_no_use_count() {
             .iter()
             .any(|(_, forwarding)| matches!(
                 forwarding.source,
-                crate::checked_trees::EvidenceAssignmentSource::Forwarded { term }
+                checked_trees::EvidenceAssignmentSource::Forwarded { term }
                     if term == second
             ))
     );
@@ -792,10 +791,9 @@ fn proof_output_preserves_a_callee_with_runtime_body_work() {
         .iter()
         .find(|machine| machine.name.as_str() == "relay")
         .expect("relay machine");
-    let [symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Call(call)] =
-        checked
-            .statement_table
-            .statements(checked.machine_states(relay)[0].statement_nodes)
+    let [typed_trees::statement::StatementNode::Call(call)] = checked
+        .statement_table
+        .statements(checked.machine_states(relay)[0].statement_nodes)
     else {
         panic!("the proof-output call must remain in the ordinary runtime stream")
     };

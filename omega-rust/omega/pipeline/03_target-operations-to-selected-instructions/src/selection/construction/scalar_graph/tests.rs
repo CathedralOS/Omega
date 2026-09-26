@@ -4,9 +4,9 @@ use super::{
     SelectedFunction, SelectedInstructionKind, SelectedSelectionConstraints, ValueDefinitionSite,
     ValueId, ValueLocation, VirtualRegisterId, build,
 };
-use crate::register_model::RegisterOperandAccess;
-use crate::selected_instructions::{SelectedFixedInputConstraint, SelectedTerminator};
-use terminal_psi_to_abstract_operations::optimization_unit::{FuelSettlement, PsiProvenance};
+use optimization_unit::{FuelSettlement, PsiProvenance};
+use register_model::RegisterOperandAccess;
+use selected_instructions::{SelectedFixedInputConstraint, SelectedTerminator};
 mod aggregate_returns;
 mod boolean_equality;
 mod boolean_values;
@@ -37,18 +37,16 @@ mod structural_case;
 mod subslices;
 mod unobserved_owned;
 mod wrapping_division;
-use crate::legalized_operations::{
+use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+use legalized_operations::{
     LegalizedScalarArgument, LegalizedScalarBlock, LegalizedScalarCall, LegalizedScalarInstruction,
     LegalizedScalarParameter, LegalizedScalarReturn, LegalizedScalarReturnValue,
     LegalizedScalarTerminator, LegalizedValueDefinition, NativeCallOrigin,
 };
-use abstract_operations_to_target_operations::calling_conventions::{
-    CallSignature, CallingPolicy, ValueShape, evaluate_call_plan,
-};
+use optimization_unit::EffectLink;
 use semantic_vocabulary::{
     BlockId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, StructuralTypeId,
 };
-use terminal_psi_to_abstract_operations::optimization_unit::EffectLink;
 
 fn fixture(target: target::NativeTarget, count: usize) -> LegalizedScalarFunction {
     let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
@@ -129,11 +127,10 @@ fn fixture_with_integer(
         structural: None,
         machine: MachineId::new(1).unwrap(),
         attachment: Some(StructuralTypeId::new(1).unwrap()),
-        provenance:
-            abstract_operations_to_target_operations::target_operations::TerminalPsiProvenance {
-                operations: (1..=4).map(|raw| OperationId::new(raw).unwrap()).collect(),
-                edges: vec![EdgeId::new(1).unwrap()],
-            },
+        provenance: target_operations::TerminalPsiProvenance {
+            operations: (1..=4).map(|raw| OperationId::new(raw).unwrap()).collect(),
+            edges: vec![EdgeId::new(1).unwrap()],
+        },
         call_plan: evaluate_call_plan(
             CallingPolicy::native_for_target(target),
             &CallSignature {
@@ -170,7 +167,7 @@ fn register_call_arities_preserve_occurrences_and_reject_changed_projection() {
         (target::NativeTarget::macos_arm64(), 8),
     ] {
         let environment =
-            crate::register_environment::baseline_target_register_environment(target).unwrap();
+            register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -227,7 +224,7 @@ fn register_call_arities_preserve_occurrences_and_reject_changed_projection() {
                     }
                     3 => instructions[call_index]
                         .clobbers
-                        .push(crate::register_model::RegisterUnitId(999)),
+                        .push(register_model::RegisterUnitId(999)),
                     4 => instructions[call_index].provenance.fuel[0].units += 1,
                     _ => {
                         instructions.pop();
@@ -266,7 +263,7 @@ fn scalar_returns_and_entry_parameters_keep_short_abi_transport() {
         target::NativeTarget::macos_arm64(),
     ] {
         let environment =
-            crate::register_environment::baseline_target_register_environment(target).unwrap();
+            register_environment::baseline_target_register_environment(target).unwrap();
         for return_parameter in [false, true] {
             let mut source = fixture(target, 1);
             source.attachment = None;
@@ -401,7 +398,7 @@ fn scalar_returns_and_entry_parameters_keep_short_abi_transport() {
 
 #[test]
 fn exact_binary_graph_rows_retain_proof_operands_and_occurrence_custody() {
-    use crate::legalized_operations::LegalizedExactIntegerOperator::{Add, Multiply, Subtract};
+    use legalized_operations::LegalizedExactIntegerOperator::{Add, Multiply, Subtract};
     use semantic_vocabulary::ObligationId;
     for target in [
         target::NativeTarget::linux_x64(),
@@ -410,7 +407,7 @@ fn exact_binary_graph_rows_retain_proof_operands_and_occurrence_custody() {
         target::NativeTarget::macos_arm64(),
     ] {
         let environment =
-            crate::register_environment::baseline_target_register_environment(target).unwrap();
+            register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -561,9 +558,7 @@ fn exact_binary_graph_rows_retain_proof_operands_and_occurrence_custody() {
                         changed.virtual_registers[output.0 as usize].entry_fixed_view =
                             Some(environment.physical().model().views[0].id)
                     }
-                    9 => row
-                        .clobbers
-                        .push(crate::register_model::RegisterUnitId(999)),
+                    9 => row.clobbers.push(register_model::RegisterUnitId(999)),
                     10 => row.provenance.obligations.clear(),
                     _ => row.operands[0].access = RegisterOperandAccess::Def,
                 }
@@ -592,7 +587,7 @@ fn widening_copy_keeps_distinct_typed_value_and_conversion_custody() {
         target::NativeTarget::macos_arm64(),
     ] {
         let environment =
-            crate::register_environment::baseline_target_register_environment(target).unwrap();
+            register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),

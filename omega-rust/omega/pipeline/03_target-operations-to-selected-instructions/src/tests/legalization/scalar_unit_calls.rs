@@ -1,15 +1,11 @@
 //! True Unit calls preserve scalar arguments, continuation and independent replay.
-use abstract_operations_to_target_operations::target_operations::{
-    TargetUnitOperation, TargetUnitScalarArgumentSource,
-};
+use abstract_operations::{AbstractOperation, AbstractParameter};
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, OperationId,
     ScalarType, ValueId,
 };
 use target::NativeTarget;
-use terminal_psi_to_abstract_operations::abstract_operations::{
-    AbstractOperation, AbstractParameter,
-};
+use target_operations::{TargetUnitOperation, TargetUnitScalarArgumentSource};
 
 use crate::{
     legalize_target_operations, select_instructions, validate_legalized_operations,
@@ -39,9 +35,9 @@ fn fixture(
     native: NativeTarget,
     scalar_type: ScalarType,
 ) -> (
-    terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan,
-    abstract_operations_to_target_operations::target_operations::TargetOperationPlan,
-    terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
+    abstract_operations::AbstractOperationPlan,
+    target_operations::TargetOperationPlan,
+    optimization_unit::PsiOptimizationUnit,
 ) {
     let (mut source, _, _) = crate::tests::fixtures::plain_unit::plain_unit_fixture();
     let mut callee = source.functions[0].clone();
@@ -88,7 +84,7 @@ fn fixture(
         abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
     )
     .unwrap();
-    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),
     )
@@ -112,8 +108,7 @@ fn scalar_unit_calls_forward_all_fixed_integer_and_boolean_parameters() {
                     .zip([[100, 101], [101, 100], [100, 100]])
             {
                 assert!(row.result.is_none());
-                let crate::legalized_operations::LegalizedScalarInstructionKind::Call(call) =
-                    &row.kind
+                let legalized_operations::LegalizedScalarInstructionKind::Call(call) = &row.kind
                 else {
                     panic!("ordinary Unit call");
                 };
@@ -127,7 +122,7 @@ fn scalar_unit_calls_forward_all_fixed_integer_and_boolean_parameters() {
                 );
             }
             let environment =
-                crate::register_environment::baseline_target_register_environment(native).unwrap();
+                register_environment::baseline_target_register_environment(native).unwrap();
             let constraints = crate::selection_constraints(&legal, &environment);
             let selected = select_instructions(
                 &legal,
@@ -153,7 +148,7 @@ fn scalar_unit_calls_forward_all_fixed_integer_and_boolean_parameters() {
                 .filter(|row| {
                     matches!(
                         row.kind,
-                        crate::selected_instructions::SelectedInstructionKind::CallUnit { .. }
+                        selected_instructions::SelectedInstructionKind::CallUnit { .. }
                     )
                 })
                 .collect::<Vec<_>>();
@@ -232,7 +227,7 @@ fn scalar_unit_call_target_and_legalized_replay_reject_transport_substitution() 
                 rows.swap(0, 1);
             } else {
                 let row = &mut rows[0];
-                let crate::legalized_operations::LegalizedScalarInstructionKind::Call(call) =
+                let legalized_operations::LegalizedScalarInstructionKind::Call(call) =
                     &mut row.kind
                 else {
                     panic!("Unit call");
@@ -246,7 +241,7 @@ fn scalar_unit_call_target_and_legalized_replay_reject_transport_substitution() 
                     3 => call.arguments.swap(0, 1),
                     4 => {
                         let source = call.arguments[0].scalar_source().unwrap();
-                        let crate::legalized_operations::LegalizedScalarArgument::Scalar {
+                        let legalized_operations::LegalizedScalarArgument::Scalar {
                             source: destination,
                             ..
                         } = &mut call.arguments[1]
@@ -256,10 +251,10 @@ fn scalar_unit_call_target_and_legalized_replay_reject_transport_substitution() 
                         *destination = source;
                     }
                     5 => {
-                        row.result = Some(crate::legalized_operations::LegalizedValueDefinition {
+                        row.result = Some(legalized_operations::LegalizedValueDefinition {
                             value: ValueId::new(999).unwrap(),
                             scalar_type,
-                            definition_site: terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite::Node {
+                            definition_site: optimization_unit::ValueDefinitionSite::Node {
                                 block: source.functions[0].entry,
                                 node: 0,
                             },
@@ -284,7 +279,7 @@ fn scalar_unit_selected_replay_binds_no_result_abi_arguments_order_and_clobbers(
         let (source, target, unit) = fixture(native, scalar_type);
         let legal = legalize_target_operations(&target, &source, &unit).unwrap();
         let environment =
-            crate::register_environment::baseline_target_register_environment(native).unwrap();
+            register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = crate::selection_constraints(&legal, &environment);
         let selected = select_instructions(
             &legal,
@@ -300,7 +295,7 @@ fn scalar_unit_selected_replay_binds_no_result_abi_arguments_order_and_clobbers(
             .filter_map(|(position, row)| {
                 matches!(
                     row.kind,
-                    crate::selected_instructions::SelectedInstructionKind::CallUnit { .. }
+                    selected_instructions::SelectedInstructionKind::CallUnit { .. }
                 )
                 .then_some(position)
             })
@@ -315,13 +310,12 @@ fn scalar_unit_selected_replay_binds_no_result_abi_arguments_order_and_clobbers(
                 let row = &mut rows[positions[0]];
                 match mutation {
                     0 => {
-                        row.kind =
-                            crate::selected_instructions::SelectedInstructionKind::CallScalar {
-                                callee: MachineId::new(2).unwrap(),
-                            }
+                        row.kind = selected_instructions::SelectedInstructionKind::CallScalar {
+                            callee: MachineId::new(2).unwrap(),
+                        }
                     }
                     1 => {
-                        row.kind = crate::selected_instructions::SelectedInstructionKind::CallUnit {
+                        row.kind = selected_instructions::SelectedInstructionKind::CallUnit {
                             callee: MachineId::new(99).unwrap(),
                         }
                     }

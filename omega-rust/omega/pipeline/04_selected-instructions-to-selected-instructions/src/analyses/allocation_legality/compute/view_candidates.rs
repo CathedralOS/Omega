@@ -2,16 +2,14 @@
 
 use std::collections::BTreeMap;
 
-use target_operations_to_selected_instructions::SelectedBlockId;
-use target_operations_to_selected_instructions::register_model::{
+use register_model::{
     RegisterClass, RegisterClassId, RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel,
     ValidatedRegisterReservationProfile,
 };
+use selected_instructions::SelectedBlockId;
 
 use crate::AllocationLegalityError;
-use target_operations_to_selected_instructions::{
-    FunctionLiveRanges, LiveRangePoint, VirtualLiveRange,
-};
+use selected_instructions::{FunctionLiveRanges, LiveRangePoint, VirtualLiveRange};
 
 /// General candidates depend on the physical location and class, not the value
 /// visiting it. Keep only requested combinations while the function/environment

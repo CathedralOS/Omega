@@ -37,7 +37,7 @@ fn fixture() -> (CheckedTrees, CheckedComposedUnitControlMachinePlan) {
                     CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, .. }
                         if when_true.transfers.iter().any(|transfer| matches!(
                             transfer.source,
-                            typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
+                            checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
                                 ..
                             }
                         ))
@@ -53,10 +53,10 @@ fn payload_edge<'a>(
     checked: &'a CheckedTrees,
     plan: &'a CheckedComposedUnitControlMachinePlan,
 ) -> (
-    &'a typed_trees_to_checked_trees::checked_trees::state::State,
+    &'a checked_trees::state::State,
     &'a super::super::CheckedComposedUnitControlStatePlan,
-    &'a typed_trees_to_checked_trees::checked_trees::statement::TableTransition,
-    &'a typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlSuccessorPlan,
+    &'a checked_trees::statement::TableTransition,
+    &'a checked_trees::CheckedStructuralControlSuccessorPlan,
 ) {
     let machine = checked
         .machines()
@@ -78,7 +78,7 @@ fn payload_edge<'a>(
                 .any(|transfer| {
                     matches!(
                         transfer.source,
-                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
                             ..
                         }
                     )
@@ -91,9 +91,7 @@ fn payload_edge<'a>(
         .iter()
         .find(|source| source.symbol == state.state)
         .expect("the payload edge source state");
-    let typed_trees_to_checked_trees::checked_trees::statement::StatementNode::Transition(
-        transition,
-    ) = checked
+    let checked_trees::statement::StatementNode::Transition(transition) = checked
         .statement_table
         .statements(source.statement_nodes)
         .get(successor.statement_ordinal as usize)
@@ -118,7 +116,7 @@ fn case_payload_edge_rejects_source_drift() {
                     CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, .. }
                         if when_true.transfers.iter().any(|transfer| matches!(
                             transfer.source,
-                            typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
+                            checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
                                 ..
                             }
                         ))
@@ -130,7 +128,7 @@ fn case_payload_edge_rejects_source_drift() {
         else {
             unreachable!()
         };
-        let typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
+        let checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
             subject,
             case_identity,
             field_identity,
@@ -141,7 +139,7 @@ fn case_payload_edge_rejects_source_drift() {
             .find(|transfer| {
                 matches!(
                     transfer.source,
-                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload { .. }
+                    checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload { .. }
                 )
             })
             .expect("the payload transfer")
@@ -152,16 +150,16 @@ fn case_payload_edge_rejects_source_drift() {
         match mutation {
             0 => case_identity.push_str("-forged"),
             1 => field_identity.push_str("-forged"),
-            2 => subject.access = typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned,
+            2 => subject.access = checked_trees::CheckedStructuralAccess::Owned,
             3 => subject.path.clear(),
             4 => subject.type_identity.push_str("-forged"),
             5 => {
                 subject.source =
-                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         binding_ordinal: u32::MAX,
                     }
             }
-            _ => path.push(typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field(
+            _ => path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
                 "extra".to_owned(),
             )),
         }
@@ -195,7 +193,7 @@ fn case_payload_edge_rejects_target_drift() {
                 CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, .. }
                     if when_true.transfers.iter().any(|transfer| matches!(
                         transfer.source,
-                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
                             ..
                         }
                     ))
@@ -213,7 +211,7 @@ fn case_payload_edge_rejects_target_drift() {
         .find(|transfer| {
             matches!(
                 transfer.source,
-                typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload { .. }
+                checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload { .. }
             )
         })
         .expect("the payload transfer")

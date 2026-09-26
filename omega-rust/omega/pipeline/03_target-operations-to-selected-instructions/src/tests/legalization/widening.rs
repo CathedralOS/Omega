@@ -1,8 +1,5 @@
 //! Ordered Unit scalar definitions retain their exact widening source and result.
-use abstract_operations_to_target_operations::target_operations::{
-    CompilerBuiltinExecution, TargetIntegerExpression, TargetOperationPlan, TargetScalarExpression,
-    TargetUnitOperation,
-};
+use abstract_operations::{AbstractOperation, AbstractOperationPlan, AbstractParameter};
 use abstract_operations_to_target_operations::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement,
 };
@@ -11,8 +8,9 @@ use semantic_vocabulary::{
     ValueId,
 };
 use target::NativeTarget;
-use terminal_psi_to_abstract_operations::abstract_operations::{
-    AbstractOperation, AbstractOperationPlan, AbstractParameter,
+use target_operations::{
+    CompilerBuiltinExecution, TargetIntegerExpression, TargetOperationPlan, TargetScalarExpression,
+    TargetUnitOperation,
 };
 
 use crate::{
@@ -29,7 +27,7 @@ fn fixture(
 ) -> (
     AbstractOperationPlan,
     TargetOperationPlan,
-    terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
+    optimization_unit::PsiOptimizationUnit,
 ) {
     let (mut source, _, _) = super::byte_output::fixture(native);
     let input_type = integer(IntegerSign::Unsigned, 8);
@@ -59,14 +57,14 @@ fn fixture(
                 execution: AdmittedBoundaryExecution::CompilerBuiltin(
                     CompilerBuiltinExecution::HostedWriteByteI32,
                 ),
-                realization: abstract_operations_to_target_operations::target_operations::HostedWriteByteI32Realization.into(),
+                realization: target_operations::HostedWriteByteI32Realization.into(),
             }],
             installation: None,
             native_callbacks: &[],
         },
     )
     .unwrap();
-    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),
     )
@@ -88,11 +86,11 @@ fn unit_u8_to_i32_widening_selects_one_definition_before_byte_output() {
             ValueId::new(9).unwrap()
         );
         assert!(
-            matches!(rows[0].kind, crate::legalized_operations::LegalizedScalarInstructionKind::IntegerWiden { operand, source_type }
+            matches!(rows[0].kind, legalized_operations::LegalizedScalarInstructionKind::IntegerWiden { operand, source_type }
             if operand == ValueId::new(5).unwrap() && source_type == integer(IntegerSign::Unsigned, 8))
         );
         let environment =
-            crate::register_environment::baseline_target_register_environment(native).unwrap();
+            register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = crate::selection_constraints(&legalized, &environment);
         let selected = select_instructions(
             &legalized,
@@ -116,14 +114,14 @@ fn unit_u8_to_i32_widening_selects_one_definition_before_byte_output() {
             .unwrap();
         assert_eq!(
             widening.kind,
-            crate::selected_instructions::SelectedInstructionKind::ZeroExtendU8
+            selected_instructions::SelectedInstructionKind::ZeroExtendU8
         );
         assert_eq!(
             instructions
                 .iter()
                 .filter(|row| matches!(
                     row.kind,
-                    crate::selected_instructions::SelectedInstructionKind::HostedWriteByteI32 { .. }
+                    selected_instructions::SelectedInstructionKind::HostedWriteByteI32 { .. }
                 ))
                 .count(),
             1
@@ -134,7 +132,7 @@ fn unit_u8_to_i32_widening_selects_one_definition_before_byte_output() {
             .iter_mut()
             .find(|row| row.provenance.operations == [OperationId::new(8).unwrap()])
             .unwrap();
-        widening.kind = crate::selected_instructions::SelectedInstructionKind::ZeroExtendU32;
+        widening.kind = selected_instructions::SelectedInstructionKind::ZeroExtendU32;
         assert!(
             validate_selected_instructions(
                 &legalized,
@@ -187,7 +185,7 @@ fn all_total_native_widenings_preserve_source_custody_and_replay() {
                             &source,
                             abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
                         ).unwrap();
-                        let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
+                        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
                             &source,
                             FuelScheduleIdentity::new(1).unwrap(),
                         )
@@ -206,7 +204,7 @@ fn all_total_native_widenings_preserve_source_custody_and_replay() {
                         for mutation in 0..3 {
                             let mut changed = legalized.plan().clone();
                             let row = &mut changed.scalar_functions[0].blocks[0].instructions[0];
-                            let crate::legalized_operations::LegalizedScalarInstructionKind::IntegerWiden {
+                            let legalized_operations::LegalizedScalarInstructionKind::IntegerWiden {
                                 operand: actual_operand,
                                 source_type: actual_source,
                             } = &mut row.kind else {
@@ -269,7 +267,7 @@ fn target_widening_rejects_home_type_identity_and_definition_order_substitution(
                 match mutation {
                     0 => result_home.defining_operation = OperationId::new(99).unwrap(),
                     1 => result_home.source_value = ValueId::new(99).unwrap(),
-                    2 => result_home.shape = abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(8, 8),
+                    2 => result_home.shape = calling_conventions::ValueShape::integer(8, 8),
                     3 => {
                         result_home.scalar_type =
                             ScalarType::Integer(integer(IntegerSign::Unsigned, 32))
@@ -302,7 +300,7 @@ fn widening_replay_rejects_signed_narrowing_source_and_future_value_forgery() {
                 rows.swap(0, 1);
             } else {
                 let row = &mut rows[0];
-                let crate::legalized_operations::LegalizedScalarInstructionKind::IntegerWiden {
+                let legalized_operations::LegalizedScalarInstructionKind::IntegerWiden {
                     operand,
                     source_type,
                 } = &mut row.kind

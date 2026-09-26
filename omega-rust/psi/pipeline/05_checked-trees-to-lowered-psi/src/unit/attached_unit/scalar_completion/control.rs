@@ -6,10 +6,8 @@ use super::{
     CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, LoweringError,
     StatementNode, unsupported,
 };
-use typed_trees_to_checked_trees::checked_trees::statement::{TransitionExit, TransitionGuardNode};
-use typed_trees_to_checked_trees::checked_trees::{
-    CheckedScalarBranchDestination, CheckedScalarStateTerminator,
-};
+use checked_trees::statement::{TransitionExit, TransitionGuardNode};
+use checked_trees::{CheckedScalarBranchDestination, CheckedScalarStateTerminator};
 
 pub(super) fn validate(
     checked: &CheckedTrees,
@@ -70,7 +68,7 @@ pub(crate) fn validate_tail(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state_symbol: symbols::SymbolHandle,
-    control: &typed_trees_to_checked_trees::checked_trees::CheckedUnitScalarControlPlan,
+    control: &checked_trees::CheckedUnitScalarControlPlan,
 ) -> Result<usize, LoweringError> {
     let (source, state) =
         crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
@@ -86,7 +84,7 @@ pub(crate) fn validate_tail(
         checked,
         state_symbol,
         0,
-        &typed_trees_to_checked_trees::checked_trees::ClosedScalarValueContractPlan::default(),
+        &checked_trees::ClosedScalarValueContractPlan::default(),
     )?;
     validate_exits(checked, state_symbol, control)
 }
@@ -98,7 +96,7 @@ pub(crate) fn validate_tail(
 pub(crate) fn validate_exits(
     checked: &CheckedTrees,
     state_symbol: symbols::SymbolHandle,
-    control: &typed_trees_to_checked_trees::checked_trees::CheckedUnitScalarControlPlan,
+    control: &checked_trees::CheckedUnitScalarControlPlan,
 ) -> Result<usize, LoweringError> {
     let prefix = match &control.terminator {
         CheckedScalarStateTerminator::Return { statement_ordinal } => {
@@ -123,7 +121,7 @@ pub(crate) fn validate_exits(
 fn unconditional(
     checked: &CheckedTrees,
     state_symbol: symbols::SymbolHandle,
-    control: &typed_trees_to_checked_trees::checked_trees::CheckedUnitScalarControlPlan,
+    control: &checked_trees::CheckedUnitScalarControlPlan,
     statement_ordinal: u32,
 ) -> Result<usize, LoweringError> {
     let (_, state) =
@@ -146,11 +144,9 @@ fn unconditional(
                     .statement_table
                     .transition_target_is_valid(transition.target)
                 && matches!(
-                checked.statement_table.transition_target(transition.target),
-                typed_trees_to_checked_trees::checked_trees::statement::TransitionTargetNode::Value(
-                    _
+                    checked.statement_table.transition_target(transition.target),
+                    checked_trees::statement::TransitionTargetNode::Value(_)
                 )
-            )
         }
         _ => false,
     };
@@ -172,7 +168,7 @@ fn unconditional(
 fn conditional(
     checked: &CheckedTrees,
     state_symbol: symbols::SymbolHandle,
-    control: &typed_trees_to_checked_trees::checked_trees::CheckedUnitScalarControlPlan,
+    control: &checked_trees::CheckedUnitScalarControlPlan,
 ) -> Result<usize, LoweringError> {
     let (_, state) =
         crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;

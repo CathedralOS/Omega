@@ -4,15 +4,13 @@
 //! against the exact boundary operation and its declaration.
 
 use crate::LoweringError;
+use abstract_operations::{AbstractOperation, AbstractOperationPlan};
 use installation_evidence::{
     InstalledProviderCallEvidence, InstalledProviderCompletionClaimSource,
     ProviderInstallationEvidence,
 };
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
 use std::collections::BTreeMap;
-use terminal_psi_to_abstract_operations::abstract_operations::{
-    AbstractOperation, AbstractOperationPlan,
-};
 
 /// Identity of one boundary call occurrence: the caller machine, the Terminal
 /// operation, and the boundary machine it enters.
@@ -105,15 +103,15 @@ pub(super) fn validate_installed_provider_calls(
             .collect::<Vec<_>>();
         let exact_result = match (result, &installed.result) {
             (
-                terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Unit,
+                abstract_operations::AbstractBoundaryResult::Unit,
                 terminal_psi::OperationResult::Unit,
             ) => true,
             (
-                terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Scalar(actual),
+                abstract_operations::AbstractBoundaryResult::Scalar(actual),
                 terminal_psi::OperationResult::Scalar(expected),
             ) => actual.value == expected.id && actual.scalar_type == expected.scalar_type,
             (
-                terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Structural(actual),
+                abstract_operations::AbstractBoundaryResult::Structural(actual),
                 terminal_psi::OperationResult::Structural(expected),
             ) => actual == expected,
             _ => false,
@@ -124,15 +122,15 @@ pub(super) fn validate_installed_provider_calls(
             .find(|declaration| declaration.id == key.2)
             .is_some_and(|declaration| match (result, &declaration.result) {
                 (
-                    terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Unit,
+                    abstract_operations::AbstractBoundaryResult::Unit,
                     terminal_psi::BoundaryMachineResult::Unit,
                 ) => true,
                 (
-                    terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Scalar(actual),
+                    abstract_operations::AbstractBoundaryResult::Scalar(actual),
                     terminal_psi::BoundaryMachineResult::Scalar(expected),
                 ) => actual.scalar_type == *expected,
                 (
-                    terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Structural(actual),
+                    abstract_operations::AbstractBoundaryResult::Structural(actual),
                     terminal_psi::BoundaryMachineResult::Structural(expected),
                 ) => {
                     actual.structural_type == expected.structural_type

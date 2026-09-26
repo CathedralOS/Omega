@@ -14,19 +14,19 @@ use crate::borrow::loans::reference_borrow_access_kind;
 use crate::borrow::tracker::StateLoanTracker;
 use crate::borrow::view_link::ViewReturnFieldSource;
 use crate::borrow::view_link::ViewReturnSource;
-use crate::checked_trees::expression::ExpressionHandle;
 use crate::semantic::calls::find_state;
+use checked_trees::expression::ExpressionHandle;
 use symbols::SymbolHandle;
 
 /// Follow finite call operands without collapsing carried source leaves into
 /// the single-place query used for bare reference inputs.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn result_loans(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     machine_symbol: SymbolHandle,
-    local_data: &crate::checked_trees::statement::TableLocalData,
+    local_data: &checked_trees::statement::TableLocalData,
     mut expression: ExpressionHandle,
     owner_path: &[BorrowOwnerSegment],
     loan_trackers: &[StateLoanTracker],
@@ -34,8 +34,8 @@ pub(super) fn result_loans(
     let mut access_limits = Vec::new();
     loop {
         let call = match program.expression_table.expression(expression) {
-            crate::checked_trees::expression::ExpressionNode::Call(call) => call,
-            crate::checked_trees::expression::ExpressionNode::Indexed(indexed) => {
+            checked_trees::expression::ExpressionNode::Call(call) => call,
+            checked_trees::expression::ExpressionNode::Indexed(indexed) => {
                 let loans = result_loans(
                     program,
                     state_symbol,
@@ -71,7 +71,7 @@ pub(super) fn result_loans(
                     .collect();
                 return Some(limit_access(loans, &access_limits));
             }
-            crate::checked_trees::expression::ExpressionNode::Member(member) => {
+            checked_trees::expression::ExpressionNode::Member(member) => {
                 let loans = result_loans(
                     program,
                     state_symbol,
@@ -82,8 +82,7 @@ pub(super) fn result_loans(
                     &[],
                     loan_trackers,
                 )?;
-                let field =
-                    crate::fact_plan::effective_member_symbol(program, member.receiver, member);
+                let field = facts::effective_member_symbol(program, member.receiver, member);
                 let loans = loans
                     .into_iter()
                     .filter_map(|mut loan| {
@@ -115,16 +114,16 @@ pub(super) fn result_loans(
                     .collect();
                 return Some(limit_access(loans, &access_limits));
             }
-            crate::checked_trees::expression::ExpressionNode::Borrow(borrow) => {
+            checked_trees::expression::ExpressionNode::Borrow(borrow) => {
                 access_limits.push(match borrow.access {
                     language_semantics::ReferenceAccess::Shared => {
-                        crate::checked_trees::BorrowAccessKind::Read
+                        checked_trees::BorrowAccessKind::Read
                     }
                     language_semantics::ReferenceAccess::Mutable => {
-                        crate::checked_trees::BorrowAccessKind::Mutable
+                        checked_trees::BorrowAccessKind::Mutable
                     }
                     language_semantics::ReferenceAccess::WriteOnly => {
-                        crate::checked_trees::BorrowAccessKind::WriteOnly
+                        checked_trees::BorrowAccessKind::WriteOnly
                     }
                 });
                 expression = borrow.target;
@@ -163,7 +162,7 @@ pub(super) fn result_loans(
 
 fn limit_access(
     mut loans: Vec<StatementBorrowLoan>,
-    limits: &[crate::checked_trees::BorrowAccessKind],
+    limits: &[checked_trees::BorrowAccessKind],
 ) -> Vec<StatementBorrowLoan> {
     for access in limits.iter().rev() {
         attenuate(&mut loans, access);
@@ -173,10 +172,10 @@ fn limit_access(
 
 pub(super) fn attenuate(
     loans: &mut [StatementBorrowLoan],
-    access: &crate::checked_trees::BorrowAccessKind,
+    access: &checked_trees::BorrowAccessKind,
 ) {
     for loan in loans {
-        if loan.kind == crate::checked_trees::BorrowAccessKind::Mutable {
+        if loan.kind == checked_trees::BorrowAccessKind::Mutable {
             loan.kind = access.clone();
         }
     }
@@ -184,19 +183,16 @@ pub(super) fn attenuate(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn argument_loans(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     machine_symbol: SymbolHandle,
-    local_data: &crate::checked_trees::statement::TableLocalData,
+    local_data: &checked_trees::statement::TableLocalData,
     argument: ExpressionHandle,
     field: &ViewReturnFieldSource,
     owner_path_prefix: &[BorrowOwnerSegment],
     loan_trackers: &[StateLoanTracker],
-    substitutions: &[(
-        SymbolHandle,
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
-    )],
+    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
     carried_arguments: &mut Vec<(usize, Vec<StatementBorrowLoan>)>,
 ) -> Vec<StatementBorrowLoan> {
     let source_segments = place_segments(&field.source_path);
@@ -259,7 +255,7 @@ pub(super) fn argument_loans(
             owner_path: field.source_path.clone(),
             place,
             source_owner_symbol: SymbolHandle::invalid(),
-            lineage: crate::checked_trees::BorrowLoanLineage::UnretainedDerived,
+            lineage: checked_trees::BorrowLoanLineage::UnretainedDerived,
             kind: field.kind.clone(),
             call_result: false,
         });
@@ -274,30 +270,25 @@ pub(super) fn argument_loans(
             // A result's declared exclusivity cannot promote a captured shared loan.
             if matches!(
                 field.kind,
-                crate::checked_trees::BorrowAccessKind::Read
-                    | crate::checked_trees::BorrowAccessKind::WriteOnly
+                checked_trees::BorrowAccessKind::Read | checked_trees::BorrowAccessKind::WriteOnly
             ) {
                 loan.kind = field.kind.clone();
             }
-            loan.lineage = crate::checked_trees::BorrowLoanLineage::UnretainedDerived;
+            loan.lineage = checked_trees::BorrowLoanLineage::UnretainedDerived;
             loan
         })
         .collect()
 }
 
-fn place_segments(path: &[BorrowOwnerSegment]) -> Vec<crate::fact_plan::PlaceSegment> {
+fn place_segments(path: &[BorrowOwnerSegment]) -> Vec<facts::PlaceSegment> {
     path.iter()
         .map(|segment| match segment {
-            BorrowOwnerSegment::Field(symbol) => {
-                crate::fact_plan::PlaceSegment::Field { symbol: *symbol }
-            }
-            BorrowOwnerSegment::Case(variant) => {
-                crate::fact_plan::PlaceSegment::Case { variant: *variant }
-            }
+            BorrowOwnerSegment::Field(symbol) => facts::PlaceSegment::Field { symbol: *symbol },
+            BorrowOwnerSegment::Case(variant) => facts::PlaceSegment::Case { variant: *variant },
             BorrowOwnerSegment::FixedIndex(index) => {
-                crate::fact_plan::PlaceSegment::FixedIndex { index: *index }
+                facts::PlaceSegment::FixedIndex { index: *index }
             }
-            BorrowOwnerSegment::DynamicIndex => crate::fact_plan::PlaceSegment::Index {
+            BorrowOwnerSegment::DynamicIndex => facts::PlaceSegment::Index {
                 expression: ExpressionHandle::invalid(),
             },
         })

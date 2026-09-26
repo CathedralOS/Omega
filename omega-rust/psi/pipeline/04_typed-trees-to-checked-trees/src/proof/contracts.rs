@@ -1,5 +1,5 @@
-use crate::checked_trees::CheckedEvidenceTerm;
-use crate::checked_trees::{ContractProofFact, ContractProofFactKind, ContractProofFactOwner};
+use checked_trees::CheckedEvidenceTerm;
+use checked_trees::{ContractProofFact, ContractProofFactKind, ContractProofFactOwner};
 use symbols::SymbolHandle;
 pub(crate) mod calls;
 mod inherited;
@@ -25,12 +25,12 @@ pub(crate) use operators::build_contract_operator_use_facts;
 /// identities. Besides avoiding call-stack growth, this makes a malformed
 /// cyclic signature span terminate without repeatedly emitting the same row.
 pub(crate) fn machine_parameter_evidence_signatures<'program>(
-    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    parameters: &'program [symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameter],
+    program: &'program typed_trees::TypedTrees,
+    parameters: &'program [typed_trees::data::TypeParameter],
 ) -> Vec<(
     SymbolHandle,
     SymbolHandle,
-    &'program symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateSignature,
+    &'program typed_trees::signature::StateSignature,
 )> {
     let mut signatures = Vec::new();
     let mut pending = parameters
@@ -41,23 +41,17 @@ pub(crate) fn machine_parameter_evidence_signatures<'program>(
     let mut visited = std::collections::HashSet::new();
 
     while let Some((parameter, is_top_level)) = pending.pop() {
-        if !visited.insert(
-            parameter
-                as *const symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameter,
-        ) {
+        if !visited.insert(parameter as *const typed_trees::data::TypeParameter) {
             continue;
         }
-        let symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Machine {
-            contract,
-        } = &parameter.kind
-        else {
+        let typed_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind else {
             continue;
         };
         match contract {
             // Trait-level requirement-identity binders are declaration
             // parameters, not executable machine contracts.
-            symbol_resolved_trees_to_typed_trees::typed_trees::data::MachineParameterContract::RequirementIdentity => {}
-            symbol_resolved_trees_to_typed_trees::typed_trees::data::MachineParameterContract::Structural(signature) => {
+            typed_trees::data::MachineParameterContract::RequirementIdentity => {}
+            typed_trees::data::MachineParameterContract::Structural(signature) => {
                 let target_state = if is_top_level {
                     parameter.symbol
                 } else {
@@ -72,7 +66,7 @@ pub(crate) fn machine_parameter_evidence_signatures<'program>(
                         .map(|nested| (nested, false)),
                 );
             }
-            symbol_resolved_trees_to_typed_trees::typed_trees::data::MachineParameterContract::Nominal { .. } if is_top_level => {
+            typed_trees::data::MachineParameterContract::Nominal { .. } if is_top_level => {
                 let signature = program
                     .machine_parameter_contract_view(contract)
                     .expect(
@@ -81,7 +75,7 @@ pub(crate) fn machine_parameter_evidence_signatures<'program>(
                     .signature();
                 signatures.push((parameter.symbol, parameter.symbol, signature));
             }
-            symbol_resolved_trees_to_typed_trees::typed_trees::data::MachineParameterContract::Nominal { .. } => {}
+            typed_trees::data::MachineParameterContract::Nominal { .. } => {}
         }
     }
 
@@ -89,8 +83,8 @@ pub(crate) fn machine_parameter_evidence_signatures<'program>(
 }
 
 pub(crate) fn append_machine_contract_facts(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
     contract_facts: &mut arena::Arena<ContractProofFact>,
     evidence_terms: &mut arena::Arena<CheckedEvidenceTerm>,
 ) {
@@ -115,7 +109,7 @@ pub(crate) fn append_machine_contract_facts(
                         position
                     }
                 };
-                let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(application) =
+                let typed_trees::domain::ProofFact::Proposition(application) =
                     program.proof_facts.get(fact)
                 else {
                     unreachable!("validated named contract must bind a proposition")
@@ -124,7 +118,7 @@ pub(crate) fn append_machine_contract_facts(
                     .normalize_nominal_proposition_application(application, None)
                     .expect("validated named contract must have a nominal proposition endpoint");
                 let (evidence_type, evidence_interface) = match &normalized.classification {
-                    symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionEvidenceClassification::Witness {
+                    typed_trees::proposition::PropositionEvidenceClassification::Witness {
                         evidence,
                         interface,
                     } => (
@@ -133,7 +127,7 @@ pub(crate) fn append_machine_contract_facts(
                             crate::proof::proposition_vocabulary::lower_checked_evidence_interface,
                         ),
                     ),
-                    symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionEvidenceClassification::FactOnly => {
+                    typed_trees::proposition::PropositionEvidenceClassification::FactOnly => {
                         unreachable!("validated named contract must bind witness evidence")
                     }
                 };
@@ -164,8 +158,8 @@ pub(crate) fn append_machine_contract_facts(
 }
 
 pub(crate) fn append_operator_declaration_contract_facts(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    operator: &symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition,
+    program: &typed_trees::TypedTrees,
+    operator: &typed_trees::operator::OperatorDefinition,
     contract_facts: &mut arena::Arena<ContractProofFact>,
 ) {
     let owner = ContractProofFactOwner::OperatorDeclaration {
@@ -190,9 +184,9 @@ pub(crate) fn append_operator_declaration_contract_facts(
 }
 
 pub(crate) fn append_state_contract_facts(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     contract_facts: &mut arena::Arena<ContractProofFact>,
     evidence_terms: &mut arena::Arena<CheckedEvidenceTerm>,
 ) {
@@ -214,7 +208,7 @@ pub(crate) fn append_state_contract_facts(
                         unreachable!("states admit only arrival requires contracts")
                     }
                 };
-                let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(application) =
+                let typed_trees::domain::ProofFact::Proposition(application) =
                     program.proof_facts.get(fact)
                 else {
                     unreachable!("validated named state contract must bind a proposition")
@@ -225,7 +219,7 @@ pub(crate) fn append_state_contract_facts(
                         "validated named state contract must have a nominal proposition endpoint",
                     );
                 let (evidence_type, evidence_interface) = match &normalized.classification {
-                    symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionEvidenceClassification::Witness {
+                    typed_trees::proposition::PropositionEvidenceClassification::Witness {
                         evidence,
                         interface,
                     } => (
@@ -234,7 +228,7 @@ pub(crate) fn append_state_contract_facts(
                             crate::proof::proposition_vocabulary::lower_checked_evidence_interface,
                         ),
                     ),
-                    symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionEvidenceClassification::FactOnly => {
+                    typed_trees::proposition::PropositionEvidenceClassification::FactOnly => {
                         unreachable!("validated named state contract must bind witness evidence")
                     }
                 };
@@ -267,9 +261,9 @@ pub(crate) fn append_state_contract_facts(
 }
 
 pub(crate) fn append_state_signature_contract_facts(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     owner_symbol: SymbolHandle,
-    signatures: &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateSignature],
+    signatures: &[typed_trees::signature::StateSignature],
     contract_facts: &mut arena::Arena<ContractProofFact>,
     evidence_terms: &mut arena::Arena<CheckedEvidenceTerm>,
 ) {
@@ -300,7 +294,7 @@ pub(crate) fn append_state_signature_contract_facts(
                             position
                         }
                     };
-                    let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(application) =
+                    let typed_trees::domain::ProofFact::Proposition(application) =
                         program.proof_facts.get(fact)
                     else {
                         unreachable!("validated named signature contract must bind a proposition")
@@ -311,14 +305,14 @@ pub(crate) fn append_state_signature_contract_facts(
                             "validated named signature contract must have a nominal proposition endpoint",
                         );
                     let (evidence_type, evidence_interface) = match &normalized.classification {
-                        symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionEvidenceClassification::Witness {
+                        typed_trees::proposition::PropositionEvidenceClassification::Witness {
                             evidence,
                             interface,
                         } => (
                             evidence.clone(),
                             interface.as_ref().map(crate::proof::proposition_vocabulary::lower_checked_evidence_interface),
                         ),
-                        symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionEvidenceClassification::FactOnly => {
+                        typed_trees::proposition::PropositionEvidenceClassification::FactOnly => {
                             unreachable!("validated named signature contract must bind witness evidence")
                         }
                     };

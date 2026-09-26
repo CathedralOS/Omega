@@ -36,13 +36,11 @@ pub(super) fn prepare<'a>(
     else {
         return Ok(None);
     };
-    if subject.access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
-        || !subject.path.is_empty()
-    {
+    if subject.access != checked_trees::CheckedStructuralAccess::Owned || !subject.path.is_empty() {
         return unsupported("Unit graph case subject lacks owned custody");
     }
     let subject_position = match subject.source {
-        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
             Some(
                 parameters
                     .get(parameter_index as usize)
@@ -55,7 +53,7 @@ pub(super) fn prepare<'a>(
         _ => None,
     };
     let (place, structural_type) = match subject.source {
-        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
             let parameter =
                 parameters
                     .get(parameter_index as usize)
@@ -70,7 +68,7 @@ pub(super) fn prepare<'a>(
             }
             (parameter.place, parameter.structural_type)
         }
-        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal,
         } => {
             let produced = result(state, binding_ordinal, operations)?;
@@ -137,7 +135,7 @@ pub(super) fn prepare<'a>(
             for transfer in &case.successor.scalar_arguments {
                 if !matches!(
                     transfer.source,
-                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
+                    checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
                 ) {
                     continue;
                 }

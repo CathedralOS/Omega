@@ -73,7 +73,7 @@ fn copy_record_result_feeds_a_call_statement_argument() {
     };
     assert!(matches!(
         argument.source,
-        crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: 0
         }
     ));
@@ -121,7 +121,7 @@ fn affine_plain_owned_result_feeds_a_call_statement_argument() {
     };
     assert!(matches!(
         argument.source,
-        crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: 0
         }
     ));

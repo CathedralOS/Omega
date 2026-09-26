@@ -1,8 +1,6 @@
 //! Native byte-output admission binds the source argument and exact receiving builtin.
 use crate::{legalize_target_operations, validate_legalized_operations};
-use abstract_operations_to_target_operations::target_operations::{
-    BoundaryExecutionBinding, BoundaryRealization, CompilerBuiltinExecution, TargetUnitOperation,
-};
+use abstract_operations::{AbstractBoundaryResult, AbstractOperation, AbstractParameter};
 use abstract_operations_to_target_operations::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement,
 };
@@ -11,8 +9,8 @@ use semantic_vocabulary::{
     ValueId,
 };
 use target::NativeTarget;
-use terminal_psi_to_abstract_operations::abstract_operations::{
-    AbstractBoundaryResult, AbstractOperation, AbstractParameter,
+use target_operations::{
+    BoundaryExecutionBinding, BoundaryRealization, CompilerBuiltinExecution, TargetUnitOperation,
 };
 
 #[test]
@@ -59,9 +57,9 @@ fn hosted_byte_output_replay_rejects_substituted_native_targets() {
 pub(super) fn fixture(
     native: NativeTarget,
 ) -> (
-    terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan,
-    abstract_operations_to_target_operations::target_operations::TargetOperationPlan,
-    terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
+    abstract_operations::AbstractOperationPlan,
+    target_operations::TargetOperationPlan,
+    optimization_unit::PsiOptimizationUnit,
 ) {
     let (mut source, _, _) = crate::tests::fixtures::plain_unit::plain_unit_fixture();
     let boundary = BoundaryMachineId::new(1).unwrap();
@@ -107,14 +105,14 @@ pub(super) fn fixture(
                 execution: AdmittedBoundaryExecution::CompilerBuiltin(
                     CompilerBuiltinExecution::HostedWriteByteI32,
                 ),
-                realization: abstract_operations_to_target_operations::target_operations::HostedWriteByteI32Realization.into(),
+                realization: target_operations::HostedWriteByteI32Realization.into(),
             }],
             installation: None,
             native_callbacks: &[],
         },
     )
     .unwrap();
-    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),
     )
@@ -137,14 +135,14 @@ fn byte_output_replays_exact_builtin_argument_and_occurrence() {
             match mutation {
                 0 => {
                     row.kind =
-                        crate::legalized_operations::LegalizedScalarInstructionKind::HostedWriteByteI32 {
+                        legalized_operations::LegalizedScalarInstructionKind::HostedWriteByteI32 {
                             boundary: BoundaryMachineId::new(2).unwrap(),
                             source: ValueId::new(5).unwrap(),
                         }
                 }
                 1 => {
                     row.kind =
-                        crate::legalized_operations::LegalizedScalarInstructionKind::HostedWriteByteI32 {
+                        legalized_operations::LegalizedScalarInstructionKind::HostedWriteByteI32 {
                             boundary: BoundaryMachineId::new(1).unwrap(),
                             source: ValueId::new(6).unwrap(),
                         }
@@ -178,7 +176,7 @@ fn byte_output_replays_exact_builtin_argument_and_occurrence() {
                 3 => runtime_scalar_arguments[0].parameter_index = 1,
                 _ => {
                     runtime_scalar_arguments[0].placement.shape =
-                        abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(8, 8)
+                        calling_conventions::ValueShape::integer(8, 8)
                 }
             }
             assert!(
@@ -191,10 +189,8 @@ fn byte_output_replays_exact_builtin_argument_and_occurrence() {
 
 #[test]
 fn scalar_return_cannot_hide_an_unwitnessed_byte_output_boundary() {
+    use abstract_operations::{AbstractFunctionResult, AbstractResult};
     use semantic_vocabulary::{EdgeId, IntegerValue};
-    use terminal_psi_to_abstract_operations::abstract_operations::{
-        AbstractFunctionResult, AbstractResult,
-    };
     for native in [
         NativeTarget::linux_x64(),
         NativeTarget::linux_arm64(),
@@ -233,7 +229,7 @@ fn scalar_return_cannot_hide_an_unwitnessed_byte_output_boundary() {
                 abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
             )
             .unwrap();
-        let pure_unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
+        let pure_unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
             &pure,
             FuelScheduleIdentity::new(1).unwrap(),
         )
@@ -245,7 +241,7 @@ fn scalar_return_cannot_hide_an_unwitnessed_byte_output_boundary() {
             .provenance
             .operations
             .insert(0, OperationId::new(7).unwrap());
-        let full_unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
+        let full_unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             FuelScheduleIdentity::new(1).unwrap(),
         )
@@ -272,8 +268,8 @@ fn provider_byte_output_retains_execution_custody_and_normal_return() {
         NativeTarget::macos_arm64(),
     ] {
         let (source, mut target, unit) = fixture(native);
-        let provider = abstract_operations_to_target_operations::target_operations::ProviderExecutionBinding::from_execution_record(
-            abstract_operations_to_target_operations::target_operations::ProviderPlanReportIdentity::new(71).unwrap(),
+        let provider = target_operations::ProviderExecutionBinding::from_execution_record(
+            target_operations::ProviderPlanReportIdentity::new(71).unwrap(),
             72,
             73,
             74,
@@ -310,7 +306,7 @@ fn provider_byte_output_retains_execution_custody_and_normal_return() {
                 1 => *realization = BoundaryRealization::HostedExitProcessI32(Default::default()),
                 _ => {
                     runtime_scalar_arguments[0].placement.shape =
-                        abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(8, 8)
+                        calling_conventions::ValueShape::integer(8, 8)
                 }
             }
             assert!(

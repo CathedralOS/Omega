@@ -8,7 +8,7 @@
 //! consumers replay the verifier's own resolution rather than a
 //! lowering-side reconstruction.
 
-use crate::abstract_operations::AbstractOperation;
+use abstract_operations::AbstractOperation;
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind, StructuralTypeId};
 use terminal_psi::{
     Operation, StructuralAccess, StructuralFieldType, StructuralMultiplicity,

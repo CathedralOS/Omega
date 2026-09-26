@@ -1,12 +1,10 @@
 //! Exact physical-home applicability and unique alternative selection.
 
-use target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel;
-use target_operations_to_selected_instructions::{
-    MachineAlternative, MachineAlternativeApplicability,
-};
+use register_model::ValidatedPhysicalRegisterModel;
+use selected_instructions::{MachineAlternative, MachineAlternativeApplicability};
 
 use crate::PostAllocationMachineError;
-use crate::physical_instructions::PhysicalOperandFootprint;
+use physical_instructions::PhysicalOperandFootprint;
 
 pub(super) fn choose(
     instruction: u32,

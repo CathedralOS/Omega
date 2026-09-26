@@ -11,16 +11,16 @@ use super::{
     CheckedComposedUnitControlStatePlan, CheckedStructuralControlSuccessorPlan, case_emission,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
+use checked_trees::expression::ExpressionNode;
+use checked_trees::statement::{StatementNode, TransitionTargetNode};
 use language_semantics::{
     PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
     PermissionProvenance,
 };
-use typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode;
-use typed_trees_to_checked_trees::checked_trees::statement::{StatementNode, TransitionTargetNode};
 
 pub(super) fn result(
     operation: &CheckedUnitEffectOperationPlan,
-) -> Option<&typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralResultBindingPlan> {
+) -> Option<&checked_trees::CheckedUnitStructuralResultBindingPlan> {
     match operation {
         CheckedUnitEffectOperationPlan::StructuralCall {
             result,
@@ -100,7 +100,7 @@ fn retired_in_body(state: &CheckedComposedUnitControlStatePlan) -> Vec<u32> {
             CheckedUnitEffectOperationPlan::EstablishStructuralValue {
                 result,
                 operand_source:
-                    Some(typed_trees_to_checked_trees::checked_trees::CheckedArrayConstructionSource::CallArgument { .. }),
+                    Some(checked_trees::CheckedArrayConstructionSource::CallArgument { .. }),
                 ..
             } => Some(result.binding_ordinal),
             _ => None,
@@ -109,7 +109,7 @@ fn retired_in_body(state: &CheckedComposedUnitControlStatePlan) -> Vec<u32> {
             state.operations.iter().any(|operation| {
                 call_arguments(operation).iter().any(|argument| {
                     argument.source_structural_result_binding_ordinal() == Some(*ordinal)
-                        && argument.access == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
+                        && argument.access == checked_trees::CheckedStructuralAccess::Owned
                         && argument.path.is_empty()
                 })
             })
@@ -123,7 +123,7 @@ fn retired_in_body(state: &CheckedComposedUnitControlStatePlan) -> Vec<u32> {
             } => affine_discards
                 .iter()
                 .filter_map(|discard| match discard.source {
-                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         binding_ordinal,
                     } => Some(binding_ordinal),
                     _ => None,
@@ -142,7 +142,7 @@ fn retired_in_body(state: &CheckedComposedUnitControlStatePlan) -> Vec<u32> {
 /// The structural arguments an operation passes to the call it performs.
 fn call_arguments(
     operation: &CheckedUnitEffectOperationPlan,
-) -> &[typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan] {
+) -> &[checked_trees::CheckedUnitStructuralArgumentPlan] {
     match operation {
         CheckedUnitEffectOperationPlan::CallUnit {
             structural_arguments,
@@ -176,15 +176,15 @@ fn call_arguments(
 /// the borrowed-view carrier the checked disposition roster spells peeled.
 fn is_borrowed_view_local(
     checked: &CheckedTrees,
-    mut reference: typed_trees_to_checked_trees::checked_trees::types::TypeReferenceHandle,
+    mut reference: checked_trees::types::TypeReferenceHandle,
 ) -> bool {
     let mut borrowed = false;
     loop {
         match checked.typed.type_reference_table.type_reference(reference) {
-            typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
                 reference = *base_type;
             }
-            typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Reference {
+            checked_trees::types::TypeReferenceNode::Reference {
                 access: language_semantics::ReferenceAccess::Shared,
                 referee,
                 ..
@@ -192,7 +192,7 @@ fn is_borrowed_view_local(
                 borrowed = true;
                 reference = *referee;
             }
-            typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Slice { .. } => return borrowed,
+            checked_trees::types::TypeReferenceNode::Slice { .. } => return borrowed,
             _ => return false,
         }
     }
@@ -202,25 +202,22 @@ fn is_borrowed_view_local(
 pub(super) fn validate(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
-    source: &typed_trees_to_checked_trees::checked_trees::state::State,
-    local: &typed_trees_to_checked_trees::checked_trees::statement::TableLocalData,
-    result: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralResultBindingPlan,
+    source: &checked_trees::state::State,
+    local: &checked_trees::statement::TableLocalData,
+    result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
 ) -> Result<(), LoweringError> {
     let statements = checked.statement_table.statements(source.statement_nodes);
     // A borrowed view's result binding carries the viewed `[T]` carrier
     // identity with the reference and constraint shells peeled, exactly as the
     // checked-side disposition roster spells it.
     let expected_identity = if is_borrowed_view_local(checked, local.type_reference) {
-        typed_trees_to_checked_trees::validation::unwrapped_type_reference(
-            &checked.typed,
-            local.type_reference,
-        )
-        .map(|unwrapped| checked.normalized_type_identity(unwrapped).into_string())
-        .unwrap_or_else(|| {
-            checked
-                .normalized_type_identity(local.type_reference)
-                .into_string()
-        })
+        validation::unwrapped_type_reference(&checked.typed, local.type_reference)
+            .map(|unwrapped| checked.normalized_type_identity(unwrapped).into_string())
+            .unwrap_or_else(|| {
+                checked
+                    .normalized_type_identity(local.type_reference)
+                    .into_string()
+            })
     } else {
         checked
             .normalized_type_identity(local.type_reference)
@@ -242,8 +239,7 @@ pub(super) fn validate(
             .filter(|event| {
                 event.machine_symbol == machine
                     && event.state_symbol == source.symbol
-                    && event.root
-                        == typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(local.symbol)
+                    && event.root == facts::PlaceRoot::Symbol(local.symbol)
             })
     };
     // Plain copy payloads retain producer dominance, not affine receipts. The
@@ -352,7 +348,7 @@ pub(super) fn validate(
 pub(super) fn validate_disposition_roster(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
-    source: &typed_trees_to_checked_trees::checked_trees::state::State,
+    source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
 ) -> Result<(), LoweringError> {
     let statements = checked.statement_table.statements(source.statement_nodes);
@@ -369,15 +365,16 @@ pub(super) fn validate_disposition_roster(
                 && event.kind == PermissionEventKind::AffineDrop
         })
     {
-        if checked.state_parameters(source).iter().any(|parameter| {
-            event.root
-                == typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(parameter.symbol)
-        }) {
+        if checked
+            .state_parameters(source)
+            .iter()
+            .any(|parameter| event.root == facts::PlaceRoot::Symbol(parameter.symbol))
+        {
             continue;
         }
         let matching = state.operations.iter().filter_map(result).filter(|result| {
             matches!(statements.get(result.statement_index as usize),
-                Some(StatementNode::LocalData(local)) if event.root == typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(local.symbol))
+                Some(StatementNode::LocalData(local)) if event.root == facts::PlaceRoot::Symbol(local.symbol))
         }).count();
         if matching != 1 {
             return unsupported("Unit graph edge leaves an unaccounted local disposition");
@@ -389,7 +386,7 @@ pub(super) fn validate_disposition_roster(
 pub(super) fn local_discards(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
-    source: &typed_trees_to_checked_trees::checked_trees::state::State,
+    source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
     edge: Option<&CheckedStructuralControlSuccessorPlan>,
 ) -> Result<Vec<u32>, LoweringError> {
@@ -421,7 +418,7 @@ pub(super) fn local_discards(
             continue;
         }
         let transferred = edge.into_iter().flat_map(|edge| &edge.transfers).filter(|transfer| matches!(transfer.source,
-            typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal }
+            checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal }
                 if binding_ordinal == result.binding_ordinal)).count();
         if transferred > 1 {
             return unsupported("Unit graph edge duplicates local ownership");
@@ -441,7 +438,7 @@ pub(super) fn local_discards(
 pub(super) fn selection_edge_discards(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
-    source: &typed_trees_to_checked_trees::checked_trees::state::State,
+    source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
     edge: &CheckedStructuralControlSuccessorPlan,
     operations: &OperationBuffer,
@@ -475,7 +472,7 @@ pub(super) fn selection_edge_discards(
             .iter()
             .filter(|transfer| {
                 matches!(transfer.source,
-                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal }
+                    checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal }
                         if binding_ordinal == result.binding_ordinal)
             })
             .count();

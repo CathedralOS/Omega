@@ -26,7 +26,7 @@ use crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator,
 };
-use typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument;
+use checked_trees::CheckedCallScalarArgument;
 
 mod scalar_control;
 mod source_values;
@@ -89,8 +89,7 @@ pub(crate) struct Evaluation {
     /// Every emitted block redeclares it and every internal edge forwards it,
     /// so `ProofTerm::Formal` positions stay in scope across the evaluation's
     /// private joins.
-    pub erased_proof_formals:
-        Vec<typed_trees_to_checked_trees::checked_trees::CheckedErasedProofParameterPlan>,
+    pub erased_proof_formals: Vec<checked_trees::CheckedErasedProofParameterPlan>,
     pub entry: BlockId,
     pub current: BlockId,
     pub parameters: Vec<ValueDeclaration>,
@@ -161,7 +160,7 @@ impl Evaluation {
         &mut self,
         checked: &CheckedTrees,
         state: symbols::SymbolHandle,
-        result: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralResultBindingPlan,
+        result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
         produced: terminal_psi::StructuralOperationResult,
         structural_types: &[StructuralTypeDeclaration],
         operations: &mut OperationBuffer,
@@ -237,11 +236,7 @@ impl Evaluation {
             .statements(source.statement_nodes)
             .get(result.statement_index as usize)
         {
-            Some(
-                typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(
-                    local,
-                ),
-            ) => Some(local),
+            Some(checked_trees::statement::StatementNode::LocalData(local)) => Some(local),
             Some(_) => None,
             None => return unsupported("structural result lost its source statement"),
         };
@@ -848,7 +843,7 @@ impl Evaluation {
         checked: &CheckedTrees,
         machine: symbols::SymbolHandle,
         state: symbols::SymbolHandle,
-        store: &typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarFieldStorePlan,
+        store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
         values: &mut Vec<ValueDeclaration>,
         next_value: &mut u64,
         next_block: &mut u64,
@@ -882,7 +877,7 @@ impl Evaluation {
         // no `AssignmentValue` expression row; it is reconstructed from the
         // call operation already lowered for this statement, which must be the
         // most recently established scalar value in this namespace.
-        if let typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { position } =
+        if let checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { position } =
             store.value
         {
             let position = usize::try_from(position).map_err(|_| {
@@ -1096,7 +1091,7 @@ fn emit_state(
     mut block: BlockId,
     parameters: &[ValueDeclaration],
     caller_erased_formals: &[ValueDeclaration],
-    source_erased_proof_formals: &[typed_trees_to_checked_trees::checked_trees::CheckedErasedProofParameterPlan],
+    source_erased_proof_formals: &[checked_trees::CheckedErasedProofParameterPlan],
     targets: &[BlockId],
     next_value: &mut u64,
     next_block: &mut u64,

@@ -8,7 +8,7 @@ identities. Raw selected data or a detached content hash is not selection author
 
 ## Target setup is not a program stage
 
-[Register environment](src/lib.rs) joins the
+[Register environment](../../backend/register-environment/src/lib.rs) joins the
 exact native target, ISA physical model, instruction constraints, selected keys
 and active reservation profile. Baseline and decoded/custom inputs use independent
 structural and ISA-semantic validation. Selection takes that carrier explicitly;
@@ -477,5 +477,5 @@ settlements. Producer success is not its own validation.
 Broader supported behavior must enter the common graph with exact ABI, memory,
 ownership, proof and frame replay. Unsupported shapes reject at their owner;
 there is no assigned-program fallback. [Allocation](../05_selected-instructions-to-register-homes/README.md)
-owns homes and recovery, and [machine emission](../09_resolved-layout-to-resolved-layout/machine_emission.md)
+owns homes and recovery, and [machine emission](../../backend/machine-emission/README.md)
 owns the physical continuation.

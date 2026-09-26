@@ -16,13 +16,11 @@ use super::super::super::{
 use super::super::{CheckedTrees, LoweringError, catalogs};
 use super::{CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan};
 use crate::emission::operation_emission::buffer::OperationBuffer;
-use typed_trees_to_checked_trees::checked_trees::{
-    CheckedControlResultPlan, data::DataMember, expression::ExpressionNode,
-};
+use checked_trees::{CheckedControlResultPlan, data::DataMember, expression::ExpressionNode};
 
 pub(super) fn signature_matches(
     checked: &CheckedTrees,
-    source: &typed_trees_to_checked_trees::checked_trees::state::State,
+    source: &checked_trees::state::State,
     result: &CheckedControlResultPlan,
 ) -> bool {
     match result {
@@ -30,7 +28,7 @@ pub(super) fn signature_matches(
             checked
                 .type_reference_table
                 .type_reference(source.return_type),
-            typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Unit
+            checked_trees::types::TypeReferenceNode::Unit
         ),
         // A primitive result carries no refinement beyond an arithmetic
         // policy or one closed integer range, which the contract publishes
@@ -41,16 +39,11 @@ pub(super) fn signature_matches(
                     checked
                         .type_reference_table
                         .type_reference(source.return_type),
-                    typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Named { .. }
-                )
-                    || typed_trees_to_checked_trees::validation::is_arithmetic_policy_only_integer(
-                        &checked.typed,
-                        source.return_type,
-                    )
-                    || typed_trees_to_checked_trees::validation::closed_scalar_result_range(
-                        &checked.typed,
-                        source.return_type,
-                    )
+                    checked_trees::types::TypeReferenceNode::Named { .. }
+                ) || validation::is_arithmetic_policy_only_integer(
+                    &checked.typed,
+                    source.return_type,
+                ) || validation::closed_scalar_result_range(&checked.typed, source.return_type)
                     .is_some())
         }
         CheckedControlResultPlan::Structural(result) => {
@@ -62,7 +55,7 @@ pub(super) fn signature_matches(
                     && checked.type_multiplicity(source.return_type) == result.multiplicity
                     && view_result_qualifications(checked, source.return_type).as_ref()
                         == Some(&result.qualifications)
-                    && typed_trees_to_checked_trees::validation::structural_result_projected_qualifications(
+                    && validation::structural_result_projected_qualifications(
                         &checked.typed,
                         source.return_type,
                     )
@@ -81,8 +74,8 @@ pub(super) fn signature_matches(
                 .as_str()
                 == result.type_identity
                 && checked.type_multiplicity(source.return_type) == result.multiplicity
-                && typed_trees_to_checked_trees::validation::structural_result_qualifications(&checked.typed, source.return_type).ok().as_ref() == Some(&result.qualifications)
-                && typed_trees_to_checked_trees::validation::structural_result_projected_qualifications(
+                && validation::structural_result_qualifications(&checked.typed, source.return_type).ok().as_ref() == Some(&result.qualifications)
+                && validation::structural_result_projected_qualifications(
                     &checked.typed,
                     source.return_type,
                 )
@@ -91,10 +84,10 @@ pub(super) fn signature_matches(
                     == Some(&result.projected_qualifications)
                 // Plain storage classification excludes linear roots by design.
                 // Their admission instead requires exact entry/call/return claims.
-                && (result.multiplicity == Multiplicity::Linear || typed_trees_to_checked_trees::validation::has_plain_owned_contents_with_numeric_constraints(
+                && (result.multiplicity == Multiplicity::Linear || validation::has_plain_owned_contents_with_numeric_constraints(
                     &checked.typed,
                     carrier,
-                ) || typed_trees_to_checked_trees::validation::has_owned_or_shared_view_fields(&checked.typed, carrier))
+                ) || validation::has_owned_or_shared_view_fields(&checked.typed, carrier))
         }
     }
 }
@@ -104,14 +97,14 @@ pub(super) fn signature_matches(
 /// custody families.
 fn borrowed_view_slice(
     checked: &CheckedTrees,
-    mut reference: typed_trees_to_checked_trees::checked_trees::types::TypeReferenceHandle,
-) -> Option<typed_trees_to_checked_trees::checked_trees::types::TypeReferenceHandle> {
+    mut reference: checked_trees::types::TypeReferenceHandle,
+) -> Option<checked_trees::types::TypeReferenceHandle> {
     let referee = loop {
         match checked.type_reference_table.type_reference(reference) {
-            typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
                 reference = *base_type
             }
-            typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Reference {
+            checked_trees::types::TypeReferenceNode::Reference {
                 referee,
                 access: language_core::ReferenceAccess::Shared,
                 ..
@@ -121,7 +114,7 @@ fn borrowed_view_slice(
     };
     matches!(
         checked.type_reference_table.type_reference(referee),
-        typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Slice { .. }
+        checked_trees::types::TypeReferenceNode::Slice { .. }
     )
     .then_some(referee)
 }
@@ -132,10 +125,10 @@ fn borrowed_view_slice(
 /// resolution before this point is ever reached.
 fn view_result_qualifications(
     checked: &CheckedTrees,
-    mut reference: typed_trees_to_checked_trees::checked_trees::types::TypeReferenceHandle,
+    mut reference: checked_trees::types::TypeReferenceHandle,
 ) -> Option<Vec<language_semantics::SemanticDomainId>> {
     let mut qualifications = Vec::new();
-    while let typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Constrained {
+    while let checked_trees::types::TypeReferenceNode::Constrained {
         base_type,
         constraints,
     } = checked.type_reference_table.type_reference(reference)
@@ -145,10 +138,7 @@ fn view_result_qualifications(
             return None;
         }
         for constraint in retained {
-            let typed_trees_to_checked_trees::checked_trees::types::TypeConstraintNode::Domain(
-                domain,
-            ) = constraint
-            else {
+            let checked_trees::types::TypeConstraintNode::Domain(domain) = constraint else {
                 return None;
             };
             if !domain.semantic_id.is_valid() {
@@ -166,7 +156,7 @@ fn view_result_qualifications(
 pub(super) fn validate(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
-    source: &typed_trees_to_checked_trees::checked_trees::state::State,
+    source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
     ordinal: usize,
 ) -> Result<(), LoweringError> {
@@ -181,12 +171,12 @@ pub(super) fn validate(
 
 pub(super) fn validate_case(
     checked: &CheckedTrees,
-    source: &typed_trees_to_checked_trees::checked_trees::state::State,
+    source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
     ordinal: usize,
-    result: &typed_trees_to_checked_trees::checked_trees::CheckedStructuralCaseReturnPlan,
+    result: &checked_trees::CheckedStructuralCaseReturnPlan,
 ) -> Result<(), LoweringError> {
-    let typed_trees_to_checked_trees::checked_trees::CheckedStructuralCaseReturnPlan {
+    let checked_trees::CheckedStructuralCaseReturnPlan {
         statement_ordinal,
         case_identity,
         fields,
@@ -194,9 +184,7 @@ pub(super) fn validate_case(
     if *statement_ordinal as usize != ordinal {
         return unsupported("case return statement moved");
     }
-    let typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Named {
-        symbol, ..
-    } = checked
+    let checked_trees::types::TypeReferenceNode::Named { symbol, .. } = checked
         .type_reference_table
         .type_reference(source.return_type)
     else {
@@ -305,16 +293,16 @@ pub(super) fn validate_case(
 pub(super) fn validate_scalar(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
-    source: &typed_trees_to_checked_trees::checked_trees::state::State,
+    source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
-    completion: &typed_trees_to_checked_trees::checked_trees::CheckedScalarReturnPlan,
+    completion: &checked_trees::CheckedScalarReturnPlan,
     ordinal: usize,
 ) -> Result<(), LoweringError> {
     let CheckedControlResultPlan::Scalar { primitive_type } = plan.result else {
         return unsupported("scalar graph return has no scalar result signature");
     };
     let binding = match completion {
-        typed_trees_to_checked_trees::checked_trees::CheckedScalarReturnPlan::Exits(exits) => {
+        checked_trees::CheckedScalarReturnPlan::Exits(exits) => {
             if exits.primitive_type != primitive_type
                 || crate::unit::attached_unit::scalar_completion::control::validate_exits(
                     checked,
@@ -326,25 +314,13 @@ pub(super) fn validate_scalar(
             }
             return Ok(());
         }
-        typed_trees_to_checked_trees::checked_trees::CheckedScalarReturnPlan::Binding(binding) => {
-            binding
-        }
+        checked_trees::CheckedScalarReturnPlan::Binding(binding) => binding,
     };
     let statements = checked.statement_table.statements(source.statement_nodes);
-    let (
-        Some(
-            [
-                typed_trees_to_checked_trees::checked_trees::statement::StatementNode::Expression(
-                    expression,
-                ),
-            ],
-        ),
-        true,
-    ) = (
+    let (Some([checked_trees::statement::StatementNode::Expression(expression)]), true) = (
         statements.get(ordinal..),
         binding.primitive_type == primitive_type,
-    )
-    else {
+    ) else {
         return unsupported("scalar graph return has no final authored expression");
     };
     let mut producers = state.operations.iter().filter(|operation| {
@@ -358,9 +334,8 @@ pub(super) fn validate_scalar(
     if binding.statement_index as usize == ordinal {
         return Ok(());
     }
-    let Some(typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(
-        local,
-    )) = statements.get(binding.statement_index as usize)
+    let Some(checked_trees::statement::StatementNode::LocalData(local)) =
+        statements.get(binding.statement_index as usize)
     else {
         return unsupported("scalar graph return name has no immutable binding");
     };
@@ -386,11 +361,11 @@ pub(super) fn validate_scalar(
 pub(super) fn validate_structural(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
-    source: &typed_trees_to_checked_trees::checked_trees::state::State,
+    source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
     ordinal: usize,
 ) -> Result<(), LoweringError> {
-    use typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan;
+    use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
     let (
         CheckedControlResultPlan::Structural(signature),
         CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result },
@@ -403,9 +378,7 @@ pub(super) fn validate_structural(
     {
         return unsupported("structural return changed its declared result custody");
     }
-    let Some(typed_trees_to_checked_trees::checked_trees::statement::StatementNode::Expression(
-        expression,
-    )) = checked
+    let Some(checked_trees::statement::StatementNode::Expression(expression)) = checked
         .statement_table
         .statements(source.statement_nodes)
         .get(ordinal)
@@ -480,7 +453,7 @@ pub(super) fn validate_structural(
                     );
                 }
             } else {
-                let Some(typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(local)) = checked
+                let Some(checked_trees::statement::StatementNode::LocalData(local)) = checked
                     .statement_table
                     .statements(source.statement_nodes)
                     .get(binding.statement_index as usize)
@@ -510,8 +483,8 @@ pub(super) fn validate_structural(
                 || parameter.multiplicity != result.multiplicity
                 || !matches!(
                     parameter.access,
-                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
-                        | typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
+                    checked_trees::CheckedStructuralAccess::Owned
+                        | checked_trees::CheckedStructuralAccess::SharedBorrow
                 )
                 || !matches!(checked.expression_table.expression(*expression), ExpressionNode::Name(path) if path.symbol == declaration.symbol && checked.expression_table.name_path_members(path.members).len() == 1)
             {
@@ -525,7 +498,7 @@ pub(super) fn validate_structural(
 
 pub(super) fn result(
     plan: &CheckedControlResultPlan,
-    reference_sources: &[typed_trees_to_checked_trees::checked_trees::CheckedReferenceResultSourcePlan],
+    reference_sources: &[checked_trees::CheckedReferenceResultSourcePlan],
     parameters: &[terminal_psi::StructuralParameterDeclaration],
     catalogs: &mut catalogs::ComposedCatalogs,
     places: &mut Vec<StructuralPlaceDeclaration>,
@@ -623,7 +596,7 @@ pub(super) fn emit(
 pub(super) fn emit_case(
     checked: &CheckedTrees,
     state: &CheckedComposedUnitControlStatePlan,
-    construction: &typed_trees_to_checked_trees::checked_trees::CheckedStructuralCaseReturnPlan,
+    construction: &checked_trees::CheckedStructuralCaseReturnPlan,
     result: &TerminalMachineResult,
     bindings: &crate::expression_preparation::bindings::ScalarBindings,
     catalogs: &mut catalogs::ComposedCatalogs,
@@ -631,7 +604,7 @@ pub(super) fn emit_case(
     next_value: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<Option<PlaceId>, LoweringError> {
-    let typed_trees_to_checked_trees::checked_trees::CheckedStructuralCaseReturnPlan {
+    let checked_trees::CheckedStructuralCaseReturnPlan {
         statement_ordinal,
         case_identity,
         fields,

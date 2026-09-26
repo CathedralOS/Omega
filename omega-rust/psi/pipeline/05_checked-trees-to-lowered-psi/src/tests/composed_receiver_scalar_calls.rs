@@ -133,18 +133,18 @@ fn a_receiver_operand_that_drifts_from_its_authored_place_rejects() {
         .iter_mut()
         .flat_map(|state| &mut state.operations)
         .find_map(|operation| match operation {
-            typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::ScalarCall {
+            checked_trees::CheckedUnitEffectOperationPlan::ScalarCall {
                 structural_arguments,
                 ..
             } => structural_arguments.first_mut(),
             _ => None,
         })
         .expect("the receiver scalar call");
-    receiver.path.push(
-        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field(
+    receiver
+        .path
+        .push(checked_trees::CheckedUnitStructuralPathSegment::Field(
             "sum".to_owned(),
-        ),
-    );
+        ));
     assert!(
         lower_machine(&checked, TerminalMachineSelection::Name("Main::main")).is_err(),
         "a receiver operand must name the authored receiver place"

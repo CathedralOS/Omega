@@ -6,15 +6,11 @@ use super::apply::replay_apply;
 use super::leaf_destination::{replay_is_u64, replay_site_block};
 use std::collections::BTreeSet;
 
-use target_operations_to_selected_instructions::register_model::{
-    RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess,
-};
-use target_operations_to_selected_instructions::{
-    SelectedInstructionId, VirtualRegisterId, VirtualRegisterOrigin,
-};
+use register_model::{RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess};
+use selected_instructions::{SelectedInstructionId, VirtualRegisterId, VirtualRegisterOrigin};
 
 use crate::{FixedViewCopy, FixedViewCopyDestination, FixedViewCopyError, FixedViewCopyPolicy};
-use target_operations_to_selected_instructions::VirtualFixedConstraintSite;
+use selected_instructions::VirtualFixedConstraintSite;
 
 #[cfg(test)]
 mod tests;
@@ -28,9 +24,9 @@ mod tests;
 #[allow(clippy::too_many_arguments)]
 pub(super) fn replay_source_exit_copies(
     function_index: usize,
-    source_function: &target_operations_to_selected_instructions::SelectedFunction,
+    source_function: &selected_instructions::SelectedFunction,
     function_boundaries: &[&super::super::evidence::AuthenticatedFixedViewBoundary],
-    output_function: &mut target_operations_to_selected_instructions::SelectedFunction,
+    output_function: &mut selected_instructions::SelectedFunction,
     row: &RegisterInstructionConstraint,
     copy_key: RegisterConstraintKey,
     policy: FixedViewCopyPolicy,

@@ -1,18 +1,13 @@
 //! Source-backed indexed replacement within a bounded byte field's live prefix.
 
-use super::{LoweringError, ScalarType};
+use super::{LoweringError, ScalarType, lower_machine};
 use crate::TerminalMachineSelection;
-use crate::lower_machine;
-use lowered_psi_to_terminal_psi::terminal_production::{
-    TerminalProductionCustody, TerminalProductionTimings,
-};
+use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment};
 use semantic_vocabulary::{IntegerValue, Proposition, ScalarTerm};
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationKind, StructuralPathSegment, StructuralTypeShape};
-use typed_trees_to_checked_trees::checked_trees::{
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
-};
 #[test]
 fn initialized_byte_field_runtime_index_replacement_publishes_terminal() {
     let checked = crate::front_end::checked_program(
@@ -25,18 +20,15 @@ fn initialized_byte_field_runtime_index_replacement_publishes_terminal() {
         }
         "#,
     );
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Record::replace",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("checked indexed byte replacement publishes verified Terminal")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Record::replace"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("checked indexed byte replacement publishes verified Terminal")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     terminal_verifier::validate_module(&module).unwrap();
     let machine = module
@@ -61,18 +53,15 @@ fn nested_byte_field_runtime_index_preserves_the_static_carrier_path() {
         }
         "#,
     );
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Envelope::replace",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("nested runtime byte replacement publishes verified Terminal")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Envelope::replace"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("nested runtime byte replacement publishes verified Terminal")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let path = module
         .machines
@@ -130,18 +119,15 @@ fn caller_byte_index_range_is_checked_against_the_evaluated_argument() {
         machine Record::run(&mut self) { self.replace(2, 65); }
     "#,
     );
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Record::run",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("bounded caller argument")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Record::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("bounded caller argument")
+    .into_artifact();
     run_stores(&artifact, &[], &[b"", b"XXX", b"XXA"]);
     let mut lowered =
         lower_machine(&checked, TerminalMachineSelection::Name("Record::run")).unwrap();
@@ -385,18 +371,15 @@ fn indexed_byte_replacement_preserves_a_separately_initialized_sibling() {
         }
     "#,
     );
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Record::replace",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("sibling byte-field isolation")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Record::replace"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("sibling byte-field isolation")
+    .into_artifact();
     run_stores(&artifact, &[], &[b"", b"XXX", b"AXX", b"AXB"]);
 }
 
@@ -410,18 +393,15 @@ fn caller_observes_ordered_byte_writes_without_changing_live_length() {
         machine Record::run(&mut self) { self.edit(); self.out = "X"; self.out[0] = 67; }
     "#,
     );
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Record::run",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("ordered caller byte replacement")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Record::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("ordered caller byte replacement")
+    .into_artifact();
     run_stores(&artifact, &[], &[b"", b"XXX", b"AXX", b"AXB", b"X", b"C"]);
 }
 
@@ -469,7 +449,7 @@ fn indexed_byte_store_rejoins_index_value_field_access_and_complete_roster() {
             plan.operations.remove(position);
         } else if mutation == 5 {
             plan.structural_parameters[0].access =
-                typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow;
+                checked_trees::CheckedStructuralAccess::SharedBorrow;
         } else {
             let CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) =
                 &mut plan.operations[position]
@@ -486,7 +466,7 @@ fn indexed_byte_store_rejoins_index_value_field_access_and_complete_roster() {
                 }
                 1 => {
                     store.value =
-                        typed_trees_to_checked_trees::checked_trees::CheckedByteSequenceStoreValue::Pure(store.index.clone())
+                        checked_trees::CheckedByteSequenceStoreValue::Pure(store.index.clone())
                 }
                 2 => store.field_identity = "Record::other".into(),
                 3 => store

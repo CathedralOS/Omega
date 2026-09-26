@@ -13,7 +13,6 @@
 //! the produced bytes independently of the producer.
 
 mod frame_address;
-pub mod machine_code;
 mod row_encoding;
 mod selected_form_encoding;
 mod validation;

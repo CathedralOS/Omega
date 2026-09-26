@@ -11,11 +11,11 @@
 use optimization_core::{
     AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass, ScalarConstantFactIdentity,
 };
-use semantic_vocabulary::{IntegerType, IntegerValue, MachineId, OperationId, ValueId};
-use terminal_psi_to_abstract_operations::optimization_unit::{
+use optimization_unit::{
     IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation, ProvenanceDisposition,
     ProvenanceRewrite, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
 };
+use semantic_vocabulary::{IntegerType, IntegerValue, MachineId, OperationId, ValueId};
 
 use super::integer_binary_shapes;
 use crate::rules::sparse_conditional_constant_propagation::{

@@ -1,6 +1,6 @@
 mod routing;
 
-use crate::symbol_resolved_trees::SymbolResolvedTrees;
+use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::SymbolTable;
 
 use self::routing::assign_statement_symbols;
@@ -14,7 +14,7 @@ pub(super) fn assign_statement_reference_symbols(
     let attached_machines = super::scope::attached_machines(program);
     let SymbolResolvedTrees {
         roots:
-            crate::symbol_resolved_trees::SymbolResolvedRoots {
+            symbol_resolved_trees::SymbolResolvedRoots {
                 data_definitions,
                 machines,
                 ..
@@ -41,7 +41,7 @@ pub(super) fn assign_statement_reference_symbols(
             .find(|data_definition| data_definition.symbol == machine.attached_data_symbol);
         let inherited_data_members = data_definition
             .map(|data_definition| data_members.span_or_empty(data_definition.members));
-        let crate::symbol_resolved_trees::machine::MachineStorage {
+        let symbol_resolved_trees::machine::MachineStorage {
             owned_data,
             satisfies: _,
             ranking_subjects,

@@ -5,8 +5,8 @@ use crate::checks::ranges::facts::dependencies::tests::parameter_place;
 use crate::checks::ranges::facts::dependencies::tests::selected_operator_facts;
 use crate::flow::CanonicalPlace;
 use crate::tests::front_end::typed_program;
-use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
-use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
+use typed_trees::machine::Machine;
+use typed_trees::state::State;
 
 fn index_source(declaration: &str, selector: &str) -> TypedTrees {
     typed_program(&format!(
@@ -36,7 +36,7 @@ fn indexed_reads_retain_element_coordinates_and_each_selector_dependency() {
         let machine = &program.machines()[0];
         let state = &program.machine_states(machine)[0];
         let contract = &program.machine_contracts(machine)[0];
-        let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(guard) =
+        let typed_trees::domain::ProofFact::Expression(guard) =
             program.proof_facts.span_or_empty(contract.facts)[0]
         else {
             panic!("expression contract")
@@ -64,7 +64,7 @@ fn indexed_reads_retain_element_coordinates_and_each_selector_dependency() {
         let mut element = parameter_place(&program, state, "items");
         element
             .segments
-            .push(crate::fact_plan::PlaceSegment::FixedIndex { index: 0 });
+            .push(facts::PlaceSegment::FixedIndex { index: 0 });
         for (write, survives) in [
             (element, selector == "1"),
             (parameter_place(&program, state, "items"), false),
@@ -293,19 +293,19 @@ fn a_selected_range_operator_reads_its_window_operands() {
 fn a_selected_index_operator_needs_stable_checked_custody() {
     let declaration = "boundary operator [] Slice::custom(items: &[i64], index: u64) -> i64;";
     for mutate in [
-        |row: &mut crate::checked_trees::CheckedOperatorUseFact| {
-            row.status = crate::checked_trees::CheckedOperatorResolutionStatus::Missing;
+        |row: &mut checked_trees::CheckedOperatorUseFact| {
+            row.status = checked_trees::CheckedOperatorResolutionStatus::Missing;
         },
-        |row: &mut crate::checked_trees::CheckedOperatorUseFact| {
-            row.status = crate::checked_trees::CheckedOperatorResolutionStatus::Ambiguous;
+        |row: &mut checked_trees::CheckedOperatorUseFact| {
+            row.status = checked_trees::CheckedOperatorResolutionStatus::Ambiguous;
         },
-        |row: &mut crate::checked_trees::CheckedOperatorUseFact| {
+        |row: &mut checked_trees::CheckedOperatorUseFact| {
             row.selected_operator_symbol = SymbolHandle::invalid();
         },
-        |row: &mut crate::checked_trees::CheckedOperatorUseFact| {
+        |row: &mut checked_trees::CheckedOperatorUseFact| {
             row.candidate_count += 1;
         },
-        |row: &mut crate::checked_trees::CheckedOperatorUseFact| {
+        |row: &mut checked_trees::CheckedOperatorUseFact| {
             row.spelling = language_core::operator_spelling::OperatorSpelling::Range;
         },
     ] {
@@ -344,7 +344,7 @@ fn a_second_use_row_disagreeing_with_the_selection_is_inconsistent_custody() {
         .iter()
         .find_map(|(_, row)| (row.expression == expression).then_some(row))
         .expect("checked use row");
-    duplicate.status = crate::checked_trees::CheckedOperatorResolutionStatus::Ambiguous;
+    duplicate.status = checked_trees::CheckedOperatorResolutionStatus::Ambiguous;
     operators.uses.append(duplicate);
     let mut facts = RangeFacts::new(&[]);
     facts.bound_program = Some(&program);
@@ -384,7 +384,7 @@ fn a_selected_index_operator_reads_the_captured_selector_value() {
         .take(statement_index)
         .find_map(|statement| match statement {
             StatementNode::LocalData(local) => Some(CanonicalPlace {
-                root: crate::fact_plan::PlaceRoot::Symbol(local.symbol),
+                root: facts::PlaceRoot::Symbol(local.symbol),
                 segments: Vec::new(),
             }),
             _ => None,
@@ -455,7 +455,7 @@ fn a_selected_index_operand_keeps_independent_custody_from_the_outer_read() {
             .find_map(|statement| match statement {
                 StatementNode::LocalData(local) => Some((
                     CanonicalPlace {
-                        root: crate::fact_plan::PlaceRoot::Symbol(local.symbol),
+                        root: facts::PlaceRoot::Symbol(local.symbol),
                         segments: Vec::new(),
                     },
                     local.initial_value,
@@ -476,7 +476,7 @@ fn a_selected_index_operand_keeps_independent_custody_from_the_outer_read() {
                 .find_map(|(handle, row)| (row.expression == inner_expression).then_some(handle))
                 .expect("inner checked use row");
             operators.uses.get_mut(handle).status =
-                crate::checked_trees::CheckedOperatorResolutionStatus::Ambiguous;
+                checked_trees::CheckedOperatorResolutionStatus::Ambiguous;
         }
         let mut facts = RangeFacts::new(&[]);
         facts.bound_program = Some(&program);
@@ -492,11 +492,9 @@ fn a_selected_index_operand_keeps_independent_custody_from_the_outer_read() {
         // element read depends only on the frozen capture and the
         // collection.
         let mut outer_element = parameter_place(&program, state, "items");
-        outer_element
-            .segments
-            .push(crate::fact_plan::PlaceSegment::Index {
-                expression: outer.index,
-            });
+        outer_element.segments.push(facts::PlaceSegment::Index {
+            expression: outer.index,
+        });
         assert_eq!(
             outer_reads.as_deref(),
             Some([capture.clone(), outer_element].as_slice()),
@@ -562,7 +560,7 @@ fn a_requires_scope_selected_operator_has_no_statement_use_custody() {
     let machine = &program.machines()[0];
     let state = &program.machine_states(machine)[0];
     let contract = &program.machine_contracts(machine)[0];
-    let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(guard) =
+    let typed_trees::domain::ProofFact::Expression(guard) =
         program.proof_facts.span_or_empty(contract.facts)[0]
     else {
         panic!("expression contract")
@@ -673,7 +671,7 @@ fn a_builtin_range_window_reads_its_collection_and_both_bounds() {
         panic!("window fixture")
     };
     let mut window = parameter_place(&program, state, "items");
-    window.segments.push(crate::fact_plan::PlaceSegment::Index {
+    window.segments.push(facts::PlaceSegment::Index {
         expression: indexed.index,
     });
     assert_eq!(
@@ -725,21 +723,21 @@ fn a_constant_range_window_keeps_its_exact_extent() {
     let mut window = parameter_place(&program, state, "items");
     window
         .segments
-        .push(crate::fact_plan::PlaceSegment::FixedRange { start: 0, end: 2 });
+        .push(facts::PlaceSegment::FixedRange { start: 0, end: 2 });
     assert_eq!(reads.as_slice(), [window].as_slice());
     let label = program.expression_table.display_name(expression);
     let write_at = |index: usize| {
         let mut place = parameter_place(&program, state, "items");
         place
             .segments
-            .push(crate::fact_plan::PlaceSegment::FixedIndex { index });
+            .push(facts::PlaceSegment::FixedIndex { index });
         place
     };
     let write_range = |start: usize, end: usize| {
         let mut place = parameter_place(&program, state, "items");
         place
             .segments
-            .push(crate::fact_plan::PlaceSegment::FixedRange { start, end });
+            .push(facts::PlaceSegment::FixedRange { start, end });
         place
     };
     for (write, survives) in [
@@ -795,7 +793,7 @@ fn an_open_builtin_window_reads_only_its_present_bounds() {
             panic!("window fixture")
         };
         let mut window = parameter_place(&program, state, "items");
-        window.segments.push(crate::fact_plan::PlaceSegment::Index {
+        window.segments.push(facts::PlaceSegment::Index {
             expression: indexed.index,
         });
         let expected: Vec<CanonicalPlace> = bounds
@@ -887,7 +885,7 @@ fn a_selected_arithmetic_window_bound_reads_its_checked_operands() {
         panic!("window fixture")
     };
     let mut window = parameter_place(&program, state, "items");
-    window.segments.push(crate::fact_plan::PlaceSegment::Index {
+    window.segments.push(facts::PlaceSegment::Index {
         expression: indexed.index,
     });
     assert_eq!(
@@ -944,7 +942,7 @@ fn a_selected_arithmetic_point_selector_reads_its_operands_and_stays_conservativ
         .find_map(|statement| match statement {
             StatementNode::LocalData(local) if local.name.as_str() == "offset" => {
                 Some(CanonicalPlace {
-                    root: crate::fact_plan::PlaceRoot::Symbol(local.symbol),
+                    root: facts::PlaceRoot::Symbol(local.symbol),
                     segments: Vec::new(),
                 })
             }
@@ -969,11 +967,9 @@ fn a_selected_arithmetic_point_selector_reads_its_operands_and_stays_conservativ
         .as_ref()
         .expect("selected arithmetic selector reads");
     let mut element = parameter_place(&program, state, "items");
-    element
-        .segments
-        .push(crate::fact_plan::PlaceSegment::Index {
-            expression: indexed.index,
-        });
+    element.segments.push(facts::PlaceSegment::Index {
+        expression: indexed.index,
+    });
     assert_eq!(
         reads.as_slice(),
         [
@@ -987,7 +983,7 @@ fn a_selected_arithmetic_point_selector_reads_its_operands_and_stays_conservativ
     let mut fixed_element = parameter_place(&program, state, "items");
     fixed_element
         .segments
-        .push(crate::fact_plan::PlaceSegment::FixedIndex { index: 3 });
+        .push(facts::PlaceSegment::FixedIndex { index: 3 });
     for (write, survives) in [
         (parameter_place(&program, state, "items"), false),
         (fixed_element, false),
@@ -1063,13 +1059,12 @@ fn a_constant_shaped_selected_arithmetic_application_stays_incomplete() {
             .iter()
             .find_map(|(_, row)| {
                 (row.expression == donor
-                    && row.status
-                        == crate::checked_trees::CheckedOperatorResolutionStatus::Resolved)
+                    && row.status == checked_trees::CheckedOperatorResolutionStatus::Resolved)
                     .then_some(row)
             })
             .expect("resolved donor row");
         fabricated.expression = application;
-        let crate::checked_trees::CheckedValueOrigin::StateStatement {
+        let checked_trees::CheckedValueOrigin::StateStatement {
             statement_index, ..
         } = &mut fabricated.origin
         else {
@@ -1094,19 +1089,19 @@ fn a_constant_shaped_selected_arithmetic_application_stays_incomplete() {
 #[test]
 fn a_selected_arithmetic_bound_needs_stable_checked_custody() {
     for mutate in [
-        |row: &mut crate::checked_trees::CheckedOperatorUseFact| {
-            row.status = crate::checked_trees::CheckedOperatorResolutionStatus::Missing;
+        |row: &mut checked_trees::CheckedOperatorUseFact| {
+            row.status = checked_trees::CheckedOperatorResolutionStatus::Missing;
         },
-        |row: &mut crate::checked_trees::CheckedOperatorUseFact| {
-            row.status = crate::checked_trees::CheckedOperatorResolutionStatus::Ambiguous;
+        |row: &mut checked_trees::CheckedOperatorUseFact| {
+            row.status = checked_trees::CheckedOperatorResolutionStatus::Ambiguous;
         },
-        |row: &mut crate::checked_trees::CheckedOperatorUseFact| {
+        |row: &mut checked_trees::CheckedOperatorUseFact| {
             row.selected_operator_symbol = SymbolHandle::invalid();
         },
-        |row: &mut crate::checked_trees::CheckedOperatorUseFact| {
+        |row: &mut checked_trees::CheckedOperatorUseFact| {
             row.candidate_count += 1;
         },
-        |row: &mut crate::checked_trees::CheckedOperatorUseFact| {
+        |row: &mut checked_trees::CheckedOperatorUseFact| {
             row.spelling = language_core::operator_spelling::OperatorSpelling::Subtract;
         },
     ] {
@@ -1159,7 +1154,7 @@ fn nested_selected_arithmetic_bounds_each_keep_their_own_custody() {
                 .find_map(|(handle, row)| (row.expression == inner).then_some(handle))
                 .expect("inner checked use row");
             operators.uses.get_mut(handle).status =
-                crate::checked_trees::CheckedOperatorResolutionStatus::Ambiguous;
+                checked_trees::CheckedOperatorResolutionStatus::Ambiguous;
         }
         let mut facts = RangeFacts::new(&[]);
         facts.bound_program = Some(&program);
@@ -1178,7 +1173,7 @@ fn nested_selected_arithmetic_bounds_each_keep_their_own_custody() {
             panic!("window fixture")
         };
         let mut window = parameter_place(&program, state, "items");
-        window.segments.push(crate::fact_plan::PlaceSegment::Index {
+        window.segments.push(facts::PlaceSegment::Index {
             expression: indexed.index,
         });
         assert_eq!(
@@ -1217,7 +1212,7 @@ fn a_builtin_operator_over_a_selected_application_reads_every_leaf_operand() {
         panic!("window fixture")
     };
     let mut window = parameter_place(&program, state, "items");
-    window.segments.push(crate::fact_plan::PlaceSegment::Index {
+    window.segments.push(facts::PlaceSegment::Index {
         expression: indexed.index,
     });
     assert_eq!(
@@ -1245,7 +1240,7 @@ fn a_requires_scope_selected_arithmetic_selector_has_no_statement_use_custody() 
     let machine = &program.machines()[0];
     let state = &program.machine_states(machine)[0];
     let contract = &program.machine_contracts(machine)[0];
-    let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(guard) =
+    let typed_trees::domain::ProofFact::Expression(guard) =
         program.proof_facts.span_or_empty(contract.facts)[0]
     else {
         panic!("expression contract")
@@ -1319,11 +1314,9 @@ fn a_wrapped_authored_arithmetic_selector_reads_every_operand() {
             panic!("index fixture")
         };
         let mut selected = parameter_place(&program, state, "items");
-        selected
-            .segments
-            .push(crate::fact_plan::PlaceSegment::Index {
-                expression: indexed.index,
-            });
+        selected.segments.push(facts::PlaceSegment::Index {
+            expression: indexed.index,
+        });
         let expected: Vec<CanonicalPlace> = operands
             .iter()
             .map(|name| parameter_place(&program, state, name))
@@ -1392,7 +1385,7 @@ fn a_wrapper_over_a_refused_operand_family_stays_incomplete() {
                 .find_map(|(handle, row)| (row.expression == application).then_some(handle))
                 .expect("checked use row for the wrapped application");
             operators.uses.get_mut(handle).status =
-                crate::checked_trees::CheckedOperatorResolutionStatus::Ambiguous;
+                checked_trees::CheckedOperatorResolutionStatus::Ambiguous;
         }
         let mut facts = RangeFacts::new(&[]);
         facts.bound_program = Some(&program);
@@ -1418,7 +1411,7 @@ fn a_requires_scope_wrapped_arithmetic_selector_has_no_statement_use_custody() {
     let machine = &program.machines()[0];
     let state = &program.machine_states(machine)[0];
     let contract = &program.machine_contracts(machine)[0];
-    let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(guard) =
+    let typed_trees::domain::ProofFact::Expression(guard) =
         program.proof_facts.span_or_empty(contract.facts)[0]
     else {
         panic!("expression contract")

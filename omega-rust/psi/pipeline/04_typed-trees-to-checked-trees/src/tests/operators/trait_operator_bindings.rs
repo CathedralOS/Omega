@@ -177,10 +177,7 @@ fn trait_operator_return_retains_exact_structural_scalar_call_plan() {
     assert_eq!(plan.attachment_type_identity, None);
     assert_eq!(plan.structural_parameters.len(), 2);
     assert_eq!(plan.argument_source_positions, [0, 1]);
-    assert_eq!(
-        plan.result_type,
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::Bool
-    );
+    assert_eq!(plan.result_type, typed_trees::types::PrimitiveType::Bool);
     assert_eq!(plan.conformance, application.declaration);
     assert_eq!(
         plan.conformance_application_report_fingerprint,
@@ -324,6 +321,6 @@ fn aggregate_parameter_field_spelling_retains_float_operator_fact() {
 
     assert_eq!(
         add.policy_adapter,
-        crate::checked_trees::CheckedArithmeticPolicyAdapter::None
+        checked_trees::CheckedArithmeticPolicyAdapter::None
     );
 }

@@ -1,9 +1,10 @@
-use lowered_psi_to_terminal_psi::terminal_production::{
-    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
-};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
+use checked_trees::CheckedTrees;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, MachineId, StructuralPlaceKind};
 use terminal_fuel::{FuelChargeSite, TerminalFuelMeter};
 use terminal_interpreter::{
@@ -13,7 +14,6 @@ use terminal_interpreter::{
 use terminal_psi::{
     OperationKind, StructuralAccess, StructuralMultiplicity, TerminalMachineResult, TerminalModule,
 };
-use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
 
 pub fn checked(source: &str) -> CheckedTrees {
     let mut sources = source::SourceMap::default();
@@ -71,16 +71,15 @@ pub fn execute(
             "no synthetic source states"
         );
     }
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("enter"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("scalar local root publishes its complete call closure")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("scalar local root publishes its complete call closure")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     let profile = proof_admission::AdmissionProfile::default();
@@ -329,16 +328,15 @@ fn assert_no_replay(
 
 pub fn publish_original(source: &str) -> CheckedTrees {
     let checked = checked(source);
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("enter"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("unmodified scalar local source must publish before custody mutations")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("unmodified scalar local source must publish before custody mutations")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     terminal_verifier::verify_module(
@@ -352,7 +350,7 @@ pub fn publish_original(source: &str) -> CheckedTrees {
 
 pub fn reject(checked: &CheckedTrees, mutation: &str) {
     assert!(
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+        terminal_production::TerminalProductionRequest::new(
             checked,
             TerminalMachineSelection::Name("enter")
         )

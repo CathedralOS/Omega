@@ -1,0 +1,33 @@
+[package]
+name = "external-roots"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "external_roots"
+path = "src/lib.rs"
+
+[dependencies]
+calling-conventions = { path = "../../../representations/calling-conventions" }
+effects = { path = "../../../representations/effects" }
+executable-installation = { path = "../executable-installation" }
+target = { path = "../../../representations/target" }
+installation-evidence = { path = "../../../representations/installation-evidence" }
+isa-x86_64 = { path = "../../instruction_set_architectures/isa-x86_64" }
+program-entry-plan = { path = "../../plans/program-entry-plan" }
+layout-plans = { path = "../../../../psi/foundation/layout-plans" }
+semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
+extents = { path = "../../../../psi/foundation/extents" }
+language-semantics = { path = "../../../../psi/foundation/language-semantics" }
+numerics = { path = "../../../../psi/foundation/numerics" }
+terminal-psi = { path = "../../../../psi/representations/terminal-psi" }
+terminal-codec = { path = "../../../../psi/semantics/terminal-codec" }
+terminal-fixed-fuel = { path = "../../../../psi/semantics/terminal-fixed-fuel" }
+sha2 = "0.10.9"
+
+[dev-dependencies]
+proof-admission = { path = "../../../../psi/semantics/proof-admission" }
+symbols = { path = "../../../../psi/foundation/symbols" }
+terminal-verifier = { path = "../../../../psi/semantics/terminal-verifier" }
+target = { path = "../../../representations/target" }

@@ -24,7 +24,7 @@ fn empty_array_constructor_retains_charge_without_physical_storage() {
         source.blocks[0].instructions.push(constructor.clone());
         source.provenance.operations = vec![constructor.operation];
         let environment =
-            crate::register_environment::baseline_target_register_environment(target).unwrap();
+            register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -125,8 +125,7 @@ fn consecutive_empty_constructor_charges_precede_the_next_ordinary_operation() {
         }
     }
     let next = source.blocks[0].instructions[2].clone();
-    let environment =
-        crate::register_environment::baseline_target_register_environment(target).unwrap();
+    let environment = register_environment::baseline_target_register_environment(target).unwrap();
     let constraints = SelectedSelectionConstraints {
         keys: environment.selected_keys(),
         fixed_inputs: Vec::new(),
@@ -203,8 +202,7 @@ fn empty_nested_array_replay_preserves_carrier_and_inner_dimensions() {
                 length: 7,
             },
         });
-    let environment =
-        crate::register_environment::baseline_target_register_environment(target).unwrap();
+    let environment = register_environment::baseline_target_register_environment(target).unwrap();
     let constraints = SelectedSelectionConstraints {
         keys: environment.selected_keys(),
         fixed_inputs: Vec::new(),
@@ -271,7 +269,7 @@ fn empty_constructor_provenance_settles_on_jump_before_successor_return() {
     let edge = EdgeId::new(99).unwrap();
     let returned = source.blocks[0].terminator.clone();
     source.blocks[0].terminator = LegalizedScalarTerminator::Jump {
-        successor: crate::legalized_operations::LegalizedScalarSuccessor {
+        successor: legalized_operations::LegalizedScalarSuccessor {
             edge,
             target: destination,
             bindings: Vec::new(),
@@ -295,8 +293,7 @@ fn empty_constructor_provenance_settles_on_jump_before_successor_return() {
         terminator: returned,
     });
     source.provenance.edges.push(edge);
-    let environment =
-        crate::register_environment::baseline_target_register_environment(target).unwrap();
+    let environment = register_environment::baseline_target_register_environment(target).unwrap();
     let constraints = SelectedSelectionConstraints {
         keys: environment.selected_keys(),
         fixed_inputs: Vec::new(),

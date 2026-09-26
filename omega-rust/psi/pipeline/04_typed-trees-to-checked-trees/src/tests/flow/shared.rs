@@ -17,17 +17,15 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
     let callee_machine_symbol = SymbolHandle::from_arena_index(42);
     let callee_state_symbol = SymbolHandle::from_arena_index(43);
 
-    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
-    let contract_expression = program.expression_table.insert(
-        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Boolean(
-            true,
-        ),
-    );
-    let contract_fact = program.proof_facts.append(
-        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
+    let mut program = typed_trees::TypedTrees::default();
+    let contract_expression = program
+        .expression_table
+        .insert(typed_trees::expression::ExpressionNode::Boolean(true));
+    let contract_fact = program
+        .proof_facts
+        .append(typed_trees::domain::ProofFact::Expression(
             contract_expression,
-        ),
-    );
+        ));
 
     let callee_state = State {
         symbol: callee_state_symbol,
@@ -42,8 +40,7 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
         name: Identifier::generated("Worker::run"),
         attached_data: None,
         attached_data_symbol: symbols::SymbolHandle::invalid(),
-        attached_data_application:
-            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
+        attached_data_application: typed_trees::types::TypeReferenceHandle::invalid(),
         generic_data_template: symbols::SymbolHandle::invalid(),
         spelling: None,
         is_public: false,
@@ -112,8 +109,7 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
         name: Identifier::generated("Main::main"),
         attached_data: None,
         attached_data_symbol: symbols::SymbolHandle::invalid(),
-        attached_data_application:
-            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
+        attached_data_application: typed_trees::types::TypeReferenceHandle::invalid(),
         generic_data_template: symbols::SymbolHandle::invalid(),
         spelling: None,
         is_public: false,
@@ -140,8 +136,8 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
     program.push_machine_state(&mut caller_machine, caller_state);
     program.push_machine(caller_machine);
 
-    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&program);
-    let operations = crate::validation::infer_operational_may(&program);
+    let proof_plan = proof::obligations::build_proof_plan(&program);
+    let operations = validation::infer_operational_may(&program);
     let borrow = build_borrow_facts(&program);
     let proof = build_proof_facts(&program, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&program, &proof);
@@ -193,7 +189,7 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
     assert_eq!(
         flow.borrow_writable_root_constraints(caller_flow.entry_constraints)
             .collect::<Vec<_>>(),
-        Vec::<arena::Handle<crate::checked_trees::BorrowWritableRootFact>>::new()
+        Vec::<arena::Handle<checked_trees::BorrowWritableRootFact>>::new()
     );
     assert_eq!(flow.control.calls.span_or_empty(caller_flow.calls).len(), 1);
 
@@ -266,7 +262,7 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
     let boundary_trait_symbol = SymbolHandle::from_arena_index(64);
     let boundary_signature_symbol = SymbolHandle::from_arena_index(65);
 
-    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
+    let mut program = typed_trees::TypedTrees::default();
 
     let mut boundary_trait = TraitDefinition {
         is_public: false,
@@ -312,8 +308,7 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
         name: Identifier::generated("ConsoleImpl"),
         attached_data: None,
         attached_data_symbol: symbols::SymbolHandle::invalid(),
-        attached_data_application:
-            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
+        attached_data_application: typed_trees::types::TypeReferenceHandle::invalid(),
         generic_data_template: symbols::SymbolHandle::invalid(),
         spelling: None,
         is_public: false,
@@ -384,8 +379,7 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
         name: Identifier::generated("Main"),
         attached_data: None,
         attached_data_symbol: symbols::SymbolHandle::invalid(),
-        attached_data_application:
-            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
+        attached_data_application: typed_trees::types::TypeReferenceHandle::invalid(),
         generic_data_template: symbols::SymbolHandle::invalid(),
         spelling: None,
         is_public: false,
@@ -422,8 +416,8 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
     );
     program.push_machine(caller_machine);
 
-    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&program);
-    let operations = crate::validation::infer_operational_may(&program);
+    let proof_plan = proof::obligations::build_proof_plan(&program);
+    let operations = validation::infer_operational_may(&program);
     let borrow = build_borrow_facts(&program);
     let proof = build_proof_facts(&program, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&program, &proof);
@@ -468,18 +462,15 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
         boundary_signature_symbol
     );
 
-    let service_reaches = crate::validation::infer_service_reaches(&program, &operations);
+    let service_reaches = validation::infer_service_reaches(&program, &operations);
     let capabilities =
         crate::facts::capabilities::build_capability_facts(&program, &service_reaches, &flow);
     assert_eq!(
-        capabilities.count_by_kind(crate::flow_effects::CapabilityFlowKind::Uses),
+        capabilities.count_by_kind(flow_effects::CapabilityFlowKind::Uses),
         1
     );
     let capability = capabilities.flows().next().expect("capability flow");
-    assert_eq!(
-        capability.kind,
-        crate::flow_effects::CapabilityFlowKind::Uses
-    );
+    assert_eq!(capability.kind, flow_effects::CapabilityFlowKind::Uses);
     assert_eq!(capability.capability_symbol, boundary_trait_symbol);
     assert_eq!(capability.machine_symbol, caller_machine_symbol);
     assert_eq!(capability.state_symbol, caller_state_symbol);
@@ -506,8 +497,8 @@ fn carries_local_borrow_loans_into_later_call_constraints() {
     "#;
 
     let typed = typed_program(source);
-    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
-    let operations = crate::validation::infer_operational_may(&typed);
+    let proof_plan = proof::obligations::build_proof_plan(&typed);
+    let operations = validation::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
@@ -555,11 +546,11 @@ fn carries_local_borrow_loans_into_later_call_constraints() {
     assert_eq!(weakenings[0].loan, loans[0]);
     assert_eq!(
         weakenings[0].reason,
-        crate::checked_trees::FlowBorrowWeakeningReason::StateExit
+        checked_trees::FlowBorrowWeakeningReason::StateExit
     );
     assert_eq!(
         weakenings[0].source,
-        crate::checked_trees::FlowInvalidationSource::Statement { statement_index: 3 }
+        checked_trees::FlowInvalidationSource::Statement { statement_index: 3 }
     );
 }
 
@@ -590,8 +581,8 @@ fn carries_helper_returned_loans_into_later_call_constraints() {
     "#;
 
     let typed = typed_program(source);
-    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
-    let operations = crate::validation::infer_operational_may(&typed);
+    let proof_plan = proof::obligations::build_proof_plan(&typed);
+    let operations = validation::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
@@ -646,11 +637,11 @@ fn carries_helper_returned_loans_into_later_call_constraints() {
     assert_eq!(weakenings[0].loan, loans[0]);
     assert_eq!(
         weakenings[0].reason,
-        crate::checked_trees::FlowBorrowWeakeningReason::StateExit
+        checked_trees::FlowBorrowWeakeningReason::StateExit
     );
     assert_eq!(
         weakenings[0].source,
-        crate::checked_trees::FlowInvalidationSource::Statement { statement_index: 3 }
+        checked_trees::FlowInvalidationSource::Statement { statement_index: 3 }
     );
 }
 
@@ -673,8 +664,8 @@ fn drops_local_borrow_loans_after_last_use() {
     "#;
 
     let typed = typed_program(source);
-    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
-    let operations = crate::validation::infer_operational_may(&typed);
+    let proof_plan = proof::obligations::build_proof_plan(&typed);
+    let operations = validation::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
@@ -724,7 +715,7 @@ fn drops_local_borrow_loans_after_last_use() {
     assert_eq!(weakenings[0].loan, first_call_loans[0]);
     assert_eq!(
         weakenings[0].reason,
-        crate::checked_trees::FlowBorrowWeakeningReason::LastUseExpired
+        checked_trees::FlowBorrowWeakeningReason::LastUseExpired
     );
 }
 
@@ -746,8 +737,8 @@ fn drops_local_borrow_loans_after_local_reassignment() {
     "#;
 
     let typed = typed_program(source);
-    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
-    let operations = crate::validation::infer_operational_may(&typed);
+    let proof_plan = proof::obligations::build_proof_plan(&typed);
+    let operations = validation::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
@@ -784,8 +775,8 @@ fn drops_local_borrow_loans_after_local_reassignment() {
     // call; the old source still has the precise reassignment weakening.
     assert_eq!(weakenings.len(), 2);
     assert!(weakenings.iter().any(|weakening| {
-        weakening.reason == crate::checked_trees::FlowBorrowWeakeningReason::LocalReassigned
+        weakening.reason == checked_trees::FlowBorrowWeakeningReason::LocalReassigned
             && weakening.source
-                == crate::checked_trees::FlowInvalidationSource::Statement { statement_index: 1 }
+                == checked_trees::FlowInvalidationSource::Statement { statement_index: 1 }
     }));
 }

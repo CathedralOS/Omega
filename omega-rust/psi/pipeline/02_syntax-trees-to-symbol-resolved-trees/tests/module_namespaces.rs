@@ -1,13 +1,13 @@
 use source::SourceMap;
 use source_files_to_tokens::Lexer;
 use std::{path::PathBuf, sync::Arc};
-use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::SymbolResolvedTrees;
-use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember;
-use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::expression::ExpressionNode;
-use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeReference;
+use symbol_resolved_trees::SymbolResolvedTrees;
+use symbol_resolved_trees::data::DataMember;
+use symbol_resolved_trees::expression::ExpressionNode;
+use symbol_resolved_trees::types::TypeReference;
+use syntax_trees::SyntaxTrees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::parse_syntax_trees_with_id;
-use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
 
 #[test]
 fn declared_module_retains_namespace_for_local_references() {
@@ -371,10 +371,7 @@ fn module_domain_proof_facts_select_their_own_domain() {
     let [fact] = program.proof_facts(domain.facts) else {
         panic!("one proof fact")
     };
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::domain::ProofFact::Membership(
-        membership,
-    ) = fact
-    else {
+    let symbol_resolved_trees::domain::ProofFact::Membership(membership) = fact else {
         panic!("membership fact")
     };
     assert_eq!(
@@ -385,15 +382,13 @@ fn module_domain_proof_facts_select_their_own_domain() {
 
 fn fact_membership_domain_symbols(
     program: &SymbolResolvedTrees,
-    facts: arena::HandleSpan<
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::domain::ProofFact,
-    >,
+    facts: arena::HandleSpan<symbol_resolved_trees::domain::ProofFact>,
 ) -> Vec<symbols::SymbolHandle> {
     program
         .proof_facts(facts)
         .iter()
         .filter_map(|fact| match fact {
-            syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
+            symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
                 Some(membership.domain_symbol)
             }
             _ => None,
@@ -404,7 +399,7 @@ fn fact_membership_domain_symbols(
 fn domain_named<'a>(
     program: &'a SymbolResolvedTrees,
     name: &str,
-) -> &'a syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::domain::DomainDefinition {
+) -> &'a symbol_resolved_trees::domain::DomainDefinition {
     program
         .domain_definitions
         .iter()
@@ -697,16 +692,13 @@ fn proof_fact_case_membership_retains_case_identity() {
 
 fn assert_case_membership_fact(
     program: &SymbolResolvedTrees,
-    fact: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::domain::ProofFact,
+    fact: &symbol_resolved_trees::domain::ProofFact,
     expected_owner: symbols::SymbolHandle,
     expected_case: symbols::SymbolHandle,
 ) {
     // Case membership rewrites the proof fact to a membership expression
     // that retains the exact case owner and case symbol.
-    let syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::domain::ProofFact::Expression(
-        expression,
-    ) = fact
-    else {
+    let symbol_resolved_trees::domain::ProofFact::Expression(expression) = fact else {
         panic!("a case-membership fact becomes a membership expression")
     };
     let ExpressionNode::Membership(membership) =

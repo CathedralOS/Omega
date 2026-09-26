@@ -18,7 +18,7 @@ pub(super) struct StatementWrite {
 }
 
 pub(super) fn statement_write(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     machine_symbol: SymbolHandle,
@@ -75,10 +75,7 @@ pub(super) fn statement_write(
                     // reference local the resolver has no origin for;
                     // only a local binding replacement keeps the alias.
                     .is_none_or(|target| {
-                        matches!(
-                            target,
-                            crate::validation::AssignmentWriteTarget::Storage { .. }
-                        )
+                        matches!(target, validation::AssignmentWriteTarget::Storage { .. })
                     });
                     if !writes_through_alias {
                         return canonical;
@@ -146,11 +143,11 @@ pub(super) fn statement_write(
 /// value is pinned in the active contexts, and report whether the narrowed
 /// place is stable enough to carry value facts.
 pub(super) fn narrow_pinned_selectors(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    context_handles: &[crate::fact_plan::FactContextHandle],
+    context_handles: &[facts::FactContextHandle],
     mut target_place: PlaceHandle,
 ) -> (PlaceHandle, bool) {
     // A runtime index can change without writing the collection. Until value
@@ -161,12 +158,12 @@ pub(super) fn narrow_pinned_selectors(
     // requires-side read performs (`projected_formal_leaf_value` in
     // checks/contracts/direct.rs) -- so the recorded fact lands on the place
     // callers actually read instead of an unreachable runtime spelling.
-    let mut target_segments: Vec<crate::fact_plan::PlaceSegment> = semantic
+    let mut target_segments: Vec<facts::PlaceSegment> = semantic
         .place_segments
         .span_or_empty(semantic.places.get(target_place).segments)
         .to_vec();
     for segment in &mut target_segments {
-        let crate::fact_plan::PlaceSegment::Index { expression } = *segment else {
+        let facts::PlaceSegment::Index { expression } = *segment else {
             continue;
         };
         let Some(selector) = crate::flow::canonical_place_from_expression_in_state(
@@ -177,28 +174,26 @@ pub(super) fn narrow_pinned_selectors(
         ) else {
             continue;
         };
-        let Some(crate::fact_plan::ScalarValue::Integer(index)) =
-            crate::values::scalar_value_at_place(
-                program,
-                semantic,
-                context_handles
-                    .iter()
-                    .map(|handle| semantic.contexts.get(*handle)),
-                &selector,
-            )
-        else {
+        let Some(facts::ScalarValue::Integer(index)) = crate::values::scalar_value_at_place(
+            program,
+            semantic,
+            context_handles
+                .iter()
+                .map(|handle| semantic.contexts.get(*handle)),
+            &selector,
+        ) else {
             continue;
         };
         if let Some(index) = index.to_u64().and_then(|index| usize::try_from(index).ok()) {
-            *segment = crate::fact_plan::PlaceSegment::FixedIndex { index };
+            *segment = facts::PlaceSegment::FixedIndex { index };
         }
     }
     let stable_value_target = target_segments.iter().all(|segment| {
         matches!(
             segment,
-            crate::fact_plan::PlaceSegment::Field { .. }
-                | crate::fact_plan::PlaceSegment::Case { .. }
-                | crate::fact_plan::PlaceSegment::FixedIndex { .. }
+            facts::PlaceSegment::Field { .. }
+                | facts::PlaceSegment::Case { .. }
+                | facts::PlaceSegment::FixedIndex { .. }
         )
     });
     if stable_value_target

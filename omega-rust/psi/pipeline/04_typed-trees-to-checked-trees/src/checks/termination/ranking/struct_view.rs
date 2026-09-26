@@ -1,13 +1,11 @@
-use crate::validation::{CallFrameResolver, ProjectionStep};
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
-use symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier;
-use symbol_resolved_trees_to_typed_trees::typed_trees::state::State;
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::machine::Machine;
+use typed_trees::name::Identifier;
+use typed_trees::state::State;
+use typed_trees::statement::StatementNode;
+use validation::{CallFrameResolver, ProjectionStep};
 
 use super::patterns;
 use super::write_preservation::prefix_preserves_path;
@@ -106,7 +104,7 @@ pub(super) fn state_has_proven_self_loop(
                     field_symbol,
                     field,
                 )
-                || !crate::validation::has_builtin_bound_expression_meaning(
+                || !validation::has_builtin_bound_expression_meaning(
                     program,
                     machine,
                     Some(state),
@@ -125,7 +123,7 @@ pub(super) fn state_has_proven_self_loop(
                 return false;
             }
             edge.guards.iter().any(|guard| {
-                if !crate::validation::has_builtin_bound_expression_meaning(
+                if !validation::has_builtin_bound_expression_meaning(
                     program,
                     machine,
                     Some(state),
@@ -259,9 +257,8 @@ fn preserved_bounds(
     frames: &CallFrameResolver<'_>,
     prefix: &[StatementNode],
 ) -> Option<(i64, i64)> {
-    let bounds = crate::validation::immutable_integer_expression_bounds(
-        program, machine, state, expression,
-    )?;
+    let bounds =
+        validation::immutable_integer_expression_bounds(program, machine, state, expression)?;
     let mut pending = vec![expression];
     while let Some(expression) = pending.pop() {
         match program.expression_table.expression(expression) {

@@ -5,14 +5,12 @@
 //! under the shared `SubsliceStart`/`SubsliceEnd` roles keyed by its
 //! `CheckedSubsliceSite`. An omitted endpoint produces no row: zero and the
 //! source length are supplied by the range's consumer, not by a scalar fact.
-use crate::checked_trees::{
+use checked_trees::{
     CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedScalarExpression,
     CheckedScalarExpressionRole, CheckedSubsliceSite,
 };
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, ExpressionNode,
-};
+use typed_trees::TypedTrees;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 /// Lower the present endpoints of `expression` when it is an exclusive range
 /// whose operator use (if any) resolved to the builtin meaning. `lower`

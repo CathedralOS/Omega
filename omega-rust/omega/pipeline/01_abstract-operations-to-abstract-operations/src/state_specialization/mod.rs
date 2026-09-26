@@ -46,19 +46,19 @@
 //! proven constant — and `accounting::provenance_rows` derives the edge
 //! custody that plan carries. `rules::state_specialization` publishes the
 //! plan as a `PsiRewriteCandidate`, and
-//! `terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_state_argument_specialization_candidate`
+//! `optimization_unit_semantics::validate_state_argument_specialization_candidate`
 //! re-admits every row, rebuilds the output, and reconstructs the custody
 //! independently, so a forged or mismatched edge fails by recomputation
 //! rather than trust. There is no second proposal or application route.
 
-use semantic_vocabulary::BlockId;
-use terminal_psi_to_abstract_operations::optimization_unit::{
+use optimization_unit::{
     NodeLocation, OptimizationBlock, OptimizationEdge, OptimizationNode, ProvenanceDisposition,
     ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite,
     SpecializedStateEdgeRow, StateArgumentSpecializationRewrite,
 };
+use semantic_vocabulary::BlockId;
 
-use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
+use abstract_operations::AbstractOperation as O;
 
 use crate::{ScalarConstant, ScalarConstantAnalysis};
 

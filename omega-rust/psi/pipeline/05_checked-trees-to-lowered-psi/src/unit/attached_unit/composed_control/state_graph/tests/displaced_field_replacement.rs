@@ -6,11 +6,11 @@
 //! window reconstruction to independent Terminal verification.
 use super::CheckedTrees;
 use crate::TerminalMachineSelection;
-use terminal_psi::{OperationKind, Terminator};
-use typed_trees_to_checked_trees::checked_trees::{
+use checked_trees::{
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralPathSegment,
 };
+use terminal_psi::{OperationKind, Terminator};
 
 /// The `calls/value_call_effectful_arm_rejected` customer's shape: an
 /// effectful multi-state callee returns a record that replaces a record field
@@ -131,13 +131,13 @@ fn displaced_call_result_field_replacement_lowers_and_verifies() {
         Terminator::Jump { trivial_affine_discards, .. } if trivial_affine_discards == &[displaced])));
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("independent verification reconstructs the closed window");
-    let _artifact = lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+    let _artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
-        lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name("Main::main"),
+        terminal_production::TerminalMachineSelection::Name("Main::main"),
     )
     .produce(
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionCustody::artifact_only(
-            &mut lowered_psi_to_terminal_psi::terminal_production::TerminalProductionTimings::default(),
+        terminal_production::TerminalProductionCustody::artifact_only(
+            &mut terminal_production::TerminalProductionTimings::default(),
         ),
     )
     .expect("the replacement publishes a checked Terminal artifact");

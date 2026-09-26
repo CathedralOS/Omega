@@ -1,7 +1,5 @@
 use diagnostics::Diagnostic;
-use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::{
-    SymbolResolvedTrees, machine::Machine, types::TypeReference,
-};
+use symbol_resolved_trees::{SymbolResolvedTrees, machine::Machine, types::TypeReference};
 
 #[cfg(test)]
 mod tests;

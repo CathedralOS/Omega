@@ -7,15 +7,13 @@ use super::{
     TargetOperationPlan, TargetUnitOperation, TargetUnitWriteOnlyPrimitiveStoreSource, ValueId,
 };
 use crate::legalize_target_operations;
-use crate::selected_instructions::{SelectedInstructionKind, SelectedMemoryAccessRole};
 use crate::tests::legalization::primitive_stores::integer;
 use crate::tests::legalization::primitive_stores::legalized_store;
 use crate::tests::legalization::primitive_stores::reject_target;
 use crate::validate_legalized_operations;
-use abstract_operations_to_target_operations::target_operations::{
-    TargetControlGraph, TargetControlTerminator,
-};
-use terminal_psi_to_abstract_operations::abstract_operations::AbstractFunctionResult;
+use abstract_operations::AbstractFunctionResult;
+use selected_instructions::{SelectedInstructionKind, SelectedMemoryAccessRole};
+use target_operations::{TargetControlGraph, TargetControlTerminator};
 
 fn fixture(
     native: NativeTarget,
@@ -84,7 +82,7 @@ fn fixture_with_scalar(
         abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
     )
     .unwrap();
-    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),
     )
@@ -145,7 +143,7 @@ fn record_field_store_with_scalar_result_retains_borrow_access_custody() {
             abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
         )
         .unwrap();
-        let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
+        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             FuelScheduleIdentity::new(1).unwrap(),
         )
@@ -197,7 +195,7 @@ fn record_field_store_with_scalar_result_retains_borrow_access_custody() {
                 abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
             )
         {
-            let changed_unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
+            let changed_unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
                 &changed,
                 FuelScheduleIdentity::new(1).unwrap(),
             )
@@ -230,7 +228,7 @@ fn borrowed_primitive_writes_retain_boolean_and_fixed_integer_results() {
             validate_legalized_operations(&target, &source, &unit, legalized.plan().clone())
                 .unwrap();
             let environment =
-                crate::register_environment::baseline_target_register_environment(native).unwrap();
+                register_environment::baseline_target_register_environment(native).unwrap();
             let constraints = crate::selection_constraints(&legalized, &environment);
             crate::select_instructions(
                 &legalized,
@@ -308,8 +306,7 @@ fn scalar_primitive_stores_select_and_replay_on_four_targets() {
                 validate_legalized_operations(&target, &source, &unit, legalized.plan().clone())
                     .unwrap();
                 let environment =
-                    crate::register_environment::baseline_target_register_environment(native)
-                        .unwrap();
+                    register_environment::baseline_target_register_environment(native).unwrap();
                 let constraints = crate::selection_constraints(&legalized, &environment);
                 let selected = crate::select_instructions(
                     &legalized,
@@ -506,7 +503,7 @@ fn scalar_primitive_store_target_rejects_source_and_return_substitutions() {
                         "result type" => abi.result.scalar_type = ScalarType::Boolean,
                         _ => {
                             abi.result.placement.shape =
-                                abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(4, 4)
+                                calling_conventions::ValueShape::integer(4, 4)
                         }
                     }
                 }
@@ -542,12 +539,12 @@ fn scalar_primitive_store_legalized_replay_rejects_effect_and_result_drift() {
         if mutation == "result ABI" {
             changed.scalar_functions[0].call_plan.result = None;
         } else if mutation == "result type" {
-            let crate::legalized_operations::LegalizedScalarTerminator::Return(returned) =
+            let legalized_operations::LegalizedScalarTerminator::Return(returned) =
                 &mut changed.scalar_functions[0].blocks[0].terminator
             else {
                 panic!("return")
             };
-            returned.value = crate::legalized_operations::LegalizedScalarReturnValue::Unit;
+            returned.value = legalized_operations::LegalizedScalarReturnValue::Unit;
         } else {
             let row = legalized_store(&mut changed);
             let LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
@@ -567,10 +564,10 @@ fn scalar_primitive_store_legalized_replay_rejects_effect_and_result_drift() {
                 "fuel" => row.fuel.clear(),
                 "effect" => row.effect.output += 1,
                 _ => {
-                    row.result = Some(crate::legalized_operations::LegalizedValueDefinition {
+                    row.result = Some(legalized_operations::LegalizedValueDefinition {
                         value: ValueId::new(99).unwrap(),
                         scalar_type: integer(IntegerSign::Unsigned, 64),
-                        definition_site: terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite::Node {
+                        definition_site: optimization_unit::ValueDefinitionSite::Node {
                             block: source.functions[0].entry,
                             node: 0,
                         },
@@ -619,7 +616,7 @@ fn scalar_primitive_store_accepts_stack_input_and_reference_with_exact_return_lo
                 abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
             )
             .unwrap();
-            let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
+            let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
                 &source,
                 FuelScheduleIdentity::new(1).unwrap(),
             )
@@ -628,7 +625,7 @@ fn scalar_primitive_store_accepts_stack_input_and_reference_with_exact_return_lo
             validate_legalized_operations(&target, &source, &unit, legalized.plan().clone())
                 .unwrap();
             let environment =
-                crate::register_environment::baseline_target_register_environment(native).unwrap();
+                register_environment::baseline_target_register_environment(native).unwrap();
             let constraints = crate::selection_constraints(&legalized, &environment);
             let selected = crate::select_instructions(
                 &legalized,
@@ -646,7 +643,7 @@ fn scalar_primitive_store_accepts_stack_input_and_reference_with_exact_return_lo
                         matches!(
                             instruction.kind,
                             SelectedInstructionKind::FrameAddress {
-                                slot: crate::selected_instructions::FrameStorageSlotId::Incoming {
+                                slot: selected_instructions::FrameStorageSlotId::Incoming {
                                     parameter_index: 8,
                                     ..
                                 },
@@ -661,7 +658,7 @@ fn scalar_primitive_store_accepts_stack_input_and_reference_with_exact_return_lo
                     let instruction = &mut instructions[position];
                     let SelectedInstructionKind::FrameAddress {
                         slot:
-                            crate::selected_instructions::FrameStorageSlotId::Incoming {
+                            selected_instructions::FrameStorageSlotId::Incoming {
                                 parameter_index,
                                 abi_stack_byte_offset,
                             },
@@ -691,9 +688,9 @@ fn scalar_primitive_store_accepts_stack_input_and_reference_with_exact_return_lo
             let mut changed = target.clone();
             let TargetControlTerminator::ReturnScalar {
                 expression:
-                    abstract_operations_to_target_operations::target_operations::TargetScalarExpression::Integer {
+                    target_operations::TargetScalarExpression::Integer {
                         expression:
-                            abstract_operations_to_target_operations::target_operations::TargetIntegerExpression::Parameter { location, .. },
+                            target_operations::TargetIntegerExpression::Parameter { location, .. },
                         ..
                     },
                 ..
@@ -702,7 +699,7 @@ fn scalar_primitive_store_accepts_stack_input_and_reference_with_exact_return_lo
                 panic!("parameter return")
             };
             *location =
-                abstract_operations_to_target_operations::target_operations::ScalarParameterLocation::IncomingStack { byte_offset: 4096 };
+                target_operations::ScalarParameterLocation::IncomingStack { byte_offset: 4096 };
             reject_target(&source, &changed, &unit, legalized.plan());
         }
     }
@@ -731,7 +728,7 @@ fn boolean_store_scalar_result_requires_exact_mixed_header() {
             abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
         )
         .unwrap();
-        let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
+        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             FuelScheduleIdentity::new(1).unwrap(),
         )

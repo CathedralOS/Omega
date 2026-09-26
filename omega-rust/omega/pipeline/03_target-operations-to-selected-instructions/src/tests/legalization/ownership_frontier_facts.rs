@@ -2,14 +2,14 @@
 
 use crate::tests::fixtures::plain_unit::plain_unit_fixture;
 use crate::{legalize_target_operations, validate_legalized_operations};
-use semantic_vocabulary::{BlockId, EdgeId, MachineId};
-use terminal_psi_to_abstract_operations::optimization_unit::{
+use optimization_unit::{
     OwnershipFrontierFact, OwnershipFrontierSite, OwnershipFrontierSnapshot, PrunedMachineCustody,
     attach_ownership_frontier_facts,
 };
+use semantic_vocabulary::{BlockId, EdgeId, MachineId};
 
 fn fact(
-    unit: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
+    unit: &optimization_unit::PsiOptimizationUnit,
     machine: MachineId,
     site: OwnershipFrontierSite,
 ) -> OwnershipFrontierFact {
@@ -26,9 +26,9 @@ fn fact(
 }
 
 fn frontier_unit() -> (
-    terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan,
-    abstract_operations_to_target_operations::target_operations::TargetOperationPlan,
-    terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
+    abstract_operations::AbstractOperationPlan,
+    target_operations::TargetOperationPlan,
+    optimization_unit::PsiOptimizationUnit,
     Vec<OwnershipFrontierFact>,
 ) {
     let (abstract_plan, target, mut unit) = plain_unit_fixture();
@@ -118,7 +118,7 @@ fn replay_rejects_dropped_reordered_and_forged_facts() {
     corrupted.scalar_functions[0].ownership_frontier_facts[0]
         .snapshot
         .partial_custody
-        .push(terminal_psi_to_abstract_operations::optimization_unit::OwnershipFrontierPartialCustody {
+        .push(optimization_unit::OwnershipFrontierPartialCustody {
             place: semantic_vocabulary::PlaceId::new(1).unwrap(),
             moved_paths: Vec::new(),
         });

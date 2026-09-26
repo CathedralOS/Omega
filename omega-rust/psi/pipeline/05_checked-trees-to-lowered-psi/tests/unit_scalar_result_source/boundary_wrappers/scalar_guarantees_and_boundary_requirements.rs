@@ -21,9 +21,7 @@ fn ordered_scalar_guarantees_require_return_evidence_and_exact_return_value() {
 
 #[test]
 fn ordered_boolean_guarantees_keep_mixed_scalar_slots_and_source_identity() {
-    use typed_trees_to_checked_trees::checked_trees::{
-        CheckedBooleanExpression as Boolean, ClosedScalarContractValue as Clause,
-    };
+    use checked_trees::{CheckedBooleanExpression as Boolean, ClosedScalarContractValue as Clause};
     for input in [false, true] {
         let source = boolean_guarantee_source("Host::finish(false); value", input)
             .replace(
@@ -80,13 +78,12 @@ fn ordered_boolean_guarantees_keep_mixed_scalar_slots_and_source_identity() {
                 }
                 _ => unreachable!(),
             }
-            contract.closed_scalar_values =
-                typed_trees_to_checked_trees::checked_trees::ClosedScalarValueContractPlan::new(
-                    contract.closed_scalar_values.requires().to_vec(),
-                    guarantees,
-                    contract.closed_scalar_values.has_crash_clauses(),
-                    contract.closed_scalar_values.has_outcome_specific_clauses(),
-                );
+            contract.closed_scalar_values = checked_trees::ClosedScalarValueContractPlan::new(
+                contract.closed_scalar_values.requires().to_vec(),
+                guarantees,
+                contract.closed_scalar_values.has_crash_clauses(),
+                contract.closed_scalar_values.has_outcome_specific_clauses(),
+            );
             assert!(
                 checked_trees_to_lowered_psi::lower_machine(
                     &changed,
@@ -101,9 +98,7 @@ fn ordered_boolean_guarantees_keep_mixed_scalar_slots_and_source_identity() {
 
 #[test]
 fn ordered_scalar_guarantees_reject_changed_source_predicates() {
-    use typed_trees_to_checked_trees::checked_trees::{
-        CheckedBooleanExpression as Boolean, ClosedScalarContractValue as Clause,
-    };
+    use checked_trees::{CheckedBooleanExpression as Boolean, ClosedScalarContractValue as Clause};
     let original =
         crate::front_end::checked_program(&normal_guarantee_source("Host::finish(11); value"));
     artifact(&original);
@@ -138,28 +133,27 @@ fn ordered_scalar_guarantees_reject_changed_source_predicates() {
                     4 => {
                         **left = CheckedScalarExpression::Parameter {
                             position: 0,
-                            primitive_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::I32,
+                            primitive_type: typed_trees::types::PrimitiveType::I32,
                         }
                     }
                     5 => {
                         **left = CheckedScalarExpression::Local {
                             position: 1,
-                            primitive_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::I32,
+                            primitive_type: typed_trees::types::PrimitiveType::I32,
                         }
                     }
-                    6 => *kind = typed_trees_to_checked_trees::checked_trees::CheckedIntegerComparisonKind::LessThan,
+                    6 => *kind = checked_trees::CheckedIntegerComparisonKind::LessThan,
                     _ => unreachable!(),
                 }
             }
             _ => unreachable!(),
         }
-        contract.closed_scalar_values =
-            typed_trees_to_checked_trees::checked_trees::ClosedScalarValueContractPlan::new(
-                contract.closed_scalar_values.requires().to_vec(),
-                guarantees,
-                contract.closed_scalar_values.has_crash_clauses(),
-                contract.closed_scalar_values.has_outcome_specific_clauses(),
-            );
+        contract.closed_scalar_values = checked_trees::ClosedScalarValueContractPlan::new(
+            contract.closed_scalar_values.requires().to_vec(),
+            guarantees,
+            contract.closed_scalar_values.has_crash_clauses(),
+            contract.closed_scalar_values.has_outcome_specific_clauses(),
+        );
         assert!(
             checked_trees_to_lowered_psi::lower_machine(
                 &changed,
@@ -293,9 +287,7 @@ fn ordered_boundary_requirements_keep_clause_slots_and_call_proofs() {
 
 #[test]
 fn ordered_boundary_requirements_reject_source_predicate_substitution() {
-    use typed_trees_to_checked_trees::checked_trees::{
-        CheckedBooleanExpression as Boolean, CheckedIntegerComparisonKind,
-    };
+    use checked_trees::{CheckedBooleanExpression as Boolean, CheckedIntegerComparisonKind};
     let original = crate::front_end::checked_program(&ordered_contract_source());
     artifact(&original);
     let target = original
@@ -338,14 +330,12 @@ fn ordered_boundary_requirements_reject_source_predicate_substitution() {
                 **right = if mutation == 5 {
                     CheckedScalarExpression::Parameter {
                         position: 1,
-                        primitive_type:
-                            typed_trees_to_checked_trees::checked_trees::types::PrimitiveType::I32,
+                        primitive_type: checked_trees::types::PrimitiveType::I32,
                     }
                 } else {
                     CheckedScalarExpression::Local {
                         position: 0,
-                        primitive_type:
-                            typed_trees_to_checked_trees::checked_trees::types::PrimitiveType::I32,
+                        primitive_type: checked_trees::types::PrimitiveType::I32,
                     }
                 };
             }
@@ -364,8 +354,7 @@ fn ordered_boundary_requirements_reject_source_predicate_substitution() {
                 if mutation == 7 {
                     **subject = CheckedScalarExpression::Parameter {
                         position: 1,
-                        primitive_type:
-                            typed_trees_to_checked_trees::checked_trees::types::PrimitiveType::I32,
+                        primitive_type: checked_trees::types::PrimitiveType::I32,
                     };
                 } else {
                     let Boolean::IntegerComparison { right: maximum, .. } = right.as_ref() else {

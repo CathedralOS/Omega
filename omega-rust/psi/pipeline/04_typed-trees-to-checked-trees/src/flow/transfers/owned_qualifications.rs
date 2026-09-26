@@ -3,22 +3,20 @@
 //! or matching label creates an authority fact. Call facts remain provisional
 //! until the call/custody checker validates their exact producing invocation.
 
-use crate::checked_trees::FlowSemanticContextRef;
-use crate::fact_plan::{
-    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceHandle, ProgramPoint,
-};
 use arena::HandleSpan;
+use checked_trees::FlowSemanticContextRef;
+use facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceHandle, ProgramPoint};
 
 pub(super) fn append_owned_qualification_transfer(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     contexts: &crate::flow::FlowBuildContext,
     active: HandleSpan<FlowSemanticContextRef>,
     source: PlaceHandle,
     destination: PlaceHandle,
-    destination_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    destination_type: typed_trees::types::TypeReferenceHandle,
     point: ProgramPoint,
-    references: &mut HandleSpan<crate::fact_plan::FactRef>,
+    references: &mut HandleSpan<facts::FactRef>,
 ) {
     let source = *semantic.places.get(source);
     let destination = *semantic.places.get(destination);
@@ -112,23 +110,23 @@ pub(super) fn append_owned_qualification_transfer(
             ) else {
                 return false;
             };
-            while let symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
+            while let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
                 program.type_reference_table.type_reference(reference)
             {
                 reference = *base_type;
             }
             !matches!(
                 program.type_reference_table.type_reference(reference),
-                symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { .. }
+                typed_trees::types::TypeReferenceNode::Reference { .. }
             )
         }) {
             continue;
         }
         if !segments.iter().chain(&destination_segments).all(|segment| {
             matches!(segment,
-            crate::fact_plan::PlaceSegment::Field { symbol } if symbol.is_valid())
-                || matches!(segment, crate::fact_plan::PlaceSegment::Case { variant } if variant.is_valid())
-                || matches!(segment, crate::fact_plan::PlaceSegment::FixedIndex { .. })
+            facts::PlaceSegment::Field { symbol } if symbol.is_valid())
+                || matches!(segment, facts::PlaceSegment::Case { variant } if variant.is_valid())
+                || matches!(segment, facts::PlaceSegment::FixedIndex { .. })
         }) {
             continue;
         }
@@ -164,7 +162,7 @@ pub(super) fn append_owned_qualification_transfer(
             origin: FactOrigin::StatementTransfer,
             evidence: fact.evidence,
             payload: FactPayload::DomainMembership {
-                value: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid(),
+                value: typed_trees::expression::ExpressionHandle::invalid(),
                 domain,
                 domain_symbol,
                 semantic_domain,

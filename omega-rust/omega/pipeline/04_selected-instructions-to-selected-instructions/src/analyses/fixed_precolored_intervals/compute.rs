@@ -2,14 +2,12 @@
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
-use crate::register_homes::{
+use crate::{FixedPrecoloredIntervalError, ValidatedAllocationLegality, ValidatedLiveRanges};
+use register_homes::{
     FixedPrecoloredInterval, FixedPrecoloredIntervalPlan, FixedPrecoloredIntervalPolicy,
     FunctionAllocationLegality, FunctionFixedPrecoloredIntervals,
 };
-use crate::{FixedPrecoloredIntervalError, ValidatedAllocationLegality, ValidatedLiveRanges};
-use target_operations_to_selected_instructions::{
-    FunctionLiveRanges, LiveRangePoint, VirtualFixedConstraintSite,
-};
+use selected_instructions::{FunctionLiveRanges, LiveRangePoint, VirtualFixedConstraintSite};
 
 pub(super) fn compute(
     ranges: &ValidatedLiveRanges,
@@ -139,14 +137,13 @@ fn derive_function(
 fn reject_early_clobber_fixed(
     function: usize,
     ranges: &FunctionLiveRanges,
-    range: &target_operations_to_selected_instructions::VirtualLiveRange,
+    range: &selected_instructions::VirtualLiveRange,
     site: VirtualFixedConstraintSite,
 ) -> Result<(), FixedPrecoloredIntervalError> {
     let VirtualFixedConstraintSite::Operand {
         instruction,
         operand,
-        access:
-            target_operations_to_selected_instructions::register_model::RegisterOperandAccess::Def,
+        access: register_model::RegisterOperandAccess::Def,
         ..
     } = site
     else {
@@ -171,15 +168,10 @@ fn reject_early_clobber_fixed(
 
 fn resolve_point(
     function: usize,
-    range: &target_operations_to_selected_instructions::VirtualLiveRange,
+    range: &selected_instructions::VirtualLiveRange,
     site: VirtualFixedConstraintSite,
-) -> Result<
-    (
-        target_operations_to_selected_instructions::SelectedBlockId,
-        LiveRangePoint,
-    ),
-    FixedPrecoloredIntervalError,
-> {
+) -> Result<(selected_instructions::SelectedBlockId, LiveRangePoint), FixedPrecoloredIntervalError>
+{
     let point = match site {
         VirtualFixedConstraintSite::Entry => range.fragments.first().map(|row| row.start),
         VirtualFixedConstraintSite::Operand { point, .. } => Some(point),
@@ -208,10 +200,10 @@ fn resolve_point(
 fn require_view(
     function: usize,
     register: u32,
-    block: target_operations_to_selected_instructions::SelectedBlockId,
+    block: selected_instructions::SelectedBlockId,
     point: LiveRangePoint,
-    view: target_operations_to_selected_instructions::register_model::RegisterViewId,
-    legality: &crate::register_homes::VirtualRegisterAllocationLegality,
+    view: register_model::RegisterViewId,
+    legality: &register_homes::VirtualRegisterAllocationLegality,
 ) -> Result<(), FixedPrecoloredIntervalError> {
     let rows = legality
         .points
@@ -255,13 +247,11 @@ fn interval_key(row: &FixedPrecoloredInterval) -> (u32, u8, u32, u32, u16, u8) {
     }
 }
 
-fn access_key(
-    access: target_operations_to_selected_instructions::register_model::RegisterOperandAccess,
-) -> u8 {
+fn access_key(access: register_model::RegisterOperandAccess) -> u8 {
     match access {
-        target_operations_to_selected_instructions::register_model::RegisterOperandAccess::Use => 0,
-        target_operations_to_selected_instructions::register_model::RegisterOperandAccess::Def => 1,
-        target_operations_to_selected_instructions::register_model::RegisterOperandAccess::UseDef => 2,
+        register_model::RegisterOperandAccess::Use => 0,
+        register_model::RegisterOperandAccess::Def => 1,
+        register_model::RegisterOperandAccess::UseDef => 2,
     }
 }
 

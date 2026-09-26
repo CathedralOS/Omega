@@ -31,10 +31,7 @@ fn generic_template_identity_is_positional_across_parameter_renames() {
         machine_parameter: &str,
         value: &str,
         item: &str,
-    ) -> (
-        u64,
-        symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::MachineTemplateCommitment,
-    ) {
+    ) -> (u64, typed_trees::typed_trees::MachineTemplateCommitment) {
         let source = format!(
             r#"
                 boundary machine admitted<machine {machine_parameter}>({value}: i32)
@@ -246,7 +243,7 @@ fn generic_template_identity_pins_selected_open_index_operation_authority() {
             "#
         );
         let mut typed = typed_program(&source);
-        crate::validation::normalize_open_index_expressions(&mut typed)
+        validation::normalize_open_index_expressions(&mut typed)
             .expect("exact proved index algebra should normalize");
         crate::monomorphization::refresh_closed_domain_instance_identities(&mut typed)
             .expect("selected authority should refresh indexed instance identity");
@@ -498,7 +495,7 @@ fn const_generic_template_is_not_consumed_by_machine_specialization() {
     };
     assert!(matches!(
         parameter.kind,
-        symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Const { .. }
+        typed_trees::data::TypeParameterKind::Const { .. }
     ));
 }
 
@@ -535,12 +532,12 @@ fn const_generic_result_indices_produce_distinct_concrete_machine_instances() {
                 .first()
                 .expect("entry state")
                 .return_type;
-            let symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } =
+            let typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } =
                 typed.type_reference_table.type_reference(return_type)
             else {
                 panic!("specialized return should be constrained");
             };
-            let [symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode::Domain(domain)] =
+            let [typed_trees::types::TypeConstraintNode::Domain(domain)] =
                 typed.type_reference_table.constraints(*constraints)
             else {
                 panic!("specialized return should carry Quantity");
@@ -560,10 +557,7 @@ fn const_generic_result_indices_produce_distinct_concrete_machine_instances() {
         .expression_table
         .iter_expressions()
         .filter_map(|(_, expression)| {
-            let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Cast(
-                cast,
-            ) = expression
-            else {
+            let typed_trees::expression::ExpressionNode::Cast(cast) = expression else {
                 return None;
             };
             typed
@@ -621,17 +615,14 @@ fn const_generic_result_indices_produce_distinct_concrete_machine_instances() {
             .machine_states(machine)
             .first()
             .expect("retag entry state");
-        let symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } = checked
+        let typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } = checked
             .type_reference_table
             .type_reference(state.return_type)
         else {
             panic!("specialized retag result should remain constrained");
         };
-        let [
-            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode::Domain(
-                result_domain,
-            ),
-        ] = checked.type_reference_table.constraints(*constraints)
+        let [typed_trees::types::TypeConstraintNode::Domain(result_domain)] =
+            checked.type_reference_table.constraints(*constraints)
         else {
             panic!("specialized retag result should carry Quantity");
         };
@@ -639,7 +630,7 @@ fn const_generic_result_indices_produce_distinct_concrete_machine_instances() {
             .expression_table
             .iter_expressions()
             .filter_map(|(_, expression)| {
-                let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Cast(cast) = expression else {
+                let typed_trees::expression::ExpressionNode::Cast(cast) = expression else {
                     return None;
                 };
                 (cast.semantic_domain_symbol == result_domain.symbol

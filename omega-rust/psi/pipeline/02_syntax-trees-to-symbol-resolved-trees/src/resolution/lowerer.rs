@@ -7,16 +7,16 @@
 //! drives it; nothing here decides phase order. Seeding fills the same
 //! sidecars from a retained base so an extension resolves against it.
 
-use crate::symbol_resolved_trees::SymbolResolvedTrees;
-use crate::symbol_resolved_trees::expression::ExpressionHandle;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
 use source::SourceMap;
 use std::sync::Arc;
+use symbol_resolved_trees::SymbolResolvedTrees;
+use symbol_resolved_trees::expression::ExpressionHandle;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct PendingAuthoredProofMembership {
-    pub(crate) fact: arena::Handle<crate::symbol_resolved_trees::domain::ProofFact>,
+    pub(crate) fact: arena::Handle<symbol_resolved_trees::domain::ProofFact>,
     pub(crate) exposure: AuthoredDeclarationSelectionExposure,
 }
 
@@ -28,7 +28,7 @@ pub(crate) struct PendingAuthoredExpression {
 
 #[derive(Debug, Clone)]
 pub(crate) struct PendingConstDeclaration {
-    pub(crate) scope: tokens_to_syntax_trees::syntax_trees::identifier::Identifier,
+    pub(crate) scope: syntax_trees::identifier::Identifier,
     pub(crate) semantic_name: String,
     pub(crate) source_span: source::SourceSpan,
     pub(crate) is_public: bool,
@@ -44,7 +44,7 @@ pub(crate) struct PendingConstSelection {
 
 #[derive(Debug, Clone)]
 pub(crate) struct PendingConstArgumentSelection {
-    pub(crate) origin: tokens_to_syntax_trees::syntax_trees::types::ConstArgumentOrigin,
+    pub(crate) origin: syntax_trees::types::ConstArgumentOrigin,
     pub(crate) exposure: AuthoredDeclarationSelectionExposure,
 }
 
@@ -54,13 +54,13 @@ pub(crate) struct PendingConstArgumentSelection {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct PendingConstArgumentSlot {
     pub(crate) selection: usize,
-    pub(crate) arguments: arena::HandleSpan<crate::symbol_resolved_trees::types::TypeReference>,
+    pub(crate) arguments: arena::HandleSpan<symbol_resolved_trees::types::TypeReference>,
     pub(crate) ordinal: usize,
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct PendingOutcomeSpecificContract {
-    pub(crate) contract: arena::Handle<crate::symbol_resolved_trees::signature::SignatureContract>,
+    pub(crate) contract: arena::Handle<symbol_resolved_trees::signature::SignatureContract>,
     pub(crate) result_data_name: String,
     pub(crate) result_data_source_span: source::SourceSpan,
     pub(crate) result_case_name: String,
@@ -82,12 +82,12 @@ pub(crate) struct Lowerer {
         Option<crate::preparation::generic_data::constant_selection::ConstantSelection<'static>>,
     pub(crate) namespace_declarations: crate::symbols::NamespaceDeclarations,
     pub(crate) pending_static_module_calls: Vec<(
-        crate::symbol_resolved_trees::expression::ExpressionHandle,
-        Vec<crate::symbol_resolved_trees::name::DiagnosticName>,
+        symbol_resolved_trees::expression::ExpressionHandle,
+        Vec<symbol_resolved_trees::name::DiagnosticName>,
     )>,
     pub(crate) pending_static_module_statement_calls: Vec<(
         source::SourceSpan,
-        Vec<crate::symbol_resolved_trees::name::DiagnosticName>,
+        Vec<symbol_resolved_trees::name::DiagnosticName>,
     )>,
     pub(crate) symbol_resolved_trees: SymbolResolvedTrees,
     /// Authored machine `reaches` clauses retained until symbol assignment
@@ -106,10 +106,8 @@ pub(crate) struct Lowerer {
     pub(crate) pending_const_declarations: Vec<PendingConstDeclaration>,
     pub(crate) pending_const_argument_selections: Vec<PendingConstArgumentSelection>,
     pub(crate) pending_const_argument_slots: Vec<PendingConstArgumentSlot>,
-    pub(crate) derived_const_argument_origins:
-        Vec<tokens_to_syntax_trees::syntax_trees::types::ConstArgumentOrigin>,
-    pub(crate) derived_const_argument_expressions:
-        Vec<tokens_to_syntax_trees::syntax_trees::expression::ExpressionHandle>,
+    pub(crate) derived_const_argument_origins: Vec<syntax_trees::types::ConstArgumentOrigin>,
+    pub(crate) derived_const_argument_expressions: Vec<syntax_trees::expression::ExpressionHandle>,
     pub(crate) pending_const_argument_expressions: Vec<ExpressionHandle>,
     pub(crate) derived_const_argument_builtin_operators: Vec<source::SourceSpan>,
     pub(crate) pending_const_selections: Vec<PendingConstSelection>,
@@ -172,17 +170,13 @@ pub(crate) struct Lowerer {
     /// The CURRENT state's non-receiver parameters (name, resolved type,
     /// mutability). The scalar-computation classification of transition
     /// values reads them. Overwritten at each state.
-    pub(crate) current_state_parameters: Vec<(
-        String,
-        crate::symbol_resolved_trees::types::TypeReference,
-        bool,
-    )>,
+    pub(crate) current_state_parameters:
+        Vec<(String, symbol_resolved_trees::types::TypeReference, bool)>,
     /// The CURRENT state's explicit `self` parameter, when it has one.
     pub(crate) current_state_self_parameter:
-        Option<crate::symbol_resolved_trees::signature::StateParameter>,
+        Option<symbol_resolved_trees::signature::StateParameter>,
     /// The CURRENT state's declared return type. Overwritten at each state.
-    pub(crate) current_state_return_type:
-        Option<crate::symbol_resolved_trees::types::TypeReference>,
+    pub(crate) current_state_return_type: Option<symbol_resolved_trees::types::TypeReference>,
     /// Present when this lowerer extends a retained base.
     pub(crate) seed: Option<BaseSeed>,
 }
@@ -306,7 +300,7 @@ impl Lowerer {
             .const_declarations
             .iter()
             .map(|declaration| PendingConstDeclaration {
-                scope: tokens_to_syntax_trees::syntax_trees::identifier::Identifier::generated(""),
+                scope: syntax_trees::identifier::Identifier::generated(""),
                 semantic_name: base.symbols.name(declaration.symbol).to_owned(),
                 source_span: base
                     .symbols
@@ -339,7 +333,7 @@ impl Lowerer {
             }
         }
         for (handle, parameter) in base.tables.declarations.data_type_parameters.iter() {
-            let crate::symbol_resolved_trees::data::TypeParameterKind::Machine { contract } =
+            let symbol_resolved_trees::data::TypeParameterKind::Machine { contract } =
                 &parameter.kind
             else {
                 continue;
@@ -525,7 +519,7 @@ fn pending_service_reach_for(
             .targets
             .iter()
             .map(|target| {
-                crate::symbol_resolved_trees::name::DiagnosticName::from_str(
+                symbol_resolved_trees::name::DiagnosticName::from_str(
                     program.symbols.name(target.service),
                     target.source_span,
                 )
@@ -546,14 +540,14 @@ fn handle_at_offset<T>(span: arena::HandleSpan<T>, offset: usize) -> arena::Hand
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum PendingSignatureLocation {
-    Trait(arena::Handle<crate::symbol_resolved_trees::signature::StateSignature>),
-    MachineParameter(arena::Handle<crate::symbol_resolved_trees::data::TypeParameter>),
+    Trait(arena::Handle<symbol_resolved_trees::signature::StateSignature>),
+    MachineParameter(arena::Handle<symbol_resolved_trees::data::TypeParameter>),
 }
 
 #[derive(Debug, Clone)]
 pub(crate) enum PendingSignatureOwner {
-    Trait(crate::symbol_resolved_trees::name::DiagnosticName),
-    Requirement(crate::symbol_resolved_trees::name::DiagnosticName),
+    Trait(symbol_resolved_trees::name::DiagnosticName),
+    Requirement(symbol_resolved_trees::name::DiagnosticName),
 }
 
 #[derive(Debug, Clone)]
@@ -561,5 +555,5 @@ pub(crate) struct PendingSignatureServiceReach {
     pub(crate) location: PendingSignatureLocation,
     pub(crate) owner: PendingSignatureOwner,
     pub(crate) keyword_source_spans: Vec<source::SourceSpan>,
-    pub(crate) authored: Vec<crate::symbol_resolved_trees::name::DiagnosticName>,
+    pub(crate) authored: Vec<symbol_resolved_trees::name::DiagnosticName>,
 }

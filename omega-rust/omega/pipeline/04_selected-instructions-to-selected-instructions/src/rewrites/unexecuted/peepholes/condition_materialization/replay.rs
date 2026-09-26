@@ -16,19 +16,17 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use optimization_core::OptimizationWorkBudget;
-use semantic_vocabulary::IntegerValue;
-use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
-use target_operations_to_selected_instructions::register_model::{
-    RegisterOperandAccess, RegisterUnitId,
-};
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
-use target_operations_to_selected_instructions::{
+use register_environment::ValidatedTargetRegisterEnvironment;
+use register_model::{RegisterOperandAccess, RegisterUnitId};
+use selected_instructions::{
     MachineAlternative, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
     MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
     MachineSemanticKind, MachineTrapBehavior, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionKind, SelectedInstructionPlan, ValidatedMachineEffectCatalog,
 };
+use semantic_vocabulary::IntegerValue;
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::{
     ConditionMaterializationError, ConditionMaterializationReceipt,
@@ -365,7 +363,7 @@ pub fn validate_condition_materialization_fold(
 /// kind — the descriptor's operand-resolution axis restated as a direct
 /// grammar match.
 fn replayed_operands(
-    function: &target_operations_to_selected_instructions::SelectedFunction,
+    function: &selected_instructions::SelectedFunction,
     producer: &SelectedInstruction,
 ) -> Result<(u64, u64), ConditionMaterializationError> {
     match producer.kind {
@@ -421,12 +419,9 @@ fn replayed_operands(
 /// contract: the register the flag computation reads is the operand's own,
 /// undecorated.
 fn replay_use(
-    operand: &target_operations_to_selected_instructions::SelectedOperand,
+    operand: &selected_instructions::SelectedOperand,
     position: usize,
-) -> Result<
-    target_operations_to_selected_instructions::VirtualRegisterId,
-    ConditionMaterializationError,
-> {
+) -> Result<selected_instructions::VirtualRegisterId, ConditionMaterializationError> {
     if operand.operand != position as u16
         || operand.access != RegisterOperandAccess::Use
         || operand.fixed_view.is_some()
@@ -525,7 +520,7 @@ fn materialize_alternative(alternative: &MachineAlternative) -> bool {
 fn effect_declaration(
     catalog: &ValidatedMachineEffectCatalog,
     semantic: MachineSemanticKind,
-    constraint: target_operations_to_selected_instructions::register_model::RegisterConstraintKey,
+    constraint: register_model::RegisterConstraintKey,
 ) -> Option<&MachineEffectDeclaration> {
     let mut matches = catalog.catalog().declarations.iter().filter(|declaration| {
         declaration.semantic == semantic && declaration.constraint == constraint

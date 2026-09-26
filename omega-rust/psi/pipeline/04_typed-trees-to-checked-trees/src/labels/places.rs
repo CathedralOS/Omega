@@ -1,21 +1,21 @@
-use crate::fact_plan::{Fact, FactPayload, FactPlan};
+use facts::{Fact, FactPayload, FactPlan};
 
 use super::names::symbol_name;
 
 pub(crate) fn borrow_access_label(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    borrow: &crate::checked_trees::BorrowFacts,
-    access: &crate::checked_trees::BorrowArgumentAccessFact,
+    program: &typed_trees::TypedTrees,
+    borrow: &checked_trees::BorrowFacts,
+    access: &checked_trees::BorrowArgumentAccessFact,
 ) -> String {
-    crate::fact_plan::canonical_place_label_from_parts(
+    facts::canonical_place_label_from_parts(
         program,
-        crate::fact_plan::PlaceRoot::Symbol(access.root_symbol),
+        facts::PlaceRoot::Symbol(access.root_symbol),
         borrow.access_segments(access),
     )
 }
 
 pub(crate) fn semantic_fact_requirement_label(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     semantic: &FactPlan,
     fact: &Fact,
 ) -> String {
@@ -31,15 +31,12 @@ pub(crate) fn semantic_fact_requirement_label(
             ..
         } => {
             let place = match fact.place {
-                crate::fact_plan::FactPlace::Place(place) => place,
+                facts::FactPlace::Place(place) => place,
                 _ => return "unknown domain membership".to_owned(),
             };
             let domain = if program.domain_definitions().iter().any(|domain| {
                 domain.symbol == domain_symbol
-                    && !symbol_resolved_trees_to_typed_trees::typed_trees::domain::index_parameters(
-                        program, domain,
-                    )
-                    .is_empty()
+                    && !typed_trees::domain::index_parameters(program, domain).is_empty()
             }) {
                 program
                     .semantic_domains
@@ -54,7 +51,7 @@ pub(crate) fn semantic_fact_requirement_label(
         FactPayload::ContractCarryPermission { permission, .. }
         | FactPayload::CarryPermission { permission, .. } => {
             let place = match fact.place {
-                crate::fact_plan::FactPlace::Place(place) => place,
+                facts::FactPlace::Place(place) => place,
                 _ => return "unknown carry permission".to_owned(),
             };
             format!(
@@ -79,7 +76,7 @@ pub(crate) fn semantic_fact_requirement_label(
 /// render their typed expression directly; flow-instantiated operator/call
 /// facts use the substitution record owned by the fact plan.
 pub(crate) fn semantic_boolean_fact_label(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     semantic: &FactPlan,
     fact: &Fact,
 ) -> Option<String> {
@@ -87,15 +84,15 @@ pub(crate) fn semantic_boolean_fact_label(
 }
 
 pub(crate) fn joined_place_label(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     semantic: &FactPlan,
-    place: &crate::fact_plan::Place,
-    extra_segments: &[crate::fact_plan::PlaceSegment],
+    place: &facts::Place,
+    extra_segments: &[facts::PlaceSegment],
 ) -> String {
     let mut segments: Vec<_> = semantic
         .place_segments
         .span_or_empty(place.segments)
         .to_vec();
     segments.extend(extra_segments.iter().copied());
-    crate::fact_plan::canonical_place_label_from_parts(program, place.root, &segments)
+    facts::canonical_place_label_from_parts(program, place.root, &segments)
 }

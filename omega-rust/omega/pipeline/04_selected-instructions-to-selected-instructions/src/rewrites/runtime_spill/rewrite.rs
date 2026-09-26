@@ -1,7 +1,7 @@
 use optimization_core::OptimizationWorkBudget;
-use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
-use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
-use target_operations_to_selected_instructions::{
+use register_environment::ValidatedTargetRegisterEnvironment;
+use register_model::RegisterOperandAccess;
+use selected_instructions::{
     SelectedBoundarySettlementPayload, SelectedCasePayloadTransport, SelectedFunction,
     SelectedInstruction, SelectedLocalStorageSlot, SelectedStructuralTransport,
     SelectedValueTransport, VirtualRegisterId,

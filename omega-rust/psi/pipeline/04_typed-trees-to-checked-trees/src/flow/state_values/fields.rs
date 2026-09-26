@@ -1,15 +1,15 @@
 //! Live attached-field facts at ordinary state edges. No declaration seeds them.
-use crate::checked_trees::FlowSemanticContextRef;
-use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use crate::fact_plan::{
-    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
-};
 use crate::facts::field_domain::ByteSequencePredicate;
 use crate::flow::FlowBuildContext;
 use crate::flow::canonical_place_from_semantic_place;
 use crate::flow::normalize_attached_place_root;
 use crate::flow::normalized_event_place_root;
 use arena::HandleSpan;
+use checked_trees::FlowSemanticContextRef;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use facts::{
+    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
+};
 use symbols::SymbolHandle;
 
 #[cfg(test)]
@@ -27,7 +27,7 @@ pub(super) struct BoundsSource {
 impl BoundsSource {
     pub(super) fn transition(
         state: SymbolHandle,
-        target: symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetHandle,
+        target: typed_trees::statement::TransitionTargetHandle,
     ) -> Self {
         Self {
             state,
@@ -60,7 +60,7 @@ impl BoundsSource {
 struct EdgeDelivery {
     literal: ExpressionHandle,
     predicates: Vec<ByteSequencePredicate>,
-    integer_bounds: Option<crate::fact_plan::IntegerRange>,
+    integer_bounds: Option<facts::IntegerRange>,
     /// The greatest predicate set this edge could carry: the delivered
     /// predicates unioned with the byte-class evidence of any element stores
     /// on its path. Carrier classes are loop invariants proved
@@ -85,7 +85,7 @@ impl FieldValue {
         &self.predicate_ceiling
     }
 
-    pub(super) fn segments(&self) -> &[crate::fact_plan::PlaceSegment] {
+    pub(super) fn segments(&self) -> &[facts::PlaceSegment] {
         &self.segments
     }
 }
@@ -121,10 +121,10 @@ impl EdgeDelivery {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct FieldValue {
-    segments: Vec<crate::fact_plan::PlaceSegment>,
+    segments: Vec<facts::PlaceSegment>,
     literal: ExpressionHandle,
     predicates: Vec<ByteSequencePredicate>,
-    integer_bounds: Option<crate::fact_plan::IntegerRange>,
+    integer_bounds: Option<facts::IntegerRange>,
     /// Each predecessor edge's latest delivery. Every joined channel is
     /// recomputed from these rows, so an edge that later proves richer
     /// evidence retightens the join; meeting directly into the stored channels
@@ -168,10 +168,10 @@ pub(super) fn height(fields: &[FieldValue]) -> usize {
 /// The declared primitive extent of a field path, when it resolves to a
 /// primitive scalar: the widest interval a widening join can need.
 fn carrier_integer_range(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    segments: &[crate::fact_plan::PlaceSegment],
-) -> Option<crate::fact_plan::IntegerRange> {
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    segments: &[facts::PlaceSegment],
+) -> Option<facts::IntegerRange> {
     let attached = machine.attached_data.as_ref()?;
     let mut data = program
         .data_definitions()
@@ -179,16 +179,14 @@ fn carrier_integer_range(
         .find(|data| data.name.as_str() == attached.as_str())?;
     let mut reference = None;
     for (index, segment) in segments.iter().enumerate() {
-        let crate::fact_plan::PlaceSegment::Field { symbol } = segment else {
+        let facts::PlaceSegment::Field { symbol } = segment else {
             return None;
         };
         let next = program
             .data_members(data)
             .iter()
             .find_map(|member| match member {
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
-                    field,
-                ) if field.symbol == *symbol => field
+                typed_trees::data::DataMember::Field(field) if field.symbol == *symbol => field
                     .type_reference
                     .is_valid()
                     .then_some(field.type_reference),
@@ -210,7 +208,7 @@ fn carrier_integer_range(
 /// arena scan runs at most once per flow build rather than per widening
 /// rejoin.
 pub(in crate::flow) fn integer_literal_thresholds(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
 ) -> Vec<numerics::bignum::BigInt> {
     let mut literals: Vec<numerics::bignum::BigInt> = program
         .expression_table
@@ -241,8 +239,8 @@ pub(in crate::flow) fn integer_literal_thresholds(
 /// carrier. Identical arrivals retain that widening rather than shrinking
 /// back to the raw union without new evidence.
 pub(super) fn meet(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
     previous: &mut Vec<FieldValue>,
     incoming: &[FieldValue],
     source: BoundsSource,
@@ -338,8 +336,8 @@ impl FieldValue {
     /// widening consults when a bound keeps extending.
     fn rejoin(
         &mut self,
-        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-        machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+        program: &typed_trees::TypedTrees,
+        machine: &typed_trees::machine::Machine,
         thresholds: &[numerics::bignum::BigInt],
     ) -> bool {
         let mut changed = false;
@@ -389,13 +387,13 @@ impl FieldValue {
             self.predicate_ceiling = ceiling;
             changed = true;
         }
-        let mut joined: Option<crate::fact_plan::IntegerRange> = None;
+        let mut joined: Option<facts::IntegerRange> = None;
         let mut unbounded_edge = false;
         for (_, delivery) in &self.deliveries {
             match &delivery.integer_bounds {
                 Some(bound) => {
                     joined = Some(match joined {
-                        Some(accumulated) => crate::fact_plan::IntegerRange {
+                        Some(accumulated) => facts::IntegerRange {
                             minimum: accumulated.minimum.min(bound.minimum.clone()),
                             maximum: accumulated.maximum.max(bound.maximum.clone()),
                         },
@@ -492,10 +490,7 @@ impl FieldValue {
     }
 }
 
-fn has_self(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-) -> bool {
+fn has_self(program: &typed_trees::TypedTrees, state: &typed_trees::state::State) -> bool {
     program
         .state_parameters(state)
         .iter()
@@ -505,12 +500,12 @@ fn has_self(
 }
 
 pub(super) fn capture(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     semantic: &FactPlan,
     build: &FlowBuildContext,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-    destination: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    destination: &typed_trees::state::State,
     contexts: HandleSpan<FlowSemanticContextRef>,
 ) -> Vec<FieldValue> {
     if !has_self(program, state) || !has_self(program, destination) {
@@ -570,7 +565,7 @@ pub(super) fn capture(
                             (
                                 ExpressionHandle::invalid(),
                                 Vec::new(),
-                                Some(crate::fact_plan::IntegerRange {
+                                Some(facts::IntegerRange {
                                     minimum: value.clone(),
                                     maximum: value,
                                 }),
@@ -580,15 +575,14 @@ pub(super) fn capture(
                     }
                 }
                 FactPayload::AssignedScalarValue { value } => {
-                    let crate::fact_plan::ScalarValue::Integer(value) =
-                        semantic.scalar_values.get(value)
+                    let facts::ScalarValue::Integer(value) = semantic.scalar_values.get(value)
                     else {
                         continue;
                     };
                     (
                         ExpressionHandle::invalid(),
                         Vec::new(),
-                        Some(crate::fact_plan::IntegerRange {
+                        Some(facts::IntegerRange {
                             minimum: value.clone(),
                             maximum: value.clone(),
                         }),
@@ -645,12 +639,12 @@ pub(super) fn capture(
             };
             normalize_attached_place_root(program, machine.symbol, state.symbol, &mut place);
             place.root = normalized_event_place_root(program, place.root);
-            if place.root != crate::fact_plan::PlaceRoot::Symbol(machine.symbol)
-                || !matches!(place.segments.first(), Some(crate::fact_plan::PlaceSegment::Field { symbol }) if symbol.is_valid())
+            if place.root != facts::PlaceRoot::Symbol(machine.symbol)
+                || !matches!(place.segments.first(), Some(facts::PlaceSegment::Field { symbol }) if symbol.is_valid())
                 || !place.segments.iter().all(|segment| match segment {
-                    crate::fact_plan::PlaceSegment::Field { symbol } => symbol.is_valid(),
-                    crate::fact_plan::PlaceSegment::Case { variant } => variant.is_valid(),
-                    crate::fact_plan::PlaceSegment::FixedIndex { .. } => true,
+                    facts::PlaceSegment::Field { symbol } => symbol.is_valid(),
+                    facts::PlaceSegment::Case { variant } => variant.is_valid(),
+                    facts::PlaceSegment::FixedIndex { .. } => true,
                     _ => false,
                 })
             {
@@ -669,12 +663,10 @@ pub(super) fn capture(
                     field.integer_bounds = match (bounds_ranks[index], field.integer_bounds.take())
                     {
                         (stored, Some(previous)) if stored > rank => Some(previous),
-                        (stored, Some(previous)) if stored == rank => {
-                            Some(crate::fact_plan::IntegerRange {
-                                minimum: previous.minimum.min(incoming.minimum),
-                                maximum: previous.maximum.max(incoming.maximum),
-                            })
-                        }
+                        (stored, Some(previous)) if stored == rank => Some(facts::IntegerRange {
+                            minimum: previous.minimum.min(incoming.minimum),
+                            maximum: previous.maximum.max(incoming.maximum),
+                        }),
                         _ => {
                             bounds_ranks[index] = rank;
                             Some(incoming)
@@ -744,11 +736,11 @@ pub(super) fn capture(
 }
 
 pub(super) fn append(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     fields: &[FieldValue],
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     point: ProgramPoint,
 ) {
     if !has_self(program, state) {
@@ -761,8 +753,8 @@ pub(super) fn append(
                 .place_segments
                 .append_to_span(&mut segments, *segment);
         }
-        let place = semantic.append_place(crate::fact_plan::Place {
-            root: crate::fact_plan::PlaceRoot::Symbol(machine.symbol),
+        let place = semantic.append_place(facts::Place {
+            root: facts::PlaceRoot::Symbol(machine.symbol),
             segments,
         });
         let mut references = HandleSpan::empty();

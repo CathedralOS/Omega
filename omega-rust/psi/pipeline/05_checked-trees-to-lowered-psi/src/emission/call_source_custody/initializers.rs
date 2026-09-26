@@ -1,13 +1,13 @@
 //! Rejoin bound, temporary, and discarded result sources independently of operands.
 use super::super::Multiplicity;
 use super::{CheckedTrees, LoweringError, unsupported};
-use typed_trees_to_checked_trees::checked_trees::statement::StatementNode;
+use checked_trees::statement::StatementNode;
 
 /// A discarded invocation produces a value but no source-local binding.
 pub(crate) fn discards_result(
     checked: &CheckedTrees,
     state: symbols::SymbolHandle,
-    coordinate: typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate,
+    coordinate: checked_trees::CheckedUnitCallCoordinate,
 ) -> Result<bool, LoweringError> {
     let (_, source) =
         crate::expression_preparation::source_custody::authored_state(checked, state)?;
@@ -29,8 +29,8 @@ pub(crate) fn validate_discarded_structural(
     checked: &CheckedTrees,
     caller_machine: symbols::SymbolHandle,
     caller_state: symbols::SymbolHandle,
-    coordinate: typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate,
-    result: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralResultBindingPlan,
+    coordinate: checked_trees::CheckedUnitCallCoordinate,
+    result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
 ) -> Result<(), LoweringError> {
     let (machine, state) =
         crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
@@ -55,10 +55,10 @@ pub(crate) fn validate_discarded_structural(
             != result.type_identity
         || checked.type_multiplicity(target.return_type) != result.multiplicity
         || result.multiplicity == language_semantics::Multiplicity::Linear
-        || !(typed_trees_to_checked_trees::validation::has_plain_owned_contents_with_numeric_constraints(
+        || !(validation::has_plain_owned_contents_with_numeric_constraints(
             &checked.typed,
             target.return_type,
-        ) || typed_trees_to_checked_trees::validation::is_closed_primitive_array_type(&checked.typed, target.return_type))
+        ) || validation::is_closed_primitive_array_type(&checked.typed, target.return_type))
     {
         return unsupported("discarded structural result disagrees with its authored signature");
     }
@@ -69,16 +69,15 @@ pub(crate) fn validate_structural(
     checked: &CheckedTrees,
     caller_machine: symbols::SymbolHandle,
     caller_state: symbols::SymbolHandle,
-    coordinate: typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate,
-    result: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralResultBindingPlan,
+    coordinate: checked_trees::CheckedUnitCallCoordinate,
+    result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
 ) -> Result<(), LoweringError> {
     let (machine, state) =
         crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
     if coordinate.call_ordinal != 0 {
         let authored = super::authored::locate_source(checked, caller_state, coordinate)?;
-        let Some(typed_trees_to_checked_trees::checked_trees::NominalMachineUseSite::Expression(
-            expression,
-        )) = authored.source_site
+        let Some(checked_trees::NominalMachineUseSite::Expression(expression)) =
+            authored.source_site
         else {
             return unsupported("nested boundary structural result has no authored expression");
         };
@@ -90,14 +89,14 @@ pub(crate) fn validate_structural(
             // call's published leaf-loan roster rather than plain owned
             // contents; `validate_custody` rejoins that roster separately.
             || !((result.multiplicity == Multiplicity::Affine
-                && (typed_trees_to_checked_trees::validation::has_plain_owned_contents(&checked.typed, target.return_type)
-                    || typed_trees_to_checked_trees::validation::reference_result_custody::is_reference_record(
+                && (validation::has_plain_owned_contents(&checked.typed, target.return_type)
+                    || validation::reference_result_custody::is_reference_record(
                         &checked.typed,
                         target.return_type,
                     )))
                 || (result.multiplicity == Multiplicity::Unrestricted
                     && !authored.boundary
-                    && typed_trees_to_checked_trees::validation::is_closed_primitive_array_type(
+                    && validation::is_closed_primitive_array_type(
                         &checked.typed,
                         target.return_type,
                     )))
@@ -211,7 +210,7 @@ pub(crate) fn validate_structural(
             )?)
             .into_string()
             != result.type_identity
-        || typed_trees_to_checked_trees::validation::reference_result_custody::result_multiplicity(
+        || validation::reference_result_custody::result_multiplicity(
             &checked.typed,
             local.type_reference,
         ) != result.multiplicity
@@ -231,7 +230,7 @@ pub(crate) fn validate(
     checked: &CheckedTrees,
     caller_machine: symbols::SymbolHandle,
     caller_state: symbols::SymbolHandle,
-    coordinate: typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate,
+    coordinate: checked_trees::CheckedUnitCallCoordinate,
 ) -> Result<(), LoweringError> {
     let (machine, state) =
         crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
@@ -270,11 +269,7 @@ pub(crate) fn validate(
         _ => return unsupported("computed result operands have no authored value-producing call"),
     };
     if machine.symbol != caller_machine
-        || !typed_trees_to_checked_trees::validation::result_initializer_call_is_supported(
-            &checked.typed,
-            machine,
-            expression,
-        )
+        || !validation::result_initializer_call_is_supported(&checked.typed, machine, expression)
     {
         return unsupported(
             "computed result operands disagree with their authored initializer route",

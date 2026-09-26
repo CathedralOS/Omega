@@ -2,12 +2,6 @@
 //! landing, integer binary, bitwise and cast construction, and literal
 //! landing and retagging.
 
-use crate::checked_trees::{
-    CheckedBooleanExpression, CheckedIntegerRange, CheckedOperatorFacts,
-    CheckedOperatorResolutionStatus, CheckedScalarExpression,
-    CheckedStructuralPredicatePathSegment,
-};
-pub(crate) use crate::validation::integer_widen_is_total;
 use crate::values::scalar::boolean_lowering::lower_boolean_expression;
 use crate::values::scalar::constant_array_projection;
 use crate::values::scalar::expression_facts::{
@@ -17,18 +11,20 @@ use crate::values::scalar::expression_facts::{
 use crate::values::scalar::expression_plans::ScalarLocal;
 use crate::values::scalar::primitive_reference_read;
 use crate::values::scalar::structural_fields;
+use checked_trees::{
+    CheckedBooleanExpression, CheckedIntegerRange, CheckedOperatorFacts,
+    CheckedOperatorResolutionStatus, CheckedScalarExpression,
+    CheckedStructuralPredicatePathSegment,
+};
 use language_semantics::declaration_selection::CollectionMeasure;
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::literals::{IntegerLanding, LandedIntegerType};
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
-    PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
-};
+use typed_trees::TypedTrees;
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
+use typed_trees::signature::StateParameter;
+use typed_trees::statement::StatementNode;
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+pub(crate) use validation::integer_widen_is_total;
 
 /// Lower one call argument in the caller state's checked scalar namespace.
 /// Only the immutable scalar-prefix shape accepted by terminal scalar lowering
@@ -37,11 +33,11 @@ use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
 pub(crate) fn lower_state_scalar_expression(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    state: &typed_trees::state::State,
     before_statement: usize,
     expression: ExpressionHandle,
     expected_type: PrimitiveType,
-    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<CheckedScalarExpression> {
     let parameters = program.state_parameters(state);
     let parameter_types = parameters
@@ -86,7 +82,7 @@ pub(crate) fn lower_state_scalar_expression(
 pub(crate) fn lower_unit_scalar_argument(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    state: &typed_trees::state::State,
     before_statement: usize,
     expression: ExpressionHandle,
     expected_type: PrimitiveType,
@@ -147,7 +143,7 @@ pub(crate) fn lower_index_expression(
     authored_parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
     locals: &[ScalarLocal],
-    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<CheckedScalarExpression> {
     if let Some(value) =
         land_anonymous_scalar_expression(program, operators, expression, PrimitiveType::U64)
@@ -178,7 +174,7 @@ pub(crate) fn lower_return_expression(
     parameter_types: &[PrimitiveType],
     locals: &[ScalarLocal],
     result_type: PrimitiveType,
-    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<CheckedScalarExpression> {
     if let Some(value) =
         land_anonymous_scalar_expression(program, operators, expression, result_type)
@@ -220,27 +216,24 @@ pub(crate) fn land_anonymous_scalar_expression(
     expression: ExpressionHandle,
     destination: PrimitiveType,
 ) -> Option<CheckedScalarExpression> {
-    crate::validation::land_anonymous_integer_expression(
-        program,
-        expression,
-        destination,
-        |expression| match operators.expression_use(expression) {
+    validation::land_anonymous_integer_expression(program, expression, destination, |expression| {
+        match operators.expression_use(expression) {
             Some(operator) => operator.status == CheckedOperatorResolutionStatus::BuiltinFallback,
-            None => crate::validation::has_anonymous_operator_meaning(program, expression),
-        },
-    )
+            None => validation::has_anonymous_operator_meaning(program, expression),
+        }
+    })
     .map(|literal| CheckedScalarExpression::IntegerLiteral { literal })
 }
 
 pub(crate) fn lower_scalar_operands(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
-    binary: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableBinaryExpression,
+    binary: &typed_trees::expression::TableBinaryExpression,
     parameters: &[StateParameter],
     authored_parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
     locals: &[ScalarLocal],
-    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<(
     (CheckedScalarExpression, ArithmeticDomain),
     (CheckedScalarExpression, ArithmeticDomain),
@@ -289,7 +282,7 @@ pub(crate) fn lower_scalar_expression(
     authored_parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
     locals: &[ScalarLocal],
-    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
     // A recast operand `&place as &T` / `&mut place as &mut T` re-views its
     // source place under the stated target carrier (§5b address identity):
@@ -338,7 +331,7 @@ pub(crate) fn lower_scalar_expression(
         return Some(read);
     }
     if let Some((leaf, primitive)) =
-        crate::validation::closed_record_scalar_projection(program, expression)
+        validation::closed_record_scalar_projection(program, expression)
     {
         let lowered = if is_integer(primitive) {
             let ExpressionNode::Integer(literal) = program.expression_table.expression(leaf) else {
@@ -348,12 +341,9 @@ pub(crate) fn lower_scalar_expression(
                 literal: if literal.landing().is_some() {
                     literal.clone()
                 } else {
-                    crate::validation::land_anonymous_integer_expression(
-                        program,
-                        leaf,
-                        primitive,
-                        |_| false,
-                    )?
+                    validation::land_anonymous_integer_expression(program, leaf, primitive, |_| {
+                        false
+                    })?
                 },
             }
         } else {
@@ -684,7 +674,7 @@ pub(crate) fn construct_integer_cast(
     program: &TypedTrees,
     expression: ExpressionHandle,
     operand: CheckedScalarExpression,
-    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
     let ExpressionNode::Cast(cast) = program.expression_table.expression(expression) else {
         return None;
@@ -1110,7 +1100,7 @@ pub(crate) fn lower_recast_boolean_operand(
     authored_parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
     locals: &[ScalarLocal],
-    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<CheckedBooleanExpression> {
     let (source, target_type) = recast_view_operand(program, expression)?;
     if program.primitive_type_reference(target_type) != Some(PrimitiveType::Bool) {
@@ -1135,10 +1125,9 @@ pub(crate) fn lower_recast_boolean_operand(
 /// selector. A whole view local reads the view its establishment published,
 /// the same element selection a whole view parameter takes.
 pub(super) struct ElementSelection {
-    pub(super) root: crate::checked_trees::CheckedStorageRoot,
-    pub(super) path: Vec<crate::checked_trees::CheckedStructuralPredicatePathSegment>,
-    pub(super) element_type:
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    pub(super) root: checked_trees::CheckedStorageRoot,
+    pub(super) path: Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
+    pub(super) element_type: typed_trees::types::TypeReferenceHandle,
     pub(super) through_view: bool,
     pub(super) index: CheckedScalarExpression,
 }
@@ -1152,7 +1141,7 @@ pub(super) fn selected_element(
     authored_parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
     locals: &[ScalarLocal],
-    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<ElementSelection> {
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
         return None;
@@ -1163,7 +1152,7 @@ pub(super) fn selected_element(
         indexed.collection,
     ) {
         Some((position, path, collection_type)) => (
-            crate::checked_trees::CheckedStorageRoot::Parameter { index: position },
+            checked_trees::CheckedStorageRoot::Parameter { index: position },
             path,
             collection_type,
         ),
@@ -1174,7 +1163,7 @@ pub(super) fn selected_element(
                 indexed.collection,
             )?;
             (
-                crate::checked_trees::CheckedStorageRoot::ViewLocal { symbol },
+                checked_trees::CheckedStorageRoot::ViewLocal { symbol },
                 Vec::new(),
                 collection_type,
             )
@@ -1243,7 +1232,7 @@ fn view_element_field_read(
     authored_parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
     locals: &[ScalarLocal],
-    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
     let mut selection_expression = expression;
     let mut depth = 0_usize;

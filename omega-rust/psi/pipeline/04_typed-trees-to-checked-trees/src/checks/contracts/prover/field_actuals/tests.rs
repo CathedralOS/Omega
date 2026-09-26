@@ -101,9 +101,7 @@ fn exact_field_subjects_reject_stale_symbols_and_same_spelled_foreign_fields() {
         .iter()
         .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
         .find_map(|fact| match fact {
-            symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
-                expression,
-            ) => Some(*expression),
+            typed_trees::domain::ProofFact::Expression(expression) => Some(*expression),
             _ => None,
         })
         .expect("requirement");
@@ -113,7 +111,7 @@ fn exact_field_subjects_reject_stale_symbols_and_same_spelled_foreign_fields() {
     };
     let receiver = member.receiver;
     let original = member.member_symbol;
-    let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(foreign) =
+    let typed_trees::data::DataMember::Field(foreign) =
         &program.data_members(&program.data_definitions()[1])[0]
     else {
         panic!("foreign field");

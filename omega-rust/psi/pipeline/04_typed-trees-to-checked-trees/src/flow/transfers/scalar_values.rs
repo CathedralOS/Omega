@@ -1,14 +1,14 @@
 //! Capture a selected initializer or assignment while its operand facts are live.
-use crate::checked_trees::CheckedScalarExpressionRole;
-use crate::checked_trees::CheckedStructuralPredicatePathSegment;
-use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use crate::checked_trees::statement::StatementNode;
-use crate::checked_trees::{BorrowFacts, FlowSemanticContextRef};
-use crate::fact_plan::FactPlan;
-use crate::fact_plan::ScalarValue;
 use crate::flow::CanonicalPlace;
 use crate::flow::FlowBuildContext;
 use arena::HandleSpan;
+use checked_trees::CheckedScalarExpressionRole;
+use checked_trees::CheckedStructuralPredicatePathSegment;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::statement::StatementNode;
+use checked_trees::{BorrowFacts, FlowSemanticContextRef};
+use facts::FactPlan;
+use facts::ScalarValue;
 use symbols::SymbolHandle;
 
 pub(crate) mod calls;
@@ -23,7 +23,7 @@ mod call_tests;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn capture_statement(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     semantic: &FactPlan,
     context: &mut FlowBuildContext,
@@ -105,7 +105,7 @@ pub(super) fn capture_statement(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn capture_bounds(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     semantic: &FactPlan,
     context: &mut FlowBuildContext,
@@ -114,7 +114,7 @@ pub(super) fn capture_bounds(
     statement_index: usize,
     statement: &StatementNode,
     active: HandleSpan<FlowSemanticContextRef>,
-) -> Option<crate::fact_plan::IntegerRange> {
+) -> Option<facts::IntegerRange> {
     let source = match statement {
         StatementNode::LocalData(local) => local.initial_value,
         StatementNode::Assignment(assignment) => assignment.value,
@@ -178,7 +178,7 @@ pub(super) fn capture_bounds(
         state,
         active,
     };
-    crate::fact_plan::IntegerRange::operand(program, &live, statement_index, operand.operand)
+    facts::IntegerRange::operand(program, &live, statement_index, operand.operand)
         .and_then(|value| operand.convert(value))
 }
 
@@ -188,7 +188,7 @@ pub(super) fn capture_bounds(
 /// the operands, so only a source whose complete bound subtree retains
 /// builtin meaning may be captured as this statement's recorded evidence.
 fn builtin_bound_meaning_source(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     context: &mut FlowBuildContext,
     machine_symbol: SymbolHandle,
     state: SymbolHandle,
@@ -201,17 +201,17 @@ fn builtin_bound_meaning_source(
     let state = context
         .state_index_in_machine(program, machine_symbol, state)
         .and_then(|index| program.machine_states(machine).get(index));
-    crate::validation::has_builtin_bound_expression_meaning(program, machine, state, source)
+    validation::has_builtin_bound_expression_meaning(program, machine, state, source)
 }
 
 fn selected_statement<'plans>(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     context: &'plans FlowBuildContext<'plans>,
     state: SymbolHandle,
     statement_index: usize,
     statement: &StatementNode,
 ) -> Option<(
-    &'plans crate::checked_trees::CheckedScalarExpression,
+    &'plans checked_trees::CheckedScalarExpression,
     &'plans [SymbolHandle],
 )> {
     let plans = context.scalar_expressions;
@@ -270,13 +270,13 @@ fn selected_statement<'plans>(
 
 #[allow(clippy::too_many_arguments)]
 fn retains_values_across_unit_call<Value>(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     context: &mut FlowBuildContext,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     statement_index: usize,
-    call: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableCall,
+    call: &typed_trees::statement::TableCall,
     symbols: &[SymbolHandle],
     values: &CallValues<Value>,
 ) -> Option<()> {
@@ -302,7 +302,7 @@ fn retains_values_across_unit_call<Value>(
             program
                 .type_reference_table
                 .type_reference(entry.return_type),
-            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Unit
+            typed_trees::types::TypeReferenceNode::Unit
         )
     {
         return None;

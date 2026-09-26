@@ -1,18 +1,16 @@
 use super::super::scalar_abi::{fixed_native_integer_shape, fixed_native_scalar_shape};
 use crate::LoweringError;
-use crate::calling_conventions::ValueLocation;
-use crate::calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
-use crate::target_operations::{ScalarAbiValue, ScalarFunctionAbi};
-use crate::target_operations::{
-    TargetUnitOperation, TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument,
-    TargetUnitScalarHomeRequirement,
-};
+use abstract_operations::{AbstractFunction, AbstractOperation};
+use calling_conventions::ValueLocation;
+use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
 use semantic_vocabulary::{BlockId, IeeeFloatFormat, IntegerValue, OperationId};
 use semantic_vocabulary::{IntegerType, MachineId, ScalarType, ValueId};
 use std::collections::BTreeMap;
 use target::NativeTarget;
-use terminal_psi_to_abstract_operations::abstract_operations::{
-    AbstractFunction, AbstractOperation,
+use target_operations::{ScalarAbiValue, ScalarFunctionAbi};
+use target_operations::{
+    TargetUnitOperation, TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument,
+    TargetUnitScalarHomeRequirement,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -76,7 +74,7 @@ impl KnownUnitInteger {
                 value,
                 scalar_type,
             } => TargetUnitScalarArgumentSource::BlockParameter(
-                crate::target_operations::TargetScalarBlockValue {
+                target_operations::TargetScalarBlockValue {
                     block,
                     value,
                     scalar_type: ScalarType::Integer(scalar_type),
@@ -248,11 +246,11 @@ pub(in crate::lowering) fn lower_scalar_call(
         return Err(LoweringError::DuplicateValue(*result));
     }
     Ok(TargetUnitOperation::Call {
-        origin: crate::target_operations::NativeCallOrigin::Authored,
+        origin: target_operations::NativeCallOrigin::Authored,
         psi_operation: *psi_operation,
         callee: *callee,
         call_plan,
-        result: crate::target_operations::TargetCallResult::Scalar(result_home),
+        result: target_operations::TargetCallResult::Scalar(result_home),
         scalar_arguments: target_arguments,
         arguments: Vec::new(),
         claim_transfers: Vec::new(),
@@ -276,12 +274,10 @@ fn require_exact_target_abi(
 mod tests {
     use super::require_exact_target_abi;
     use crate::LoweringError;
-    use crate::calling_conventions::{
-        CallSignature, CallingPolicy, ValueShape, evaluate_call_plan,
-    };
-    use crate::target_operations::{ScalarAbiValue, ScalarFunctionAbi};
+    use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
     use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ScalarType, ValueId};
     use target::NativeTarget;
+    use target_operations::{ScalarAbiValue, ScalarFunctionAbi};
 
     fn abi() -> ScalarFunctionAbi {
         let scalar_type = IntegerType::new(IntegerSign::Signed, 32).unwrap();

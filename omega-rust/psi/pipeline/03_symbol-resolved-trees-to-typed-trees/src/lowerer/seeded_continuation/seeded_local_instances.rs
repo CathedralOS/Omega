@@ -1,10 +1,8 @@
 //! Validation of normalized, extension-local generic data instances.
 
 use super::exact_top_level_data_symbol;
+use symbol_resolved_trees::{SymbolResolvedTrees, types::TypeReference};
 use symbols::SymbolHandle;
-use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::{
-    SymbolResolvedTrees, types::TypeReference,
-};
 
 mod const_arguments;
 mod reachability;
@@ -14,7 +12,7 @@ mod substitution;
 pub(super) fn parameter_is_supported(
     source: &SymbolResolvedTrees,
     owner: SymbolHandle,
-    parameter: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameter,
+    parameter: &symbol_resolved_trees::data::TypeParameter,
 ) -> bool {
     const_arguments::parameter_is_supported(source, owner, parameter)
 }
@@ -22,30 +20,30 @@ pub(super) fn parameter_is_supported(
 pub(super) fn const_parameter_is_supported(
     source: &SymbolResolvedTrees,
     owner: SymbolHandle,
-    parameter: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameter,
+    parameter: &symbol_resolved_trees::data::TypeParameter,
 ) -> bool {
     matches!(
         parameter.kind,
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameterKind::Const { .. }
+        symbol_resolved_trees::data::TypeParameterKind::Const { .. }
     ) && const_arguments::parameter_is_supported(source, owner, parameter)
 }
 
 pub(super) fn structured_const_parameter_is_supported(
     source: &SymbolResolvedTrees,
     owner: SymbolHandle,
-    parameter: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameter,
+    parameter: &symbol_resolved_trees::data::TypeParameter,
 ) -> bool {
     const_parameter_is_supported(source, owner, parameter)
         && matches!(
             &parameter.kind,
-            syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameterKind::Const { type_reference }
+            symbol_resolved_trees::data::TypeParameterKind::Const { type_reference }
                 if structured_const_arguments::carrier_is_supported(source, type_reference)
         )
 }
 
 pub(super) fn const_declaration_is_supported(
     source: &SymbolResolvedTrees,
-    declaration: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::constant::ConstDeclaration,
+    declaration: &symbol_resolved_trees::constant::ConstDeclaration,
 ) -> bool {
     structured_const_arguments::declaration_is_supported(source, declaration)
 }
@@ -53,8 +51,8 @@ pub(super) fn const_declaration_is_supported(
 pub(super) fn array_length_is_supported(
     source: &SymbolResolvedTrees,
     owner: SymbolHandle,
-    owner_parameters: &[syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameter],
-    length: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::FixedArrayLength,
+    owner_parameters: &[symbol_resolved_trees::data::TypeParameter],
+    length: &symbol_resolved_trees::types::FixedArrayLength,
 ) -> bool {
     const_arguments::array_length_is_supported(source, owner, owner_parameters, length)
 }
@@ -62,8 +60,8 @@ pub(super) fn array_length_is_supported(
 pub(super) fn instance_application_is_supported(
     source: &SymbolResolvedTrees,
     validated_instances: &[SymbolHandle],
-    owner_lifetimes: &[syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName],
-    application: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::GenericTypeReference,
+    owner_lifetimes: &[symbol_resolved_trees::name::DiagnosticName],
+    application: &symbol_resolved_trees::types::GenericTypeReference,
 ) -> bool {
     if !validated_instances.contains(&application.base_symbol)
         || application.base_name.as_str() != source.symbols.name(application.base_symbol)
@@ -94,9 +92,9 @@ pub(super) fn template_application_is_supported(
     source: &SymbolResolvedTrees,
     data_frontier: usize,
     owner: SymbolHandle,
-    owner_lifetimes: &[syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName],
-    owner_type_parameters: &[syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameter],
-    application: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::GenericTypeReference,
+    owner_lifetimes: &[symbol_resolved_trees::name::DiagnosticName],
+    owner_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
+    application: &symbol_resolved_trees::types::GenericTypeReference,
 ) -> bool {
     let Some(owner_definition) = source
         .data_definitions
@@ -191,7 +189,7 @@ pub(super) fn validated_symbols(
 fn validate_instance(
     source: &SymbolResolvedTrees,
     data_frontier: usize,
-    instance: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataDefinition,
+    instance: &symbol_resolved_trees::data::DataDefinition,
     validated_instances: &[SymbolHandle],
 ) -> bool {
     let Some(TypeReference::Generic(origin)) = instance.generic_instance.as_ref() else {
@@ -287,32 +285,32 @@ fn validate_instance(
 /// dropping the gate on a refuted instance or gating an ungated one.
 fn instance_zero_gate_is_exact(
     source: &SymbolResolvedTrees,
-    instance: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataDefinition,
+    instance: &symbol_resolved_trees::data::DataDefinition,
 ) -> bool {
     let first_variant_impossible = source
         .data_members(instance.members)
         .iter()
         .find_map(|member| match member {
-            syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Variant(variant) => Some(variant),
-            syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember::Field(_) => None,
+            symbol_resolved_trees::data::DataMember::Variant(variant) => Some(variant),
+            symbol_resolved_trees::data::DataMember::Field(_) => None,
         })
         .is_some_and(|variant| {
             source
                 .proof_facts(variant.where_facts)
                 .iter()
                 .any(|fact| match fact {
-                    syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
+                    symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
                         match source.tables.bodies.expressions.expression(*expression) {
-                            syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::expression::ExpressionNode::Integer(literal) => {
+                            symbol_resolved_trees::expression::ExpressionNode::Integer(literal) => {
                                 literal.text().parse::<i128>() == Ok(0)
                             }
-                            syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::expression::ExpressionNode::Boolean(value) => {
+                            symbol_resolved_trees::expression::ExpressionNode::Boolean(value) => {
                                 !*value
                             }
                             _ => false,
                         }
                     }
-                    syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::domain::ProofFact::Membership(_) => false,
+                    symbol_resolved_trees::domain::ProofFact::Membership(_) => false,
                 })
         });
     instance.zero_gated == first_variant_impossible
@@ -320,26 +318,26 @@ fn instance_zero_gate_is_exact(
 
 fn instance_argument_name(
     source: &SymbolResolvedTrees,
-    parameter: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameter,
+    parameter: &symbol_resolved_trees::data::TypeParameter,
     argument: &TypeReference,
 ) -> Option<String> {
     match (&parameter.kind, argument) {
         (
-            syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameterKind::Type,
+            symbol_resolved_trees::data::TypeParameterKind::Type,
             TypeReference::Named { name, .. },
         )
         | (
-            syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameterKind::Const { .. },
+            symbol_resolved_trees::data::TypeParameterKind::Const { .. },
             TypeReference::Named { name, .. },
         ) => Some(name.as_str().to_owned()),
         (
-            syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameterKind::Type,
+            symbol_resolved_trees::data::TypeParameterKind::Type,
             TypeReference::Generic(application),
         ) if !application.lifetime_arguments.is_empty() => {
             Some(application.base_name.as_str().to_owned())
         }
         (
-            syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameterKind::Type,
+            symbol_resolved_trees::data::TypeParameterKind::Type,
             TypeReference::Constrained(constrained),
         ) => exact_constrained_argument(source, constrained).map(|argument| match argument {
             ExactConstrainedArgument::Arithmetic {
@@ -359,12 +357,12 @@ fn instance_argument_name(
 pub(super) fn template_argument_is_supported(
     source: &SymbolResolvedTrees,
     owner: SymbolHandle,
-    owner_type_parameters: &[syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameter],
-    parameter: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameter,
+    owner_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
+    parameter: &symbol_resolved_trees::data::TypeParameter,
     argument: &TypeReference,
 ) -> bool {
     match parameter.kind {
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameterKind::Type => {
+        symbol_resolved_trees::data::TypeParameterKind::Type => {
             let TypeReference::Named { symbol, name } = argument else {
                 return false;
             };
@@ -378,7 +376,7 @@ pub(super) fn template_argument_is_supported(
                             candidate.symbol == *symbol
                                 && matches!(
                                     candidate.kind,
-                                    syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameterKind::Type
+                                    symbol_resolved_trees::data::TypeParameterKind::Type
                                 )
                         })
                 }
@@ -396,8 +394,8 @@ pub(super) fn template_argument_is_supported(
                 _ => false,
             }
         }
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameterKind::Const { .. }
-        | syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameterKind::Value { .. } => {
+        symbol_resolved_trees::data::TypeParameterKind::Const { .. }
+        | symbol_resolved_trees::data::TypeParameterKind::Value { .. } => {
             const_arguments::template_argument_is_supported(
                 source,
                 owner,
@@ -406,20 +404,20 @@ pub(super) fn template_argument_is_supported(
                 argument,
             )
         }
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameterKind::Machine { .. }
-        | syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => false,
+        symbol_resolved_trees::data::TypeParameterKind::Machine { .. }
+        | symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => false,
     }
 }
 
 fn instance_argument_is_supported(
     source: &SymbolResolvedTrees,
     validated_instances: &[SymbolHandle],
-    owner_lifetimes: &[syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName],
-    parameter: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameter,
+    owner_lifetimes: &[symbol_resolved_trees::name::DiagnosticName],
+    parameter: &symbol_resolved_trees::data::TypeParameter,
     argument: &TypeReference,
 ) -> bool {
     match parameter.kind {
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameterKind::Type => match argument {
+        symbol_resolved_trees::data::TypeParameterKind::Type => match argument {
             TypeReference::Named { symbol, name } => {
                 supported_named_argument(source, validated_instances, *symbol, name.as_str())
             }
@@ -446,33 +444,30 @@ fn instance_argument_is_supported(
             }
             _ => false,
         },
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameterKind::Const { .. }
-        | syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameterKind::Value { .. } => {
+        symbol_resolved_trees::data::TypeParameterKind::Const { .. }
+        | symbol_resolved_trees::data::TypeParameterKind::Value { .. } => {
             const_arguments::closed_argument_is_supported(source, parameter, argument)
         }
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameterKind::Machine { .. }
-        | syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => false,
+        symbol_resolved_trees::data::TypeParameterKind::Machine { .. }
+        | symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => false,
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ExactConstrainedArgument<'source> {
     Arithmetic {
-        carrier_name: &'source syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName,
+        carrier_name: &'source symbol_resolved_trees::name::DiagnosticName,
         domain: numerics::arithmetic::ArithmeticDomain,
     },
     Declared {
-        carrier_name: &'source syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName,
-        domain_name: &'source syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName,
+        carrier_name: &'source symbol_resolved_trees::name::DiagnosticName,
+        domain_name: &'source symbol_resolved_trees::name::DiagnosticName,
         domain_symbol: SymbolHandle,
     },
 }
 
 impl<'source> ExactConstrainedArgument<'source> {
-    fn carrier_name(
-        self,
-    ) -> &'source syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName
-    {
+    fn carrier_name(self) -> &'source symbol_resolved_trees::name::DiagnosticName {
         match self {
             Self::Arithmetic { carrier_name, .. } | Self::Declared { carrier_name, .. } => {
                 carrier_name
@@ -483,7 +478,7 @@ impl<'source> ExactConstrainedArgument<'source> {
 
 pub(super) fn exact_constrained_argument<'source>(
     source: &'source SymbolResolvedTrees,
-    constrained: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::ConstrainedTypeReference,
+    constrained: &symbol_resolved_trees::types::ConstrainedTypeReference,
 ) -> Option<ExactConstrainedArgument<'source>> {
     let TypeReference::Named { symbol, name } = source.child_type_reference(constrained.base_type)
     else {
@@ -501,13 +496,13 @@ pub(super) fn exact_constrained_argument<'source>(
         return None;
     };
     match constraint {
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeConstraint::ArithmeticDomain(domain) => {
+        symbol_resolved_trees::types::TypeConstraint::ArithmeticDomain(domain) => {
             Some(ExactConstrainedArgument::Arithmetic {
                 carrier_name: name,
                 domain: *domain,
             })
         }
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeConstraint::Domain(domain)
+        symbol_resolved_trees::types::TypeConstraint::Domain(domain)
             if domain.arguments.is_empty() =>
         {
             let domain_symbol =
@@ -518,9 +513,9 @@ pub(super) fn exact_constrained_argument<'source>(
                 domain_symbol,
             })
         }
-        syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeConstraint::Named(_)
-        | syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeConstraint::Range { .. }
-        | syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::TypeConstraint::Domain(_) => None,
+        symbol_resolved_trees::types::TypeConstraint::Named(_)
+        | symbol_resolved_trees::types::TypeConstraint::Range { .. }
+        | symbol_resolved_trees::types::TypeConstraint::Domain(_) => None,
     }
 }
 
@@ -528,7 +523,7 @@ fn exact_unindexed_domain_for_named_carrier(
     source: &SymbolResolvedTrees,
     carrier_symbol: SymbolHandle,
     carrier_name: &str,
-    constraint: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::DomainConstraint,
+    constraint: &symbol_resolved_trees::types::DomainConstraint,
 ) -> Option<SymbolHandle> {
     if !constraint.name.is_source_backed() || !constraint.arguments.is_empty() {
         return None;
@@ -568,8 +563,8 @@ fn exact_unindexed_domain_for_named_carrier(
 fn lifetime_instance_type_argument_is_supported(
     source: &SymbolResolvedTrees,
     validated_instances: &[SymbolHandle],
-    owner_lifetimes: &[syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::name::DiagnosticName],
-    application: &syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::types::GenericTypeReference,
+    owner_lifetimes: &[symbol_resolved_trees::name::DiagnosticName],
+    application: &symbol_resolved_trees::types::GenericTypeReference,
 ) -> bool {
     !owner_lifetimes.is_empty()
         && validated_instances.contains(&application.base_symbol)
