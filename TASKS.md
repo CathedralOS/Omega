@@ -2075,7 +2075,13 @@ syntax and other terminal services are not prerequisites.
   Preserve unique historical-migration selection; generated-codec verification
   and trust remain with their existing owner.
 
-- **GENERATED-CODEC-INDEPENDENT-VERIFICATION.** Establish sufficient
+- **GENERATED-CODEC-INDEPENDENT-VERIFICATION.** OWNER-BLOCKED on
+  [`generated-codec-derived-evidence`](OWNER_QUESTIONS.md): the spec says a
+  conformance proves the law `decode(encode(value)) == value` and that "only a
+  fully exercised requirement reports `Derived`", but does not say whether the
+  finite differential probe admission actually runs exercises a requirement
+  fully. Both repairs this item names depend on that ruling, and it decides
+  what a shipped artifact report claims. Establish sufficient
   independently checked evidence for generated codecs' `Derived` trust under
   [public codec agreement](wiki/spec/layouts/codecs.md#agreement-and-trust).
   The no-authored-policy route now exists, but

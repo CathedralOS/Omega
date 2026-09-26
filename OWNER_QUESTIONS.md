@@ -372,6 +372,47 @@ its unsigned promotion.
 - Adopt the interpreter's promotion to unsigned. This is C's rule and silently
   answers wrongly for negative operands.
 
+### Q10 - Does a finite differential probe fully exercise a codec requirement?
+
+Named decision: `generated-codec-derived-evidence`.
+
+**Context:** [codec agreement and trust](wiki/spec/layouts/codecs.md#agreement-and-trust)
+says a concrete conformance "proves its public agreement requirements,
+including the current-shape law `decode(encode(value)) == value`", classifies
+an "authored or generated body independently checked against the public
+requirement" as `Derived`, and adds that "only a fully exercised requirement
+reports `Derived`". It names `checked_interpreter::verify_wire_schema_codec`
+as the admission check but does not say what exercising a requirement fully
+requires.
+
+**Problem:** That check is a finite differential probe, not a proof of the
+law. `wire_verification.rs` encodes canonical probe members and byte-compares
+them against a reference framing written independently from the
+compact_binary contract, drives strict decode over the same frames, and runs
+strict-rejection probes for truncation, wrong eras, wrong tags, noncanonical
+varints and domain-violating bytes. `wire_protocol.rs` then reports `Derived`
+whenever that probe closes with no named gaps. Reading "fully exercised" as
+"every clause of the requirement was probed" makes the current report
+correct; reading it as the law holding for all values makes every generated
+codec's `Derived` an overstatement. The trust class is published in artifact
+reports, so an external consumer reads it as the difference between an
+independently checked body and one taken on the compiler's authority.
+
+**Proposed solution:** Read "fully exercised" as every clause of the
+requirement being exercised by an independent check, which the differential
+probe satisfies, and require the evidence text to state the probe's finite
+scope so a report never implies a general proof. The alternative reading
+leaves `Derived` unreachable for any generated codec, because no general
+agreement argument exists for a synthesized body.
+
+**Alternatives:**
+- Require a general argument and report `Admitted` until one exists,
+  naming the compiler as the trusted party. Honest, and it reclassifies every
+  generated codec shipped today.
+- Add a third class between the two for a body checked differentially over
+  canonical members. This is a new trust vocabulary in a ratified table, and
+  consumers would have to learn what it licenses.
+
 Settled mathematical binding and proof rules live in the
 [mathematical source contract](wiki/spec/proofs/mathematical_bindings.md) and
 [foundation](wiki/spec/proofs/foundation.md). Their implementation and required
