@@ -4448,16 +4448,17 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   failure histogram. Preserve record-pattern and fresh record/case operand
   support rather than recreating it.
 
-  A traced omission that is general and cheap to reproduce. A reference-typed
-  local bound to a place loan has no producer: `local_data.rs` routes every
-  structural local through `statement sequence: local data: structural call
-  binding` and returns `None` unless the initializer is a `Call`, while the
-  same read inline in a guard operand plans and reaches realization.
+  A traced omission that is general and cheap to reproduce. `local_data.rs`
+  routes every structural local through `statement sequence: local data:
+  structural call binding` and returns `None` unless the initializer is a
+  `Call`, so a reference-typed local bound to a place loan has no producer
+  there, while the same read inline in a guard operand plans and reaches
+  realization.
 
-  Exclusive loans are planned. An immutable `&mut T` loan whose place roots at
-  a structural parameter and whose projection bottoms out in exactly the
-  declared referent is admitted as a compile-time carrier, for a record
-  referent as well as a primitive one: it plans no
+  Exclusive loans are the exception now. An immutable `&mut T` loan whose
+  place roots at a structural parameter and whose projection bottoms out in
+  exactly the declared referent is admitted as a compile-time carrier, for a
+  record referent as well as a primitive one: it plans no
   operation, `structural_scalar_store::destination` rejoins each write through
   the name to the loaned place, and `composed_control`'s body count recognizes
   it as a marker. A reference cannot be reseated and the binding is immutable,
