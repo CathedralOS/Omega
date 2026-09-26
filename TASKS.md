@@ -170,13 +170,17 @@ backend-visible; full corpus runs only at the end of an item.
   compilation and its evaluated configuration carries rows keyed by target:
   provider selections, program entry, subsystem, application intent, opaque
   representation selections, x86 scalar FMA provider, grants, behavior
-  exclusions, wire demands. The Build no longer carries a target and has
-  one prelude shape on every route; what remains is that
-  `build_evaluation::admit_build_program` still runs once per checked child
-  because Psi still runs per target, the x86 deployment claim is admitted
-  against that child's profile, and per-target rows (subsystem, program
-  entry, provider selections beyond the target-qualified root bindings)
-  have no authored spelling yet.
+  exclusions, wire demands. The Build observes no target (activation,
+  observation identity and restricted requests carry none; the x86 claim is
+  a Build value each profile admits), and within one `CompileRequest`
+  targets with equal package inputs share one assembled, built and typed
+  program (`compiler.rs` `SharedBuilds`; a two-target request reports one
+  shared `Step: build`). Remaining: the CLI and package manager issue one
+  request per target (`compile_project_for_targets`, package operations'
+  `for target in targets`), each target's package inputs differ so even one
+  request would not share, and per-target rows (subsystem, program entry,
+  provider selections beyond target-qualified root bindings) have no
+  authored spelling yet.
   Delete the per-target execution, the preliminary checked pass
   (`phase_transitions::typed_trees_to_preliminary_checked_trees`) and
   `declaration_admission::validate_authored_declaration_selections_before_build`;
