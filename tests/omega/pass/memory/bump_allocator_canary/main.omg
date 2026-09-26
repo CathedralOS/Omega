@@ -645,6 +645,14 @@ reaches ExtentPartition
     unchanged.tail as Extent
 }
 
+data BumpRootProvider {}
+
+machine BumpRootProvider::grant_root(root: Extent) -> Extent
+satisfies ExtentRootProvider::grant
+{
+    root
+}
+
 data Main {}
 
 machine Main::main(&mut self) {}
