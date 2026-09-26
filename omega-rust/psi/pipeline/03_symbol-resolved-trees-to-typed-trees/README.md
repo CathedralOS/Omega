@@ -17,7 +17,7 @@ limits, not a different generated-source language.
   `AdmittedBuildProgram` retains the prepared program and program-bound entry
   token with reach/admission, initial Build value, target, scope, and sponsor.
   Evaluation and replay consume the admitted route.
-- [source assembly](../../../omega/compiler/src/sources/source_assembly.rs): generated units and
+- [source assembly](../../../omega/build/build-evaluation/src/sources/source_assembly.rs): generated units and
   dependency bundles retain source bytes, logical paths, and producer custody.
 - [seeded resolution](../02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs)
   appends the later stratum and rebases only extension-owned selections.

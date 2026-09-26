@@ -9,10 +9,10 @@ use crate::sources::source::SourceStorage;
 use package_compilation::PackageCompilationInputs;
 use std::path::PathBuf;
 
-pub(crate) struct EntryContractSeed {
-    pub(crate) source: PathBuf,
-    pub(crate) root: PathBuf,
-    pub(crate) closed_subtree: bool,
+pub struct EntryContractSeed {
+    pub source: PathBuf,
+    pub root: PathBuf,
+    pub closed_subtree: bool,
 }
 
 /// One seed per catalogued profile that owns a physical entry contract
@@ -62,7 +62,7 @@ fn contract_seed(
     let Some(inputs) = package_inputs else {
         return Some(bundled());
     };
-    let accepted_role = build_evaluation::program_entry_semantic_binding_role(contract_package);
+    let accepted_role = crate::program_entry_semantic_binding_role(contract_package);
     let accepted_package = inputs
         .accepted_semantic_binding(accepted_role)
         .map(|binding| binding.package());

@@ -13,7 +13,7 @@ records current experimental status, applicability, and composition limits.
 
 [Build evaluation](omega/build/build-evaluation/src/optimization/mod.rs) admits
 the exact vocabulary. The compiler's
-[build vocabulary](omega/compiler/src/sources/source_assembly/build_vocabulary/mod.rs)
+[build vocabulary](omega/build/build-evaluation/src/sources/source_assembly/build_vocabulary/mod.rs)
 supplies both preludes from one mapping; its
 [checked handoff](omega/compiler/src/checked/optimization/checked_handoff/mod.rs)
 retains selection and report requests.

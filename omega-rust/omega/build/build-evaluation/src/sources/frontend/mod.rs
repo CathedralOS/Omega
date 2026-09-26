@@ -14,7 +14,7 @@ use tokens::{PunctuationKind, Token, TokenKind, TokenStream, TokenText};
 
 mod import_bindings;
 use import_bindings::{ImportOccurrence, direct_source_import};
-pub(crate) use import_bindings::{
+pub use import_bindings::{
     PendingPackageImport, ResolvedSourceImport, retain_module_import_bindings,
 };
 
@@ -249,7 +249,7 @@ pub fn parse_sources(
 
 /// Discover standalone imports without interpreting dependency declarations.
 /// Package aliases are meaningful only on the reconciled package-aware path.
-pub(crate) fn discover_imports(
+pub fn discover_imports(
     parsed: &ParsedSources,
     syntax_trees: &SyntaxTrees,
     root_path: &Path,
@@ -318,7 +318,7 @@ fn standalone_source_root(default_root: &Path, source: &Path) -> PathBuf {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum ReconciledPackageImport {
+pub enum ReconciledPackageImport {
     Toolchain(PathBuf),
     /// An import authored inside a closed toolchain contract source. It owns
     /// no package identity, so its path closes inside the registered contract
@@ -336,7 +336,7 @@ pub(crate) enum ReconciledPackageImport {
 /// Physical source lookup is target-independent. Generated-source selection
 /// and physical/generated collision rejection remain exact-child work.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ReconciledPackageImportRequest {
+pub struct ReconciledPackageImportRequest {
     package: semantic_vocabulary::PackageKeyIdentity,
     expected_root: PathBuf,
     relative_path: PathBuf,
@@ -355,7 +355,7 @@ pub(crate) struct ReconciledPackageImportRequest {
 /// import; the compile still rejects, but by naming the declaration that would
 /// close the gap instead of an unresolvable requester-relative source path.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct MissingDependencyEdge {
+pub struct MissingDependencyEdge {
     authored_path: String,
     alias: String,
     package: String,
@@ -386,7 +386,7 @@ impl MissingDependencyEdge {
 }
 
 impl ReconciledPackageImportRequest {
-    pub(crate) fn physical_source(&self) -> Result<Option<PathBuf>, Vec<Diagnostic>> {
+    pub fn physical_source(&self) -> Result<Option<PathBuf>, Vec<Diagnostic>> {
         if !source_import_candidates(&self.relative_path)
             .into_iter()
             .any(|candidate| self.expected_root.join(candidate).exists())
@@ -402,7 +402,7 @@ impl ReconciledPackageImportRequest {
         Ok(Some(resolved))
     }
 
-    pub(crate) fn resolve_for_exact_target(
+    pub fn resolve_for_exact_target(
         &self,
         packages: &PackageCompilationInputs,
         scope: DependencyScope,
@@ -490,7 +490,7 @@ fn other_purpose(purpose: DependencyPurpose) -> DependencyPurpose {
 /// context (wiki/spec/build/scoped_execution.md). Which execution profile a
 /// package's target-scoped rows select against follows its checked source
 /// instance, independently of the edges used to resolve names inside it.
-pub(crate) fn source_import_scope(
+pub fn source_import_scope(
     packages: &PackageCompilationInputs,
     instance_scope: DependencyScope,
     source_path: &Path,
@@ -505,7 +505,7 @@ pub(crate) fn source_import_scope(
     }
 }
 
-pub(crate) fn reconciled_package_import(
+pub fn reconciled_package_import(
     requesting_source: &Path,
     members: &[Identifier],
     requester: Option<semantic_vocabulary::PackageKeyIdentity>,
@@ -738,7 +738,7 @@ fn declared_package_name(build_source: &str) -> Option<String> {
 
 /// Resolve imports exclusively through a reconciled, requester-local package
 /// graph. This path never reads or combines dependency rows from `build.omg`.
-pub(crate) fn discover_imports_with_packages(
+pub fn discover_imports_with_packages(
     parsed: &ParsedSources,
     syntax_trees: &SyntaxTrees,
     packages: &PackageCompilationInputs,
@@ -757,7 +757,7 @@ pub(crate) fn discover_imports_with_packages(
     Ok(imports)
 }
 
-pub(crate) enum PackageImportPhase {
+pub enum PackageImportPhase {
     TargetIndependent,
     ExactTarget(Option<semantic_vocabulary::PackageKeyIdentity>),
 }
@@ -767,7 +767,7 @@ pub(crate) enum PackageImportPhase {
 /// Each returned path carries the checked instance it joins under: the
 /// importer's own scope. A source both scopes import loads twice — the two
 /// instances share source bytes and package identity but nothing else.
-pub(crate) fn discover_package_imports(
+pub fn discover_package_imports(
     parsed: &ParsedSources,
     syntax_trees: &SyntaxTrees,
     packages: &PackageCompilationInputs,
@@ -985,16 +985,16 @@ fn identifier_path_text(path: &[Identifier]) -> String {
         .join("::")
 }
 
-pub(crate) fn bundled_omega_root() -> PathBuf {
+pub fn bundled_omega_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../source/library")
+        .join("../../../../source/library")
         .canonicalize()
         .unwrap_or_else(|_| {
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../source/library")
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../../source/library")
         })
 }
 
-pub(crate) fn bundled_core_root() -> PathBuf {
+pub fn bundled_core_root() -> PathBuf {
     bundled_omega_root().join("core")
 }
 
