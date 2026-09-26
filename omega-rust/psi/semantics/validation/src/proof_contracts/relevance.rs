@@ -39,7 +39,7 @@ pub(super) enum Context {
 }
 
 pub(crate) fn validate_relevance(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
-    let proof_only = typed_trees::proof_only::classify(program);
+    let proof_only = crate::proof_only_classification(program);
     validate_supported_shapes(program, diagnostics);
 
     for machine in program.machines() {

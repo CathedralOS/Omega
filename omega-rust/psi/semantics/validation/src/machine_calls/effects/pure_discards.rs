@@ -21,7 +21,7 @@ pub(super) fn validate_pure_discards(
     service_reaches: &flow_effects::ServiceReachInferencePlan,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let classification = typed_trees::proof_only::classify(program);
+    let classification = crate::proof_only_classification(program);
     for machine in program.machines() {
         // Inside a proof machine, discards are proof context -- silent.
         if classification.is_proof_machine(program, machine) {

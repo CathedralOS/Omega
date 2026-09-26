@@ -44,8 +44,9 @@ use typed_trees::statement::{StatementNode, TableCall, TransitionGuardNode, Tran
 pub struct CallFrameResolver<'program> {
     program: &'program TypedTrees,
     symbols: TopLevelSymbols<'program>,
-    /// The query memos. Inside a call-frame scope every resolver built for
-    /// the scope's program shares one set; see `enter_call_frame_scope`.
+    /// The query memos. Inside a frozen-program scope every resolver built
+    /// for the scope's program shares one set; see
+    /// `enter_frozen_program_scope`.
     caches: std::sync::Arc<CallFrameCaches>,
     /// Per-machine member/state symbol tables, built once with the resolver
     /// so every write-frame query shares them. `None` retains the build's
@@ -56,7 +57,7 @@ pub struct CallFrameResolver<'program> {
 /// Every memo a resolver fills. Each is pure over the resolver's immutable
 /// program, so resolvers over the same frozen program may share them.
 #[derive(Default)]
-struct CallFrameCaches {
+pub(crate) struct CallFrameCaches {
     /// Exact statement calls are queried repeatedly by monotone validation
     /// fixpoints. The program is immutable for this resolver's lifetime, so a
     /// call-node address plus its owning machine is a stable cache key.
@@ -119,61 +120,6 @@ struct CallFrameCaches {
             )>,
         >,
     >,
-}
-
-thread_local! {
-    static CALL_FRAME_SCOPE: std::cell::RefCell<Option<CallFrameScopeSlot>> =
-        const { std::cell::RefCell::new(None) };
-}
-
-struct CallFrameScopeSlot {
-    program: usize,
-    identity: u64,
-    caches: std::sync::Arc<CallFrameCaches>,
-}
-
-/// Restores the enclosing scope, if any, when dropped.
-pub struct CallFrameScope {
-    enclosing: Option<CallFrameScopeSlot>,
-}
-
-impl Drop for CallFrameScope {
-    fn drop(&mut self) {
-        CALL_FRAME_SCOPE.with(|slot| *slot.borrow_mut() = self.enclosing.take());
-    }
-}
-
-/// Share one set of resolver memos among every resolver this thread builds
-/// for `program` until the guard drops. Each check-pass consumer builds its
-/// own resolver; without the scope each starts cold and re-derives the same
-/// state summaries, prefixes and frames. The caller keeps `program` in place
-/// and leaves everything the memos read unchanged while the guard lives. A
-/// resolver for any other program, including a clone at another address,
-/// keeps private memos.
-pub fn enter_call_frame_scope(program: &TypedTrees) -> CallFrameScope {
-    let slot = CallFrameScopeSlot {
-        program: std::ptr::from_ref(program).addr(),
-        identity: program.identity.get(),
-        caches: std::sync::Arc::default(),
-    };
-    CallFrameScope {
-        enclosing: CALL_FRAME_SCOPE.with(|scope| scope.borrow_mut().replace(slot)),
-    }
-}
-
-fn scoped_call_frame_caches(program: &TypedTrees) -> std::sync::Arc<CallFrameCaches> {
-    CALL_FRAME_SCOPE
-        .with(|scope| {
-            scope
-                .borrow()
-                .as_ref()
-                .filter(|slot| {
-                    slot.program == std::ptr::from_ref(program).addr()
-                        && slot.identity == program.identity.get()
-                })
-                .map(|slot| slot.caches.clone())
-        })
-        .unwrap_or_default()
 }
 
 /// Run `compute` once per key for the resolver's immutable program. The lock
@@ -418,7 +364,9 @@ impl<'program> CallFrameResolver<'program> {
         diagnostics.is_empty().then_some(Self {
             program,
             symbols,
-            caches: scoped_call_frame_caches(program),
+            caches: crate::frozen_program::frozen_program_memos(program)
+                .map(|memos| memos.call_frames.clone())
+                .unwrap_or_default(),
             machine_symbols: program
                 .machines()
                 .iter()

@@ -100,7 +100,7 @@ pub(super) fn check_flow_call_contracts(
     // Mathematical applications owe the same substituted premises as runtime
     // calls, even when their result is erased or no guarantee is consumed.
     // Recursive descent establishes termination, not a call's preconditions.
-    let proof_only = typed_trees::proof_only::classify(program);
+    let proof_only = validation::proof_only_classification(program);
     let mut entailment = entailment::ProvenExitExpressions::new(
         program,
         &proof_only,

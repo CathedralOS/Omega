@@ -230,12 +230,11 @@ pub fn lower_typed_trees(
     let _field_domain_scope = crate::facts::field_domain::enter_field_domain_scope();
     let _fact_row_scope = crate::flow::enter_fact_row_scope();
     let _root_currency_scope = checks::enter_root_currency_scope();
-    // Every consumer below builds its own call-frame resolver; inside this
-    // scope they share one set of write-frame memos. The only mutation in the
-    // scope, contract-identity binding, rewrites specialization fingerprints
-    // no write frame reads; the scope closes before authored-selection
-    // finalization rewrites call targets.
-    let call_frame_scope = ::validation::enter_call_frame_scope(&program);
+    // Consumers below share one set of write-frame memos and one proof-only
+    // classification. The only mutation in the scope, contract-identity
+    // binding, rewrites specialization fingerprints neither reads; the scope
+    // closes before authored-selection finalization rewrites call targets.
+    let frozen_program_scope = ::validation::enter_frozen_program_scope(&program);
     crate::monomorphization::validate_selected_attached_method_bounds(&program)?;
     let mut validated = validate_typed_program(
         &program,
@@ -314,7 +313,7 @@ pub fn lower_typed_trees(
 
     crate::authored_selections::bind_checked_intrinsic_call_facts(&program, &mut facts)
         .map_err(|diagnostic| vec![diagnostic])?;
-    drop(call_frame_scope);
+    drop(frozen_program_scope);
     if mode.allows_unresolved_toolchain_selections() {
         crate::authored_selections::finalize_preliminary_checked_authored_selections(
             &mut program,

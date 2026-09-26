@@ -33,7 +33,7 @@ pub(crate) struct DirectMoveEventSink<'segments> {
     pub(super) machine: &'segments typed_trees::machine::Machine,
     pub(super) state: &'segments typed_trees::state::State,
     events: Vec<DiscoveredMoveEvent>,
-    proof_only: Option<typed_trees::proof_only::ProofOnlyClassification>,
+    proof_only: Option<std::sync::Arc<typed_trees::proof_only::ProofOnlyClassification>>,
     pub(super) source_arm: arena::Handle<typed_trees::expression::TableMatchArm>,
 }
 
@@ -65,8 +65,9 @@ impl DirectMoveEventSink<'_> {
         &mut self,
         program: &typed_trees::TypedTrees,
     ) -> &typed_trees::proof_only::ProofOnlyClassification {
-        self.proof_only
-            .get_or_insert_with(|| typed_trees::proof_only::classify(program))
+        &**self
+            .proof_only
+            .get_or_insert_with(|| validation::proof_only_classification(program))
     }
 
     fn append_move_event(
