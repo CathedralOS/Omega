@@ -280,17 +280,23 @@ the complete product bar; focused successes below do not establish that baseline
   locals use established initializer/guard/call facts. `T in D` is reserved for
   an intentionally named domain identity, not generated interval sugar.
 
-  **Its `range_*` library tests are nondeterministic on main, measured
-  2026-09-25 at 7650781232.** One unchanged tree failed
-  `range_expression_dependencies::operand_writes_retire_direct_uses_and_later_
-  captures_but_keep_earlier_copies` on one run and two different
-  `range_index_dependencies` tests on the next. It reproduces under
-  `--test-threads=1`, so it is not cross-test leakage; the verdict caches in
-  `machine_calls/calls/write_frames/isolation.rs` include
-  `HashMap<*const DataDefinition, bool>`, and iteration order over pointer keys
-  moves with ASLR between runs. Until this is settled, a failure COUNT
-  attributes nothing: compare `-E 'not test(/range_/)'`, which is 0 on main,
-  and read the named failures rather than the total.
+  **The `range_*` library-test nondeterminism reported here is resolved.**
+  The flake was measured at 7650781232 (2026-09-25), before the
+  `ProgramIdentity` fix chain (`bc5fe0bed2` for `write_frames/isolation.rs`,
+  `7786d0b548` for six sibling caches, `020c9fdb78` for the domain index).
+  The real mechanism was an address-keyed cache plus an arena-base-pointer
+  fingerprint: allocator recycling let a replacement program inherit a
+  dropped program's verdicts, and ASLR decided whether reuse happened each
+  run — not pointer-key iteration order (the `HashMap<*const
+  DataDefinition, bool>` is only get/insert). Remaining pointer-keyed
+  caches in the range path (`flow/fact_rows.rs`, `reads.rs`'s root-currency
+  index, `plan_scope.rs`) are scope-guarded against recycling. Measured on
+  main after the fix chain: 8x673 `--test-threads=1` range_ runs, 2x4887
+  single-threaded and 2x4887 multi-threaded full-suite runs, and a 234-test
+  nextest pass — zero failures. A latent non-flaky hole remains: a clone
+  shares its tag, so the sampled fingerprint can miss a same-length
+  in-place mutation; **TYPED-TREES-OWNED-INDEXES** owns deleting these
+  caches. A failure COUNT now attributes normally again.
 
   **Owner directive (2026-09-24): do not replace a scalar range with a named
   domain whose only meaning is that range.** This is a source-quality and
