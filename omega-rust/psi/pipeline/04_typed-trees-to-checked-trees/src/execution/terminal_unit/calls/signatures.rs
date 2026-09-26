@@ -11,10 +11,9 @@ use crate::execution::terminal_unit::{
     BTreeSet, CarryPolicy, CheckFacts, CheckedStructuralAccess,
     CheckedStructuralScalarParameterPlan, CheckedUnitEntryClaimPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, MachineSupplyMode, Multiplicity,
-    PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
-    StateParameter, SymbolHandle, TypeReferenceNode, TypedTrees, is_reference,
-    strips_erased_parameter,
+    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, Multiplicity, PermissionAccess,
+    PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, StateParameter,
+    SymbolHandle, TypeReferenceNode, TypedTrees, is_reference, strips_erased_parameter,
 };
 
 pub(crate) fn structural_signature(
@@ -188,39 +187,6 @@ fn structural_signature_with_partial_affine(
         None if allow_partial_affine => None,
         None => return None,
     };
-    let shared_primitive_observer_type = (machine.supply_mode == MachineSupplyMode::CheckedBody
-        && program
-            .statement_table
-            .statements(state.statement_nodes)
-            .is_empty()
-        && matches!(parameters.len(), 2 | 3))
-    .then(|| {
-        let TypeReferenceNode::Reference { referee, .. } = program
-            .type_reference_table
-            .type_reference(parameters[0].type_reference)
-        else {
-            return None;
-        };
-        let primitive = program.primitive_type_reference(*referee)?;
-        parameters
-            .iter()
-            .filter(|parameter| !parameter.relevance.is_erased())
-            .all(|parameter| {
-                let TypeReferenceNode::Reference { referee, .. } = program
-                    .type_reference_table
-                    .type_reference(parameter.type_reference)
-                else {
-                    return false;
-                };
-                !parameter.is_self
-                    && !parameter.is_const
-                    && program.primitive_type_reference(*referee) == Some(primitive)
-                    && structural_access_for_type_reference(program, parameter.type_reference)
-                        == Some(CheckedStructuralAccess::SharedBorrow)
-            })
-            .then_some(primitive)
-    })
-    .flatten();
     let mut structural_parameters = Vec::new();
     let mut scalar_parameters = Vec::new();
     let mut fused_service_parameter_count = 0_usize;
@@ -323,11 +289,16 @@ fn structural_signature_with_partial_affine(
         {
             return None;
         }
+        // The bounded write-only closure, the exact shared-observer leaf, and
+        // an ordinary shared borrow of a primitive referent all admit a
+        // borrowed primitive place; the borrow's own custody checks decide
+        // whether the callee may read through it.
         let primitive_access_is_supported = matches!(
             access,
-            CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
-        ) || (shared_primitive_observer_type.is_some()
-            && access == CheckedStructuralAccess::SharedBorrow);
+            CheckedStructuralAccess::MutableBorrow
+                | CheckedStructuralAccess::WriteOnlyBorrow
+                | CheckedStructuralAccess::SharedBorrow
+        );
         if matches!(
             shapes.types.get(&type_identity).map(|shape| &shape.shape),
             Some(CheckedUnitStructuralTypeShape::PrimitiveScalar(_))
