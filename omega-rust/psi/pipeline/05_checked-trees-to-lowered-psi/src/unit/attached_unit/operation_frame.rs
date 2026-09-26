@@ -675,14 +675,15 @@ impl OperationFrame<'_, '_> {
 
     /// The scalar namespace an assignment's index and value resolve in: the
     /// composed state's own namespace when the evaluation carries one, and
-    /// otherwise the ordinary dense source prefix over primitive storage and
-    /// structural parameters.
+    /// otherwise the ordinary dense source prefix over primitive storage,
+    /// structural parameters, and established structural locals.
     fn dense_assignment_namespace(&self) -> ScalarBindings {
         ScalarBindings::new(self.values.len())
             .with_primitive_storage(&self.evaluation.primitive_storage)
             .with_view_locals(&self.evaluation.view_locals)
             .with_element_views(&self.evaluation.element_views)
             .with_structural_parameters(&self.evaluation.structural_parameters)
+            .with_structural_locals(&self.evaluation.structural_locals)
     }
 
     fn structural_byte_sequence_field_byte_store(

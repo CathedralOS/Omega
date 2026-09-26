@@ -1,6 +1,6 @@
 //! Exact indexed mutation of the supplied mutable byte view.
 
-use super::lower_machine;
+use super::{LoweringError, lower_machine};
 use crate::TerminalMachineSelection;
 use checked_trees::{
     CheckedScalarExpression, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
@@ -290,4 +290,31 @@ fn guarded_mutable_byte_write_keeps_original_field_extent_and_tail() {
             "the committed guarded writes were observable before the return repair: {observed:?}"
         );
     }
+}
+
+#[test]
+fn byte_view_write_resolves_owned_local_element_value() {
+    // The dense assignment namespace an entry-body byte write resolves its
+    // index and value through carries established structural locals: `arr[k]`
+    // roots at `CheckedStorageRoot::OwnedLocal` and previously died in
+    // bindings evaluation ("owned local observation lost its established
+    // place"). Resolution now completes and the write mints; the remaining
+    // decline is the preexisting bound-obligation wall — an entry body has no
+    // dominating guard and a `requires` premise does not reach the write's
+    // reconstructed proof site — tracked as its own item. Flip this to the
+    // lowered operation once that wall lands.
+    let checked = crate::front_end::checked_program(
+        r#"
+        machine store(target: &mut [u8], i: u64, k: u64)
+        requires i < target.len && k < 8
+        {
+            let arr: [u8; 8] = [9, 8, 7, 6, 5, 4, 3, 2];
+            target[i] = arr[k];
+        }
+    "#,
+    );
+    assert!(matches!(
+        lower_machine(&checked, TerminalMachineSelection::Name("store")),
+        Err(LoweringError::OperationProofUnavailable(_))
+    ));
 }
