@@ -201,10 +201,10 @@ impl ContractCarriers {
             pending.clear();
             pending.extend_from_slice(proof_fact_roots(program, contract.fact));
             while let Some(expression) = pending.pop() {
-                if let Some(carried) = by_invocation.get_mut(&expression) {
-                    if !visited.contains(&expression) {
-                        carried.push(carrier);
-                    }
+                if let Some(carried) = by_invocation.get_mut(&expression)
+                    && !visited.contains(&expression)
+                {
+                    carried.push(carrier);
                 }
                 if !expression.is_valid() || !visited.insert(expression) {
                     continue;

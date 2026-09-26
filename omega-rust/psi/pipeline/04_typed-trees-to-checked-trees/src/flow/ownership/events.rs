@@ -65,8 +65,7 @@ impl DirectMoveEventSink<'_> {
         &mut self,
         program: &typed_trees::TypedTrees,
     ) -> &typed_trees::proof_only::ProofOnlyClassification {
-        &**self
-            .proof_only
+        self.proof_only
             .get_or_insert_with(|| validation::proof_only_classification(program))
     }
 

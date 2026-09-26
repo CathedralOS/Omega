@@ -759,7 +759,7 @@ fn owned_case_field_member_store_still_declines() {
         .flow
         .terminal_unit_effects
         .omission_for_machine(machine)
-        .map(|row| row.stage.clone());
+        .map(|row| row.stage);
     assert!(
         stage.is_some(),
         "affine owned source member store should still decline",
