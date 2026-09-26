@@ -174,21 +174,27 @@ fn domain_index_fingerprint(definitions: &[DomainDefinition]) -> usize {
 }
 
 thread_local! {
+    // Owned by the program's instance tag rather than the slice's address: a
+    // later program can place an equally long domain table at the same
+    // address once an earlier one is freed. The fingerprint still catches
+    // mutation of the same instance.
     static DOMAIN_SYMBOL_INDEX: std::cell::RefCell<
-        Option<(*const [DomainDefinition], usize, DomainSymbolIndex)>,
+        Option<(u64, usize, DomainSymbolIndex)>,
     > = const { std::cell::RefCell::new(None) };
 }
 
 fn with_domain_symbol_index<R>(
+    program: &TypedTrees,
     definitions: &[DomainDefinition],
     reader: impl FnOnce(&DomainSymbolIndex) -> R,
 ) -> R {
     DOMAIN_SYMBOL_INDEX.with(|slot| {
         let mut slot = slot.borrow_mut();
         let fingerprint = domain_index_fingerprint(definitions);
-        let fresh = slot.as_ref().is_some_and(|(owner, seen, _)| {
-            std::ptr::eq(*owner, definitions) && *seen == fingerprint
-        });
+        let owner = program.identity.get();
+        let fresh = slot
+            .as_ref()
+            .is_some_and(|(seen_owner, seen, _)| *seen_owner == owner && *seen == fingerprint);
         if !fresh {
             let mut index = DomainSymbolIndex {
                 by_symbol: std::collections::HashMap::with_capacity(definitions.len()),
@@ -196,7 +202,7 @@ fn with_domain_symbol_index<R>(
             for (position, domain) in definitions.iter().enumerate() {
                 index.by_symbol.entry(domain.symbol).or_insert(position);
             }
-            *slot = Some((definitions as *const _, fingerprint, index));
+            *slot = Some((owner, fingerprint, index));
         }
         reader(&slot.as_ref().expect("index just populated").2)
     })
@@ -206,8 +212,9 @@ fn with_domain_symbol_index<R>(
 /// instead of rescanning `domain_definitions()` per query.
 pub fn domain_by_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<&DomainDefinition> {
     let definitions = program.domain_definitions();
-    let position =
-        with_domain_symbol_index(definitions, |index| index.by_symbol.get(&symbol).copied())?;
+    let position = with_domain_symbol_index(program, definitions, |index| {
+        index.by_symbol.get(&symbol).copied()
+    })?;
     definitions.get(position)
 }
 
