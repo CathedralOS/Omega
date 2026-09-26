@@ -1,0 +1,34 @@
+[package]
+name = "omega"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+default-run = "omega"
+
+[[bin]]
+name = "omega"
+path = "src/main.rs"
+test = true
+
+[dependencies]
+lowered-psi = { path = "../../psi/representations/lowered-psi" }
+lowered-psi-to-lowered-psi = { path = "../../psi/pipeline/06_lowered-psi-to-lowered-psi" }
+lowered-psi-to-terminal-psi = { path = "../../psi/pipeline/07_lowered-psi-to-terminal-psi" }
+terminal-production = { path = "../../psi/compiler/terminal-production" }
+compiler = { path = "../compiler" }
+artifacts = { path = "../tooling/artifacts" }
+platform-custody = { path = "../tooling/platform-custody" }
+package-manager = { path = "../package-manager" }
+package-source = { path = "../package-manager/source-acquisition" }
+package-compilation = { path = "../compiler/package-compilation" }
+resolver-execution = { path = "../package-manager/resolver-execution" }
+target = { path = "../representations/target" }
+trust-ledger = { path = "../compiler/trust-ledger" }
+checked-trees-to-lowered-psi = { path = "../../psi/pipeline/05_checked-trees-to-lowered-psi" }
+semantic-vocabulary = { path = "../../psi/foundation/semantic-vocabulary" }
+diagnostics = { path = "../../psi/foundation/diagnostics" }
+checked-interpreter = { path = "../../psi/interpreter/checked-interpreter" }
+proof-admission = { path = "../../psi/semantics/proof-admission" }
+terminal-psi = { path = "../../psi/representations/terminal-psi" }
+terminal-fixed-fuel = { path = "../../psi/semantics/terminal-fixed-fuel" }
+terminal-verifier = { path = "../../psi/semantics/terminal-verifier" }

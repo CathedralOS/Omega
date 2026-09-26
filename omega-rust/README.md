@@ -7,8 +7,8 @@ self-hosted compiler and not a language rung.
 - `psi/` implements source processing, language judgments, and terminal Psi.
 - `omega/` consumes terminal Psi and performs target lowering and artifact
   emission.
-- `omega/` is the `omega` product package and development command. Its nested
-  crates implement target realization, orchestration, and artifact emission.
+- `omega/omega/` is the `omega` product package and development command. Its
+  sibling crates own compiler coordination, package management and realization.
 - `library/` contains Rust reference implementations of ordinary Omega library
   contracts; these do not become compiler subsystems.
 
@@ -54,8 +54,8 @@ implies deletion.
 - [Build evaluation](omega/compiler/build-evaluation/README.md): one of the
   independent supporting packages beneath compiler coordination, alongside
   declarations, output custody, package inputs, selection, and trust policy.
-- [Psi interpreters](psi/interpreter/): separate checked-tree and Terminal Psi
-  engines. [Build-time evaluation](psi/compiler/build-time-evaluation/) uses
+- [Psi interpreters](psi/interpreter): separate checked-tree and Terminal Psi
+  engines. [Build-time evaluation](psi/compiler/build-time-evaluation) uses
   target-neutral execution without depending on the Omega compiler coordinator.
 - [Runtime component installation](omega/backend/runtime/component-deployment/README.md):
   custody composition under backend runtime ownership.
@@ -68,10 +68,10 @@ compiler services without the compiler depending back on package management;
 shared foundations and utilities remain independently owned. Durable IRs stay
 in `representations/`, separate from their producing pipeline stages. The
 independent optimization-unit checker sits beside its IR at
-[`omega/representations/optimization-unit/semantics/`](omega/representations/optimization-unit/semantics/),
+[`omega/representations/optimization-unit/semantics/`](omega/representations/optimization-unit/semantics),
 with no reverse dependency from the representation to its checker.
 
-Run the product through `omega/`; repository commands and validation policy are
+Run the product through the `omega` package in `omega/omega/`; repository commands and validation policy are
 in [AGENTS.md](../AGENTS.md#commands). Language examples live in `../tests/omega/`,
 cross-owner tests in `../tests/`, and crate-specific tests beside their owner.
 Public crate roots map responsibilities; test families and implementation

@@ -33,8 +33,8 @@ fn temp_path(name: &str) -> PathBuf {
 fn repository_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
-        .nth(2)
-        .expect("omega crate should live under omega-rust/omega")
+        .nth(3)
+        .expect("omega crate should live under omega-rust/omega/omega")
         .to_path_buf()
 }
 

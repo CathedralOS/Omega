@@ -84,7 +84,7 @@ class OmissionAuditTests(unittest.TestCase):
 
     def test_omega_rust_member_is_a_producer_artifact(self):
         manifest = self.manifest(
-            "closure.txt", ["source/omega/main.omg", "omega-rust/omega/src/main.rs"]
+            "closure.txt", ["source/omega/main.omg", "omega-rust/omega/omega/src/main.rs"]
         )
         record = self.audit(manifests=[manifest])
         self.assertEqual(record["result"], "present")
