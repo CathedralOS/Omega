@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit;
+use optimization_unit::PsiOptimizationUnit;
 
 use super::{StronglyConnectedComponentAnalysis, graph::control_flow};
 

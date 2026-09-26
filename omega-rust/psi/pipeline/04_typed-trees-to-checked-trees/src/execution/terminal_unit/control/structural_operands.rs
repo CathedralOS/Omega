@@ -19,7 +19,7 @@ use crate::execution::terminal_unit::control::call_results::bind_structural_call
 use crate::execution::terminal_unit::control::call_results::checked_structural_result_type;
 
 pub(in crate::execution::terminal_unit) enum Operand<'facts> {
-    Call(&'facts crate::checked_trees::FlowCallFact),
+    Call(&'facts checked_trees::FlowCallFact),
     Array(crate::values::CallArrayConstruction),
     /// An inline case or record construction retained by the checker as a
     /// structural value rooted at the authored argument expression. The statement
@@ -27,7 +27,7 @@ pub(in crate::execution::terminal_unit) enum Operand<'facts> {
     /// consuming call, giving the argument the same binding-ordinal source
     /// an anonymous call result carries.
     Value {
-        root: &'facts crate::checked_trees::CheckedStructuralValueRoot,
+        root: &'facts checked_trees::CheckedStructuralValueRoot,
         parameter_position: u32,
     },
 }
@@ -41,9 +41,9 @@ fn constructed_value_root<'a>(
     machine: SymbolHandle,
     state: SymbolHandle,
     statement_index: usize,
-    argument: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
-    parameter: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter,
-) -> Option<&'a crate::checked_trees::CheckedStructuralValueRoot> {
+    argument: typed_trees::expression::ExpressionHandle,
+    parameter: &typed_trees::signature::StateParameter,
+) -> Option<&'a checked_trees::CheckedStructuralValueRoot> {
     if program
         .primitive_type_reference(parameter.type_reference)
         .is_some()
@@ -60,9 +60,9 @@ fn constructed_value_root<'a>(
             != program.normalized_type_identity(parameter.type_reference)
         || !matches!(
             facts.values.structural_values.nodes.get(root.root).kind,
-            crate::checked_trees::CheckedStructuralValueKind::Case(_)
-                | crate::checked_trees::CheckedStructuralValueKind::StructuralCase { .. }
-                | crate::checked_trees::CheckedStructuralValueKind::Record { .. }
+            checked_trees::CheckedStructuralValueKind::Case(_)
+                | checked_trees::CheckedStructuralValueKind::StructuralCase { .. }
+                | checked_trees::CheckedStructuralValueKind::Record { .. }
         )
     {
         return None;
@@ -86,20 +86,17 @@ pub(in crate::execution::terminal_unit) fn value_calls(
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
     trivial_locals: &[(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
     entry_claims: &[CheckedUnitEntryClaimPlan],
-    results: &[(
-        CheckedUnitStructuralResultBindingPlan,
-        crate::fact_plan::PlaceRoot,
-    )],
+    results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
     preamble: &mut Vec<CheckedUnitEffectOperationPlan>,
     count: &mut usize,
-    root: crate::checked_trees::CheckedStructuralValueHandle,
+    root: checked_trees::CheckedStructuralValueHandle,
     trace: &LocalConstructionTrace,
-) -> Option<Vec<crate::checked_trees::CheckedStructuralValueCall>> {
+) -> Option<Vec<checked_trees::CheckedStructuralValueCall>> {
     let plans = &facts.values.structural_values;
     let mut scoped_results = results.to_vec();
     let mut pending = vec![root];
@@ -111,7 +108,7 @@ pub(in crate::execution::terminal_unit) fn value_calls(
         }
         visited.push(value);
         match &plans.nodes.get(value).kind {
-            crate::checked_trees::CheckedStructuralValueKind::Call { source_call } => {
+            checked_trees::CheckedStructuralValueKind::Call { source_call } => {
                 if !facts.flow.control.calls.is_valid(*source_call) {
                     return None;
                 }
@@ -124,7 +121,7 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                         continue;
                     };
                     if scoped_results.iter().any(|(_, root)| {
-                        matches!(root, crate::fact_plan::PlaceRoot::Expression(expression)
+                        matches!(root, facts::PlaceRoot::Expression(expression)
                             if *expression == nested.authored_expression)
                     }) {
                         continue;
@@ -167,7 +164,7 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                     preamble.push(operation);
                     scoped_results.push((
                         nested_result,
-                        crate::fact_plan::PlaceRoot::Expression(nested.authored_expression),
+                        facts::PlaceRoot::Expression(nested.authored_expression),
                     ));
                     *count = count.checked_add(1)?;
                 }
@@ -204,27 +201,26 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                     return None;
                 };
                 *discard_result_on_return = false;
-                output.push(crate::checked_trees::CheckedStructuralValueCall::new(
+                output.push(checked_trees::CheckedStructuralValueCall::new(
                     value, operation,
                 )?);
                 scoped_results.push((
                     result,
-                    crate::fact_plan::PlaceRoot::Expression(call.authored_expression),
+                    facts::PlaceRoot::Expression(call.authored_expression),
                 ));
                 *count = count.checked_add(1)?;
             }
-            crate::checked_trees::CheckedStructuralValueKind::Record { fields, .. }
-            | crate::checked_trees::CheckedStructuralValueKind::StructuralCase { fields, .. } => {
+            checked_trees::CheckedStructuralValueKind::Record { fields, .. }
+            | checked_trees::CheckedStructuralValueKind::StructuralCase { fields, .. } => {
                 for field in plans.record_fields.span(*fields)?.iter().rev() {
-                    if let crate::checked_trees::CheckedStructuralRecordFieldValue::Structural(
-                        value,
-                    ) = field.value
+                    if let checked_trees::CheckedStructuralRecordFieldValue::Structural(value) =
+                        field.value
                     {
                         pending.push(value);
                     }
                 }
             }
-            crate::checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => {
+            checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => {
                 pending.extend(
                     plans
                         .dispatch_arms
@@ -234,28 +230,37 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                         .map(|arm| arm.value),
                 );
             }
-            crate::checked_trees::CheckedStructuralValueKind::Projection { source, .. } => {
+            checked_trees::CheckedStructuralValueKind::Projection { source, .. } => {
                 pending.push(*source);
             }
-            crate::checked_trees::CheckedStructuralValueKind::FixedArray { elements } => {
+            checked_trees::CheckedStructuralValueKind::FixedArray { elements } => {
                 pending.extend(elements.iter().rev().copied());
             }
             // A borrowed leaf read projects a type no signature owns; its
             // identity must exist in the unit's structural catalog for the
             // leaf observation to resolve a structural type id downstream.
-            crate::checked_trees::CheckedStructuralValueKind::ScalarCasePlace { leaf, .. }
-            | crate::checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace {
-                leaf,
-                ..
-            } => {
-                let _ = shapes.add_type(*leaf, &machine_binders(program, machine), &[])?;
+            // When the leaf is itself a borrowed carrier the argument plan
+            // names the `ref(...)` identity, so the shell must be registered
+            // — `add_type` alone peels the borrow and leaves it missing.
+            checked_trees::CheckedStructuralValueKind::ScalarCasePlace { leaf, .. }
+            | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { leaf, .. } => {
+                let binders = machine_binders(program, machine);
+                if crate::execution::terminal_unit::types::borrowed_named_view(program, *leaf) {
+                    let _ = shapes.add_named_view_type(*leaf, &binders)?;
+                } else if crate::execution::terminal_unit::types::borrowed_slice_view(
+                    program, *leaf,
+                ) {
+                    let _ = shapes.add_slice_view_type(*leaf, &binders)?;
+                } else {
+                    let _ = shapes.add_type(*leaf, &binders, &[])?;
+                }
             }
-            crate::checked_trees::CheckedStructuralValueKind::Reference { .. }
-            | crate::checked_trees::CheckedStructuralValueKind::BorrowedSliceView { .. }
-            | crate::checked_trees::CheckedStructuralValueKind::Case(_)
-            | crate::checked_trees::CheckedStructuralValueKind::ViewElementCopy { .. }
-            | crate::checked_trees::CheckedStructuralValueKind::ZeroedScalarArray { .. }
-            | crate::checked_trees::CheckedStructuralValueKind::Place(_) => {}
+            checked_trees::CheckedStructuralValueKind::Reference { .. }
+            | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { .. }
+            | checked_trees::CheckedStructuralValueKind::Case(_)
+            | checked_trees::CheckedStructuralValueKind::ViewElementCopy { .. }
+            | checked_trees::CheckedStructuralValueKind::ZeroedScalarArray { .. }
+            | checked_trees::CheckedStructuralValueKind::Place(_) => {}
         }
     }
     Some(output)
@@ -264,10 +269,10 @@ pub(in crate::execution::terminal_unit) fn value_calls(
 pub(in crate::execution::terminal_unit) fn for_call<'a>(
     program: &TypedTrees,
     facts: &'a CheckFacts,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-    call: &crate::checked_trees::FlowCallFact,
-) -> Option<Vec<&'a crate::checked_trees::FlowCallFact>> {
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    call: &checked_trees::FlowCallFact,
+) -> Option<Vec<&'a checked_trees::FlowCallFact>> {
     Some(
         operations_for_call(program, facts, machine, state, call)?
             .into_iter()
@@ -282,9 +287,9 @@ pub(in crate::execution::terminal_unit) fn for_call<'a>(
 pub(in crate::execution::terminal_unit) fn operations_for_call<'a>(
     program: &TypedTrees,
     facts: &'a CheckFacts,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-    call: &crate::checked_trees::FlowCallFact,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    call: &checked_trees::FlowCallFact,
 ) -> Option<Vec<Operand<'a>>> {
     let flow = state_flow(facts, machine.symbol, state.symbol)?;
     let calls = facts.flow.control.calls.span(flow.calls)?;
@@ -372,14 +377,12 @@ pub(in crate::execution::terminal_unit) fn operations_for_call<'a>(
 fn collect<'a>(
     program: &TypedTrees,
     facts: &'a CheckFacts,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-    calls: &'a [crate::checked_trees::FlowCallFact],
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    calls: &'a [checked_trees::FlowCallFact],
     arrays: &[crate::values::CallArrayConstruction],
-    call: &crate::checked_trees::FlowCallFact,
-    active: &mut Vec<
-        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
-    >,
+    call: &checked_trees::FlowCallFact,
+    active: &mut Vec<typed_trees::expression::ExpressionHandle>,
     output: &mut Vec<Operand<'a>>,
 ) -> Option<()> {
     let site = crate::semantic::calls::find_call_site(
@@ -411,7 +414,7 @@ fn collect<'a>(
         {
             continue;
         }
-        let source = crate::checked_trees::CheckedArrayConstructionSource::CallArgument {
+        let source = checked_trees::CheckedArrayConstructionSource::CallArgument {
             call_ordinal: u32::try_from(call.call_ordinal).ok()?,
             parameter_position: u32::try_from(*position).ok()?,
         };
@@ -458,13 +461,12 @@ fn collect<'a>(
                 if place.segments.iter().all(|segment| {
                     matches!(
                         segment,
-                        crate::fact_plan::PlaceSegment::Field { .. }
-                            | crate::fact_plan::PlaceSegment::FixedIndex { .. }
+                        facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
                     )
                 }) =>
             {
                 match place.root {
-                    crate::fact_plan::PlaceRoot::Expression(expression) => expression,
+                    facts::PlaceRoot::Expression(expression) => expression,
                     _ => *argument,
                 }
             }
@@ -516,7 +518,7 @@ pub(in crate::execution::terminal_unit) fn result(
     program: &TypedTrees,
     facts: &CheckFacts,
     caller: SymbolHandle,
-    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    expression: typed_trees::expression::ExpressionHandle,
     shapes: &mut ShapeCollector<'_>,
 ) -> Option<CheckedStructuralResultPlan> {
     if !program.expression_table.expression_is_valid(expression) {
@@ -539,7 +541,7 @@ pub(in crate::execution::terminal_unit) fn result(
         if !owner.supply_mode.is_boundary_declaration() {
             if owner.supply_mode == MachineSupplyMode::CheckedBody
                 && program.type_multiplicity(return_type) == Multiplicity::Unrestricted
-                && crate::validation::has_plain_owned_contents(program, return_type)
+                && validation::has_plain_owned_contents(program, return_type)
                 && machine_binders(program, owner).is_empty()
             {
                 return Some(CheckedStructuralResultPlan {
@@ -554,10 +556,7 @@ pub(in crate::execution::terminal_unit) fn result(
             // operand's own call operation replays that leaf custody; the
             // anonymous result only needs its declared identity here.
             if owner.supply_mode == MachineSupplyMode::CheckedBody
-                && crate::validation::reference_result_custody::is_reference_record(
-                    program,
-                    return_type,
-                )
+                && validation::reference_result_custody::is_reference_record(program, return_type)
                 && machine_binders(program, owner).is_empty()
             {
                 return Some(CheckedStructuralResultPlan {
@@ -608,7 +607,7 @@ pub(in crate::execution::terminal_unit) fn result(
             // reference-record arms above.
             if owner.supply_mode == MachineSupplyMode::CheckedBody
                 && program.type_multiplicity(return_type) == Multiplicity::Affine
-                && crate::validation::has_plain_owned_contents(program, return_type)
+                && validation::has_plain_owned_contents(program, return_type)
                 && machine_binders(program, owner).is_empty()
             {
                 return Some(CheckedStructuralResultPlan {

@@ -11,8 +11,8 @@ use crate::tests::flow::terminal_unit::checked;
 use crate::tests::flow::terminal_unit::machine_named;
 
 fn entry_terminator(
-    checked: &crate::checked_trees::CheckedTrees,
-) -> &crate::checked_trees::CheckedComposedUnitControlTerminatorPlan {
+    checked: &checked_trees::CheckedTrees,
+) -> &checked_trees::CheckedComposedUnitControlTerminatorPlan {
     let machine = machine_named(checked, "run");
     let plan = checked
         .facts
@@ -36,8 +36,8 @@ fn entry_terminator(
 }
 
 fn omission_phase(
-    checked: &crate::checked_trees::CheckedTrees,
-) -> &crate::checked_trees::CheckedUnitPlanOmission {
+    checked: &checked_trees::CheckedTrees,
+) -> &checked_trees::CheckedUnitPlanOmission {
     let machine = machine_named(checked, "run");
     checked
         .facts
@@ -81,7 +81,7 @@ fn state_graph_composes_a_field_subject_case_pair_without_an_authored_fallback()
     let [entry, have, failed] = plan.states.as_slice() else {
         panic!("the case pair keeps the entry dispatch and both leaves")
     };
-    let crate::checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {
+    let checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {
         when_true,
         when_false,
         ..
@@ -116,7 +116,7 @@ fn state_graph_composes_a_case_pair_when_payload_bindings_are_unused() {
     );
     assert!(matches!(
         entry_terminator(&checked),
-        crate::checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
+        checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
     ));
 }
 
@@ -156,7 +156,7 @@ fn state_graph_transfers_a_case_payload_field_into_the_target_state() {
     let [entry, have, failed] = plan.states.as_slice() else {
         panic!("the case pair keeps the entry dispatch and both leaves")
     };
-    let crate::checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {
+    let checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {
         when_true,
         when_false,
         ..
@@ -174,10 +174,10 @@ fn state_graph_transfers_a_case_payload_field_into_the_target_state() {
     };
     assert!(matches!(
         receiver.source,
-        crate::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 }
+        checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 }
     ));
     assert_eq!(transfer.target_parameter_index, 1);
-    let crate::checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
+    let checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
         subject,
         case_identity,
         field_identity,
@@ -194,24 +194,24 @@ fn state_graph_transfers_a_case_payload_field_into_the_target_state() {
     assert!(path.is_empty());
     assert!(matches!(
         subject.source,
-        crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-            parameter_index: 0
-        }
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 }
     ));
     assert_eq!(
         subject.path,
-        vec![crate::checked_trees::CheckedUnitStructuralPathSegment::Field("result".to_owned())]
+        vec![checked_trees::CheckedUnitStructuralPathSegment::Field(
+            "result".to_owned()
+        )]
     );
     assert_eq!(
         subject.access,
-        crate::checked_trees::CheckedStructuralAccess::SharedBorrow
+        checked_trees::CheckedStructuralAccess::SharedBorrow
     );
     let [receiver] = when_false.transfers.as_slice() else {
         panic!("the empty-target edge mints only the receiver transfer")
     };
     assert!(matches!(
         receiver.source,
-        crate::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 }
+        checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 }
     ));
 }
 
@@ -236,7 +236,7 @@ fn state_graph_nested_case_payload_path_stays_a_transfer_residual() {
         "#,
     );
     match &omission_phase(&checked).stage {
-        crate::checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
+        checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
             phase,
             state_index,
             statement_index,
@@ -275,7 +275,7 @@ fn state_graph_keeps_an_authored_false_fallback_on_the_guarded_jumps_path() {
     );
     assert!(matches!(
         entry_terminator(&checked),
-        crate::checked_trees::CheckedComposedUnitControlTerminatorPlan::GuardedJumps { .. }
+        checked_trees::CheckedComposedUnitControlTerminatorPlan::GuardedJumps { .. }
     ));
 }
 
@@ -320,7 +320,7 @@ fn state_graph_composes_a_case_pair_inside_a_named_state() {
             plan.states.len()
         )
     };
-    let crate::checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {
+    let checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {
         when_true,
         when_false,
         ..
@@ -341,10 +341,10 @@ fn state_graph_composes_a_case_pair_inside_a_named_state() {
     };
     assert!(matches!(
         receiver.source,
-        crate::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 }
+        checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 }
     ));
     assert_eq!(transfer.target_parameter_index, 1);
-    let crate::checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
+    let checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
         subject,
         case_identity,
         field_identity,
@@ -360,7 +360,9 @@ fn state_graph_composes_a_case_pair_inside_a_named_state() {
     assert_eq!(field_identity, "info");
     assert_eq!(
         subject.path,
-        vec![crate::checked_trees::CheckedUnitStructuralPathSegment::Field("result".to_owned())]
+        vec![checked_trees::CheckedUnitStructuralPathSegment::Field(
+            "result".to_owned()
+        )]
     );
     let _ = entry;
 }

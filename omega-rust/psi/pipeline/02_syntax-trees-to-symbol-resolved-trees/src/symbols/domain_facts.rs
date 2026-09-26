@@ -1,5 +1,5 @@
-use crate::symbol_resolved_trees::SymbolResolvedTrees;
 use language_semantics::byte_predicates::ByteSequencePredicate;
+use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use super::expressions::assign_membership_symbol;
@@ -109,10 +109,10 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
                 .span_or_empty(definition.members)
                 .iter()
                 .filter_map(|member| match member {
-                    crate::symbol_resolved_trees::data::DataMember::Field(field) => {
+                    symbol_resolved_trees::data::DataMember::Field(field) => {
                         Some((field.name.as_str().to_owned(), field.symbol))
                     }
-                    crate::symbol_resolved_trees::data::DataMember::Variant(_) => None,
+                    symbol_resolved_trees::data::DataMember::Variant(_) => None,
                 }),
         );
         // A case's own `where` facts resolve in the definition scope PLUS the
@@ -126,7 +126,7 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
             .span_or_empty(definition.members)
             .iter()
             .filter_map(|member| match member {
-                crate::symbol_resolved_trees::data::DataMember::Variant(variant)
+                symbol_resolved_trees::data::DataMember::Variant(variant)
                     if !variant.where_facts.is_empty() =>
                 {
                     let mut scope = program
@@ -166,7 +166,7 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
     for (facts, local_symbols, type_parameters) in proof_fact_scopes {
         for fact in proof_facts.span_mut_or_empty(facts) {
             match fact {
-                crate::symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
+                symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
                     if let Some(type_parameters) = type_parameters {
                         let local_type_parameters =
                             data_type_parameters.span_or_empty(type_parameters);
@@ -211,7 +211,7 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
                         diagnostic_path_source_span(members),
                     );
                 }
-                crate::symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
+                symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
                     assign_data_fact_local_symbols(
                         &local_symbols,
                         &mut program.tables.bodies.expressions,
@@ -238,8 +238,8 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
 /// recover authority-bearing identities from authored spelling.
 fn assign_data_fact_local_symbols(
     local_symbols: &[(String, SymbolHandle)],
-    expression_table: &mut crate::symbol_resolved_trees::expression::ExpressionTable,
-    expression: crate::symbol_resolved_trees::expression::ExpressionHandle,
+    expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
+    expression: symbol_resolved_trees::expression::ExpressionHandle,
 ) {
     if local_symbols.is_empty() {
         return;
@@ -247,33 +247,32 @@ fn assign_data_fact_local_symbols(
 
     let expression_node = expression_table.expression(expression).clone();
     match expression_node {
-        crate::symbol_resolved_trees::expression::ExpressionNode::Match(dispatch) => {
+        symbol_resolved_trees::expression::ExpressionNode::Match(dispatch) => {
             assign_data_fact_local_symbols(local_symbols, expression_table, dispatch.subject);
             for arm in expression_table.match_arms(dispatch.arms).to_vec() {
-                if let crate::symbol_resolved_trees::expression::MatchPattern::Value(pattern) =
-                    arm.pattern
+                if let symbol_resolved_trees::expression::MatchPattern::Value(pattern) = arm.pattern
                 {
                     assign_data_fact_local_symbols(local_symbols, expression_table, pattern);
                 }
                 assign_data_fact_local_symbols(local_symbols, expression_table, arm.value);
             }
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Atomic(atomic) => {
+        symbol_resolved_trees::expression::ExpressionNode::Atomic(atomic) => {
             assign_data_fact_local_symbols(local_symbols, expression_table, atomic.value);
             if atomic.result.is_valid() {
                 assign_data_fact_local_symbols(local_symbols, expression_table, atomic.result);
             }
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::ArrayLiteral(values) => {
+        symbol_resolved_trees::expression::ExpressionNode::ArrayLiteral(values) => {
             for value in expression_table.expression_handles(values).to_vec() {
                 assign_data_fact_local_symbols(local_symbols, expression_table, value);
             }
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Binary(binary) => {
+        symbol_resolved_trees::expression::ExpressionNode::Binary(binary) => {
             assign_data_fact_local_symbols(local_symbols, expression_table, binary.left);
             assign_data_fact_local_symbols(local_symbols, expression_table, binary.right);
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Call(call) => {
+        symbol_resolved_trees::expression::ExpressionNode::Call(call) => {
             if call.receiver.is_valid() {
                 assign_data_fact_local_symbols(local_symbols, expression_table, call.receiver);
             }
@@ -281,14 +280,14 @@ fn assign_data_fact_local_symbols(
                 assign_data_fact_local_symbols(local_symbols, expression_table, argument);
             }
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Cast(cast) => {
+        symbol_resolved_trees::expression::ExpressionNode::Cast(cast) => {
             assign_data_fact_local_symbols(local_symbols, expression_table, cast.value);
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Indexed(indexed) => {
+        symbol_resolved_trees::expression::ExpressionNode::Indexed(indexed) => {
             assign_data_fact_local_symbols(local_symbols, expression_table, indexed.collection);
             assign_data_fact_local_symbols(local_symbols, expression_table, indexed.index);
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Range(range) => {
+        symbol_resolved_trees::expression::ExpressionNode::Range(range) => {
             if range.start.is_valid() {
                 assign_data_fact_local_symbols(local_symbols, expression_table, range.start);
             }
@@ -296,19 +295,19 @@ fn assign_data_fact_local_symbols(
                 assign_data_fact_local_symbols(local_symbols, expression_table, range.end);
             }
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Membership(membership) => {
+        symbol_resolved_trees::expression::ExpressionNode::Membership(membership) => {
             assign_data_fact_local_symbols(local_symbols, expression_table, membership.value);
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Member(member) => {
+        symbol_resolved_trees::expression::ExpressionNode::Member(member) => {
             assign_data_fact_local_symbols(local_symbols, expression_table, member.receiver);
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
+        symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
             assign_data_fact_local_symbols(local_symbols, expression_table, inner.target);
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Unary(unary) => {
+        symbol_resolved_trees::expression::ExpressionNode::Unary(unary) => {
             assign_data_fact_local_symbols(local_symbols, expression_table, unary.operand);
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::StructLiteral(struct_literal) => {
+        symbol_resolved_trees::expression::ExpressionNode::StructLiteral(struct_literal) => {
             for field in expression_table
                 .struct_fields(struct_literal.fields)
                 .to_vec()
@@ -316,7 +315,7 @@ fn assign_data_fact_local_symbols(
                 assign_data_fact_local_symbols(local_symbols, expression_table, field.value);
             }
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Name(path) => {
+        symbol_resolved_trees::expression::ExpressionNode::Name(path) => {
             if path.head_symbol.is_valid() || path.symbol.is_valid() {
                 return;
             }
@@ -335,7 +334,7 @@ fn assign_data_fact_local_symbols(
             let symbol = *symbol;
             let member_symbols = path.member_symbols;
             let is_single_member = path.members.count() == 1;
-            if let crate::symbol_resolved_trees::expression::ExpressionNode::Name(path) =
+            if let symbol_resolved_trees::expression::ExpressionNode::Name(path) =
                 expression_table.expression_mut(expression)
             {
                 path.head_symbol = symbol;
@@ -347,11 +346,11 @@ fn assign_data_fact_local_symbols(
                 expression_table.set_name_path_member_symbol_at_offset(member_symbols, 0, symbol);
             }
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Boolean(_)
-        | crate::symbol_resolved_trees::expression::ExpressionNode::Float(_)
-        | crate::symbol_resolved_trees::expression::ExpressionNode::Integer(_)
-        | crate::symbol_resolved_trees::expression::ExpressionNode::String(_)
-        | crate::symbol_resolved_trees::expression::ExpressionNode::ZeroValue(_) => {}
+        symbol_resolved_trees::expression::ExpressionNode::Boolean(_)
+        | symbol_resolved_trees::expression::ExpressionNode::Float(_)
+        | symbol_resolved_trees::expression::ExpressionNode::Integer(_)
+        | symbol_resolved_trees::expression::ExpressionNode::String(_)
+        | symbol_resolved_trees::expression::ExpressionNode::ZeroValue(_) => {}
     }
 }
 
@@ -374,8 +373,7 @@ fn update_data_membership_zero_gates(program: &mut SymbolResolvedTrees) {
             let mut saw_membership = false;
             let mut memberships_admit_zero = true;
             for fact in facts {
-                let crate::symbol_resolved_trees::domain::ProofFact::Membership(membership) = fact
-                else {
+                let symbol_resolved_trees::domain::ProofFact::Membership(membership) = fact else {
                     continue;
                 };
                 saw_membership = true;
@@ -386,10 +384,10 @@ fn update_data_membership_zero_gates(program: &mut SymbolResolvedTrees) {
             let expressions_gate_zero = facts
                 .iter()
                 .filter_map(|fact| match fact {
-                    crate::symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
+                    symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
                         Some(*expression)
                     }
-                    crate::symbol_resolved_trees::domain::ProofFact::Membership(_) => None,
+                    symbol_resolved_trees::domain::ProofFact::Membership(_) => None,
                 })
                 .any(|expression| {
                     crate::lowering::data::zero_fold(&program.tables.bodies.expressions, expression)
@@ -409,10 +407,8 @@ fn update_data_membership_zero_gates(program: &mut SymbolResolvedTrees) {
                 .span_or_empty(definition.members)
                 .iter()
                 .filter_map(|member| match member {
-                    crate::symbol_resolved_trees::data::DataMember::Variant(variant) => {
-                        Some(variant)
-                    }
-                    crate::symbol_resolved_trees::data::DataMember::Field(_) => None,
+                    symbol_resolved_trees::data::DataMember::Variant(variant) => Some(variant),
+                    symbol_resolved_trees::data::DataMember::Field(_) => None,
                 })
                 .next()
                 .is_some_and(|variant| {
@@ -423,10 +419,10 @@ fn update_data_membership_zero_gates(program: &mut SymbolResolvedTrees) {
                         .span_or_empty(variant.where_facts)
                         .iter()
                         .any(|fact| match fact {
-                            crate::symbol_resolved_trees::domain::ProofFact::Expression(
-                                expression,
-                            ) => fact_expression_is_constant_false(program, *expression),
-                            crate::symbol_resolved_trees::domain::ProofFact::Membership(_) => false,
+                            symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
+                                fact_expression_is_constant_false(program, *expression)
+                            }
+                            symbol_resolved_trees::domain::ProofFact::Membership(_) => false,
                         })
                 });
             (
@@ -460,13 +456,13 @@ fn update_data_membership_zero_gates(program: &mut SymbolResolvedTrees) {
 /// counted -- an unprovable fact is not a contradiction.
 fn fact_expression_is_constant_false(
     program: &SymbolResolvedTrees,
-    expression: crate::symbol_resolved_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees::expression::ExpressionHandle,
 ) -> bool {
     match program.tables.bodies.expressions.expression(expression) {
-        crate::symbol_resolved_trees::expression::ExpressionNode::Integer(literal) => {
+        symbol_resolved_trees::expression::ExpressionNode::Integer(literal) => {
             literal.text().parse::<i128>() == Ok(0)
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Boolean(value) => !*value,
+        symbol_resolved_trees::expression::ExpressionNode::Boolean(value) => !*value,
         _ => false,
     }
 }
@@ -479,12 +475,12 @@ fn resolved_domain_byte_predicate(
         .domain_definitions
         .iter()
         .find(|domain| domain.symbol == domain_symbol)?;
-    let [crate::symbol_resolved_trees::domain::ProofFact::Expression(expression)] =
+    let [symbol_resolved_trees::domain::ProofFact::Expression(expression)] =
         program.proof_facts(domain.facts)
     else {
         return None;
     };
-    let crate::symbol_resolved_trees::expression::ExpressionNode::Call(call) =
+    let symbol_resolved_trees::expression::ExpressionNode::Call(call) =
         program.tables.bodies.expressions.expression(*expression)
     else {
         return None;
@@ -501,7 +497,7 @@ fn resolved_domain_byte_predicate(
     else {
         return None;
     };
-    let crate::symbol_resolved_trees::expression::ExpressionNode::Name(path) =
+    let symbol_resolved_trees::expression::ExpressionNode::Name(path) =
         program.tables.bodies.expressions.expression(*argument)
     else {
         return None;
@@ -517,12 +513,12 @@ fn resolved_domain_byte_predicate(
 fn assign_proof_expression_symbols(
     symbols: &SymbolTable,
     domain_symbols: &[(String, SymbolHandle, language_semantics::SemanticDomainId)],
-    expression_table: &mut crate::symbol_resolved_trees::expression::ExpressionTable,
-    expression: crate::symbol_resolved_trees::expression::ExpressionHandle,
+    expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
+    expression: symbol_resolved_trees::expression::ExpressionHandle,
 ) {
     let expression_node = expression_table.expression(expression).clone();
     match expression_node {
-        crate::symbol_resolved_trees::expression::ExpressionNode::Match(dispatch) => {
+        symbol_resolved_trees::expression::ExpressionNode::Match(dispatch) => {
             assign_proof_expression_symbols(
                 symbols,
                 domain_symbols,
@@ -530,8 +526,7 @@ fn assign_proof_expression_symbols(
                 dispatch.subject,
             );
             for arm in expression_table.match_arms(dispatch.arms).to_vec() {
-                if let crate::symbol_resolved_trees::expression::MatchPattern::Value(pattern) =
-                    arm.pattern
+                if let symbol_resolved_trees::expression::MatchPattern::Value(pattern) = arm.pattern
                 {
                     assign_proof_expression_symbols(
                         symbols,
@@ -548,7 +543,7 @@ fn assign_proof_expression_symbols(
                 );
             }
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Atomic(atomic) => {
+        symbol_resolved_trees::expression::ExpressionNode::Atomic(atomic) => {
             assign_proof_expression_symbols(
                 symbols,
                 domain_symbols,
@@ -564,12 +559,12 @@ fn assign_proof_expression_symbols(
                 );
             }
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::ArrayLiteral(values) => {
+        symbol_resolved_trees::expression::ExpressionNode::ArrayLiteral(values) => {
             for value in expression_table.expression_handles(values).to_vec() {
                 assign_proof_expression_symbols(symbols, domain_symbols, expression_table, value);
             }
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Binary(binary) => {
+        symbol_resolved_trees::expression::ExpressionNode::Binary(binary) => {
             assign_proof_expression_symbols(symbols, domain_symbols, expression_table, binary.left);
             assign_proof_expression_symbols(
                 symbols,
@@ -578,7 +573,7 @@ fn assign_proof_expression_symbols(
                 binary.right,
             );
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Call(call) => {
+        symbol_resolved_trees::expression::ExpressionNode::Call(call) => {
             if call.receiver.is_valid() {
                 assign_proof_expression_symbols(
                     symbols,
@@ -597,17 +592,17 @@ fn assign_proof_expression_symbols(
             }
             if !call.receiver.is_valid() && !call.target_symbol.is_valid() {
                 let target_symbol = resolve_free_machine_entry_state_symbol(symbols, &call.target);
-                if let crate::symbol_resolved_trees::expression::ExpressionNode::Call(call) =
+                if let symbol_resolved_trees::expression::ExpressionNode::Call(call) =
                     expression_table.expression_mut(expression)
                 {
                     call.target_symbol = target_symbol;
                 }
             }
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Cast(cast) => {
+        symbol_resolved_trees::expression::ExpressionNode::Cast(cast) => {
             assign_proof_expression_symbols(symbols, domain_symbols, expression_table, cast.value);
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Indexed(indexed) => {
+        symbol_resolved_trees::expression::ExpressionNode::Indexed(indexed) => {
             assign_proof_expression_symbols(
                 symbols,
                 domain_symbols,
@@ -621,7 +616,7 @@ fn assign_proof_expression_symbols(
                 indexed.index,
             );
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Range(range) => {
+        symbol_resolved_trees::expression::ExpressionNode::Range(range) => {
             if range.start.is_valid() {
                 assign_proof_expression_symbols(
                     symbols,
@@ -639,7 +634,7 @@ fn assign_proof_expression_symbols(
                 );
             }
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Membership(membership) => {
+        symbol_resolved_trees::expression::ExpressionNode::Membership(membership) => {
             assign_proof_expression_symbols(
                 symbols,
                 domain_symbols,
@@ -665,9 +660,8 @@ fn assign_proof_expression_symbols(
             assign_membership_symbol(symbols, expression_table, membership.domain, expression);
             let domain_symbol =
                 resolve_domain_symbol(symbols, domain_symbols, &name, reference_span);
-            if let crate::symbol_resolved_trees::expression::ExpressionNode::Membership(
-                membership,
-            ) = expression_table.expression_mut(expression)
+            if let symbol_resolved_trees::expression::ExpressionNode::Membership(membership) =
+                expression_table.expression_mut(expression)
             {
                 membership.domain_symbol = domain_symbol;
                 if domain_symbol.is_valid() {
@@ -676,7 +670,7 @@ fn assign_proof_expression_symbols(
                 }
             }
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Member(member) => {
+        symbol_resolved_trees::expression::ExpressionNode::Member(member) => {
             assign_proof_expression_symbols(
                 symbols,
                 domain_symbols,
@@ -684,7 +678,7 @@ fn assign_proof_expression_symbols(
                 member.receiver,
             );
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
+        symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
             assign_proof_expression_symbols(
                 symbols,
                 domain_symbols,
@@ -692,7 +686,7 @@ fn assign_proof_expression_symbols(
                 inner.target,
             );
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Unary(unary) => {
+        symbol_resolved_trees::expression::ExpressionNode::Unary(unary) => {
             assign_proof_expression_symbols(
                 symbols,
                 domain_symbols,
@@ -700,7 +694,7 @@ fn assign_proof_expression_symbols(
                 unary.operand,
             );
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::StructLiteral(struct_literal) => {
+        symbol_resolved_trees::expression::ExpressionNode::StructLiteral(struct_literal) => {
             for field in expression_table
                 .struct_fields(struct_literal.fields)
                 .to_vec()
@@ -713,7 +707,7 @@ fn assign_proof_expression_symbols(
                 );
             }
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Name(path) => {
+        symbol_resolved_trees::expression::ExpressionNode::Name(path) => {
             // Fact-position names the local pass could not bind are not
             // fields or parameters: a case constraint's `T == i32` mentions
             // a TYPE. Resolve single-segment leftovers against top-level type
@@ -725,7 +719,7 @@ fn assign_proof_expression_symbols(
             {
                 let symbol = super::lookup::top_level_type_symbol_for_source(symbols, member);
                 if symbol.is_valid()
-                    && let crate::symbol_resolved_trees::expression::ExpressionNode::Name(path) =
+                    && let symbol_resolved_trees::expression::ExpressionNode::Name(path) =
                         expression_table.expression_mut(expression)
                 {
                     path.head_symbol = symbol;
@@ -733,11 +727,11 @@ fn assign_proof_expression_symbols(
                 }
             }
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Boolean(_)
-        | crate::symbol_resolved_trees::expression::ExpressionNode::Float(_)
-        | crate::symbol_resolved_trees::expression::ExpressionNode::Integer(_)
-        | crate::symbol_resolved_trees::expression::ExpressionNode::String(_)
-        | crate::symbol_resolved_trees::expression::ExpressionNode::ZeroValue(_) => {}
+        symbol_resolved_trees::expression::ExpressionNode::Boolean(_)
+        | symbol_resolved_trees::expression::ExpressionNode::Float(_)
+        | symbol_resolved_trees::expression::ExpressionNode::Integer(_)
+        | symbol_resolved_trees::expression::ExpressionNode::String(_)
+        | symbol_resolved_trees::expression::ExpressionNode::ZeroValue(_) => {}
     }
 }
 

@@ -1,13 +1,13 @@
-use crate::checked_trees::CheckFacts;
+use checked_trees::CheckFacts;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic;
-use symbol_resolved_trees_to_typed_trees::typed_trees::{TypedTrees, expression::ExpressionNode};
+use typed_trees::{TypedTrees, expression::ExpressionNode};
 
 /// Rederive one exact compiler-owned collection view from the typed call and
 /// the checked environments that own it.
 pub(crate) fn derive_checked_collection_view_intrinsic(
     program: &TypedTrees,
     facts: &CheckFacts,
-    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<AuthoredDeclarationSelectionIntrinsic> {
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return None;

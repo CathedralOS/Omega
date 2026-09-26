@@ -1,17 +1,15 @@
-use register_homes_to_post_allocation_machine::PostAllocationMachineInstruction;
-use target::{Architecture, NativeTarget};
-use target_operations_to_selected_instructions::isa_aarch64::validate_aarch64_selected_form_encoding;
-use target_operations_to_selected_instructions::isa_x86_64::validate_x86_64_selected_form_encoding;
-use target_operations_to_selected_instructions::register_model::{
-    RegisterViewId, ValidatedPhysicalRegisterModel,
-};
-use target_operations_to_selected_instructions::{
+use isa_aarch64::validate_aarch64_selected_form_encoding;
+use isa_x86_64::validate_x86_64_selected_form_encoding;
+use physical_instructions::PostAllocationMachineInstruction;
+use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
+use selected_instructions::{
     MachineEncodedEffects, MachineSizeKnowledge, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionKind,
 };
+use target::{Architecture, NativeTarget};
 
 use super::super::OptimizedSelectedFormEncodingError;
-use crate::machine_code::{
+use machine_code::{
     DeferredControlEncodingReason, SelectedFormDecodedFootprint, SelectedFormEncodingRow,
     SelectedFormEncodingState, SelectedFormMachineDisposition,
 };
@@ -63,7 +61,7 @@ pub(crate) fn validate(
             let decoded = if architecture == Architecture::Aarch64 {
                 let encoded = if matches!(kind, SelectedInstructionKind::HostedWriteByteI32 { .. })
                 {
-                    target_operations_to_selected_instructions::isa_aarch64::validate_aarch64_selected_hosted_write_byte_form(
+                    isa_aarch64::validate_aarch64_selected_hosted_write_byte_form(
                         target,
                         physical,
                         kind,
@@ -73,7 +71,7 @@ pub(crate) fn validate(
                         bytes,
                     )
                 } else if matches!(kind, SelectedInstructionKind::HostedReadByte { .. }) {
-                    target_operations_to_selected_instructions::isa_aarch64::validate_aarch64_selected_hosted_read_byte_form(
+                    isa_aarch64::validate_aarch64_selected_hosted_read_byte_form(
                         target,
                         physical,
                         kind,
@@ -83,7 +81,7 @@ pub(crate) fn validate(
                         bytes,
                     )
                 } else {
-                    target_operations_to_selected_instructions::isa_aarch64::validate_aarch64_selected_memory_form(
+                    isa_aarch64::validate_aarch64_selected_memory_form(
                         physical,
                         kind,
                         machine.alternative.key,
@@ -100,11 +98,11 @@ pub(crate) fn validate(
                 )
             } else {
                 let encode = if matches!(kind, SelectedInstructionKind::HostedWriteByteI32 { .. }) {
-                    target_operations_to_selected_instructions::isa_x86_64::validate_x86_64_selected_hosted_write_byte_form
+                    isa_x86_64::validate_x86_64_selected_hosted_write_byte_form
                 } else if matches!(kind, SelectedInstructionKind::HostedReadByte { .. }) {
-                    target_operations_to_selected_instructions::isa_x86_64::validate_x86_64_selected_hosted_read_byte_form
+                    isa_x86_64::validate_x86_64_selected_hosted_read_byte_form
                 } else {
-                    target_operations_to_selected_instructions::isa_x86_64::validate_x86_64_selected_memory_form
+                    isa_x86_64::validate_x86_64_selected_memory_form
                 };
                 let encoded = encode(
                     physical,
@@ -173,10 +171,10 @@ pub(crate) fn validate(
 /// its displacement is.
 fn admits_address_operation(
     kind: SelectedInstructionKind,
-    operation: register_homes_to_post_allocation_machine::PhysicalAddressOperation,
+    operation: physical_instructions::PhysicalAddressOperation,
 ) -> bool {
     use SelectedInstructionKind as Kind;
-    use register_homes_to_post_allocation_machine::PhysicalAddressOperation as Operation;
+    use physical_instructions::PhysicalAddressOperation as Operation;
     matches!(
         (kind, operation),
         (Kind::Store { .. }, Operation::Store { .. })
@@ -229,7 +227,7 @@ fn validate_baseline(
     let decoded = match target.architecture {
         Architecture::X86_64 => {
             let decoded = if kind == SelectedInstructionKind::HostedExitProcessI32 {
-                target_operations_to_selected_instructions::isa_x86_64::validate_x86_64_selected_hosted_exit_process_form(
+                isa_x86_64::validate_x86_64_selected_hosted_exit_process_form(
                     target,
                     physical,
                     kind,
@@ -255,7 +253,7 @@ fn validate_baseline(
         }
         Architecture::Aarch64 => {
             let decoded = if kind == SelectedInstructionKind::HostedExitProcessI32 {
-                target_operations_to_selected_instructions::isa_aarch64::validate_aarch64_selected_hosted_exit_process_form(
+                isa_aarch64::validate_aarch64_selected_hosted_exit_process_form(
                     target,
                     physical,
                     kind,

@@ -6,19 +6,19 @@
 
 use crate::lowering::name::lower_name;
 use crate::resolution::lowerer::Lowerer;
-use crate::symbol_resolved_trees::expression::{
+use arena::HandleSpan;
+use diagnostics::Diagnostic;
+use symbol_resolved_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable, FloatLiteral,
     TableAtomicExpression, TableBinaryExpression, TableCallExpression, TableCastExpression,
     TableIndexedExpression, TableMemberExpression, TableMembershipExpression, TableNamePath,
     TableRangeExpression, TableStructLiteral, TableStructLiteralField, TableUnaryExpression,
     UnaryOperator,
 };
-use crate::symbol_resolved_trees::name::DiagnosticName;
-use arena::HandleSpan;
-use diagnostics::Diagnostic;
+use symbol_resolved_trees::name::DiagnosticName;
 use symbols::SymbolHandle;
-use tokens_to_syntax_trees::syntax_trees as syntax;
-use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
+use syntax_trees as syntax;
+use syntax_trees::SyntaxTrees;
 
 pub(crate) fn lower_expression_into_table(
     lowerer: &mut Lowerer,
@@ -125,16 +125,16 @@ fn lower_nonbinary_expression_node_into_table(
             for arm in syntax_trees.expressions.match_arms(dispatch.arms) {
                 let pattern = match arm.pattern {
                     syntax::expression::MatchPattern::Value(pattern) => {
-                        crate::symbol_resolved_trees::expression::MatchPattern::Value(
+                        symbol_resolved_trees::expression::MatchPattern::Value(
                             lower_expression_into_table(lowerer, syntax_trees, pattern)?,
                         )
                     }
                     syntax::expression::MatchPattern::Wildcard => {
-                        crate::symbol_resolved_trees::expression::MatchPattern::Wildcard
+                        symbol_resolved_trees::expression::MatchPattern::Wildcard
                     }
                 };
                 let value = lower_expression_into_table(lowerer, syntax_trees, arm.value)?;
-                arms.push(crate::symbol_resolved_trees::expression::TableMatchArm {
+                arms.push(symbol_resolved_trees::expression::TableMatchArm {
                     pattern,
                     value,
                     source_span: arm.source_span,
@@ -142,7 +142,7 @@ fn lower_nonbinary_expression_node_into_table(
             }
             let arms = expression_table(lowerer).insert_match_arms(arms);
             Ok(expression_table(lowerer).insert(ExpressionNode::Match(
-                crate::symbol_resolved_trees::expression::TableMatchExpression { subject, arms },
+                symbol_resolved_trees::expression::TableMatchExpression { subject, arms },
             )))
         }
         syntax::expression::ExpressionNode::ArrayLiteral(values) => {
@@ -477,7 +477,7 @@ fn lower_nonbinary_expression_node_into_table(
         syntax::expression::ExpressionNode::Borrow(expression) => {
             let target = lower_expression_into_table(lowerer, syntax_trees, expression.target)?;
             Ok(expression_table(lowerer).insert(ExpressionNode::Borrow(
-                crate::symbol_resolved_trees::expression::TableBorrowExpression {
+                symbol_resolved_trees::expression::TableBorrowExpression {
                     target,
                     access: expression.access,
                 },
@@ -527,7 +527,7 @@ fn lower_nonbinary_expression_node_into_table(
             let mut members = HandleSpan::empty();
             expression_table(lowerer).push_name_path_member(
                 &mut members,
-                crate::symbol_resolved_trees::name::DiagnosticName::generated_static("self"),
+                symbol_resolved_trees::name::DiagnosticName::generated_static("self"),
             );
             let member_symbols =
                 expression_table(lowerer).reserve_name_path_member_symbols(members.count());
@@ -610,7 +610,7 @@ pub(crate) fn lower_static_machine_argument(
     lowerer: &mut Lowerer,
     syntax_trees: &syntax::SyntaxTrees,
     argument: &syntax::expression::StaticMachineArgument,
-) -> Result<crate::symbol_resolved_trees::expression::StaticMachineArgument, Diagnostic> {
+) -> Result<symbol_resolved_trees::expression::StaticMachineArgument, Diagnostic> {
     let type_reference = if argument.type_reference.is_valid() {
         let reference = crate::lowering::type_reference::lower_type_reference_handle(
             lowerer,
@@ -626,49 +626,47 @@ pub(crate) fn lower_static_machine_argument(
     } else {
         arena::Handle::invalid()
     };
-    Ok(
-        crate::symbol_resolved_trees::expression::StaticMachineArgument {
-            type_reference,
-            path: argument
-                .path
-                .iter()
-                .map(lower_name)
-                .collect::<Vec<_>>()
-                .into_boxed_slice(),
-            application: argument
-                .application
-                .as_ref()
-                .map(|application| {
-                    Ok::<_, Diagnostic>(Box::new(
-                        crate::symbol_resolved_trees::expression::StaticSymbolApplication {
-                            lifetime_arguments: application
-                                .lifetime_arguments
-                                .iter()
-                                .map(lower_name)
-                                .collect::<Vec<_>>()
-                                .into_boxed_slice(),
-                            arguments: application
-                                .arguments
-                                .iter()
-                                .map(|argument| {
-                                    lower_static_machine_argument(lowerer, syntax_trees, argument)
-                                })
-                                .collect::<Result<Vec<_>, _>>()?
-                                .into_boxed_slice(),
-                        },
-                    ))
-                })
-                .transpose()?,
-            const_literal: argument.const_literal.clone(),
-            evidence_projection: argument.evidence_projection.as_ref().map(|projection| {
-                crate::symbol_resolved_trees::expression::EvidenceProjection {
-                    term: lower_name(&projection.term),
-                    member: lower_name(&projection.member),
-                }
-            }),
-            symbol: SymbolHandle::invalid(),
-        },
-    )
+    Ok(symbol_resolved_trees::expression::StaticMachineArgument {
+        type_reference,
+        path: argument
+            .path
+            .iter()
+            .map(lower_name)
+            .collect::<Vec<_>>()
+            .into_boxed_slice(),
+        application: argument
+            .application
+            .as_ref()
+            .map(|application| {
+                Ok::<_, Diagnostic>(Box::new(
+                    symbol_resolved_trees::expression::StaticSymbolApplication {
+                        lifetime_arguments: application
+                            .lifetime_arguments
+                            .iter()
+                            .map(lower_name)
+                            .collect::<Vec<_>>()
+                            .into_boxed_slice(),
+                        arguments: application
+                            .arguments
+                            .iter()
+                            .map(|argument| {
+                                lower_static_machine_argument(lowerer, syntax_trees, argument)
+                            })
+                            .collect::<Result<Vec<_>, _>>()?
+                            .into_boxed_slice(),
+                    },
+                ))
+            })
+            .transpose()?,
+        const_literal: argument.const_literal.clone(),
+        evidence_projection: argument.evidence_projection.as_ref().map(|projection| {
+            symbol_resolved_trees::expression::EvidenceProjection {
+                term: lower_name(&projection.term),
+                member: lower_name(&projection.member),
+            }
+        }),
+        symbol: SymbolHandle::invalid(),
+    })
 }
 
 fn expression_table(lowerer: &mut Lowerer) -> &mut ExpressionTable {

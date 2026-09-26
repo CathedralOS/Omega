@@ -1,18 +1,16 @@
 use super::{LoweringError, lower_machine};
 use crate::TerminalMachineSelection;
-use lowered_psi_to_terminal_psi::terminal_production::{
-    TerminalProductionCustody, TerminalProductionTimings,
+use checked_trees::types::PrimitiveType;
+use checked_trees::{
+    CheckedScalarExpression, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
 };
 use semantic_vocabulary::IntegerValue;
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralAccess, StructuralPathSegment,
     StructuralTypeShape, Terminator,
-};
-use typed_trees_to_checked_trees::checked_trees::types::PrimitiveType;
-use typed_trees_to_checked_trees::checked_trees::{
-    CheckedScalarExpression, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
 };
 #[test]
 fn guarded_bounded_integer_field_increment_publishes_checked_terminal() {
@@ -30,18 +28,15 @@ fn guarded_bounded_integer_field_increment_publishes_checked_terminal() {
              state done(&mut self) {}
          }",
     );
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Counter::advance",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("guarded replacement proves arithmetic and the destination range independently")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Counter::advance"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("guarded replacement proves arithmetic and the destination range independently")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert_eq!(
         module
@@ -101,18 +96,15 @@ fn bounded_integer_field_store_retains_the_destination_range() {
             "data Counter [copy] {{ value: {field_type}; }}
                  machine Counter::replace(&mut self) {{ self.value = {replacement}; }}",
         ));
-        let artifact =
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-                &checked,
-                lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                    "Counter::replace",
-                ),
-            )
-            .produce(TerminalProductionCustody::artifact_only(
-                &mut TerminalProductionTimings::default(),
-            ))
-            .expect("bounded counter replacement publishes checked Terminal")
-            .into_artifact();
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            terminal_production::TerminalMachineSelection::Name("Counter::replace"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("bounded counter replacement publishes checked Terminal")
+        .into_artifact();
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         let entry = module
             .machines
@@ -181,9 +173,9 @@ fn ieee_field_stores_retain_exact_parameters_and_literal_bits() {
                          self.value = {replacement};
                      }}"
                 ));
-                let artifact = lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                let artifact = terminal_production::TerminalProductionRequest::new(
                     &checked,
-                    lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name("Record::replace"),
+                    terminal_production::TerminalMachineSelection::Name("Record::replace"),
                 )
                 .produce(TerminalProductionCustody::artifact_only(
                     &mut TerminalProductionTimings::default(),
@@ -258,7 +250,7 @@ fn ieee_field_store_receiving_rejects_type_source_access_and_field_drift() {
                 .expect("IEEE field store plan");
             if corruption == 2 {
                 plan.structural_parameters[0].access =
-                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow;
+                    checked_trees::CheckedStructuralAccess::SharedBorrow;
             } else {
                 let CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) =
                     &mut plan.operations[0]
@@ -274,7 +266,7 @@ fn ieee_field_store_receiving_rejects_type_source_access_and_field_drift() {
                         }
                     }
                     1 => {
-                        let typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(
+                        let checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(
                             CheckedScalarExpression::Parameter { position, .. },
                         ) = &mut store.value
                         else {
@@ -346,18 +338,15 @@ fn source_indexed_shared_call_reaches_serialized_interpretation() {
         }
     "#,
     );
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Root::forward",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("source indexed shared call produces canonical Terminal")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Root::forward"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("source indexed shared call produces canonical Terminal")
+    .into_artifact();
     drop(checked);
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let entry = module
@@ -556,7 +545,7 @@ fn rejects_checked_record_field_store_path_corruption() {
     store.carrier_path.clear();
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Sink::nested")),
-        Err(crate::LoweringError::Unsupported(
+        Err(LoweringError::Unsupported(
             "structural scalar store destination drifted from its authored place"
         ))
     ));
@@ -589,7 +578,7 @@ fn rejects_checked_literal_indexed_store_bound_corruption() {
     *index = 3;
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Sink::indexed")),
-        Err(crate::LoweringError::Unsupported(
+        Err(LoweringError::Unsupported(
             "structural scalar store destination drifted from its authored place"
         ))
     ));
@@ -714,7 +703,7 @@ fn overwritten_scalar_fields_do_not_discharge_later_field_state_obligations() {
             &checked,
             TerminalMachineSelection::Name("Registers::divide")
         ),
-        Err(crate::LoweringError::OperationProofUnavailable(_))
+        Err(LoweringError::OperationProofUnavailable(_))
     ));
 }
 
@@ -761,7 +750,7 @@ fn scalar_result_reaches_one_projected_store_and_local_drift_rejects() {
     else {
         panic!("checked projected store")
     };
-    let typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(
+    let checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(
         CheckedScalarExpression::Local { position, .. },
     ) = &mut store.value
     else {
@@ -770,7 +759,7 @@ fn scalar_result_reaches_one_projected_store_and_local_drift_rejects() {
     *position = 1;
     assert!(matches!(
         lower_machine(&drifted, TerminalMachineSelection::Name("Root::enter")),
-        Err(crate::LoweringError::Unsupported(
+        Err(LoweringError::Unsupported(
             "structural scalar store RHS drifted from its selected expression"
         ))
     ));

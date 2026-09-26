@@ -54,7 +54,7 @@ pub(crate) fn statement_receiver_path(
 ) -> Option<(
     SymbolHandle,
     SymbolHandle,
-    Vec<symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier>,
+    Vec<typed_trees::name::Identifier>,
 )> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(atomic) => statement_receiver_path(program, atomic.value),
@@ -81,12 +81,9 @@ pub(crate) fn rewrite_cloned_calls(
     program: &mut TypedTrees,
     candidate: &Candidate,
     state_symbols: &[(SymbolHandle, SymbolHandle)],
-    state_transition_subjects: &[Vec<(
-        symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
-        SymbolHandle,
-    )>],
+    state_transition_subjects: &[Vec<(typed_trees::name::Identifier, SymbolHandle)>],
     expression_start: usize,
-    states: HandleSpan<symbol_resolved_trees_to_typed_trees::typed_trees::state::State>,
+    states: HandleSpan<typed_trees::state::State>,
 ) {
     let machine_rewrites: Vec<_> = candidate
         .template
@@ -352,13 +349,9 @@ pub(crate) fn rewrite_cloned_calls(
 
 pub(crate) fn rewrite_static_machine_transition_targets(
     program: &mut TypedTrees,
-    statement: symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementHandle,
+    statement: typed_trees::statement::StatementHandle,
     candidate: &Candidate,
-    rewrites: &[(
-        SymbolHandle,
-        SymbolHandle,
-        symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
-    )],
+    rewrites: &[(SymbolHandle, SymbolHandle, typed_trees::name::Identifier)],
 ) {
     let StatementNode::Transition(transition) = program.statement_table.statement(statement) else {
         return;
@@ -368,7 +361,7 @@ pub(crate) fn rewrite_static_machine_transition_targets(
         if !target.is_valid() {
             continue;
         }
-        let symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Named {
+        let typed_trees::statement::TransitionTargetNode::Named {
             path,
             static_machine_parameter,
             ..
@@ -406,11 +399,8 @@ pub(crate) fn rewrite_static_machine_transition_targets(
 /// Append the containing state's realized parameters in telescope order.
 pub(crate) fn rewrite_clone_transition_subjects(
     program: &mut TypedTrees,
-    statement: symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementHandle,
-    subjects: &[(
-        symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
-        SymbolHandle,
-    )],
+    statement: typed_trees::statement::StatementHandle,
+    subjects: &[(typed_trees::name::Identifier, SymbolHandle)],
     state_symbols: &[(SymbolHandle, SymbolHandle)],
 ) {
     if subjects.is_empty() {
@@ -426,7 +416,7 @@ pub(crate) fn rewrite_clone_transition_subjects(
         }
         let is_clone_state = matches!(
             program.statement_table.transition_target(target),
-            symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Named { path, .. }
+            typed_trees::statement::TransitionTargetNode::Named { path, .. }
                 if state_symbols
                     .iter()
                     .any(|(_, concrete)| *concrete == path.symbol)
@@ -434,7 +424,7 @@ pub(crate) fn rewrite_clone_transition_subjects(
         if !is_clone_state {
             continue;
         }
-        let symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Named { arguments, .. } =
+        let typed_trees::statement::TransitionTargetNode::Named { arguments, .. } =
             program.statement_table.transition_target(target)
         else {
             unreachable!("named transition target checked above");
@@ -451,7 +441,7 @@ pub(crate) fn rewrite_clone_transition_subjects(
             ));
         }
         let new_arguments = program.statement_table.insert_expression_handles(arguments);
-        let symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Named { arguments, .. } =
+        let typed_trees::statement::TransitionTargetNode::Named { arguments, .. } =
             program.statement_table.transition_target_mut(target)
         else {
             unreachable!("named transition target checked above");

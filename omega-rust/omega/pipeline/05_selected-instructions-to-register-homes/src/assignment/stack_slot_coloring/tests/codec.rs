@@ -1,6 +1,6 @@
 use super::fixtures::{budget, source};
 use crate::color_logical_spill_stack_slots;
-use selected_instructions_to_selected_instructions::register_homes::{
+use register_homes::{
     StackSlotColoringDecodeError, StackSlotColoringPlan, StackSlotColoringPolicy,
 };
 

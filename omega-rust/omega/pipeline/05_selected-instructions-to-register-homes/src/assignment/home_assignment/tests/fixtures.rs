@@ -1,17 +1,15 @@
-use semantic_vocabulary::MachineId;
-use target_operations_to_selected_instructions::register_model::{
+use register_model::{
     PhysicalRegisterModel, RegisterClass, RegisterClassId, RegisterUnit, RegisterUnitId,
     RegisterUnitKind, RegisterView, RegisterViewId, RegisterWriteSemantics,
     ValidatedPhysicalRegisterModel, validate_physical_register_model,
 };
-use target_operations_to_selected_instructions::{
-    SelectedBlockId, SelectedInstructionId, VirtualRegisterId,
-};
+use selected_instructions::{SelectedBlockId, SelectedInstructionId, VirtualRegisterId};
+use semantic_vocabulary::MachineId;
 
-use selected_instructions_to_selected_instructions::register_homes::{
+use register_homes::{
     FunctionAllocationLegality, VirtualPointLegality, VirtualRegisterAllocationLegality,
 };
-use target_operations_to_selected_instructions::{
+use selected_instructions::{
     DistinctUseDefTie, EarlyClobberConstraint, EarlyClobberUse, FunctionLiveRanges, LiveRangePoint,
     LivenessPosition, VirtualInterference, VirtualLiveRange,
 };

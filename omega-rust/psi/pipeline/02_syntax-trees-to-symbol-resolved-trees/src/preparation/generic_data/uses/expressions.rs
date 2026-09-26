@@ -22,7 +22,7 @@ pub(in crate::preparation::generic_data) fn concrete_machine_expression_handles(
 
 pub(in crate::preparation::generic_data) fn concrete_machine_state_handles(
     syntax: &SyntaxTrees,
-) -> Vec<tokens_to_syntax_trees::syntax_trees::item::StateHandle> {
+) -> Vec<syntax_trees::item::StateHandle> {
     // Generic data names once, instead of a root-item scan per attached
     // machine.
     let generic_data = syntax
@@ -55,12 +55,10 @@ pub(in crate::preparation::generic_data) fn concrete_machine_state_handles(
 
 pub(in crate::preparation::generic_data) fn collect_statement_expression_handles(
     syntax: &SyntaxTrees,
-    statement: tokens_to_syntax_trees::syntax_trees::statement::StatementHandle,
+    statement: syntax_trees::statement::StatementHandle,
     handles: &mut HashSet<ExpressionHandle>,
 ) {
-    use tokens_to_syntax_trees::syntax_trees::statement::{
-        TransitionGuardNode, TransitionTargetNode,
-    };
+    use syntax_trees::statement::{TransitionGuardNode, TransitionTargetNode};
     match syntax.tables.statements.statement(statement) {
         StatementNode::RootBinding(binding) => {
             collect_expression_handles(syntax, binding.receiver, handles);
@@ -125,10 +123,7 @@ pub(in crate::preparation::generic_data) fn collect_expression_handles(
         ExpressionNode::Match(dispatch) => {
             collect_expression_handles(syntax, dispatch.subject, handles);
             for arm in syntax.expressions.match_arms(dispatch.arms) {
-                if let tokens_to_syntax_trees::syntax_trees::expression::MatchPattern::Value(
-                    pattern,
-                ) = arm.pattern
-                {
+                if let syntax_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                     collect_expression_handles(syntax, pattern, handles);
                 }
                 collect_expression_handles(syntax, arm.value, handles);
@@ -190,8 +185,8 @@ pub(in crate::preparation::generic_data) fn collect_expression_handles(
 /// Name remains authored syntax for the ordinary resolver; no binding is chosen
 /// here. Callers visit concrete machines, whose template binders are already gone.
 pub(in crate::preparation::generic_data) struct ConstructorFrontier<'a> {
-    pub parameters: HandleSpan<tokens_to_syntax_trees::syntax_trees::item::StateParameterHandle>,
-    pub prior_statements: &'a [tokens_to_syntax_trees::syntax_trees::statement::StatementHandle],
+    pub parameters: HandleSpan<syntax_trees::item::StateParameterHandle>,
+    pub prior_statements: &'a [syntax_trees::statement::StatementHandle],
 }
 
 impl ConstructorFrontier<'_> {

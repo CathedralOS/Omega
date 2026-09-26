@@ -1,18 +1,14 @@
-use target_operations_to_selected_instructions::register_model::{
-    RegisterInstructionConstraint, RegisterOperandAccess,
-};
-use target_operations_to_selected_instructions::{
+use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
+use selected_instructions::{
     SelectedFunction, SelectedInstructionId, SelectedInstructionKind, VirtualRegisterId,
 };
 
-use crate::register_homes::{
-    PressureRecoveryClassification, RecoveryClassification, RecoveryVictimRole,
-};
 use crate::{
     PressureRematerializationAction, PressureRematerializationError,
     PressureRematerializationPolicy,
 };
-use target_operations_to_selected_instructions::FunctionLiveRanges;
+use register_homes::{PressureRecoveryClassification, RecoveryClassification, RecoveryVictimRole};
+use selected_instructions::FunctionLiveRanges;
 
 use super::selected_structure;
 

@@ -1,6 +1,6 @@
 use super::{STRUCTURAL_INTEGER_STORE_SOURCE, check_dynamic_source, sole_direct_dynamic_plan};
-use crate::checked_trees::CheckedDynamicBinding::{Direct, Joined, Rebound};
-use crate::checked_trees::CheckedDynamicDispatchPlan::{Scalar, Unit};
+use checked_trees::CheckedDynamicBinding::{Direct, Joined, Rebound};
+use checked_trees::CheckedDynamicDispatchPlan::{Scalar, Unit};
 
 #[test]
 fn structural_field_store_planning_fails_closed_on_source_disagreement() {
@@ -57,7 +57,7 @@ fn structural_field_store_planning_rejects_tampered_checked_evidence() {
         .iter_mut()
         .find(|frame| frame.state == caller_state)
         .expect("caller state mutation frame");
-    state_frame.frame = crate::fact_plan::NormalizedWriteFrame::opaque();
+    state_frame.frame = facts::NormalizedWriteFrame::opaque();
     mutation_tampered = crate::settle_checked_execution(mutation_tampered)
         .expect("full rebuild suppresses the store with opaque mutation custody");
     assert!(
@@ -78,12 +78,11 @@ fn structural_field_store_planning_rejects_tampered_checked_evidence() {
         .find(|expression| {
             expression.state == caller_state
                 && expression.statement_ordinal == 0
-                && expression.role
-                    == crate::checked_trees::CheckedScalarExpressionRole::AssignmentValue
+                && expression.role == checked_trees::CheckedScalarExpressionRole::AssignmentValue
         })
         .expect("checked assignment scalar expression");
-    assignment_value.expression = crate::checked_trees::CheckedScalarExpression::Boolean(Box::new(
-        crate::checked_trees::CheckedBooleanExpression::Constant(true),
+    assignment_value.expression = checked_trees::CheckedScalarExpression::Boolean(Box::new(
+        checked_trees::CheckedBooleanExpression::Constant(true),
     ));
     scalar_tampered = crate::settle_checked_execution(scalar_tampered)
         .expect("full rebuild suppresses the store with wrong-typed scalar custody");
@@ -133,11 +132,11 @@ fn descriptor_transfer_retains_one_parameter_forwarding_hop() {
     };
     assert!(matches!(
         selection_transfer.source,
-        crate::checked_trees::CheckedDynamicDescriptorTransferSource::Selection
+        checked_trees::CheckedDynamicDescriptorTransferSource::Selection
     ));
     assert!(matches!(
         parameter_transfer.source,
-        crate::checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
+        checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
             parameter_position: 0
         }
     ));
@@ -164,7 +163,7 @@ fn descriptor_transfer_retains_one_parameter_forwarding_hop() {
         plan.forwarding_transfers.as_slice(),
         std::slice::from_ref(parameter_transfer)
     );
-    let crate::checked_trees::CheckedDynamicScalarCallOrigin::Forwarded {
+    let checked_trees::CheckedDynamicScalarCallOrigin::Forwarded {
         machine,
         state,
         parameter,
@@ -220,15 +219,15 @@ fn descriptor_transfer_retains_one_unit_parameter_forwarding_hop() {
     );
     assert!(matches!(
         selection_transfer.source,
-        crate::checked_trees::CheckedDynamicDescriptorTransferSource::Selection
+        checked_trees::CheckedDynamicDescriptorTransferSource::Selection
     ));
     assert!(matches!(
         parameter_transfer.source,
-        crate::checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
+        checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
             parameter_position: 0
         }
     ));
-    let crate::checked_trees::CheckedDynamicUnitCallOrigin::Forwarded {
+    let checked_trees::CheckedDynamicUnitCallOrigin::Forwarded {
         machine,
         state,
         parameter,
@@ -292,8 +291,7 @@ fn descriptor_transfer_retains_every_control_flow_join_alternative() {
         .transfers
         .iter()
         .filter(|transfer| {
-            transfer.source
-                == crate::checked_trees::CheckedDynamicDescriptorTransferSource::Selection
+            transfer.source == checked_trees::CheckedDynamicDescriptorTransferSource::Selection
         })
         .collect::<Vec<_>>();
     let joined = dynamic
@@ -302,7 +300,7 @@ fn descriptor_transfer_retains_every_control_flow_join_alternative() {
         .filter(|transfer| {
             matches!(
                 transfer.source,
-                crate::checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
+                checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
                     parameter_position: 0
                 }
             )
@@ -433,15 +431,14 @@ fn descriptor_transfer_fences_join_with_an_unadmitted_third_predecessor() {
             .transfers
             .iter()
             .filter(|transfer| {
-                transfer.source
-                    == crate::checked_trees::CheckedDynamicDescriptorTransferSource::Selection
+                transfer.source == checked_trees::CheckedDynamicDescriptorTransferSource::Selection
             })
             .count(),
         2
     );
     assert!(dynamic.transfers.iter().all(|transfer| {
         transfer.source
-            != crate::checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
+            != checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
                 parameter_position: 0,
             }
     }));
@@ -506,7 +503,7 @@ fn descriptor_transfer_retains_transparent_forwarding_after_the_join() {
         .find(|transfer| {
             matches!(
                 transfer.source,
-                crate::checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
+                checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
                     parameter_position: 0
                 }
             ) && transfer.source_paths.len() == 2
@@ -521,7 +518,7 @@ fn descriptor_transfer_retains_transparent_forwarding_after_the_join() {
                 && transfer.caller_state == joined.target_state
                 && matches!(
                     transfer.source,
-                    crate::checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
+                    checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
                         parameter_position: 0
                     }
                 )
@@ -592,7 +589,7 @@ fn descriptor_transfer_fences_a_second_join_over_joined_custody() {
         transfer.caller_state == first_join.target_state
             && matches!(
                 transfer.source,
-                crate::checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
+                checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
                     parameter_position: 0
                 }
             )
@@ -808,7 +805,7 @@ fn two_branch_dynamic_calls_under_a_latebound_equality_guard_share_one_join() {
         panic!("one atomic joined call expected: {dynamic:#?}")
     };
     assert_eq!(control.scalar_parameters.len(), 1);
-    let crate::checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
         panic!(
             "the equality guard is a Boolean scalar: {:?}",
             control.guard
@@ -816,13 +813,13 @@ fn two_branch_dynamic_calls_under_a_latebound_equality_guard_share_one_join() {
     };
     assert!(matches!(
         boolean.as_ref(),
-        crate::checked_trees::CheckedBooleanExpression::Equal { left, right }
+        checked_trees::CheckedBooleanExpression::Equal { left, right }
             if matches!(
                 left.as_ref(),
-                crate::checked_trees::CheckedBooleanExpression::Parameter { position: 0 }
+                checked_trees::CheckedBooleanExpression::Parameter { position: 0 }
             ) && matches!(
                 right.as_ref(),
-                crate::checked_trees::CheckedBooleanExpression::Constant(true)
+                checked_trees::CheckedBooleanExpression::Constant(true)
             )
     ));
     assert_ne!(
@@ -886,15 +883,15 @@ fn two_branch_dynamic_calls_under_a_negated_parameter_guard_share_one_join() {
         panic!("one atomic joined call expected: {dynamic:#?}")
     };
     assert_eq!(control.scalar_parameters.len(), 1);
-    let crate::checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
         panic!("the negated guard is a Boolean scalar: {:?}", control.guard)
     };
     assert!(matches!(
         boolean.as_ref(),
-        crate::checked_trees::CheckedBooleanExpression::Not(inner)
+        checked_trees::CheckedBooleanExpression::Not(inner)
             if matches!(
                 inner.as_ref(),
-                crate::checked_trees::CheckedBooleanExpression::Parameter { position: 0 }
+                checked_trees::CheckedBooleanExpression::Parameter { position: 0 }
             )
     ));
     assert_ne!(
@@ -958,7 +955,7 @@ fn two_branch_dynamic_calls_under_a_negated_equality_guard_share_one_join() {
         panic!("one atomic joined call expected: {dynamic:#?}")
     };
     assert_eq!(control.scalar_parameters.len(), 1);
-    let crate::checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
         panic!(
             "the negated equality guard is a Boolean scalar: {:?}",
             control.guard
@@ -966,16 +963,16 @@ fn two_branch_dynamic_calls_under_a_negated_equality_guard_share_one_join() {
     };
     assert!(matches!(
         boolean.as_ref(),
-        crate::checked_trees::CheckedBooleanExpression::Not(inner)
+        checked_trees::CheckedBooleanExpression::Not(inner)
             if matches!(
                 inner.as_ref(),
-                crate::checked_trees::CheckedBooleanExpression::Equal { left, right }
+                checked_trees::CheckedBooleanExpression::Equal { left, right }
                     if matches!(
                         left.as_ref(),
-                        crate::checked_trees::CheckedBooleanExpression::Parameter { position: 0 }
+                        checked_trees::CheckedBooleanExpression::Parameter { position: 0 }
                     ) && matches!(
                         right.as_ref(),
-                        crate::checked_trees::CheckedBooleanExpression::Constant(false)
+                        checked_trees::CheckedBooleanExpression::Constant(false)
                     )
             )
     ));
@@ -1040,7 +1037,7 @@ fn two_branch_dynamic_calls_under_an_integer_equality_guard_share_one_join() {
         panic!("one atomic joined call expected: {dynamic:#?}")
     };
     assert_eq!(control.scalar_parameters.len(), 1);
-    let crate::checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
         panic!(
             "the integer equality guard is a Boolean scalar: {:?}",
             control.guard
@@ -1048,19 +1045,19 @@ fn two_branch_dynamic_calls_under_an_integer_equality_guard_share_one_join() {
     };
     assert!(matches!(
         boolean.as_ref(),
-        crate::checked_trees::CheckedBooleanExpression::IntegerComparison {
-            kind: crate::checked_trees::CheckedIntegerComparisonKind::Equal,
+        checked_trees::CheckedBooleanExpression::IntegerComparison {
+            kind: checked_trees::CheckedIntegerComparisonKind::Equal,
             left,
             right,
         } if matches!(
             left.as_ref(),
-            crate::checked_trees::CheckedScalarExpression::Parameter {
+            checked_trees::CheckedScalarExpression::Parameter {
                 position: 0,
-                primitive_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U64,
+                primitive_type: typed_trees::types::PrimitiveType::U64,
             }
         ) && matches!(
             right.as_ref(),
-            crate::checked_trees::CheckedScalarExpression::IntegerLiteral { .. }
+            checked_trees::CheckedScalarExpression::IntegerLiteral { .. }
         )
     ));
     assert_ne!(
@@ -1124,7 +1121,7 @@ fn two_branch_dynamic_calls_under_an_integer_inequality_guard_share_one_join() {
         panic!("one atomic joined call expected: {dynamic:#?}")
     };
     assert_eq!(control.scalar_parameters.len(), 1);
-    let crate::checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
         panic!(
             "the negated integer guard is a Boolean scalar: {:?}",
             control.guard
@@ -1132,22 +1129,22 @@ fn two_branch_dynamic_calls_under_an_integer_inequality_guard_share_one_join() {
     };
     assert!(matches!(
         boolean.as_ref(),
-        crate::checked_trees::CheckedBooleanExpression::Not(inner)
+        checked_trees::CheckedBooleanExpression::Not(inner)
             if matches!(
                 inner.as_ref(),
-                crate::checked_trees::CheckedBooleanExpression::IntegerComparison {
-                    kind: crate::checked_trees::CheckedIntegerComparisonKind::Equal,
+                checked_trees::CheckedBooleanExpression::IntegerComparison {
+                    kind: checked_trees::CheckedIntegerComparisonKind::Equal,
                     left,
                     right,
                 } if matches!(
                     left.as_ref(),
-                    crate::checked_trees::CheckedScalarExpression::Parameter {
+                    checked_trees::CheckedScalarExpression::Parameter {
                         position: 0,
-                        primitive_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U64,
+                        primitive_type: typed_trees::types::PrimitiveType::U64,
                     }
                 ) && matches!(
                     right.as_ref(),
-                    crate::checked_trees::CheckedScalarExpression::IntegerLiteral { .. }
+                    checked_trees::CheckedScalarExpression::IntegerLiteral { .. }
                 )
             )
     ));
@@ -1212,7 +1209,7 @@ fn two_branch_dynamic_calls_under_a_retained_field_guard_share_one_join() {
         panic!("one atomic joined call expected: {dynamic:#?}")
     };
     assert!(control.scalar_parameters.is_empty());
-    let crate::checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
         panic!(
             "the retained field guard is a Boolean scalar: {:?}",
             control.guard
@@ -1220,7 +1217,7 @@ fn two_branch_dynamic_calls_under_a_retained_field_guard_share_one_join() {
     };
     assert!(matches!(
         boolean.as_ref(),
-        crate::checked_trees::CheckedBooleanExpression::StructuralParameterField {
+        checked_trees::CheckedBooleanExpression::StructuralParameterField {
             parameter_position: 0,
             ..
         }
@@ -1286,7 +1283,7 @@ fn two_branch_dynamic_calls_under_a_retained_field_equality_guard_share_one_join
         panic!("one atomic joined call expected: {dynamic:#?}")
     };
     assert!(control.scalar_parameters.is_empty());
-    let crate::checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
         panic!(
             "the field equality guard is a Boolean scalar: {:?}",
             control.guard
@@ -1294,16 +1291,16 @@ fn two_branch_dynamic_calls_under_a_retained_field_equality_guard_share_one_join
     };
     assert!(matches!(
         boolean.as_ref(),
-        crate::checked_trees::CheckedBooleanExpression::Equal { left, right }
+        checked_trees::CheckedBooleanExpression::Equal { left, right }
             if matches!(
                 left.as_ref(),
-                crate::checked_trees::CheckedBooleanExpression::StructuralParameterField {
+                checked_trees::CheckedBooleanExpression::StructuralParameterField {
                     parameter_position: 0,
                     ..
                 }
             ) && matches!(
                 right.as_ref(),
-                crate::checked_trees::CheckedBooleanExpression::Constant(true)
+                checked_trees::CheckedBooleanExpression::Constant(true)
             )
     ));
     assert_ne!(
@@ -1367,7 +1364,7 @@ fn two_branch_dynamic_calls_under_a_retained_field_inequality_guard_share_one_jo
         panic!("one atomic joined call expected: {dynamic:#?}")
     };
     assert!(control.scalar_parameters.is_empty());
-    let crate::checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
         panic!(
             "the field inequality guard is a Boolean scalar: {:?}",
             control.guard
@@ -1375,19 +1372,19 @@ fn two_branch_dynamic_calls_under_a_retained_field_inequality_guard_share_one_jo
     };
     assert!(matches!(
         boolean.as_ref(),
-        crate::checked_trees::CheckedBooleanExpression::Not(inner)
+        checked_trees::CheckedBooleanExpression::Not(inner)
             if matches!(
                 inner.as_ref(),
-                crate::checked_trees::CheckedBooleanExpression::Equal { left, right }
+                checked_trees::CheckedBooleanExpression::Equal { left, right }
                     if matches!(
                         left.as_ref(),
-                        crate::checked_trees::CheckedBooleanExpression::StructuralParameterField {
+                        checked_trees::CheckedBooleanExpression::StructuralParameterField {
                             parameter_position: 0,
                             ..
                         }
                     ) && matches!(
                         right.as_ref(),
-                        crate::checked_trees::CheckedBooleanExpression::Constant(true)
+                        checked_trees::CheckedBooleanExpression::Constant(true)
                     )
             )
     ));
@@ -1452,7 +1449,7 @@ fn two_branch_dynamic_calls_under_a_negated_retained_field_guard_share_one_join(
         panic!("one atomic joined call expected: {dynamic:#?}")
     };
     assert!(control.scalar_parameters.is_empty());
-    let crate::checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
         panic!(
             "the negated field guard is a Boolean scalar: {:?}",
             control.guard
@@ -1460,10 +1457,10 @@ fn two_branch_dynamic_calls_under_a_negated_retained_field_guard_share_one_join(
     };
     assert!(matches!(
         boolean.as_ref(),
-        crate::checked_trees::CheckedBooleanExpression::Not(inner)
+        checked_trees::CheckedBooleanExpression::Not(inner)
             if matches!(
                 inner.as_ref(),
-                crate::checked_trees::CheckedBooleanExpression::StructuralParameterField {
+                checked_trees::CheckedBooleanExpression::StructuralParameterField {
                     parameter_position: 0,
                     ..
                 }
@@ -1530,7 +1527,7 @@ fn two_branch_dynamic_calls_under_a_retained_integer_field_guard_share_one_join(
         panic!("one atomic joined call expected: {dynamic:#?}")
     };
     assert!(control.scalar_parameters.is_empty());
-    let crate::checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
         panic!(
             "the integer field guard is a Boolean scalar: {:?}",
             control.guard
@@ -1538,20 +1535,20 @@ fn two_branch_dynamic_calls_under_a_retained_integer_field_guard_share_one_join(
     };
     assert!(matches!(
         boolean.as_ref(),
-        crate::checked_trees::CheckedBooleanExpression::IntegerComparison {
-            kind: crate::checked_trees::CheckedIntegerComparisonKind::Equal,
+        checked_trees::CheckedBooleanExpression::IntegerComparison {
+            kind: checked_trees::CheckedIntegerComparisonKind::Equal,
             left,
             right,
         } if matches!(
             left.as_ref(),
-            crate::checked_trees::CheckedScalarExpression::StructuralParameterField {
+            checked_trees::CheckedScalarExpression::StructuralParameterField {
                 parameter_position: 0,
-                primitive_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::U64,
+                primitive_type: typed_trees::types::PrimitiveType::U64,
                 ..
             }
         ) && matches!(
             right.as_ref(),
-            crate::checked_trees::CheckedScalarExpression::IntegerLiteral { .. }
+            checked_trees::CheckedScalarExpression::IntegerLiteral { .. }
         )
     ));
     assert_ne!(
@@ -1615,7 +1612,7 @@ fn two_branch_dynamic_calls_under_a_field_and_parameter_equality_guard_share_one
         panic!("one atomic joined call expected: {dynamic:#?}")
     };
     assert_eq!(control.scalar_parameters.len(), 1);
-    let crate::checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
         panic!(
             "the field-parameter equality guard is a Boolean scalar: {:?}",
             control.guard
@@ -1623,16 +1620,16 @@ fn two_branch_dynamic_calls_under_a_field_and_parameter_equality_guard_share_one
     };
     assert!(matches!(
         boolean.as_ref(),
-        crate::checked_trees::CheckedBooleanExpression::Equal { left, right }
+        checked_trees::CheckedBooleanExpression::Equal { left, right }
             if matches!(
                 left.as_ref(),
-                crate::checked_trees::CheckedBooleanExpression::StructuralParameterField {
+                checked_trees::CheckedBooleanExpression::StructuralParameterField {
                     parameter_position: 0,
                     ..
                 }
             ) && matches!(
                 right.as_ref(),
-                crate::checked_trees::CheckedBooleanExpression::Parameter { position: 0 }
+                checked_trees::CheckedBooleanExpression::Parameter { position: 0 }
             )
     ));
     assert_ne!(
@@ -1696,7 +1693,7 @@ fn two_branch_dynamic_calls_under_a_two_parameter_equality_guard_share_one_join(
         panic!("one atomic joined call expected: {dynamic:#?}")
     };
     assert_eq!(control.scalar_parameters.len(), 2);
-    let crate::checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
         panic!(
             "the two-parameter equality guard is a Boolean scalar: {:?}",
             control.guard
@@ -1704,13 +1701,13 @@ fn two_branch_dynamic_calls_under_a_two_parameter_equality_guard_share_one_join(
     };
     assert!(matches!(
         boolean.as_ref(),
-        crate::checked_trees::CheckedBooleanExpression::Equal { left, right }
+        checked_trees::CheckedBooleanExpression::Equal { left, right }
             if matches!(
                 left.as_ref(),
-                crate::checked_trees::CheckedBooleanExpression::Parameter { position: 0 }
+                checked_trees::CheckedBooleanExpression::Parameter { position: 0 }
             ) && matches!(
                 right.as_ref(),
-                crate::checked_trees::CheckedBooleanExpression::Parameter { position: 1 }
+                checked_trees::CheckedBooleanExpression::Parameter { position: 1 }
             )
     ));
     assert_ne!(
@@ -1774,7 +1771,7 @@ fn two_branch_dynamic_calls_under_a_negated_two_parameter_guard_share_one_join()
         panic!("one atomic joined call expected: {dynamic:#?}")
     };
     assert_eq!(control.scalar_parameters.len(), 2);
-    let crate::checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
         panic!(
             "the negated two-parameter guard is a Boolean scalar: {:?}",
             control.guard
@@ -1782,16 +1779,16 @@ fn two_branch_dynamic_calls_under_a_negated_two_parameter_guard_share_one_join()
     };
     assert!(matches!(
         boolean.as_ref(),
-        crate::checked_trees::CheckedBooleanExpression::Not(inner)
+        checked_trees::CheckedBooleanExpression::Not(inner)
             if matches!(
                 inner.as_ref(),
-                crate::checked_trees::CheckedBooleanExpression::Equal { left, right }
+                checked_trees::CheckedBooleanExpression::Equal { left, right }
                     if matches!(
                         left.as_ref(),
-                        crate::checked_trees::CheckedBooleanExpression::Parameter { position: 0 }
+                        checked_trees::CheckedBooleanExpression::Parameter { position: 0 }
                     ) && matches!(
                         right.as_ref(),
-                        crate::checked_trees::CheckedBooleanExpression::Parameter { position: 1 }
+                        checked_trees::CheckedBooleanExpression::Parameter { position: 1 }
                     )
             )
     ));
@@ -1856,7 +1853,7 @@ fn two_branch_dynamic_calls_under_a_two_parameter_integer_guard_share_one_join()
         panic!("one atomic joined call expected: {dynamic:#?}")
     };
     assert_eq!(control.scalar_parameters.len(), 2);
-    let crate::checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
         panic!(
             "the two-parameter integer guard is a Boolean scalar: {:?}",
             control.guard
@@ -1864,16 +1861,16 @@ fn two_branch_dynamic_calls_under_a_two_parameter_integer_guard_share_one_join()
     };
     assert!(matches!(
         boolean.as_ref(),
-        crate::checked_trees::CheckedBooleanExpression::IntegerComparison {
-            kind: crate::checked_trees::CheckedIntegerComparisonKind::Equal,
+        checked_trees::CheckedBooleanExpression::IntegerComparison {
+            kind: checked_trees::CheckedIntegerComparisonKind::Equal,
             left,
             right,
         } if matches!(
             left.as_ref(),
-            crate::checked_trees::CheckedScalarExpression::Parameter { position: 0, .. }
+            checked_trees::CheckedScalarExpression::Parameter { position: 0, .. }
         ) && matches!(
             right.as_ref(),
-            crate::checked_trees::CheckedScalarExpression::Parameter { position: 1, .. }
+            checked_trees::CheckedScalarExpression::Parameter { position: 1, .. }
         )
     ));
     assert_ne!(
@@ -1937,7 +1934,7 @@ fn two_branch_dynamic_calls_guarded_by_a_later_parameter_share_one_join() {
         panic!("one atomic joined call expected: {dynamic:#?}")
     };
     assert_eq!(control.scalar_parameters.len(), 2);
-    let crate::checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
         panic!(
             "the later-parameter guard is a Boolean scalar: {:?}",
             control.guard
@@ -1945,7 +1942,7 @@ fn two_branch_dynamic_calls_guarded_by_a_later_parameter_share_one_join() {
     };
     assert!(matches!(
         boolean.as_ref(),
-        crate::checked_trees::CheckedBooleanExpression::Parameter { position: 1 }
+        checked_trees::CheckedBooleanExpression::Parameter { position: 1 }
     ));
     assert_ne!(
         when_true.call.selection.conformance,
@@ -2007,7 +2004,7 @@ fn two_branch_dynamic_calls_under_an_ordering_guard_share_one_join() {
     else {
         panic!("one atomic joined call expected: {dynamic:#?}")
     };
-    let crate::checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
         panic!(
             "the ordering guard is a Boolean scalar: {:?}",
             control.guard
@@ -2015,16 +2012,16 @@ fn two_branch_dynamic_calls_under_an_ordering_guard_share_one_join() {
     };
     assert!(matches!(
         boolean.as_ref(),
-        crate::checked_trees::CheckedBooleanExpression::IntegerComparison {
-            kind: crate::checked_trees::CheckedIntegerComparisonKind::LessThan,
+        checked_trees::CheckedBooleanExpression::IntegerComparison {
+            kind: checked_trees::CheckedIntegerComparisonKind::LessThan,
             left,
             right,
         } if matches!(
             left.as_ref(),
-            crate::checked_trees::CheckedScalarExpression::Parameter { position: 0, .. }
+            checked_trees::CheckedScalarExpression::Parameter { position: 0, .. }
         ) && matches!(
             right.as_ref(),
-            crate::checked_trees::CheckedScalarExpression::IntegerLiteral { .. }
+            checked_trees::CheckedScalarExpression::IntegerLiteral { .. }
         )
     ));
     assert_ne!(
@@ -2087,7 +2084,7 @@ fn two_branch_dynamic_calls_under_a_greater_than_guard_share_one_join() {
     else {
         panic!("one atomic joined call expected: {dynamic:#?}")
     };
-    let crate::checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
         panic!(
             "the greater-than guard is a Boolean scalar: {:?}",
             control.guard
@@ -2095,16 +2092,16 @@ fn two_branch_dynamic_calls_under_a_greater_than_guard_share_one_join() {
     };
     assert!(matches!(
         boolean.as_ref(),
-        crate::checked_trees::CheckedBooleanExpression::IntegerComparison {
-            kind: crate::checked_trees::CheckedIntegerComparisonKind::LessThan,
+        checked_trees::CheckedBooleanExpression::IntegerComparison {
+            kind: checked_trees::CheckedIntegerComparisonKind::LessThan,
             left,
             right,
         } if matches!(
             left.as_ref(),
-            crate::checked_trees::CheckedScalarExpression::IntegerLiteral { .. }
+            checked_trees::CheckedScalarExpression::IntegerLiteral { .. }
         ) && matches!(
             right.as_ref(),
-            crate::checked_trees::CheckedScalarExpression::Parameter { position: 0, .. }
+            checked_trees::CheckedScalarExpression::Parameter { position: 0, .. }
         )
     ));
     assert_ne!(
@@ -2167,7 +2164,7 @@ fn two_branch_dynamic_calls_under_a_field_ordering_guard_share_one_join() {
     else {
         panic!("one atomic joined call expected: {dynamic:#?}")
     };
-    let crate::checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
         panic!(
             "the field ordering guard is a Boolean scalar: {:?}",
             control.guard
@@ -2175,19 +2172,19 @@ fn two_branch_dynamic_calls_under_a_field_ordering_guard_share_one_join() {
     };
     assert!(matches!(
         boolean.as_ref(),
-        crate::checked_trees::CheckedBooleanExpression::IntegerComparison {
-            kind: crate::checked_trees::CheckedIntegerComparisonKind::LessOrEqual,
+        checked_trees::CheckedBooleanExpression::IntegerComparison {
+            kind: checked_trees::CheckedIntegerComparisonKind::LessOrEqual,
             left,
             right,
         } if matches!(
             left.as_ref(),
-            crate::checked_trees::CheckedScalarExpression::StructuralParameterField {
+            checked_trees::CheckedScalarExpression::StructuralParameterField {
                 parameter_position: 0,
                 ..
             }
         ) && matches!(
             right.as_ref(),
-            crate::checked_trees::CheckedScalarExpression::IntegerLiteral { .. }
+            checked_trees::CheckedScalarExpression::IntegerLiteral { .. }
         )
     ));
     assert_ne!(
@@ -2252,7 +2249,7 @@ fn two_branch_dynamic_calls_under_an_indexed_field_guard_share_one_join() {
     else {
         panic!("one atomic joined call expected: {dynamic:#?}")
     };
-    let crate::checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
         panic!(
             "the indexed field guard is a Boolean scalar: {:?}",
             control.guard
@@ -2260,13 +2257,13 @@ fn two_branch_dynamic_calls_under_an_indexed_field_guard_share_one_join() {
     };
     assert!(matches!(
         boolean.as_ref(),
-        crate::checked_trees::CheckedBooleanExpression::StructuralParameterField {
+        checked_trees::CheckedBooleanExpression::StructuralParameterField {
             parameter_position: 0,
             path,
         } if path.len() == 3
-            && matches!(path[0], crate::checked_trees::CheckedStructuralPredicatePathSegment::Field(_))
-            && matches!(path[1], crate::checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(0))
-            && matches!(path[2], crate::checked_trees::CheckedStructuralPredicatePathSegment::Field(_))
+            && matches!(path[0], checked_trees::CheckedStructuralPredicatePathSegment::Field(_))
+            && matches!(path[1], checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(0))
+            && matches!(path[2], checked_trees::CheckedStructuralPredicatePathSegment::Field(_))
     ));
     assert_ne!(
         when_true.call.selection.conformance,
@@ -2328,7 +2325,7 @@ fn two_branch_dynamic_calls_under_an_indexed_element_guard_share_one_join() {
     else {
         panic!("one atomic joined call expected: {dynamic:#?}")
     };
-    let crate::checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
         panic!(
             "the indexed element guard is a Boolean scalar: {:?}",
             control.guard
@@ -2336,19 +2333,19 @@ fn two_branch_dynamic_calls_under_an_indexed_element_guard_share_one_join() {
     };
     assert!(matches!(
         boolean.as_ref(),
-        crate::checked_trees::CheckedBooleanExpression::IntegerComparison {
-            kind: crate::checked_trees::CheckedIntegerComparisonKind::LessThan,
+        checked_trees::CheckedBooleanExpression::IntegerComparison {
+            kind: checked_trees::CheckedIntegerComparisonKind::LessThan,
             left,
             right,
         } if matches!(
             left.as_ref(),
-            crate::checked_trees::CheckedScalarExpression::StructuralParameterField {
+            checked_trees::CheckedScalarExpression::StructuralParameterField {
                 parameter_position: 0,
                 ..
             }
         ) && matches!(
             right.as_ref(),
-            crate::checked_trees::CheckedScalarExpression::IntegerLiteral { .. }
+            checked_trees::CheckedScalarExpression::IntegerLiteral { .. }
         )
     ));
     assert_ne!(
@@ -2415,7 +2412,7 @@ fn two_branch_dynamic_calls_under_a_nested_field_guard_share_one_join() {
     else {
         panic!("one atomic joined call expected: {dynamic:#?}")
     };
-    let crate::checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
         panic!(
             "the nested field guard is a Boolean scalar: {:?}",
             control.guard
@@ -2423,13 +2420,13 @@ fn two_branch_dynamic_calls_under_a_nested_field_guard_share_one_join() {
     };
     assert!(matches!(
         boolean.as_ref(),
-        crate::checked_trees::CheckedBooleanExpression::StructuralParameterField {
+        checked_trees::CheckedBooleanExpression::StructuralParameterField {
             parameter_position: 0,
             path,
         } if path.len() == 3
             && path.iter().all(|segment| matches!(
                 segment,
-                crate::checked_trees::CheckedStructuralPredicatePathSegment::Field(_)
+                checked_trees::CheckedStructuralPredicatePathSegment::Field(_)
             ))
     ));
     assert_ne!(
@@ -2492,7 +2489,7 @@ fn two_branch_dynamic_calls_under_a_param_param_ordering_guard_share_one_join() 
     else {
         panic!("one atomic joined call expected: {dynamic:#?}")
     };
-    let crate::checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
         panic!(
             "the param-param ordering guard is a Boolean scalar: {:?}",
             control.guard
@@ -2500,16 +2497,16 @@ fn two_branch_dynamic_calls_under_a_param_param_ordering_guard_share_one_join() 
     };
     assert!(matches!(
         boolean.as_ref(),
-        crate::checked_trees::CheckedBooleanExpression::IntegerComparison {
-            kind: crate::checked_trees::CheckedIntegerComparisonKind::LessThan,
+        checked_trees::CheckedBooleanExpression::IntegerComparison {
+            kind: checked_trees::CheckedIntegerComparisonKind::LessThan,
             left,
             right,
         } if matches!(
             left.as_ref(),
-            crate::checked_trees::CheckedScalarExpression::Parameter { position: 0, .. }
+            checked_trees::CheckedScalarExpression::Parameter { position: 0, .. }
         ) && matches!(
             right.as_ref(),
-            crate::checked_trees::CheckedScalarExpression::Parameter { position: 1, .. }
+            checked_trees::CheckedScalarExpression::Parameter { position: 1, .. }
         )
     ));
     assert_ne!(
@@ -2572,7 +2569,7 @@ fn two_branch_dynamic_calls_under_a_negated_ordering_guard_share_one_join() {
     else {
         panic!("one atomic joined call expected: {dynamic:#?}")
     };
-    let crate::checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
         panic!(
             "the negated ordering guard is a Boolean scalar: {:?}",
             control.guard
@@ -2581,8 +2578,8 @@ fn two_branch_dynamic_calls_under_a_negated_ordering_guard_share_one_join() {
     assert!(
         matches!(
             boolean.as_ref(),
-            crate::checked_trees::CheckedBooleanExpression::IntegerComparison { .. }
-                | crate::checked_trees::CheckedBooleanExpression::Not(_)
+            checked_trees::CheckedBooleanExpression::IntegerComparison { .. }
+                | checked_trees::CheckedBooleanExpression::Not(_)
         ),
         "the negated ordering guard keeps a comparison shape: {boolean:?}"
     );
@@ -2647,7 +2644,7 @@ fn two_branch_dynamic_calls_under_a_local_boolean_guard_share_one_join() {
     else {
         panic!("one atomic joined call expected: {dynamic:#?}")
     };
-    let crate::checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
         panic!(
             "the local boolean guard is a Boolean scalar: {:?}",
             control.guard
@@ -2655,16 +2652,16 @@ fn two_branch_dynamic_calls_under_a_local_boolean_guard_share_one_join() {
     };
     assert!(matches!(
         boolean.as_ref(),
-        crate::checked_trees::CheckedBooleanExpression::IntegerComparison {
-            kind: crate::checked_trees::CheckedIntegerComparisonKind::LessThan,
+        checked_trees::CheckedBooleanExpression::IntegerComparison {
+            kind: checked_trees::CheckedIntegerComparisonKind::LessThan,
             left,
             right,
         } if matches!(
             left.as_ref(),
-            crate::checked_trees::CheckedScalarExpression::Parameter { position: 0, .. }
+            checked_trees::CheckedScalarExpression::Parameter { position: 0, .. }
         ) && matches!(
             right.as_ref(),
-            crate::checked_trees::CheckedScalarExpression::IntegerLiteral { .. }
+            checked_trees::CheckedScalarExpression::IntegerLiteral { .. }
         )
     ));
     assert_ne!(
@@ -2728,7 +2725,7 @@ fn two_branch_dynamic_calls_under_a_local_comparison_guard_share_one_join() {
     else {
         panic!("one atomic joined call expected: {dynamic:#?}")
     };
-    let crate::checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
         panic!(
             "the local comparison guard is a Boolean scalar: {:?}",
             control.guard
@@ -2736,16 +2733,16 @@ fn two_branch_dynamic_calls_under_a_local_comparison_guard_share_one_join() {
     };
     assert!(matches!(
         boolean.as_ref(),
-        crate::checked_trees::CheckedBooleanExpression::IntegerComparison {
-            kind: crate::checked_trees::CheckedIntegerComparisonKind::LessThan,
+        checked_trees::CheckedBooleanExpression::IntegerComparison {
+            kind: checked_trees::CheckedIntegerComparisonKind::LessThan,
             left,
             right,
         } if matches!(
             left.as_ref(),
-            crate::checked_trees::CheckedScalarExpression::Parameter { position: 0, .. }
+            checked_trees::CheckedScalarExpression::Parameter { position: 0, .. }
         ) && matches!(
             right.as_ref(),
-            crate::checked_trees::CheckedScalarExpression::IntegerLiteral { .. }
+            checked_trees::CheckedScalarExpression::IntegerLiteral { .. }
         )
     ));
     assert_ne!(

@@ -1,6 +1,6 @@
 //! Optimizer module role: executable entrance. Explicit allocator-view availability policy entrance.
 
-use target_operations_to_selected_instructions::register_model::{
+use register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile,
@@ -8,11 +8,9 @@ use target_operations_to_selected_instructions::register_model::{
 pub(crate) mod compute;
 pub(crate) mod validate;
 
-use crate::register_homes::AllocatorAvailabilityPolicy;
-use crate::register_homes::{AllocatorAvailabilityIdentity, AllocatorAvailabilityPlan};
-use target_operations_to_selected_instructions::register_model::{
-    PhysicalRegisterModelIdentity, RegisterClassId, RegisterViewId,
-};
+use register_homes::AllocatorAvailabilityPolicy;
+use register_homes::{AllocatorAvailabilityIdentity, AllocatorAvailabilityPlan};
+use register_model::{PhysicalRegisterModelIdentity, RegisterClassId, RegisterViewId};
 pub(crate) use validate::validate_allocator_availability;
 
 /// Materialize and independently replay one exact named policy controlling

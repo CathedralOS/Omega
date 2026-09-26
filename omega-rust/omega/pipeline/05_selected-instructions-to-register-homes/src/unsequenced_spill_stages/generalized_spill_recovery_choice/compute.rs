@@ -1,12 +1,12 @@
 //! Direct blocker-roster traversal and epoch-two victim proposal.
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use target_operations_to_selected_instructions::SelectedFunction;
-use target_operations_to_selected_instructions::register_model::{
+use register_model::{
     RegisterView, RegisterViewId, TargetRegisterEnvironmentConstraintKeys,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile, target_register_environment_identity,
 };
+use selected_instructions::SelectedFunction;
 
 use crate::unsequenced_spill_stages::{
     GeneralizedReloadCoexistingHome, GeneralizedReloadCoexistingValue,
@@ -16,10 +16,10 @@ use crate::unsequenced_spill_stages::{
     GeneralizedSpillRecoveryVictimChoice, ValidatedGeneralizedReloadValueHomes,
     ValidatedGeneralizedSpillRecoveryWorklist,
 };
+use selected_instructions::LiveRangePoint;
 use selected_instructions_to_selected_instructions::{
     ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedSelectedAnalysis,
 };
-use target_operations_to_selected_instructions::LiveRangePoint;
 
 mod original_eligibility;
 
@@ -186,10 +186,10 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
 fn resolve_resident(
     function: usize,
     blocker: &GeneralizedReloadCoexistingHome,
-    block: target_operations_to_selected_instructions::SelectedBlockId,
+    block: selected_instructions::SelectedBlockId,
     point: LiveRangePoint,
     homes: &crate::unsequenced_spill_stages::FunctionGeneralizedReloadValueHomes,
-    legality: &selected_instructions_to_selected_instructions::register_homes::FunctionAllocationLegality,
+    legality: &register_homes::FunctionAllocationLegality,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<GeneralizedSpillRecoveryResident, GeneralizedSpillRecoveryChoiceError> {
     checked_view(function, blocker.class, blocker.view, physical)?;
@@ -340,7 +340,7 @@ fn admit_roots(
 
 fn checked_view(
     function: usize,
-    class: target_operations_to_selected_instructions::register_model::RegisterClassId,
+    class: register_model::RegisterClassId,
     id: RegisterViewId,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<&RegisterView, GeneralizedSpillRecoveryChoiceError> {
@@ -415,12 +415,12 @@ fn admit_policy(
 fn select(
     function: usize,
     policy: GeneralizedSpillRecoveryChoicePolicy,
-    block: target_operations_to_selected_instructions::SelectedBlockId,
+    block: selected_instructions::SelectedBlockId,
     point: LiveRangePoint,
     contenders: &[GeneralizedSpillRecoveryContender],
     residents: &[GeneralizedSpillRecoveryResident],
     selected: &SelectedFunction,
-    ranges: &target_operations_to_selected_instructions::FunctionLiveRanges,
+    ranges: &selected_instructions::FunctionLiveRanges,
     work: &mut Work,
 ) -> Result<Option<GeneralizedSpillRecoveryContender>, GeneralizedSpillRecoveryChoiceError> {
     let mut eligible = Vec::new();
@@ -475,8 +475,8 @@ mod tests {
         GeneralizedReloadCoexistingValue, GeneralizedSpillRecoveryChoicePolicy,
         GeneralizedSpillRecoveryContender, LiveRangePoint, ranking_key,
     };
-    use target_operations_to_selected_instructions::VirtualRegisterId;
-    use target_operations_to_selected_instructions::register_model::RegisterViewId;
+    use register_model::RegisterViewId;
+    use selected_instructions::VirtualRegisterId;
 
     #[test]
     fn equal_end_tie_selects_the_highest_canonical_value() {

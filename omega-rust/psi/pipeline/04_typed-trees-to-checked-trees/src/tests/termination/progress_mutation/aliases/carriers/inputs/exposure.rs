@@ -150,13 +150,10 @@ fn a_referent_method_does_not_replace_a_saved_reference_binding() {
             .unwrap();
         let state = &program.machine_states(machine)[0];
         let statements = program.statement_table.statements(state.statement_nodes);
-        let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
-            borrowed,
-        ) = &statements[0]
-        else {
+        let typed_trees::statement::StatementNode::LocalData(borrowed) = &statements[0] else {
             panic!("reference local")
         };
-        let resolver = crate::validation::CallFrameResolver::new(&program).unwrap();
+        let resolver = validation::CallFrameResolver::new(&program).unwrap();
         let (root, segments) = resolver
             .local_reference_origin_before_statement(
                 machine,
@@ -165,7 +162,7 @@ fn a_referent_method_does_not_replace_a_saved_reference_binding() {
             )
             .expect("referent writes do not replace the reference slot");
         assert_eq!(root, program.state_parameters(state)[0].symbol);
-        let [crate::fact_plan::PlaceSegment::Field { symbol }] = segments.as_slice() else {
+        let [facts::PlaceSegment::Field { symbol }] = segments.as_slice() else {
             panic!("input reference field: {segments:?}")
         };
         assert_eq!(
@@ -190,7 +187,7 @@ fn a_referent_method_does_not_replace_a_saved_reference_binding() {
 
 #[test]
 fn later_exposure_does_not_change_an_earlier_input_origin_query() {
-    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
+    use typed_trees::statement::StatementNode;
 
     for exposure in [
         "_ = inspect_context(&mut carrier.context);",
@@ -227,17 +224,17 @@ fn later_exposure_does_not_change_an_earlier_input_origin_query() {
             .data_members(definition)
             .iter()
             .find_map(|member| match member {
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
-                    field,
-                ) if field.name.as_str() == "context" => Some(field.symbol),
+                typed_trees::data::DataMember::Field(field) if field.name.as_str() == "context" => {
+                    Some(field.symbol)
+                }
                 _ => None,
             })
             .unwrap();
         let expected = Some((
             carrier,
-            vec![crate::fact_plan::PlaceSegment::Field { symbol: context }],
+            vec![facts::PlaceSegment::Field { symbol: context }],
         ));
-        let resolver = crate::validation::CallFrameResolver::new(&program).unwrap();
+        let resolver = validation::CallFrameResolver::new(&program).unwrap();
         let origin_before = |statement| {
             resolver.local_reference_origin_before_statement(machine, statement, borrowed.symbol)
         };

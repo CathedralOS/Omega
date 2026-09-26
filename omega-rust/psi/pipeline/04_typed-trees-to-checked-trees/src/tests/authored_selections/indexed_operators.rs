@@ -3,13 +3,11 @@ use super::{
     AuthoredDeclarationSelectionTarget,
 };
 use crate::CheckingRequest;
-use crate::checked_trees::CheckedOperatorResolutionStatus;
 use crate::lower_typed_trees;
 use crate::tests::front_end::{checked_program, typed_program};
+use checked_trees::CheckedOperatorResolutionStatus;
 use language_core::operator_spelling::OperatorSpelling;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, ExpressionNode,
-};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 #[test]
 fn applied_generic_field_indexing_never_acquires_false_builtin_custody() {
@@ -34,19 +32,19 @@ fn applied_generic_field_indexing_never_acquires_false_builtin_custody() {
             })
             .expect("indexed field");
         let mut roots = arena::Arena::default();
-        roots.append(crate::checked_trees::CheckedValueFact {
+        roots.append(checked_trees::CheckedValueFact {
             expression: indexed,
-            origin: crate::checked_trees::CheckedValueOrigin::StateStatement {
+            origin: checked_trees::CheckedValueOrigin::StateStatement {
                 machine_symbol: machine.symbol,
                 state_symbol: state.symbol,
                 statement_index: 0,
-                role: crate::checked_trees::CheckedValueStatementRole::Expression,
+                role: checked_trees::CheckedValueStatementRole::Expression,
             },
             ..Default::default()
         });
         let facts = crate::operators::build_operator_facts(
             &typed,
-            &crate::checked_trees::CheckedValueFacts::with_roots(roots),
+            &checked_trees::CheckedValueFacts::with_roots(roots),
         );
         let selected = facts.expression_use(indexed).expect("exact indexing use");
         let ExpressionNode::Indexed(projection) = typed.expression_table.expression(indexed) else {
@@ -75,7 +73,7 @@ fn applied_generic_field_indexing_never_acquires_false_builtin_custody() {
     }
 }
 
-fn indexed_program() -> symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees {
+fn indexed_program() -> typed_trees::TypedTrees {
     let source = r#"
         boundary operator [] Slice::index<Element>(items: &[Element], position: u64) -> Element
         requires position < items.len;
@@ -179,7 +177,7 @@ fn indexed_array_custody_selects_the_exact_checked_slice_declaration() {
             application.requirement_symbol == selected
                 && matches!(
                     application.site,
-                    crate::checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression {
+                    checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression {
                         expression, ..
                     } if expression == indexed
                 )
@@ -191,7 +189,7 @@ fn indexed_array_custody_selects_the_exact_checked_slice_declaration() {
     );
     for application in applications {
         let [
-            crate::checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
+            checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
                 binder_owner,
                 binder_ordinal,
                 type_reference,
@@ -205,7 +203,7 @@ fn indexed_array_custody_selects_the_exact_checked_slice_declaration() {
         assert_eq!(*binder_ordinal, 0);
         assert_eq!(
             checked.primitive_type_reference(*type_reference),
-            Some(symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::I32)
+            Some(typed_trees::types::PrimitiveType::I32)
         );
     }
     let selections = checked
@@ -230,7 +228,7 @@ fn indexed_array_custody_selects_the_exact_checked_slice_declaration() {
             .all(|(_, operator_use)| {
                 !matches!(
                     operator_use.origin,
-                    crate::checked_trees::CheckedValueOrigin::NestedExpression { .. }
+                    checked_trees::CheckedValueOrigin::NestedExpression { .. }
                 )
             }),
         "recursive operator uses retain their real enclosing contexts"

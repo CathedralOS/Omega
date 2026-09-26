@@ -12,13 +12,9 @@ use super::{
     CheckedScalarExpressionRole, ExitScalars, ExpressionHandle, PrimitiveType, SymbolHandle,
     bind_boolean,
 };
-use crate::checked_trees::{
-    CheckedScalarComputationHandle, CheckedScalarComputationKind as Computation,
-};
 use crate::checks::contracts::prover::has_builtin_operators;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    BinaryOperator, ExpressionNode, UnaryOperator,
-};
+use checked_trees::{CheckedScalarComputationHandle, CheckedScalarComputationKind as Computation};
+use typed_trees::expression::{BinaryOperator, ExpressionNode, UnaryOperator};
 
 impl ExitScalars<'_, '_> {
     pub(super) fn bind_boolean_expression_at(
@@ -90,7 +86,7 @@ impl ExitScalars<'_, '_> {
                 .get(..statement as usize)?
                 .iter()
                 .filter_map(|statement| {
-                    let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) = statement else {
+                    let typed_trees::statement::StatementNode::LocalData(local) = statement else {
                         return None;
                     };
                     (!local.is_mutable

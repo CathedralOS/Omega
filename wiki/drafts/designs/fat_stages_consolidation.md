@@ -1,4 +1,24 @@
-# Fat stages — maximal-fold consolidation design
+# REJECTED: fat-stages consolidation
+
+**Owner decision, 2026-09-26: rejected completely. Do not implement, continue,
+or use this proposal as architecture authority.** The owner directed reversal
+of commit `912b490c8f190832d681fd3f2e9f40add48e7f1a` and restoration of the
+independent package boundaries it removed.
+
+Durable representations belong in independent `representations/` crates.
+Shared foundations and utilities must not be absorbed into their first consumer,
+a producing pipeline stage, or the application crate. The separate semantics,
+backend, compiler, build, package, and tooling owners remain meaningful package
+boundaries. Reducing crate count or directory depth does not justify erasing
+them. The authoritative contract is
+[compiler ownership and pipeline](../../../omega-rust/pipeline.md#placement-and-semantic-ownership).
+
+The material below is retained only to identify the rejected design. Its
+“Decision (Jarod)” label, migration instructions, and assertion that this draft
+replaces the placement rule have no authority. The accompanying
+[map](fat_stages_map.html) is rejected on the same terms.
+
+## Rejected proposal (historical record)
 
 Decision (Jarod): the pipeline keeps stages 0–9 — no new numbered stages —
 and every non-pipeline dir dies except universal substrate and the binary.
@@ -39,7 +59,7 @@ verifier, installer, tests, and Omega stage 00, not internal plumbing.
 Consumers should not have to import stage 07's machinery to read the
 contract.
 
-Dies mostly: `representations/` (stage-produced IRs move into producing stages; shared boundary vocabularies with upstream consumers stay — see `omega/representations/README.md`),
+Dies entirely: `representations/` (IRs move into producing stages),
 `semantics/` (judges into stage checker modules; verifier/codec/interpreters
 into the binary), `backend/` (ISA→02–05, emission tail→08–09),
 `compiler/`, `psi/compiler/` (→07), `build/`, `packages/`, `tooling/`

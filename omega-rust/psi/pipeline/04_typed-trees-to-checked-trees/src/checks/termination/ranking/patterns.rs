@@ -1,11 +1,7 @@
 use crate::semantic::calls::MeasureReceiver;
 use language_semantics::declaration_selection::CollectionMeasure;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, ExpressionNode,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
-    StatementNode, TransitionGuardNode, TransitionTargetNode,
-};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
 mod comparison;
 pub(super) use comparison::comparison;
@@ -16,8 +12,8 @@ pub(super) struct GuardedSelfLoop<'program> {
 }
 
 pub(super) fn guarded_self_loop<'program>(
-    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &'program typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
     statement: &StatementNode,
 ) -> Option<GuardedSelfLoop<'program>> {
     let StatementNode::Transition(transition) = statement else {
@@ -64,8 +60,8 @@ pub(super) struct GuardedEdge<'program> {
 /// fallback retains failed earlier tests; a continuation refutes its own test.
 /// Intervening statements discard earlier facts instead of assuming no write.
 pub(super) fn edges_to_state<'program>(
-    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    source: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &'program typed_trees::TypedTrees,
+    source: &typed_trees::state::State,
     target_symbol: symbols::SymbolHandle,
 ) -> Vec<GuardedEdge<'program>> {
     let mut edges = Vec::new();
@@ -142,13 +138,11 @@ pub(super) fn edges_to_state<'program>(
 /// owner separately requires the prefix to preserve every parameter path, so
 /// a mutable parameter's observed value still holds at the next transition.
 fn stable_guard(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
     expression: ExpressionHandle,
 ) -> bool {
-    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-        BinaryOperator, UnaryOperator,
-    };
+    use typed_trees::expression::{BinaryOperator, UnaryOperator};
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(name) => program.state_parameters(state).iter().any(|parameter| {
             parameter.symbol == name.symbol
@@ -179,15 +173,15 @@ fn stable_guard(
 }
 
 fn target_symbol_matches_state(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
     target_symbol: symbols::SymbolHandle,
 ) -> bool {
     target_symbol_matches_state_symbol(program, state.symbol, target_symbol)
 }
 
 fn target_symbol_matches_state_symbol(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     state_symbol: symbols::SymbolHandle,
     target_symbol: symbols::SymbolHandle,
 ) -> bool {
@@ -212,24 +206,20 @@ fn target_symbol_matches_state_symbol(
 }
 
 pub(super) fn parameter_matched_by_expression<'program>(
-    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    state: &'program symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &'program typed_trees::TypedTrees,
+    state: &'program typed_trees::state::State,
     expression: ExpressionHandle,
-) -> Option<&'program symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter>
-{
+) -> Option<&'program typed_trees::signature::StateParameter> {
     program.state_parameters(state).iter().find(|parameter| {
         !parameter.is_self && expression_matches_parameter(program, expression, parameter)
     })
 }
 
 pub(super) fn parameter_and_argument_index_matched_by_expression<'program>(
-    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    state: &'program symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &'program typed_trees::TypedTrees,
+    state: &'program typed_trees::state::State,
     expression: ExpressionHandle,
-) -> Option<(
-    &'program symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter,
-    usize,
-)> {
+) -> Option<(&'program typed_trees::signature::StateParameter, usize)> {
     program
         .state_parameters(state)
         .iter()
@@ -242,9 +232,9 @@ pub(super) fn parameter_and_argument_index_matched_by_expression<'program>(
 }
 
 pub(super) fn non_self_parameter_index(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-    parameter: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter,
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
+    parameter: &typed_trees::signature::StateParameter,
 ) -> Option<usize> {
     program
         .state_parameters(state)
@@ -254,9 +244,9 @@ pub(super) fn non_self_parameter_index(
 }
 
 pub(super) fn expression_is_parameter(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     expression: ExpressionHandle,
-    parameter: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter,
+    parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
     let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
         return false;
@@ -271,9 +261,9 @@ pub(super) fn expression_is_parameter(
 }
 
 pub(super) fn expression_is_parameter_member(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     expression: ExpressionHandle,
-    parameter: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter,
+    parameter: &typed_trees::signature::StateParameter,
     member_name: &str,
 ) -> bool {
     matches!(
@@ -285,9 +275,9 @@ pub(super) fn expression_is_parameter_member(
 }
 
 pub(super) fn expression_matches_parameter(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     expression: ExpressionHandle,
-    parameter: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter,
+    parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
     expression_is_parameter(program, expression, parameter)
         || matches!(

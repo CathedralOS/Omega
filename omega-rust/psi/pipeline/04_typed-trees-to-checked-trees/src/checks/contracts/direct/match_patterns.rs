@@ -2,10 +2,8 @@
 //! Substitution maps formal leaves to caller operands; display labels never
 //! establish equality between different symbols or mutable storage locations.
 
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator,
-};
+use typed_trees::TypedTrees;
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn proves(
@@ -155,10 +153,7 @@ mod tests {
             })
             .unwrap();
         let arms = program.expression_table.match_arms(dispatch.arms);
-        let symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(
-            pattern,
-        ) = arms[0].pattern
-        else {
+        let typed_trees::expression::MatchPattern::Value(pattern) = arms[0].pattern else {
             panic!("false pattern");
         };
         let substitute = |expression| {

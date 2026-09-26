@@ -16,10 +16,7 @@ impl PsiOptimizationRule for NonProfitableExactRule {
         &self,
         unit: &PsiOptimizationUnit,
         analyses: RuleAnalysisView<'_>,
-    ) -> Result<
-        Vec<terminal_psi_to_abstract_operations::optimization_unit::PsiRewriteCandidate>,
-        RuleProposalError,
-    > {
+    ) -> Result<Vec<optimization_unit::PsiRewriteCandidate>, RuleProposalError> {
         ExactIntegerAddConstantsRule
             .propose(unit, analyses)?
             .into_iter()
@@ -27,10 +24,10 @@ impl PsiOptimizationRule for NonProfitableExactRule {
                 let PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) = candidate.patch()
                 else {
                     return Err(RuleProposalError::InvalidCandidate(
-                        terminal_psi_to_abstract_operations::optimization_unit::PsiRewriteCandidateError::PatchDecisionPointMismatch,
+                        optimization_unit::PsiRewriteCandidateError::PatchDecisionPointMismatch,
                     ));
                 };
-                terminal_psi_to_abstract_operations::optimization_unit::PsiRewriteCandidate::new_integer_evaluation(
+                optimization_unit::PsiRewriteCandidate::new_integer_evaluation(
                     candidate.input(),
                     Self.contract(),
                     candidate.affected_blocks().to_vec(),
@@ -58,10 +55,7 @@ impl PsiOptimizationRule for DuplicateExactRule {
         &self,
         unit: &PsiOptimizationUnit,
         analyses: RuleAnalysisView<'_>,
-    ) -> Result<
-        Vec<terminal_psi_to_abstract_operations::optimization_unit::PsiRewriteCandidate>,
-        RuleProposalError,
-    > {
+    ) -> Result<Vec<optimization_unit::PsiRewriteCandidate>, RuleProposalError> {
         let mut candidates = ExactIntegerAddConstantsRule.propose(unit, analyses)?;
         candidates.push(candidates[0].clone());
         Ok(candidates)
@@ -80,10 +74,7 @@ impl PsiOptimizationRule for InvalidEvaluationExactRule {
         &self,
         unit: &PsiOptimizationUnit,
         analyses: RuleAnalysisView<'_>,
-    ) -> Result<
-        Vec<terminal_psi_to_abstract_operations::optimization_unit::PsiRewriteCandidate>,
-        RuleProposalError,
-    > {
+    ) -> Result<Vec<optimization_unit::PsiRewriteCandidate>, RuleProposalError> {
         ExactIntegerAddConstantsRule
             .propose(unit, analyses)?
             .into_iter()
@@ -92,11 +83,11 @@ impl PsiOptimizationRule for InvalidEvaluationExactRule {
                     candidate.patch()
                 else {
                     return Err(RuleProposalError::InvalidCandidate(
-                        terminal_psi_to_abstract_operations::optimization_unit::PsiRewriteCandidateError::PatchDecisionPointMismatch,
+                        optimization_unit::PsiRewriteCandidateError::PatchDecisionPointMismatch,
                     ));
                 };
                 patch.constant = semantic_vocabulary::IntegerValue::Unsigned(0);
-                terminal_psi_to_abstract_operations::optimization_unit::PsiRewriteCandidate::new_integer_evaluation(
+                optimization_unit::PsiRewriteCandidate::new_integer_evaluation(
                     candidate.input(),
                     Self.contract(),
                     candidate.affected_blocks().to_vec(),
@@ -124,10 +115,7 @@ impl PsiOptimizationRule for DetachedCandidateContractRule {
         &self,
         unit: &PsiOptimizationUnit,
         analyses: RuleAnalysisView<'_>,
-    ) -> Result<
-        Vec<terminal_psi_to_abstract_operations::optimization_unit::PsiRewriteCandidate>,
-        RuleProposalError,
-    > {
+    ) -> Result<Vec<optimization_unit::PsiRewriteCandidate>, RuleProposalError> {
         ExactIntegerAddConstantsRule
             .propose(unit, analyses)?
             .into_iter()
@@ -135,10 +123,10 @@ impl PsiOptimizationRule for DetachedCandidateContractRule {
                 let PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) = candidate.patch()
                 else {
                     return Err(RuleProposalError::InvalidCandidate(
-                        terminal_psi_to_abstract_operations::optimization_unit::PsiRewriteCandidateError::PatchDecisionPointMismatch,
+                        optimization_unit::PsiRewriteCandidateError::PatchDecisionPointMismatch,
                     ));
                 };
-                terminal_psi_to_abstract_operations::optimization_unit::PsiRewriteCandidate::new_integer_evaluation(
+                optimization_unit::PsiRewriteCandidate::new_integer_evaluation(
                     candidate.input(),
                     ExactIntegerSubtractConstantsRule::contract(),
                     candidate.affected_blocks().to_vec(),

@@ -6,16 +6,14 @@
 //! relabel derived loans as direct reborrows or change native carrier admission.
 
 use super::aliases::{self, ResolvedAlias};
-use crate::checked_trees::{
+use checked_trees::{
     BorrowLoanLineage, CapturedPlace, CheckFacts, FlowStateFact, FlowStatementFact,
 };
-use crate::fact_plan::PlaceRoot;
+use facts::PlaceRoot;
 use language_semantics::ReferenceAccess;
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, ExpressionNode,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
+use typed_trees::TypedTrees;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::statement::StatementNode;
 
 pub(super) fn resolve(
     program: &TypedTrees,
@@ -23,7 +21,7 @@ pub(super) fn resolve(
     state: &FlowStateFact,
     statement: &FlowStatementFact,
     expression: ExpressionHandle,
-    frames: Option<&crate::validation::CallFrameResolver<'_>>,
+    frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<ResolvedAlias> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(borrow) if borrow.access == ReferenceAccess::Mutable => {

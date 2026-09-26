@@ -1,19 +1,15 @@
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet};
 
-use target_operations_to_selected_instructions::register_model::{
-    RegisterOperandAccess, RegisterViewId,
-};
-use target_operations_to_selected_instructions::{SelectedBlockId, VirtualRegisterId};
+use register_model::{RegisterOperandAccess, RegisterViewId};
+use selected_instructions::{SelectedBlockId, VirtualRegisterId};
 
 use crate::FixedPrecoloredSegmentHomeError;
-use crate::register_homes::{
+use register_homes::{
     FixedPrecoloredHomeDomainId, FixedPrecoloredSourceSegmentHome,
     FunctionFixedPrecoloredSegmentHomes,
 };
-use target_operations_to_selected_instructions::{
-    CopyAffinity, FunctionLiveRanges, LiveRangePoint, VirtualLiveRange,
-};
+use selected_instructions::{CopyAffinity, FunctionLiveRanges, LiveRangePoint, VirtualLiveRange};
 
 use super::{conflicts::Conflicts, domains::Domain, work::Work};
 
@@ -676,17 +672,13 @@ mod tests {
     use crate::analyses::fixed_precolored_segment_homes::compute::placement::Domain;
     use crate::analyses::fixed_precolored_segment_homes::compute::placement::assign;
     use crate::analyses::fixed_precolored_segment_homes::compute::work::Work;
-    use crate::register_homes::{FixedPrecoloredHomeDomainId, FixedPrecoloredSourceSegmentId};
-    use target_operations_to_selected_instructions::register_model::{
-        RegisterClassId, RegisterOperandAccess, RegisterViewId,
-    };
-    use target_operations_to_selected_instructions::{
+    use register_homes::{FixedPrecoloredHomeDomainId, FixedPrecoloredSourceSegmentId};
+    use register_model::{RegisterClassId, RegisterOperandAccess, RegisterViewId};
+    use selected_instructions::{
         CopyAffinity, FunctionLiveRanges, LiveRangePoint, LivenessPosition, VirtualLiveRange,
         VirtualOccurrence,
     };
-    use target_operations_to_selected_instructions::{
-        SelectedBlockId, SelectedInstructionId, VirtualRegisterId,
-    };
+    use selected_instructions::{SelectedBlockId, SelectedInstructionId, VirtualRegisterId};
 
     #[test]
     fn exhausted_segment_domain_returns_typed_pressure() {

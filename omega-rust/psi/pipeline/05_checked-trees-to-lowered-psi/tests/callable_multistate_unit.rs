@@ -55,7 +55,7 @@ fn ordinary_calls_retain_multistate_branches_and_return_to_caller() {
     assert_optimized(lowered, &[10, 99]);
 }
 
-fn execute(lowered: &checked_trees_to_lowered_psi::lowered_psi::LoweredPsi) -> Vec<u128> {
+fn execute(lowered: &lowered_psi::LoweredPsi) -> Vec<u128> {
     let execution = interpret_terminal_artifact_measured(
         &encode_module(&lowered.semantic_module).unwrap(),
         &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
@@ -84,12 +84,9 @@ fn execute(lowered: &checked_trees_to_lowered_psi::lowered_psi::LoweredPsi) -> V
         .collect()
 }
 
-fn assert_optimized(
-    lowered: checked_trees_to_lowered_psi::lowered_psi::LoweredPsi,
-    expected: &[u128],
-) {
-    let selections = terminal_codec::optimization::PsiOptimizationSelections::new([
-        terminal_codec::optimization::PsiOptimization::DeadPureScalarElimination,
+fn assert_optimized(lowered: lowered_psi::LoweredPsi, expected: &[u128]) {
+    let selections = optimization::PsiOptimizationSelections::new([
+        optimization::PsiOptimization::DeadPureScalarElimination,
     ])
     .unwrap();
     let optimized = lowered_psi_to_lowered_psi::run_psi_optimization(lowered, selections).unwrap();
@@ -240,21 +237,21 @@ fn callable_composed_guard_edges_contract_and_call_operands_rejoin_checked_sourc
         match mutation {
             0 => callee.contract_report_fingerprint ^= 1,
             1 => {
-                let typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {
+                let checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {
                     guard,
                     ..
                 } = &mut callee.states[0].terminator
                 else {
                     panic!("conditional");
                 };
-                *guard = typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(
-                    typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::Boolean(Box::new(
-                        typed_trees_to_checked_trees::checked_trees::CheckedBooleanExpression::Constant(false),
+                *guard = checked_trees::CheckedCallScalarArgument::Pure(
+                    checked_trees::CheckedScalarExpression::Boolean(Box::new(
+                        checked_trees::CheckedBooleanExpression::Constant(false),
                     )),
                 );
             }
             2 => {
-                let typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {
+                let checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {
                     when_true,
                     when_false,
                     ..
@@ -265,7 +262,7 @@ fn callable_composed_guard_edges_contract_and_call_operands_rejoin_checked_sourc
                 std::mem::swap(&mut when_true.target_state, &mut when_false.target_state);
             }
             3 => {
-                let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::BoundaryCall {
+                let checked_trees::CheckedUnitEffectOperationPlan::BoundaryCall {
                     target_contract_report_fingerprint,
                     ..
                 } = &mut callee.states[1].operations[0]
@@ -275,7 +272,7 @@ fn callable_composed_guard_edges_contract_and_call_operands_rejoin_checked_sourc
                 *target_contract_report_fingerprint ^= 1;
             }
             4 => {
-                let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. } =
+                let checked_trees::CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. } =
                     &mut callee.states[2].operations[0]
                 else {
                     panic!("call");
@@ -310,12 +307,12 @@ fn ordinary_call_to_composed_body_retains_target_state_contract_and_reach() {
                 plan.operations.iter().any(|operation| {
                     matches!(
                         operation,
-                        typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::CallUnit { .. }
+                        checked_trees::CheckedUnitEffectOperationPlan::CallUnit { .. }
                     )
                 })
             })
             .unwrap();
-        let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::CallUnit {
+        let checked_trees::CheckedUnitEffectOperationPlan::CallUnit {
             target_state,
             target_contract_report_fingerprint,
             service_reach,
@@ -398,7 +395,7 @@ fn ordinary_caller_transfers_linear_claim_into_composed_callee() {
         let mut checked = baseline.clone();
         let callee = &mut checked.facts.flow.terminal_unit_effects.composed_machines[0];
         if mutation == 0 {
-            let typed_trees_to_checked_trees::checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {
+            let checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {
                 when_true,
                 ..
             } = &mut callee.states[0].terminator
@@ -406,7 +403,7 @@ fn ordinary_caller_transfers_linear_claim_into_composed_callee() {
                 panic!("conditional");
             };
             when_true.transfers[0].source =
-                typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 1 };
+                checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 1 };
         } else {
             callee.states[1].entry_claims[0].claim_identity =
                 language_semantics::PermissionClaimIdentity::Unknown;

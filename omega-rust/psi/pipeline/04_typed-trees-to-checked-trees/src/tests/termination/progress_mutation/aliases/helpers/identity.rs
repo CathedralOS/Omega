@@ -2,13 +2,11 @@ use crate::tests::front_end::typed_program;
 
 use crate::tests::termination::progress_mutation::CONTEXT_FIXTURE;
 use crate::tests::termination::progress_mutation::fixture_source;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, ExpressionNode,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 use symbols::SymbolHandle;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::statement::StatementNode;
 
-fn typed_fixture(extra: &str) -> symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees {
+fn typed_fixture(extra: &str) -> typed_trees::TypedTrees {
     let source = fixture_source(
         "let borrowed: &Context = forward(context); transition { _ -> 0 }",
         true,
@@ -41,7 +39,7 @@ fn a_slice_view_spelling_does_not_replace_a_declared_helper_body() {
             assert_eq!(origin(&program), None);
         } else {
             let (_, segments) = origin(&program).expect("body-proven selected field");
-            let [crate::fact_plan::PlaceSegment::Field { symbol }] = segments.as_slice() else {
+            let [facts::PlaceSegment::Field { symbol }] = segments.as_slice() else {
                 panic!("body selection must survive the helper name: {segments:?}")
             };
             assert_eq!(
@@ -68,10 +66,7 @@ fn a_slice_view_spelling_does_not_replace_a_declared_helper_body() {
     }
 }
 
-fn result_expression(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    name: &str,
-) -> ExpressionHandle {
+fn result_expression(program: &typed_trees::TypedTrees, name: &str) -> ExpressionHandle {
     let machine = program
         .machines()
         .iter()
@@ -89,9 +84,7 @@ fn result_expression(
     *expression
 }
 
-fn origin(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-) -> Option<(SymbolHandle, Vec<crate::fact_plan::PlaceSegment>)> {
+fn origin(program: &typed_trees::TypedTrees) -> Option<(SymbolHandle, Vec<facts::PlaceSegment>)> {
     let machine = program
         .machines()
         .iter()
@@ -102,12 +95,12 @@ fn origin(
     let StatementNode::LocalData(local) = &statements[0] else {
         panic!("reference local")
     };
-    crate::validation::CallFrameResolver::new(program)
+    validation::CallFrameResolver::new(program)
         .unwrap()
         .local_reference_origin_before_statement(machine, statements.last().unwrap(), local.symbol)
 }
 
-fn assert_context(program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees) {
+fn assert_context(program: &typed_trees::TypedTrees) {
     let machine = program
         .machines()
         .iter()
@@ -198,20 +191,20 @@ fn a_readonly_spelling_cannot_hide_a_mutable_binding_replacement() {
              transition {{ _ -> 0 }}
          }}"
     ));
-    let frame = |program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees| {
+    let frame = |program: &typed_trees::TypedTrees| {
         let machine = program
             .machines()
             .iter()
             .find(|machine| machine.name.as_str() == "replace")
             .unwrap();
         let state = &program.machine_states(machine)[0];
-        crate::validation::CallFrameResolver::new(program)
+        validation::CallFrameResolver::new(program)
             .unwrap()
             .inferred_state_write_frame(machine, state)
     };
     assert_eq!(
         frame(&program),
-        crate::fact_plan::NormalizedWriteFrame::complete(vec!["$P0.counter".to_owned()])
+        facts::NormalizedWriteFrame::complete(vec!["$P0.counter".to_owned()])
     );
     let machine = program
         .machines()
@@ -234,8 +227,5 @@ fn a_readonly_spelling_cannot_hide_a_mutable_binding_replacement() {
     };
     name.head_symbol = writable;
     name.symbol = writable;
-    assert_eq!(
-        frame(&program),
-        crate::fact_plan::NormalizedWriteFrame::opaque()
-    );
+    assert_eq!(frame(&program), facts::NormalizedWriteFrame::opaque());
 }

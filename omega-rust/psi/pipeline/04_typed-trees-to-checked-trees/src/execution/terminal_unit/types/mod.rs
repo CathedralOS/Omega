@@ -10,11 +10,11 @@ use super::{
     PrimitiveType, ProofFact, SemanticDomainId, SignatureContractKind, StateParameter,
     SymbolHandle, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
 };
-use crate::checked_trees::{
+use checked_trees::{
     CheckedStructuralPathQualification, CheckedUnitPartialAffineDiscardPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
 };
-use symbol_resolved_trees_to_typed_trees::typed_trees::type_identity::TypeIdentityRequest;
+use typed_trees::type_identity::TypeIdentityRequest;
 
 mod scalar_fields;
 
@@ -24,7 +24,7 @@ mod partial_affine_ownership_tests;
 #[cfg(test)]
 mod arithmetic_policy_array_tests;
 
-pub(super) use crate::validation::has_plain_owned_contents;
+pub(super) use validation::has_plain_owned_contents;
 
 /// Whole-root discards plus the residual complement of at most one partially
 /// moved owned parameter on the ordinary Unit return edge. A projected owned
@@ -278,14 +278,11 @@ pub(super) fn return_unit_affine_discards(
             source_parameters
                 .get(parameter.position as usize)
                 .is_some_and(|source| {
-                    event.root
-                        == crate::fact_plan::PlaceRoot::Symbol(parameter_root_symbol(
-                            machine, source,
-                        ))
+                    event.root == facts::PlaceRoot::Symbol(parameter_root_symbol(machine, source))
                 })
         });
         if parameter_index.is_none() {
-            let crate::fact_plan::PlaceRoot::Symbol(root) = event.root else {
+            let facts::PlaceRoot::Symbol(root) = event.root else {
                 return None;
             };
             if admitted_local_symbols.contains(&root) {
@@ -328,7 +325,7 @@ pub(super) fn checked_no_code_affine_discard_positions(
     program: &TypedTrees,
     facts: &CheckFacts,
     machine: SymbolHandle,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    state: &typed_trees::state::State,
 ) -> Option<Vec<u32>> {
     let positions = crate::execution::terminal_cleanup::checked_whole_affine_discard_parameters(
         program, facts, machine, state,
@@ -355,9 +352,7 @@ pub(super) fn terminal_field_identity(
 ) -> Option<String> {
     program.data_definitions().iter().find_map(|definition| {
         program.data_members(definition).iter().find_map(|member| {
-            let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) =
-                member
-            else {
+            let typed_trees::data::DataMember::Field(field) = member else {
                 return None;
             };
             (field.symbol == symbol).then(|| field.path_identity())
@@ -367,8 +362,8 @@ pub(super) fn terminal_field_identity(
 
 pub(super) fn checked_state_contracts_supported(
     program: &TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
 ) -> bool {
     program.state_contracts(state).iter().all(|contract| {
@@ -384,10 +379,10 @@ pub(super) fn checked_state_contracts_supported(
 
 pub(super) fn checked_structural_signature_contract_supported(
     program: &TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
-    contract: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContract,
+    contract: &typed_trees::signature::SignatureContract,
 ) -> bool {
     let source_parameters = program.state_parameters(state);
     program
@@ -409,7 +404,7 @@ pub(super) fn checked_structural_signature_contract_supported(
                         && domain.classification
                             == Some(language_semantics::DomainClassification::ProgressProfile)
                 }) {
-                    let crate::fact_plan::PlaceRoot::Symbol(root) = place.root else {
+                    let facts::PlaceRoot::Symbol(root) = place.root else {
                         return false;
                     };
                     let rooted_in_telescope = source_parameters.iter().any(|parameter| {
@@ -420,12 +415,12 @@ pub(super) fn checked_structural_signature_contract_supported(
                         && place
                             .segments
                             .iter()
-                            .all(|segment| matches!(segment, crate::fact_plan::PlaceSegment::Field { .. }));
+                            .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. }));
                 }
                 if !place.segments.is_empty() {
                     return false;
                 }
-                let crate::fact_plan::PlaceRoot::Symbol(root) = place.root else {
+                let facts::PlaceRoot::Symbol(root) = place.root else {
                     return false;
                 };
                 let Some(position) = source_parameters.iter().position(|parameter| {
@@ -448,7 +443,7 @@ pub(super) fn checked_structural_signature_contract_supported(
             }
             (SignatureContractKind::Ensures, ProofFact::Expression(expression)) => matches!(
                 program.expression_table.expression(*expression),
-                symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Boolean(true)
+                typed_trees::expression::ExpressionNode::Boolean(true)
             ),
             _ => false,
         })
@@ -465,7 +460,7 @@ pub(super) fn checked_structural_signature_contract_supported(
 pub(super) fn signature_contracts_are_exact_parameter_qualifications(
     program: &TypedTrees,
     owner_symbol: SymbolHandle,
-    signature: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateSignature,
+    signature: &typed_trees::signature::StateSignature,
 ) -> bool {
     let parameters = program.state_signature_parameters(signature);
     let mut expected = Vec::<(usize, SemanticDomainId)>::new();
@@ -627,8 +622,8 @@ pub(super) fn boundary_domain_requirements(
     program: &TypedTrees,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     binders: &[(SymbolHandle, String)],
 ) -> Option<Vec<CheckedUnitStructuralDomainRequirementPlan>> {
@@ -683,7 +678,7 @@ pub(super) fn boundary_domain_requirements(
         if !place.segments.is_empty() {
             return None;
         }
-        let crate::fact_plan::PlaceRoot::Symbol(root) = place.root else {
+        let facts::PlaceRoot::Symbol(root) = place.root else {
             return None;
         };
         let source_position = source_parameters.iter().position(|parameter| {
@@ -769,7 +764,7 @@ pub(super) fn fold_authorized_result_domains(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
     owner_symbol: SymbolHandle,
-    signature: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateSignature,
+    signature: &typed_trees::signature::StateSignature,
     result_type: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
     result: CheckedBoundaryMachineResultPlan,
@@ -877,7 +872,7 @@ pub(super) fn projected_parameter_qualifications(
                 element_type,
                 length,
             } => {
-                let symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::Literal(length) = length else {
+                let typed_trees::types::FixedArrayLength::Literal(length) = length else {
                     return None;
                 };
                 if *length != 0 {
@@ -894,8 +889,7 @@ pub(super) fn projected_parameter_qualifications(
         }
     }
     let output =
-        crate::validation::structural_result_projected_qualifications(program, type_reference)
-            .ok()?;
+        validation::structural_result_projected_qualifications(program, type_reference).ok()?;
     collect(program, type_reference, shapes, binders)?;
     Some(output)
 }
@@ -1003,7 +997,7 @@ pub(super) fn state_flow(
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
-) -> Option<&crate::checked_trees::FlowStateFact> {
+) -> Option<&checked_trees::FlowStateFact> {
     facts.flow.control.states.iter().find_map(|(_, candidate)| {
         (candidate.machine_symbol == machine && candidate.state_symbol == state)
             .then_some(candidate)
@@ -1012,7 +1006,7 @@ pub(super) fn state_flow(
 
 pub(super) fn machine_binders(
     program: &TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    machine: &typed_trees::machine::Machine,
 ) -> Vec<(SymbolHandle, String)> {
     program
         .machine_type_parameters(machine)
@@ -1066,8 +1060,8 @@ pub(super) fn abi_parameter_count(parameters: &[StateParameter]) -> usize {
 /// them. Erased formals with any other non-primitive type refuse the plan.
 pub(crate) fn erased_scalar_parameter_plans(
     program: &TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-) -> Option<Vec<crate::checked_trees::CheckedStructuralScalarParameterPlan>> {
+    state: &typed_trees::state::State,
+) -> Option<Vec<checked_trees::CheckedStructuralScalarParameterPlan>> {
     // Classifying proof-only data walks every data definition; a state
     // without an erased formal selects nothing and needs no classification.
     if !program
@@ -1077,7 +1071,7 @@ pub(crate) fn erased_scalar_parameter_plans(
     {
         return Some(Vec::new());
     }
-    let proof_only = crate::validation::proof_only_classification(program);
+    let proof_only = validation::proof_only_classification(program);
     program
         .state_parameters(state)
         .iter()
@@ -1087,7 +1081,7 @@ pub(crate) fn erased_scalar_parameter_plans(
             !proof_only.contract_term_carrier(program, parameter.type_reference)
         })
         .map(|(position, parameter)| {
-            Some(crate::checked_trees::CheckedStructuralScalarParameterPlan {
+            Some(checked_trees::CheckedStructuralScalarParameterPlan {
                 source_position: u32::try_from(position).ok()?,
                 primitive_type: program.primitive_type_reference(parameter.type_reference)?,
             })
@@ -1101,8 +1095,8 @@ pub(crate) fn erased_scalar_parameter_plans(
 /// contract term lane carries them by identity instead.
 pub(crate) fn erased_proof_parameter_plans(
     program: &TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-) -> Option<Vec<crate::checked_trees::CheckedErasedProofParameterPlan>> {
+    state: &typed_trees::state::State,
+) -> Option<Vec<checked_trees::CheckedErasedProofParameterPlan>> {
     // Classifying proof-only data walks every data definition; a state
     // without an erased formal selects nothing and needs no classification.
     if !program
@@ -1112,7 +1106,7 @@ pub(crate) fn erased_proof_parameter_plans(
     {
         return Some(Vec::new());
     }
-    let proof_only = crate::validation::proof_only_classification(program);
+    let proof_only = validation::proof_only_classification(program);
     program
         .state_parameters(state)
         .iter()
@@ -1122,7 +1116,7 @@ pub(crate) fn erased_proof_parameter_plans(
             proof_only.contract_term_carrier(program, parameter.type_reference)
         })
         .map(|(position, parameter)| {
-            Some(crate::checked_trees::CheckedErasedProofParameterPlan {
+            Some(checked_trees::CheckedErasedProofParameterPlan {
                 source_position: u32::try_from(position).ok()?,
                 parameter_symbol: parameter.symbol,
                 type_identity: base_type_identity(program, parameter.type_reference, &[])?,
@@ -1271,7 +1265,7 @@ pub(super) fn byte_sequence_type_identity(
     )
 }
 
-pub(in crate::execution) use crate::validation::type_graph_requires_nominal_drop;
+pub(in crate::execution) use validation::type_graph_requires_nominal_drop;
 
 pub(super) fn is_unit(program: &TypedTrees, mut type_reference: TypeReferenceHandle) -> bool {
     loop {
@@ -1310,10 +1304,7 @@ pub(super) fn base_type_identity_with_substitutions(
             TypeReferenceNode::Named { .. }
             | TypeReferenceNode::Generic { .. }
             | TypeReferenceNode::FixedArray {
-                length:
-                    symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::Literal(
-                        _,
-                    ),
+                length: typed_trees::types::FixedArrayLength::Literal(_),
                 ..
             } => {
                 return Some(
@@ -1364,7 +1355,7 @@ pub(super) fn substituted_formal_type(
 
 pub(super) fn attached_data_identity(
     program: &TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    machine: &typed_trees::machine::Machine,
 ) -> Option<String> {
     // A machine attached to generic data retains the exact owner application
     // its binder scope resolved: a receiver-specialized clone's `Task<Token>`
@@ -1411,7 +1402,7 @@ pub(super) fn attached_self_application(
 
 pub(super) fn closed_data_identity(
     program: &TypedTrees,
-    data: &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition,
+    data: &typed_trees::data::DataDefinition,
     binders: &[(SymbolHandle, String)],
 ) -> String {
     // A synthesized owner's spelling is diagnostic metadata. Its attachment
@@ -1449,7 +1440,7 @@ fn partial_affine_source_contents_are_owned(
     // domain spelling is retained by that carrier's own source classifier.
     if matches!(
         byte_sequence_carrier(program, reference, &[]),
-        Some(crate::checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
+        Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
     ) {
         return true;
     }
@@ -1474,8 +1465,7 @@ fn partial_affine_source_contents_are_owned(
         }
         TypeReferenceNode::FixedArray {
             element_type,
-            length:
-                symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::Literal(1..),
+            length: typed_trees::types::FixedArrayLength::Literal(1..),
         } => return partial_affine_source_contents_are_owned(program, *element_type, visited),
         _ => return false,
     };
@@ -1563,7 +1553,7 @@ impl<'program> ShapeCollector<'program> {
     /// actuals.
     pub(super) fn add_attached_application(
         &mut self,
-        machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+        machine: &typed_trees::machine::Machine,
         binders: &[(SymbolHandle, String)],
     ) -> Option<String> {
         if machine.attached_data_application.is_valid() {
@@ -1579,7 +1569,7 @@ impl<'program> ShapeCollector<'program> {
 
     pub(super) fn add_attached_data(
         &mut self,
-        data: &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition,
+        data: &typed_trees::data::DataDefinition,
         binders: &[(SymbolHandle, String)],
     ) -> Option<String> {
         if !self.program.data_type_parameters(data).is_empty() {
@@ -1609,7 +1599,7 @@ impl<'program> ShapeCollector<'program> {
                 if !types.contains_type_reference(*base_type)
                     || !matches!(
                         types.constraint_span(*constraints),
-                        Some([symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode::ArithmeticDomain(_)])
+                        Some([typed_trees::types::TypeConstraintNode::ArithmeticDomain(_)])
                     )
                 {
                     return false;
@@ -1674,11 +1664,11 @@ impl<'program> ShapeCollector<'program> {
                     && self.program.data_type_parameters(data).is_empty()
                     && data.quotient.is_none()
                     && (data.where_facts.is_empty()
-                        || crate::validation::data_where_field_intervals(self.program, data).is_some())
+                        || validation::data_where_field_intervals(self.program, data).is_some())
                     && !data.zero_gated
                     && data.properties.multiplicity == Multiplicity::Unrestricted
                     && matches!(
-                        symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition::shape_kind_from_members(members),
+                        typed_trees::data::DataDefinition::shape_kind_from_members(members),
                         DataShapeKind::Record | DataShapeKind::Enum | DataShapeKind::Mixed
                     )
                     && members.iter().all(|member| match member {
@@ -1699,10 +1689,7 @@ impl<'program> ShapeCollector<'program> {
         for _ in 0..self.program.type_reference_table.type_reference_count() {
             let TypeReferenceNode::FixedArray {
                 element_type,
-                length:
-                    symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::Literal(
-                        _,
-                    ),
+                length: typed_trees::types::FixedArrayLength::Literal(_),
             } = self
                 .program
                 .type_reference_table
@@ -1935,16 +1922,13 @@ impl<'program> ShapeCollector<'program> {
         }
         if let TypeReferenceNode::FixedArray {
             element_type,
-            length:
-                symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::Literal(
-                    length,
-                ),
+            length: typed_trees::types::FixedArrayLength::Literal(length),
         } = self
             .program
             .type_reference_table
             .type_reference(type_reference)
         {
-            let plain_owned_array = crate::validation::has_plain_owned_contents_with_substitutions(
+            let plain_owned_array = validation::has_plain_owned_contents_with_substitutions(
                 self.program,
                 type_reference,
                 substitutions,
@@ -1981,7 +1965,7 @@ impl<'program> ShapeCollector<'program> {
                 element_carrier = *base_type;
             }
             if (*length == 0
-                && !crate::validation::is_closed_primitive_array_type(self.program, type_reference))
+                && !validation::is_closed_primitive_array_type(self.program, type_reference))
                 || (!plain_owned_array
                     && !owned_affine_array
                     && (!substitutions.is_empty()
@@ -2052,7 +2036,7 @@ impl<'program> ShapeCollector<'program> {
         let members = self.program.data_members(&data);
         if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
             || !matches!(
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition::shape_kind_from_members(members),
+                typed_trees::data::DataDefinition::shape_kind_from_members(members),
                 DataShapeKind::Empty
                     | DataShapeKind::Record
                     | DataShapeKind::Enum
@@ -2102,7 +2086,7 @@ impl<'program> ShapeCollector<'program> {
     pub(super) fn add_data_shape(
         &mut self,
         identity: String,
-        data: symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition,
+        data: typed_trees::data::DataDefinition,
         binders: &[(SymbolHandle, String)],
         substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
     ) -> Option<String> {
@@ -2115,7 +2099,7 @@ impl<'program> ShapeCollector<'program> {
         let members = self.program.data_members(&data).to_vec();
         if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
             || !matches!(
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition::shape_kind_from_members(&members),
+                typed_trees::data::DataDefinition::shape_kind_from_members(&members),
                 DataShapeKind::Empty
                     | DataShapeKind::Record
                     | DataShapeKind::Enum
@@ -2125,17 +2109,16 @@ impl<'program> ShapeCollector<'program> {
             self.in_progress.remove(&identity);
             return None;
         }
-        let shape_kind = symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition::shape_kind_from_members(&members);
+        let shape_kind = typed_trees::data::DataDefinition::shape_kind_from_members(&members);
         // Interval-only `where` facts become the named fields' bounds.
         let stated_intervals =
-            crate::validation::data_where_field_intervals(self.program, &data).unwrap_or_default();
-        let stated =
-            |field: &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataField| {
-                stated_intervals
-                    .iter()
-                    .find(|(symbol, _, _)| *symbol == field.symbol)
-                    .map(|(_, low, high)| (*low, *high))
-            };
+            validation::data_where_field_intervals(self.program, &data).unwrap_or_default();
+        let stated = |field: &typed_trees::data::DataField| {
+            stated_intervals
+                .iter()
+                .find(|(symbol, _, _)| *symbol == field.symbol)
+                .map(|(_, low, high)| (*low, *high))
+        };
         if matches!(shape_kind, DataShapeKind::Enum | DataShapeKind::Mixed) {
             let mut fields = Vec::new();
             let mut cases = Vec::with_capacity(members.len());
@@ -2169,7 +2152,7 @@ impl<'program> ShapeCollector<'program> {
                             };
                             payload_fields.push(field);
                         }
-                        cases.push(crate::checked_trees::CheckedUnitStructuralCasePlan {
+                        cases.push(checked_trees::CheckedUnitStructuralCasePlan {
                             identity: variant.path_identity(),
                             fields: payload_fields,
                         });
@@ -2219,7 +2202,7 @@ impl<'program> ShapeCollector<'program> {
 
     fn structural_field_plan(
         &mut self,
-        field: &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataField,
+        field: &typed_trees::data::DataField,
         binders: &[(SymbolHandle, String)],
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
         owner_identity: &str,
@@ -2308,11 +2291,8 @@ impl<'program> ShapeCollector<'program> {
         type_reference: TypeReferenceHandle,
         source_parameter: SymbolHandle,
         binders: &[(SymbolHandle, String)],
-    ) -> Option<(
-        String,
-        crate::checked_trees::CheckedFusedServiceParameterReceipt,
-    )> {
-        let carrier = symbol_resolved_trees_to_typed_trees::typed_trees::service::classify_exact_bound_service_carrier(
+    ) -> Option<(String, checked_trees::CheckedFusedServiceParameterReceipt)> {
+        let carrier = typed_trees::service::classify_exact_bound_service_carrier(
             self.program,
             type_reference,
         )
@@ -2352,7 +2332,7 @@ impl<'program> ShapeCollector<'program> {
 
         Some((
             type_identity,
-            crate::checked_trees::CheckedFusedServiceParameterReceipt {
+            checked_trees::CheckedFusedServiceParameterReceipt {
                 source_parameter,
                 carrier_type_identity: self
                     .program
@@ -2444,14 +2424,11 @@ fn provider_backed_field(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<(
-    Option<crate::checked_trees::CheckedFusedServiceErasureReceipt>,
+    Option<checked_trees::CheckedFusedServiceErasureReceipt>,
     TypeReferenceHandle,
 )> {
     if let Some(requirement) =
-        symbol_resolved_trees_to_typed_trees::typed_trees::service::exact_bound_service_requirement(
-            program,
-            type_reference,
-        )
+        typed_trees::service::exact_bound_service_requirement(program, type_reference)
     {
         // A `Binding<boundary>` field with no settled provider selection still
         // carries a provider handle: mint the unerased ProviderBacked shape so
@@ -2460,8 +2437,7 @@ fn provider_backed_field(
         // discovery pass mint this shape before its nomination exists.
         let authorization = program.fused_service_erasure(requirement);
         return Some((
-            authorization
-                .map(|_| crate::checked_trees::CheckedFusedServiceErasureReceipt { requirement }),
+            authorization.map(|_| checked_trees::CheckedFusedServiceErasureReceipt { requirement }),
             type_reference,
         ));
     }
@@ -2617,7 +2593,7 @@ pub(crate) fn borrowed_slice_view(
         && (borrowed_slice_view_element(program, type_reference, &[]).is_some()
             || matches!(
                 byte_sequence_carrier(program, type_reference, &[]),
-                Some(crate::checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. })
+                Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. })
             ))
 }
 
@@ -2684,7 +2660,7 @@ pub(crate) fn record_with_owned_or_shared_view_fields(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> bool {
-    crate::validation::has_owned_or_shared_view_fields(program, type_reference)
+    validation::has_owned_or_shared_view_fields(program, type_reference)
 }
 
 /// The view's own identity is the borrowed `[T]` carrier, with the reference
@@ -2716,7 +2692,7 @@ pub(crate) fn byte_sequence_carrier(
     program: &TypedTrees,
     mut type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-) -> Option<crate::checked_trees::CheckedByteSequenceCarrier> {
+) -> Option<checked_trees::CheckedByteSequenceCarrier> {
     let mut borrowed = None;
     let mut has_domain = false;
     loop {
@@ -2765,27 +2741,20 @@ pub(crate) fn byte_sequence_carrier(
             if borrowed.is_some()
                 && program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8) =>
         {
-            Some(
-                crate::checked_trees::CheckedByteSequenceCarrier::BorrowedView {
-                    access: Some(borrowed?.into()),
-                },
-            )
+            Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView {
+                access: Some(borrowed?.into()),
+            })
         }
         TypeReferenceNode::FixedArray {
             element_type,
-            length:
-                symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::Literal(
-                    capacity,
-                ),
+            length: typed_trees::types::FixedArrayLength::Literal(capacity),
         } if borrowed.is_none()
             && has_domain
             && program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8) =>
         {
-            Some(
-                crate::checked_trees::CheckedByteSequenceCarrier::BoundedOwned {
-                    capacity: u64::try_from(*capacity).ok()?,
-                },
-            )
+            Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned {
+                capacity: u64::try_from(*capacity).ok()?,
+            })
         }
         _ => None,
     }

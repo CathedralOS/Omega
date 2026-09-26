@@ -1,9 +1,9 @@
 use crate::parser::parse_syntax_trees;
-use crate::syntax_trees::expression::ExpressionNode;
-use crate::syntax_trees::statement::StatementNode;
-use crate::syntax_trees::types::TypeReferenceNode;
 use language_core::ReferenceAccess;
 use source_files_to_tokens::Lexer;
+use syntax_trees::expression::ExpressionNode;
+use syntax_trees::statement::StatementNode;
+use syntax_trees::types::TypeReferenceNode;
 
 #[test]
 fn rejects_exit_contract_clauses_on_explicit_states() {
@@ -45,7 +45,7 @@ fn parses_machine_termination_clauses() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine root item");
@@ -84,7 +84,7 @@ fn parses_machine_termination_tuple_subjects() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine root item");
@@ -124,7 +124,7 @@ fn parses_machine_termination_argumented_view() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine root item");
@@ -173,7 +173,7 @@ fn parses_trait_requirement_termination_guarantee() {
     let trait_definition = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Trait(definition) => Some(definition),
+            syntax_trees::item::Item::Trait(definition) => Some(definition),
             _ => None,
         })
         .expect("trait root item");
@@ -239,7 +239,7 @@ fn parses_data_default_domain_where_clause() {
     let data = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Data(data) => Some(data),
+            syntax_trees::item::Item::Data(data) => Some(data),
             _ => None,
         })
         .expect("data root item");
@@ -267,7 +267,7 @@ fn parses_case_local_where_clause() {
     let data = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Data(data) => Some(data),
+            syntax_trees::item::Item::Data(data) => Some(data),
             _ => None,
         })
         .expect("data root item");
@@ -278,7 +278,7 @@ fn parses_case_local_where_clause() {
             .data_members(data.members)
             .iter()
             .map(|member| match member {
-                crate::syntax_trees::item::DataMember::Variant(variant) => {
+                syntax_trees::item::DataMember::Variant(variant) => {
                     parsed.items.proof_facts(variant.where_facts).len()
                 }
                 _ => panic!("expected only variant members"),
@@ -307,7 +307,7 @@ fn parses_value_and_policy_domain_chain_as_one_constrained_type() {
     let data = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Data(data) => Some(data),
+            syntax_trees::item::Item::Data(data) => Some(data),
             _ => None,
         })
         .expect("data root item");
@@ -316,7 +316,7 @@ fn parses_value_and_policy_domain_chain_as_one_constrained_type() {
         .data_members(data.members)
         .iter()
         .find_map(|member| match member {
-            crate::syntax_trees::item::DataMember::Field(field) => Some(field),
+            syntax_trees::item::DataMember::Field(field) => Some(field),
             _ => None,
         })
         .expect("data field");
@@ -329,8 +329,8 @@ fn parses_value_and_policy_domain_chain_as_one_constrained_type() {
     assert!(matches!(
         constraints,
         [
-            crate::syntax_trees::types::TypeConstraintNode::Domain(name),
-            crate::syntax_trees::types::TypeConstraintNode::ArithmeticDomain(
+            syntax_trees::types::TypeConstraintNode::Domain(name),
+            syntax_trees::types::TypeConstraintNode::ArithmeticDomain(
                 numerics::arithmetic::ArithmeticDomain::Saturating
             )
         ] if name.name.as_str() == "Finite"
@@ -354,9 +354,7 @@ fn preserves_open_index_operator_expression_in_domain_argument() {
     let rate = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Data(data) if data.name.as_str() == "Rate" => {
-                Some(data)
-            }
+            syntax_trees::item::Item::Data(data) if data.name.as_str() == "Rate" => Some(data),
             _ => None,
         })
         .expect("Rate data");
@@ -365,7 +363,7 @@ fn preserves_open_index_operator_expression_in_domain_argument() {
         .data_members(rate.members)
         .iter()
         .find_map(|member| match member {
-            crate::syntax_trees::item::DataMember::Field(field) => Some(field),
+            syntax_trees::item::DataMember::Field(field) => Some(field),
             _ => None,
         })
         .expect("Rate::value field");
@@ -374,7 +372,7 @@ fn preserves_open_index_operator_expression_in_domain_argument() {
     else {
         panic!("quantity should be a constrained carrier");
     };
-    let [crate::syntax_trees::types::TypeConstraintNode::Domain(domain)] =
+    let [syntax_trees::types::TypeConstraintNode::Domain(domain)] =
         parsed.type_references.constraints(*constraints)
     else {
         panic!("quantity domain constraint");
@@ -395,7 +393,7 @@ fn preserves_open_index_operator_expression_in_domain_argument() {
     };
     assert_eq!(
         binary.operator,
-        crate::syntax_trees::expression::BinaryOperator::Divide
+        syntax_trees::expression::BinaryOperator::Divide
     );
     assert_eq!(parsed.expressions.display_name(binary.left), "A");
     assert_eq!(parsed.expressions.display_name(binary.right), "B");
@@ -417,7 +415,7 @@ fn parses_compiler_owned_carry_atoms_and_expands_portable() {
     let data = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Data(data) => Some(data),
+            syntax_trees::item::Item::Data(data) => Some(data),
             _ => None,
         })
         .expect("data root item");
@@ -426,12 +424,12 @@ fn parses_compiler_owned_carry_atoms_and_expands_portable() {
         .data_members(data.members)
         .iter()
         .filter_map(|member| match member {
-            crate::syntax_trees::item::DataMember::Field(field) => Some(field),
+            syntax_trees::item::DataMember::Field(field) => Some(field),
             _ => None,
         })
         .collect::<Vec<_>>();
 
-    let names = |field: &crate::syntax_trees::item::DataField| {
+    let names = |field: &syntax_trees::item::DataField| {
         let TypeReferenceNode::Constrained { constraints, .. } =
             parsed.type_references.type_reference(field.type_reference)
         else {
@@ -442,7 +440,7 @@ fn parses_compiler_owned_carry_atoms_and_expands_portable() {
             .constraints(*constraints)
             .iter()
             .map(|constraint| match constraint {
-                crate::syntax_trees::types::TypeConstraintNode::Domain(name) => {
+                syntax_trees::types::TypeConstraintNode::Domain(name) => {
                     name.name.as_str().to_owned()
                 }
                 other => panic!("carry permission became {other:?}"),
@@ -475,7 +473,7 @@ fn expands_carry_portable_contract_guarantee_to_four_atomic_facts() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine root item");
@@ -487,7 +485,7 @@ fn expands_carry_portable_contract_guarantee_to_four_atomic_facts() {
         .proof_facts(contract.facts)
         .iter()
         .map(|fact| match fact {
-            crate::syntax_trees::item::ProofFact::Membership(membership) => parsed
+            syntax_trees::item::ProofFact::Membership(membership) => parsed
                 .items
                 .identifier_path_members(membership.domain)
                 .iter()
@@ -553,7 +551,7 @@ fn parses_slice_range_indexing_into_range_expression() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine root item");
@@ -612,7 +610,7 @@ fn parses_structural_recast_targets_as_type_references() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine root item");
@@ -640,7 +638,7 @@ fn parses_structural_recast_targets_as_type_references() {
     };
     let TypeReferenceNode::FixedArray {
         element_type,
-        length: crate::syntax_trees::types::FixedArrayLength::Literal(4),
+        length: syntax_trees::types::FixedArrayLength::Literal(4),
     } = parsed.type_references.type_reference(fixed.target_type)
     else {
         panic!("fixed-array target should retain its structural type");
@@ -691,7 +689,7 @@ fn parses_trait_machine_contract_clauses() {
     let trait_definition = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Trait(trait_definition) => Some(trait_definition),
+            syntax_trees::item::Item::Trait(trait_definition) => Some(trait_definition),
             _ => None,
         })
         .expect("trait root item");
@@ -743,7 +741,7 @@ fn parses_executable_domain_membership_expression() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine root item");
@@ -760,13 +758,12 @@ fn parses_executable_domain_membership_expression() {
         .first()
         .copied()
         .expect("entry transition");
-    let crate::syntax_trees::statement::StatementNode::Transition(transition) =
+    let syntax_trees::statement::StatementNode::Transition(transition) =
         parsed.statements.statement(statement)
     else {
         panic!("entry should start with transition")
     };
-    let crate::syntax_trees::statement::TransitionGuardNode::When(subject) = transition.guard
-    else {
+    let syntax_trees::statement::TransitionGuardNode::When(subject) = transition.guard else {
         panic!("transition should lower as a guarded expression");
     };
     assert!(matches!(
@@ -804,7 +801,7 @@ fn parses_data_destructure_transition_guard_as_subject_member_guard() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine root item");
@@ -834,7 +831,7 @@ fn parses_data_destructure_transition_guard_as_subject_member_guard() {
     let StatementNode::Transition(transition) = parsed.statements.statement(statement) else {
         panic!("second arm should be a transition")
     };
-    let crate::syntax_trees::statement::TransitionGuardNode::When(guard) = transition.guard else {
+    let syntax_trees::statement::TransitionGuardNode::When(guard) = transition.guard else {
         panic!("data-pattern arm should lower to a guard expression");
     };
     let ExpressionNode::Binary(comparison) = parsed.expressions.expression(guard) else {
@@ -862,9 +859,7 @@ fn parses_outcome_arm_payload_and_erased_proof_selectors() {
     let transition = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Machine(machine)
-                if machine.name.as_str() == "inspect" =>
-            {
+            syntax_trees::item::Item::Machine(machine) if machine.name.as_str() == "inspect" => {
                 Some(machine)
             }
             _ => None,
@@ -924,7 +919,7 @@ fn outcome_proof_selectors_do_not_change_the_runtime_statement_plan() {
         let inspect = parsed
             .root_items()
             .find_map(|item| match item {
-                crate::syntax_trees::item::Item::Machine(machine)
+                syntax_trees::item::Item::Machine(machine)
                     if machine.name.as_str() == "inspect" =>
                 {
                     Some(machine)
@@ -1025,7 +1020,7 @@ fn parses_record_field_value_pattern_as_subject_member_equality() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine root item");
@@ -1041,28 +1036,26 @@ fn parses_record_field_value_pattern_as_subject_member_equality() {
         .statements(state.statements)
         .iter()
         .filter_map(|handle| match parsed.statements.statement(*handle) {
-            crate::syntax_trees::statement::StatementNode::Transition(transition) => {
-                Some(transition)
-            }
+            syntax_trees::statement::StatementNode::Transition(transition) => Some(transition),
             _ => None,
         })
         .next()
         .expect("first transition arm");
-    let crate::syntax_trees::statement::TransitionGuardNode::When(guard) = transition.guard else {
+    let syntax_trees::statement::TransitionGuardNode::When(guard) = transition.guard else {
         panic!("field-value arm must have an equality guard");
     };
-    let crate::syntax_trees::expression::ExpressionNode::Binary(equality) =
+    let syntax_trees::expression::ExpressionNode::Binary(equality) =
         parsed.expressions.expression(guard)
     else {
         panic!("field-value pattern should lower to binary equality");
     };
     assert_eq!(
         equality.operator,
-        crate::syntax_trees::expression::BinaryOperator::Equal
+        syntax_trees::expression::BinaryOperator::Equal
     );
     assert!(matches!(
         parsed.expressions.expression(equality.left),
-        crate::syntax_trees::expression::ExpressionNode::Member(_)
+        syntax_trees::expression::ExpressionNode::Member(_)
     ));
 }
 
@@ -1089,7 +1082,7 @@ fn parses_asm_jmp_block_as_transition_statement() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine root item");
@@ -1137,7 +1130,7 @@ fn parses_asm_mnemonics_as_intrinsic_calls() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine root item");

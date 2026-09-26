@@ -21,8 +21,8 @@
 //! address used anywhere but a load's address operand — is a use the analysis
 //! cannot classify, so the slot stays private to its first victim.
 
-use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
-use target_operations_to_selected_instructions::{
+use register_model::RegisterOperandAccess;
+use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedFunction, SelectedInstructionKind,
     VirtualRegisterId,
 };
@@ -162,23 +162,23 @@ fn shareable(
                 .structural_bindings
                 .iter()
                 .any(|binding| match binding.transport {
-                    target_operations_to_selected_instructions::SelectedStructuralTransport::WholeValue {
+                    selected_instructions::SelectedStructuralTransport::WholeValue {
                         destination,
                         ..
                     }
-                    | target_operations_to_selected_instructions::SelectedStructuralTransport::Descriptor {
+                    | selected_instructions::SelectedStructuralTransport::Descriptor {
                         destination,
                         ..
                     } => destination == slot,
-                    target_operations_to_selected_instructions::SelectedStructuralTransport::Address {
+                    selected_instructions::SelectedStructuralTransport::Address {
                         base,
                         destination,
                         ..
                     } => {
                         destination == slot
-                            || base == target_operations_to_selected_instructions::SelectedAddressBase::Local(slot)
+                            || base == selected_instructions::SelectedAddressBase::Local(slot)
                     }
-                    target_operations_to_selected_instructions::SelectedStructuralTransport::Unused => false,
+                    selected_instructions::SelectedStructuralTransport::Unused => false,
                 })
                 || successor
                     .structural_case
@@ -235,36 +235,36 @@ fn shareable(
                     .bindings
                     .iter()
                     .any(|binding| match binding.transport {
-                        target_operations_to_selected_instructions::SelectedValueTransport::Registers {
+                        selected_instructions::SelectedValueTransport::Registers {
                             argument,
                             ..
                         } => slot_addresses.contains(&argument),
-                        target_operations_to_selected_instructions::SelectedValueTransport::Unused => false,
+                        selected_instructions::SelectedValueTransport::Unused => false,
                     }) || successor.structural_bindings.iter().any(|binding| {
                     match binding.transport {
-                        target_operations_to_selected_instructions::SelectedStructuralTransport::WholeValue {
+                        selected_instructions::SelectedStructuralTransport::WholeValue {
                             argument,
                             ..
                         }
-                        | target_operations_to_selected_instructions::SelectedStructuralTransport::Descriptor {
+                        | selected_instructions::SelectedStructuralTransport::Descriptor {
                             argument,
                             ..
                         } => slot_addresses.contains(&argument),
-                        target_operations_to_selected_instructions::SelectedStructuralTransport::Address {
-                            base: target_operations_to_selected_instructions::SelectedAddressBase::Register(argument),
+                        selected_instructions::SelectedStructuralTransport::Address {
+                            base: selected_instructions::SelectedAddressBase::Register(argument),
                             ..
                         } => slot_addresses.contains(&argument),
-                        target_operations_to_selected_instructions::SelectedStructuralTransport::Address {
-                            base: target_operations_to_selected_instructions::SelectedAddressBase::Local(_),
+                        selected_instructions::SelectedStructuralTransport::Address {
+                            base: selected_instructions::SelectedAddressBase::Local(_),
                             ..
                         }
-                        | target_operations_to_selected_instructions::SelectedStructuralTransport::Unused => false,
+                        | selected_instructions::SelectedStructuralTransport::Unused => false,
                     }
                 }) || successor.structural_case.as_ref().is_some_and(|case| {
                     case.payloads.iter().any(|payload| {
                         matches!(
                             payload.transport,
-                            target_operations_to_selected_instructions::SelectedCasePayloadTransport::Registers {
+                            selected_instructions::SelectedCasePayloadTransport::Registers {
                                 argument,
                                 ..
                             } if slot_addresses.contains(&argument))
@@ -378,7 +378,7 @@ fn shareable(
 }
 
 fn names_slot(
-    instruction: &target_operations_to_selected_instructions::SelectedInstruction,
+    instruction: &selected_instructions::SelectedInstruction,
     slot: LocalStorageSlotId,
     frame_slot: FrameStorageSlotId,
 ) -> bool {

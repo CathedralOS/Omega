@@ -6,26 +6,24 @@ use crate::rewrites::unexecuted::peepholes::ValidatedConditionMaterialization;
 use crate::rewrites::unexecuted::peepholes::fold_selected_condition_materialization;
 use crate::rewrites::unexecuted::peepholes::validate_condition_materialization_fold;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
-use semantic_vocabulary::{
-    BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
-    OperationId, ScalarType, ValueId,
-};
-use target::NativeTarget;
-use target_operations_to_selected_instructions::register_environment::{
+use optimization_unit::ValueDefinitionSite;
+use register_environment::{
     ValidatedTargetRegisterEnvironment, baseline_target_register_environment,
 };
-use target_operations_to_selected_instructions::register_model::{
-    RegisterInstructionConstraint, RegisterOperandAccess,
-};
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
-use target_operations_to_selected_instructions::{
+use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
+use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedOperand,
     SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator, ValidatedMachineEffectCatalog,
     VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
+use semantic_vocabulary::{
+    BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
+    OperationId, ScalarType, ValueId,
+};
+use target::NativeTarget;
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
-use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
 fn budget() -> OptimizationWorkBudget {
     OptimizationWorkBudget::new(100, 100, 100_000, 100, 100).unwrap()
@@ -97,7 +95,7 @@ impl MaterializeShape {
 fn register(
     id: VirtualRegisterId,
     scalar_type: ScalarType,
-    class: target_operations_to_selected_instructions::register_model::RegisterClassId,
+    class: register_model::RegisterClassId,
     origin: VirtualRegisterOrigin,
 ) -> VirtualRegister {
     VirtualRegister {
@@ -306,7 +304,7 @@ fn fixture(
 
 fn keys(
     environment: &ValidatedTargetRegisterEnvironment,
-) -> target_operations_to_selected_instructions::SelectedConstraintKeys {
+) -> selected_instructions::SelectedConstraintKeys {
     environment.selected_keys()
 }
 
@@ -861,7 +859,7 @@ fn non_flag_use_outside_materialize_surface_refuses() {
         // the `MaterializeI64` row reads.
         function.blocks[0].instructions[3]
             .implicit_uses
-            .push(target_operations_to_selected_instructions::register_model::RegisterUnitId(998));
+            .push(register_model::RegisterUnitId(998));
     });
     assert_eq!(
         fold(&foreign, &environment).unwrap_err(),
@@ -880,7 +878,7 @@ fn unpublishable_unit_traffic_refuses() {
     let extra_def = mutated(target, |function, _| {
         function.blocks[0].instructions[3]
             .implicit_defs
-            .push(target_operations_to_selected_instructions::register_model::RegisterUnitId(997));
+            .push(register_model::RegisterUnitId(997));
     });
     assert_eq!(
         fold(&extra_def, &environment).unwrap_err(),
@@ -888,8 +886,7 @@ fn unpublishable_unit_traffic_refuses() {
     );
     // A clobber the materialize row lacks would lose the event entirely.
     let clobbering = mutated(target, |function, _| {
-        function.blocks[0].instructions[3].clobbers =
-            vec![target_operations_to_selected_instructions::register_model::RegisterUnitId(996)];
+        function.blocks[0].instructions[3].clobbers = vec![register_model::RegisterUnitId(996)];
     });
     assert_eq!(
         fold(&clobbering, &environment).unwrap_err(),

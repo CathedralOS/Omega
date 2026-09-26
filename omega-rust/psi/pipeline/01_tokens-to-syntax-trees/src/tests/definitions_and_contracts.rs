@@ -1,9 +1,9 @@
 use crate::parser::parse_syntax_trees;
-use crate::syntax_trees::expression::ExpressionNode;
-use crate::syntax_trees::statement::StatementNode;
-use crate::syntax_trees::types::TypeReferenceNode;
 use language_core::ReferenceAccess;
 use source_files_to_tokens::Lexer;
+use syntax_trees::expression::ExpressionNode;
+use syntax_trees::statement::StatementNode;
+use syntax_trees::types::TypeReferenceNode;
 
 #[test]
 fn parses_domain_definition_surface() {
@@ -21,7 +21,7 @@ fn parses_domain_definition_surface() {
     let domains = parsed
         .root_items()
         .filter_map(|item| match item {
-            crate::syntax_trees::item::Item::Domain(domain) => Some(domain),
+            syntax_trees::item::Item::Domain(domain) => Some(domain),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -39,11 +39,11 @@ fn parses_domain_definition_surface() {
     let facts = parsed.items.proof_facts(domains[0].facts);
     assert!(matches!(
         facts[0],
-        crate::syntax_trees::item::ProofFact::Membership(_)
+        syntax_trees::item::ProofFact::Membership(_)
     ));
     assert!(matches!(
         facts[1],
-        crate::syntax_trees::item::ProofFact::Expression(_)
+        syntax_trees::item::ProofFact::Expression(_)
     ));
     let source_slices = (0..domains[0].facts.count())
         .map(|offset| {
@@ -79,7 +79,7 @@ fn parses_domain_requires_and_requirement_routes_independently() {
     let domain = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Domain(domain) => Some(domain),
+            syntax_trees::item::Item::Domain(domain) => Some(domain),
             _ => None,
         })
         .expect("domain");
@@ -114,7 +114,7 @@ fn parses_unqualified_machine_establishment_routes() {
     let domain = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Domain(domain) => Some(domain),
+            syntax_trees::item::Item::Domain(domain) => Some(domain),
             _ => None,
         })
         .expect("domain");
@@ -152,7 +152,7 @@ fn parses_explicit_progress_profile_classification() {
     let domain = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Domain(domain) => Some(domain),
+            syntax_trees::item::Item::Domain(domain) => Some(domain),
             _ => None,
         })
         .expect("domain");
@@ -291,7 +291,7 @@ fn parses_equivalent_bodyless_domain_spellings_distinct_from_true_predicate() {
     let domains = parsed
         .root_items()
         .filter_map(|item| match item {
-            crate::syntax_trees::item::Item::Domain(domain) => Some(domain),
+            syntax_trees::item::Item::Domain(domain) => Some(domain),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -327,7 +327,7 @@ fn parses_transparent_domain_alias_as_an_independent_record() {
     let domain = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Domain(domain) => Some(domain),
+            syntax_trees::item::Item::Domain(domain) => Some(domain),
             _ => None,
         })
         .expect("alias domain");
@@ -372,7 +372,7 @@ fn parses_self_parameter_with_dedicated_self_type() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine root item");
@@ -428,7 +428,7 @@ fn parses_explicit_write_only_borrow_with_exact_access_mode() {
     let caller = parsed
         .root_items()
         .filter_map(|item| match item {
-            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .find(|machine| machine.name.as_str() == "caller")
@@ -474,7 +474,7 @@ fn parses_explicit_shared_borrow_with_exact_access_mode() {
     let caller = parsed
         .root_items()
         .filter_map(|item| match item {
-            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .find(|machine| machine.name.as_str() == "caller")
@@ -518,7 +518,7 @@ fn parses_self_expression_as_dedicated_node() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine root item");
@@ -576,7 +576,7 @@ fn parses_nested_call_arguments_as_contiguous_expression_spans() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine root item");
@@ -618,7 +618,7 @@ fn parses_positional_erased_evidence_call_lane_after_semicolon() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine");
@@ -657,7 +657,7 @@ fn parses_evidence_only_call_lane_with_leading_semicolon() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine");
@@ -692,7 +692,7 @@ fn parses_evidence_lane_on_named_transition_without_dropping_it() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine");
@@ -705,7 +705,7 @@ fn parses_evidence_lane_on_named_transition_without_dropping_it() {
     else {
         panic!("expected transition statement");
     };
-    let crate::syntax_trees::statement::TransitionTargetNode::Named {
+    let syntax_trees::statement::TransitionTargetNode::Named {
         evidence_arguments, ..
     } = parsed.statements.transition_target(transition.target)
     else {
@@ -734,7 +734,7 @@ fn tail_self_call_rewrite_retains_the_authored_target_span() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine");
@@ -747,7 +747,7 @@ fn tail_self_call_rewrite_retains_the_authored_target_span() {
     else {
         panic!("tail self call should rewrite to a transition");
     };
-    let crate::syntax_trees::statement::TransitionTargetNode::Named { source_span, .. } =
+    let syntax_trees::statement::TransitionTargetNode::Named { source_span, .. } =
         parsed.statements.transition_target(transition.target)
     else {
         panic!("tail self call should retain a named target");
@@ -793,15 +793,15 @@ fn parses_machine_parameter_with_mandatory_contract() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("generic machine");
     let parameters = parsed.items.type_parameters(machine.type_parameters);
     assert_eq!(parameters.len(), 1);
     assert_eq!(parameters[0].name.as_str(), "Key");
-    let crate::syntax_trees::item::TypeParameterKind::Machine {
-        contract: Some(crate::syntax_trees::item::MachineParameterContract::Structural(contract)),
+    let syntax_trees::item::TypeParameterKind::Machine {
+        contract: Some(syntax_trees::item::MachineParameterContract::Structural(contract)),
     } = &parameters[0].kind
     else {
         panic!("Key should carry its authored machine contract");
@@ -839,15 +839,15 @@ fn parses_nominal_machine_parameter_requirement() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("generic machine");
     let [parameter] = parsed.items.type_parameters(machine.type_parameters) else {
         panic!("expected one machine parameter");
     };
-    let crate::syntax_trees::item::TypeParameterKind::Machine {
-        contract: Some(crate::syntax_trees::item::MachineParameterContract::Nominal { requirement }),
+    let syntax_trees::item::TypeParameterKind::Machine {
+        contract: Some(syntax_trees::item::MachineParameterContract::Nominal { requirement }),
     } = &parameter.kind
     else {
         panic!("Selected should retain its nominal requirement path");
@@ -878,15 +878,15 @@ fn parses_bodyless_nominal_machine_parameter_with_one_semicolon() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("bodyless generic machine");
     assert!(machine.bodyless);
     assert!(matches!(
         parsed.items.type_parameters(machine.type_parameters)[0].kind,
-        crate::syntax_trees::item::TypeParameterKind::Machine {
-            contract: Some(crate::syntax_trees::item::MachineParameterContract::Nominal { .. })
+        syntax_trees::item::TypeParameterKind::Machine {
+            contract: Some(syntax_trees::item::MachineParameterContract::Nominal { .. })
         }
     ));
 }
@@ -907,7 +907,7 @@ fn parses_target_scoped_bodyless_boundary_machine() {
     let machine = parsed
         .root_items()
         .filter_map(|item| match item {
-            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .find(|machine| machine.name.as_str() == "ConsoleNativeProvider::exit_process")
@@ -942,21 +942,21 @@ fn parses_structural_and_nominal_machine_parameter_contracts_together() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("generic machine");
     let parameters = parsed.items.type_parameters(machine.type_parameters);
     assert!(matches!(
         parameters[0].kind,
-        crate::syntax_trees::item::TypeParameterKind::Machine {
-            contract: Some(crate::syntax_trees::item::MachineParameterContract::Structural(_))
+        syntax_trees::item::TypeParameterKind::Machine {
+            contract: Some(syntax_trees::item::MachineParameterContract::Structural(_))
         }
     ));
     assert!(matches!(
         parameters[1].kind,
-        crate::syntax_trees::item::TypeParameterKind::Machine {
-            contract: Some(crate::syntax_trees::item::MachineParameterContract::Nominal { .. })
+        syntax_trees::item::TypeParameterKind::Machine {
+            contract: Some(syntax_trees::item::MachineParameterContract::Nominal { .. })
         }
     ));
 }
@@ -1040,14 +1040,14 @@ fn parses_higher_order_machine_parameter_contract() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("generic machine");
     let parameters = parsed.items.type_parameters(machine.type_parameters);
     assert_eq!(parameters.len(), 2);
-    let crate::syntax_trees::item::TypeParameterKind::Machine {
-        contract: Some(crate::syntax_trees::item::MachineParameterContract::Structural(schema)),
+    let syntax_trees::item::TypeParameterKind::Machine {
+        contract: Some(syntax_trees::item::MachineParameterContract::Structural(schema)),
     } = &parameters[0].kind
     else {
         panic!("Schema should carry its authored machine contract");
@@ -1055,8 +1055,8 @@ fn parses_higher_order_machine_parameter_contract() {
     let nested = parsed.items.type_parameters(schema.type_parameters);
     assert_eq!(nested.len(), 1);
     assert_eq!(nested[0].name.as_str(), "Inner");
-    let crate::syntax_trees::item::TypeParameterKind::Machine {
-        contract: Some(crate::syntax_trees::item::MachineParameterContract::Structural(inner)),
+    let syntax_trees::item::TypeParameterKind::Machine {
+        contract: Some(syntax_trees::item::MachineParameterContract::Structural(inner)),
     } = &nested[0].kind
     else {
         panic!("Inner should carry its authored nested contract");
@@ -1121,14 +1121,14 @@ fn parses_machine_parameter_on_proof_data_declaration() {
     let data = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Data(data) => Some(data),
+            syntax_trees::item::Item::Data(data) => Some(data),
             _ => None,
         })
         .expect("Stream declaration");
     let parameters = parsed.items.type_parameters(data.type_parameters);
     assert_eq!(parameters.len(), 1);
-    let crate::syntax_trees::item::TypeParameterKind::Machine {
-        contract: Some(crate::syntax_trees::item::MachineParameterContract::Structural(contract)),
+    let syntax_trees::item::TypeParameterKind::Machine {
+        contract: Some(syntax_trees::item::MachineParameterContract::Structural(contract)),
     } = &parameters[0].kind
     else {
         panic!("S should retain its authored callable contract");
@@ -1153,7 +1153,7 @@ fn parses_proof_quotient_data_declaration() {
     let quotient = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Data(data) if data.name.as_str() == "Quotient" => {
+            syntax_trees::item::Item::Data(data) if data.name.as_str() == "Quotient" => {
                 data.quotient.as_ref()
             }
             _ => None,
@@ -1212,7 +1212,7 @@ fn parses_static_machine_symbol_call_argument() {
         .expressions
         .iter_expressions()
         .find_map(|(handle, expression)| match expression {
-            crate::syntax_trees::expression::ExpressionNode::Call(call)
+            syntax_trees::expression::ExpressionNode::Call(call)
                 if !call.machine_arguments.is_empty() =>
             {
                 Some((handle, call))
@@ -1253,7 +1253,7 @@ fn parses_nested_static_conformance_application() {
         .expressions
         .iter_expressions()
         .find_map(|(_, expression)| match expression {
-            crate::syntax_trees::expression::ExpressionNode::Call(call)
+            syntax_trees::expression::ExpressionNode::Call(call)
                 if call.target.as_str() == "send" =>
             {
                 Some(call)
@@ -1298,7 +1298,7 @@ fn parses_evidence_term_member_as_a_distinct_proof_static_argument() {
         .expressions
         .iter_expressions()
         .find_map(|(_, expression)| match expression {
-            crate::syntax_trees::expression::ExpressionNode::Call(call)
+            syntax_trees::expression::ExpressionNode::Call(call)
                 if call.target.as_str() == "consume" =>
             {
                 Some(call)
@@ -1338,7 +1338,7 @@ fn destructure_marker_preserves_double_underscore_field_as_one_component() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Machine(machine) => Some(machine),
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("machine root item");
@@ -1388,9 +1388,7 @@ fn proof_output_binding_separates_type_and_prop_lanes() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Machine(machine)
-                if machine.name.as_str() == "consume" =>
-            {
+            syntax_trees::item::Item::Machine(machine) if machine.name.as_str() == "consume" => {
                 Some(machine)
             }
             _ => None,
@@ -1439,8 +1437,8 @@ fn retired_generated_proof_package_has_directed_migration() {
 fn parse_domain_facts(
     source: &str,
 ) -> (
-    crate::syntax_trees::SyntaxTrees,
-    Vec<crate::syntax_trees::item::ProofFact>,
+    syntax_trees::SyntaxTrees,
+    Vec<syntax_trees::item::ProofFact>,
 ) {
     let tokens = Lexer::new(source)
         .tokenize()
@@ -1449,7 +1447,7 @@ fn parse_domain_facts(
     let facts = parsed
         .root_items()
         .find_map(|item| match item {
-            crate::syntax_trees::item::Item::Domain(domain) => Some(domain.facts),
+            syntax_trees::item::Item::Domain(domain) => Some(domain.facts),
             _ => None,
         })
         .expect("one domain");
@@ -1467,8 +1465,8 @@ fn proof_fact_membership_carries_indexed_domain_application_by_argument() {
         "#,
     );
     let [
-        crate::syntax_trees::item::ProofFact::Membership(granted),
-        crate::syntax_trees::item::ProofFact::Membership(resident),
+        syntax_trees::item::ProofFact::Membership(granted),
+        syntax_trees::item::ProofFact::Membership(resident),
     ] = facts.as_slice()
     else {
         panic!("an `&` chain lowers to one membership fact per domain, got {facts:?}");

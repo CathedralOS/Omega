@@ -19,10 +19,10 @@
 use std::collections::BTreeSet;
 
 use optimization_core::OptimizationWorkBudget;
-use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
-use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
-use target_operations_to_selected_instructions::register_model::RegisterUnitId;
-use target_operations_to_selected_instructions::{
+use register_environment::ValidatedTargetRegisterEnvironment;
+use register_model::RegisterOperandAccess;
+use register_model::RegisterUnitId;
+use selected_instructions::{
     SelectedBlockId, SelectedCasePayloadTransport, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind, SelectedValueTransport, VirtualRegisterId,
 };
@@ -416,10 +416,7 @@ pub(super) fn shifted_boundary_settlements(
     function: &SelectedFunction,
     block: SelectedBlockId,
     removed: usize,
-) -> Result<
-    Vec<target_operations_to_selected_instructions::SelectedBoundarySettlement>,
-    DeadCompareError,
-> {
+) -> Result<Vec<selected_instructions::SelectedBoundarySettlement>, DeadCompareError> {
     let body = function
         .blocks
         .iter()

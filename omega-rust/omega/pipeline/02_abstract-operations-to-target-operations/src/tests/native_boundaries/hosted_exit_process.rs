@@ -8,7 +8,7 @@ use super::super::{
 
 fn fixture() -> (
     AbstractOperationPlan,
-    crate::target_operations::BoundarySettlementBinding,
+    target_operations::BoundarySettlementBinding,
 ) {
     let machine = MachineId::new(901).unwrap();
     let boundary = BoundaryMachineId::new(901).unwrap();
@@ -19,15 +19,14 @@ fn fixture() -> (
     let block = BlockId::new(901).unwrap();
     let i32_type = IntegerType::new(IntegerSign::Signed, 32).unwrap();
     let scalar_type = ScalarType::Integer(i32_type);
-    let provider_execution =
-        crate::target_operations::ProviderExecutionBinding::from_execution_record(
-            crate::target_operations::ProviderPlanReportIdentity::new(901).unwrap(),
-            902,
-            903,
-            904,
-            905,
-        )
-        .unwrap();
+    let provider_execution = target_operations::ProviderExecutionBinding::from_execution_record(
+        target_operations::ProviderPlanReportIdentity::new(901).unwrap(),
+        902,
+        903,
+        904,
+        905,
+    )
+    .unwrap();
     let plan = AbstractOperationPlan {
         psi: identity(),
         entry: machine,
@@ -58,7 +57,7 @@ fn fixture() -> (
             result: AbstractFunctionResult::Unit,
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
-            block_entries: vec![terminal_psi_to_abstract_operations::abstract_operations::AbstractBlockEntry {
+            block_entries: vec![abstract_operations::AbstractBlockEntry {
                 structural_parameters: Vec::new(),
                 block,
                 parameters: Vec::new(),
@@ -73,7 +72,7 @@ fn fixture() -> (
                 },
                 AbstractOperation::BoundaryCall {
                     psi_operation: settlement_operation,
-                    result: terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Unit,
+                    result: abstract_operations::AbstractBoundaryResult::Unit,
                     boundary,
                     arguments: vec![value],
                     structural_arguments: Vec::new(),
@@ -87,10 +86,10 @@ fn fixture() -> (
             ],
         }],
     };
-    let binding = crate::target_operations::BoundarySettlementBinding {
+    let binding = target_operations::BoundarySettlementBinding {
         boundary,
         execution: provider_execution.into(),
-        realization: crate::target_operations::HostedExitProcessI32Realization.into(),
+        realization: target_operations::HostedExitProcessI32Realization.into(),
     };
     (plan, binding)
 }
@@ -148,10 +147,10 @@ fn hosted_exit_process_i32_retains_runtime_source_abi_and_nonreturning_tail() {
         assert_eq!(*execution, binding.execution);
         assert_eq!(
             *realization,
-            crate::target_operations::BoundaryRealization::HostedExitProcessI32(Default::default())
+            target_operations::BoundaryRealization::HostedExitProcessI32(Default::default())
         );
         assert!(
-            matches!(body.blocks[0].terminator, crate::target_operations::TargetControlTerminator::Return { psi_edge, .. } if psi_edge == return_edge)
+            matches!(body.blocks[0].terminator, target_operations::TargetControlTerminator::Return { psi_edge, .. } if psi_edge == return_edge)
         );
         assert!(scalar_arguments.is_empty());
         let [argument] = runtime_scalar_arguments.as_slice() else {
@@ -160,17 +159,17 @@ fn hosted_exit_process_i32_retains_runtime_source_abi_and_nonreturning_tail() {
         assert_eq!(argument.parameter_index, 0);
         assert_eq!(
             argument.source,
-            crate::target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
+            target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
                 defining_operation: constant_operation,
                 source_value: value,
                 scalar_type: i32_type,
                 value: IntegerValue::Signed(37),
             }
         );
-        let call_plan = crate::calling_conventions::evaluate_call_plan(
-            crate::calling_conventions::CallingPolicy::native_for_target(target),
-            &crate::calling_conventions::CallSignature {
-                parameters: vec![crate::calling_conventions::ValueShape::integer(4, 4)],
+        let call_plan = calling_conventions::evaluate_call_plan(
+            calling_conventions::CallingPolicy::native_for_target(target),
+            &calling_conventions::CallSignature {
+                parameters: vec![calling_conventions::ValueShape::integer(4, 4)],
                 result: None,
             },
         )
@@ -270,25 +269,25 @@ fn hosted_exit_settlement_replays_and_rejects_forged_rows() {
                     0 => *psi_operation = OperationId::new(909).unwrap(),
                     1 => *boundary = BoundaryMachineId::new(909).unwrap(),
                     2 => {
-                        *execution = crate::target_operations::BoundaryExecutionBinding::CompilerBuiltin(
-                            crate::target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
+                        *execution = target_operations::BoundaryExecutionBinding::CompilerBuiltin(
+                            target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
                         )
                     }
                     3 => {
-                        *realization = crate::target_operations::BoundaryRealization::HostedReadByte(
-                            crate::target_operations::HostedReadByteRealization,
+                        *realization = target_operations::BoundaryRealization::HostedReadByte(
+                            target_operations::HostedReadByteRealization,
                         )
                     }
                     4 => {
-                        *realization = crate::target_operations::BoundaryRealization::LinuxWriteLine(
-                            crate::target_operations::LinuxWriteLineRealization,
+                        *realization = target_operations::BoundaryRealization::LinuxWriteLine(
+                            target_operations::LinuxWriteLineRealization,
                         )
                     }
                     5 => {
-                        *result = crate::target_operations::TargetBoundaryResult::Structural(
-                            crate::target_operations::TargetStructuralHomeRequirement {
+                        *result = target_operations::TargetBoundaryResult::Structural(
+                            target_operations::TargetStructuralHomeRequirement {
                                 origin:
-                                    crate::target_operations::TargetStructuralHomeOrigin::OperationResult {
+                                    target_operations::TargetStructuralHomeOrigin::OperationResult {
                                         operation: settlement_operation,
                                         result: terminal_psi::StructuralOperationResult {
                                             qualification_establishments: Vec::new(),
@@ -303,8 +302,8 @@ fn hosted_exit_settlement_replays_and_rejects_forged_rows() {
                                             claims: Vec::new(),
                                         },
                                     },
-                                layout: crate::target_operations::TargetStructuralHomeLayout::Aggregate(
-                                    crate::calling_conventions::ValueShape::integer(4, 4),
+                                layout: target_operations::TargetStructuralHomeLayout::Aggregate(
+                                    calling_conventions::ValueShape::integer(4, 4),
                                 ),
                             },
                         )
@@ -312,11 +311,11 @@ fn hosted_exit_settlement_replays_and_rejects_forged_rows() {
                     6 => runtime_scalar_arguments[0].parameter_index = 1,
                     7 => {
                         runtime_scalar_arguments[0].placement.shape =
-                            crate::calling_conventions::ValueShape::integer(8, 8)
+                            calling_conventions::ValueShape::integer(8, 8)
                     }
                     8 => {
                         runtime_scalar_arguments[0].source =
-                            crate::target_operations::TargetUnitScalarArgumentSource::Parameter {
+                            target_operations::TargetUnitScalarArgumentSource::Parameter {
                                 parameter_index: 0,
                                 source_value: value,
                                 scalar_type,
@@ -324,7 +323,7 @@ fn hosted_exit_settlement_replays_and_rejects_forged_rows() {
                     }
                     9 => {
                         runtime_scalar_arguments[0].source =
-                            crate::target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
+                            target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
                                 defining_operation: OperationId::new(909).unwrap(),
                                 source_value: value,
                                 scalar_type: i32_type,
@@ -333,24 +332,24 @@ fn hosted_exit_settlement_replays_and_rejects_forged_rows() {
                     }
                     10 => {
                         runtime_scalar_arguments[0].source =
-                            crate::target_operations::TargetUnitScalarArgumentSource::Home(
-                                crate::target_operations::TargetUnitScalarHomeRequirement {
+                            target_operations::TargetUnitScalarArgumentSource::Home(
+                                target_operations::TargetUnitScalarHomeRequirement {
                                     defining_operation: constant_operation,
                                     source_value: value,
                                     scalar_type,
-                                    shape: crate::calling_conventions::ValueShape::integer(4, 4),
+                                    shape: calling_conventions::ValueShape::integer(4, 4),
                                 },
                             )
                     }
                     11 => runtime_scalar_arguments.clear(),
-                    12 => scalar_arguments.push(crate::target_operations::BoundaryScalarArgument {
+                    12 => scalar_arguments.push(target_operations::BoundaryScalarArgument {
                         source_value: value,
                         scalar_type,
                         immediate: IntegerValue::Signed(37),
-                        destination: crate::calling_conventions::MachineRegister::X86Rax,
+                        destination: calling_conventions::MachineRegister::X86Rax,
                     }),
                     13 => byte_sequence_arguments.push(
-                        crate::target_operations::BoundaryByteSequenceArgument {
+                        target_operations::BoundaryByteSequenceArgument {
                             argument: terminal_psi::StructuralArgument {
                                 place: semantic_vocabulary::PlaceId::new(909).unwrap(),
                                 path: Vec::new(),
@@ -376,7 +375,7 @@ fn hosted_exit_settlement_replays_and_rejects_forged_rows() {
                             });
                         } else if mutation == 15 {
                             completion_claim_sources.push(
-                                terminal_psi_to_abstract_operations::abstract_operations::CompletionClaimSource {
+                                abstract_operations::CompletionClaimSource {
                                     claim: semantic_vocabulary::ClaimId::new(909).unwrap(),
                                     entry: None,
                                     content: None,
@@ -426,7 +425,7 @@ fn hosted_exit_settlement_replays_and_rejects_forged_rows() {
         // settlement requires.
         let mut changed = lowered.clone();
         changed.functions[0].graph.blocks[0].terminator =
-            crate::target_operations::TargetControlTerminator::Return {
+            target_operations::TargetControlTerminator::Return {
                 psi_edge: return_edge,
                 cleanup_actions: vec![terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
                     semantic_vocabulary::PlaceId::new(909).unwrap(),
@@ -491,8 +490,8 @@ fn hosted_exit_settlement_replays_and_rejects_forged_rows() {
         else {
             panic!("boundary call")
         };
-        *result = terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Scalar(
-            terminal_psi_to_abstract_operations::abstract_operations::AbstractResult {
+        *result = abstract_operations::AbstractBoundaryResult::Scalar(
+            abstract_operations::AbstractResult {
                 value: ValueId::new(905).unwrap(),
                 scalar_type,
             },

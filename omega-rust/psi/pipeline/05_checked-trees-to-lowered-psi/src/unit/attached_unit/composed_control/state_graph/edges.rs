@@ -9,8 +9,8 @@ use super::{
     CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
     CheckedStructuralControlSuccessorPlan, result_custody, subslices,
 };
-use typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode;
-use typed_trees_to_checked_trees::checked_trees::statement::{
+use checked_trees::expression::ExpressionNode;
+use checked_trees::statement::{
     StatementNode, TableTransition, TransitionExit, TransitionGuardNode, TransitionTargetNode,
 };
 
@@ -23,7 +23,7 @@ pub(in crate::unit::attached_unit::composed_control) fn successors(
 pub(super) fn validate(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
-    source: &typed_trees_to_checked_trees::checked_trees::state::State,
+    source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
     transition: &TableTransition,
     edge: &CheckedStructuralControlSuccessorPlan,
@@ -37,12 +37,12 @@ pub(super) fn validate(
 pub(super) fn validate_bindings(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
-    source: &typed_trees_to_checked_trees::checked_trees::state::State,
+    source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
     transition: &TableTransition,
     edge: &CheckedStructuralControlSuccessorPlan,
     ordinal: usize,
-    payloads: &[typed_trees_to_checked_trees::checked_trees::CheckedClosedSumPayloadTransferPlan],
+    payloads: &[checked_trees::CheckedClosedSumPayloadTransferPlan],
 ) -> Result<(), LoweringError> {
     let TransitionTargetNode::Named {
         path, arguments, ..
@@ -166,7 +166,7 @@ pub(super) fn validate_bindings(
         .zip(&edge.transfers)
         .enumerate()
     {
-        if let typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult {
+        if let checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult {
             binding_ordinal,
         } = transfer.source
         {
@@ -200,12 +200,12 @@ pub(super) fn validate_bindings(
             ))?;
             // An owned local moves into the target; a view local lends its
             // shared view, which owns nothing and so leaves no partition.
-            let shared_view = target.access == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow;
+            let shared_view = target.access == checked_trees::CheckedStructuralAccess::SharedBorrow;
             if matching.next().is_some()
                 || result.statement_index >= edge.statement_ordinal
                 || transfer.target_parameter_index as usize != position
                 || target.is_self
-                || !(target.access == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
+                || !(target.access == checked_trees::CheckedStructuralAccess::Owned
                     || (shared_view && result.multiplicity == Multiplicity::Unrestricted))
                 || !target.qualifications.is_empty()
                 || target.multiplicity != result.multiplicity
@@ -213,7 +213,7 @@ pub(super) fn validate_bindings(
             {
                 return unsupported("Unit graph transferred result custody drifted");
             }
-            let Some(typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(local)) = checked
+            let Some(checked_trees::statement::StatementNode::LocalData(local)) = checked
                 .statement_table
                 .statements(source.statement_nodes)
                 .get(result.statement_index as usize)
@@ -247,9 +247,7 @@ pub(super) fn validate_bindings(
                 return unsupported("Unit graph subslice disagrees with its source argument");
             }
             let source_type = match root {
-                typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::Parameter {
-                    index,
-                } => {
+                checked_trees::CheckedStorageRoot::Parameter { index } => {
                     let source = state.structural_parameters.get(index as usize).ok_or(
                         LoweringError::Unsupported("Unit graph borrowed transfer source missing"),
                     )?;
@@ -259,13 +257,13 @@ pub(super) fn validate_bindings(
                     }
                     &source.type_identity
                 }
-                typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::ViewLocal {
-                    symbol,
-                } => view_local_result(checked, source, state, symbol, edge.statement_ordinal)?,
+                checked_trees::CheckedStorageRoot::ViewLocal { symbol } => {
+                    view_local_result(checked, source, state, symbol, edge.statement_ordinal)?
+                }
             };
             if transfer.target_parameter_index as usize != position
                 || target.is_self
-                || target.access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
+                || target.access != checked_trees::CheckedStructuralAccess::SharedBorrow
                 || target.multiplicity != Multiplicity::Unrestricted
                 || *source_type != target.type_identity
             {
@@ -273,7 +271,7 @@ pub(super) fn validate_bindings(
             }
             continue;
         }
-        if let typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
+        if let checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
             subject,
             case_identity,
             field_identity,
@@ -295,7 +293,7 @@ pub(super) fn validate_bindings(
             };
             let Some((_, variant)) = checked.data_definitions().iter().find_map(|data| {
                 checked.data_members(data).iter().find_map(|member| {
-                    let typed_trees_to_checked_trees::checked_trees::data::DataMember::Variant(variant) = member else {
+                    let checked_trees::data::DataMember::Variant(variant) = member else {
                         return None;
                     };
                     (variant.symbol == variant_symbol).then_some((data, variant))
@@ -320,10 +318,10 @@ pub(super) fn validate_bindings(
             let mut referee_cursor = field.type_reference;
             let shared_referee = loop {
                 match checked.type_reference_table.type_reference(referee_cursor) {
-                    typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+                    checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
                         referee_cursor = *base_type
                     }
-                    typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Reference {
+                    checked_trees::types::TypeReferenceNode::Reference {
                         access: language_semantics::ReferenceAccess::Shared,
                         referee,
                         ..
@@ -332,10 +330,10 @@ pub(super) fn validate_bindings(
                 }
             };
             let normalized = |reference| checked.normalized_type_identity(reference).into_string();
-            let admitted = if target.access == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned {
+            let admitted = if target.access == checked_trees::CheckedStructuralAccess::Owned {
                 normalized(field.type_reference) == target.type_identity
             } else {
-                target.access == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
+                target.access == checked_trees::CheckedStructuralAccess::SharedBorrow
                     && shared_referee
                         .is_some_and(|referee| normalized(referee) == target.type_identity)
             };
@@ -344,7 +342,7 @@ pub(super) fn validate_bindings(
             }
             // The subject resolves to a retained source parameter and a
             // member path ending at the sum owning the selected case.
-            let typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index,
             } = subject.source
             else {
@@ -356,26 +354,26 @@ pub(super) fn validate_bindings(
                 .ok_or(LoweringError::Unsupported(
                     "Unit graph case-payload subject missing",
                 ))?;
-            if subject.access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow {
+            if subject.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
                 return unsupported("Unit graph case-payload subject custody drifted");
             }
             // The subject's member path walks from its own root type; borrows
             // and constraint ascriptions peel away to the owned data shape.
             fn nominal_owner(
                 checked: &CheckedTrees,
-                mut reference: typed_trees_to_checked_trees::checked_trees::types::TypeReferenceHandle,
-            ) -> Option<&typed_trees_to_checked_trees::checked_trees::data::DataDefinition> {
+                mut reference: checked_trees::types::TypeReferenceHandle,
+            ) -> Option<&checked_trees::data::DataDefinition> {
                 loop {
                     match checked.type_reference_table.type_reference(reference) {
-                        typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+                        checked_trees::types::TypeReferenceNode::Reference { referee, .. } => {
                             reference = *referee;
                         }
-                        typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Constrained {
+                        checked_trees::types::TypeReferenceNode::Constrained {
                             base_type, ..
                         } => {
                             reference = *base_type;
                         }
-                        typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Named { symbol, .. } => {
+                        checked_trees::types::TypeReferenceNode::Named { symbol, .. } => {
                             if let Some(data) = checked
                                 .data_definitions()
                                 .iter()
@@ -410,12 +408,12 @@ pub(super) fn validate_bindings(
                 return unsupported("Unit graph case-payload subject is not nominal");
             };
             for segment in &subject.path {
-                let typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field(identity) = segment
+                let checked_trees::CheckedUnitStructuralPathSegment::Field(identity) = segment
                 else {
                     return unsupported("Unit graph case-payload path is not a member walk");
                 };
                 let Some(member) = checked.data_members(owner).iter().find_map(|member| {
-                    let typed_trees_to_checked_trees::checked_trees::data::DataMember::Field(field) = member else {
+                    let checked_trees::data::DataMember::Field(field) = member else {
                         return None;
                     };
                     (field
@@ -437,7 +435,7 @@ pub(super) fn validate_bindings(
                 || !checked.data_members(owner).iter().any(|member| {
                     matches!(
                         member,
-                        typed_trees_to_checked_trees::checked_trees::data::DataMember::Variant(variant)
+                        checked_trees::data::DataMember::Variant(variant)
                             if variant.symbol == variant_symbol
                     )
                 })
@@ -463,17 +461,17 @@ pub(super) fn validate_bindings(
             continue;
         }
         let source_index = match transfer.source {
-            typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult {
+            checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult {
                 ..
             } => return unsupported("Unit graph result was not independently rejoined"),
-            typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } => index,
-            typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
+            checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } => index,
+            checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
                 ..
             }
-            | typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
+            | checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
                 ..
             } => return unsupported("Unit graph subslice was not independently rejoined"),
-            typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload { .. } => {
+            checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload { .. } => {
                 return unsupported("Unit graph case-payload was not independently rejoined");
             }
         };
@@ -491,10 +489,10 @@ pub(super) fn validate_bindings(
             return unsupported("Unit graph borrowed transfer type or order drifted");
         }
         match transfer.source {
-            typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult {
+            checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult {
                 ..
             } => return unsupported("Unit graph result was not independently rejoined"),
-            typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { .. } => {
+            checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { .. } => {
                 if target.is_self {
                     if source != target {
                         return unsupported("Unit graph persistent receiver transfer drifted");
@@ -503,13 +501,13 @@ pub(super) fn validate_bindings(
                     validate_argument(target.position, source.position)?;
                 }
             }
-            typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
+            checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
                 ..
             }
-            | typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
+            | checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
                 ..
             } => return unsupported("Unit graph subslice was not independently rejoined"),
-            typed_trees_to_checked_trees::checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload { .. } => {
+            checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload { .. } => {
                 return unsupported("Unit graph case-payload was not independently rejoined");
             }
         }
@@ -532,7 +530,7 @@ pub(super) fn validate_bindings(
             return unsupported("Unit graph scalar transfer type or order drifted");
         }
         match transfer.source {
-            typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index } => {
+            checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index } => {
                 let source = state.scalar_parameters.get(index as usize).ok_or(
                     LoweringError::Unsupported("Unit graph scalar transfer source missing"),
                 )?;
@@ -541,7 +539,7 @@ pub(super) fn validate_bindings(
                 }
                 validate_argument(target.source_position, source.source_position)?;
             }
-            typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression => {
+            checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression => {
                 super::scalars::successor_value(checked, state, edge, transfer)?;
             }
         }
@@ -559,7 +557,7 @@ pub(super) fn validate_bindings(
             || transfer.primitive_type != target.primitive_type
             || !matches!(
                 transfer.source,
-                typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
+                checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
             )
         {
             return unsupported("Unit graph erased transfer type or order drifted");
@@ -592,7 +590,7 @@ pub(super) fn validate_bindings(
 /// `as_slice` loan or a subslice binding published for that `let`.
 fn view_local_result<'a>(
     checked: &CheckedTrees,
-    source: &typed_trees_to_checked_trees::checked_trees::state::State,
+    source: &checked_trees::state::State,
     state: &'a CheckedComposedUnitControlStatePlan,
     symbol: symbols::SymbolHandle,
     statement: u32,
@@ -606,7 +604,7 @@ fn view_local_result<'a>(
         };
         matches!(
             statements.get(result.statement_index as usize),
-            Some(typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(local))
+            Some(checked_trees::statement::StatementNode::LocalData(local))
                 if local.symbol == symbol && !local.is_mutable
         )
         .then_some(result)
@@ -626,7 +624,7 @@ fn view_local_result<'a>(
 fn validate_cleanup(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
-    source: &typed_trees_to_checked_trees::checked_trees::state::State,
+    source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
     edge: &CheckedStructuralControlSuccessorPlan,
 ) -> Result<(), LoweringError> {
@@ -678,7 +676,7 @@ pub(super) fn validate_fallback(
 pub(super) fn return_discards(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
-    source: &typed_trees_to_checked_trees::checked_trees::state::State,
+    source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
 ) -> Result<Vec<usize>, LoweringError> {
     use language_semantics::{
@@ -711,7 +709,7 @@ pub(super) fn return_discards(
         if state.operations.iter().filter_map(result_custody::result).any(|result| {
             local_discards.contains(&result.binding_ordinal)
                 && matches!(checked.statement_table.statements(source.statement_nodes).get(result.statement_index as usize),
-                    Some(StatementNode::LocalData(local)) if event.root == typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(local.symbol))
+                    Some(StatementNode::LocalData(local)) if event.root == facts::PlaceRoot::Symbol(local.symbol))
         }) {
             continue;
         }
@@ -721,19 +719,13 @@ pub(super) fn return_discards(
             .position(|parameter| {
                 parameters
                     .get(parameter.position as usize)
-                    .is_some_and(|source| {
-                        event.root
-                            == typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(
-                                source.symbol,
-                            )
-                    })
+                    .is_some_and(|source| event.root == facts::PlaceRoot::Symbol(source.symbol))
             })
             .ok_or(LoweringError::Unsupported(
                 "Unit return has an unaccounted local drop",
             ))?;
         let parameter = &state.structural_parameters[index];
-        if parameter.access
-            != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
+        if parameter.access != checked_trees::CheckedStructuralAccess::Owned
             || parameter.multiplicity != Multiplicity::Affine
             || event.access != PermissionAccess::Owned
             || event.multiplicity != Multiplicity::Affine
@@ -784,10 +776,10 @@ pub(super) fn return_discards(
             } => structural_arguments.as_slice(),
             _ => &[],
         };
-        for argument in arguments.iter().filter(|argument| {
-            argument.access
-                == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
-        }) {
+        for argument in arguments
+            .iter()
+            .filter(|argument| argument.access == checked_trees::CheckedStructuralAccess::Owned)
+        {
             if let Some(index) = argument.source_parameter_index() {
                 if !argument.path.is_empty() {
                     return unsupported("Unit return has a partial parameter move");
@@ -831,8 +823,7 @@ pub(super) fn return_discards(
             .enumerate()
             .rev()
             .filter(|(index, parameter)| {
-                parameter.access
-                    == typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
+                parameter.access == checked_trees::CheckedStructuralAccess::Owned
                     && parameter.multiplicity == Multiplicity::Affine
                     && !consumed.contains(index)
                     && !parameters

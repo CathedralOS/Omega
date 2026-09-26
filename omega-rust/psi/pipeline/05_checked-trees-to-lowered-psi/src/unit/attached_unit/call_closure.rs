@@ -233,7 +233,7 @@ pub(super) fn validate_unit_operation_sequence(
                     )?;
                 }
                 structural_calls::validate_usage(checked, machine, result)?;
-                typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate {
+                checked_trees::CheckedUnitCallCoordinate {
                     statement_index: result.statement_index,
                     call_ordinal: 0,
                 }
@@ -241,7 +241,7 @@ pub(super) fn validate_unit_operation_sequence(
             CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => {
-                typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate {
+                checked_trees::CheckedUnitCallCoordinate {
                     statement_index: result.statement_index,
                     call_ordinal: 0,
                 }
@@ -265,7 +265,7 @@ pub(super) fn validate_unit_operation_sequence(
                 statement_index,
                 declaration_ordinal,
                 ..
-            } => typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate {
+            } => checked_trees::CheckedUnitCallCoordinate {
                 statement_index: *statement_index,
                 call_ordinal: *declaration_ordinal,
             },
@@ -319,7 +319,7 @@ pub(super) fn validate_unit_operation_sequence(
                                 "Unit scalar result binding ordinal space is exhausted",
                             ))?;
                 }
-                typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate {
+                checked_trees::CheckedUnitCallCoordinate {
                     statement_index: access.statement_index,
                     call_ordinal: 0,
                 }
@@ -336,7 +336,7 @@ pub(super) fn validate_unit_operation_sequence(
                         .ok_or(LoweringError::Unsupported(
                             "Unit scalar result binding ordinal space is exhausted",
                         ))?;
-                typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate {
+                checked_trees::CheckedUnitCallCoordinate {
                     statement_index: result.statement_index,
                     call_ordinal: 0,
                 }
@@ -401,7 +401,7 @@ pub(super) fn validate_unit_operation_sequence(
                 continue;
             }
             CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. } => {
-                typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate {
+                checked_trees::CheckedUnitCallCoordinate {
                     statement_index: result.statement_index,
                     call_ordinal: 0,
                 }
@@ -414,12 +414,12 @@ pub(super) fn validate_unit_operation_sequence(
             }
             | CheckedUnitEffectOperationPlan::StoreStructuralField {
                 statement_index, ..
-            } => typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate {
+            } => checked_trees::CheckedUnitCallCoordinate {
                 statement_index: *statement_index,
                 call_ordinal: 0,
             },
             CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) => {
-                typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate {
+                checked_trees::CheckedUnitCallCoordinate {
                     statement_index: store.statement_index,
                     call_ordinal: 0,
                 }
@@ -432,7 +432,7 @@ pub(super) fn validate_unit_operation_sequence(
             CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store)
                 if matches!(
                     store.value,
-                    typed_trees_to_checked_trees::checked_trees::CheckedByteSequenceStoreValue::ScalarResult { .. }
+                    checked_trees::CheckedByteSequenceStoreValue::ScalarResult { .. }
                 ) =>
             {
                 if !matches!(
@@ -449,7 +449,7 @@ pub(super) fn validate_unit_operation_sequence(
                     ) if coordinate.statement_index == store.statement_index
                         && coordinate.call_ordinal == 0
                         && result.statement_index == store.statement_index
-                        && result.primitive_type == typed_trees_to_checked_trees::checked_trees::types::PrimitiveType::U8
+                        && result.primitive_type == checked_trees::types::PrimitiveType::U8
                 ) {
                     return unsupported(
                         "indexed byte store call result has no immediately preceding scalar call",
@@ -458,7 +458,7 @@ pub(super) fn validate_unit_operation_sequence(
                 continue;
             }
             CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
-                typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate {
+                checked_trees::CheckedUnitCallCoordinate {
                     statement_index: store.statement_index,
                     call_ordinal: 0,
                 }
@@ -471,7 +471,7 @@ pub(super) fn validate_unit_operation_sequence(
             CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store)
                 if matches!(
                     store.value,
-                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { .. }
+                    checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { .. }
                 ) =>
             {
                 if !matches!(
@@ -497,13 +497,13 @@ pub(super) fn validate_unit_operation_sequence(
                 continue;
             }
             CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
-                typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate {
+                checked_trees::CheckedUnitCallCoordinate {
                     statement_index: store.statement_index,
                     call_ordinal: 0,
                 }
             }
             CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(store) => {
-                typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate {
+                checked_trees::CheckedUnitCallCoordinate {
                     statement_index: store.statement_index,
                     call_ordinal: 0,
                 }
@@ -514,7 +514,7 @@ pub(super) fn validate_unit_operation_sequence(
             CheckedUnitEffectOperationPlan::ByteSequenceWrite(write)
                 if matches!(
                     write.value,
-                    typed_trees_to_checked_trees::checked_trees::CheckedByteSequenceStoreValue::ScalarResult { .. }
+                    checked_trees::CheckedByteSequenceStoreValue::ScalarResult { .. }
                 ) =>
             {
                 if !matches!(
@@ -531,7 +531,7 @@ pub(super) fn validate_unit_operation_sequence(
                     ) if coordinate.statement_index == write.statement_index
                         && coordinate.call_ordinal == 0
                         && result.statement_index == write.statement_index
-                        && result.primitive_type == typed_trees_to_checked_trees::checked_trees::types::PrimitiveType::U8
+                        && result.primitive_type == checked_trees::types::PrimitiveType::U8
                 ) {
                     return unsupported(
                         "byte-view write call result has no immediately preceding scalar call",
@@ -540,7 +540,7 @@ pub(super) fn validate_unit_operation_sequence(
                 continue;
             }
             CheckedUnitEffectOperationPlan::ByteSequenceWrite(write) => {
-                typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate {
+                checked_trees::CheckedUnitCallCoordinate {
                     statement_index: write.statement_index,
                     call_ordinal: 0,
                 }
@@ -570,11 +570,11 @@ pub(super) fn validate_unit_operation_sequence(
         if matches!(
             operation,
             CheckedUnitEffectOperationPlan::EstablishScalarArray {
-                source: typed_trees_to_checked_trees::checked_trees::CheckedArrayConstructionSource::CallArgument { .. },
+                source: checked_trees::CheckedArrayConstructionSource::CallArgument { .. },
                 ..
             } | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
                 operand_source: Some(
-                    typed_trees_to_checked_trees::checked_trees::CheckedArrayConstructionSource::CallArgument { .. },
+                    checked_trees::CheckedArrayConstructionSource::CallArgument { .. },
                 ),
                 ..
             }

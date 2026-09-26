@@ -10,12 +10,8 @@ use crate::tests::{
     TypeReferenceNode,
 };
 use language_core::operator_spelling::OperatorSpelling;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    BinaryOperator, ExpressionNode, TableBinaryExpression,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::operator::{
-    operator_operand_signature, resolve_spelling_for_operands,
-};
+use typed_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
+use typed_trees::operator::{operator_operand_signature, resolve_spelling_for_operands};
 
 #[test]
 fn indexed_shared_collection_views_retain_exact_operator_and_closed_element() {
@@ -41,7 +37,7 @@ fn indexed_shared_collection_views_retain_exact_operator_and_closed_element() {
             .expect("index use");
         assert_eq!(
             operator_use.status,
-            crate::checked_trees::CheckedOperatorResolutionStatus::Resolved,
+            checked_trees::CheckedOperatorResolutionStatus::Resolved,
             "{collection}"
         );
         let operator = program
@@ -61,12 +57,12 @@ fn indexed_shared_collection_views_retain_exact_operator_and_closed_element() {
         };
         let operands =
             crate::operators::indexed_operand_types(&program, indexed, operator_use.origin);
-        let application = symbol_resolved_trees_to_typed_trees::typed_trees::operator::closed_indexed_operator_application_for_operands(
+        let application = typed_trees::operator::closed_indexed_operator_application_for_operands(
             &program, operator, &operands,
         )
         .expect("closed indexed binding");
         let [
-            symbol_resolved_trees_to_typed_trees::typed_trees::operator::ClosedOperatorApplicationArgument::Type {
+            typed_trees::operator::ClosedOperatorApplicationArgument::Type {
                 binder_symbol,
                 type_reference,
             },
@@ -91,7 +87,7 @@ fn indexed_shared_collection_views_retain_exact_operator_and_closed_element() {
                 "ordinary matching must not gain collection coercion"
             );
             assert!(
-                symbol_resolved_trees_to_typed_trees::typed_trees::operator::closed_operator_application_for_operands(
+                typed_trees::operator::closed_operator_application_for_operands(
                     &program, operator, &operands
                 )
                 .is_none()
@@ -125,9 +121,9 @@ fn indexed_collection_adaptation_preserves_other_operands_and_access() {
         assert_eq!(
             operator_use.status,
             if actual_collection == "&i32" {
-                crate::checked_trees::CheckedOperatorResolutionStatus::Missing
+                checked_trees::CheckedOperatorResolutionStatus::Missing
             } else {
-                crate::checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+                checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
             },
             "{source}"
         );
@@ -143,11 +139,11 @@ fn indexed_element_binding_is_shared_with_the_remaining_tuple() {
     for (index_type, expected_status) in [
         (
             "i32",
-            crate::checked_trees::CheckedOperatorResolutionStatus::Resolved,
+            checked_trees::CheckedOperatorResolutionStatus::Resolved,
         ),
         (
             "u64",
-            crate::checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback,
+            checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback,
         ),
     ] {
         let source = format!(
@@ -163,8 +159,7 @@ fn indexed_element_binding_is_shared_with_the_remaining_tuple() {
             .find_map(|(_, value)| (value.spelling == OperatorSpelling::Index).then_some(value))
             .expect("index use");
         assert_eq!(operator_use.status, expected_status, "{source}");
-        if expected_status == crate::checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
-        {
+        if expected_status == checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback {
             assert!(!operator_use.selected_operator_symbol.is_valid());
             assert_eq!(operator_use.candidate_count, 0);
         }
@@ -187,7 +182,7 @@ fn indexed_collection_views_do_not_rank_competing_candidates() {
         .expect("index use");
     assert_eq!(
         operator_use.status,
-        crate::checked_trees::CheckedOperatorResolutionStatus::Ambiguous
+        checked_trees::CheckedOperatorResolutionStatus::Ambiguous
     );
     assert_eq!(operator_use.candidate_count, 2);
     assert!(!operator_use.selected_operator_symbol.is_valid());
@@ -206,11 +201,11 @@ fn ranged_collection_views_check_both_endpoint_types() {
     for (end_type, expected_status) in [
         (
             "u64",
-            crate::checked_trees::CheckedOperatorResolutionStatus::Resolved,
+            checked_trees::CheckedOperatorResolutionStatus::Resolved,
         ),
         (
             "i32",
-            crate::checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback,
+            checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback,
         ),
     ] {
         let source = format!(
@@ -226,8 +221,7 @@ fn ranged_collection_views_check_both_endpoint_types() {
             .find_map(|(_, value)| (value.spelling == OperatorSpelling::Range).then_some(value))
             .expect("range use");
         assert_eq!(operator_use.status, expected_status, "{source}");
-        if expected_status == crate::checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
-        {
+        if expected_status == checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback {
             assert!(!operator_use.selected_operator_symbol.is_valid());
             assert_eq!(operator_use.candidate_count, 0);
         }
@@ -297,7 +291,7 @@ fn signature_requires_selects_domain_operator_without_flow_lookup() {
                     .span_or_empty(contract.facts)
                     .iter()
                     .any(|fact| match fact {
-                        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(membership) => {
+                        typed_trees::domain::ProofFact::Membership(membership) => {
                             typed.expression_table.display_name(membership.value) == "left"
                         }
                         _ => false,
@@ -448,9 +442,7 @@ fn flow_established_membership_does_not_select_domain_operator() {
         checked
             .facts
             .operators
-            .uses_with_status(
-                crate::checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
-            )
+            .uses_with_status(checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback)
             .any(|operator_use| operator_use.spelling == OperatorSpelling::Add)
     );
 }
@@ -497,7 +489,7 @@ fn binary_resolution_matches_the_complete_operand_tuple() {
     let left_symbol = SymbolHandle::from_arena_index(144);
     let right_symbol = SymbolHandle::from_arena_index(145);
 
-    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
+    let mut program = typed_trees::TypedTrees::default();
     let i32_type = named_type(&mut program, "i32");
     let u64_type = named_type(&mut program, "u64");
     for (operator_symbol, right_type) in [(i32_i32_symbol, i32_type), (i32_u64_symbol, u64_type)] {
@@ -573,14 +565,14 @@ fn binary_resolution_matches_the_complete_operand_tuple() {
             operator: BinaryOperator::Add,
             right,
         }));
-    let origin = crate::checked_trees::CheckedValueOrigin::StateStatement {
+    let origin = checked_trees::CheckedValueOrigin::StateStatement {
         machine_symbol,
         state_symbol,
         statement_index: 0,
-        role: crate::checked_trees::CheckedValueStatementRole::Expression,
+        role: checked_trees::CheckedValueStatementRole::Expression,
     };
     let mut value_roots = arena::Arena::default();
-    value_roots.append(crate::checked_trees::CheckedValueFact {
+    value_roots.append(checked_trees::CheckedValueFact {
         expression: binary,
         origin,
         ..Default::default()
@@ -588,7 +580,7 @@ fn binary_resolution_matches_the_complete_operand_tuple() {
 
     let facts = build_operator_facts(
         &program,
-        &crate::checked_trees::CheckedValueFacts::with_roots(value_roots),
+        &checked_trees::CheckedValueFacts::with_roots(value_roots),
     );
     let operator_use = facts
         .expression_use_in_origin(binary, origin)
@@ -599,7 +591,7 @@ fn binary_resolution_matches_the_complete_operand_tuple() {
 
 #[test]
 fn attached_receiver_normalizes_to_operand_position_zero() {
-    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
+    let mut program = typed_trees::TypedTrees::default();
     let receiver_type = named_type(&mut program, "Receiver");
     let right_type = named_type(&mut program, "Right");
     let mut operator =
@@ -655,7 +647,7 @@ fn complete_operand_matching_shares_generic_bindings_across_positions() {
     let left_symbol = SymbolHandle::from_arena_index(149);
     let right_symbol = SymbolHandle::from_arena_index(150);
 
-    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
+    let mut program = typed_trees::TypedTrees::default();
     let i32_type = named_type(&mut program, "i32");
     let u64_type = named_type(&mut program, "u64");
     let type_parameter = program
@@ -669,12 +661,11 @@ fn complete_operand_matching_shares_generic_bindings_across_positions() {
         operator_with_spelling(generic_operator_symbol, OperatorSpelling::Add);
     program.push_operator_type_parameter(
         &mut generic_operator,
-        symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameter {
+        typed_trees::data::TypeParameter {
             symbol: type_parameter_symbol,
             name: Identifier::generated("T"),
-            kind: symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Type,
-            bounds:
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataProperties::default(),
+            kind: typed_trees::data::TypeParameterKind::Type,
+            bounds: typed_trees::data::DataProperties::default(),
         },
     );
     for (symbol, name) in [(left_symbol, "left"), (right_symbol, "right")] {

@@ -40,10 +40,8 @@ mod write_preservation;
 pub(crate) use entry_requirements::proves_ranked_entry_requirement;
 pub(crate) use entry_requirements::proves_ranked_entry_requirement_with_call_frames;
 
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, ExpressionNode,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::ranking::{
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::ranking::{
     resolve_machine_witness_subjects, resolve_machine_witness_view_arguments,
 };
 
@@ -114,8 +112,7 @@ pub(super) enum DecreaseMeasure {
 pub(crate) struct ProvenNatCountdownScc {
     pub(crate) header_state: symbols::SymbolHandle,
     pub(crate) header_rank_parameter_position: u32,
-    pub(crate) rank_primitive_type:
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType,
+    pub(crate) rank_primitive_type: typed_trees::types::PrimitiveType,
     pub(crate) rank_lower_bound: u128,
     pub(crate) rank_upper_bound: u128,
     pub(crate) covered_cyclic_edges: Vec<ProvenNatCountdownEdge>,
@@ -136,16 +133,16 @@ pub(crate) struct ProvenNatCountdownEdge {
 /// checked-plan milestone.
 #[cfg(test)]
 pub(crate) fn proven_nat_countdown_sccs(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
 ) -> Option<Vec<ProvenNatCountdownScc>> {
     proven_nat_countdown_sccs_with_call_frames(program, machine, None)
 }
 
 pub(crate) fn proven_nat_countdown_sccs_with_call_frames(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<ProvenNatCountdownScc>> {
     let adjacency = graph::machine_adjacency(program, machine);
     let cyclic_components = graph::strongly_connected_components(&adjacency)
@@ -269,9 +266,9 @@ pub(crate) fn proven_nat_countdown_sccs_with_call_frames(
 /// Each member still ranks its own authored formal through its own witness —
 /// the checker remains the sole recognizer.
 pub(crate) fn proven_fused_nat_countdown_sccs_with_call_frames(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     member_states: &[symbols::SymbolHandle],
-    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<ProvenNatCountdownScc>> {
     if member_states.len() < 2 {
         return None;
@@ -443,10 +440,8 @@ pub(crate) fn proven_fused_nat_countdown_sccs_with_call_frames(
     Some(retained)
 }
 
-fn unsigned_maximum(
-    primitive: symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType,
-) -> Option<u128> {
-    use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
+fn unsigned_maximum(primitive: typed_trees::types::PrimitiveType) -> Option<u128> {
+    use typed_trees::types::PrimitiveType;
     match primitive {
         PrimitiveType::U8 => Some(u128::from(u8::MAX)),
         PrimitiveType::U16 => Some(u128::from(u16::MAX)),
@@ -466,10 +461,10 @@ fn unsigned_maximum(
 /// Retain the existing slice-length judgment's exact subjects for shared
 /// state-graph production. This does not establish Terminal ranking authority.
 pub(crate) fn proven_slice_length_ranks_with_call_frames(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
-) -> Option<Vec<crate::checked_trees::CheckedStateNaturalRank>> {
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<checked_trees::CheckedStateNaturalRank>> {
     let witness = machine.termination_plan.implementation_witness.as_ref()?;
     if witness.view_path != "Slice::Length"
         || !witness.view_arguments.is_empty()
@@ -499,11 +494,11 @@ pub(crate) fn proven_slice_length_ranks_with_call_frames(
                 .state_parameters(state)
                 .iter()
                 .position(|candidate| candidate.symbol == parameter.symbol)?;
-            ranks.push(crate::checked_trees::CheckedStateNaturalRank {
+            ranks.push(checked_trees::CheckedStateNaturalRank {
                 state: state.symbol,
                 parameter: parameter.symbol,
                 parameter_position: u32::try_from(parameter_position).ok()?,
-                measure: crate::checked_trees::CheckedNaturalRankMeasure::ByteSequenceLength,
+                measure: checked_trees::CheckedNaturalRankMeasure::ByteSequenceLength,
             });
         }
     }
@@ -521,10 +516,10 @@ pub(crate) fn proven_slice_length_ranks_with_call_frames(
 /// only through another tier (the relational rank-range judgment) keeps no
 /// shared ranks rather than a measure no edge proof names.
 pub(crate) fn proven_state_natural_ranks_with_call_frames(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
-) -> Option<Vec<crate::checked_trees::CheckedStateNaturalRank>> {
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<checked_trees::CheckedStateNaturalRank>> {
     let witness = machine.termination_plan.implementation_witness.as_ref()?;
     if witness.ranking_view == language_semantics::RankingViewId::SLICE_LENGTH {
         return proven_slice_length_ranks_with_call_frames(program, machine, call_frames);
@@ -600,9 +595,9 @@ pub(crate) fn proven_state_natural_ranks_with_call_frames(
 }
 
 pub(super) fn machine_decrease_outcome(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> DecreaseOutcome {
     let states = program.machine_states(machine);
     // The ranking clause is declared on the machine signature, so its names
@@ -757,8 +752,8 @@ pub(super) fn machine_decrease_outcome(
 /// declared-measure path (the plan's recorded spelling). Empty when the
 /// machine carries no witness or nothing resolves.
 pub(in crate::checks::termination) fn machine_resolved_view_path(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
 ) -> String {
     let Some(witness) = machine.termination_plan.implementation_witness.as_ref() else {
         return String::new();
@@ -819,15 +814,15 @@ fn canonical_order_path(order: &RankingOrder) -> Option<&'static str> {
 /// for well-foundedness around the cycle, and it composes the existing
 /// single-edge ranking proofs.
 fn component_has_proven_decrease<'p>(
-    program: &'p symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    program: &'p typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
     adjacency: &[Vec<usize>],
     component: &[usize],
     measure: DecreaseMeasure,
     order: &RankingOrder,
     orientation: DistanceOrientation,
-    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
-    bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> bool {
     let states = program.machine_states(machine);
     let edges = graph::cyclic_edges(adjacency, component);
@@ -881,9 +876,9 @@ fn component_has_proven_decrease<'p>(
 /// decrease the rank. One unclassifiable or merely forwarding alternative
 /// rejects the pair because that alternative may be taken on every traversal.
 fn cycle_edge_strictly_decreases(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    source: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-    target: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    source: &typed_trees::state::State,
+    target: &typed_trees::state::State,
     measure: DecreaseMeasure,
     order: &RankingOrder,
     orientation: DistanceOrientation,
@@ -922,14 +917,14 @@ fn cycle_edge_strictly_decreases(
 }
 
 fn state_has_proven_supported_self_loop<'p>(
-    program: &'p symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &'p typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     measure: DecreaseMeasure,
     order: &RankingOrder,
     orientation: DistanceOrientation,
-    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
-    bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> bool {
     // Slice-length, struct-view and lexicographic orders rank a single
     // decreasing value; only the nat provers understand the two-subject

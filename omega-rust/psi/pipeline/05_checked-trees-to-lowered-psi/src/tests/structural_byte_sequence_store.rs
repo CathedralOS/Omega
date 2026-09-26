@@ -1,20 +1,17 @@
 //! Source admission for whole bounded byte-field replacement.
 
-use super::ScalarType;
+use super::{ScalarType, lower_machine};
 use crate::TerminalMachineSelection;
-use crate::lower_machine;
 use crate::terminal_identities::{block_id, edge_id, value_id};
-use lowered_psi_to_terminal_psi::terminal_production::{
-    TerminalProductionCustody, TerminalProductionTimings,
+use checked_trees::{
+    CheckedScalarExpression, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
 };
 use semantic_vocabulary::IntegerValue;
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{
     Block, OperationKind, StructuralPathSegment, SuccessorEdge, Terminator, ValueDeclaration,
-};
-use typed_trees_to_checked_trees::checked_trees::{
-    CheckedScalarExpression, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
 };
 #[test]
 fn replaced_byte_field_length_reaches_canonical_interpretation() {
@@ -36,18 +33,15 @@ fn replaced_byte_field_length_reaches_canonical_interpretation() {
         }
         "#,
     );
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Record::measure",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("live field length publishes canonical Terminal after replacement")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Record::measure"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("live field length publishes canonical Terminal after replacement")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let entry = module
         .machines
@@ -140,7 +134,7 @@ fn byte_field_length_receiving_rejects_changed_root_and_field_paths() {
         let mutate = |value: &mut CheckedScalarExpression| {
             let CheckedScalarExpression::StructuralParameterByteLength {
                 root:
-                    typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::Parameter {
+                    checked_trees::CheckedStorageRoot::Parameter {
                         index: parameter_position,
                     },
                 path,
@@ -151,16 +145,16 @@ fn byte_field_length_receiving_rejects_changed_root_and_field_paths() {
             match mutation {
                 0 => {
                     *path.last_mut().unwrap() =
-                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Field("other".into())
+                        checked_trees::CheckedStructuralPredicatePathSegment::Field("other".into())
                 }
                 1 => *parameter_position = 1,
                 2 => path.clear(),
-                3 => path.push(typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Field(
+                3 => path.push(checked_trees::CheckedStructuralPredicatePathSegment::Field(
                     "out".into(),
                 )),
                 4 => {
                     *path.last_mut().unwrap() =
-                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Field("raw".into())
+                        checked_trees::CheckedStructuralPredicatePathSegment::Field("raw".into())
                 }
                 _ => unreachable!(),
             }
@@ -179,7 +173,7 @@ fn byte_field_length_receiving_rejects_changed_root_and_field_paths() {
                 } = operation
                 {
                     for argument in scalar_arguments {
-                        if let typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(value) = argument {
+                        if let checked_trees::CheckedCallScalarArgument::Pure(value) = argument {
                             changed_arguments += usize::from(mutate(value));
                         }
                     }
@@ -204,18 +198,15 @@ fn bounded_byte_field_literal_replacement_publishes_terminal() {
             machine Record::replace(&mut self) {{ self.out = "{literal}"; }}
             "#
         ));
-        let artifact =
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-                &checked,
-                lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                    "Record::replace",
-                ),
-            )
-            .produce(TerminalProductionCustody::artifact_only(
-                &mut TerminalProductionTimings::default(),
-            ))
-            .expect("checked literal replacement publishes verified Terminal")
-            .into_artifact();
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            terminal_production::TerminalMachineSelection::Name("Record::replace"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("checked literal replacement publishes verified Terminal")
+        .into_artifact();
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         terminal_verifier::validate_module(&module).unwrap();
         let entry = module
@@ -299,7 +290,7 @@ fn byte_field_store_receiving_rejects_literal_path_access_and_omission_drift() {
             .unwrap();
         if mutation == 3 {
             plan.structural_parameters[0].access =
-                typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow;
+                checked_trees::CheckedStructuralAccess::SharedBorrow;
         } else if mutation == 4 {
             plan.operations.remove(0);
         } else {
@@ -340,18 +331,15 @@ fn byte_replacements_preserve_sibling_and_call_order_at_each_fuel_pause() {
         }
     "#,
     );
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Record::run",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("mixed stores and receiver call publish together")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Record::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("mixed stores and receiver call publish together")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let entry = module
         .machines
@@ -487,18 +475,15 @@ fn nested_record_byte_field_store_retains_its_exact_carrier_path() {
         machine Holder::replace(&mut self) { self.record.out = "XY"; }
     "#,
     );
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Holder::replace",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .unwrap()
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Holder::replace"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let entry = module
         .machines

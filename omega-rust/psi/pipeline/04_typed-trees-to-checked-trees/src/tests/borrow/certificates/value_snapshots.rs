@@ -1,12 +1,10 @@
 //! Immutable boundary copies retain their value when the original changes.
 
 use super::sole_certificate;
-use crate::checked_trees::BorrowCompatibilitySelectorValue;
 use crate::tests::front_end::checked_program_result;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, ExpressionNode,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{StatementNode, TableLocalData};
+use checked_trees::BorrowCompatibilitySelectorValue;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::statement::{StatementNode, TableLocalData};
 
 fn fixture_result<T, E: std::fmt::Debug>(source: &str, stage: &str, result: Result<T, E>) -> T {
     result.unwrap_or_else(|error| {
@@ -15,7 +13,7 @@ fn fixture_result<T, E: std::fmt::Debug>(source: &str, stage: &str, result: Resu
     })
 }
 
-fn checked_source(source: &str) -> crate::checked_trees::CheckedTrees {
+fn checked_source(source: &str) -> checked_trees::CheckedTrees {
     fixture_result(
         source,
         "check snapshot fixture",
@@ -43,7 +41,7 @@ fn split_source(parameter: bool, body: &str) -> String {
     )
 }
 
-fn local(checked: &crate::checked_trees::CheckedTrees, name: &str) -> TableLocalData {
+fn local(checked: &checked_trees::CheckedTrees, name: &str) -> TableLocalData {
     checked
         .typed
         .machines()
@@ -63,7 +61,7 @@ fn local(checked: &crate::checked_trees::CheckedTrees, name: &str) -> TableLocal
 }
 
 fn change_local(
-    checked: &mut crate::checked_trees::CheckedTrees,
+    checked: &mut checked_trees::CheckedTrees,
     name: &str,
     mut change: impl FnMut(&mut TableLocalData),
 ) {
@@ -88,7 +86,7 @@ fn change_local(
     assert_eq!(changed, 1, "change one exact fixture declaration");
 }
 
-fn assert_snapshot(checked: &crate::checked_trees::CheckedTrees, reverse: bool) {
+fn assert_snapshot(checked: &checked_trees::CheckedTrees, reverse: bool) {
     let certificate = sole_certificate(checked);
     let cut = local(checked, "cut");
     let ExpressionNode::Name(original) =
@@ -119,11 +117,11 @@ fn assert_snapshot(checked: &crate::checked_trees::CheckedTrees, reverse: bool) 
     assert!(certificate.conclusion.non_interfering);
     assert_eq!(
         certificate.conclusion.containment,
-        crate::checked_trees::CapturedPlaceContainment::None
+        checked_trees::CapturedPlaceContainment::None
     );
     assert_eq!(
         certificate.derivation,
-        crate::checked_trees::BorrowCompatibilityDerivation::Structural
+        checked_trees::BorrowCompatibilityDerivation::Structural
     );
     assert!(
         checked
@@ -133,7 +131,7 @@ fn assert_snapshot(checked: &crate::checked_trees::CheckedTrees, reverse: bool) 
     );
 }
 
-fn assert_replay_rejects_snapshot_drift(checked: &mut crate::checked_trees::CheckedTrees) {
+fn assert_replay_rejects_snapshot_drift(checked: &mut checked_trees::CheckedTrees) {
     let before = checked.facts.borrow.compatibility_certificates.clone();
     let diagnostics =
         crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
@@ -273,7 +271,7 @@ fn immutable_copy_windows_certify_same_extent_and_replay() {
             let certificate = sole_certificate(&checked);
             assert_eq!(
                 certificate.conclusion.containment,
-                crate::checked_trees::CapturedPlaceContainment::Same,
+                checked_trees::CapturedPlaceContainment::Same,
                 "immutable copies of one boundary certify the same extent"
             );
             assert!(!certificate.conclusion.disjoint);
@@ -306,7 +304,7 @@ fn shared_symbol_offsets_certify_nested_window_containment_and_replay() {
         let cut = local(&checked, "cut").symbol;
         assert_eq!(
             certificate.conclusion.containment,
-            crate::checked_trees::CapturedPlaceContainment::RightContainsLeft,
+            checked_trees::CapturedPlaceContainment::RightContainsLeft,
             "the active [cut, cut + 2) window provably contains [cut, cut + 1)"
         );
         assert!(!certificate.conclusion.disjoint);
@@ -399,7 +397,7 @@ fn direct_mutable_bounds_do_not_license_adjacency_without_a_snapshot() {
     }
 }
 
-fn original_symbol(checked: &crate::checked_trees::CheckedTrees) -> symbols::SymbolHandle {
+fn original_symbol(checked: &checked_trees::CheckedTrees) -> symbols::SymbolHandle {
     checked
         .typed
         .machines()
@@ -449,14 +447,14 @@ fn direct_mutable_bounds_do_not_license_adjacency_even_when_shared_loans_are_adm
             assert!(!certificate.conclusion.disjoint);
             assert_eq!(
                 certificate.conclusion.containment,
-                crate::checked_trees::CapturedPlaceContainment::None
+                checked_trees::CapturedPlaceContainment::None
             );
             assert!(certificate.conclusion.non_interfering);
         }
     }
 }
 
-fn checked_with_spare_snapshot() -> crate::checked_trees::CheckedTrees {
+fn checked_with_spare_snapshot() -> checked_trees::CheckedTrees {
     checked_source(&split_source(
         false,
         "

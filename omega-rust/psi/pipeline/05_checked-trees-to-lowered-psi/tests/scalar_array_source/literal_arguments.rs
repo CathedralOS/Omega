@@ -4,8 +4,8 @@ use super::{
     ExpressionNode, IntegerSign, IntegerType, IntegerValue, PrimitiveType, TerminalExecutionResult,
     TerminalScalarValue, interpret_terminal_artifact, reject,
 };
+use checked_trees::CheckedArrayConstructionSource;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use typed_trees_to_checked_trees::checked_trees::CheckedArrayConstructionSource;
 
 fn byte(value: u8) -> TerminalScalarValue {
     TerminalScalarValue::Integer {
@@ -129,10 +129,11 @@ fn literal_array_scalar_graph_rejects_result_drift_without_closure_fallback() {
         match mutation {
             "type" => state.result_type = PrimitiveType::Bool,
             "binding" => state.bindings[0].statement_ordinal = u32::MAX,
-            "statement" => state.terminator =
-                typed_trees_to_checked_trees::checked_trees::CheckedScalarStateTerminator::Return {
+            "statement" => {
+                state.terminator = checked_trees::CheckedScalarStateTerminator::Return {
                     statement_ordinal: u32::MAX,
-                },
+                }
+            }
             _ => unreachable!(),
         }
         reject(&changed, mutation);
@@ -194,7 +195,7 @@ fn literal_array_scalar_completion_rejects_forged_result_metadata() {
         match mutation {
             "type" => {
                 plan.scalar_result.as_mut().unwrap().primitive_type =
-                    typed_trees_to_checked_trees::checked_trees::types::PrimitiveType::Bool
+                    checked_trees::types::PrimitiveType::Bool
             }
             "binding" => plan.scalar_result.as_mut().unwrap().binding_ordinal = u32::MAX,
             "statement" => plan.scalar_result.as_mut().unwrap().statement_index = u32::MAX,
@@ -453,7 +454,7 @@ fn computed_scalar_local_rejects_substituted_handle_and_source_root() {
                 matches!(
                     operation,
                     CheckedUnitEffectOperationPlan::EstablishScalarLocal {
-                        value: typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Computation(_),
+                        value: checked_trees::CheckedCallScalarArgument::Computation(_),
                         ..
                     }
                 )
@@ -467,7 +468,7 @@ fn computed_scalar_local_rejects_substituted_handle_and_source_root() {
         .filter_map(|(index, operation)| match operation {
             CheckedUnitEffectOperationPlan::EstablishScalarLocal {
                 result,
-                value: typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Computation(handle),
+                value: checked_trees::CheckedCallScalarArgument::Computation(handle),
             } => Some((index, result.statement_index, *handle)),
             _ => None,
         })
@@ -508,7 +509,7 @@ fn computed_scalar_local_rejects_substituted_handle_and_source_root() {
                 else {
                     unreachable!()
                 };
-                *value = typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Computation(locals[1].2);
+                *value = checked_trees::CheckedCallScalarArgument::Computation(locals[1].2);
             }
             "retained root" => {
                 changed
@@ -711,7 +712,7 @@ fn literal_array_nested_producers_cannot_impersonate_the_returned_call_result() 
                 .as_mut()
                 .expect("outer call result")
                 .source =
-                typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                     binding_ordinal,
                 };
             reject(
@@ -742,7 +743,7 @@ fn literal_array_argument_payload_cannot_change_under_retained_element_facts() {
         .flat_map(|machine| &machine.operations)
         .find_map(|operation| match operation {
             CheckedUnitEffectOperationPlan::StructuralCall {
-                source_site: Some(typed_trees_to_checked_trees::checked_trees::NominalMachineUseSite::Expression(expression)),
+                source_site: Some(checked_trees::NominalMachineUseSite::Expression(expression)),
                 ..
             } => Some(*expression),
             _ => None,

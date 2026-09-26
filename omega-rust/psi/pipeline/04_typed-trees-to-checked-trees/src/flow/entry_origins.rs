@@ -1,23 +1,21 @@
 //! Exact reference and immutable scalar origins across named-state arguments.
-use crate::checked_trees::FlowSemanticContextRef;
-use crate::checked_trees::expression::ExpressionNode;
-use crate::checked_trees::statement::StatementNode;
-use crate::fact_plan::{FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint};
 use crate::flow::FlowBuildContext;
 use crate::flow::reference_spans;
 use arena::HandleSpan;
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
-    TransitionExit, TransitionTargetNode,
-};
+use checked_trees::FlowSemanticContextRef;
+use checked_trees::expression::ExpressionNode;
+use checked_trees::statement::StatementNode;
+use facts::{FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint};
 use symbols::SymbolHandle;
+use typed_trees::statement::{TransitionExit, TransitionTargetNode};
 
 fn reference_type(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    program: &typed_trees::TypedTrees,
+    reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(reference) {
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { .. } => true,
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+        typed_trees::types::TypeReferenceNode::Reference { .. } => true,
+        typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
             reference_type(program, *base_type)
         }
         _ => false,
@@ -25,8 +23,8 @@ fn reference_type(
 }
 
 fn immutable_scalar(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    parameter: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter,
+    program: &typed_trees::TypedTrees,
+    parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
     !parameter.is_mutable
         && !parameter.is_self
@@ -37,16 +35,16 @@ fn immutable_scalar(
 }
 
 fn tracked_parameter(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    parameter: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter,
+    program: &typed_trees::TypedTrees,
+    parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
     reference_type(program, parameter.type_reference) || immutable_scalar(program, parameter)
 }
 
 fn stable_parameter(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     symbol: SymbolHandle,
 ) -> bool {
     program
@@ -55,7 +53,7 @@ fn stable_parameter(
         .find(|parameter| parameter.symbol == symbol)
         .is_some_and(|parameter| {
             immutable_scalar(program, parameter)
-                || crate::validation::state_reference_parameter_binding_is_stable(
+                || validation::state_reference_parameter_binding_is_stable(
                     program, machine, state, symbol,
                 )
         })
@@ -83,15 +81,15 @@ struct ParameterEdge {
 /// before the transition). Locals shadow same-named parameters, and each
 /// local's initializer only sees bindings that precede it.
 fn tracked_source_parameter<'a>(
-    program: &'a symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    source: &'a symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &'a typed_trees::TypedTrees,
+    source: &'a typed_trees::state::State,
     locals: &[(
         SymbolHandle,
-        Option<symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle>,
+        Option<typed_trees::expression::ExpressionHandle>,
     )],
-    argument: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
-    target: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter,
-) -> Option<&'a symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter> {
+    argument: typed_trees::expression::ExpressionHandle,
+    target: &typed_trees::signature::StateParameter,
+) -> Option<&'a typed_trees::signature::StateParameter> {
     let mut expression = argument;
     let mut visible = locals.len();
     loop {
@@ -132,15 +130,15 @@ fn tracked_source_parameter<'a>(
 }
 
 fn parameter_edges(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
 ) -> Vec<ParameterEdge> {
     let states = program.machine_states(machine);
     let mut edges = Vec::new();
     for (source_index, source) in states.iter().enumerate() {
         let mut locals: Vec<(
             SymbolHandle,
-            Option<symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle>,
+            Option<typed_trees::expression::ExpressionHandle>,
         )> = Vec::new();
         for statement in program.statement_table.statements(source.statement_nodes) {
             if let StatementNode::LocalData(local) = statement {
@@ -233,16 +231,16 @@ impl MachineParameterOrigins {
     /// machine that gained states since must be solved again.
     pub(super) fn covers(
         &self,
-        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-        machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+        program: &typed_trees::TypedTrees,
+        machine: &typed_trees::machine::Machine,
     ) -> bool {
         self.0.len() == program.machine_states(machine).len()
     }
 }
 
 pub(super) fn machine_parameter_origins(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
 ) -> MachineParameterOrigins {
     let states = program.machine_states(machine);
     if states.is_empty() {
@@ -311,9 +309,9 @@ pub(super) fn machine_parameter_origins(
 /// The entry-parameter identities `state`'s stable parameters carry on every
 /// incoming path, read from its machine's solved origins.
 pub(super) fn state_origins(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     solved: &MachineParameterOrigins,
 ) -> Vec<(SymbolHandle, SymbolHandle)> {
     let Some(state_index) = program
@@ -337,16 +335,16 @@ pub(super) fn state_origins(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn rebase_contexts(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     contexts: HandleSpan<FlowSemanticContextRef>,
     assumptions: bool,
 ) -> (
     HandleSpan<FlowSemanticContextRef>,
-    HandleSpan<crate::checked_trees::FlowExitParameterOrigin>,
+    HandleSpan<checked_trees::FlowExitParameterOrigin>,
 ) {
     let Some(entry) = program.machine_states(machine).first() else {
         return (contexts, HandleSpan::empty());
@@ -368,7 +366,7 @@ pub(super) fn rebase_contexts(
             .iter()
             .filter(|parameter| {
                 !reference_type(program, parameter.type_reference)
-                    || crate::validation::state_reference_parameter_binding_is_stable(
+                    || validation::state_reference_parameter_binding_is_stable(
                         program,
                         machine,
                         state,
@@ -466,7 +464,7 @@ pub(super) fn rebase_contexts(
                 for occurrence in contract_occurrences.iter().copied() {
                     if let Some(place) =
                         build.canonical_place_at(program, entry.symbol, 0, occurrence)
-                        && let crate::fact_plan::PlaceRoot::Symbol(root) = place.root
+                        && let facts::PlaceRoot::Symbol(root) = place.root
                     {
                         required_roots.push(root);
                     }
@@ -474,10 +472,10 @@ pub(super) fn rebase_contexts(
             }
             if let FactPlace::Place(place) = fact.place {
                 let mut place = *semantic.places.get(place);
-                if let crate::fact_plan::PlaceRoot::Symbol(root) = place.root {
+                if let facts::PlaceRoot::Symbol(root) = place.root {
                     required_roots.push(root);
                     if let Some((_, target)) = origins.iter().find(|(entry, _)| *entry == root) {
-                        place.root = crate::fact_plan::PlaceRoot::Symbol(*target);
+                        place.root = facts::PlaceRoot::Symbol(*target);
                         fact.place = FactPlace::Place(semantic.places.append(place));
                     }
                 }
@@ -505,7 +503,7 @@ pub(super) fn rebase_contexts(
                 if !assumptions && let Some(contract) = contract {
                     build.control.exit_parameter_origins.append_to_span(
                         &mut parameter_origins,
-                        crate::checked_trees::FlowExitParameterOrigin {
+                        checked_trees::FlowExitParameterOrigin {
                             contract,
                             entry_parameter: root,
                             state_parameter: target,

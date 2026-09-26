@@ -1,9 +1,9 @@
-use crate::checked_trees::expression::ExpressionHandle;
 use crate::semantic::calls::CallSite;
+use checked_trees::expression::ExpressionHandle;
 use symbols::SymbolHandle;
 
 pub(crate) fn call_site_argument_expressions<'program>(
-    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &'program typed_trees::TypedTrees,
     call_site: &CallSite<'program>,
 ) -> &'program [ExpressionHandle] {
     match call_site {
@@ -18,10 +18,10 @@ pub(crate) fn call_site_argument_expressions<'program>(
 }
 
 pub(crate) fn find_state_in_machine(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-) -> Option<&symbol_resolved_trees_to_typed_trees::typed_trees::state::State> {
+) -> Option<&typed_trees::state::State> {
     let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
     program
         .machine_states(machine)
@@ -30,9 +30,9 @@ pub(crate) fn find_state_in_machine(
 }
 
 pub(crate) fn find_state(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
-) -> Option<&symbol_resolved_trees_to_typed_trees::typed_trees::state::State> {
+) -> Option<&typed_trees::state::State> {
     find_state_with_machine(program, state_symbol).map(|(_, state)| state)
 }
 
@@ -44,12 +44,9 @@ pub(crate) fn find_state(
 /// candidates, mutation summaries — take this pair instead of resolving the
 /// state and then rescanning every machine for the container.
 pub(crate) fn find_state_with_machine(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
-) -> Option<(
-    &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-)> {
+) -> Option<(&typed_trees::machine::Machine, &typed_trees::state::State)> {
     if !state_symbol.is_valid() {
         return None;
     }
@@ -84,12 +81,9 @@ pub(crate) fn find_state_with_machine(
 /// state inside the machine — so the state arm still verifies the resolved
 /// state is stored first.
 pub(crate) fn find_machine_head(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     symbol: SymbolHandle,
-) -> Option<(
-    &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-)> {
+) -> Option<(&typed_trees::machine::Machine, &typed_trees::state::State)> {
     if let Some(machine) = crate::lookup::machine_by_symbol(program, symbol) {
         return program
             .machine_states(machine)
@@ -110,12 +104,9 @@ pub(crate) fn find_machine_head(
 /// is wider than those sites resolve, so they keep this narrower lookup
 /// rather than silently growing their admission.
 pub(crate) fn find_machine_by_entry_state(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
-) -> Option<(
-    &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-)> {
+) -> Option<(&typed_trees::machine::Machine, &typed_trees::state::State)> {
     program.machines().iter().find_map(|machine| {
         program
             .machine_states(machine)
@@ -134,9 +125,9 @@ pub(crate) fn find_machine_by_entry_state(
 /// the entry state. In a well-formed program the two arms name one machine:
 /// a symbol cannot be a machine and a machine's member at once.
 pub(crate) fn find_machine(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     symbol: SymbolHandle,
-) -> Option<&symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine> {
+) -> Option<&typed_trees::machine::Machine> {
     if !symbol.is_valid() {
         return None;
     }
@@ -152,9 +143,9 @@ pub(crate) fn find_machine(
 /// for a call through a trait-typed receiver (boundary trait machines) or a
 /// boundary-trait receiver -- the owning signature's parameters.
 pub(crate) fn call_target_parameters(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     target_state_symbol: SymbolHandle,
-) -> Option<&[symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter]> {
+) -> Option<&[typed_trees::signature::StateParameter]> {
     if target_state_symbol.is_valid()
         && let Some(machine) = crate::lookup::machine_by_symbol(program, target_state_symbol)
     {
@@ -188,9 +179,9 @@ pub(crate) fn call_target_parameters(
 /// against these bounds, not against an unrelated caller's same-spelled type
 /// parameter and not as an invented concrete type.
 pub(crate) fn call_target_type_parameters(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     target_state_symbol: SymbolHandle,
-) -> &[symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameter] {
+) -> &[typed_trees::data::TypeParameter] {
     if let Some(machine) = program.machines().iter().find(|machine| {
         target_state_symbol.is_valid()
             && (machine.symbol == target_state_symbol
@@ -227,18 +218,16 @@ mod tests {
         find_machine, find_machine_by_entry_state, find_machine_head, find_state,
         find_state_in_machine,
     };
-    use symbol_resolved_trees_to_typed_trees::typed_trees::{machine::Machine, state::State};
     use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+    use typed_trees::{machine::Machine, state::State};
 
     #[test]
     fn machine_head_calls_use_entry_parameters_and_the_same_generic_context() {
-        use symbol_resolved_trees_to_typed_trees::typed_trees::data::{
-            TypeParameter, TypeParameterKind,
-        };
-        use symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier;
-        use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
+        use typed_trees::data::{TypeParameter, TypeParameterKind};
+        use typed_trees::name::Identifier;
+        use typed_trees::signature::StateParameter;
 
-        let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
+        let mut program = typed_trees::TypedTrees::default();
         let machine_symbol = SymbolHandle::from_arena_index(40);
         let entry_symbol = SymbolHandle::from_arena_index(41);
         let later_symbol = SymbolHandle::from_arena_index(42);
@@ -301,7 +290,7 @@ mod tests {
 
     #[test]
     fn state_lookup_rejects_invalid_handles_but_retains_unresolved_table_fallback() {
-        let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
+        let mut program = typed_trees::TypedTrees::default();
         assert!(find_state(&program, SymbolHandle::invalid()).is_none());
 
         let machine_symbol = SymbolHandle::from_arena_index(40);
@@ -327,7 +316,7 @@ mod tests {
 
     #[test]
     fn machine_head_selects_the_machine_or_its_entry_state_only() {
-        let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
+        let mut program = typed_trees::TypedTrees::default();
         let machine_symbol = SymbolHandle::from_arena_index(40);
         let entry_symbol = SymbolHandle::from_arena_index(41);
         let later_symbol = SymbolHandle::from_arena_index(42);
@@ -370,7 +359,7 @@ mod tests {
         // find_machine_by_entry_state is narrower than find_machine_head: the
         // machine's own symbol and its later states resolve nothing, matching
         // the scalar call-lowering gates that spell targets as entry states.
-        let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
+        let mut program = typed_trees::TypedTrees::default();
         let machine_symbol = SymbolHandle::from_arena_index(40);
         let entry_symbol = SymbolHandle::from_arena_index(41);
         let later_symbol = SymbolHandle::from_arena_index(42);
@@ -423,9 +412,9 @@ mod tests {
             .next()
             .expect("state");
 
-        let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees {
+        let mut program = typed_trees::TypedTrees {
             symbols: symbols.finish(),
-            ..symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default()
+            ..typed_trees::TypedTrees::default()
         };
         program.push_machine(Machine {
             symbol: machine_symbol,
@@ -466,9 +455,9 @@ mod tests {
             .next()
             .expect("state");
 
-        let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees {
+        let mut program = typed_trees::TypedTrees {
             symbols: symbols.finish(),
-            ..symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default()
+            ..typed_trees::TypedTrees::default()
         };
         let mut stored_machine = Machine {
             symbol: stored_machine_symbol,
@@ -499,7 +488,7 @@ mod tests {
         // machine: a state stored under another machine, and a machine handle
         // that names nothing, both reject. Only find_state's whole-program
         // fallback admits a state whose retained parent disagrees.
-        let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
+        let mut program = typed_trees::TypedTrees::default();
         let machine_symbol = SymbolHandle::from_arena_index(40);
         let other_machine_symbol = SymbolHandle::from_arena_index(41);
         let state_symbol = SymbolHandle::from_arena_index(42);
@@ -540,16 +529,12 @@ mod tests {
         // A trait requirement's own signature is a call target resolved in the
         // trait's scope: its parameters and the trait's generic context answer
         // without any machine owning the symbol.
-        use symbol_resolved_trees_to_typed_trees::typed_trees::data::{
-            TypeParameter, TypeParameterKind,
-        };
-        use symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier;
-        use symbol_resolved_trees_to_typed_trees::typed_trees::signature::{
-            StateParameter, StateSignature,
-        };
-        use symbol_resolved_trees_to_typed_trees::typed_trees::trait_definition::TraitDefinition;
+        use typed_trees::data::{TypeParameter, TypeParameterKind};
+        use typed_trees::name::Identifier;
+        use typed_trees::signature::{StateParameter, StateSignature};
+        use typed_trees::trait_definition::TraitDefinition;
 
-        let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default();
+        let mut program = typed_trees::TypedTrees::default();
         let trait_symbol = SymbolHandle::from_arena_index(50);
         let signature_symbol = SymbolHandle::from_arena_index(51);
         let parameter_symbol = SymbolHandle::from_arena_index(52);

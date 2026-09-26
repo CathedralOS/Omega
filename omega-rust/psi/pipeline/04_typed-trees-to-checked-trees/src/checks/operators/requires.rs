@@ -39,24 +39,20 @@
 
 use std::cmp::Ordering;
 
-use crate::checked_trees::{CheckFacts, CheckedOperatorFacts, CheckedOperatorResolutionStatus};
-use crate::fact_plan::{FactContextHandle, FactPayload, FactPlace, FactPlan};
+use checked_trees::{CheckFacts, CheckedOperatorFacts, CheckedOperatorResolutionStatus};
 use diagnostics::Diagnostic;
+use facts::{FactContextHandle, FactPayload, FactPlace, FactPlan};
 use language_core::operator_spelling::OperatorSpelling;
 use numerics::bignum::{BigInt, BigRational, ExactFloat, IeeeRounding};
 use numerics::literals::{FloatFormat, FloatLiteral};
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
-use symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition;
-use symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionLabels;
-use symbol_resolved_trees_to_typed_trees::typed_trees::signature::{
-    SignatureContractKind, StateParameter,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
 use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
+use typed_trees::domain::ProofFact;
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
+use typed_trees::operator::OperatorDefinition;
+use typed_trees::proposition::PropositionLabels;
+use typed_trees::signature::{SignatureContractKind, StateParameter};
+use typed_trees::types::PrimitiveType;
 
 use super::super::contracts::labels::domain_proves_expression_label;
 use crate::labels::{
@@ -75,9 +71,9 @@ mod tests;
 /// selected comparisons have no inferred arithmetic/complement laws here.
 pub(crate) fn operator_route_is_false(
     program: &TypedTrees,
-    flow: &crate::checked_trees::FlowFacts,
+    flow: &checked_trees::FlowFacts,
     semantic: &FactPlan,
-    operator_use: arena::Handle<crate::checked_trees::CheckedOperatorUseFact>,
+    operator_use: arena::Handle<checked_trees::CheckedOperatorUseFact>,
     parameters: &[StateParameter],
     operands: &[ExpressionHandle],
     expression: ExpressionHandle,
@@ -106,9 +102,9 @@ pub(crate) fn operator_route_is_false(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn named_operator_route_is_false(
     program: &TypedTrees,
-    flow: &crate::checked_trees::FlowFacts,
+    flow: &checked_trees::FlowFacts,
     semantic: &FactPlan,
-    named_use: arena::Handle<crate::checked_trees::CheckedNamedOperatorUseFact>,
+    named_use: arena::Handle<checked_trees::CheckedNamedOperatorUseFact>,
     parameters: &[StateParameter],
     operands: &[ExpressionHandle],
     operand_labels: &[String],
@@ -134,7 +130,7 @@ fn operand_labels(program: &TypedTrees, operands: &[ExpressionHandle]) -> Vec<St
         .map(|operand| {
             program.render_proof_expression(
                 *operand,
-                symbol_resolved_trees_to_typed_trees::typed_trees::proposition::ProofSubstitutions::None,
+                typed_trees::proposition::ProofSubstitutions::None,
             )
         })
         .collect()
@@ -153,7 +149,7 @@ fn expression_has_polarity(
     match program.expression_table.expression(expression) {
         ExpressionNode::Boolean(value) => return *value == polarity,
         ExpressionNode::Unary(unary)
-            if unary.operator == symbol_resolved_trees_to_typed_trees::typed_trees::expression::UnaryOperator::LogicalNot =>
+            if unary.operator == typed_trees::expression::UnaryOperator::LogicalNot =>
         {
             return expression_has_polarity(
                 program,
@@ -236,10 +232,10 @@ pub(super) fn selected_binary_requires_diagnostics(
     let mut diagnostics = Vec::new();
 
     for (operator_use_handle, operator_use) in facts.operators.uses.iter() {
-        if operator_use.status != crate::checked_trees::CheckedOperatorResolutionStatus::Resolved {
+        if operator_use.status != checked_trees::CheckedOperatorResolutionStatus::Resolved {
             continue;
         }
-        if let crate::checked_trees::CheckedOperatorOccurrence::MatchEquality { source_arm } =
+        if let checked_trees::CheckedOperatorOccurrence::MatchEquality { source_arm } =
             operator_use.occurrence
             && let ExpressionNode::Match(dispatch) =
                 program.expression_table.expression(operator_use.expression)
@@ -251,7 +247,7 @@ pub(super) fn selected_binary_requires_diagnostics(
                 .match_arms(dispatch.arms)
                 .iter()
                 .take(ordinal as usize)
-                .any(|arm| matches!(arm.pattern, symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Wildcard))
+                .any(|arm| matches!(arm.pattern, typed_trees::expression::MatchPattern::Wildcard))
         {
             continue;
         }
@@ -331,12 +327,10 @@ pub(super) fn selected_binary_requires_diagnostics(
     // a path. A reference formal reads its referent in the predicate, so the
     // operand labels name referents rather than borrow expressions.
     for (named_use_handle, named_use) in facts.operators.named_uses.iter() {
-        let Some(operator) =
-            symbol_resolved_trees_to_typed_trees::typed_trees::operator::declaration_by_symbol(
-                program,
-                named_use.selected_operator_symbol,
-            )
-        else {
+        let Some(operator) = typed_trees::operator::declaration_by_symbol(
+            program,
+            named_use.selected_operator_symbol,
+        ) else {
             continue;
         };
         // The ranges seam owns `[]`/`[..]` discharge for the spelling it
@@ -426,12 +420,12 @@ pub(super) fn selected_binary_requires_diagnostics(
                 .statements(state.statement_nodes)
                 .iter()
             {
-                let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Call(call) = statement else {
+                let typed_trees::statement::StatementNode::Call(call) = statement else {
                     continue;
                 };
                 let Some(operator) = crate::flow::resolved_operator_statement_symbol(program, call)
                     .and_then(|symbol| {
-                        symbol_resolved_trees_to_typed_trees::typed_trees::operator::declaration_by_symbol(program, symbol)
+                        typed_trees::operator::declaration_by_symbol(program, symbol)
                     })
                 else {
                     continue;
@@ -517,7 +511,7 @@ fn requires_fact_proven(
     operators: &CheckedOperatorFacts,
     contexts: &InvocationContexts<'_>,
     parameters: &[StateParameter],
-    type_parameters: &[symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameter],
+    type_parameters: &[typed_trees::data::TypeParameter],
     operands: &[ExpressionHandle],
     operand_labels: &[String],
     fact: &ProofFact,
@@ -822,10 +816,7 @@ fn context_proves_membership_label(
     value_label: &str,
     required_domain: SymbolHandle,
 ) -> bool {
-    if !symbol_resolved_trees_to_typed_trees::typed_trees::domain::supports_symbol_only_proof(
-        program,
-        required_domain,
-    ) {
+    if !typed_trees::domain::supports_symbol_only_proof(program, required_domain) {
         return false;
     }
     let context = semantic.contexts.get(context);
@@ -843,10 +834,7 @@ fn context_proves_membership_label(
             } => (domain_symbol, value),
             _ => return false,
         };
-        if !symbol_resolved_trees_to_typed_trees::typed_trees::domain::supports_symbol_only_proof(
-            program,
-            fact_domain,
-        ) {
+        if !typed_trees::domain::supports_symbol_only_proof(program, fact_domain) {
             return false;
         }
         if !semantic.domain_implies(fact_domain, required_domain)
@@ -943,7 +931,7 @@ enum ClosedScalar {
 fn reflexive_comparison_holds(
     program: &TypedTrees,
     parameters: &[StateParameter],
-    type_parameters: &[symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameter],
+    type_parameters: &[typed_trees::data::TypeParameter],
     expression: ExpressionHandle,
 ) -> bool {
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
@@ -961,14 +949,13 @@ fn reflexive_comparison_holds(
     ) else {
         return false;
     };
-    let single =
-        |path: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableNamePath| {
-            program
-                .expression_table
-                .name_path_members(path.members)
-                .len()
-                == 1
-        };
+    let single = |path: &typed_trees::expression::TableNamePath| {
+        program
+            .expression_table
+            .name_path_members(path.members)
+            .len()
+            == 1
+    };
     if !left.symbol.is_valid() || left.symbol != right.symbol || !single(left) || !single(right) {
         return false;
     }
@@ -981,8 +968,8 @@ fn reflexive_comparison_holds(
                 .iter()
                 .find(|parameter| parameter.symbol == left.symbol)
                 .and_then(|parameter| match parameter.kind {
-                    symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Const { type_reference }
-                    | symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Value { type_reference } => {
+                    typed_trees::data::TypeParameterKind::Const { type_reference }
+                    | typed_trees::data::TypeParameterKind::Value { type_reference } => {
                         Some(type_reference)
                     }
                     _ => None,
@@ -1092,7 +1079,7 @@ fn operand_for_parameter(
     program: &TypedTrees,
     parameters: &[StateParameter],
     operands: &[ExpressionHandle],
-    path: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableNamePath,
+    path: &typed_trees::expression::TableNamePath,
 ) -> Option<ExpressionHandle> {
     if !path.symbol.is_valid()
         || program
@@ -1278,7 +1265,7 @@ fn closed_operators_are_builtin(
 fn operator_use_is_builtin_meaning(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
-    operator_use: &crate::checked_trees::CheckedOperatorUseFact,
+    operator_use: &checked_trees::CheckedOperatorUseFact,
 ) -> bool {
     match operator_use.status {
         CheckedOperatorResolutionStatus::BuiltinFallback => true,
@@ -1310,7 +1297,7 @@ fn contexts_prove_case_membership(
     let Some(formal) = crate::flow::canonical_place_from_expression(program, subject) else {
         return false;
     };
-    let crate::fact_plan::PlaceRoot::Symbol(symbol) = formal.root else {
+    let facts::PlaceRoot::Symbol(symbol) = formal.root else {
         return false;
     };
     let Some(position) = parameters

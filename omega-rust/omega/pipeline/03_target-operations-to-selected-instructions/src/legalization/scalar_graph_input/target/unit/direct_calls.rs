@@ -8,9 +8,7 @@ use super::{
     AbstractOperation, AbstractOperationPlan, LegalizationError, PsiOptimizationFunction,
     PsiOptimizationUnit, Source, TargetOperationPlan, TargetUnitOperation, ValueId, callee_plan,
 };
-use abstract_operations_to_target_operations::target_operations::{
-    NativeCallOrigin, TargetCallResult,
-};
+use target_operations::{NativeCallOrigin, TargetCallResult};
 
 mod results;
 

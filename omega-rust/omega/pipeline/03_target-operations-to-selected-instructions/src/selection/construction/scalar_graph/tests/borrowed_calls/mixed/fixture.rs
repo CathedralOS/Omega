@@ -10,8 +10,8 @@ use super::super::{
     evaluate_call_plan, returned,
 };
 use super::{LegalizedScalarFunction, LegalizedScalarInstructionKind};
-use crate::legalized_operations::{LegalizedExactIntegerOperator, LegalizedScalarSuccessor};
 use crate::selection::construction::scalar_graph::tests::borrowed_calls::borrowed_call;
+use legalized_operations::{LegalizedExactIntegerOperator, LegalizedScalarSuccessor};
 use semantic_vocabulary::ObligationId;
 
 pub(super) fn source(
@@ -107,11 +107,7 @@ pub(super) fn source(
             .chain(std::iter::once(borrowed.clone()))
             .collect();
         row.kind = LegalizedScalarInstructionKind::Call(call);
-        row.ownership = vec![
-            terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::ClaimTransfer(
-                Vec::new(),
-            ),
-        ];
+        row.ownership = vec![optimization_unit::OwnershipEvent::ClaimTransfer(Vec::new())];
     }
     returned(&mut source.blocks[0]).value = LegalizedScalarReturnValue::Value {
         value: ValueId::new(4).unwrap(),
@@ -143,7 +139,7 @@ fn branches(source: &mut LegalizedScalarFunction) {
         },
     });
     comparison.kind = LegalizedScalarInstructionKind::Compare {
-        predicate: crate::legalized_operations::LegalizedScalarComparison::LessThan,
+        predicate: legalized_operations::LegalizedScalarComparison::LessThan,
         operand_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
         left: ValueId::new(3).unwrap(),
         right: ValueId::new(1).unwrap(),
@@ -197,7 +193,7 @@ fn branches(source: &mut LegalizedScalarFunction) {
 
 pub(super) fn constraints(
     source: &LegalizedScalarFunction,
-    environment: &crate::register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
 ) -> SelectedSelectionConstraints {
     SelectedSelectionConstraints {
         keys: environment.selected_keys(),

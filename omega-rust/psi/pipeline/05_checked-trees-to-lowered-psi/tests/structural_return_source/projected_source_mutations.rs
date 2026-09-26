@@ -1,26 +1,25 @@
 //! Semantic ownership facts must rejoin retained plans, not merely agree in size.
 
+use checked_trees::FlowClaimOutcomeSource;
 use language_semantics::{
     Multiplicity, PermissionAccess, PermissionEventKind, PermissionEventSource,
 };
-use lowered_psi_to_terminal_psi::terminal_production::{
+use terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
-use typed_trees_to_checked_trees::checked_trees::FlowClaimOutcomeSource;
 
 #[test]
 fn projected_returns_reject_changed_semantic_outcome_paths_and_rosters() {
     let checked = super::projected_claims::checked(2);
-    let _artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("Main::demand"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("valid projected customer publishes before mutation")
-        .into_artifact();
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::demand"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("valid projected customer publishes before mutation")
+    .into_artifact();
     let callee = checked
         .machines()
         .iter()
@@ -48,7 +47,7 @@ fn projected_returns_reject_changed_semantic_outcome_paths_and_rosters() {
                 .ownership
                 .segments
                 .span_or_empty(entry.output_segments),
-            &[typed_trees_to_checked_trees::fact_plan::PlaceSegment::FixedIndex { index }]
+            &[facts::PlaceSegment::FixedIndex { index }]
         );
         let FlowClaimOutcomeSource::Input { segments, .. } = entry.source else {
             panic!("closed forwarding continues an input")
@@ -60,7 +59,7 @@ fn projected_returns_reject_changed_semantic_outcome_paths_and_rosters() {
                 .ownership
                 .segments
                 .span_or_empty(segments),
-            &[typed_trees_to_checked_trees::fact_plan::PlaceSegment::FixedIndex { index }]
+            &[facts::PlaceSegment::FixedIndex { index }]
         );
     }
     for mutation in [
@@ -76,9 +75,9 @@ fn projected_returns_reject_changed_semantic_outcome_paths_and_rosters() {
             "input_index" | "output_index" => {
                 // Allocate a fresh path: input/output spans may share storage,
                 // and this control must change only one side of the equation.
-                let changed = ownership.segments.insert_many([
-                    typed_trees_to_checked_trees::fact_plan::PlaceSegment::FixedIndex { index: 1 },
-                ]);
+                let changed = ownership
+                    .segments
+                    .insert_many([facts::PlaceSegment::FixedIndex { index: 1 }]);
                 if mutation == "input_index" {
                     let FlowClaimOutcomeSource::Input {
                         parameter_symbol, ..
@@ -103,7 +102,7 @@ fn projected_returns_reject_changed_semantic_outcome_paths_and_rosters() {
         let entries = ownership.claim_outcome_entries.insert_many(entries);
         ownership.claim_outcome_maps.get_mut(map_handle).entries = entries;
         assert!(
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            terminal_production::TerminalProductionRequest::new(
                 &invalid,
                 TerminalMachineSelection::Name("Main::demand")
             )
@@ -119,16 +118,15 @@ fn projected_returns_reject_changed_semantic_outcome_paths_and_rosters() {
 #[test]
 fn projected_returns_reject_same_path_semantic_claim_identity_swaps() {
     let checked = super::projected_claims::checked(2);
-    let _artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("Main::demand"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("valid projected customer publishes before mutation")
-        .into_artifact();
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::demand"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("valid projected customer publishes before mutation")
+    .into_artifact();
     for entry in [true, false] {
         let name = if entry {
             "Main::forward"
@@ -199,7 +197,7 @@ fn projected_returns_reject_same_path_semantic_claim_identity_swaps() {
             .get_mut(*second_handle)
             .claim_identity = first.claim_identity;
         assert!(
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            terminal_production::TerminalProductionRequest::new(
                 &invalid,
                 TerminalMachineSelection::Name("Main::demand")
             )

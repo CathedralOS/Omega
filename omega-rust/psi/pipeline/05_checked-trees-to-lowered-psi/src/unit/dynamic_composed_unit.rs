@@ -39,6 +39,10 @@ use super::{
     place_id, terminal_scalar_type, unsupported, value_id,
 };
 use crate::unit::dynamic_composed_unit::dynamic_lanes::{DynamicCall, DynamicLoweringLane};
+use checked_trees::{
+    CheckedBooleanExpression, CheckedDynamicScalarCallPlan, CheckedScalarExpression,
+    CheckedStructuralAccess,
+};
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{
     Block, Operation, OperationKind, OperationResult, StructuralAccess,
@@ -47,10 +51,6 @@ use terminal_psi::{
     TerminalDynamicDescriptorParameter, TerminalDynamicDescriptorSource,
     TerminalDynamicDispatchCatalog, TerminalMachine, TerminalMachineResult, TerminalModule,
     TerminalParameterDynamicDispatch, Terminator, ValueDeclaration,
-};
-use typed_trees_to_checked_trees::checked_trees::{
-    CheckedBooleanExpression, CheckedDynamicScalarCallPlan, CheckedScalarExpression,
-    CheckedStructuralAccess,
 };
 
 /// What one dynamic dispatch lowering retains about its source machines.
@@ -74,18 +74,16 @@ enum DynamicDispatchRoute<'a, Call> {
         lane: DynamicLoweringLane<'a>,
     },
     Joined {
-        control: &'a typed_trees_to_checked_trees::checked_trees::CheckedDynamicJoinControlPlan,
-        when_true:
-            &'a typed_trees_to_checked_trees::checked_trees::CheckedDynamicJoinBranchPlan<Call>,
-        when_false:
-            &'a typed_trees_to_checked_trees::checked_trees::CheckedDynamicJoinBranchPlan<Call>,
+        control: &'a checked_trees::CheckedDynamicJoinControlPlan,
+        when_true: &'a checked_trees::CheckedDynamicJoinBranchPlan<Call>,
+        when_false: &'a checked_trees::CheckedDynamicJoinBranchPlan<Call>,
     },
 }
 
 fn dynamic_dispatch_route<Call>(
-    binding: &typed_trees_to_checked_trees::checked_trees::CheckedDynamicBinding<Call>,
+    binding: &checked_trees::CheckedDynamicBinding<Call>,
 ) -> DynamicDispatchRoute<'_, Call> {
-    use typed_trees_to_checked_trees::checked_trees::CheckedDynamicBinding;
+    use checked_trees::CheckedDynamicBinding;
     match binding {
         CheckedDynamicBinding::Direct(call) => DynamicDispatchRoute::Single {
             call,
@@ -115,11 +113,9 @@ fn dynamic_dispatch_route<Call>(
 /// lowering route, then lower that route under the plan's result shape.
 pub(crate) fn lower_dynamic_dispatch_machine(
     checked: &CheckedTrees,
-    plan: &typed_trees_to_checked_trees::checked_trees::CheckedDynamicDispatchPlan,
+    plan: &checked_trees::CheckedDynamicDispatchPlan,
 ) -> Result<LoweredDynamicDispatch, LoweringError> {
-    use typed_trees_to_checked_trees::checked_trees::{
-        CheckedDynamicBindingKind, CheckedDynamicDispatchPlan,
-    };
+    use checked_trees::{CheckedDynamicBindingKind, CheckedDynamicDispatchPlan};
     if checked
         .facts
         .flow

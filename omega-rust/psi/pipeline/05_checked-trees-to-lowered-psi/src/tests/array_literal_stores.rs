@@ -4,8 +4,8 @@
 
 use super::lower_machine;
 use crate::TerminalMachineSelection;
+use checked_trees::{CheckedTrees, CheckedUnitEffectOperationPlan};
 use terminal_psi::OperationKind;
-use typed_trees_to_checked_trees::checked_trees::{CheckedTrees, CheckedUnitEffectOperationPlan};
 
 const SOURCE: &str = r#"
     data Board { cells: [u16; 3]; }

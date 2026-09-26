@@ -1,10 +1,10 @@
 //! Source and resource custody for statically captured alias projections.
 use super::{CheckedUnitEffectOperationPlan, source, unit_plan};
-use lowered_psi_to_terminal_psi::terminal_production::{
+use checked_trees::expression::ExpressionNode;
+use checked_trees::statement::StatementNode;
+use terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
-use typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode;
-use typed_trees_to_checked_trees::checked_trees::statement::StatementNode;
 
 #[test]
 fn projected_aliases_compose_formation_and_receiver_paths() {
@@ -86,16 +86,15 @@ fn projected_aliases_compose_formation_and_receiver_paths() {
                 panic!("projected receiver call");
             };
             assert_eq!(structural_arguments[0].path.len(), path_length, "{text}");
-            let artifact =
-                lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-                    &checked,
-                    TerminalMachineSelection::Name(caller_name),
-                )
-                .produce(TerminalProductionCustody::artifact_only(
-                    &mut TerminalProductionTimings::default(),
-                ))
-                .unwrap_or_else(|error| panic!("{text}: {error:?}"))
-                .into_artifact();
+            let artifact = terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name(caller_name),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .unwrap_or_else(|error| panic!("{text}: {error:?}"))
+            .into_artifact();
             let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
             assert_eq!(
                 module.reborrow_root_handoffs.len(),
@@ -118,16 +117,15 @@ fn bare_attached_alias_capture_keeps_its_authored_name_identity() {
         "let held: &write Record = &write records[1];",
         "held.replace(value);",
     ));
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &original,
-            TerminalMachineSelection::Name("Container::forward"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .unwrap()
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &original,
+        TerminalMachineSelection::Name("Container::forward"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     assert!(terminal_codec::decode_module(artifact.semantic_bytes()).is_ok());
     let (resource_handle, resource) = original
         .facts
@@ -159,13 +157,8 @@ fn bare_attached_alias_capture_keeps_its_authored_name_identity() {
     let ExpressionNode::Name(name) = original.expression_table.expression(name_handle) else {
         panic!("bare field");
     };
-    let field = typed_trees_to_checked_trees::validation::exact_attached_field(
-        &original.typed,
-        machine,
-        name.symbol,
-        "records",
-    )
-    .unwrap();
+    let field =
+        validation::exact_attached_field(&original.typed, machine, name.symbol, "records").unwrap();
     assert_eq!(resource.captured_place.root_symbol, name.symbol);
     assert_ne!(name.symbol, field.symbol);
     for mutation in 0..3 {
@@ -199,7 +192,7 @@ fn bare_attached_alias_capture_keeps_its_authored_name_identity() {
             }
         }
         assert!(
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            terminal_production::TerminalProductionRequest::new(
                 &checked,
                 TerminalMachineSelection::Name("Container::forward")
             )
@@ -219,16 +212,15 @@ fn projected_alias_replay_rejects_source_and_captured_place_substitution() {
         "let held: &write Record = &write destination[1];",
         "held.replace(value);",
     ));
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &original,
-            TerminalMachineSelection::Name("forward"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .unwrap()
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &original,
+        TerminalMachineSelection::Name("forward"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     assert!(terminal_codec::decode_module(artifact.semantic_bytes()).is_ok());
     let caller = unit_plan(&original, "forward").machine;
     let machine = original
@@ -284,8 +276,7 @@ fn projected_alias_replay_rejects_source_and_captured_place_substitution() {
                     .direct_loan_resources
                     .get_mut(resource_handle)
                     .captured_place
-                    .segments[0] =
-                    typed_trees_to_checked_trees::fact_plan::PlaceSegment::FixedIndex { index: 0 }
+                    .segments[0] = facts::PlaceSegment::FixedIndex { index: 0 }
             }
             3 => {
                 let ExpressionNode::Indexed(indexed) =
@@ -316,11 +307,11 @@ fn projected_alias_replay_rejects_source_and_captured_place_substitution() {
                     panic!("call");
                 };
                 structural_arguments[0].path[0] =
-                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(0);
+                    checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(0);
             }
         }
         assert!(
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            terminal_production::TerminalProductionRequest::new(
                 &checked,
                 TerminalMachineSelection::Name("forward")
             )
@@ -340,16 +331,15 @@ fn projected_self_alias_replay_binds_field_capture_and_nested_suffix() {
         "let held: &write Container = &write self.container; let child: &write Record = &write held.records[1];",
         "child.replace(value);",
     ));
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &original,
-            TerminalMachineSelection::Name("Nested::forward"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .unwrap()
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &original,
+        TerminalMachineSelection::Name("Nested::forward"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert_eq!(module.reborrow_root_handoffs[0].lineage.len(), 1);
     let (direct_handle, direct) = original
@@ -425,7 +415,7 @@ fn projected_self_alias_replay_binds_field_capture_and_nested_suffix() {
             }
         }
         assert!(
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            terminal_production::TerminalProductionRequest::new(
                 &checked,
                 TerminalMachineSelection::Name("Nested::forward")
             )

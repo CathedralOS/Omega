@@ -29,17 +29,16 @@ fn constrained_type_composes_predicate_bodies_without_flow_minting_role_only_dom
         .iter()
         .find(|data| data.name.as_str() == "Packet")
         .expect("packet data");
-    let field_type =
-        typed
-            .data_members(packet)
-            .iter()
-            .find_map(|member| match member {
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
-                    field,
-                ) if field.name.as_str() == "bytes" => Some(field.type_reference),
-                _ => None,
-            })
-            .expect("bytes field");
+    let field_type = typed
+        .data_members(packet)
+        .iter()
+        .find_map(|member| match member {
+            typed_trees::data::DataMember::Field(field) if field.name.as_str() == "bytes" => {
+                Some(field.type_reference)
+            }
+            _ => None,
+        })
+        .expect("bytes field");
 
     let names: Vec<_> =
         crate::facts::field_domain::predicate_domain_constraint_symbols(&typed, field_type)
@@ -151,7 +150,7 @@ fn materializes_domain_dependency_facts() {
     "#;
 
     let typed = typed_program(source);
-    let proof_plan = crate::proof_engine::obligations::build_proof_plan(&typed);
+    let proof_plan = proof::obligations::build_proof_plan(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let semantic = build_semantic_facts(&typed, &proof);
@@ -179,7 +178,7 @@ fn materializes_domain_dependency_facts() {
         .filter_map(|path| {
             let segments = domains.segments.span_or_empty(path.segments);
             match segments {
-                [crate::fact_plan::PlaceSegment::Field { symbol }] => Some(*symbol),
+                [facts::PlaceSegment::Field { symbol }] => Some(*symbol),
                 _ => None,
             }
         })
@@ -195,7 +194,7 @@ fn materializes_domain_dependency_facts() {
         .data_members(player)
         .iter()
         .filter_map(|member| match member {
-            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field)
+            typed_trees::data::DataMember::Field(field)
                 if field.name.as_str() == "health" || field.name.as_str() == "mana" =>
             {
                 Some(field.symbol)

@@ -10,15 +10,15 @@ use crate::execution::terminal_unit::{
 
 pub(crate) struct CheckedRealizationScalarBody {
     pub(crate) structural_scalar_field_stores:
-        Vec<crate::checked_trees::CheckedStructuralScalarFieldStorePlan>,
+        Vec<checked_trees::CheckedStructuralScalarFieldStorePlan>,
     pub(crate) return_expression: CheckedScalarExpression,
 }
 
 pub(crate) fn checked_realization_scalar_body(
     program: &TypedTrees,
     facts: &CheckFacts,
-    realization_machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    realization_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    realization_machine: &typed_trees::machine::Machine,
+    realization_state: &typed_trees::state::State,
     result_type: PrimitiveType,
 ) -> Option<CheckedRealizationScalarBody> {
     let statements = program
@@ -72,7 +72,7 @@ pub(crate) fn checked_realization_scalar_body(
     let (expression, value_role) = match statement {
         StatementNode::Expression(expression) => (
             *expression,
-            crate::checked_trees::CheckedValueStatementRole::Expression,
+            checked_trees::CheckedValueStatementRole::Expression,
         ),
         StatementNode::Transition(transition)
             if transition.exit == TransitionExit::Ordinary
@@ -86,7 +86,7 @@ pub(crate) fn checked_realization_scalar_body(
             };
             (
                 *expression,
-                crate::checked_trees::CheckedValueStatementRole::TransitionTargetValue,
+                checked_trees::CheckedValueStatementRole::TransitionTargetValue,
             )
         }
         _ => return None,
@@ -96,7 +96,7 @@ pub(crate) fn checked_realization_scalar_body(
         .expression_values(expression)
         .filter(|(_, value)| {
             value.origin
-                == crate::checked_trees::CheckedValueOrigin::StateStatement {
+                == checked_trees::CheckedValueOrigin::StateStatement {
                     machine_symbol: realization_machine.symbol,
                     state_symbol: realization_state.symbol,
                     statement_index: return_statement_index,
@@ -137,14 +137,11 @@ pub(crate) fn checked_realization_scalar_body(
 fn checked_realization_structural_scalar_field_store_plan(
     program: &TypedTrees,
     facts: &CheckFacts,
-    realization_machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    realization_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    realization_machine: &typed_trees::machine::Machine,
+    realization_state: &typed_trees::state::State,
     statement_index: usize,
-    assignment: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableAssignment,
-) -> Option<(
-    crate::checked_trees::CheckedStructuralScalarFieldStorePlan,
-    String,
-)> {
+    assignment: &typed_trees::statement::TableAssignment,
+) -> Option<(checked_trees::CheckedStructuralScalarFieldStorePlan, String)> {
     let self_parameters = program
         .state_parameters(realization_state)
         .iter()
@@ -174,7 +171,7 @@ fn checked_realization_structural_scalar_field_store_plan(
         statement_index,
         assignment.target,
     )?;
-    if destination.root != crate::fact_plan::PlaceRoot::Symbol(self_parameter.symbol) {
+    if destination.root != facts::PlaceRoot::Symbol(self_parameter.symbol) {
         return None;
     }
 
@@ -187,7 +184,7 @@ fn checked_realization_structural_scalar_field_store_plan(
         return None;
     };
     let (final_segment, carrier_segments) = destination.segments.split_last()?;
-    let crate::fact_plan::PlaceSegment::Field {
+    let facts::PlaceSegment::Field {
         symbol: field_symbol,
     } = final_segment
     else {
@@ -196,24 +193,21 @@ fn checked_realization_structural_scalar_field_store_plan(
     if !field_symbol.is_valid()
         || carrier_segments
             .iter()
-            .any(|segment| !matches!(segment, crate::fact_plan::PlaceSegment::Field { symbol } if symbol.is_valid()))
+            .any(|segment| !matches!(segment, facts::PlaceSegment::Field { symbol } if symbol.is_valid()))
     {
         return None;
     }
     let mut field_owner = *attachment;
     let mut carrier_path = Vec::with_capacity(carrier_segments.len());
     for segment in carrier_segments {
-        let crate::fact_plan::PlaceSegment::Field { symbol } = segment else {
+        let facts::PlaceSegment::Field { symbol } = segment else {
             return None;
         };
         let carrier_fields = program
             .data_members(field_owner)
             .iter()
             .filter_map(|candidate| {
-                let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
-                    field,
-                ) = candidate
-                else {
+                let typed_trees::data::DataMember::Field(field) = candidate else {
                     return None;
                 };
                 (field.symbol == *symbol).then_some(field)
@@ -237,9 +231,7 @@ fn checked_realization_structural_scalar_field_store_plan(
         .data_members(field_owner)
         .iter()
         .filter_map(|candidate| {
-            let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) =
-                candidate
-            else {
+            let typed_trees::data::DataMember::Field(field) = candidate else {
                 return None;
             };
             (field.symbol == *field_symbol).then_some(field)
@@ -256,11 +248,8 @@ fn checked_realization_structural_scalar_field_store_plan(
         return None;
     }
 
-    let expected_mutation_path = crate::fact_plan::canonical_place_label_from_parts(
-        program,
-        destination.root,
-        &destination.segments,
-    );
+    let expected_mutation_path =
+        facts::canonical_place_label_from_parts(program, destination.root, &destination.segments);
     let value = facts.values.scalar_expressions.expression_at(
         realization_state.symbol,
         u32::try_from(statement_index).ok()?,
@@ -277,18 +266,15 @@ fn checked_realization_structural_scalar_field_store_plan(
     }
 
     Some((
-        crate::checked_trees::CheckedStructuralScalarFieldStorePlan {
+        checked_trees::CheckedStructuralScalarFieldStorePlan {
             statement_index: u32::try_from(statement_index).ok()?,
-            destination:
-                crate::checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter {
-                    position: u32::try_from(*self_position).ok()?,
-                },
+            destination: checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter {
+                position: u32::try_from(*self_position).ok()?,
+            },
             carrier_path,
             field_identity: terminal_field_identity(program, field.symbol)?,
             primitive_type,
-            value: crate::checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(
-                value.clone(),
-            ),
+            value: checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(value.clone()),
         },
         expected_mutation_path,
     ))
@@ -296,10 +282,10 @@ fn checked_realization_structural_scalar_field_store_plan(
 
 fn checked_direct_self_field_return(
     program: &TypedTrees,
-    realization_machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    realization_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    realization_machine: &typed_trees::machine::Machine,
+    realization_state: &typed_trees::state::State,
     statement_index: usize,
-    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    expression: typed_trees::expression::ExpressionHandle,
     result_type: PrimitiveType,
 ) -> Option<CheckedScalarExpression> {
     let self_parameters = program
@@ -321,16 +307,14 @@ fn checked_direct_self_field_return(
         expression,
     )?;
     let [
-        crate::fact_plan::PlaceSegment::Field {
+        facts::PlaceSegment::Field {
             symbol: field_symbol,
         },
     ] = place.segments.as_slice()
     else {
         return None;
     };
-    if place.root != crate::fact_plan::PlaceRoot::Symbol(self_parameter.symbol)
-        || !field_symbol.is_valid()
-    {
+    if place.root != facts::PlaceRoot::Symbol(self_parameter.symbol) || !field_symbol.is_valid() {
         return None;
     }
     let attachment = program
@@ -345,9 +329,7 @@ fn checked_direct_self_field_return(
         .data_members(attachment)
         .iter()
         .filter_map(|candidate| {
-            let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) =
-                candidate
-            else {
+            let typed_trees::data::DataMember::Field(field) = candidate else {
                 return None;
             };
             (field.symbol == *field_symbol).then_some(field)
@@ -362,14 +344,12 @@ fn checked_direct_self_field_return(
         return None;
     }
     let parameter_position = u32::try_from(*self_position).ok()?;
-    let path = vec![
-        crate::checked_trees::CheckedStructuralPredicatePathSegment::Field(
-            terminal_field_identity(program, field.symbol)?,
-        ),
-    ];
+    let path = vec![checked_trees::CheckedStructuralPredicatePathSegment::Field(
+        terminal_field_identity(program, field.symbol)?,
+    )];
     Some(if result_type == PrimitiveType::Bool {
         CheckedScalarExpression::Boolean(Box::new(
-            crate::checked_trees::CheckedBooleanExpression::StructuralParameterField {
+            checked_trees::CheckedBooleanExpression::StructuralParameterField {
                 parameter_position,
                 path,
             },
@@ -386,7 +366,7 @@ fn checked_direct_self_field_return(
 pub(crate) fn checked_call_service_reach(
     facts: &CheckFacts,
     caller_state: SymbolHandle,
-    flow_call: &crate::checked_trees::FlowCallFact,
+    flow_call: &checked_trees::FlowCallFact,
     coordinate: CheckedUnitCallCoordinate,
 ) -> Option<language_semantics::ServiceReachSummary> {
     let state = facts.service_reaches.for_state(caller_state)?;

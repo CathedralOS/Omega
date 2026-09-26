@@ -1,6 +1,6 @@
 //! Stored, rebound, parameter, and argument dynamic-dispatch custody reconstruction.
 
-use crate::abstract_operations::{
+use abstract_operations::{
     AbstractDynamicDescriptorArgument, AbstractDynamicDescriptorSource,
     AbstractParameterDynamicDispatch, AbstractReboundDynamicDispatch,
     AbstractStoredDynamicDescriptor, AbstractStoredDynamicDispatch,

@@ -5,7 +5,6 @@ use super::{
 };
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::value_type;
-use crate::legalized_operations;
 pub(super) fn validate(
     node: &OptimizationNode,
     _body: &[OptimizationNode],
@@ -47,11 +46,11 @@ pub(super) fn validate(
                 (parameter.structural_type, parameter.multiplicity)
             } else {
                 match super::structural_case::source_owner(function, *source)? {
-                    crate::legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+                    legalized_operations::LegalizedStructuralCaseSource::OperationResult {
                         result,
                         ..
                     } => (result.structural_type, result.multiplicity),
-                    crate::legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+                    legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
                         declaration,
                         ..
                     } => (declaration.structural_type, declaration.multiplicity),
@@ -85,17 +84,17 @@ pub(super) fn validate(
         ) if cleanup_actions.is_empty()
             || (super::aggregate_results::cleanup(function, cleanup_actions)
                 && node.ownership
-                    == [terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::Cleanup(
+                    == [optimization_unit::OwnershipEvent::Cleanup(
                         cleanup_actions.clone(),
                     )])
             || (super::read_byte::cleanup(function, cleanup_actions)
                 && node.ownership
-                    == [terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::Cleanup(
+                    == [optimization_unit::OwnershipEvent::Cleanup(
                         cleanup_actions.clone(),
                     )])
             || (super::unobserved_owned::body(function)
                 && node.ownership
-                    == [terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::Cleanup(
+                    == [optimization_unit::OwnershipEvent::Cleanup(
                         cleanup_actions.clone(),
                     )]) =>
         {
@@ -116,12 +115,12 @@ pub(super) fn validate(
             && (cleanup_actions.is_empty()
                 || (super::aggregate_results::cleanup(function, cleanup_actions)
                     && node.ownership
-                        == [terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::Cleanup(
+                        == [optimization_unit::OwnershipEvent::Cleanup(
                             cleanup_actions.clone(),
                         )])
                 || (super::unobserved_owned::body(function)
                     && node.ownership
-                        == [terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::Cleanup(
+                        == [optimization_unit::OwnershipEvent::Cleanup(
                             cleanup_actions.clone(),
                         )])) =>
         {

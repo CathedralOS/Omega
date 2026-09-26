@@ -40,10 +40,7 @@ pub(in crate::preparation::generic_data) fn selected_constructor(
     syntax: &SyntaxTrees,
     selection: Option<&constant_selection::ConstantSelection>,
     name: &Identifier,
-) -> Option<(
-    tokens_to_syntax_trees::syntax_trees::item::ItemHandle,
-    Option<Identifier>,
-)> {
+) -> Option<(syntax_trees::item::ItemHandle, Option<Identifier>)> {
     if let Some(selection) = selection {
         let (definition, case) = selection.constructor(syntax, name).ok()?;
         let owner = syntax.root_item_handles().iter().copied().find(|handle|
@@ -75,10 +72,7 @@ pub(in crate::preparation::generic_data) fn selected_case_value(
     syntax: &SyntaxTrees,
     selection: Option<&constant_selection::ConstantSelection>,
     name: &Identifier,
-) -> Option<(
-    tokens_to_syntax_trees::syntax_trees::item::ItemHandle,
-    Option<Identifier>,
-)> {
+) -> Option<(syntax_trees::item::ItemHandle, Option<Identifier>)> {
     if let Some(selection) = selection {
         let (definition, case) = selection.qualified_payload_free_case(syntax, name).ok()??;
         let owner = syntax.root_item_handles().iter().copied().find(|handle|

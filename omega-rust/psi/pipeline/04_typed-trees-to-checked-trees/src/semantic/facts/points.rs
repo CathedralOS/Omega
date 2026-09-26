@@ -1,8 +1,8 @@
-use crate::checked_trees::{
+use checked_trees::{
     ContractProofFact, ContractProofFactKind, ContractProofFactOwner, ProofObligationFact,
     ProofObligationOwner,
 };
-use crate::fact_plan::{FactOrigin, ProgramPoint};
+use facts::{FactOrigin, ProgramPoint};
 
 pub(super) fn proof_obligation_point(obligation: &ProofObligationFact) -> ProgramPoint {
     match obligation.owner {
@@ -45,7 +45,7 @@ pub(super) fn proof_obligation_point(obligation: &ProofObligationFact) -> Progra
 }
 
 pub(super) fn contract_fact_point(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     contract: &ContractProofFact,
 ) -> ProgramPoint {
     match contract.owner {
@@ -88,7 +88,7 @@ pub(super) fn contract_fact_point(
         }
         ContractProofFactOwner::OperatorUse {
             origin:
-                crate::checked_trees::CheckedValueOrigin::StateStatement {
+                checked_trees::CheckedValueOrigin::StateStatement {
                     machine_symbol,
                     state_symbol,
                     statement_index,
@@ -141,9 +141,9 @@ pub(super) fn contract_fact_origin(contract: &ContractProofFact) -> FactOrigin {
 #[cfg(test)]
 mod tests {
     use super::{ContractProofFact, ContractProofFactKind, ContractProofFactOwner, FactOrigin};
-    use crate::checked_trees::expression::ExpressionHandle;
     use crate::semantic::facts::points::contract_fact_origin;
     use arena::Handle;
+    use checked_trees::expression::ExpressionHandle;
     use symbols::SymbolHandle;
 
     #[test]

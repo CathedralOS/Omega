@@ -20,12 +20,9 @@ pub(in crate::execution::terminal_unit) fn binding(
     program: &TypedTrees,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-) -> Option<(
-    CheckedUnitStructuralResultBindingPlan,
-    crate::fact_plan::PlaceRoot,
-)> {
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+) -> Option<(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)> {
     // The temporary dies at this call's continuation. With no later statements,
     // the existing Unit return edge owns that cleanup; do not extend its life.
     let [StatementNode::Call(_)] = program.statement_table.statements(state.statement_nodes) else {
@@ -64,7 +61,7 @@ pub(in crate::execution::terminal_unit) fn binding(
         state,
         0,
         0,
-        crate::fact_plan::PlaceRoot::Expression(producer.authored_expression),
+        facts::PlaceRoot::Expression(producer.authored_expression),
     )
 }
 
@@ -76,15 +73,12 @@ pub(in crate::execution::terminal_unit) fn binding_at(
     program: &TypedTrees,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     statement_index: usize,
     binding_ordinal: u32,
-    root: crate::fact_plan::PlaceRoot,
-) -> Option<(
-    CheckedUnitStructuralResultBindingPlan,
-    crate::fact_plan::PlaceRoot,
-)> {
+    root: facts::PlaceRoot,
+) -> Option<(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)> {
     if !matches!(
         program
             .statement_table
@@ -94,7 +88,7 @@ pub(in crate::execution::terminal_unit) fn binding_at(
     ) {
         return None;
     }
-    let crate::fact_plan::PlaceRoot::Expression(expression) = root else {
+    let facts::PlaceRoot::Expression(expression) = root else {
         return None;
     };
     let flow = state_flow(facts, machine.symbol, state.symbol)?;
@@ -171,9 +165,9 @@ pub(in crate::execution::terminal_unit) fn binding_at(
 pub(super) fn validate_permissions(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-    root: crate::fact_plan::PlaceRoot,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    root: facts::PlaceRoot,
     residuals: &[CheckedUnitPartialAffineDiscardPlan],
 ) -> Option<()> {
     validate_permissions_at(program, facts, machine, state, root, 0, 0, residuals)
@@ -183,14 +177,14 @@ pub(super) fn validate_permissions(
 pub(in crate::execution::terminal_unit) fn validate_permissions_at(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-    root: crate::fact_plan::PlaceRoot,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    root: facts::PlaceRoot,
     statement_index: usize,
     binding_ordinal: u32,
     residuals: &[CheckedUnitPartialAffineDiscardPlan],
 ) -> Option<()> {
-    let crate::fact_plan::PlaceRoot::Expression(expression) = root else {
+    let facts::PlaceRoot::Expression(expression) = root else {
         return None;
     };
     let flow = state_flow(facts, machine.symbol, state.symbol)?;
@@ -236,7 +230,7 @@ pub(in crate::execution::terminal_unit) fn validate_permissions_at(
     if selected.next().is_some() {
         return None;
     }
-    let source = |call: &crate::checked_trees::FlowCallFact| PermissionEventSource::Call {
+    let source = |call: &checked_trees::FlowCallFact| PermissionEventSource::Call {
         statement_index: call.statement_index,
         call_ordinal: call.call_ordinal,
         target_symbol: call.target_symbol,
@@ -324,12 +318,9 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
     program: &TypedTrees,
     facts: &CheckFacts,
     shapes: &ShapeCollector<'_>,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-    temporaries: &[(
-        CheckedUnitStructuralResultBindingPlan,
-        crate::fact_plan::PlaceRoot,
-    )],
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    temporaries: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
     operations: &mut Vec<CheckedUnitEffectOperationPlan>,
 ) -> Option<()> {
     let CheckedUnitEffectOperationPlan::CallUnit {
@@ -374,7 +365,7 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
             .find(|(_, (result, _))| result.binding_ordinal == binding_ordinal)?;
         if residual_rows[position].is_some()
             || coordinate.statement_index != result.statement_index
-            || !matches!(root, crate::fact_plan::PlaceRoot::Expression(_))
+            || !matches!(root, facts::PlaceRoot::Expression(_))
         {
             return None;
         }

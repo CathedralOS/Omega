@@ -24,11 +24,11 @@
 //! Equatable-conforming data type; recursive types are rejected (inline
 //! expansion would not terminate).
 
-use crate::typed_trees::types::PrimitiveType;
 use diagnostics::Diagnostic;
 use resolved::SymbolResolvedTrees;
 use resolved::data::{DataDefinition, DataField, DataMember, DataShapeKind};
-use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees as resolved;
+use symbol_resolved_trees as resolved;
+use typed_trees::types::PrimitiveType;
 
 pub(crate) const EQUATABLE_TRAIT: &str = "Equatable";
 

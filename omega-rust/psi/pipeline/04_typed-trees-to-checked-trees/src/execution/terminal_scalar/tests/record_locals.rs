@@ -1,5 +1,5 @@
-use crate::checked_trees::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan};
 use crate::tests::front_end::{checked_program_result, typed_program};
+use checked_trees::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan};
 
 #[test]
 fn mutable_record_field_stores_keep_local_identity_and_authored_order() {
@@ -28,9 +28,8 @@ fn mutable_record_field_stores_keep_local_identity_and_authored_order() {
             .typed
             .statement_table
             .statements(state.statement_nodes);
-        let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
-            local,
-        ) = &statements[if target == "first" { 0 } else { 1 }]
+        let typed_trees::statement::StatementNode::LocalData(local) =
+            &statements[if target == "first" { 0 } else { 1 }]
         else {
             panic!("local");
         };
@@ -51,7 +50,7 @@ fn mutable_record_field_stores_keep_local_identity_and_authored_order() {
         assert_eq!(store.statement_index, 2);
         assert_eq!(
             store.destination,
-            crate::checked_trees::CheckedStructuralScalarFieldStoreDestination::Local {
+            checked_trees::CheckedStructuralScalarFieldStoreDestination::Local {
                 symbol: local.symbol
             }
         );
@@ -61,7 +60,7 @@ fn mutable_record_field_stores_keep_local_identity_and_authored_order() {
         if value.contains("identity") {
             assert!(matches!(
                 store.value,
-                crate::checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(_)
+                checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(_)
             ));
         }
     }
@@ -92,7 +91,9 @@ fn nested_local_field_store_retains_its_exact_carrier() {
     };
     assert_eq!(
         store.carrier_path,
-        vec![crate::checked_trees::CheckedUnitStructuralPathSegment::Field("right".into())]
+        vec![checked_trees::CheckedUnitStructuralPathSegment::Field(
+            "right".into()
+        )]
     );
     assert_eq!(store.field_identity, "value");
 }
@@ -115,20 +116,16 @@ fn local_store_rejects_missing_destination_and_rhs_custody() {
             .typed
             .statement_table
             .statements_mut(state.statement_nodes);
-        let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Assignment(
-            assignment,
-        ) = &mut statements[1]
+        let typed_trees::statement::StatementNode::Assignment(assignment) = &mut statements[1]
         else {
             panic!("assignment");
         };
         if destination {
-            assignment.target = symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid();
+            assignment.target = typed_trees::expression::ExpressionHandle::invalid();
         } else {
-            assignment.value = symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid();
+            assignment.value = typed_trees::expression::ExpressionHandle::invalid();
         }
-        let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Assignment(
-            assignment,
-        ) = &changed
+        let typed_trees::statement::StatementNode::Assignment(assignment) = &changed
             .typed
             .statement_table
             .statements(state.statement_nodes)[1]
@@ -224,7 +221,7 @@ fn field_fill_without_mutable_binding_retains_its_store() {
     ));
 }
 
-fn checked(copy: &str, prefix: &str, initializer: &str) -> crate::checked_trees::CheckedTrees {
+fn checked(copy: &str, prefix: &str, initializer: &str) -> checked_trees::CheckedTrees {
     let source = format!(
         "data Value {copy} {{ value: u64[0..257]; flag: bool; }}
          data Outer {copy} {{ inner: Value; }}
@@ -244,7 +241,7 @@ fn checked(copy: &str, prefix: &str, initializer: &str) -> crate::checked_trees:
     check_source(&source)
 }
 
-fn check_source(source: &str) -> crate::checked_trees::CheckedTrees {
+fn check_source(source: &str) -> checked_trees::CheckedTrees {
     checked_program_result(source)
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
 }
@@ -388,13 +385,13 @@ fn fresh_nested_record_transition_retains_shapes_operations_and_scalar_occurrenc
         }
         assert!(graphs.structural_types.iter().any(|shape| matches!(
             &shape.shape,
-            crate::checked_trees::CheckedUnitStructuralTypeShape::Record { fields }
-            if fields.iter().any(|field| matches!(field.field_type, crate::checked_trees::CheckedUnitStructuralFieldType::BoundedInteger(_)))
+            checked_trees::CheckedUnitStructuralTypeShape::Record { fields }
+            if fields.iter().any(|field| matches!(field.field_type, checked_trees::CheckedUnitStructuralFieldType::BoundedInteger(_)))
         )));
         assert!(graphs.structural_types.iter().any(|shape| matches!(
             &shape.shape,
-            crate::checked_trees::CheckedUnitStructuralTypeShape::Record { fields }
-            if fields.iter().any(|field| matches!(field.field_type, crate::checked_trees::CheckedUnitStructuralFieldType::Structural { .. }))
+            checked_trees::CheckedUnitStructuralTypeShape::Record { fields }
+            if fields.iter().any(|field| matches!(field.field_type, checked_trees::CheckedUnitStructuralFieldType::Structural { .. }))
         )));
     }
 }
@@ -436,7 +433,7 @@ fn local_record_graph_retains_whole_copy_initializers() {
             .nodes
             .get(root.root)
             .kind,
-        crate::checked_trees::CheckedStructuralValueKind::Place(_)
+        checked_trees::CheckedStructuralValueKind::Place(_)
     ));
 }
 
@@ -522,7 +519,7 @@ fn record_wrapper_provenance_uses_common_child_origin_or_new_parent_origin() {
             .state;
         for ordinal in [2, 3] {
             assert_eq!(
-                crate::validation::record_local_disposition(
+                validation::record_local_disposition(
                     &checked.typed,
                     &checked.facts,
                     machine,
@@ -579,7 +576,7 @@ fn record_wrapper_provenance_uses_common_child_origin_or_new_parent_origin() {
                 },
             };
             assert_eq!(
-                crate::validation::record_local_disposition(
+                validation::record_local_disposition(
                     &forged.typed,
                     &forged.facts,
                     machine,
@@ -606,7 +603,7 @@ fn record_move_disposition_retains_only_final_owners_and_original_provenance() {
     }
     eprintln!(
         "disposition0={:?}",
-        crate::validation::record_local_disposition(
+        validation::record_local_disposition(
             &checked.typed,
             &checked.facts,
             machine,
@@ -623,7 +620,7 @@ fn record_move_disposition_retains_only_final_owners_and_original_provenance() {
     assert_eq!(graph.states[0].unit_operations.len(), 4);
     for (ordinal, expected) in [true, false, false, true].into_iter().enumerate() {
         assert_eq!(
-            crate::validation::record_local_disposition(
+            validation::record_local_disposition(
                 &checked.typed,
                 &checked.facts,
                 machine,
@@ -687,7 +684,7 @@ fn record_move_disposition_rejects_forged_transfer_or_destination_receipts() {
         .flat_map(|machine| original.machine_states(machine))
         .flat_map(|state| original.statement_table.statements(state.statement_nodes))
         .find_map(|statement| match statement {
-            crate::checked_trees::statement::StatementNode::LocalData(local)
+            checked_trees::statement::StatementNode::LocalData(local)
                 if local.name.as_str() == "keep" =>
             {
                 Some(local.symbol)
@@ -751,7 +748,7 @@ fn record_move_disposition_rejects_forged_transfer_or_destination_receipts() {
                     .root_at(state, 2)
                     .unwrap()
                     .root;
-                let crate::checked_trees::CheckedStructuralValueKind::Place(argument) = &mut forged
+                let checked_trees::CheckedStructuralValueKind::Place(argument) = &mut forged
                     .facts
                     .values
                     .structural_values
@@ -762,14 +759,14 @@ fn record_move_disposition_rejects_forged_transfer_or_destination_receipts() {
                     panic!("move source");
                 };
                 argument.source =
-                    crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                         symbol: keep,
                     };
             }
         }
         let ordinal = if corruption == 4 { 2 } else { 1 };
         assert_eq!(
-            crate::validation::record_local_disposition(
+            validation::record_local_disposition(
                 &forged.typed,
                 &forged.facts,
                 machine,
@@ -822,12 +819,11 @@ fn local_record_copy_rejects_stale_roots_and_changed_access_or_type() {
         if corruption == 0 {
             node.expression = arena::Handle::invalid();
         } else {
-            let crate::checked_trees::CheckedStructuralValueKind::Place(argument) = &mut node.kind
-            else {
+            let checked_trees::CheckedStructuralValueKind::Place(argument) = &mut node.kind else {
                 panic!("whole record copy");
             };
             if corruption == 1 {
-                argument.access = crate::checked_trees::CheckedStructuralAccess::SharedBorrow;
+                argument.access = checked_trees::CheckedStructuralAccess::SharedBorrow;
             } else {
                 argument.type_identity = "unrelated".to_owned();
             }
@@ -918,24 +914,12 @@ fn parameter_origin_record_local_joins_its_own_custody() {
     let state = graph.states[0].state;
     // `keep` transfers into `handed`; `handed` still owns at exit.
     assert_eq!(
-        crate::validation::record_local_disposition(
-            &checked.typed,
-            &checked.facts,
-            machine,
-            state,
-            0
-        ),
+        validation::record_local_disposition(&checked.typed, &checked.facts, machine, state, 0),
         Some(false),
         "parameter-origin local kept its exact initializer move",
     );
     assert_eq!(
-        crate::validation::record_local_disposition(
-            &checked.typed,
-            &checked.facts,
-            machine,
-            state,
-            1
-        ),
+        validation::record_local_disposition(&checked.typed, &checked.facts, machine, state, 1),
         Some(true),
         "parameter-origin destination retained its exit obligation",
     );
@@ -990,13 +974,7 @@ fn parameter_origin_record_local_joins_its_own_custody() {
         source: PermissionEventSource::StateEntry,
     };
     assert_eq!(
-        crate::validation::record_local_disposition(
-            &forged.typed,
-            &forged.facts,
-            machine,
-            state,
-            0
-        ),
+        validation::record_local_disposition(&forged.typed, &forged.facts, machine, state, 0),
         None,
         "a re-pointed parameter origin must not join custody",
     );

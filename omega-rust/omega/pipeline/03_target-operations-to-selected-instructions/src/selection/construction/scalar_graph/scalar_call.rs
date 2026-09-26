@@ -4,19 +4,19 @@ use super::{
     SelectedInstructionKind, SelectedInstructionProvenance, VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
-use crate::legalized_operations::LegalizedScalarInstruction;
 use crate::selection::construction::scalar_graph::row;
 use crate::selection::construction::scalar_graph::structural;
+use legalized_operations::LegalizedScalarInstruction;
 use terminal_psi::StructuralAccess;
 
 /// Snapshot the projected pointer, then place its bits in the exact outgoing ABI slot.
 pub(super) fn argument_pointer(
     builder: &mut Builder<'_>,
     source: &LegalizedScalarFunction,
-    operation: &crate::legalized_operations::LegalizedScalarInstruction,
+    operation: &legalized_operations::LegalizedScalarInstruction,
     argument_index: usize,
     semantic: &terminal_psi::StructuralArgument,
-    target: &abstract_operations_to_target_operations::target_operations::TargetStructuralArgument,
+    target: &target_operations::TargetStructuralArgument,
 ) -> Result<Option<VirtualRegisterId>, SelectedInstructionError> {
     // A `.., Referent` argument transports the referent root's pointer:
     // `target.place` names that root while `semantic.place` is only the
@@ -88,15 +88,15 @@ pub(super) fn argument_pointer(
         return Ok(Some(pointer));
     };
     let invalid = || SelectedInstructionError::custody();
-    let slot = crate::selected_instructions::OutgoingArgumentSlotId {
-        role: crate::selected_instructions::OutgoingArgumentSlotRole::Argument,
+    let slot = selected_instructions::OutgoingArgumentSlotId {
+        role: selected_instructions::OutgoingArgumentSlotRole::Argument,
         operation: operation.operation,
         argument_index: argument_index.try_into().map_err(|_| invalid())?,
     };
     builder
         .transport
         .slots
-        .push(crate::selected_instructions::SelectedOutgoingArgumentSlot {
+        .push(selected_instructions::SelectedOutgoingArgumentSlot {
             id: slot,
             byte_size: 8,
             alignment: 8,
@@ -105,7 +105,7 @@ pub(super) fn argument_pointer(
     builder
         .transport
         .memory
-        .push(crate::selected_instructions::SelectedMemoryAccess {
+        .push(selected_instructions::SelectedMemoryAccess {
             instruction: SelectedInstructionId(
                 builder
                     .instructions
@@ -113,17 +113,17 @@ pub(super) fn argument_pointer(
                     .try_into()
                     .map_err(|_| invalid())?,
             ),
-            origin: crate::selected_instructions::SelectedMemoryAccessOrigin::Operation(
+            origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(
                 operation.operation,
             ),
             place: pointer_place,
             byte_offset: 0,
             byte_count: 8,
-            role: crate::selected_instructions::SelectedMemoryAccessRole::WriteOutgoing { slot },
+            role: selected_instructions::SelectedMemoryAccessRole::WriteOutgoing { slot },
         });
     builder.emit(
         SelectedInstructionKind::Store64 {
-            slot: crate::selected_instructions::FrameStorageSlotId::Outgoing(slot),
+            slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
             byte_offset: 0,
         },
         builder.constraints.keys.store64.ok_or_else(invalid)?,
@@ -139,7 +139,7 @@ pub(super) fn emit(
     function: usize,
     source: &LegalizedScalarFunction,
     operation: &LegalizedScalarInstruction,
-    environment: &crate::register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
     builder: &mut Builder<'_>,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let invalid = || SelectedInstructionError::unsupported_shape(function);
@@ -173,10 +173,8 @@ pub(super) fn emit(
     )?;
     let mut operands = Vec::new();
     for (argument_index, argument) in call.arguments.iter().enumerate() {
-        if let crate::legalized_operations::LegalizedScalarArgument::Structural {
-            semantic,
-            target,
-        } = argument
+        if let legalized_operations::LegalizedScalarArgument::Structural { semantic, target } =
+            argument
         {
             if semantic.access == StructuralAccess::Owned {
                 operands.extend(
@@ -260,7 +258,7 @@ pub(super) fn emit(
     builder
         .transport
         .calls
-        .push(crate::selected_instructions::SelectedCallContract {
+        .push(selected_instructions::SelectedCallContract {
             instruction: SelectedInstructionId(
                 builder
                     .instructions

@@ -31,25 +31,14 @@
 //! checked tree exists, to prune a product and to rederive retained facts it
 //! must be able to reject when they drift.
 
-// The produced IR.
-pub mod checked_trees;
-
-// The proof engine and semantic auditor this stage drives. `validation`
-// walks the produced checked trees; `proof_engine` collects the proof
-// surface and discharges its obligations.
-pub mod proof_engine;
-pub mod validation;
-
 // The route, in the order `lower_typed_trees` runs it.
 mod authored_selections;
 mod borrow;
 mod checking;
 mod checks;
 mod execution;
-pub mod fact_plan;
 mod facts;
 mod flow;
-pub mod flow_effects;
 mod lookup;
 mod monomorphization;
 mod operators;
@@ -107,7 +96,7 @@ pub use product_pruning::{
 /// `assembled-syntax-to-checked-compilation` (`checking/phase_transitions.rs`),
 /// which derives the admission from the evaluated `Build.freestanding`
 /// through `TypedToCheckedSettlementInput`.
-pub use crate::validation::{
+pub use ::validation::{
     AsmAuthorityAdmission, data_requires_establishment, validate_asm_discharge,
 };
 pub use conformance::conformance_applications::close_conformance_application;

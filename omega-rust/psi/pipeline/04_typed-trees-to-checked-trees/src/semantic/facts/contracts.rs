@@ -1,15 +1,15 @@
 use super::points;
-use crate::checked_trees::{
+use crate::semantic::places::instantiate_call_contract_place;
+use arena::HandleSpan;
+use checked_trees::{
     ContractCallFact, ContractProofFact, ContractProofFactKind, ContractProofFactOwner,
     ContractProofFactRef, ProofFacts,
 };
-use crate::fact_plan::{
+use facts::{
     Fact, FactOrigin, FactPayload, FactPlace, FactPlan, FactRef, ProgramPoint,
     QualificationEvidence,
 };
-use crate::semantic::places::instantiate_call_contract_place;
-use arena::HandleSpan;
-use symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionLabels;
+use typed_trees::proposition::PropositionLabels;
 mod payload;
 mod places;
 #[cfg(test)]
@@ -20,7 +20,7 @@ use payload::semantic_contract_payload;
 use points::{contract_fact_origin, contract_fact_point};
 
 pub(super) fn append_contract_semantic_facts(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     proof: &ProofFacts,
     facts: &mut FactPlan,
 ) {
@@ -303,14 +303,14 @@ pub(super) fn append_contract_semantic_facts(
 /// fact is owned by. `None` fails closed -- the fact keeps its authored schema
 /// identity rather than publishing a partial substitution.
 fn inherited_contract_scope_parts<'program>(
-    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &'program typed_trees::TypedTrees,
     proof: &'program ProofFacts,
     contract: &ContractProofFact,
 ) -> Option<(
-    &'program symbol_resolved_trees_to_typed_trees::typed_trees::trait_definition::TraitDefinition,
-    &'program symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateSignature,
-    &'program symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-    &'program crate::checked_trees::InheritedContractScope,
+    &'program typed_trees::trait_definition::TraitDefinition,
+    &'program typed_trees::signature::StateSignature,
+    &'program typed_trees::state::State,
+    &'program checked_trees::InheritedContractScope,
 )> {
     let scope = proof
         .inherited_contract_scopes
@@ -340,7 +340,7 @@ fn inherited_contract_scope_parts<'program>(
 /// obligation kind; only the endpoint family and the argument labels move from
 /// the requirement's schema onto the satisfying state's own terms.
 fn instantiate_inherited_contract_payload(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     proof: &ProofFacts,
     facts: &mut FactPlan,
     contract: &ContractProofFact,
@@ -354,13 +354,12 @@ fn instantiate_inherited_contract_payload(
     else {
         return;
     };
-    let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(
-        application,
-    ) = program.proof_facts.get(contract.fact)
+    let typed_trees::domain::ProofFact::Proposition(application) =
+        program.proof_facts.get(contract.fact)
     else {
         return;
     };
-    let Some(label) = crate::validation::inherited_requirement_proposition_label(
+    let Some(label) = validation::inherited_requirement_proposition_label(
         program,
         trait_definition,
         requirement,
@@ -382,7 +381,7 @@ fn instantiate_inherited_contract_payload(
 /// substituted identity was never interned), keep the declared identity and
 /// let the ordinary entailment checks decide.
 fn instantiate_call_domain_membership_instance(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     call: &ContractCallFact,
     contract: &ContractProofFact,
     payload: &mut FactPayload,
@@ -395,9 +394,8 @@ fn instantiate_call_domain_membership_instance(
     else {
         return;
     };
-    let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(
-        membership,
-    ) = program.proof_facts.get(contract.fact)
+    let typed_trees::domain::ProofFact::Membership(membership) =
+        program.proof_facts.get(contract.fact)
     else {
         return;
     };
@@ -408,10 +406,7 @@ fn instantiate_call_domain_membership_instance(
     else {
         return;
     };
-    let index_parameters =
-        symbol_resolved_trees_to_typed_trees::typed_trees::domain::index_parameters(
-            program, domain,
-        );
+    let index_parameters = typed_trees::domain::index_parameters(program, domain);
     let arguments = program
         .type_reference_table
         .type_reference_handles(membership.domain_arguments);
@@ -458,12 +453,12 @@ fn instantiate_call_domain_membership_instance(
     for (parameter, argument) in index_parameters.iter().zip(rebound.iter_mut()) {
         if !matches!(
             parameter.kind,
-            symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Const { .. }
+            typed_trees::data::TypeParameterKind::Const { .. }
         ) {
             continue;
         }
         match program.type_reference_table.type_reference(*argument) {
-            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named { symbol, .. } => {
+            typed_trees::types::TypeReferenceNode::Named { symbol, .. } => {
                 let Some((_, bound)) = substitutions.iter().find(|(binder, _)| *binder == *symbol)
                 else {
                     continue;
@@ -474,7 +469,7 @@ fn instantiate_call_domain_membership_instance(
                 *argument = replacement;
                 changed = true;
             }
-            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::ConstExpression(expression) => {
+            typed_trees::types::TypeReferenceNode::ConstExpression(expression) => {
                 // An index spelled as an expression binds the callee's binder
                 // at leaf positions: the caller-side spelling is the
                 // const-expression reference whose leaves compare equal under
@@ -505,14 +500,12 @@ fn instantiate_call_domain_membership_instance(
     if !changed {
         return;
     }
-    let Ok(identity) =
-        symbol_resolved_trees_to_typed_trees::typed_trees::domain::indexed_domain_instance_name(
-            program,
-            domain,
-            index_parameters,
-            &rebound,
-        )
-    else {
+    let Ok(identity) = typed_trees::domain::indexed_domain_instance_name(
+        program,
+        domain,
+        index_parameters,
+        &rebound,
+    ) else {
         return;
     };
     if let Some(id) = program.semantic_domains.lookup(&identity) {
@@ -524,9 +517,9 @@ fn instantiate_call_domain_membership_instance(
 /// reference (the same node the caller's declared `Coordinate<N>` used), or a
 /// named literal node spelling the bound literal's canonical or authored text.
 fn bound_index_argument_reference(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     bound: &crate::facts::index_compatibility::BoundIndexArgument,
-) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
+) -> Option<typed_trees::types::TypeReferenceHandle> {
     program
         .type_reference_table
         .named_references()
@@ -544,7 +537,7 @@ fn bound_index_argument_reference(
 }
 
 fn instantiate_call_contract_payload(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     proof: &ProofFacts,
     facts: &mut FactPlan,
     call: &ContractCallFact,
@@ -608,7 +601,7 @@ fn instantiate_call_contract_payload(
         // parameter; align through the validation helper so the requirement
         // telescope binds positionally to the satisfier's own parameter row.
         // Arity drift fails closed, keeping the authored schema identity.
-        let Some(satisfier_parameters) = crate::validation::inherited_satisfier_parameters(
+        let Some(satisfier_parameters) = validation::inherited_satisfier_parameters(
             program,
             trait_definition,
             requirement,
@@ -619,8 +612,8 @@ fn instantiate_call_contract_payload(
         alias_parameters = required_parameters
             .iter()
             .zip(satisfier_parameters.iter())
-            .map(|(required, actual)| {
-                symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter {
+            .map(
+                |(required, actual)| typed_trees::signature::StateParameter {
                     symbol: required.symbol,
                     name: required.name.clone(),
                     type_reference: actual.type_reference,
@@ -628,17 +621,16 @@ fn instantiate_call_contract_payload(
                     is_mutable: actual.is_mutable,
                     is_self: actual.is_self,
                     relevance: actual.relevance,
-                }
-            })
+                },
+            )
             .collect();
         if matches!(payload, FactPayload::ContractPropositionApplication { .. }) {
-            let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(
-                application,
-            ) = program.proof_facts.get(contract.fact)
+            let typed_trees::domain::ProofFact::Proposition(application) =
+                program.proof_facts.get(contract.fact)
             else {
                 return;
             };
-            let Some(endpoint) = crate::validation::inherited_requirement_proposition_application(
+            let Some(endpoint) = validation::inherited_requirement_proposition_application(
                 program,
                 trait_definition,
                 requirement,
@@ -651,7 +643,7 @@ fn instantiate_call_contract_payload(
             inherited_endpoint = Some(endpoint);
         }
     }
-    let label_parameters: &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter] =
+    let label_parameters: &[typed_trees::signature::StateParameter] =
         if inherited_endpoint.is_some() || !alias_parameters.is_empty() {
             &alias_parameters
         } else {
@@ -683,9 +675,8 @@ fn instantiate_call_contract_payload(
     let (application, binder_labels) = match inherited_endpoint {
         Some(endpoint) => (endpoint.application, endpoint.binder_labels),
         None => {
-            let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(
-                application,
-            ) = program.proof_facts.get(contract.fact)
+            let typed_trees::domain::ProofFact::Proposition(application) =
+                program.proof_facts.get(contract.fact)
             else {
                 return;
             };
@@ -724,7 +715,7 @@ fn instantiate_call_contract_payload(
 }
 
 fn append_call_semantic_contract_refs(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     proof: &ProofFacts,
     facts: &mut FactPlan,
     call: &ContractCallFact,
@@ -808,10 +799,10 @@ fn append_call_semantic_contract_refs(
 }
 
 fn admitted_resource_carry_origin(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     payload: FactPayload,
     evidence: QualificationEvidence,
-) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle> {
+) -> Option<typed_trees::expression::ExpressionHandle> {
     if evidence.origin != language_semantics::QualificationEvidenceOrigin::AdmittedReceipt {
         return None;
     }
@@ -836,7 +827,7 @@ fn admitted_resource_carry_origin(
 fn append_semantic_contract_refs(
     proof: &ProofFacts,
     facts: &mut FactPlan,
-    semantic_handles: &[Option<crate::fact_plan::FactHandle>],
+    semantic_handles: &[Option<facts::FactHandle>],
     source_refs: HandleSpan<ContractProofFactRef>,
     refs: &mut HandleSpan<FactRef>,
 ) {

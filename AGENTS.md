@@ -78,6 +78,11 @@ architecture contract — deferred Psi audit policy, crate placement,
 discoverability, compositional lowering — lives in
 [omega-rust/pipeline.md](omega-rust/pipeline.md).
 
+Durable IRs stay in independent `representations/` packages; shared foundations
+and utilities stay independently owned. Do not absorb them into producing
+stages or the application crate. The owner rejected the fat-stages consolidation
+on 2026-09-26; its draft and map are not implementation authority.
+
 ## Conventions and workflow
 
 The complete contract is [CONTRIBUTING.md](CONTRIBUTING.md): coding

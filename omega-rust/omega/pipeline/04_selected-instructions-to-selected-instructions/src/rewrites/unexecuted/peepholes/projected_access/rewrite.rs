@@ -1,8 +1,6 @@
 use optimization_core::OptimizationWorkBudget;
-use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
-use target_operations_to_selected_instructions::{
-    SelectedInstructionId, ValidatedMachineEffectCatalog,
-};
+use register_environment::ValidatedTargetRegisterEnvironment;
+use selected_instructions::{SelectedInstructionId, ValidatedMachineEffectCatalog};
 
 use super::{ProjectedAccessError, ValidatedProjectedAccess, admission};
 use crate::ValidatedSelectedAnalysis;

@@ -17,10 +17,10 @@ mod structural_type_lookup;
 mod unit;
 mod unobserved_owned;
 
-use crate::target_operations::TargetOperationPlan;
+use abstract_operations::AbstractOperationPlan;
 use installation_evidence::ProviderInstallationEvidence;
 use target::NativeTarget;
-use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan;
+use target_operations::TargetOperationPlan;
 
 use crate::{AdmittedBoundarySettlement, LoweringError};
 use coordination::lower_to_target_operations_with_settlements_and_installation;

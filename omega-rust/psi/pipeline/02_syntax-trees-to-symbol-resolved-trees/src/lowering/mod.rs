@@ -24,7 +24,7 @@ pub(crate) mod wire;
 
 use crate::resolution::lowerer::Lowerer;
 use diagnostics::Diagnostic;
-use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
+use syntax_trees::SyntaxTrees;
 
 /// Translate every root item into the lowerer's trees, in source order.
 pub(crate) fn lower_items(

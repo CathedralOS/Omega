@@ -6,10 +6,8 @@ use super::{
     decode_proof_bundle, encode_module, encode_proof_section, path,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use lowered_psi_to_terminal_psi::terminal_production::{
-    TerminalProductionCustody, TerminalProductionTimings,
-};
 use terminal_interpreter::TerminalStructuralInputs;
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 pub(super) fn assert_source(
     source: &str,
     boundary: bool,
@@ -42,16 +40,15 @@ fn assert_source_with_scalars(
     expected_ticks: &[terminal_interpreter::TerminalScalarValue],
 ) {
     let checked = crate::front_end::checked_program(source);
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("Root::enter"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .unwrap_or_else(|error| panic!("{source}\n{error:?}"))
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap_or_else(|error| panic!("{source}\n{error:?}"))
+    .into_artifact();
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -70,7 +67,7 @@ fn assert_source_with_scalars(
     )
     .unwrap();
     let certificate =
-        omega::terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, module.entry).unwrap();
+        terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, module.entry).unwrap();
     let caller = module
         .machines
         .iter()
@@ -348,7 +345,7 @@ fn scalar_projection_admission_keeps_parameter_and_final_return_limits() {
              machine Root::enter(first: u16, value: Pair) {{ {body} }}"
         );
         assert!(
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            terminal_production::TerminalProductionRequest::new(
                 &crate::front_end::checked_program(&source),
                 TerminalMachineSelection::Name("Root::enter")
             )
@@ -445,16 +442,15 @@ fn projected_continuation_plans_reject_cleanup_and_permission_drift() {
             };
             let original =
                 crate::front_end::checked_program(&format!("{source} machine Sink::done() {{}}"));
-            let _artifact =
-                lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-                    &original,
-                    TerminalMachineSelection::Name("Root::enter"),
-                )
-                .produce(TerminalProductionCustody::artifact_only(
-                    &mut TerminalProductionTimings::default(),
-                ))
-                .unwrap()
-                .into_artifact();
+            let _artifact = terminal_production::TerminalProductionRequest::new(
+                &original,
+                TerminalMachineSelection::Name("Root::enter"),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .unwrap()
+            .into_artifact();
             let root = original
                 .machines()
                 .iter()
@@ -556,7 +552,7 @@ fn projected_continuation_plans_reject_cleanup_and_permission_drift() {
                     _ => unreachable!(),
                 }
                 assert!(
-                    lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                    terminal_production::TerminalProductionRequest::new(
                         &changed,
                         TerminalMachineSelection::Name("Root::enter")
                     )
@@ -576,10 +572,7 @@ fn projected_continuation_plans_reject_cleanup_and_permission_drift() {
                     .iter()
                     .filter(|(_, event)| {
                         event.machine_symbol == root
-                            && matches!(
-                                event.root,
-                                typed_trees_to_checked_trees::fact_plan::PlaceRoot::Expression(_)
-                            )
+                            && matches!(event.root, facts::PlaceRoot::Expression(_))
                     })
             {
                 for mutation in 0..4 {
@@ -588,15 +581,12 @@ fn projected_continuation_plans_reject_cleanup_and_permission_drift() {
                     match mutation {
                         0 => altered.provenance = language_semantics::PermissionProvenance::Unknown,
                         1 => altered.source = language_semantics::PermissionEventSource::StateExit,
-                        2 => {
-                            altered.root =
-                                typed_trees_to_checked_trees::fact_plan::PlaceRoot::Unknown
-                        }
+                        2 => altered.root = facts::PlaceRoot::Unknown,
                         3 => altered.obligation_live = true,
                         _ => unreachable!(),
                     }
                     assert!(
-                        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                        terminal_production::TerminalProductionRequest::new(
                             &changed,
                             TerminalMachineSelection::Name("Root::enter")
                         )

@@ -20,15 +20,13 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use optimization_core::OptimizationWorkBudget;
-use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
-use target_operations_to_selected_instructions::register_model::{
-    RegisterInstructionConstraint, RegisterUnitId,
-};
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
-use target_operations_to_selected_instructions::{
+use register_environment::ValidatedTargetRegisterEnvironment;
+use register_model::{RegisterInstructionConstraint, RegisterUnitId};
+use selected_instructions::{
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionPlan, SelectedInstructionProvenance, SelectedTerminator,
 };
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::{BoundaryBranchError, BoundaryBranchReceipt, ValidatedBoundaryBranch};
 use crate::ValidatedSelectedAnalysis;
@@ -592,26 +590,24 @@ mod independence_tests {
     use std::sync::Arc;
 
     use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
-    use semantic_vocabulary::{
-        BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
-        ScalarType, ValueId,
-    };
-    use target::NativeTarget;
-    use target_operations_to_selected_instructions::register_environment::{
+    use optimization_unit::ValueDefinitionSite;
+    use register_environment::{
         ValidatedTargetRegisterEnvironment, baseline_target_register_environment,
     };
-    use target_operations_to_selected_instructions::register_model::{
-        RegisterInstructionConstraint, RegisterUnitId,
-    };
-    use target_operations_to_selected_instructions::selected_instruction_plan_identity;
-    use target_operations_to_selected_instructions::{
+    use register_model::{RegisterInstructionConstraint, RegisterUnitId};
+    use selected_instructions::{
         SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
         SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedOperand,
         SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator, VirtualRegister,
         VirtualRegisterId, VirtualRegisterOrigin,
     };
+    use semantic_vocabulary::{
+        BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
+        ScalarType, ValueId,
+    };
+    use target::NativeTarget;
+    use target_operations_to_selected_instructions::selected_instruction_plan_identity;
     use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
-    use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
     use super::{
         BoundaryBranchError, BoundaryBranchReceipt, ValidatedBoundaryBranch,

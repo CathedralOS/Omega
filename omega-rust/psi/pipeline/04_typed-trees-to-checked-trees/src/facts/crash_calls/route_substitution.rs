@@ -1,6 +1,5 @@
 //! Call argument substitution into published crash routes.
 
-use crate::checked_trees::CrashPredicateExpression;
 use crate::facts::crash_calls::crash_predicate_from_expression;
 use crate::facts::crash_calls::private_summaries::crash_route_expressions_by_identity;
 use crate::facts::crash_calls::summary_predicates::{
@@ -8,10 +7,11 @@ use crate::facts::crash_calls::summary_predicates::{
     concrete_guard_scalar_value, normalize_summary_buckets, normalize_summary_guards,
     scalar_guard_is_integer_comparison, scalar_guard_proves_false, summary_boolean_value,
 };
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
-use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
+use checked_trees::CrashPredicateExpression;
 use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
+use typed_trees::expression::ExpressionHandle;
+use typed_trees::signature::StateParameter;
 
 /// One call argument's entry operand under the projection a surviving guard
 /// reads. `ordinal` indexes the callee parameter telescope; `members` is the
@@ -65,9 +65,8 @@ pub(crate) fn call_argument_entry_operand(
 
 pub(crate) enum SelectedTargetCrashRoutes<'a> {
     Published {
-        buckets: &'a [crate::checked_trees::CrashRouteBucket],
-        contracts:
-            &'a [symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContract],
+        buckets: &'a [checked_trees::CrashRouteBucket],
+        contracts: &'a [typed_trees::signature::SignatureContract],
     },
     Private(&'a [SummaryCrashBucket]),
     Empty,
@@ -76,14 +75,14 @@ pub(crate) enum SelectedTargetCrashRoutes<'a> {
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn call_argument_substitution(
     program: &TypedTrees,
-    operators: &crate::checked_trees::CheckedOperatorFacts,
-    semantic: &crate::fact_plan::FactPlan,
-    flow: &crate::checked_trees::FlowFacts,
-    state_flow: &crate::checked_trees::FlowStateFact,
-    call_flow: &crate::checked_trees::FlowCallFact,
-    target_parameters: &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter],
-    arguments: &[symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle],
-    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
+    operators: &checked_trees::CheckedOperatorFacts,
+    semantic: &facts::FactPlan,
+    flow: &checked_trees::FlowFacts,
+    state_flow: &checked_trees::FlowStateFact,
+    call_flow: &checked_trees::FlowCallFact,
+    target_parameters: &[typed_trees::signature::StateParameter],
+    arguments: &[typed_trees::expression::ExpressionHandle],
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> CallArgumentSubstitution {
     // Both direct published routes and private/transitive summaries cross the
     // same namespace boundary. Source spelling and statement position cannot
@@ -105,7 +104,7 @@ pub(crate) fn call_argument_substitution(
     // containing statement may still overwrite through a sibling operand
     // stays unproven: the entry snapshot postdates those effects and would
     // describe newer storage than the argument carried.
-    let entry_contexts: Vec<crate::fact_plan::FactContextHandle> = flow
+    let entry_contexts: Vec<facts::FactContextHandle> = flow
         .contexts
         .semantic_context_refs
         .span_or_empty(call_flow.entry_semantic_contexts)
@@ -147,7 +146,7 @@ pub(crate) fn call_argument_substitution(
                         .unwrap_or(&[])
                         .iter()
                         .filter_map(|statement| match statement {
-                            symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local)
+                            typed_trees::statement::StatementNode::LocalData(local)
                                 if !local.is_mutable
                                     && local.initial_value.is_valid()
                                     && program
@@ -222,7 +221,7 @@ pub(crate) fn call_argument_substitution(
                 // under semantics its selection rejected. This is the same
                 // custody gate the `values` channel applies before
                 // evaluating an actual.
-                if !crate::validation::has_builtin_bound_expression_meaning(
+                if !validation::has_builtin_bound_expression_meaning(
                     program,
                     machine,
                     Some(state),
@@ -256,7 +255,7 @@ pub(crate) fn call_argument_substitution(
                 // Live evaluation folds under builtin laws. An actual whose
                 // own operator occurrence selected an authored meaning cannot
                 // be re-interpreted this way; it keeps no proven value.
-                if !crate::validation::has_builtin_bound_expression_meaning(
+                if !validation::has_builtin_bound_expression_meaning(
                     program,
                     machine,
                     Some(state),
@@ -301,13 +300,13 @@ pub(crate) fn call_argument_substitution(
                     },
                 )
                 .and_then(|value| match value {
-                    crate::fact_plan::ScalarValue::Boolean(value) => {
+                    facts::ScalarValue::Boolean(value) => {
                         Some(CrashPredicateExpression::Boolean(value))
                     }
-                    crate::fact_plan::ScalarValue::Integer(value) => {
+                    facts::ScalarValue::Integer(value) => {
                         Some(CrashPredicateExpression::Integer(value.to_string()))
                     }
-                    crate::fact_plan::ScalarValue::Unknown => None,
+                    facts::ScalarValue::Unknown => None,
                 })
             }));
         } else {
@@ -338,34 +337,34 @@ fn structural_actual_root(
     program: &TypedTrees,
     caller_parameters: &[StateParameter],
     actual: ExpressionHandle,
-) -> Option<crate::checked_trees::CheckedStructuralParameterField> {
+) -> Option<checked_trees::CheckedStructuralParameterField> {
     let place = crate::flow::canonical_place_from_expression(program, actual)?;
     let root = crate::flow::normalized_event_place_root(program, place.root);
-    if !matches!(root, crate::fact_plan::PlaceRoot::Symbol(_)) {
+    if !matches!(root, facts::PlaceRoot::Symbol(_)) {
         return None;
     }
     let parameter_position = caller_parameters.iter().position(|parameter| {
         crate::flow::normalized_event_place_root(
             program,
-            crate::fact_plan::PlaceRoot::Symbol(parameter.symbol),
+            facts::PlaceRoot::Symbol(parameter.symbol),
         ) == root
     })?;
     let mut path = Vec::with_capacity(place.segments.len());
     for segment in &place.segments {
         path.push(match *segment {
-            crate::fact_plan::PlaceSegment::Field { symbol } => {
-                crate::checked_trees::CheckedStructuralPredicatePathSegment::Field(
+            facts::PlaceSegment::Field { symbol } => {
+                checked_trees::CheckedStructuralPredicatePathSegment::Field(
                     structural_member_identity(program, symbol)?,
                 )
             }
-            crate::fact_plan::PlaceSegment::Case { variant } => {
-                crate::checked_trees::CheckedStructuralPredicatePathSegment::Case(
+            facts::PlaceSegment::Case { variant } => {
+                checked_trees::CheckedStructuralPredicatePathSegment::Case(
                     structural_member_identity(program, variant)?,
                 )
             }
-            crate::fact_plan::PlaceSegment::FixedIndex { .. }
-            | crate::fact_plan::PlaceSegment::FixedRange { .. }
-            | crate::fact_plan::PlaceSegment::Index { .. } => return None,
+            facts::PlaceSegment::FixedIndex { .. }
+            | facts::PlaceSegment::FixedRange { .. }
+            | facts::PlaceSegment::Index { .. } => return None,
         });
     }
     let parameter_position = u32::try_from(parameter_position).ok()?;
@@ -378,10 +377,10 @@ fn structural_actual_root(
     (frozen
         && crate::flow::normalized_event_place_root(
             program,
-            crate::fact_plan::PlaceRoot::Symbol(resolved_root),
+            facts::PlaceRoot::Symbol(resolved_root),
         ) == root
         && segments == place.segments)
-        .then_some(crate::checked_trees::CheckedStructuralParameterField {
+        .then_some(checked_trees::CheckedStructuralParameterField {
             parameter_position,
             path,
         })
@@ -401,9 +400,9 @@ fn structural_actual_root(
 /// identity, so its scalar can only discharge a closed-false guard in the
 /// missing-identity arm and is never kept where the route survives.
 fn scalar_evidence_is_crash_lane_lowerable(
-    expression: &crate::checked_trees::CheckedScalarExpression,
+    expression: &checked_trees::CheckedScalarExpression,
 ) -> bool {
-    use crate::checked_trees::CheckedScalarExpression;
+    use checked_trees::CheckedScalarExpression;
     match expression {
         CheckedScalarExpression::StructuralParameterByteLength { .. }
         | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => false,
@@ -433,9 +432,9 @@ fn scalar_evidence_is_crash_lane_lowerable(
 }
 
 fn boolean_evidence_is_crash_lane_lowerable(
-    expression: &crate::checked_trees::CheckedBooleanExpression,
+    expression: &checked_trees::CheckedBooleanExpression,
 ) -> bool {
-    use crate::checked_trees::CheckedBooleanExpression;
+    use checked_trees::CheckedBooleanExpression;
     match expression {
         CheckedBooleanExpression::IntegerComparison { left, right, .. }
         | CheckedBooleanExpression::ScalarIeeeFloatComparison { left, right, .. } => {
@@ -472,32 +471,28 @@ fn structural_member_identity(program: &TypedTrees, symbol: SymbolHandle) -> Opt
             .data_members(data)
             .iter()
             .find_map(|member| match member {
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
-                    field,
-                ) if field.symbol == symbol => Some(field.path_identity()),
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
-                    variant,
-                ) if variant.symbol == symbol => Some(variant.path_identity()),
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
-                    variant,
-                ) => program
+                typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
+                    Some(field.path_identity())
+                }
+                typed_trees::data::DataMember::Variant(variant) if variant.symbol == symbol => {
+                    Some(variant.path_identity())
+                }
+                typed_trees::data::DataMember::Variant(variant) => program
                     .data_payload_fields(variant)
                     .iter()
                     .find(|field| field.symbol == symbol)
                     .map(|field| field.path_identity()),
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(_) => {
-                    None
-                }
+                typed_trees::data::DataMember::Field(_) => None,
             })
     })
 }
 
 pub(crate) fn substitute_checked_boolean_expression(
-    expression: &crate::checked_trees::CheckedBooleanExpression,
-    arguments: &[Option<crate::checked_trees::CheckedScalarExpression>],
-    fields: &[Option<crate::checked_trees::CheckedStructuralParameterField>],
-) -> Option<crate::checked_trees::CheckedBooleanExpression> {
-    use crate::checked_trees::{CheckedBooleanExpression, CheckedScalarExpression};
+    expression: &checked_trees::CheckedBooleanExpression,
+    arguments: &[Option<checked_trees::CheckedScalarExpression>],
+    fields: &[Option<checked_trees::CheckedStructuralParameterField>],
+) -> Option<checked_trees::CheckedBooleanExpression> {
+    use checked_trees::{CheckedBooleanExpression, CheckedScalarExpression};
 
     Some(match expression {
         CheckedBooleanExpression::Constant(value) => CheckedBooleanExpression::Constant(*value),
@@ -585,7 +580,7 @@ pub(crate) fn substitute_checked_boolean_expression(
             path,
         } => {
             let leaf = substitute_structural_parameter_field(
-                &crate::checked_trees::CheckedStructuralParameterField {
+                &checked_trees::CheckedStructuralParameterField {
                     parameter_position: *parameter_position,
                     path: path.clone(),
                 },
@@ -655,24 +650,24 @@ pub(crate) fn substitute_checked_boolean_expression(
 /// checked scalar form rather than naming storage the entry snapshot cannot
 /// describe.
 fn substitute_structural_parameter_field(
-    leaf: &crate::checked_trees::CheckedStructuralParameterField,
-    fields: &[Option<crate::checked_trees::CheckedStructuralParameterField>],
-) -> Option<crate::checked_trees::CheckedStructuralParameterField> {
+    leaf: &checked_trees::CheckedStructuralParameterField,
+    fields: &[Option<checked_trees::CheckedStructuralParameterField>],
+) -> Option<checked_trees::CheckedStructuralParameterField> {
     let root = fields.get(leaf.parameter_position as usize)?.as_ref()?;
     let mut path = root.path.clone();
     path.extend_from_slice(&leaf.path);
-    Some(crate::checked_trees::CheckedStructuralParameterField {
+    Some(checked_trees::CheckedStructuralParameterField {
         parameter_position: root.parameter_position,
         path,
     })
 }
 
 fn substitute_checked_scalar_expression(
-    expression: &crate::checked_trees::CheckedScalarExpression,
-    arguments: &[Option<crate::checked_trees::CheckedScalarExpression>],
-    fields: &[Option<crate::checked_trees::CheckedStructuralParameterField>],
-) -> Option<crate::checked_trees::CheckedScalarExpression> {
-    use crate::checked_trees::CheckedScalarExpression;
+    expression: &checked_trees::CheckedScalarExpression,
+    arguments: &[Option<checked_trees::CheckedScalarExpression>],
+    fields: &[Option<checked_trees::CheckedStructuralParameterField>],
+) -> Option<checked_trees::CheckedScalarExpression> {
+    use checked_trees::CheckedScalarExpression;
 
     Some(match expression {
         CheckedScalarExpression::Parameter {
@@ -703,7 +698,7 @@ fn substitute_checked_scalar_expression(
             primitive_type,
         } => {
             let leaf = substitute_structural_parameter_field(
-                &crate::checked_trees::CheckedStructuralParameterField {
+                &checked_trees::CheckedStructuralParameterField {
                     parameter_position: *parameter_position,
                     path: path.clone(),
                 },
@@ -776,20 +771,20 @@ fn substitute_checked_scalar_expression(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn refine_published_crash_routes(
     program: &TypedTrees,
-    operators: &crate::checked_trees::CheckedOperatorFacts,
-    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
-    semantic: &crate::fact_plan::FactPlan,
-    flow: &crate::checked_trees::FlowFacts,
-    state_flow: &crate::checked_trees::FlowStateFact,
-    call_flow: &crate::checked_trees::FlowCallFact,
+    operators: &checked_trees::CheckedOperatorFacts,
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
+    semantic: &facts::FactPlan,
+    flow: &checked_trees::FlowFacts,
+    state_flow: &checked_trees::FlowStateFact,
+    call_flow: &checked_trees::FlowCallFact,
     call_site: &crate::semantic::calls::CallSite<'_>,
     target_state_symbol: SymbolHandle,
-    target_parameters: &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter],
+    target_parameters: &[typed_trees::signature::StateParameter],
     target_parameter_names: &[String],
-    buckets: &[crate::checked_trees::CrashRouteBucket],
-    contracts: &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContract],
-    content_conservation: &[crate::validation::ContentConservationSourcePlan],
-    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
+    buckets: &[checked_trees::CrashRouteBucket],
+    contracts: &[typed_trees::signature::SignatureContract],
+    content_conservation: &[validation::ContentConservationSourcePlan],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Vec<SummaryCrashBucket> {
     let route_expressions = crash_route_expressions_by_identity(
         program,
@@ -814,10 +809,10 @@ pub(crate) fn refine_published_crash_routes(
         let mut guards = Vec::new();
         for guard in bucket.alternative_guards() {
             match guard {
-                crate::checked_trees::CrashRouteGuard::Truth => {
+                checked_trees::CrashRouteGuard::Truth => {
                     guards.push(SummaryCrashRouteGuard::Truth);
                 }
-                crate::checked_trees::CrashRouteGuard::Predicate(identity) => {
+                checked_trees::CrashRouteGuard::Predicate(identity) => {
                     let expression = *route_expressions.get(identity).expect(
                         "a canonical published crash route retains its typed producer expression",
                     );
@@ -832,7 +827,7 @@ pub(crate) fn refine_published_crash_routes(
                                 .iter()
                                 .find(|state| state.symbol == target_state_symbol)
                                 .map(|state| {
-                                    crate::validation::has_builtin_bound_expression_meaning(
+                                    validation::has_builtin_bound_expression_meaning(
                                         program,
                                         machine,
                                         Some(state),

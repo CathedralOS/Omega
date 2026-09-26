@@ -3,7 +3,7 @@ use crate::lowering::LoweringError;
 use semantic_vocabulary::OperationId;
 mod operation;
 mod terminator;
-use crate::abstract_operations::{
+use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
     AbstractParameter, AbstractResult,
 };

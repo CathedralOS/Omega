@@ -1,24 +1,24 @@
 //! Nested structural operands retain captured call coordinates and source scope.
-use crate::checked_trees::CheckedLocatedScalarExpression;
-use crate::checked_trees::CheckedOperatorFacts;
-use crate::checked_trees::CheckedScalarExpressionBindings;
-use crate::checked_trees::CheckedScalarExpressionPlans;
-use crate::checked_trees::CheckedScalarExpressionRole;
-use crate::checked_trees::FlowFacts;
 use crate::values::scalar::call_lowering::lower_call_arguments;
 use crate::values::scalar::call_lowering::retain_call_arguments;
 use crate::values::scalar::expression_plans::ScalarLocal;
 use crate::values::scalar::scalar_lowering::lower_return_expression;
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle;
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
+use checked_trees::CheckedLocatedScalarExpression;
+use checked_trees::CheckedOperatorFacts;
+use checked_trees::CheckedScalarExpressionBindings;
+use checked_trees::CheckedScalarExpressionPlans;
+use checked_trees::CheckedScalarExpressionRole;
+use checked_trees::FlowFacts;
+use typed_trees::TypedTrees;
+use typed_trees::expression::ExpressionHandle;
+use typed_trees::expression::ExpressionNode;
+use typed_trees::statement::StatementNode;
+use typed_trees::types::TypeReferenceHandle;
+use typed_trees::types::TypeReferenceNode;
 
 pub(crate) fn is_scalar_return_call(
     program: &TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    state: &typed_trees::state::State,
     expression: ExpressionHandle,
 ) -> bool {
     let Some(primitive_type) = program.primitive_type_reference(state.return_type) else {
@@ -41,8 +41,8 @@ pub(crate) fn retain_nested_structural_call_arguments(
     operators: &CheckedOperatorFacts,
     flow: &FlowFacts,
     plans: &mut CheckedScalarExpressionPlans,
-    proof_terms: &mut Vec<crate::checked_trees::CheckedLocatedProofTerm>,
-    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
+    proof_terms: &mut Vec<checked_trees::CheckedLocatedProofTerm>,
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) {
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -84,7 +84,7 @@ pub(crate) fn retain_nested_structural_call_arguments(
                     })
                     .unwrap_or_default()
                 {
-                    let Some(array) = crate::validation::scalar_array_elements(
+                    let Some(array) = validation::scalar_array_elements(
                         program,
                         machine.symbol,
                         construction.expression,
@@ -204,8 +204,8 @@ pub(crate) fn retain_nested_structural_call_arguments(
 pub(super) fn nested_structural_call_sites<'program>(
     program: &'program TypedTrees,
     flow: &FlowFacts,
-    source: &crate::checked_trees::FlowStateFact,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    source: &checked_trees::FlowStateFact,
+    machine: &typed_trees::machine::Machine,
     statement_index: usize,
 ) -> Vec<(usize, crate::semantic::calls::CallSite<'program>)> {
     let Some(calls) = flow.control.calls.span(source.calls) else {
@@ -273,7 +273,7 @@ pub(super) fn nested_structural_call_sites<'program>(
 pub(crate) fn nested_structural_call_return_type(
     program: &TypedTrees,
     caller: symbols::SymbolHandle,
-    call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
+    call: &typed_trees::expression::TableCallExpression,
 ) -> Option<TypeReferenceHandle> {
     if !call.target_symbol.is_valid()
         || !call.carries_only_positional_arguments()
@@ -287,7 +287,7 @@ pub(crate) fn nested_structural_call_return_type(
     });
     let (return_type, ordinary) = if let Some((owner, target)) = targets.next() {
         // `self.suffix(..)` inside an `&self`/`&mut self` caller reborrows the
-        // caller's own `self` parameter for a shared `&self` callee â€” the
+        // caller's own `self` parameter for a shared `&self` callee — the
         // same runtime receiver the top-level call machinery mints through
         // `receiver_symbol`, not a free value the operand walk cannot name.
         // `self` resolves to the calling machine's own symbol, so the
@@ -371,19 +371,19 @@ pub(crate) fn nested_structural_call_return_type(
             TypeReferenceNode::Unit
         )
         && ((program.type_multiplicity(return_type) == language_semantics::Multiplicity::Affine
-            && (crate::validation::has_plain_owned_contents(program, return_type)
+            && (validation::has_plain_owned_contents(program, return_type)
                 // A checked-body record carrying borrowed referents is affine
                 // through its captured leaf loans; the caller's own operand
                 // scheduling still has to replay that custody exactly.
                 || (ordinary
-                    && crate::validation::reference_result_custody::is_reference_record(
+                    && validation::reference_result_custody::is_reference_record(
                         program,
                         return_type,
                     ))))
             || (ordinary
                 && program.type_multiplicity(return_type)
                     == language_semantics::Multiplicity::Unrestricted
-                && (crate::validation::has_plain_owned_contents(program, return_type)
+                && (validation::has_plain_owned_contents(program, return_type)
                     // A checked-body `&[u8]`/`&'a V` borrowed-view result
                     // lends caller-frame storage through a shared loan;
                     // the caller's operand scheduling replays that custody

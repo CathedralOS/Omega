@@ -16,12 +16,10 @@ use optimization_core::{
     OptimizationWorkBudget, OptimizedAbstractPlanProjectionIdentity,
     PrePhysicalOptimizationManifestIdentity,
 };
+use register_environment::ValidatedTargetRegisterEnvironment;
+use selected_instructions::{LivenessIdentity, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use target_operations_to_selected_instructions::StagedOptimizedSelectedInstructions;
-use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
-use target_operations_to_selected_instructions::{
-    LivenessIdentity, SelectedInstructionPlanIdentity,
-};
 use target_operations_to_selected_instructions::{
     OptimizedSelectionCustodyError, ValidatedSelectedInstructions,
 };
@@ -95,7 +93,7 @@ pub struct StagedOptimizedLivenessCustodyReceipt {
     manifest: PrePhysicalOptimizationManifestIdentity,
     optimization_unit: OptimizationUnitIdentity,
     fuel_schedule: FuelScheduleIdentity,
-    register_environment: target_operations_to_selected_instructions::register_model::TargetRegisterEnvironmentIdentity,
+    register_environment: register_model::TargetRegisterEnvironmentIdentity,
     selected: SelectedInstructionPlanIdentity,
     liveness: LivenessIdentity,
     function_count: usize,
@@ -142,10 +140,7 @@ impl StagedOptimizedLivenessCustodyReceipt {
         self.selected
     }
 
-    pub const fn register_environment(
-        self,
-    ) -> target_operations_to_selected_instructions::register_model::TargetRegisterEnvironmentIdentity
-    {
+    pub const fn register_environment(self) -> register_model::TargetRegisterEnvironmentIdentity {
         self.register_environment
     }
 

@@ -4,7 +4,7 @@ use super::{
     VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
-use crate::legalized_operations::LegalizedScalarInstruction;
+use legalized_operations::LegalizedScalarInstruction;
 
 pub(super) fn emit(
     operation: &LegalizedScalarInstruction,

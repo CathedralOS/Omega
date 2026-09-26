@@ -6,10 +6,10 @@ use super::{
     SelectedSelectionConstraints, StructuralTypeId, ValueId, ValueLocation, ValueShape, build,
     evaluate_call_plan, returned,
 };
-use crate::selected_instructions::{
+use calling_conventions::IndirectPointerLocation;
+use selected_instructions::{
     FrameStorageSlotId, OutgoingArgumentSlotRole, SelectedMemoryAccessRole,
 };
-use abstract_operations_to_target_operations::calling_conventions::IndirectPointerLocation;
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 
@@ -40,7 +40,7 @@ fn owned_call(
     let producer = row.operation;
     let input_source = match storage {
         InputStorage::Constructed => {
-            abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::StructuralHome {
+            target_operations::TargetStructuralArgumentSource::StructuralHome {
                 psi_operation: producer,
             }
         }
@@ -62,7 +62,7 @@ fn owned_call(
             };
             signature
                 .parameters
-                .push(crate::legalized_operations::LegalizedCallUnitParameter {
+                .push(legalized_operations::LegalizedCallUnitParameter {
                     semantic: terminal_psi::StructuralParameterDeclaration {
                         place: input.place,
                         position: 0,
@@ -73,7 +73,7 @@ fn owned_call(
                         qualifications: Vec::new(),
                         projected_qualifications: Vec::new(),
                     },
-                    target: abstract_operations_to_target_operations::target_operations::TargetStructuralParameter {
+                    target: target_operations::TargetStructuralParameter {
                         place: input.place,
                         structural_type: input.structural_type,
                         multiplicity: StructuralMultiplicity::Unrestricted,
@@ -117,20 +117,19 @@ fn owned_call(
             access: StructuralAccess::Owned,
             path: Vec::new(),
         },
-        target:
-            abstract_operations_to_target_operations::target_operations::TargetStructuralArgument {
-                place: input.place,
-                access: StructuralAccess::Owned,
-                path: Vec::new(),
-                root_structural_type: input.structural_type,
-                structural_type: input.structural_type,
-                shape,
-                source_byte_offset: 0,
-                fixed_array_length: None,
-                element_stride: None,
-                source: input_source,
-                destination: call_plan.parameters[scalar_count].clone(),
-            },
+        target: target_operations::TargetStructuralArgument {
+            place: input.place,
+            access: StructuralAccess::Owned,
+            path: Vec::new(),
+            root_structural_type: input.structural_type,
+            structural_type: input.structural_type,
+            shape,
+            source_byte_offset: 0,
+            fixed_array_length: None,
+            element_stride: None,
+            source: input_source,
+            destination: call_plan.parameters[scalar_count].clone(),
+        },
     });
     row.kind = LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
         source: NativeCallOrigin::Authored,
@@ -153,7 +152,7 @@ fn owned_call(
         },
     );
     returned(&mut source.blocks[0]).value = LegalizedScalarReturnValue::Structural {
-        source: crate::legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+        source: legalized_operations::LegalizedStructuralCaseSource::OperationResult {
             operation: row.operation,
             result: output,
         },
@@ -184,7 +183,7 @@ fn indirect_owned_output_rejects_slot_copy_and_pointer_substitution() {
         target::NativeTarget::windows_x64(),
     ] {
         let environment =
-            crate::register_environment::baseline_target_register_environment(native).unwrap();
+            register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -395,7 +394,7 @@ fn indirect_owned_output_rejects_slot_copy_and_pointer_substitution() {
                             })
                             .unwrap();
                         access.role = SelectedMemoryAccessRole::WriteOutgoing {
-                            slot: crate::selected_instructions::OutgoingArgumentSlotId {
+                            slot: selected_instructions::OutgoingArgumentSlotId {
                                 role: OutgoingArgumentSlotRole::Argument,
                                 ..copy.id
                             },
@@ -420,7 +419,7 @@ fn indirect_owned_input_rejects_changed_access_type_producer_and_plan() {
         target::NativeTarget::windows_x64(),
     ] {
         let environment =
-            crate::register_environment::baseline_target_register_environment(native).unwrap();
+            register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -481,7 +480,7 @@ fn indirect_owned_input_rejects_changed_access_type_producer_and_plan() {
                     }
                     "producer" => {
                         target.source =
-                            abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::StructuralHome {
+                            target_operations::TargetStructuralArgumentSource::StructuralHome {
                                 psi_operation: OperationId::new(99).unwrap(),
                             }
                     }

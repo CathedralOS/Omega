@@ -2,12 +2,11 @@
 //! Discovery does not schedule evaluation or create a synthetic call. Pure and
 //! computed leaves share this roster after flow capture, while statement-owned
 //! arrays retain their existing pre-flow value production.
-use crate::checked_trees::{CheckedArrayConstructionSource, FlowFacts, FlowStateFact};
-use crate::validation;
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle;
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle;
+use checked_trees::{CheckedArrayConstructionSource, FlowFacts, FlowStateFact};
+use typed_trees::TypedTrees;
+use typed_trees::expression::ExpressionHandle;
+use typed_trees::statement::StatementNode;
+use typed_trees::types::TypeReferenceHandle;
 
 #[derive(Clone, Copy)]
 pub(crate) struct CallArrayConstruction {
@@ -19,8 +18,8 @@ pub(crate) struct CallArrayConstruction {
 pub(crate) fn call_array_constructions(
     program: &TypedTrees,
     flow: &FlowFacts,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     statement_index: usize,
 ) -> Vec<CallArrayConstruction> {
     let Some(captured) = unique_state_flow(flow, machine, state) else {
@@ -34,8 +33,8 @@ pub(crate) fn call_array_constructions(
 /// rescanning every state fact at each statement.
 pub(crate) fn unique_state_flow<'flow>(
     flow: &'flow FlowFacts,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
 ) -> Option<&'flow FlowStateFact> {
     let mut states = flow.control.states.iter().filter_map(|(_, candidate)| {
         (candidate.machine_symbol == machine.symbol && candidate.state_symbol == state.symbol)
@@ -51,8 +50,8 @@ pub(crate) fn call_array_constructions_in(
     program: &TypedTrees,
     flow: &FlowFacts,
     captured: &FlowStateFact,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     statement_index: usize,
 ) -> Vec<CallArrayConstruction> {
     let Some(calls) = flow.control.calls.span(captured.calls) else {
@@ -145,11 +144,8 @@ pub(crate) fn call_array_constructions_in(
             if parameter.is_self
                 || parameter.is_const
                 || parameter.is_mutable
-                || !crate::validation::is_closed_primitive_array_type(
-                    program,
-                    parameter.type_reference,
-                )
-                || crate::validation::scalar_array_elements(
+                || !validation::is_closed_primitive_array_type(program, parameter.type_reference)
+                || validation::scalar_array_elements(
                     program,
                     machine.symbol,
                     *expression,

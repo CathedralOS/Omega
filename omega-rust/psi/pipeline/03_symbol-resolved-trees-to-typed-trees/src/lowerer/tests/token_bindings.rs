@@ -1,10 +1,10 @@
 //! Token-bearing machines reach operand-directed selection through their
 //! operator-signature view, under the machine's own symbol.
 
-use crate::typed_trees::TypedTrees;
-use crate::typed_trees::operator::{declaration_by_symbol, resolve_spelling_for_operands};
-use crate::typed_trees::types::TypeReferenceHandle;
 use language_core::operator_spelling::OperatorSpelling;
+use typed_trees::TypedTrees;
+use typed_trees::operator::{declaration_by_symbol, resolve_spelling_for_operands};
+use typed_trees::types::TypeReferenceHandle;
 
 const SOURCE: &str = "data Wrapped { value: u8; }
     pub machine + Wrapped::add(left: Wrapped, right: Wrapped) -> u64
@@ -153,8 +153,8 @@ fn boundary_token_satisfaction_selects_each_exact_operand_overload() {
         assert_eq!(conformance.symbol, requirement.symbol);
         assert_eq!(conformance.requirement_symbol, requirement.symbol);
         assert!(matches!(
-            crate::typed_trees::machine::resolve_satisfied_declaration(&program, provider, conformance),
-            Some(crate::typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(selected))
+            typed_trees::machine::resolve_satisfied_declaration(&program, provider, conformance),
+            Some(typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(selected))
                 if selected.symbol == requirement.symbol
         ));
     }
@@ -178,7 +178,7 @@ fn boundary_token_satisfaction_does_not_settle_a_mismatch() {
     );
     assert!(!conformance.requirement_symbol.is_valid());
     assert!(
-        crate::typed_trees::machine::resolve_satisfied_declaration(&program, provider, conformance)
+        typed_trees::machine::resolve_satisfied_declaration(&program, provider, conformance)
             .is_none()
     );
 }

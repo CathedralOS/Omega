@@ -18,10 +18,7 @@ pub(super) fn reconstruct(
     call: &CallPlan,
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
-) -> Result<
-    abstract_operations_to_target_operations::target_operations::TargetStructuralArgument,
-    LegalizationError,
-> {
+) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
     let destination = callee
         .structural_parameters
         .get(position)
@@ -100,7 +97,7 @@ pub(super) fn reconstruct(
         {
             return Err(LegalizationError::custody());
         }
-        abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::StructuralHome {
+        target_operations::TargetStructuralArgumentSource::StructuralHome {
             psi_operation: producer,
         }
     } else {
@@ -134,7 +131,7 @@ pub(super) fn reconstruct(
         {
             return Err(LegalizationError::custody());
         }
-        abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::StructuralHome {
+        target_operations::TargetStructuralArgumentSource::StructuralHome {
             psi_operation: producer,
         }
     };
@@ -145,21 +142,19 @@ pub(super) fn reconstruct(
     if placement.shape != shape {
         return Err(LegalizationError::custody());
     }
-    Ok(
-        abstract_operations_to_target_operations::target_operations::TargetStructuralArgument {
-            place: argument.place,
-            access: argument.access,
-            path: Vec::new(),
-            root_structural_type: destination.structural_type,
-            structural_type: destination.structural_type,
-            shape,
-            source_byte_offset: 0,
-            fixed_array_length: None,
-            element_stride: None,
-            source,
-            destination: placement.clone(),
-        },
-    )
+    Ok(target_operations::TargetStructuralArgument {
+        place: argument.place,
+        access: argument.access,
+        path: Vec::new(),
+        root_structural_type: destination.structural_type,
+        structural_type: destination.structural_type,
+        shape,
+        source_byte_offset: 0,
+        fixed_array_length: None,
+        element_stride: None,
+        source,
+        destination: placement.clone(),
+    })
 }
 
 /// The block and position of the one node `matches` selects.

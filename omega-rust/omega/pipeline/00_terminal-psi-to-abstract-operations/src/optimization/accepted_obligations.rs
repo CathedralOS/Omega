@@ -1,17 +1,14 @@
 use super::{VerifiedPsiOptimizationContext, VerifiedPsiOptimizationUnitBuildError};
 
 pub(super) fn project_accepted_obligation_facts(
-    seed: &crate::optimization_unit::PsiOptimizationUnit,
+    seed: &optimization_unit::PsiOptimizationUnit,
     context: &VerifiedPsiOptimizationContext,
-) -> Result<
-    Vec<crate::optimization_unit::AcceptedObligationFact>,
-    VerifiedPsiOptimizationUnitBuildError,
-> {
+) -> Result<Vec<optimization_unit::AcceptedObligationFact>, VerifiedPsiOptimizationUnitBuildError> {
     let proof_fingerprint = *context.proof_bundle_fingerprint().as_bytes();
     let mut facts = Vec::new();
     for function in &seed.functions {
         for reference in &function.facts {
-            let crate::optimization_unit::OptimizationFact::OperationObligationReference {
+            let optimization_unit::OptimizationFact::OperationObligationReference {
                 obligation,
                 support,
             } = reference
@@ -51,7 +48,7 @@ pub(super) fn project_accepted_obligation_facts(
                 )?;
             let proposition =
                 terminal_codec::canonical_proposition_order_key(&accepted.proposition)?;
-            facts.push(crate::optimization_unit::AcceptedObligationFact::new(
+            facts.push(optimization_unit::AcceptedObligationFact::new(
                 seed.psi,
                 proof_fingerprint,
                 function.machine,

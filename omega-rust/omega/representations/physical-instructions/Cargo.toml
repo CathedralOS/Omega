@@ -1,0 +1,23 @@
+[package]
+name = "physical-instructions"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "physical_instructions"
+path = "src/lib.rs"
+
+[dependencies]
+optimization-core = { path = "../optimization-core" }
+optimization-unit = { path = "../optimization-unit" }
+register-homes = { path = "../register-homes" }
+register-model = { path = "../register-model" }
+selected-instructions = { path = "../selected-instructions" }
+target = { path = "../target" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+sha2 = "0.10.9"
+
+[dev-dependencies]
+target-operations = { path = "../target-operations" }
+terminal-psi = { path = "../../../psi/representations/terminal-psi" }

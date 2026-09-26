@@ -4,19 +4,19 @@ use super::{
     validate,
 };
 use crate::analyses::validated_machine_effect_catalog;
-use crate::register_homes::{RecoveryClassification, RecoveryVictimRole};
 use crate::rewrites::{fold_selected_incoming_literal, validate_literal_fold};
 use crate::{LiteralFoldError, LiteralFoldPolicy};
 use optimization_core::AcceptedObligationFactIdentity;
-use semantic_vocabulary::{IntegerValue, ObligationId, ValueId};
-use std::sync::Arc;
-use target::NativeTarget;
-use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
-use target_operations_to_selected_instructions::register_model::RegisterOperandAccess;
-use target_operations_to_selected_instructions::{
+use register_environment::baseline_target_register_environment;
+use register_homes::{RecoveryClassification, RecoveryVictimRole};
+use register_model::RegisterOperandAccess;
+use selected_instructions::{
     MachineEffectCatalogIdentity, SelectedBlockId, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionPlanIdentity, SelectedTerminator, VirtualRegisterId, VirtualRegisterOrigin,
 };
+use semantic_vocabulary::{IntegerValue, ObligationId, ValueId};
+use std::sync::Arc;
+use target::NativeTarget;
 
 #[test]
 fn compare_immediate_fold_rewrites_the_flag_defining_consumer_on_both_linux_targets() {
@@ -493,14 +493,8 @@ fn subtract_fold_rejects_unadmitted_candidate_shapes() {
             // the operand the consumer reads.
             0 => {
                 slot.role = RecoveryVictimRole::ActiveResident {
-                    current_view:
-                        target_operations_to_selected_instructions::register_model::RegisterViewId(
-                            0,
-                        ),
-                    reclaimed_view:
-                        target_operations_to_selected_instructions::register_model::RegisterViewId(
-                            0,
-                        ),
+                    current_view: register_model::RegisterViewId(0),
+                    reclaimed_view: register_model::RegisterViewId(0),
                 };
                 (
                     LiteralFoldError::UnsupportedVictimRole { function: 0 },
@@ -1105,14 +1099,8 @@ fn compare_fold_rejects_unadmitted_candidate_shapes() {
         match mutation {
             0 => {
                 slot.role = RecoveryVictimRole::ActiveResident {
-                    current_view:
-                        target_operations_to_selected_instructions::register_model::RegisterViewId(
-                            0,
-                        ),
-                    reclaimed_view:
-                        target_operations_to_selected_instructions::register_model::RegisterViewId(
-                            0,
-                        ),
+                    current_view: register_model::RegisterViewId(0),
+                    reclaimed_view: register_model::RegisterViewId(0),
                 }
             }
             1 => {

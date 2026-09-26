@@ -1,14 +1,14 @@
 use std::collections::BTreeMap;
 
-use target_operations_to_selected_instructions::register_model::{RegisterClassId, RegisterViewId};
-use target_operations_to_selected_instructions::{SelectedBlockId, VirtualRegisterId};
+use register_model::{RegisterClassId, RegisterViewId};
+use selected_instructions::{SelectedBlockId, VirtualRegisterId};
 
 use crate::FixedPrecoloredSegmentHomeError;
-use crate::register_homes::{
+use register_homes::{
     FixedPrecoloredHomeDomainId, FixedPrecoloredSourceSegmentId,
     FixedPrecoloredSourceSegmentOpening, FunctionFixedPrecoloredSplitRequirements,
 };
-use target_operations_to_selected_instructions::LiveRangePoint;
+use selected_instructions::LiveRangePoint;
 
 use super::work::Work;
 

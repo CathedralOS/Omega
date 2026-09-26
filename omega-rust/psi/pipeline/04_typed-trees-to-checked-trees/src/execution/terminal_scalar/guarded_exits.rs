@@ -1,12 +1,12 @@
 //! Ordered scalar exits retain every authored guard and selected destination.
 //! Coverage is separate from evaluation: a final case guard is not a wildcard.
 use super::{CheckedScalarBranchDestination, StatementNode, TransitionGuardNode, TypedTrees};
-use crate::checked_trees::{CheckedScalarGuardedExit, CheckedScalarGuardedTail};
 use crate::execution::terminal_scalar::checked_branch_destination;
+use checked_trees::{CheckedScalarGuardedExit, CheckedScalarGuardedTail};
 
 pub(super) fn build(
     program: &TypedTrees,
-    expressions: &crate::checked_trees::CheckedScalarExpressionPlans,
+    expressions: &checked_trees::CheckedScalarExpressionPlans,
 ) -> (
     arena::Arena<CheckedScalarGuardedExit>,
     Vec<CheckedScalarGuardedTail>,
@@ -33,9 +33,9 @@ pub(super) fn build(
 
 fn tail(
     program: &TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-    expressions: &crate::checked_trees::CheckedScalarExpressionPlans,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expressions: &checked_trees::CheckedScalarExpressionPlans,
 ) -> Option<(
     Vec<CheckedScalarGuardedExit>,
     Option<CheckedScalarBranchDestination>,
@@ -80,19 +80,18 @@ fn tail(
                 let mut selected = expressions.expressions.iter().filter(|expression| {
                     expression.state == state.symbol
                         && expression.statement_ordinal == ordinal
-                        && expression.role
-                            == crate::checked_trees::CheckedScalarExpressionRole::Guard
+                        && expression.role == checked_trees::CheckedScalarExpressionRole::Guard
                 });
                 let expression = selected.next()?;
                 if selected.next().is_some() {
                     return None;
                 }
-                let crate::checked_trees::CheckedScalarExpression::Boolean(boolean) =
+                let checked_trees::CheckedScalarExpression::Boolean(boolean) =
                     &expression.expression
                 else {
                     return None;
                 };
-                if let crate::checked_trees::CheckedBooleanExpression::StructuralCaseMembership {
+                if let checked_trees::CheckedBooleanExpression::StructuralCaseMembership {
                     subject,
                     ..
                 } = boolean.as_ref()
@@ -140,10 +139,7 @@ fn tail(
             .find(|data| data.symbol == owner)?;
         let mut expected = Vec::new();
         for member in program.data_members(data) {
-            let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
-                variant,
-            ) = member
-            else {
+            let typed_trees::data::DataMember::Variant(variant) = member else {
                 return None;
             };
             expected.push(variant.symbol);

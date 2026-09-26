@@ -21,7 +21,7 @@ const SYMBOLIC_ADJACENCY: &str = r#"
     }
 "#;
 
-fn checked_symbolic_adjacency() -> crate::checked_trees::CheckedTrees {
+fn checked_symbolic_adjacency() -> checked_trees::CheckedTrees {
     checked_program(SYMBOLIC_ADJACENCY)
 }
 
@@ -37,13 +37,13 @@ fn computed_immutable_boundary_retains_one_stable_selector_identity() {
     );
     assert!(matches!(
         certificate.selector_snapshot[0].value,
-        Some(crate::checked_trees::BorrowCompatibilitySelectorValue::Symbol(_))
+        Some(checked_trees::BorrowCompatibilitySelectorValue::Symbol(_))
     ));
 }
 
 fn sole_certificate(
-    checked: &crate::checked_trees::CheckedTrees,
-) -> crate::checked_trees::CheckedBorrowCompatibilityCertificate {
+    checked: &checked_trees::CheckedTrees,
+) -> checked_trees::CheckedBorrowCompatibilityCertificate {
     let certificates = checked
         .facts
         .borrow
@@ -66,7 +66,7 @@ fn retains_zero_premise_structural_symbolic_adjacency_certificate() {
 
     assert_eq!(
         certificate.derivation,
-        crate::checked_trees::BorrowCompatibilityDerivation::Structural
+        checked_trees::BorrowCompatibilityDerivation::Structural
     );
     assert_eq!(certificate.formation.statement_index, 3);
     assert_ne!(certificate.forming_loan, certificate.active_loan);
@@ -77,7 +77,7 @@ fn retains_zero_premise_structural_symbolic_adjacency_certificate() {
     assert!(certificate.conclusion.disjoint);
     assert_eq!(
         certificate.conclusion.containment,
-        crate::checked_trees::CapturedPlaceContainment::None
+        checked_trees::CapturedPlaceContainment::None
     );
     assert!(certificate.conclusion.non_interfering);
     assert_eq!(certificate.selector_snapshot.len(), 4);
@@ -89,28 +89,28 @@ fn retains_zero_premise_structural_symbolic_adjacency_certificate() {
             .collect::<Vec<_>>(),
         vec![
             (
-                crate::checked_trees::BorrowCompatibilityPlaceSide::Forming,
+                checked_trees::BorrowCompatibilityPlaceSide::Forming,
                 0,
-                crate::checked_trees::BorrowCompatibilitySelectorPosition::RangeStart,
-                Some(crate::checked_trees::BorrowCompatibilitySelectorValue::Integer(2)),
+                checked_trees::BorrowCompatibilitySelectorPosition::RangeStart,
+                Some(checked_trees::BorrowCompatibilitySelectorValue::Integer(2)),
             ),
             (
-                crate::checked_trees::BorrowCompatibilityPlaceSide::Forming,
+                checked_trees::BorrowCompatibilityPlaceSide::Forming,
                 0,
-                crate::checked_trees::BorrowCompatibilitySelectorPosition::RangeExclusiveEnd,
-                Some(crate::checked_trees::BorrowCompatibilitySelectorValue::Integer(4)),
+                checked_trees::BorrowCompatibilitySelectorPosition::RangeExclusiveEnd,
+                Some(checked_trees::BorrowCompatibilitySelectorValue::Integer(4)),
             ),
             (
-                crate::checked_trees::BorrowCompatibilityPlaceSide::Active,
+                checked_trees::BorrowCompatibilityPlaceSide::Active,
                 0,
-                crate::checked_trees::BorrowCompatibilitySelectorPosition::RangeStart,
-                Some(crate::checked_trees::BorrowCompatibilitySelectorValue::Integer(0)),
+                checked_trees::BorrowCompatibilitySelectorPosition::RangeStart,
+                Some(checked_trees::BorrowCompatibilitySelectorValue::Integer(0)),
             ),
             (
-                crate::checked_trees::BorrowCompatibilityPlaceSide::Active,
+                checked_trees::BorrowCompatibilityPlaceSide::Active,
                 0,
-                crate::checked_trees::BorrowCompatibilitySelectorPosition::RangeExclusiveEnd,
-                Some(crate::checked_trees::BorrowCompatibilitySelectorValue::Integer(2)),
+                checked_trees::BorrowCompatibilitySelectorPosition::RangeExclusiveEnd,
+                Some(checked_trees::BorrowCompatibilitySelectorValue::Integer(2)),
             ),
         ],
         "the certificate freezes only the four normalized bounds consulted by the structural judgment",
@@ -127,11 +127,13 @@ fn retains_zero_premise_structural_symbolic_adjacency_certificate() {
 fn rejects_typed_alias_value_drift_without_mutating_retained_certificates() {
     let mut checked = checked_symbolic_adjacency();
     let before = checked.facts.borrow.compatibility_certificates.clone();
-    let three = checked.typed.expression_table.insert(
-        symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Integer(
-            numerics::literals::IntegerLiteral::from_value(3),
-        ),
-    );
+    let three =
+        checked
+            .typed
+            .expression_table
+            .insert(typed_trees::expression::ExpressionNode::Integer(
+                numerics::literals::IntegerLiteral::from_value(3),
+            ));
     let statement_spans = checked
         .typed
         .machines()
@@ -142,7 +144,7 @@ fn rejects_typed_alias_value_drift_without_mutating_retained_certificates() {
     let mut changed_mid = false;
     for span in statement_spans {
         for statement in checked.typed.statement_table.statements_mut(span) {
-            let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) = statement else {
+            let typed_trees::statement::StatementNode::LocalData(local) = statement else {
                 continue;
             };
             if local.name.as_str() == "mid" {
@@ -186,12 +188,12 @@ fn rejects_tampered_normalized_selector_value() {
         .selector_snapshot
         .iter_mut()
         .find(|selector| {
-            selector.side == crate::checked_trees::BorrowCompatibilityPlaceSide::Active
+            selector.side == checked_trees::BorrowCompatibilityPlaceSide::Active
                 && selector.position
-                    == crate::checked_trees::BorrowCompatibilitySelectorPosition::RangeExclusiveEnd
+                    == checked_trees::BorrowCompatibilitySelectorPosition::RangeExclusiveEnd
         })
         .expect("active exclusive end snapshot");
-    active_end.value = Some(crate::checked_trees::BorrowCompatibilitySelectorValue::Integer(3));
+    active_end.value = Some(checked_trees::BorrowCompatibilitySelectorValue::Integer(3));
 
     let diagnostics =
         crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
@@ -219,12 +221,12 @@ fn rejects_co_tampered_selector_snapshot_and_conclusion() {
         .selector_snapshot
         .iter_mut()
         .find(|selector| {
-            selector.side == crate::checked_trees::BorrowCompatibilityPlaceSide::Active
+            selector.side == checked_trees::BorrowCompatibilityPlaceSide::Active
                 && selector.position
-                    == crate::checked_trees::BorrowCompatibilitySelectorPosition::RangeExclusiveEnd
+                    == checked_trees::BorrowCompatibilitySelectorPosition::RangeExclusiveEnd
         })
         .expect("active exclusive end snapshot")
-        .value = Some(crate::checked_trees::BorrowCompatibilitySelectorValue::Integer(3));
+        .value = Some(checked_trees::BorrowCompatibilitySelectorValue::Integer(3));
     certificate.conclusion.disjoint = false;
     certificate.conclusion.non_interfering = false;
 
@@ -295,7 +297,7 @@ fn rejects_unconsumed_retained_certificate_transactionally() {
         .find(|handle| {
             matches!(
                 checked.facts.flow.contexts.constraint_refs.get(*handle).kind,
-                crate::checked_trees::FlowConstraintKind::BorrowLoan { loan }
+                checked_trees::FlowConstraintKind::BorrowLoan { loan }
                     if loan == certificate.active_loan
             )
         })
@@ -306,7 +308,7 @@ fn rejects_unconsumed_retained_certificate_transactionally() {
         .contexts
         .constraint_refs
         .get_mut(active_constraint)
-        .kind = crate::checked_trees::FlowConstraintKind::Unknown;
+        .kind = checked_trees::FlowConstraintKind::Unknown;
     let before = checked.facts.borrow.compatibility_certificates.clone();
 
     let diagnostics =
@@ -329,7 +331,7 @@ fn rejects_symbolic_adjacency_certificate_with_changed_frozen_selector_identity(
         .segments
         .iter()
         .find_map(|segment| match segment {
-            crate::fact_plan::PlaceSegment::Index { expression } => Some(*expression),
+            facts::PlaceSegment::Index { expression } => Some(*expression),
             _ => None,
         })
         .expect("active symbolic window selector");
@@ -338,7 +340,7 @@ fn rejects_symbolic_adjacency_certificate_with_changed_frozen_selector_identity(
         .segments
         .iter_mut()
         .find_map(|segment| match segment {
-            crate::fact_plan::PlaceSegment::Index { expression } => Some(expression),
+            facts::PlaceSegment::Index { expression } => Some(expression),
             _ => None,
         })
         .expect("forming symbolic window selector");
@@ -369,10 +371,7 @@ fn rejects_each_changed_compatibility_conclusion_axis() {
         let certificate = checked.facts.borrow.compatibility_certificates.get_mut(row);
         match axis {
             0 => certificate.conclusion.disjoint = false,
-            1 => {
-                certificate.conclusion.containment =
-                    crate::checked_trees::CapturedPlaceContainment::Same
-            }
+            1 => certificate.conclusion.containment = checked_trees::CapturedPlaceContainment::Same,
             2 => certificate.conclusion.non_interfering = false,
             _ => unreachable!(),
         }
@@ -395,7 +394,7 @@ fn rejects_raw_loan_access_drift_from_joined_resource_polarity() {
     assert!(!certificate.conclusion.disjoint);
     assert_eq!(
         certificate.conclusion.containment,
-        crate::checked_trees::CapturedPlaceContainment::Same
+        checked_trees::CapturedPlaceContainment::Same
     );
     assert!(certificate.conclusion.non_interfering);
 
@@ -404,7 +403,7 @@ fn rejects_raw_loan_access_drift_from_joined_resource_polarity() {
         .borrow
         .loans
         .get_mut(certificate.forming_loan)
-        .kind = crate::checked_trees::BorrowAccessKind::Mutable;
+        .kind = checked_trees::BorrowAccessKind::Mutable;
 
     let diagnostics =
         crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
@@ -465,7 +464,7 @@ fn rebuilding_checked_borrow_certificates_is_idempotent() {
     assert_eq!(sole_certificate(&checked), before);
 }
 
-fn checked_shared_overlap() -> crate::checked_trees::CheckedTrees {
+fn checked_shared_overlap() -> checked_trees::CheckedTrees {
     let source = r#"
         data Main { value: i32; }
 

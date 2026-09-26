@@ -252,15 +252,14 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
         let has_crash_clauses = closed.has_crash_clauses();
         let has_outcome_specific_clauses = closed.has_outcome_specific_clauses();
         let float_entry_ranges = closed.float_entry_ranges().map(<[_]>::to_vec);
-        staged_contract.closed_scalar_values =
-            typed_trees_to_checked_trees::checked_trees::ClosedScalarValueContractPlan::new(
-                derived_requires,
-                ensures,
-                has_crash_clauses,
-                has_outcome_specific_clauses,
-            )
-            .with_authored_requires_len(0)
-            .with_float_entry_ranges(float_entry_ranges);
+        staged_contract.closed_scalar_values = checked_trees::ClosedScalarValueContractPlan::new(
+            derived_requires,
+            ensures,
+            has_crash_clauses,
+            has_outcome_specific_clauses,
+        )
+        .with_authored_requires_len(0)
+        .with_float_entry_ranges(float_entry_ranges);
     }
     for shape in &checked
         .facts
@@ -906,7 +905,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
             let binding = &plan.bindings[binding_index];
             let statement_ordinal = u32::try_from(binding_index).ok()?;
             if binding.statement_ordinal != statement_ordinal
-                || binding.destination != typed_trees_to_checked_trees::checked_trees::CheckedScalarBindingDestination::Immutable
+                || binding.destination != checked_trees::CheckedScalarBindingDestination::Immutable
                 || binding.value != CheckedScalarBindingValue::Expression
                 || binding.primitive_type != PrimitiveType::Bool
             {
@@ -997,7 +996,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
                         u32::try_from(index)
                             .is_ok_and(|ordinal| binding.statement_ordinal == ordinal)
                             && binding.destination
-                                == typed_trees_to_checked_trees::checked_trees::CheckedScalarBindingDestination::Immutable
+                                == checked_trees::CheckedScalarBindingDestination::Immutable
                             && binding.value == CheckedScalarBindingValue::Expression
                             && binding.primitive_type == PrimitiveType::Bool
                     },
@@ -1078,7 +1077,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
             LoweringError::Unsupported("nominal scalar return binding index exceeds u32")
         })?;
         if binding.statement_ordinal != statement_ordinal
-            || binding.destination != typed_trees_to_checked_trees::checked_trees::CheckedScalarBindingDestination::Immutable
+            || binding.destination != checked_trees::CheckedScalarBindingDestination::Immutable
             || binding.value != CheckedScalarBindingValue::Expression
         {
             return unsupported(

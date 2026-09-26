@@ -6,7 +6,7 @@
 //! specialization it names so sibling rows cannot satisfy one another.
 
 use crate::TerminalMachineSelection;
-use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
+use checked_trees::CheckedTrees;
 
 const STATIC_REQUIREMENT_FAMILY_SOURCE: &str = r#"
     trait Evidence {}

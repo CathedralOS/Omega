@@ -1,4 +1,4 @@
-use super::{CheckedTrees, PathBuf, SourceMap, SourceOrigin, lower_machine};
+use super::{CheckedTrees, LoweringError, PathBuf, SourceMap, SourceOrigin, lower_machine};
 use crate::TerminalMachineSelection;
 use crate::machine_lowering::machine_dispatch::select_terminal_machine;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -69,12 +69,10 @@ const REACHABLE_SINGLETON_PROOF_SCC: &str = r#"
 #[test]
 fn selected_proof_closure_lowers_exact_recursive_component() {
     let checked = checked_managed_source(REACHABLE_PROOF_SCC);
-    let root_symbol = select_terminal_machine(
-        &checked,
-        crate::TerminalMachineSelection::Name("Root::main"),
-    )
-    .expect("root selection")
-    .machine;
+    let root_symbol =
+        select_terminal_machine(&checked, TerminalMachineSelection::Name("Root::main"))
+            .expect("root selection")
+            .machine;
     let root = checked
         .typed
         .machines()
@@ -92,10 +90,7 @@ fn selected_proof_closure_lowers_exact_recursive_component() {
         .machine_states(left)
         .first()
         .expect("left entry state");
-    let dependencies = typed_trees_to_checked_trees::validation::machine_call_dependency_symbols(
-        &checked.typed,
-        root,
-    );
+    let dependencies = validation::machine_call_dependency_symbols(&checked.typed, root);
     assert!(
         dependencies.contains(&left_entry.symbol),
         "closure must resolve an entry-state call target back to its owning machine"
@@ -403,7 +398,7 @@ fn stale_checked_edge_rank_parameter_rejects_before_erasure() {
         symbols::SymbolHandle::invalid();
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::main")),
-        Err(crate::LoweringError::Unsupported(
+        Err(LoweringError::Unsupported(
             "checked recursive edge rank parameter is stale"
         ))
     ));

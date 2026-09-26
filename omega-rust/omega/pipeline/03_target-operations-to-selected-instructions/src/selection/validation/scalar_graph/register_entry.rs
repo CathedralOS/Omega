@@ -4,15 +4,15 @@ use super::{
     VirtualRegisterOrigin,
 };
 use crate::SelectedInstructionError;
-use crate::register_model::ValidatedRegisterConstraintCatalog;
 use crate::selection::constraints::fixed_input_constraint;
 use crate::selection::validation::scalar_graph::Replay;
 use crate::selection::validation::scalar_graph::row;
-use abstract_operations_to_target_operations::calling_conventions::ValueLocation;
+use calling_conventions::ValueLocation;
+use register_model::ValidatedRegisterConstraintCatalog;
 
 pub(super) fn validate(
     source: &LegalizedScalarFunction,
-    environment: &crate::register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
     catalog: &ValidatedRegisterConstraintCatalog,
     replay: &mut Replay<'_>,
 ) -> Result<(), SelectedInstructionError> {

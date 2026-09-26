@@ -586,10 +586,7 @@ fn call_results(
     structural_arguments: &[StructuralArgument],
     custody: &mut Custody,
     moved: &BTreeMap<(PlaceId, Vec<StructuralPathSegment>), Leaf>,
-) -> Result<
-    Vec<abstract_operations_to_target_operations::target_operations::TargetReferenceResult>,
-    LegalizationError,
-> {
+) -> Result<Vec<target_operations::TargetReferenceResult>, LegalizationError> {
     if !contains_reference(types, result.structural_type) {
         return Ok(Vec::new());
     }
@@ -651,12 +648,10 @@ fn call_results(
         if !roots.insert(leaf.root.clone()) {
             return Err(invalid());
         }
-        reference_results.push(
-            abstract_operations_to_target_operations::target_operations::TargetReferenceResult {
-                path: mapping.path.clone(),
-                root: leaf.root.place(),
-            },
-        );
+        reference_results.push(target_operations::TargetReferenceResult {
+            path: mapping.path.clone(),
+            root: leaf.root.place(),
+        });
         established.push(((result.place, mapping.path.clone()), leaf));
     }
     for (key, leaf) in established {
@@ -1203,15 +1198,12 @@ fn constructible(types: &[StructuralTypeDeclaration], root: StructuralTypeId) ->
 pub(in crate::legalization) fn referent_argument(
     argument: &StructuralArgument,
     declaration: &terminal_psi::StructuralParameterDeclaration,
-    destination: &abstract_operations_to_target_operations::calling_conventions::ValuePlacement,
+    destination: &calling_conventions::ValuePlacement,
     caller: &PsiOptimizationFunction,
     target_caller: &super::TargetFunction,
     custody: &Custody,
     types: &[StructuralTypeDeclaration],
-) -> Result<
-    abstract_operations_to_target_operations::target_operations::TargetStructuralArgument,
-    LegalizationError,
-> {
+) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
     let Some((StructuralPathSegment::Referent, carrier_path)) = argument.path.split_last() else {
         return Err(invalid());
     };
@@ -1225,7 +1217,7 @@ pub(in crate::legalization) fn referent_argument(
         || !declaration.qualifications.is_empty()
         || !declaration.projected_qualifications.is_empty()
         || destination.shape
-            != abstract_operations_to_target_operations::calling_conventions::ValueShape::borrowed_reference(
+            != calling_conventions::ValueShape::borrowed_reference(
                 referent_scalar.byte_size,
                 referent_scalar.alignment,
             )
@@ -1243,62 +1235,59 @@ pub(in crate::legalization) fn referent_argument(
         // pointer exists to transport.
         return Err(invalid());
     };
-    let (root_type, source) = if let Some((producer, result, value)) =
-        super::primitive_locals::producer(caller, *root)
-    {
-        if !super::primitive_locals::valid_result(caller, producer, result) {
-            return Err(invalid());
-        }
-        let referent_shape = super::scalar_shape(value.scalar_type).ok_or_else(|| invalid())?;
-        if destination.shape
-                != abstract_operations_to_target_operations::calling_conventions::ValueShape::borrowed_reference(
+    let (root_type, source) =
+        if let Some((producer, result, value)) = super::primitive_locals::producer(caller, *root) {
+            if !super::primitive_locals::valid_result(caller, producer, result) {
+                return Err(invalid());
+            }
+            let referent_shape = super::scalar_shape(value.scalar_type).ok_or_else(|| invalid())?;
+            if destination.shape
+                != calling_conventions::ValueShape::borrowed_reference(
                     referent_shape.byte_size,
                     referent_shape.alignment,
                 )
             {
                 return Err(invalid());
             }
-        (
+            (
                 result.structural_type,
-                abstract_operations_to_target_operations::target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
+                target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
                     psi_operation: producer,
                 },
             )
-    } else {
-        let source = super::structural_parameters(target_caller)
-            .and_then(|parameters| parameters.iter().find(|parameter| parameter.place == *root))
-            .ok_or_else(|| invalid())?;
-        let allowed = match source.access {
-            StructuralAccess::MutableBorrow => true,
-            StructuralAccess::SharedBorrow => argument.access == StructuralAccess::SharedBorrow,
-            StructuralAccess::WriteOnlyBorrow => {
-                argument.access == StructuralAccess::WriteOnlyBorrow
+        } else {
+            let source = super::structural_parameters(target_caller)
+                .and_then(|parameters| parameters.iter().find(|parameter| parameter.place == *root))
+                .ok_or_else(|| invalid())?;
+            let allowed = match source.access {
+                StructuralAccess::MutableBorrow => true,
+                StructuralAccess::SharedBorrow => argument.access == StructuralAccess::SharedBorrow,
+                StructuralAccess::WriteOnlyBorrow => {
+                    argument.access == StructuralAccess::WriteOnlyBorrow
+                }
+                StructuralAccess::Owned => false,
+            };
+            if !allowed {
+                return Err(invalid());
             }
-            StructuralAccess::Owned => false,
+            (source.structural_type, source.placement.clone().into())
         };
-        if !allowed {
-            return Err(invalid());
-        }
-        (source.structural_type, source.placement.clone().into())
-    };
     if root_type != declaration.structural_type {
         return Err(invalid());
     }
-    Ok(
-        abstract_operations_to_target_operations::target_operations::TargetStructuralArgument {
-            place: *root,
-            access: argument.access,
-            path: argument.path.clone(),
-            root_structural_type: root_type,
-            structural_type: root_type,
-            shape: destination.shape,
-            source_byte_offset: 0,
-            fixed_array_length: None,
-            element_stride: None,
-            source,
-            destination: destination.clone(),
-        },
-    )
+    Ok(target_operations::TargetStructuralArgument {
+        place: *root,
+        access: argument.access,
+        path: argument.path.clone(),
+        root_structural_type: root_type,
+        structural_type: root_type,
+        shape: destination.shape,
+        source_byte_offset: 0,
+        fixed_array_length: None,
+        element_stride: None,
+        source,
+        destination: destination.clone(),
+    })
 }
 
 /// Recompute the ordered reference-result roster a `CallStructural` row must
@@ -1312,10 +1301,7 @@ pub(in crate::legalization) fn reference_results(
     result_type: StructuralTypeId,
     custody: &Custody,
     types: &[StructuralTypeDeclaration],
-) -> Result<
-    Vec<abstract_operations_to_target_operations::target_operations::TargetReferenceResult>,
-    LegalizationError,
-> {
+) -> Result<Vec<target_operations::TargetReferenceResult>, LegalizationError> {
     let callee_result = callee.result.structural().ok_or_else(|| invalid())?;
     let mut roots = BTreeSet::new();
     let mut expected = Vec::new();
@@ -1330,12 +1316,10 @@ pub(in crate::legalization) fn reference_results(
         if !roots.insert(root.clone()) {
             return Err(invalid());
         }
-        expected.push(
-            abstract_operations_to_target_operations::target_operations::TargetReferenceResult {
-                path: mapping.path.clone(),
-                root: root.place(),
-            },
-        );
+        expected.push(target_operations::TargetReferenceResult {
+            path: mapping.path.clone(),
+            root: root.place(),
+        });
     }
     Ok(expected)
 }

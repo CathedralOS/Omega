@@ -21,7 +21,7 @@ pub(super) fn clone_specialized_machine(
     candidate: &Candidate,
     ordinal: usize,
     template_contract_report_fingerprint: u64,
-    template_contract_commitment: symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::MachineTemplateCommitment,
+    template_contract_commitment: typed_trees::typed_trees::MachineTemplateCommitment,
     canonical_template_contract_bytes: Vec<u8>,
     normalized_template_identity: String,
     accepted_template_commitment: Option<String>,
@@ -52,10 +52,8 @@ pub(super) fn clone_specialized_machine(
         })
         .flat_map(|data| source.unwrap_or(program).data_members(data))
         .filter_map(|member| match member {
-            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) => {
-                Some(field.name.as_str().to_owned())
-            }
-            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(_) => None,
+            typed_trees::data::DataMember::Field(field) => Some(field.name.as_str().to_owned()),
+            typed_trees::data::DataMember::Variant(_) => None,
         })
         .collect::<Vec<_>>();
     // Arena indices are one-based, so the clone region begins one past the
@@ -201,7 +199,7 @@ pub(super) fn clone_specialized_machine(
     // the literal substitution path and add no parameter.
     let realized_parameters: Vec<(
         SymbolHandle,
-        symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
+        typed_trees::name::Identifier,
         TypeReferenceHandle,
     )> = candidate
         .template
@@ -212,9 +210,7 @@ pub(super) fn clone_specialized_machine(
             runtime.as_ref().map(|_| {
                 (
                     *symbol,
-                    symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated(
-                        name.clone(),
-                    ),
+                    typed_trees::name::Identifier::generated(name.clone()),
                     *declared_type,
                 )
             })
@@ -279,9 +275,7 @@ pub(super) fn clone_specialized_machine(
     let mut cloned = source_machine.clone();
     cloned.is_public = false;
     cloned.symbol = machine_symbol;
-    cloned.name = symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated(
-        generated_name,
-    );
+    cloned.name = typed_trees::name::Identifier::generated(generated_name);
     if let Some((attached_data, attached_data_symbol)) = specialized_attached_data {
         cloned.attached_data = Some(attached_data);
         cloned.attached_data_symbol = attached_data_symbol;
@@ -315,17 +309,17 @@ pub(super) fn clone_specialized_machine(
         .to_vec()
     {
         invocation.target = match invocation.target {
-            symbol_resolved_trees_to_typed_trees::typed_trees::signature::AuthoredInvocationTarget::Unresolved => {
-                symbol_resolved_trees_to_typed_trees::typed_trees::signature::AuthoredInvocationTarget::Unresolved
+            typed_trees::signature::AuthoredInvocationTarget::Unresolved => {
+                typed_trees::signature::AuthoredInvocationTarget::Unresolved
             }
-            symbol_resolved_trees_to_typed_trees::typed_trees::signature::AuthoredInvocationTarget::Parameter { ordinal, symbol } => {
-                symbol_resolved_trees_to_typed_trees::typed_trees::signature::AuthoredInvocationTarget::Parameter {
+            typed_trees::signature::AuthoredInvocationTarget::Parameter { ordinal, symbol } => {
+                typed_trees::signature::AuthoredInvocationTarget::Parameter {
                     ordinal,
                     symbol: remapped_symbol(symbol, &symbol_map),
                 }
             }
-            symbol_resolved_trees_to_typed_trees::typed_trees::signature::AuthoredInvocationTarget::Service(symbol) => {
-                symbol_resolved_trees_to_typed_trees::typed_trees::signature::AuthoredInvocationTarget::Service(remapped_symbol(
+            typed_trees::signature::AuthoredInvocationTarget::Service(symbol) => {
+                typed_trees::signature::AuthoredInvocationTarget::Service(remapped_symbol(
                     symbol,
                     &symbol_map,
                 ))
@@ -333,7 +327,7 @@ pub(super) fn clone_specialized_machine(
         };
         program.push_machine_invoke(&mut cloned, invocation);
     }
-    let ranking_subjects = symbol_resolved_trees_to_typed_trees::typed_trees::ranking::resolve_machine_witness_subjects(
+    let ranking_subjects = typed_trees::ranking::resolve_machine_witness_subjects(
         source.unwrap_or(program),
         &source_machine,
     )
@@ -341,7 +335,7 @@ pub(super) fn clone_specialized_machine(
     .into_iter()
     .map(|expression| copy_expression(source, program, expression, &symbol_map))
     .collect::<Vec<_>>();
-    let ranking_view_arguments = symbol_resolved_trees_to_typed_trees::typed_trees::ranking::resolve_machine_witness_view_arguments(
+    let ranking_view_arguments = typed_trees::ranking::resolve_machine_witness_view_arguments(
         source.unwrap_or(program),
         &source_machine,
     )
@@ -356,14 +350,14 @@ pub(super) fn clone_specialized_machine(
         .map(|expression| copy_expression(source, program, expression, &symbol_map));
     if !ranking_subjects.is_empty() || !ranking_view_arguments.is_empty() || ranking_range.is_some()
     {
-        program.ranking_expression_custody.push(
-            symbol_resolved_trees_to_typed_trees::typed_trees::ranking::RankingExpressionCustody {
+        program
+            .ranking_expression_custody
+            .push(typed_trees::ranking::RankingExpressionCustody {
                 machine: machine_symbol,
                 subjects: ranking_subjects,
                 view_arguments: ranking_view_arguments,
                 rank_range: ranking_range,
-            },
-        );
+            });
     }
     cloned.contracts = HandleSpan::empty();
     cloned.states = HandleSpan::empty();
@@ -468,7 +462,7 @@ pub(super) fn clone_specialized_machine(
             let type_reference = copy_type_reference(source, program, *declared_type, &symbol_map);
             program.push_state_parameter(
                 &mut state,
-                symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter {
+                typed_trees::signature::StateParameter {
                     symbol: *realized_symbol,
                     name: name.clone(),
                     type_reference,
@@ -542,21 +536,17 @@ pub(super) fn clone_specialized_machine(
     // A transition between cloned states forwards the containing state's
     // realized `Value` subjects, in telescope order, as trailing ordinary
     // arguments — the same subjects a rewritten call site appends.
-    let state_transition_subjects: Vec<
-        Vec<(
-            symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier,
-            SymbolHandle,
-        )>,
-    > = state_realized_parameters
-        .iter()
-        .map(|realized| {
-            realized
-                .iter()
-                .zip(realized_parameters.iter())
-                .map(|((_, symbol), (_, name, _))| (name.clone(), *symbol))
-                .collect()
-        })
-        .collect();
+    let state_transition_subjects: Vec<Vec<(typed_trees::name::Identifier, SymbolHandle)>> =
+        state_realized_parameters
+            .iter()
+            .map(|realized| {
+                realized
+                    .iter()
+                    .zip(realized_parameters.iter())
+                    .map(|((_, symbol), (_, name, _))| (name.clone(), *symbol))
+                    .collect()
+            })
+            .collect();
     rewrite_cloned_calls(
         source,
         program,
@@ -571,14 +561,14 @@ pub(super) fn clone_specialized_machine(
     let authored_service_reach_rows = source
         .unwrap_or(program)
         .authored_service_reach_rows_for(source_machine.symbol)
-        .map(|row| symbol_resolved_trees_to_typed_trees::typed_trees::signature::AuthoredServiceReachRow {
+        .map(|row| typed_trees::signature::AuthoredServiceReachRow {
             owner: instance_symbol,
             keyword_source_spans: row.keyword_source_spans.clone(),
             targets: row
                 .targets
                 .iter()
                 .map(
-                    |target| symbol_resolved_trees_to_typed_trees::typed_trees::signature::AuthoredServiceReachTarget {
+                    |target| typed_trees::signature::AuthoredServiceReachTarget {
                         service: remapped_symbol(target.service, &symbol_map),
                         source_span: target.source_span,
                     },
@@ -613,7 +603,7 @@ pub(super) fn clone_specialized_machine(
     let operator_realizations = closed_operator_realizations_for_machine(program, instance_symbol)?;
     program
         .machine_specializations
-        .push(symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::MachineSpecialization {
+        .push(typed_trees::typed_trees::MachineSpecialization {
             template: candidate.template.template_symbol,
             instance: instance_symbol,
             template_parameters: source_machine.type_parameters,
@@ -654,7 +644,7 @@ pub(super) fn clone_specialized_machine(
             machine_argument_contract_commitments: Vec::new(),
             conformance_argument_report_fingerprints: Vec::new(),
             report_fingerprint: 0,
-            commitment: symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::MachineSpecializationCommitment::default(),
+            commitment: typed_trees::typed_trees::MachineSpecializationCommitment::default(),
         });
 
     Ok(state_symbols)
@@ -678,8 +668,7 @@ pub(super) fn copy_statements(
             statements,
         );
     }
-    let mut staging =
-        symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::TypedTreeTables::default();
+    let mut staging = typed_trees::typed_trees::TypedTreeTables::default();
     let staged = staging.statement_table.copy_statement_nodes_deep_from(
         &program.statement_table,
         &program.expression_table,
@@ -713,9 +702,7 @@ pub(super) fn copy_expression(
             .expression_table
             .copy_from(&source.expression_table, expression)
     } else {
-        let mut staging =
-            symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionTable::default(
-            );
+        let mut staging = typed_trees::expression::ExpressionTable::default();
         let staged = staging.copy_from(&program.expression_table, expression);
         program.expression_table.copy_from(&staging, staged)
     };
@@ -812,7 +799,7 @@ pub(super) fn copy_cloned_expression_type_payloads(
 fn copy_static_argument_type_payloads(
     source: Option<&TypedTrees>,
     program: &mut TypedTrees,
-    arguments: &mut [symbol_resolved_trees_to_typed_trees::typed_trees::expression::StaticMachineArgument],
+    arguments: &mut [typed_trees::expression::StaticMachineArgument],
     symbols: &[(SymbolHandle, SymbolHandle)],
 ) {
     for argument in arguments {
@@ -849,7 +836,7 @@ pub(super) fn copy_type_reference(
             type_reference,
         )
     } else {
-        let mut staging = symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::TypedTreeTables::default();
+        let mut staging = typed_trees::typed_trees::TypedTreeTables::default();
         let staged = staging.type_reference_table.copy_from(
             &program.type_reference_table,
             &program.expression_table,
@@ -876,9 +863,9 @@ pub(super) fn copy_type_reference(
 pub(super) fn copy_signature_contract(
     source: Option<&TypedTrees>,
     program: &mut TypedTrees,
-    contract: symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContract,
+    contract: typed_trees::signature::SignatureContract,
     symbols: &[(SymbolHandle, SymbolHandle)],
-) -> symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContract {
+) -> typed_trees::signature::SignatureContract {
     let original_facts = contract.facts;
     let mut copied = contract;
     copied.facts = HandleSpan::empty();
@@ -902,14 +889,15 @@ pub(super) fn copy_signature_contract(
             .unwrap_or(program)
             .proof_fact_source_span(source_fact);
         let fact = match fact {
-            symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
-                expression,
-            ) => symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
-                copy_expression(source, program, *expression, symbols),
-            ),
-            symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(
-                membership,
-            ) => {
+            typed_trees::domain::ProofFact::Expression(expression) => {
+                typed_trees::domain::ProofFact::Expression(copy_expression(
+                    source,
+                    program,
+                    *expression,
+                    symbols,
+                ))
+            }
+            typed_trees::domain::ProofFact::Membership(membership) => {
                 let source_arguments = source
                     .unwrap_or(program)
                     .type_reference_table
@@ -933,8 +921,8 @@ pub(super) fn copy_signature_contract(
                         .type_reference_table
                         .insert_type_reference_handles(arguments)
                 };
-                symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(
-                    symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofMembershipFact {
+                typed_trees::domain::ProofFact::Membership(
+                    typed_trees::domain::ProofMembershipFact {
                         value: copy_expression(source, program, membership.value, symbols),
                         domain: {
                             let members = source
@@ -950,9 +938,7 @@ pub(super) fn copy_signature_contract(
                     },
                 )
             }
-            symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(
-                application,
-            ) => {
+            typed_trees::domain::ProofFact::Proposition(application) => {
                 let arguments = source
                     .unwrap_or(program)
                     .expression_table
@@ -964,15 +950,15 @@ pub(super) fn copy_signature_contract(
                 let arguments = program
                     .expression_table
                     .insert_expression_handles(arguments);
-                symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(
-                    symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionApplication {
+                typed_trees::domain::ProofFact::Proposition(
+                    typed_trees::proposition::PropositionApplication {
                         proposition: remapped_symbol(application.proposition, symbols),
                         name: application.name.clone(),
                         binder_arguments: application
                             .binder_arguments
                             .iter()
                             .map(
-                                |argument| symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionBinderArgument {
+                                |argument| typed_trees::proposition::PropositionBinderArgument {
                                     kind: argument.kind,
                                     path: argument.path.clone(),
                                     const_literal: argument.const_literal.clone(),
@@ -1006,7 +992,7 @@ pub(super) fn copy_signature_contract(
 /// reject under `reject_runtime_bound_static_occurrences`.
 pub(super) fn remap_contract_value_subjects(
     program: &mut TypedTrees,
-    contract: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContract,
+    contract: &typed_trees::signature::SignatureContract,
     realized: &[(SymbolHandle, SymbolHandle)],
 ) {
     if realized.is_empty() {
@@ -1038,7 +1024,7 @@ pub(super) fn remap_contract_value_subjects(
 /// authored parameter read would have carried.
 fn rebind_realized_member_symbols(
     program: &mut TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    state: &typed_trees::state::State,
     realized: &[(SymbolHandle, SymbolHandle)],
 ) {
     if realized.is_empty() {
@@ -1082,11 +1068,11 @@ fn rebind_realized_member_symbols(
 /// an unresolved member on any other place keeps its authored identity.
 fn realized_receiver_field(
     program: &TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    state: &typed_trees::state::State,
     realized: &[(SymbolHandle, SymbolHandle)],
     receiver: ExpressionHandle,
     name: &str,
-) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::data::DataField> {
+) -> Option<typed_trees::data::DataField> {
     let reference = realized_receiver_type(program, state, realized, receiver, 0)?;
     carrier_field(program, reference, name)
 }
@@ -1097,7 +1083,7 @@ fn realized_receiver_field(
 /// parameter chain would.
 fn realized_receiver_type(
     program: &TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    state: &typed_trees::state::State,
     realized: &[(SymbolHandle, SymbolHandle)],
     expression: ExpressionHandle,
     depth: usize,
@@ -1140,7 +1126,7 @@ fn carrier_field(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
     name: &str,
-) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::data::DataField> {
+) -> Option<typed_trees::data::DataField> {
     let mut reference = reference;
     loop {
         match program.type_reference_table.type_reference(reference) {
@@ -1161,7 +1147,7 @@ fn carrier_field(
                     .data_members(definition)
                     .iter()
                     .filter_map(|member| match member {
-                        symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field)
+                        typed_trees::data::DataMember::Field(field)
                             if field.name.as_str() == name =>
                         {
                             Some(field)

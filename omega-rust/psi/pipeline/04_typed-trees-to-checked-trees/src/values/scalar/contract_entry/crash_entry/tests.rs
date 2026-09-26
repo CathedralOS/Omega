@@ -1,18 +1,14 @@
 use super::{Reader, lower_machine_entry_crash_contract_expression};
-use crate::checked_trees::{
+use crate::tests::front_end::typed_program;
+use checked_trees::{
     CheckedBooleanExpression, CheckedOperatorFacts, CheckedStructuralPredicatePathSegment,
 };
-use crate::tests::front_end::typed_program;
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
-use symbol_resolved_trees_to_typed_trees::typed_trees::data::{DataField, DataMember};
-use symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, ExpressionNode,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
-    TypeReferenceHandle, TypeReferenceNode,
-};
 use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
+use typed_trees::data::{DataField, DataMember};
+use typed_trees::domain::ProofFact;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 fn requirement(program: &TypedTrees) -> ExpressionHandle {
     program
@@ -168,7 +164,7 @@ fn structural_entry_runtime_self_path_and_boolean_type_queries_agree() {
         .expect("runtime structural type owner resolves machine Self to attachment");
         assert_eq!(
             program.primitive_type_reference(field_type),
-            Some(symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::Bool)
+            Some(typed_trees::types::PrimitiveType::Bool)
         );
         let expected = Some(CheckedBooleanExpression::StructuralParameterField {
             parameter_position: position,
@@ -420,8 +416,8 @@ fn integer_entry_comparisons_reuse_total_landing_and_boolean_composition() {
 
 #[test]
 fn integer_entry_comparisons_keep_mixed_authored_and_dense_positions() {
-    use crate::checked_trees::CheckedScalarExpression;
-    use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
+    use checked_trees::CheckedScalarExpression;
+    use typed_trees::types::PrimitiveType;
 
     let program = numeric(
         "flag: bool, record: &Record, left: i32, mut right: i32",
@@ -552,7 +548,7 @@ fn integer_entry_comparisons_require_exact_live_operand_and_formal_identity() {
         .statements(state.statement_nodes)
         .iter()
         .find_map(|statement| match statement {
-            symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) => Some(local.symbol),
+            typed_trees::statement::StatementNode::LocalData(local) => Some(local.symbol),
             _ => None,
         })
         .expect("body local symbol");
@@ -723,8 +719,8 @@ fn integer_entry_fields_reuse_fixed_carrier_landing_and_total_comparisons() {
 
 #[test]
 fn integer_entry_fields_keep_nested_identity_and_mixed_scalar_ordinals() {
-    use crate::checked_trees::CheckedScalarExpression;
-    use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
+    use checked_trees::CheckedScalarExpression;
+    use typed_trees::types::PrimitiveType;
 
     for root in ["Outer", "&Outer", "&mut Outer"] {
         let mut program = typed_program(&format!(

@@ -1,6 +1,6 @@
 //! Content segments, contract places and projection plans as fact paths.
 
-use crate::checked_trees::CheckFacts;
+use checked_trees::CheckFacts;
 use language_semantics::content::{
     ContentCaseSegment, ContentConservationTerm, ContentFieldSegment, ContentPlaceRoot,
     ContentPlaceSegment, ContentPlaceVersion, ContentProjectionPlan, ContentStructuralPlace,
@@ -9,38 +9,32 @@ use language_semantics::{
     PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
     SemanticDomainId,
 };
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
-use symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, ExpressionNode,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind;
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
-    TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-};
 use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
+use typed_trees::domain::ProofFact;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::signature::SignatureContractKind;
+use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn content_segments_to_fact_path(
     segments: &[ContentPlaceSegment],
-) -> Option<Vec<crate::fact_plan::PlaceSegment>> {
+) -> Option<Vec<facts::PlaceSegment>> {
     segments
         .iter()
         .map(|segment| match segment {
             ContentPlaceSegment::Case(case) if case.symbol.is_valid() => {
-                Some(crate::fact_plan::PlaceSegment::Case {
+                Some(facts::PlaceSegment::Case {
                     variant: case.symbol,
                 })
             }
             ContentPlaceSegment::Field(field) if field.symbol.is_valid() => {
-                Some(crate::fact_plan::PlaceSegment::Field {
+                Some(facts::PlaceSegment::Field {
                     symbol: field.symbol,
                 })
             }
-            ContentPlaceSegment::FixedIndex(index) => {
-                Some(crate::fact_plan::PlaceSegment::FixedIndex {
-                    index: usize::try_from(*index).ok()?,
-                })
-            }
+            ContentPlaceSegment::FixedIndex(index) => Some(facts::PlaceSegment::FixedIndex {
+                index: usize::try_from(*index).ok()?,
+            }),
             ContentPlaceSegment::Case(_) | ContentPlaceSegment::Field(_) => None,
         })
         .collect()
@@ -63,7 +57,7 @@ pub(crate) fn unique_entry_claim_identity(
     facts: &CheckFacts,
     state_symbol: SymbolHandle,
     parameter_symbol: SymbolHandle,
-    input_path: &[crate::fact_plan::PlaceSegment],
+    input_path: &[facts::PlaceSegment],
 ) -> Option<PermissionClaimIdentity> {
     let identities = facts
         .flow
@@ -76,7 +70,7 @@ pub(crate) fn unique_entry_claim_identity(
                 && event.kind == PermissionEventKind::Establish
                 && event.access == PermissionAccess::Owned
                 && event.obligation_live
-                && event.root == crate::fact_plan::PlaceRoot::Symbol(parameter_symbol)
+                && event.root == facts::PlaceRoot::Symbol(parameter_symbol)
                 && facts.flow.ownership.segments.span_or_empty(event.segments) == input_path
                 && event.claim_identity != PermissionClaimIdentity::Unknown
         })
@@ -96,8 +90,8 @@ pub(crate) fn unique_entry_claim_identity(
 pub(crate) fn applicable_projection_plans<'facts>(
     program: &TypedTrees,
     facts: &'facts CheckFacts,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     type_reference: TypeReferenceHandle,
     subject: &ContentStructuralPlace,
 ) -> Vec<&'facts ContentProjectionPlan> {
@@ -172,8 +166,8 @@ fn type_has_domain(
 
 fn contracts_establish_domain(
     program: &TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     subject: &ContentStructuralPlace,
     domain: SymbolHandle,
     semantic_domain: SemanticDomainId,
@@ -303,7 +297,7 @@ fn push_contract_field(
     field_symbol: SymbolHandle,
     field_name: &str,
 ) {
-    if let Some(variant_symbol) = crate::fact_plan::payload_variant_for_field(program, field_symbol)
+    if let Some(variant_symbol) = facts::payload_variant_for_field(program, field_symbol)
         && let Some(variant_name) = data_variant_name(program, variant_symbol)
     {
         segments.push(ContentPlaceSegment::Case(ContentCaseSegment {
@@ -344,29 +338,26 @@ fn content_paths_match(left: &[ContentPlaceSegment], right: &[ContentPlaceSegmen
 
 pub(crate) fn content_path(
     program: &TypedTrees,
-    path: &[crate::fact_plan::PlaceSegment],
+    path: &[facts::PlaceSegment],
 ) -> Option<Vec<ContentPlaceSegment>> {
     path.iter()
         .map(|segment| match segment {
-            crate::fact_plan::PlaceSegment::Case { variant } => {
+            facts::PlaceSegment::Case { variant } => {
                 Some(ContentPlaceSegment::Case(ContentCaseSegment {
                     symbol: *variant,
                     name: data_variant_name(program, *variant)?.to_owned(),
                 }))
             }
-            crate::fact_plan::PlaceSegment::Field { symbol } => {
+            facts::PlaceSegment::Field { symbol } => {
                 Some(ContentPlaceSegment::Field(ContentFieldSegment {
                     symbol: *symbol,
                     name: data_field_name(program, *symbol)?.to_owned(),
                 }))
             }
-            crate::fact_plan::PlaceSegment::FixedIndex { index } => {
-                Some(ContentPlaceSegment::FixedIndex(
-                    u64::try_from(*index).expect("fixed index fits u64"),
-                ))
-            }
-            crate::fact_plan::PlaceSegment::FixedRange { .. }
-            | crate::fact_plan::PlaceSegment::Index { .. } => None,
+            facts::PlaceSegment::FixedIndex { index } => Some(ContentPlaceSegment::FixedIndex(
+                u64::try_from(*index).expect("fixed index fits u64"),
+            )),
+            facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::Index { .. } => None,
         })
         .collect()
 }
@@ -377,12 +368,10 @@ fn data_variant_name(program: &TypedTrees, variant_symbol: SymbolHandle) -> Opti
             .data_members(definition)
             .iter()
             .find_map(|member| match member {
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
-                    variant,
-                ) => (variant.symbol == variant_symbol).then_some(variant.name.as_str()),
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(_) => {
-                    None
+                typed_trees::data::DataMember::Variant(variant) => {
+                    (variant.symbol == variant_symbol).then_some(variant.name.as_str())
                 }
+                typed_trees::data::DataMember::Field(_) => None,
             })
     })
 }
@@ -393,12 +382,10 @@ fn data_field_name(program: &TypedTrees, field_symbol: SymbolHandle) -> Option<&
             .data_members(definition)
             .iter()
             .find_map(|member| match member {
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
-                    field,
-                ) => (field.symbol == field_symbol).then_some(field.name.as_str()),
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
-                    variant,
-                ) => program
+                typed_trees::data::DataMember::Field(field) => {
+                    (field.symbol == field_symbol).then_some(field.name.as_str())
+                }
+                typed_trees::data::DataMember::Variant(variant) => program
                     .data_payload_fields(variant)
                     .iter()
                     .find_map(|field| {
@@ -442,9 +429,9 @@ mod tests {
         assert!(matches!(
             path.as_slice(),
             [
-                crate::fact_plan::PlaceSegment::Case { variant }
-                    , crate::fact_plan::PlaceSegment::Field { symbol }
-                    , crate::fact_plan::PlaceSegment::FixedIndex { index: 3 }
+                facts::PlaceSegment::Case { variant }
+                    , facts::PlaceSegment::Field { symbol }
+                    , facts::PlaceSegment::FixedIndex { index: 3 }
             ] if variant.arena_index() == 7 && symbol.arena_index() == 9
         ));
     }

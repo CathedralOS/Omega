@@ -24,7 +24,7 @@
 mod equivalents;
 
 use crate::PsiOptimizationStageError;
-use checked_trees_to_lowered_psi::lowered_psi::LoweredPsi;
+use lowered_psi::LoweredPsi;
 use std::collections::BTreeSet;
 use terminal_psi::DebugSubject;
 use terminal_verifier::{

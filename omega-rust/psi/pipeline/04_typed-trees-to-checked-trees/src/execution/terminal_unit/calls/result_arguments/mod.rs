@@ -32,8 +32,8 @@ pub(super) fn argument(
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
-    call: &crate::checked_trees::FlowCallFact,
-    expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    call: &checked_trees::FlowCallFact,
+    expression: typed_trees::expression::ExpressionHandle,
     place: &crate::flow::CanonicalPlace,
     result: &CheckedUnitStructuralResultBindingPlan,
     parameter: &StateParameter,
@@ -66,7 +66,7 @@ pub(super) fn argument(
         // which may be a `&mut` local binding that does not own this operand
         // place. Only an operand rooted at that local belongs to this lane;
         // other roots continue to the general argument checks below.
-        && place.root == crate::fact_plan::PlaceRoot::Symbol(local.symbol)
+        && place.root == facts::PlaceRoot::Symbol(local.symbol)
     {
         let (_, access) =
             super::super::reference_results::parts(program, parameter.type_reference)?;
@@ -159,7 +159,7 @@ pub(super) fn argument(
             None
         };
     let owned_reference_record = access == CheckedStructuralAccess::Owned
-        && crate::validation::reference_result_custody::is_reference_record(
+        && validation::reference_result_custody::is_reference_record(
             program,
             parameter.type_reference,
         )
@@ -168,7 +168,7 @@ pub(super) fn argument(
                 u32::try_from(call.statement_index)
                     .ok()
                     .is_some_and(|index| {
-                        crate::validation::reference_result_custody::projected_record_argument(
+                        validation::reference_result_custody::projected_record_argument(
                             program,
                             facts,
                             machine,
@@ -181,8 +181,8 @@ pub(super) fn argument(
                             // anonymous result bound at this same statement;
                             // its returned leaf roster replays the caller's
                             // captured loans through the nested actuals.
-                            crate::fact_plan::PlaceRoot::Expression(source) => {
-                                crate::validation::reference_result_custody::nested_call_record_argument(
+                            facts::PlaceRoot::Expression(source) => {
+                                validation::reference_result_custody::nested_call_record_argument(
                                     program,
                                     facts,
                                     machine,
@@ -197,7 +197,7 @@ pub(super) fn argument(
                     })
             })
         } else {
-            crate::validation::reference_result_custody::owned_record_argument(
+            validation::reference_result_custody::owned_record_argument(
                 program,
                 facts,
                 machine,
@@ -234,7 +234,7 @@ pub(super) fn argument(
                 == program
                     .normalized_type_identity(parameter.type_reference)
                     .as_str()))
-        && let crate::fact_plan::PlaceRoot::Symbol(view_symbol) = place.root
+        && let facts::PlaceRoot::Symbol(view_symbol) = place.root
     {
         let borrow_state = facts
             .borrow
@@ -252,7 +252,7 @@ pub(super) fn argument(
             .filter(|loan| loan.owner_symbol == view_symbol);
         let loan = loans.next()?;
         if loans.next().is_some()
-            || loan.kind != crate::checked_trees::BorrowAccessKind::Read
+            || loan.kind != checked_trees::BorrowAccessKind::Read
             || call.statement_index > loan.last_use_statement_index
         {
             return None;
@@ -281,7 +281,7 @@ pub(super) fn argument(
             parameter.type_reference,
         ))
         && result.type_identity == target_identity
-        && let crate::fact_plan::PlaceRoot::Expression(source) = place.root
+        && let facts::PlaceRoot::Expression(source) = place.root
         && source == expression
     {
         if usize::try_from(result.statement_index).ok()? != call.statement_index {
@@ -321,13 +321,11 @@ pub(super) fn argument(
         && !projected_borrow
         && (projected
             || access != CheckedStructuralAccess::Owned
-            || !(crate::validation::is_closed_primitive_array_type(
-                program,
-                parameter.type_reference,
-            ) || crate::validation::has_plain_owned_contents_with_numeric_constraints(
-                program,
-                parameter.type_reference,
-            )))
+            || !(validation::is_closed_primitive_array_type(program, parameter.type_reference)
+                || validation::has_plain_owned_contents_with_numeric_constraints(
+                    program,
+                    parameter.type_reference,
+                )))
     {
         return None;
     }
@@ -356,7 +354,7 @@ pub(super) fn argument(
                 return None;
             }
             match place.root {
-                crate::fact_plan::PlaceRoot::Symbol(_) => {
+                facts::PlaceRoot::Symbol(_) => {
                     if exact_structural_argument_access(
                         program, facts, machine, state, call, place, access,
                     )? != access
@@ -364,7 +362,7 @@ pub(super) fn argument(
                         return None;
                     }
                 }
-                crate::fact_plan::PlaceRoot::Expression(source) if source == borrow.target => {
+                facts::PlaceRoot::Expression(source) if source == borrow.target => {
                     anonymous_shared::validate(program, facts, machine, state, call, source)?;
                 }
                 _ => return None,
@@ -387,7 +385,7 @@ pub(super) fn argument(
                 }
                 _ => return None,
             };
-            let symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference {
+            let typed_trees::types::TypeReferenceNode::Reference {
                 access: reference_access,
                 referee,
                 ..
@@ -407,7 +405,7 @@ pub(super) fn argument(
             {
                 return None;
             }
-            let crate::fact_plan::PlaceRoot::Symbol(_) = place.root else {
+            let facts::PlaceRoot::Symbol(_) = place.root else {
                 return None;
             };
             if exact_structural_argument_access(
@@ -424,17 +422,17 @@ pub(super) fn argument(
         || (!unrestricted
             && !linear
             && !owned_reference_record
-            && !crate::validation::has_plain_owned_contents(program, referent)
+            && !validation::has_plain_owned_contents(program, referent)
             // A nominal-cleanup result is discharged by the consuming call's
             // own transfer edge, replayed below through its exact permission
             // event, so cleanup-owned contents admit the same whole move.
-            && !crate::validation::has_cleanup_owned_contents(program, referent))
+            && !validation::has_cleanup_owned_contents(program, referent))
         || usize::try_from(result.statement_index).ok()? > call.statement_index
     {
         return None;
     }
     match place.root {
-        crate::fact_plan::PlaceRoot::Symbol(symbol) => {
+        facts::PlaceRoot::Symbol(symbol) => {
             if usize::try_from(result.statement_index).ok()? == call.statement_index
                 || !symbol.is_valid()
                 || (!projected && !names_whole_local(program, call, value_expression, symbol))
@@ -463,13 +461,13 @@ pub(super) fn argument(
                     || (!unrestricted
                         && !linear
                         && !owned_reference_record
-                        && !crate::validation::has_plain_owned_contents(program, local.type_reference))
+                        && !validation::has_plain_owned_contents(program, local.type_reference))
                     || program.type_multiplicity(local.type_reference) != result.multiplicity
                     || (unrestricted
-                        && !(crate::validation::is_closed_primitive_array_type(
+                        && !(validation::is_closed_primitive_array_type(
                             program,
                             local.type_reference,
-                        ) || crate::validation::has_plain_owned_contents_with_numeric_constraints(
+                        ) || validation::has_plain_owned_contents_with_numeric_constraints(
                             program,
                             local.type_reference,
                         )))
@@ -479,21 +477,17 @@ pub(super) fn argument(
                     return None;
                 }
                 if linear
-                    && crate::validation::structural_result_qualifications(
-                        program,
-                        local.type_reference,
-                    )
-                    .ok()?
-                        != crate::validation::structural_result_qualifications(program, referent)
-                            .ok()?
+                    && validation::structural_result_qualifications(program, local.type_reference)
+                        .ok()?
+                        != validation::structural_result_qualifications(program, referent).ok()?
                 {
                     return None;
                 }
             }
         }
-        crate::fact_plan::PlaceRoot::Expression(source)
+        facts::PlaceRoot::Expression(source)
             if unrestricted
-                && crate::validation::is_closed_primitive_array_type(
+                && validation::is_closed_primitive_array_type(
                     program,
                     parameter.type_reference,
                 )
@@ -512,7 +506,7 @@ pub(super) fn argument(
                 crate::semantic::calls::call_target_parameters(program, call.target_symbol)?
                     .iter()
                     .position(|candidate| candidate.symbol == parameter.symbol)?;
-            let expected = crate::checked_trees::CheckedArrayConstructionSource::CallArgument {
+            let expected = checked_trees::CheckedArrayConstructionSource::CallArgument {
                 call_ordinal: u32::try_from(call.call_ordinal).ok()?,
                 parameter_position: u32::try_from(parameter_position).ok()?,
             };
@@ -535,7 +529,7 @@ pub(super) fn argument(
         // An inline case or record construction is established as a
         // state-local value at the consuming statement itself; the binding
         // replays like an anonymous result but carries no producer call.
-        crate::fact_plan::PlaceRoot::Expression(source)
+        facts::PlaceRoot::Expression(source)
             if source == value_expression
                 && !projected
                 && !matches!(
@@ -554,9 +548,9 @@ pub(super) fn argument(
             if root.machine != machine
                 || !matches!(
                     facts.values.structural_values.nodes.get(root.root).kind,
-                    crate::checked_trees::CheckedStructuralValueKind::Case(_)
-                        | crate::checked_trees::CheckedStructuralValueKind::StructuralCase { .. }
-                        | crate::checked_trees::CheckedStructuralValueKind::Record { .. }
+                    checked_trees::CheckedStructuralValueKind::Case(_)
+                        | checked_trees::CheckedStructuralValueKind::StructuralCase { .. }
+                        | checked_trees::CheckedStructuralValueKind::Record { .. }
                 )
                 || program
                     .normalized_type_identity(root.type_reference)
@@ -569,9 +563,7 @@ pub(super) fn argument(
         // Ordinary and boundary affine producers own anonymous results.
         // Rejoin their exact captured
         // preorder coordinate; the shared sequencer executes it in postorder.
-        crate::fact_plan::PlaceRoot::Expression(source)
-            if source == value_expression || projected =>
-        {
+        facts::PlaceRoot::Expression(source) if source == value_expression || projected => {
             if projected
                 && crate::flow::canonical_place_from_expression_in_state(
                     program,
@@ -694,8 +686,7 @@ pub(super) fn argument(
                     || !event.obligation_live
                     || segments.len() != event.segments.len()
                     || claims.contains(&event.claim_identity)
-                    || crate::validation::structural_claim_path(program, formal_type, segments)
-                        .is_err()
+                    || validation::structural_claim_path(program, formal_type, segments).is_err()
                 {
                     return None;
                 }
@@ -725,8 +716,8 @@ pub(super) fn argument(
 /// fact names by symbol because no argument expression exists for it.
 fn names_whole_local(
     program: &TypedTrees,
-    call: &crate::checked_trees::FlowCallFact,
-    value_expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    call: &checked_trees::FlowCallFact,
+    value_expression: typed_trees::expression::ExpressionHandle,
     symbol: SymbolHandle,
 ) -> bool {
     if !value_expression.is_valid() {
@@ -742,11 +733,11 @@ fn names_whole_local(
 /// place is exactly that whole local.
 fn receiver_local_type(
     program: &TypedTrees,
-    source_state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    source_state: &typed_trees::state::State,
     place: &crate::flow::CanonicalPlace,
     result: &CheckedUnitStructuralResultBindingPlan,
-) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
-    let crate::fact_plan::PlaceRoot::Symbol(symbol) = place.root else {
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
         return None;
     };
     let StatementNode::LocalData(local) = program

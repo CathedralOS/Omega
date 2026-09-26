@@ -6,12 +6,12 @@ mod replay;
 mod roots;
 mod usage;
 
-use target_operations_to_selected_instructions::ValidatedMachineEffectCatalog;
-use target_operations_to_selected_instructions::register_model::{
+use register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile,
 };
+use selected_instructions::ValidatedMachineEffectCatalog;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use crate::{

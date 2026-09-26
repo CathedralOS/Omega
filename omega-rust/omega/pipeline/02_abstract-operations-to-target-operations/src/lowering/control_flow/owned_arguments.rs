@@ -2,13 +2,13 @@
 //! Arrays, records, and completed sums share transport, not semantic identity.
 use super::LiveDefinitions;
 use crate::LoweringError;
-use crate::target_operations::{TargetStructuralArgument, TargetStructuralParameter};
+use abstract_operations::AbstractFunction;
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::{BTreeMap, BTreeSet};
+use target_operations::{TargetStructuralArgument, TargetStructuralParameter};
 use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralTypeDeclaration, StructuralTypeShape,
 };
-use terminal_psi_to_abstract_operations::abstract_operations::AbstractFunction;
 
 pub(super) fn is_owned_parameter(
     parameter: &terminal_psi::StructuralParameterDeclaration,
@@ -50,7 +50,7 @@ pub(super) fn argument(
         {
             return Err(invalid());
         }
-        crate::target_operations::TargetStructuralArgumentSource::StructuralHome {
+        target_operations::TargetStructuralArgumentSource::StructuralHome {
             psi_operation: home.operation_result().ok_or_else(invalid)?.0,
         }
     } else if let Some((establishment, structural_type)) =
@@ -65,7 +65,7 @@ pub(super) fn argument(
         {
             return Err(invalid());
         }
-        crate::target_operations::TargetStructuralArgumentSource::StructuralHome {
+        target_operations::TargetStructuralArgumentSource::StructuralHome {
             psi_operation: *establishment,
         }
     } else {
@@ -110,8 +110,8 @@ pub(super) fn argument(
 fn value_layout(
     structural_type: StructuralTypeId,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-) -> Result<crate::target_operations::TargetStructuralHomeLayout, LoweringError> {
-    use crate::target_operations::TargetStructuralHomeLayout;
+) -> Result<target_operations::TargetStructuralHomeLayout, LoweringError> {
+    use target_operations::TargetStructuralHomeLayout;
     match types
         .get(&structural_type)
         .map(|declaration| &declaration.shape)

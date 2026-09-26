@@ -16,7 +16,7 @@ use crate::execution::terminal_unit::state_graph::{SuccessorEdge, successor_bind
 pub(super) fn build(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    machine: &typed_trees::machine::Machine,
     state_index: usize,
     signatures: &[Signature],
     operations: &[CheckedUnitEffectOperationPlan],
@@ -40,7 +40,7 @@ pub(super) fn build(
         transition_start,
         expression,
     )?;
-    let crate::fact_plan::PlaceRoot::Symbol(result_symbol) = place.root else {
+    let facts::PlaceRoot::Symbol(result_symbol) = place.root else {
         return None;
     };
     if !place.segments.is_empty() {
@@ -129,10 +129,7 @@ pub(super) fn build(
             },
         )
     };
-    if !crate::validation::has_plain_owned_contents_with_numeric_constraints(
-        program,
-        type_reference,
-    ) {
+    if !validation::has_plain_owned_contents_with_numeric_constraints(program, type_reference) {
         return None;
     }
     let TypeReferenceNode::Named { symbol, .. } =
@@ -186,7 +183,7 @@ pub(super) fn build(
             local.initial_value,
         )?;
         if local.is_mutable
-            || place.root != crate::fact_plan::PlaceRoot::Symbol(result_symbol)
+            || place.root != facts::PlaceRoot::Symbol(result_symbol)
             || !place.segments.is_empty()
         {
             return None;
@@ -220,7 +217,7 @@ pub(super) fn build(
                     ordinal as usize,
                     expression,
                 )?;
-                if place.root != crate::fact_plan::PlaceRoot::Symbol(result_symbol)
+                if place.root != facts::PlaceRoot::Symbol(result_symbol)
                     || !place.segments.is_empty()
                 {
                     return None;
@@ -289,12 +286,12 @@ pub(super) fn build(
                 ) else {
                     continue;
                 };
-                if place.root != crate::fact_plan::PlaceRoot::Symbol(result_symbol) {
+                if place.root != facts::PlaceRoot::Symbol(result_symbol) {
                     continue;
                 }
                 let [
-                    crate::fact_plan::PlaceSegment::Case { variant: selected },
-                    crate::fact_plan::PlaceSegment::Field { symbol },
+                    facts::PlaceSegment::Case { variant: selected },
+                    facts::PlaceSegment::Field { symbol },
                 ] = place.segments.as_slice()
                 else {
                     return None;
@@ -338,11 +335,11 @@ pub(super) fn build(
             if successor.transfers.iter().any(|transfer| match (&subject.source, &transfer.source) {
                 (
                     CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
-                    crate::checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index },
+                    checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index },
                 ) => parameter_index == index,
                 (
                     CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal: subject },
-                    crate::checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal },
+                    checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal },
                 ) => subject == binding_ordinal,
                 _ => false,
             }) {
@@ -377,10 +374,12 @@ pub(super) fn build(
                 && event.kind == PermissionEventKind::AffineDrop
         })
     {
-        if event.root != crate::fact_plan::PlaceRoot::Symbol(result_symbol) {
-            if program.state_parameters(state).iter().any(|parameter| {
-                event.root == crate::fact_plan::PlaceRoot::Symbol(parameter.symbol)
-            }) {
+        if event.root != facts::PlaceRoot::Symbol(result_symbol) {
+            if program
+                .state_parameters(state)
+                .iter()
+                .any(|parameter| event.root == facts::PlaceRoot::Symbol(parameter.symbol))
+            {
                 return None;
             }
             continue;

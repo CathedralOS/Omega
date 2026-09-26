@@ -6,10 +6,8 @@ use super::{
 use crate::legalize_target_operations;
 use crate::tests::legalization::primitive_stores::integer;
 use crate::validate_legalized_operations;
+use abstract_operations::{AbstractBlockEntry, AbstractSuccessor, ValueBinding};
 use semantic_vocabulary::{BlockId, EdgeId};
-use terminal_psi_to_abstract_operations::abstract_operations::{
-    AbstractBlockEntry, AbstractSuccessor, ValueBinding,
-};
 
 #[test]
 fn branch_join_store_replays_exact_block_value_on_four_targets() {
@@ -81,7 +79,7 @@ fn branch_join_store_replays_exact_block_value_on_four_targets() {
                 abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
             )
             .unwrap();
-            let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
+            let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
                 &source,
                 FuelScheduleIdentity::new(1).unwrap(),
             )
@@ -90,7 +88,7 @@ fn branch_join_store_replays_exact_block_value_on_four_targets() {
             validate_legalized_operations(&target, &source, &unit, legalized.plan().clone())
                 .unwrap();
             let environment =
-                crate::register_environment::baseline_target_register_environment(native).unwrap();
+                register_environment::baseline_target_register_environment(native).unwrap();
             let constraints = crate::selection_constraints(&legalized, &environment);
             crate::select_instructions(
                 &legalized,

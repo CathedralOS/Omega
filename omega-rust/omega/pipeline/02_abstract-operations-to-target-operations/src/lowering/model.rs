@@ -1,9 +1,9 @@
-use crate::calling_conventions::PlanDiagnostic;
-use crate::target_operations::BoundarySettlementRealization;
+use calling_conventions::PlanDiagnostic;
 use semantic_vocabulary::{
     BoundaryMachineId, MachineId, OperationId, PlaceId, StructuralTypeId, ValueId,
 };
 use target::NativeTarget;
+use target_operations::BoundarySettlementRealization;
 
 /// Exact sealed placement plan selected for one retained Terminal placed-view
 /// input. Construction grants no backing or access authority; lowering rejoins
@@ -11,7 +11,7 @@ use target::NativeTarget;
 #[derive(Debug, Clone, Copy)]
 pub struct SelectedPlacedViewInputPlan<'plan> {
     pub terminal_input: &'plan terminal_psi::TerminalPlacedViewInput,
-    pub placement_plan: &'plan terminal_psi::access_plans::ValidatedPlacementPlan,
+    pub placement_plan: &'plan access_plans::ValidatedPlacementPlan,
 }
 
 /// Owned target-side input for one compiler-private callback argument.
@@ -26,10 +26,10 @@ pub struct SelectedPlacedViewInputPlan<'plan> {
 pub struct AdmittedNativeCallbackArgument {
     pub terminal_operation: OperationId,
     pub placement_index: usize,
-    pub callback_function: crate::function_identity::MachineFunctionIdentity,
-    pub application: crate::calling_conventions::NativeParameterApplication,
-    pub registrar_boundary_entry_plan: crate::calling_conventions::BoundaryEntryPlan,
-    pub registrar_context: crate::calling_conventions::CallbackMaterializationContext,
+    pub callback_function: function_identity::MachineFunctionIdentity,
+    pub application: calling_conventions::NativeParameterApplication,
+    pub registrar_boundary_entry_plan: calling_conventions::BoundaryEntryPlan,
+    pub registrar_context: calling_conventions::CallbackMaterializationContext,
     /// Nonempty compiler-origin application-v3 commitment projection.
     pub registrar_application_commitment: [u8; 32],
 }
@@ -46,7 +46,7 @@ pub struct AdmittedBoundarySettlement<'execution> {
 #[derive(Debug, Clone, Copy)]
 pub enum AdmittedBoundaryExecution<'execution> {
     Provider(&'execution dyn installation_evidence::ProviderExecutionEvidence),
-    CompilerBuiltin(crate::target_operations::CompilerBuiltinExecution),
+    CompilerBuiltin(target_operations::CompilerBuiltinExecution),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

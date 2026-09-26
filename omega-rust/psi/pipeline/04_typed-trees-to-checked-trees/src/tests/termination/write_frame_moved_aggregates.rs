@@ -2,10 +2,7 @@ use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::front_end::typed_program;
 
-fn moved_aggregate_program(
-    body: &str,
-    scalar: &str,
-) -> symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees {
+fn moved_aggregate_program(body: &str, scalar: &str) -> typed_trees::TypedTrees {
     let source = format!(
         r#"
         data View {{ body: &mut {scalar}; }}
@@ -193,12 +190,10 @@ fn moved_aggregate_declarations_preserve_complete_caller_origins() {
             .statements(state.statement_nodes)
             .last()
             .expect("call");
-        let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Call(call) =
-            statement
-        else {
+        let typed_trees::statement::StatementNode::Call(call) = statement else {
             panic!("call");
         };
-        let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolver");
+        let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
         for (query, actual) in [
             (
                 "state",
@@ -231,22 +226,20 @@ fn moved_aggregate_declarations_preserve_complete_caller_origins() {
 }
 
 fn moved_storage_label(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     place: &crate::flow::CanonicalPlace,
 ) -> String {
-    let crate::fact_plan::PlaceRoot::Symbol(root) = place.root else {
+    let facts::PlaceRoot::Symbol(root) = place.root else {
         panic!("storage root: {place:?}");
     };
     let mut label = program.symbols.name(root).to_owned();
     for segment in &place.segments {
         match segment {
-            crate::fact_plan::PlaceSegment::Field { symbol } => {
+            facts::PlaceSegment::Field { symbol } => {
                 label.push('.');
                 label.push_str(program.symbols.name(*symbol));
             }
-            crate::fact_plan::PlaceSegment::FixedIndex { index } => {
-                label.push_str(&format!("[{index}]"))
-            }
+            facts::PlaceSegment::FixedIndex { index } => label.push_str(&format!("[{index}]")),
             _ => panic!("unexpected selector: {segment:?}"),
         }
     }
@@ -302,7 +295,7 @@ fn moved_aggregate_storage_keeps_selected_leaf_precision() {
             state.symbol,
             statements.len() - 1,
             statements.last().expect("store"),
-            crate::validation::CallFrameResolver::new(&program).as_ref(),
+            ::validation::CallFrameResolver::new(&program).as_ref(),
         )
         .unwrap_or_else(|| panic!("{name}: complete storage origin"));
         let mut actual: Vec<_> = places
@@ -332,8 +325,8 @@ fn moved_aggregate_names_and_fields_reach_checked_trees() {
 
 #[test]
 fn moved_aggregate_source_requires_exact_live_local_identity() {
-    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode;
-    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
+    use typed_trees::expression::ExpressionNode;
+    use typed_trees::statement::StatementNode;
     let original = moved_aggregate_program(
         "let first: View = View { body: &mut self.value }; let second: View = first; write_view(second);",
         "u64",
@@ -389,7 +382,7 @@ fn moved_aggregate_source_requires_exact_live_local_identity() {
             .find(|machine| machine.name.as_str() == "Main::run")
             .expect("caller");
         let state = &program.machine_states(caller)[0];
-        let resolver = crate::validation::CallFrameResolver::new(&program).expect("resolver");
+        let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
         let call_statement = program
             .statement_table
             .statements(statements)
@@ -437,7 +430,7 @@ fn moved_aggregate_writes_cannot_preserve_stale_arithmetic_facts() {
         ),
     ] {
         let program = moved_aggregate_program(body, "u8");
-        match crate::validation::validate_program(&program) {
+        match validation::validate_program(&program) {
             Err(diagnostics)
                 if diagnostics.iter().any(|diagnostic| {
                     let message = diagnostic.to_string();

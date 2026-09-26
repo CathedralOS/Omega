@@ -83,7 +83,7 @@ fn token_requirement_calls_retain_distinct_closed_provider_demands() {
     );
 }
 
-fn checked_token_requirement_applications() -> crate::checked_trees::CheckedTrees {
+fn checked_token_requirement_applications() -> checked_trees::CheckedTrees {
     let program = typed_program(
         r#"
         data ArrayOps {}
@@ -152,7 +152,7 @@ fn closed_requirement_replay_rejects_substituted_and_ambiguous_receipts() {
                 && receipt.const_argument_identities == provider_receipt.const_argument_identities
         })
         .expect("matching closed requirement");
-    let revalidate = |program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees| {
+    let revalidate = |program: &typed_trees::TypedTrees| {
         let provider = program
             .machines()
             .iter()
@@ -167,7 +167,7 @@ fn closed_requirement_replay_rejects_substituted_and_ambiguous_receipts() {
             .machine_trait_conformances(provider)
             .first()
             .expect("authored conformance");
-        crate::validation::revalidate_top_level_requirement_realization(
+        validation::revalidate_top_level_requirement_realization(
             program,
             provider,
             requirement,

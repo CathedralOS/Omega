@@ -1,6 +1,6 @@
 use crate::input::token_cursor::{Input, ParseResult};
-use crate::syntax_trees::item::ExternalBinding;
-use source_files_to_tokens::tokens::PunctuationKind;
+use syntax_trees::item::ExternalBinding;
+use tokens::PunctuationKind;
 
 /// Parse the external-realization spelling used after `via`.
 ///

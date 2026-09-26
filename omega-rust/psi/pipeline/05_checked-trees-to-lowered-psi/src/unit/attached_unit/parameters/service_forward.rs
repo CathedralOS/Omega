@@ -16,7 +16,7 @@ pub(super) fn validate(checked: &CheckedTrees) -> Result<(), LoweringError> {
             .operations
             .iter()
             .filter_map(|operation| match operation {
-                typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::CallUnit {
+                checked_trees::CheckedUnitEffectOperationPlan::CallUnit {
                     coordinate,
                     target_machine,
                     target_state,
@@ -52,11 +52,11 @@ pub(super) fn validate(checked: &CheckedTrees) -> Result<(), LoweringError> {
             || caller.operations.len() != 2
             || !matches!(
                 caller.operations.last(),
-                Some(typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::Complete { .. })
+                Some(checked_trees::CheckedUnitEffectOperationPlan::Complete { .. })
             )
             || caller_parameter.position != 0
             || caller_parameter.multiplicity != Multiplicity::Affine
-            || caller_parameter.access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
+            || caller_parameter.access != checked_trees::CheckedStructuralAccess::Owned
             || caller_parameter.qualifications.len() != 1
             || !claim_transfers.is_empty()
         {
@@ -69,8 +69,7 @@ pub(super) fn validate(checked: &CheckedTrees) -> Result<(), LoweringError> {
             || !argument.path.is_empty()
             || argument.byte_sequence_literal().is_some()
             || argument.type_identity != caller_parameter.type_identity
-            || argument.access
-                != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
+            || argument.access != checked_trees::CheckedStructuralAccess::Owned
         {
             return unsupported(
                 "routed Service forwarding must move the exact whole owned caller root",
@@ -121,11 +120,11 @@ pub(super) fn validate(checked: &CheckedTrees) -> Result<(), LoweringError> {
         };
         if !matches!(
             target_return,
-            typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::Complete { .. }
+            checked_trees::CheckedUnitEffectOperationPlan::Complete { .. }
         ) || target_body.is_empty()
             || target_body.iter().any(|operation| {
                 !matches!(operation,
-                    typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::BoundaryCall { target_state, .. }
+                    checked_trees::CheckedUnitEffectOperationPlan::BoundaryCall { target_state, .. }
                         if requirement_states.iter().any(|signature| signature.symbol == *target_state))
             })
         {

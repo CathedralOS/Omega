@@ -1,11 +1,7 @@
 //! Function parameter, block-flattening, and operation-offset projection.
 
-use terminal_psi_to_abstract_operations::abstract_operations::{
-    AbstractBlockEntry, AbstractFunction,
-};
-use terminal_psi_to_abstract_operations::optimization_unit::{
-    PsiOptimizationFunction, ValueDefinitionSite,
-};
+use abstract_operations::{AbstractBlockEntry, AbstractFunction};
+use optimization_unit::{PsiOptimizationFunction, ValueDefinitionSite};
 
 use super::project_parameter;
 use crate::OptimizedAbstractProjectionError;

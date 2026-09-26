@@ -55,7 +55,7 @@ fn scalar_measure_subject_uses_its_exact_state_parameter_not_its_spelling() {
     let source = COUNTDOWN.replace("u64", "u32");
     let program = typed_program(&source);
     let machine = &program.machines()[0];
-    let subject = symbol_resolved_trees_to_typed_trees::typed_trees::ranking::resolve_machine_witness_subjects(&program, machine)
+    let subject = typed_trees::ranking::resolve_machine_witness_subjects(&program, machine)
         .expect("retained ranking subject")[0];
     let foreign = program.measures()[0]
         .parameter
@@ -64,9 +64,8 @@ fn scalar_measure_subject_uses_its_exact_state_parameter_not_its_spelling() {
         .symbol;
     for replacement in [symbols::SymbolHandle::invalid(), foreign] {
         let mut changed = program.clone();
-        let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Name(
-            path,
-        ) = changed.expression_table.expression_mut(subject)
+        let typed_trees::expression::ExpressionNode::Name(path) =
+            changed.expression_table.expression_mut(subject)
         else {
             panic!("parameter subject")
         };
@@ -104,15 +103,12 @@ fn unsigned_identity_views_do_not_authorize_custom_arithmetic_meaning() {
 
 fn prove(source: &str) {
     let program = typed_program(source);
-    assert!(symbol_resolved_trees_to_typed_trees::typed_trees::visibility::requires_declaration_visibility(
+    assert!(typed_trees::visibility::requires_declaration_visibility(
         symbols::SymbolKind::Measure
     ));
     let visibility =
-        symbol_resolved_trees_to_typed_trees::typed_trees::visibility::declaration_visibility(
-            &program,
-            program.measures()[0].symbol,
-        )
-        .expect("measure declaration visibility");
+        typed_trees::visibility::declaration_visibility(&program, program.measures()[0].symbol)
+            .expect("measure declaration visibility");
     assert!(!visibility.is_public());
     assert_eq!(visibility.kind(), "measure");
     assert!(matches!(
@@ -217,9 +213,8 @@ fn same_spelling_or_invalid_handles_cannot_replace_the_measure_binder() {
         measure.symbol,
     ] {
         let mut changed = program.clone();
-        let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Name(
-            path,
-        ) = changed.expression_table.expression_mut(body)
+        let typed_trees::expression::ExpressionNode::Name(path) =
+            changed.expression_table.expression_mut(body)
         else {
             panic!("identity body");
         };

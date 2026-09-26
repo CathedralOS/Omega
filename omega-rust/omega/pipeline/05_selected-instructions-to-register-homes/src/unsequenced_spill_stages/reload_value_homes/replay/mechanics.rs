@@ -1,13 +1,11 @@
 //! Low-level interference and work-accounting mechanics for independent replay.
 
 use optimization_core::OptimizationWorkUsage;
-use target_operations_to_selected_instructions::VirtualRegisterId;
-use target_operations_to_selected_instructions::register_model::{
-    RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel,
-};
+use register_model::{RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel};
+use selected_instructions::VirtualRegisterId;
 
 use crate::unsequenced_spill_stages::{FunctionReloadValueHomes, ReloadValueHomeError};
-use target_operations_to_selected_instructions::VirtualInterference;
+use selected_instructions::VirtualInterference;
 
 pub(super) fn contains_interference(
     left: VirtualRegisterId,

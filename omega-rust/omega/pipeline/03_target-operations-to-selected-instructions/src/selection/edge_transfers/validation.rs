@@ -4,15 +4,15 @@ use super::{
     SelectedValueTransport, VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
-use crate::selected_instructions::{
-    SelectedInstruction, SelectedInstructionKind, SelectedInstructionProvenance,
-    SelectedSelectionConstraints, VirtualRegister, VirtualRegisterOrigin,
-};
 use crate::selection::edge_transfers::chunks;
 use crate::selection::edge_transfers::instruction_count;
 use crate::selection::edge_transfers::invalid;
 use crate::selection::edge_transfers::stored_transport;
 use crate::selection::edge_transfers::successors_mut;
+use selected_instructions::{
+    SelectedInstruction, SelectedInstructionKind, SelectedInstructionProvenance,
+    SelectedSelectionConstraints, VirtualRegister, VirtualRegisterOrigin,
+};
 mod structural_case;
 
 pub(in crate::selection) fn project(
@@ -69,7 +69,7 @@ pub(in crate::selection) fn project(
         .take_while(|access| {
             !matches!(
                 access.origin,
-                crate::selected_instructions::SelectedMemoryAccessOrigin::Edge(_)
+                selected_instructions::SelectedMemoryAccessOrigin::Edge(_)
             )
         })
         .count();
@@ -113,14 +113,13 @@ pub(in crate::selection) fn project(
                         || !successor.structural_bindings.is_empty()
                         || case.payloads.iter().any(|payload| {
                             payload.transport
-                                != crate::selected_instructions::SelectedCasePayloadTransport::Unused
+                                != selected_instructions::SelectedCasePayloadTransport::Unused
                         }))
                 {
                     return Err(error());
                 }
                 if successor.structural_bindings.iter().any(|binding| {
-                    binding.transport
-                        != crate::selected_instructions::SelectedStructuralTransport::Unused
+                    binding.transport != selected_instructions::SelectedStructuralTransport::Unused
                 }) || successor.bindings.iter().any(|binding| {
                     matches!(binding.transport, SelectedValueTransport::Registers { .. })
                 }) {
@@ -163,8 +162,7 @@ pub(in crate::selection) fn project(
                     .iter()
                     .any(|binding| binding.transport != SelectedValueTransport::Unused)
                 || successor.structural_bindings.iter().any(|binding| {
-                    binding.transport
-                        != crate::selected_instructions::SelectedStructuralTransport::Unused
+                    binding.transport != selected_instructions::SelectedStructuralTransport::Unused
                 })
             {
                 return Err(error());
@@ -220,7 +218,7 @@ pub(in crate::selection) fn project(
                 .filter(|binding| {
                     matches!(
                         binding.transport,
-                        crate::selected_instructions::SelectedStructuralTransport::WholeValue { .. }
+                        selected_instructions::SelectedStructuralTransport::WholeValue { .. }
                     )
                 })
                 .count();

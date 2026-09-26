@@ -16,14 +16,10 @@ use super::{
 use crate::execution::terminal_unit::types::ShapeCollector;
 
 use crate::execution::terminal_unit::types::terminal_field_identity;
-use crate::fact_plan::{PlaceRoot, PlaceSegment};
 use crate::flow::CanonicalPlace;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, ExpressionNode,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
-    TypeReferenceHandle, TypeReferenceNode,
-};
+use facts::{PlaceRoot, PlaceSegment};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// The exact field chain beneath an exclusive borrowed structural parameter.
 /// Whole-root moves and index/referent segments open no pinned window.
@@ -34,8 +30,8 @@ use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
 /// (`self.f`), so both must land on one window.
 pub(in crate::execution::terminal_unit) fn window_place(
     program: &TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     statements: &[StatementNode],
     statement_index: usize,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
@@ -99,8 +95,8 @@ pub(in crate::execution::terminal_unit) fn window_place(
 /// windows key on the resolved storage place, not the access route.
 pub(in crate::execution::terminal_unit) fn resolve_storage_place(
     program: &TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     statements: &[StatementNode],
     statement_index: usize,
     root_symbol: SymbolHandle,
@@ -150,7 +146,7 @@ pub(in crate::execution::terminal_unit) fn resolve_storage_place(
 /// cannot be replayed.
 fn local_reference_source(
     program: &TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    state: &typed_trees::state::State,
     statements: &[StatementNode],
     statement_index: usize,
     symbol: SymbolHandle,
@@ -239,9 +235,9 @@ pub(super) struct OpenWindows {
 /// window, and a mutable or reference-typed local binds nothing to restore.
 pub(in crate::execution::terminal_unit) fn move_out_candidate(
     program: &TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    state: &typed_trees::state::State,
     statement_index: usize,
-    local: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableLocalData,
+    local: &typed_trees::statement::TableLocalData,
 ) -> Option<crate::flow::CanonicalPlace> {
     if local.is_mutable
         || type_reference_is_reference(program, local.type_reference)
@@ -268,12 +264,12 @@ impl OpenWindows {
         &mut self,
         program: &TypedTrees,
         shapes: &mut ShapeCollector<'_>,
-        machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-        state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
         structural_parameters: &[CheckedUnitStructuralParameterPlan],
         binders: &[(SymbolHandle, String)],
         statement_index: u32,
-        local: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableLocalData,
+        local: &typed_trees::statement::TableLocalData,
         binding_ordinal: u32,
     ) -> Option<(
         CheckedUnitEffectOperationPlan,
@@ -324,11 +320,11 @@ impl OpenWindows {
     pub(super) fn restore(
         &mut self,
         program: &TypedTrees,
-        machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-        state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
         structural_parameters: &[CheckedUnitStructuralParameterPlan],
         statement_index: u32,
-        assignment: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableAssignment,
+        assignment: &typed_trees::statement::TableAssignment,
     ) -> Option<CheckedUnitEffectOperationPlan> {
         let statements = program.statement_table.statements(state.statement_nodes);
         let index = usize::try_from(statement_index).ok()?;
@@ -398,11 +394,11 @@ impl OpenWindows {
     pub(super) fn replace(
         &self,
         program: &TypedTrees,
-        machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-        state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
         structural_parameters: &[CheckedUnitStructuralParameterPlan],
         statement_index: u32,
-        assignment: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableAssignment,
+        assignment: &typed_trees::statement::TableAssignment,
         produced: &CheckedUnitStructuralResultBindingPlan,
         displaced_ordinal: u32,
     ) -> Option<FieldReplacement> {

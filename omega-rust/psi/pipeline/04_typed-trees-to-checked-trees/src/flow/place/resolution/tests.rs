@@ -1,19 +1,16 @@
 //! Case qualification selects declaration identity, not the first matching spelling.
 use super::effective_member_symbol;
-use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use crate::checked_trees::name::Identifier;
 use crate::tests::front_end::{checked_program, typed_program};
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::name::Identifier;
+use symbols::SymbolHandle;
+use typed_trees::expression::{
     MatchPattern, TableCastExpression, TableIndexedExpression, TableMatchArm, TableMatchExpression,
     TableMemberExpression,
 };
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
-use symbols::SymbolHandle;
+use typed_trees::statement::StatementNode;
 
-fn fixture() -> (
-    symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    TableMemberExpression,
-) {
+fn fixture() -> (typed_trees::TypedTrees, TableMemberExpression) {
     let source = r#"
         pub data Cell { item: u64; }
         pub data Outcome { case First(c: Cell); case Second(c: Cell); }
@@ -45,11 +42,7 @@ fn fixture() -> (
     (program, member)
 }
 
-fn field(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    type_name: &str,
-    case_name: &str,
-) -> SymbolHandle {
+fn field(program: &typed_trees::TypedTrees, type_name: &str, case_name: &str) -> SymbolHandle {
     let declaration = program
         .data_definitions()
         .iter()
@@ -59,9 +52,11 @@ fn field(
         .data_members(declaration)
         .iter()
         .find_map(|row| match row {
-            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
-                variant,
-            ) if variant.name.as_str() == case_name => Some(variant),
+            typed_trees::data::DataMember::Variant(variant)
+                if variant.name.as_str() == case_name =>
+            {
+                Some(variant)
+            }
             _ => None,
         })
         .unwrap();
@@ -103,7 +98,7 @@ fn case_qualified_payload_rejects_conflicting_retained_identity() {
 /// the opaque parameter — the same leaf the typed-tree lowerer and the
 /// checker-side partition replay now cross.
 fn generic_leaf_fixture() -> (
-    symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    typed_trees::TypedTrees,
     TableMemberExpression,
     TableMemberExpression,
 ) {
@@ -147,7 +142,7 @@ fn generic_leaf_fixture() -> (
 }
 
 fn declared_field(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     type_name: &str,
     field_name: &str,
 ) -> SymbolHandle {
@@ -160,9 +155,7 @@ fn declared_field(
         .data_members(declaration)
         .iter()
         .find_map(|member| match member {
-            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field)
-                if field.name.as_str() == field_name =>
-            {
+            typed_trees::data::DataMember::Field(field) if field.name.as_str() == field_name => {
                 Some(field.symbol)
             }
             _ => None,
@@ -239,7 +232,7 @@ fn requires_fact_through_a_generic_leaf_resolves_at_call_sites() {
 /// Dropping the collection's retained position at the index hop would stop
 /// `scheduler` at the unbound `T`, so this is the same replay one shape later.
 fn indexed_generic_leaf_fixture() -> (
-    symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    typed_trees::TypedTrees,
     TableMemberExpression,
     TableMemberExpression,
 ) {
@@ -343,10 +336,7 @@ fn member_resolution_through_an_indexed_leaf_still_names_a_declared_member() {
     assert!(!effective_member_symbol(&program, scheduler.receiver, &missing).is_valid());
 }
 
-fn declared_data_symbol(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    type_name: &str,
-) -> SymbolHandle {
+fn declared_data_symbol(program: &typed_trees::TypedTrees, type_name: &str) -> SymbolHandle {
     program
         .data_definitions()
         .iter()
@@ -360,10 +350,7 @@ fn declared_data_symbol(
 /// the contextual place walk can still identify the demanded member. This is
 /// the gap `resolve_member_symbol_from_place` exists for; with the receiver's
 /// symbols present the expression route answers first.
-fn strip_receiver_symbols(
-    program: &mut symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    receiver: ExpressionHandle,
-) {
+fn strip_receiver_symbols(program: &mut typed_trees::TypedTrees, receiver: ExpressionHandle) {
     let mut cursor = receiver;
     loop {
         match program.expression_table.expression(cursor) {
@@ -410,8 +397,8 @@ fn strip_receiver_symbols(
 /// The statement index carrying `member_handle`, so the contextual walk sees
 /// the same local-prefix window the real call site passes.
 fn member_statement_index(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
     member_handle: ExpressionHandle,
 ) -> usize {
     program
@@ -419,7 +406,7 @@ fn member_statement_index(
         .statements(state.statement_nodes)
         .iter()
         .position(|statement| {
-            let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) = statement else {
+            let typed_trees::statement::StatementNode::LocalData(local) = statement else {
                 return false;
             };
             let mut cursor = local.initial_value;
@@ -442,7 +429,7 @@ fn member_statement_index(
 /// selected by whether the index is a compile-time constant. Returns the
 /// member handle, the holding state's symbol, and the statement index.
 fn indexed_item_member(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     constant_index: bool,
 ) -> (ExpressionHandle, SymbolHandle, usize) {
     let machine = program
@@ -516,15 +503,12 @@ fn place_member_resolution_replays_an_indexed_generic_leaf() {
         member_handle,
     )
     .expect("a parameter-rooted indexed member place resolves");
-    assert_eq!(
-        place.root,
-        crate::fact_plan::PlaceRoot::Symbol(values_parameter)
-    );
+    assert_eq!(place.root, facts::PlaceRoot::Symbol(values_parameter));
     assert_eq!(
         place.segments,
         [
-            crate::fact_plan::PlaceSegment::FixedIndex { index: 0 },
-            crate::fact_plan::PlaceSegment::Field {
+            facts::PlaceSegment::FixedIndex { index: 0 },
+            facts::PlaceSegment::Field {
                 symbol: item_symbol
             },
         ]
@@ -556,8 +540,8 @@ fn place_member_resolution_replays_a_runtime_indexed_generic_leaf() {
     assert_eq!(
         place.segments,
         [
-            crate::fact_plan::PlaceSegment::Index { expression: index },
-            crate::fact_plan::PlaceSegment::Field {
+            facts::PlaceSegment::Index { expression: index },
+            facts::PlaceSegment::Field {
                 symbol: item_symbol
             },
         ]
@@ -591,7 +575,7 @@ fn place_member_resolution_across_an_index_still_requires_a_declared_member() {
     // minting the collection's own identity for it.
     assert!(matches!(
         place.segments.last(),
-        Some(crate::fact_plan::PlaceSegment::Field { symbol }) if !symbol.is_valid()
+        Some(facts::PlaceSegment::Field { symbol }) if !symbol.is_valid()
     ));
 }
 
@@ -614,7 +598,7 @@ fn case_qualified_payload_does_not_fall_back_when_qualification_is_missing() {
 /// payload projection: `member.member` names the field and
 /// `member.case_variant` names the case that owns it.
 fn second_qualified_member(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
 ) -> (ExpressionHandle, SymbolHandle, usize) {
     let machine = program
         .machines()
@@ -649,7 +633,7 @@ fn second_qualified_member(
 fn place_member_resolution_scopes_a_case_qualified_member_to_its_variant() {
     let (mut program, _) = fixture();
     let expected = field(&program, "Outcome", "Second");
-    let second = crate::fact_plan::payload_variant_for_field(&program, expected)
+    let second = facts::payload_variant_for_field(&program, expected)
         .expect("Second::count's owning variant");
     let (member_handle, state_symbol, statement_index) = second_qualified_member(&program);
     let member = match program.expression_table.expression(member_handle) {
@@ -675,8 +659,8 @@ fn place_member_resolution_scopes_a_case_qualified_member_to_its_variant() {
     assert_eq!(
         place.segments,
         [
-            crate::fact_plan::PlaceSegment::Case { variant: second },
-            crate::fact_plan::PlaceSegment::Field { symbol: expected },
+            facts::PlaceSegment::Case { variant: second },
+            facts::PlaceSegment::Field { symbol: expected },
         ]
     );
 }
@@ -718,7 +702,7 @@ fn place_member_resolution_rejects_a_case_qualified_member_outside_its_variant()
     .expect("the place walk still builds");
     assert!(matches!(
         place.segments.last(),
-        Some(crate::fact_plan::PlaceSegment::Field { symbol }) if !symbol.is_valid()
+        Some(facts::PlaceSegment::Field { symbol }) if !symbol.is_valid()
     ));
 }
 
@@ -748,7 +732,7 @@ fn place_member_resolution_rejects_an_absent_case_qualification() {
     // unresolved rather than borrowing the first same-spelled payload field.
     assert!(matches!(
         place.segments.last(),
-        Some(crate::fact_plan::PlaceSegment::Field { symbol }) if !symbol.is_valid()
+        Some(facts::PlaceSegment::Field { symbol }) if !symbol.is_valid()
     ));
 }
 
@@ -758,7 +742,7 @@ fn place_member_resolution_rejects_an_absent_case_qualification() {
 /// on `Context`. A range that dropped the position would leave `scheduler`
 /// unprovable even though every hop is exact.
 fn ranged_indexed_generic_leaf_fixture() -> (
-    symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    typed_trees::TypedTrees,
     TableMemberExpression,
     TableMemberExpression,
     ExpressionHandle,
@@ -880,14 +864,14 @@ fn place_member_resolution_replays_a_ranged_indexed_leaf() {
     assert_eq!(
         place.segments,
         [
-            crate::fact_plan::PlaceSegment::FixedRange { start: 0, end: 2 },
-            crate::fact_plan::PlaceSegment::Index {
+            facts::PlaceSegment::FixedRange { start: 0, end: 2 },
+            facts::PlaceSegment::Index {
                 expression: inner.index
             },
-            crate::fact_plan::PlaceSegment::Field {
+            facts::PlaceSegment::Field {
                 symbol: item_symbol
             },
-            crate::fact_plan::PlaceSegment::Field {
+            facts::PlaceSegment::Field {
                 symbol: scheduler_symbol
             },
         ]
@@ -917,7 +901,7 @@ fn place_member_resolution_across_a_range_still_requires_a_declared_member() {
     // element for it.
     assert!(matches!(
         place.segments.last(),
-        Some(crate::fact_plan::PlaceSegment::Field { symbol }) if !symbol.is_valid()
+        Some(facts::PlaceSegment::Field { symbol }) if !symbol.is_valid()
     ));
 }
 
@@ -958,8 +942,8 @@ fn ranged_window_members_do_not_borrow_the_elements_fields() {
     assert_eq!(
         place.segments,
         [
-            crate::fact_plan::PlaceSegment::FixedRange { start: 0, end: 2 },
-            crate::fact_plan::PlaceSegment::Field {
+            facts::PlaceSegment::FixedRange { start: 0, end: 2 },
+            facts::PlaceSegment::Field {
                 symbol: SymbolHandle::invalid()
             },
         ]
@@ -999,7 +983,7 @@ fn atomic_expression_position_is_its_operand_position() {
         })
         .expect("the context name expression");
     let atomic = program.expression_table.insert(ExpressionNode::Atomic(
-        symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableAtomicExpression {
+        typed_trees::expression::TableAtomicExpression {
             value: context,
             result: ExpressionHandle::invalid(),
             ordering: language_core::atomic::AtomicOrderingPlan::Load(
@@ -1020,10 +1004,10 @@ fn atomic_expression_position_is_its_operand_position() {
 /// at. `Context` is `[copy]` so a synthesized `[context, context]` literal or
 /// a two-arm `match` needs no move custody to lower.
 fn stored_type_leaf_fixture() -> (
-    symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    typed_trees::TypedTrees,
     ExpressionHandle,
     ExpressionHandle,
-    symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    typed_trees::types::TypeReferenceHandle,
 ) {
     let source = r#"
         data Main {}
@@ -1110,9 +1094,7 @@ fn cast_expression_position_is_its_stored_result_type() {
             unreachable!()
         };
         let mut cast = *cast;
-        cast.result_type =
-            symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(
-            );
+        cast.result_type = typed_trees::types::TypeReferenceHandle::invalid();
         program.expression_table.insert(ExpressionNode::Cast(cast))
     };
     assert!(super::expression_type_symbol(&program, unresolved).is_none());
@@ -1144,7 +1126,7 @@ fn zero_value_position_is_its_stored_type() {
     );
 
     let invalid = program.expression_table.insert(ExpressionNode::ZeroValue(
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid(),
+        typed_trees::types::TypeReferenceHandle::invalid(),
     ));
     assert!(super::expression_type_symbol(&program, invalid).is_none());
 }
@@ -1340,7 +1322,7 @@ fn match_expression_position_requires_every_arm_to_agree() {
 /// projection inside `observe`'s transition — a member hop one level past
 /// the case leaf, where the receiver itself carries no retained symbol.
 fn second_arm_item_member(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
 ) -> (ExpressionHandle, TableMemberExpression) {
     program
         .expression_table
@@ -1370,7 +1352,7 @@ fn second_arm_item_member(
 /// leaf the receiver walk ends at (`self`, `b`, `value`), so fixtures with
 /// several same-named members can pick the chain rooted where they mean.
 fn member_chain_root(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     mut cursor: ExpressionHandle,
 ) -> Option<String> {
     loop {
@@ -1398,7 +1380,7 @@ fn member_chain_root(
 /// local bound to a member-valued record. Returns the machine state symbol
 /// and each chain's `item` member handle.
 fn nested_member_chain_fixture() -> (
-    symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    typed_trees::TypedTrees,
     SymbolHandle,
     ExpressionHandle,
     ExpressionHandle,
@@ -1470,8 +1452,8 @@ fn place_member_resolution_replays_member_hops_past_a_case_leaf() {
     let (mut program, _) = fixture();
     let payload = field(&program, "Outcome", "Second");
     let item_symbol = declared_field(&program, "Cell", "item");
-    let second = crate::fact_plan::payload_variant_for_field(&program, payload)
-        .expect("Second::c's owning variant");
+    let second =
+        facts::payload_variant_for_field(&program, payload).expect("Second::c's owning variant");
     let machine = program
         .machines()
         .iter()
@@ -1510,16 +1492,13 @@ fn place_member_resolution_replays_member_hops_past_a_case_leaf() {
         member_handle,
     )
     .expect("a parameter-rooted member chain past a case leaf resolves");
-    assert_eq!(
-        place.root,
-        crate::fact_plan::PlaceRoot::Symbol(value_parameter)
-    );
+    assert_eq!(place.root, facts::PlaceRoot::Symbol(value_parameter));
     assert_eq!(
         place.segments,
         [
-            crate::fact_plan::PlaceSegment::Case { variant: second },
-            crate::fact_plan::PlaceSegment::Field { symbol: payload },
-            crate::fact_plan::PlaceSegment::Field {
+            facts::PlaceSegment::Case { variant: second },
+            facts::PlaceSegment::Field { symbol: payload },
+            facts::PlaceSegment::Field {
                 symbol: item_symbol
             },
         ]
@@ -1568,21 +1547,18 @@ fn place_member_resolution_replays_a_nested_member_indexed_chain() {
         member_handle,
     )
     .expect("a self-rooted nested member/index chain resolves");
-    assert_eq!(
-        place.root,
-        crate::fact_plan::PlaceRoot::Symbol(self_parameter)
-    );
+    assert_eq!(place.root, facts::PlaceRoot::Symbol(self_parameter));
     assert_eq!(
         place.segments,
         [
-            crate::fact_plan::PlaceSegment::Field {
+            facts::PlaceSegment::Field {
                 symbol: grid_symbol
             },
-            crate::fact_plan::PlaceSegment::Field {
+            facts::PlaceSegment::Field {
                 symbol: cells_symbol
             },
-            crate::fact_plan::PlaceSegment::FixedIndex { index: 0 },
-            crate::fact_plan::PlaceSegment::Field {
+            facts::PlaceSegment::FixedIndex { index: 0 },
+            facts::PlaceSegment::Field {
                 symbol: item_symbol
             },
         ]
@@ -1650,18 +1626,15 @@ fn place_member_resolution_replays_a_local_rooted_member_indexed_chain() {
         member_handle,
     )
     .expect("a local-rooted member/index chain resolves");
-    assert_eq!(
-        place.root,
-        crate::fact_plan::PlaceRoot::Symbol(local_symbol)
-    );
+    assert_eq!(place.root, facts::PlaceRoot::Symbol(local_symbol));
     assert_eq!(
         place.segments,
         [
-            crate::fact_plan::PlaceSegment::Field {
+            facts::PlaceSegment::Field {
                 symbol: cells_symbol
             },
-            crate::fact_plan::PlaceSegment::FixedIndex { index: 0 },
-            crate::fact_plan::PlaceSegment::Field {
+            facts::PlaceSegment::FixedIndex { index: 0 },
+            facts::PlaceSegment::Field {
                 symbol: item_symbol
             },
         ]

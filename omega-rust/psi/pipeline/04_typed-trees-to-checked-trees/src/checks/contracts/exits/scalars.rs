@@ -1,11 +1,9 @@
 //! Scalar postconditions consume exact return and live place values. Entry
 //! parameter names are substituted only through the retained exit origin map.
 
-use crate::checked_trees::{CheckFacts, CheckedScalarExpressionRole, FlowExitFact};
-use crate::fact_plan::{FactContextHandle, FactPayload, PlaceRoot, PlaceSegment};
-use symbol_resolved_trees_to_typed_trees::typed_trees::{
-    TypedTrees, expression::ExpressionHandle, machine::Machine,
-};
+use checked_trees::{CheckFacts, CheckedScalarExpressionRole, FlowExitFact};
+use facts::{FactContextHandle, FactPayload, PlaceRoot, PlaceSegment};
+use typed_trees::{TypedTrees, expression::ExpressionHandle, machine::Machine};
 
 use super::super::{
     prover::{
@@ -28,8 +26,8 @@ pub(super) fn proves<'program>(
     facts: &CheckFacts,
     exit: &FlowExitFact,
     contexts: &[FactContextHandle],
-    requirement: &crate::fact_plan::Fact,
-    call_frames: Option<&crate::validation::CallFrameResolver<'program>>,
+    requirement: &facts::Fact,
+    call_frames: Option<&validation::CallFrameResolver<'program>>,
 ) -> bool {
     let FactPayload::ContractBooleanExpression {
         fact: contract,
@@ -58,7 +56,7 @@ pub(super) fn proves<'program>(
     // A missing checked operator row is not builtin authority. Rejoin the
     // declaration meaning before either symbolic or concrete comparison.
     if !has_builtin_operators(program, &facts.operators, expression)
-        || !crate::validation::has_builtin_bound_expression_meaning(
+        || !validation::has_builtin_bound_expression_meaning(
             program,
             machine,
             program.machine_states(machine).first(),
@@ -109,15 +107,13 @@ struct ExitScalars<'program, 'facts> {
     machine: &'program Machine,
     exit: &'facts FlowExitFact,
     contexts: &'facts [FactContextHandle],
-    contract: arena::Handle<symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact>,
-    call_frames: Option<&'facts crate::validation::CallFrameResolver<'program>>,
+    contract: arena::Handle<typed_trees::domain::ProofFact>,
+    call_frames: Option<&'facts validation::CallFrameResolver<'program>>,
 }
 
 impl ExitScalars<'_, '_> {
     fn current_predicate(&self, expression: ExpressionHandle) -> bool {
-        use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-            BinaryOperator, ExpressionNode, UnaryOperator,
-        };
+        use typed_trees::expression::{BinaryOperator, ExpressionNode, UnaryOperator};
         // The scalar leaf resolver can rebind entry parameters through exact
         // origins. The ordinary predicate prover does not perform that
         // substitution, so only unchanged binder identities may reach it.
@@ -155,16 +151,16 @@ impl ExitScalars<'_, '_> {
                     | BinaryOperator::CaseMembership
             ),
             ExpressionNode::Unary(unary) => unary.operator == UnaryOperator::LogicalNot,
-            _ => crate::validation::expression_result_type_reference(
-                self.program,
-                self.machine,
-                state,
-                expression,
-            )
-            .and_then(|reference| self.program.primitive_type_reference(reference))
-                == Some(
-                    symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::Bool,
-                ),
+            _ => {
+                validation::expression_result_type_reference(
+                    self.program,
+                    self.machine,
+                    state,
+                    expression,
+                )
+                .and_then(|reference| self.program.primitive_type_reference(reference))
+                    == Some(typed_trees::types::PrimitiveType::Bool)
+            }
         };
         boolean
             && semantic_contexts_prove_boolean_expression(
@@ -176,9 +172,7 @@ impl ExitScalars<'_, '_> {
     }
 
     fn proves_immutable_result_comparison(&self, expression: ExpressionHandle) -> bool {
-        use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-            BinaryOperator, ExpressionNode,
-        };
+        use typed_trees::expression::{BinaryOperator, ExpressionNode};
         if self.proves_result_bounds(expression) {
             return true;
         }
@@ -221,13 +215,13 @@ impl ExitScalars<'_, '_> {
             .machine_type_parameters(self.machine)
             .iter()
             .find(|parameter| parameter.symbol == path.symbol)
-            && let symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Const { type_reference }
-            | symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Value { type_reference } = parameter.kind
+            && let typed_trees::data::TypeParameterKind::Const { type_reference }
+            | typed_trees::data::TypeParameterKind::Value { type_reference } = parameter.kind
         {
             let primitive = self.program.primitive_type_reference(type_reference);
             if !primitive.is_some_and(|primitive| {
                 primitive.accepts_integer_literal()
-                    || (primitive == symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::Bool
+                    || (primitive == typed_trees::types::PrimitiveType::Bool
                         && binary.operator == BinaryOperator::Equal)
             }) || primitive != self.program.primitive_type_reference(entry.return_type)
             {
@@ -240,7 +234,7 @@ impl ExitScalars<'_, '_> {
             };
             // A static binder keeps one immutable identity across every state;
             // unlike runtime parameters it needs no edge-origin substitution.
-            return symbol_resolved_trees_to_typed_trees::typed_trees::operator::has_builtin_spelled_expression_meaning(
+            return typed_trees::operator::has_builtin_spelled_expression_meaning(
                 self.program,
                 self.machine.symbol,
                 expression,
@@ -273,7 +267,7 @@ impl ExitScalars<'_, '_> {
                 .primitive_type_reference(parameter.type_reference)
                 .is_some_and(|primitive| {
                     primitive.accepts_integer_literal()
-                        || (primitive == symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::Bool
+                        || (primitive == typed_trees::types::PrimitiveType::Bool
                             && binary.operator == BinaryOperator::Equal)
                 })
             || self
@@ -288,7 +282,7 @@ impl ExitScalars<'_, '_> {
         } else {
             [Some(parameter.type_reference), Some(entry.return_type)]
         };
-        if !symbol_resolved_trees_to_typed_trees::typed_trees::operator::has_builtin_spelled_expression_meaning(
+        if !typed_trees::operator::has_builtin_spelled_expression_meaning(
             self.program,
             self.machine.symbol,
             expression,
@@ -422,9 +416,9 @@ impl ExitScalars<'_, '_> {
             && nodes.iter().all(|node| {
                 !matches!(
                     self.program.expression_table.expression(*node),
-                    symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Atomic(_)
+                    typed_trees::expression::ExpressionNode::Atomic(_)
                 ) && has_builtin_operators(self.program, &self.facts.operators, *node)
-                    && crate::validation::has_builtin_bound_expression_meaning(
+                    && validation::has_builtin_bound_expression_meaning(
                         self.program,
                         self.machine,
                         state,
@@ -457,7 +451,7 @@ impl ExitScalars<'_, '_> {
         &self,
         expression: ExpressionHandle,
     ) -> Option<(
-        &crate::checked_trees::CheckedScalarExpression,
+        &checked_trees::CheckedScalarExpression,
         &[symbols::SymbolHandle],
     )> {
         self.selected_scalar_expression(
@@ -480,7 +474,7 @@ impl ExitScalars<'_, '_> {
                 .statements(state.statement_nodes)
                 .get(self.exit.statement_index)?
             {
-                symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Transition(transition)
+                typed_trees::statement::StatementNode::Transition(transition)
                     if self.exit.transition_target.is_valid()
                         && self.exit.transition_target == transition.continuation =>
                 {
@@ -497,7 +491,7 @@ impl ExitScalars<'_, '_> {
         role: CheckedScalarExpressionRole,
         expression: ExpressionHandle,
     ) -> Option<(
-        &crate::checked_trees::CheckedScalarExpression,
+        &checked_trees::CheckedScalarExpression,
         &[symbols::SymbolHandle],
     )> {
         let plans = &self.facts.values.scalar_expressions;
@@ -549,7 +543,7 @@ impl ExitScalars<'_, '_> {
             .get(..statement_ordinal as usize)?
             .iter()
             .filter_map(|statement| {
-                let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) = statement else {
+                let typed_trees::statement::StatementNode::LocalData(local) = statement else {
                     return None;
                 };
                 (!local.is_mutable
@@ -579,13 +573,11 @@ fn stable_segments(segments: &[PlaceSegment]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::TypedTrees;
-    use crate::checked_trees::{
+    use crate::checks::contracts::prover::has_builtin_operators;
+    use checked_trees::{
         CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedOperatorUseFact,
     };
-    use crate::checks::contracts::prover::has_builtin_operators;
-    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-        BinaryOperator, ExpressionNode, TableBinaryExpression,
-    };
+    use typed_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
 
     #[test]
     fn scalar_exit_evaluation_never_reinterprets_a_selected_operator() {

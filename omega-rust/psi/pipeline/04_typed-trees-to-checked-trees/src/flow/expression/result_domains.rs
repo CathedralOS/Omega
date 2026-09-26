@@ -10,15 +10,13 @@
 //! normalized instance travels with the declaration through every fact copy.
 //! Equality of exact instances is not a license to equate different open index
 //! expressions; those still require their selected normalization/equality proof.
-use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use crate::checked_trees::{FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef};
-use crate::fact_plan::{
-    Fact, FactOrigin, FactPayload, FactPlace, ProgramPoint, QualificationEvidence,
-};
 use crate::flow::append_constraint_ref;
 use crate::flow::expression::Execution;
 use crate::flow::reference_spans;
 use arena::HandleSpan;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::{FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef};
+use facts::{Fact, FactOrigin, FactPayload, FactPlace, ProgramPoint, QualificationEvidence};
 
 impl Execution<'_, '_, '_> {
     pub(super) fn append_result_domains(
@@ -36,7 +34,7 @@ impl Execution<'_, '_, '_> {
         {
             return;
         }
-        let Some(reference) = crate::validation::expression_result_type_reference(
+        let Some(reference) = validation::expression_result_type_reference(
             self.program,
             self.machine,
             self.state,
@@ -44,7 +42,7 @@ impl Execution<'_, '_, '_> {
         ) else {
             return;
         };
-        let domains = crate::validation::scalar_type_tags(self.program, reference);
+        let domains = validation::scalar_type_tags(self.program, reference);
         if domains.is_empty() {
             return;
         }

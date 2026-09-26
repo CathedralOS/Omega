@@ -4,7 +4,7 @@ use crate::OptimizationRun;
 use optimization_core::{
     OptimizationPassManifestRecord, OptimizationRuleSetIdentity, OptimizationWorkUsage,
 };
-use terminal_psi_to_abstract_operations::optimization_unit::PsiTransformationRecord;
+use optimization_unit::PsiTransformationRecord;
 
 use super::work_usage;
 use crate::OptimizedAbstractProjectionError;

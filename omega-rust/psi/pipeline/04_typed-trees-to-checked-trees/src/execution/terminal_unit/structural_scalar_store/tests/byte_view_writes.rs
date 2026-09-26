@@ -16,9 +16,7 @@ use crate::execution::terminal_unit::types::ShapeCollector;
 use crate::execution::terminal_unit::structural_scalar_store::build_structural_scalar_field_store_sequence;
 use crate::tests::front_end::checked_program_result;
 
-fn checked(
-    source: &str,
-) -> Result<crate::checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
+fn checked(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     checked_program_result(source)
 }
 
@@ -78,7 +76,7 @@ fn borrowed_byte_view_writes_use_their_length_premise() {
                 if write.destination_parameter_position == 0
                 && matches!(
                     write.index,
-                    crate::checked_trees::CheckedScalarExpression::Parameter { .. }
+                    checked_trees::CheckedScalarExpression::Parameter { .. }
                 )
         ),
         "premise-proved parameter index must emit ByteSequenceWrite: {stores:?}"

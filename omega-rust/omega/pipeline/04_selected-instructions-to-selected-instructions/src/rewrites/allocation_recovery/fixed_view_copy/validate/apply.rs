@@ -1,18 +1,18 @@
 use super::leaf_destination::terminator;
-use target_operations_to_selected_instructions::register_model::{
+use register_model::{
     RegisterInstructionConstraint, RegisterOperandAccess, RegisterOperandConstraint,
 };
-use target_operations_to_selected_instructions::{
+use selected_instructions::{
     SelectedInstruction, SelectedInstructionKind, SelectedInstructionProvenance, SelectedOperand,
     SelectedTerminator, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 
 use crate::{FixedViewCopy, FixedViewCopyError};
-use target_operations_to_selected_instructions::VirtualFixedConstraintSite;
+use selected_instructions::VirtualFixedConstraintSite;
 
 pub(super) fn replay_apply(
     function_index: usize,
-    function: &mut target_operations_to_selected_instructions::SelectedFunction,
+    function: &mut selected_instructions::SelectedFunction,
     copy: &FixedViewCopy,
     row: &RegisterInstructionConstraint,
 ) -> Result<(), FixedViewCopyError> {

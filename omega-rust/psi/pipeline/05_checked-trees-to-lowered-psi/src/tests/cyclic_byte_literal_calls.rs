@@ -2,10 +2,8 @@
 
 use crate::TerminalMachineSelection;
 use crate::{LoweringError, lower_machine};
-use lowered_psi_to_terminal_psi::terminal_production::{
-    TerminalProductionCustody, TerminalProductionTimings,
-};
 use terminal_interpreter::TerminalStructuralInputs;
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 mod mixed_and_custody;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
@@ -49,18 +47,15 @@ machine Main::main(&mut self) reaches Trace {
 }
 "#,
     );
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Main::main",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("cyclic literal calls publish the portable Terminal artifact")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("cyclic literal calls publish the portable Terminal artifact")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let entry = module
         .machines
@@ -210,18 +205,15 @@ machine Main::main(&mut self) reaches Trace {
         }),
         "a retained invariant names the field bound: {invariants:?}"
     );
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Main::main",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("cyclic field divisor publishes the portable Terminal artifact")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("cyclic field divisor publishes the portable Terminal artifact")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let entry = module
         .machines
@@ -288,18 +280,15 @@ machine Main::main(&mut self) reaches Trace {
 }
 "#,
     );
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Main::main",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("the lockstep invariant proves every arrival")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("the lockstep invariant proves every arrival")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let invariant = module
         .scalar_block_invariants
@@ -393,18 +382,15 @@ machine Main::main(&mut self) reaches Trace {
 }
 "#,
     );
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Main::main",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("the lockstep invariant proves the split-update cycle")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("the lockstep invariant proves the split-update cycle")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let invariant = module
         .scalar_block_invariants
@@ -526,18 +512,15 @@ machine Main::main(&mut self) reaches Trace {
 }
 "#,
     );
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Main::main",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("the lockstep invariant proves every arrival")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("the lockstep invariant proves every arrival")
+    .into_artifact();
     let mut widened = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let guard = widened
         .machines
@@ -603,18 +586,15 @@ machine Main::main(&mut self) reaches Trace {
 }
 "#;
     let checked = crate::front_end::checked_program(source);
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Main::main",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("the stored bound retires the guarded exit arrival")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("the stored bound retires the guarded exit arrival")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert!(
         module
@@ -667,11 +647,9 @@ machine Main::main(&mut self) reaches Trace {
         &source.replace("self.counter = 9;", "self.counter = 2;"),
     );
     assert!(
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+        terminal_production::TerminalProductionRequest::new(
             &live,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Main::main"
-            )
+            terminal_production::TerminalMachineSelection::Name("Main::main")
         )
         .produce(TerminalProductionCustody::artifact_only(
             &mut TerminalProductionTimings::default()
@@ -739,18 +717,15 @@ machine Main::main(&mut self) reaches Trace {
 }
 "#;
     let checked = crate::front_end::checked_program(source);
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Main::main",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("a guarded field bound is inductive across the exit backedge")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("a guarded field bound is inductive across the exit backedge")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert!(
         module
@@ -818,11 +793,9 @@ machine Main::main(&mut self) reaches Trace {
         &source.replace("self.ready = false;", "self.ready = true;"),
     );
     assert!(
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+        terminal_production::TerminalProductionRequest::new(
             &invalid,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Main::main"
-            )
+            terminal_production::TerminalMachineSelection::Name("Main::main")
         )
         .produce(TerminalProductionCustody::artifact_only(
             &mut TerminalProductionTimings::default()
@@ -888,18 +861,15 @@ machine Main::clear(&mut self) { self.divisor = 0; }
             source.to_owned()
         };
         let checked = crate::front_end::checked_program(&source);
-        let artifact =
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-                &checked,
-                lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                    "Main::main",
-                ),
-            )
-            .produce(TerminalProductionCustody::artifact_only(
-                &mut TerminalProductionTimings::default(),
-            ))
-            .expect("a copied field value retains its pre-write nonzero proof")
-            .into_artifact();
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            terminal_production::TerminalMachineSelection::Name("Main::main"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("a copied field value retains its pre-write nonzero proof")
+        .into_artifact();
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         let entry = module
             .machines
@@ -1024,18 +994,15 @@ machine Main::main(&mut self) reaches Trace {
 }
 "#;
     let checked = crate::front_end::checked_program(source);
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Main::main",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("incompatible guards prove the dead operation's original obligation")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("incompatible guards prove the dead operation's original obligation")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert!(
         module
@@ -1084,11 +1051,9 @@ machine Main::main(&mut self) reaches Trace {
         &source.replace("self.counter >= 3", "self.counter >= 1"),
     );
     assert!(
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+        terminal_production::TerminalProductionRequest::new(
             &possible,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "Main::main"
-            )
+            terminal_production::TerminalMachineSelection::Name("Main::main")
         )
         .produce(TerminalProductionCustody::artifact_only(
             &mut TerminalProductionTimings::default()

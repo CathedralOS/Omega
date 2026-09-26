@@ -5,9 +5,9 @@
 //! annotation or a compatible content algebra cannot substitute for that join.
 
 use super::content_paths::content_segments_to_fact_path;
-use crate::checked_trees::CheckFacts;
-use crate::fact_plan::{FactOrigin, FactPayload, FactPlace, PlaceRoot, PlaceSegment, ProgramPoint};
+use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
+use facts::{FactOrigin, FactPayload, FactPlace, PlaceRoot, PlaceSegment, ProgramPoint};
 use language_semantics::content::{
     ContentConservationTerm, ContentPlaceRoot, ContentPlaceVersion, ContentProjectionPlan,
     ContentStructuralPlace,
@@ -16,13 +16,11 @@ use language_semantics::{
     DomainEstablishmentRoute, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
     PermissionEventSource, QualificationEvidenceOrigin,
 };
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, TableCallExpression,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
 use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
+use typed_trees::expression::{ExpressionHandle, TableCallExpression};
+use typed_trees::signature::StateParameter;
+use typed_trees::statement::StatementNode;
 
 struct Invocation<'program> {
     machine: SymbolHandle,
@@ -51,11 +49,7 @@ pub(super) fn check_call_result_qualifications(
             continue;
         };
         let Some(domain) =
-            symbol_resolved_trees_to_typed_trees::typed_trees::domain::domain_by_symbol(
-                program,
-                domain_symbol,
-            )
-            .filter(|_| {
+            typed_trees::domain::domain_by_symbol(program, domain_symbol).filter(|_| {
                 crate::facts::field_domain::domain_requires_provenance(program, domain_symbol)
             })
         else {
@@ -174,7 +168,7 @@ pub(super) fn check_call_result_qualifications(
                     (None, _) => false,
                 }
                 && (facts.proof.contract_facts.iter().any(|(_, contract)| {
-                    let crate::checked_trees::ContractProofFactOwner::StateSignature {
+                    let checked_trees::ContractProofFactOwner::StateSignature {
                         owner_symbol,
                         state_symbol,
                     } = contract.owner
@@ -182,11 +176,11 @@ pub(super) fn check_call_result_qualifications(
                         return false;
                     };
                     if state_symbol != call.target_symbol
-                        || contract.kind != crate::checked_trees::ContractProofFactKind::Ensures
+                        || contract.kind != checked_trees::ContractProofFactKind::Ensures
                     {
                         return false;
                     }
-                    let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(membership) =
+                    let typed_trees::domain::ProofFact::Membership(membership) =
                         program.proof_facts.get(contract.fact)
                     else {
                         return false;
@@ -211,7 +205,7 @@ pub(super) fn check_call_result_qualifications(
                             program,
                             owner_symbol,
                             signature,
-                            symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Ensures,
+                            typed_trees::signature::SignatureContractKind::Ensures,
                             contract.fact,
                         )
                         .is_some()
@@ -338,7 +332,7 @@ pub(super) fn check_call_result_qualifications(
 fn call_parameter_qualification_join(
     program: &TypedTrees,
     facts: &CheckFacts,
-    evidence: &crate::fact_plan::QualificationEvidence,
+    evidence: &facts::QualificationEvidence,
     root: PlaceRoot,
     path: &[PlaceSegment],
     domain_symbol: SymbolHandle,
@@ -407,7 +401,7 @@ fn call_parameter_qualification_join(
         .contract_facts
         .iter()
         .any(|(_, contract)| {
-            let crate::checked_trees::ContractProofFactOwner::StateSignature {
+            let checked_trees::ContractProofFactOwner::StateSignature {
                 owner_symbol,
                 state_symbol,
             } = contract.owner
@@ -415,11 +409,11 @@ fn call_parameter_qualification_join(
                 return false;
             };
             if state_symbol != call_target
-                || contract.kind != crate::checked_trees::ContractProofFactKind::Ensures
+                || contract.kind != checked_trees::ContractProofFactKind::Ensures
             {
                 return false;
             }
-            let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(membership) =
+            let typed_trees::domain::ProofFact::Membership(membership) =
                 program.proof_facts.get(contract.fact)
             else {
                 return false;
@@ -446,7 +440,7 @@ fn call_parameter_qualification_join(
                         program,
                         owner_symbol,
                         signature,
-                        symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Ensures,
+                        typed_trees::signature::SignatureContractKind::Ensures,
                         contract.fact,
                     )
                     .is_some()
@@ -543,7 +537,7 @@ fn replay_equation(
 fn result_type_issuance_route(
     program: &TypedTrees,
     target_symbol: SymbolHandle,
-    domain: &symbol_resolved_trees_to_typed_trees::typed_trees::domain::DomainDefinition,
+    domain: &typed_trees::domain::DomainDefinition,
 ) -> bool {
     let Some(owner) = program.traits().iter().find(|owner| {
         owner.is_boundary
@@ -586,7 +580,7 @@ fn result_type_issuance_route(
 fn case_payload_issuance_route(
     program: &TypedTrees,
     target_symbol: SymbolHandle,
-    domain: &symbol_resolved_trees_to_typed_trees::typed_trees::domain::DomainDefinition,
+    domain: &typed_trees::domain::DomainDefinition,
     path: &[PlaceSegment],
 ) -> bool {
     let Some(owner) = program.traits().iter().find(|owner| {
@@ -628,9 +622,9 @@ fn case_payload_issuance_route(
 /// element. Anything else has no declared carrier to compare.
 fn qualified_leaf_carrier(
     program: &TypedTrees,
-    return_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    return_type: typed_trees::types::TypeReferenceHandle,
     path: &[PlaceSegment],
-) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
+) -> Option<typed_trees::types::TypeReferenceHandle> {
     let mut carrier = return_type;
     let mut variant_scope: Option<SymbolHandle> = None;
     for segment in path {
@@ -646,7 +640,7 @@ fn qualified_leaf_carrier(
                         .data_members(data)
                         .iter()
                         .find_map(|member| match member {
-                            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant)
+                            typed_trees::data::DataMember::Variant(variant)
                                 if variant.symbol == variant_symbol =>
                             {
                                 Some(variant)
@@ -663,7 +657,7 @@ fn qualified_leaf_carrier(
                         .data_members(data)
                         .iter()
                         .find_map(|member| match member {
-                            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field)
+                            typed_trees::data::DataMember::Field(field)
                                 if field.symbol == *symbol =>
                             {
                                 Some(field)
@@ -675,12 +669,12 @@ fn qualified_leaf_carrier(
             }
             PlaceSegment::FixedIndex { .. } => {
                 let mut reference = carrier;
-                while let symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
+                while let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
                     program.type_reference_table.type_reference(reference)
                 {
                     reference = *base_type;
                 }
-                let symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } =
+                let typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } =
                     program.type_reference_table.type_reference(reference)
                 else {
                     return None;
@@ -1010,11 +1004,9 @@ fn unique_claim(
 #[cfg(test)]
 mod tests {
     use super::check_call_result_qualifications;
-    use crate::checked_trees::CheckedTrees;
-    use crate::fact_plan::{
-        FactOrigin, FactPayload, FactPlace, PlaceRoot, PlaceSegment, ProgramPoint,
-    };
     use crate::tests::front_end::{checked_program, checked_program_result};
+    use checked_trees::CheckedTrees;
+    use facts::{FactOrigin, FactPayload, FactPlace, PlaceRoot, PlaceSegment, ProgramPoint};
     use language_semantics::{
         PermissionAccess, PermissionEventKind, PermissionEventSource, QualificationEvidenceOrigin,
     };
@@ -1085,7 +1077,7 @@ mod tests {
         }
     }
 
-    fn result_fact(checked: &CheckedTrees) -> crate::fact_plan::FactHandle {
+    fn result_fact(checked: &CheckedTrees) -> facts::FactHandle {
         checked.facts.semantic.facts.iter().find_map(|(handle, fact)| {
             (fact.origin == FactOrigin::CallEnsures
                 && matches!(fact.payload, FactPayload::DomainMembership { .. })
@@ -1149,13 +1141,10 @@ mod tests {
             .find(|domain| domain.name.as_str().ends_with("Granted"))
             .expect("qualification")
             .symbol;
-        let replacement = checked
-            .facts
-            .semantic
-            .append_place(crate::fact_plan::Place {
-                root,
-                segments: arena::HandleSpan::empty(),
-            });
+        let replacement = checked.facts.semantic.append_place(facts::Place {
+            root,
+            segments: arena::HandleSpan::empty(),
+        });
         checked.facts.semantic.push_place_segment(
             replacement,
             PlaceSegment::Field {
@@ -1226,7 +1215,7 @@ mod tests {
         issuance_fixture();
     }
 
-    fn issuance_fact(checked: &CheckedTrees) -> crate::fact_plan::FactHandle {
+    fn issuance_fact(checked: &CheckedTrees) -> facts::FactHandle {
         checked
             .facts
             .semantic

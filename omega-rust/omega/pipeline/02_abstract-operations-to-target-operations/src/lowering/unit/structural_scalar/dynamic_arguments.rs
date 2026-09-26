@@ -1,21 +1,19 @@
 //! Structural calls whose ABI arguments are dynamic descriptor pairs.
 
-use crate::calling_conventions::{CallPlan, CallSignature, CallingPolicy, evaluate_call_plan};
-use crate::target_operations::{
+use abstract_operations::{AbstractDynamicDescriptorSource, AbstractFunctionResult};
+use calling_conventions::{CallPlan, CallSignature, CallingPolicy, evaluate_call_plan};
+use semantic_vocabulary::MachineId;
+use std::collections::{BTreeMap, BTreeSet};
+use target::NativeTarget;
+use target_operations::{
     TargetDynamicDescriptorArgument, TargetDynamicDescriptorInstanceArgument,
     TargetDynamicDescriptorInstanceSource, TargetDynamicDescriptorParameterAbi,
     TargetUnitScalarHomeRequirement,
 };
-use semantic_vocabulary::MachineId;
-use std::collections::{BTreeMap, BTreeSet};
-use target::NativeTarget;
 use terminal_psi::StructuralPathSegment;
-use terminal_psi_to_abstract_operations::abstract_operations::{
-    AbstractDynamicDescriptorSource, AbstractFunctionResult,
-};
 
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use terminal_psi_to_abstract_operations::abstract_operations::AbstractDynamicDescriptorArgument;
+use abstract_operations::AbstractDynamicDescriptorArgument;
 
 use super::{
     AbstractFunction, AbstractOperation, KnownUnitInteger, LoweringError, OperationId, PlaceId,

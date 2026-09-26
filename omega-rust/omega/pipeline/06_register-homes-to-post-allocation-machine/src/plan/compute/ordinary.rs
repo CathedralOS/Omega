@@ -1,15 +1,13 @@
 //! Ordinary function and block construction in source order.
 
+use register_model::ValidatedPhysicalRegisterModel;
+use selected_instructions::{SelectedBlock, SelectedInstruction, SelectedInstructionPlan};
 use selected_instructions_to_register_homes::ValidatedRegisterHomes;
-use target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel;
-use target_operations_to_selected_instructions::{
-    SelectedBlock, SelectedInstruction, SelectedInstructionPlan,
-};
 
 use crate::PostAllocationMachineError;
-use crate::physical_instructions::{PostAllocationMachineBlock, PostAllocationMachineFunction};
+use physical_instructions::{PostAllocationMachineBlock, PostAllocationMachineFunction};
+use selected_instructions::BlockMachineEffects;
 use selected_instructions_to_register_homes::ValidatedPreAllocationMachineEffects;
-use target_operations_to_selected_instructions::BlockMachineEffects;
 
 use super::instruction;
 
@@ -106,19 +104,19 @@ fn build_block(
 
 fn selected_instructions(block: &SelectedBlock) -> impl Iterator<Item = &SelectedInstruction> {
     let terminator = match &block.terminator {
-        target_operations_to_selected_instructions::SelectedTerminator::ConditionalBranch { instruction, .. }
-        | target_operations_to_selected_instructions::SelectedTerminator::ConditionalBranchU64LessThan {
+        selected_instructions::SelectedTerminator::ConditionalBranch { instruction, .. }
+        | selected_instructions::SelectedTerminator::ConditionalBranchU64LessThan {
             instruction,
             ..
         }
-        | target_operations_to_selected_instructions::SelectedTerminator::ConditionalBranchI64LessThan {
+        | selected_instructions::SelectedTerminator::ConditionalBranchI64LessThan {
             instruction,
             ..
         }
-        | target_operations_to_selected_instructions::SelectedTerminator::Jump { instruction, .. }
-        | target_operations_to_selected_instructions::SelectedTerminator::Return { instruction, .. }
-        | target_operations_to_selected_instructions::SelectedTerminator::Crash { instruction, .. }
-        | target_operations_to_selected_instructions::SelectedTerminator::HostedExitProcess { instruction, .. } => {
+        | selected_instructions::SelectedTerminator::Jump { instruction, .. }
+        | selected_instructions::SelectedTerminator::Return { instruction, .. }
+        | selected_instructions::SelectedTerminator::Crash { instruction, .. }
+        | selected_instructions::SelectedTerminator::HostedExitProcess { instruction, .. } => {
             instruction
         }
     };

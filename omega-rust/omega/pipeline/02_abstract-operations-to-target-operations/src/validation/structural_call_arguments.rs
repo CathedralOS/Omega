@@ -11,11 +11,22 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::calling_conventions::{
+use abstract_operations::{
+    AbstractBoundaryResult, AbstractDynamicDescriptorArgument, AbstractDynamicDescriptorSource,
+    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractParameter,
+    AbstractParameterDynamicDispatch, AbstractReboundDynamicDispatch, AbstractResult,
+    AbstractStoredDynamicDescriptor, AbstractStoredDynamicDispatch, CompletionClaimSource,
+};
+use calling_conventions::{
     CallPlan, CallSignature, CallingPolicy, EntryControl, ValueClass, ValueLocation,
     ValuePlacement, ValueShape, evaluate_call_plan,
 };
-use crate::target_operations::{
+use semantic_vocabulary::{
+    BoundaryMachineId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
+    OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
+};
+use target::NativeTarget;
+use target_operations::{
     BoundaryByteSequenceArgument, BoundaryExecutionBinding, BoundaryRealization,
     BoundaryScalarArgument, CompilerBuiltinExecution, NativeCallOrigin,
     NormalizedForeignCallBinding, ProviderExecutionBinding, ScalarAbiValue, ScalarFunctionAbi,
@@ -26,23 +37,12 @@ use crate::target_operations::{
     TargetUnitOperation, TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument,
     TargetUnitScalarHomeRequirement,
 };
-use semantic_vocabulary::{
-    BoundaryMachineId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
-    OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
-};
-use target::NativeTarget;
 use terminal_psi::{
     BoundaryMachineDeclaration, ClaimTransfer, ClosedConformanceCallableResult, CrashRouteBucket,
     StructuralAccess, StructuralArgument, StructuralFieldType, StructuralOperationResult,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralResultClaimTransfer,
     StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
     TerminalDynamicRequirement,
-};
-use terminal_psi_to_abstract_operations::abstract_operations::{
-    AbstractBoundaryResult, AbstractDynamicDescriptorArgument, AbstractDynamicDescriptorSource,
-    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractParameter,
-    AbstractParameterDynamicDispatch, AbstractReboundDynamicDispatch, AbstractResult,
-    AbstractStoredDynamicDescriptor, AbstractStoredDynamicDispatch, CompletionClaimSource,
 };
 
 use super::reference_results;
@@ -245,13 +245,13 @@ pub(super) fn validate(
                     crash_continuations,
                 } => {
                     let (result, returned_claim_transfers) = match result {
-                        crate::target_operations::TargetCallResult::Unit => {
+                        target_operations::TargetCallResult::Unit => {
                             (EmbeddedResult::Unit, &[][..])
                         }
-                        crate::target_operations::TargetCallResult::Scalar(home) => {
+                        target_operations::TargetCallResult::Scalar(home) => {
                             (EmbeddedResult::Scalar(home), &[][..])
                         }
-                        crate::target_operations::TargetCallResult::Structural {
+                        target_operations::TargetCallResult::Structural {
                             result,
                             callee_result,
                             result_home,
@@ -1284,13 +1284,13 @@ impl Replay<'_> {
         };
         let validated = match callback {
             Some((callback, _)) => {
-                crate::calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
+                calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
                     binding.boundary_entry_plan.clone(),
                     &signature,
                     &callback.registrar_context,
                 )
             }
-            None => crate::calling_conventions::validate_boundary_entry_plan(
+            None => calling_conventions::validate_boundary_entry_plan(
                 binding.boundary_entry_plan.clone(),
                 &signature,
             ),
@@ -1586,7 +1586,7 @@ impl Replay<'_> {
                                 let TargetUnitOperation::Call {
                                     psi_operation: candidate,
                                     result:
-                                        crate::target_operations::TargetCallResult::Structural {
+                                        target_operations::TargetCallResult::Structural {
                                             result,
                                             result_home: Some(home),
                                             ..
@@ -1933,11 +1933,11 @@ impl Replay<'_> {
                 };
                 let exits = matches!(realization, BoundaryRealization::HostedExitProcessI32(_));
                 let supports_target = if exits {
-                    crate::target_operations::HostedExitProcessI32Realization::supports_target(
+                    target_operations::HostedExitProcessI32Realization::supports_target(
                         self.native_target,
                     )
                 } else {
-                    crate::target_operations::HostedWriteByteI32Realization::supports_target(
+                    target_operations::HostedWriteByteI32Realization::supports_target(
                         self.native_target,
                     )
                 };
@@ -2012,7 +2012,7 @@ impl Replay<'_> {
                         }
                         _ => false,
                     };
-                if !crate::target_operations::HostedReadByteRealization::supports_target(
+                if !target_operations::HostedReadByteRealization::supports_target(
                     self.native_target,
                 ) || !valid_payload
                     || !arguments.is_empty()

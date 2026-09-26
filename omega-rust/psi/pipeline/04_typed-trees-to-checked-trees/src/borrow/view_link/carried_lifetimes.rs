@@ -241,10 +241,7 @@ fn collect_type(
             element_type,
             length,
         } => {
-            let symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::Literal(
-                length,
-            ) = length
-            else {
+            let typed_trees::types::FixedArrayLength::Literal(length) = length else {
                 return false;
             };
             (0..*length).all(|index| {
@@ -380,7 +377,7 @@ fn collect_type(
 
 fn collect_data(
     program: &TypedTrees,
-    definition: &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition,
+    definition: &typed_trees::data::DataDefinition,
     lifetimes: &[(String, String)],
     types: &[(SymbolHandle, TypeReferenceHandle)],
     owner_path: &[BorrowOwnerSegment],
@@ -394,20 +391,13 @@ fn collect_data(
     }
     visiting.push(definition.symbol);
     let complete = program.data_members(definition).iter().all(|member| {
-        let fields: &[symbol_resolved_trees_to_typed_trees::typed_trees::data::DataField] =
-            match member {
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
-                    field,
-                ) => std::slice::from_ref(field),
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
-                    variant,
-                ) => program.data_payload_fields(variant),
-            };
+        let fields: &[typed_trees::data::DataField] = match member {
+            typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
+            typed_trees::data::DataMember::Variant(variant) => program.data_payload_fields(variant),
+        };
         fields.iter().all(|field| {
             let mut path = owner_path.to_vec();
-            if let Some(variant) =
-                crate::fact_plan::payload_variant_for_field(program, field.symbol)
-            {
+            if let Some(variant) = facts::payload_variant_for_field(program, field.symbol) {
                 path.push(BorrowOwnerSegment::Case(variant));
             }
             path.push(BorrowOwnerSegment::Field(field.symbol));

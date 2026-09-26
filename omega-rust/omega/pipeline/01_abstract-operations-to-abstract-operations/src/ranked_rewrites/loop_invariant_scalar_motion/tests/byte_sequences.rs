@@ -7,11 +7,11 @@ use crate::{
     apply_loop_invariant_scalar_motion, propose_loop_invariant_scalar_motion,
     validate_loop_invariant_scalar_motion,
 };
-use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
-use terminal_psi_to_abstract_operations::optimization_unit::{
+use abstract_operations::AbstractOperation;
+use optimization_unit::{
     self, ProvenanceDisposition, PsiRealizationSite, recompute_psi_optimization_unit_identity,
 };
-use terminal_psi_to_abstract_operations::optimization_unit_semantics::OptimizationUnitValidationError;
+use optimization_unit_semantics::OptimizationUnitValidationError;
 
 use super::{
     BYPASSED_LITERAL_SOURCE, INVARIANT_LITERAL_SOURCE, find_operation_mut, lowered_session,
@@ -116,11 +116,11 @@ const CARRIED_VIEW_BYTE_READ_SOURCE: &str = r#"
 /// The `ByteSequenceRead` observations inside a component's member blocks,
 /// as `(member block, node)` pairs in member order.
 fn member_byte_reads<'function>(
-    function: &'function terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
-    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
+    function: &'function optimization_unit::PsiOptimizationFunction,
+    component: &optimization_unit::OptimizerCycleComponent,
 ) -> Vec<(
-    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationBlock,
-    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    &'function optimization_unit::OptimizationBlock,
+    &'function optimization_unit::OptimizationNode,
 )> {
     component
         .members
@@ -915,11 +915,11 @@ const MUTATED_FIELD_BYTE_READ_SOURCE: &str = r#"
 /// The `StructuralByteSequenceFieldRead` observations inside a component's
 /// member blocks, as `(member block, node)` pairs in member order.
 fn member_field_byte_reads<'function>(
-    function: &'function terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
-    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
+    function: &'function optimization_unit::PsiOptimizationFunction,
+    component: &optimization_unit::OptimizerCycleComponent,
 ) -> Vec<(
-    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationBlock,
-    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    &'function optimization_unit::OptimizationBlock,
+    &'function optimization_unit::OptimizationNode,
 )> {
     component
         .members
@@ -949,11 +949,11 @@ fn member_field_byte_reads<'function>(
 /// The `StructuralByteSequenceFieldLength` observations inside a component's
 /// member blocks, as `(member block, node)` pairs in member order.
 fn member_field_lengths<'function>(
-    function: &'function terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
-    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
+    function: &'function optimization_unit::PsiOptimizationFunction,
+    component: &optimization_unit::OptimizerCycleComponent,
 ) -> Vec<(
-    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationBlock,
-    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    &'function optimization_unit::OptimizationBlock,
+    &'function optimization_unit::OptimizationNode,
 )> {
     component
         .members
@@ -1739,11 +1739,11 @@ const MEMBER_SUBSLICE_SOURCE: &str = r#"
 /// The `ByteSequenceSubslice` operations inside a component's member blocks,
 /// as `(member block, node)` pairs in member order.
 fn member_subslices<'function>(
-    function: &'function terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
-    component: &terminal_psi_to_abstract_operations::optimization_unit::OptimizerCycleComponent,
+    function: &'function optimization_unit::PsiOptimizationFunction,
+    component: &optimization_unit::OptimizerCycleComponent,
 ) -> Vec<(
-    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationBlock,
-    &'function terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
+    &'function optimization_unit::OptimizationBlock,
+    &'function optimization_unit::OptimizationNode,
 )> {
     component
         .members

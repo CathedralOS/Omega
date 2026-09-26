@@ -10,8 +10,8 @@
 //! reports which lowered machine and entry block the checked callback
 //! coordinate became.
 
-use crate::lowered_psi::{CallbackTerminalLoweringReceipt, LoweredPsi};
-use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
+use checked_trees::CheckedTrees;
+use lowered_psi::{CallbackTerminalLoweringReceipt, LoweredPsi};
 
 use crate::lowering_error::{LoweringError, unsupported};
 

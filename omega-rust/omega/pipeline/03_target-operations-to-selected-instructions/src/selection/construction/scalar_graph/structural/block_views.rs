@@ -12,15 +12,15 @@ use super::{
     SelectedInstructionProvenance, SelectedMemoryAccess, SelectedMemoryAccessRole,
 };
 use crate::SelectedInstructionError;
-use crate::selected_instructions::{
-    FrameStorageSlotId, LocalStorageSlotId, SelectedLocalStorageSlot, SelectedMemoryAccessOrigin,
-};
 use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::transport_register;
+use selected_instructions::{
+    FrameStorageSlotId, LocalStorageSlotId, SelectedLocalStorageSlot, SelectedMemoryAccessOrigin,
+};
 
 pub(in crate::selection::construction) fn block_entry(
     source: &LegalizedScalarFunction,
-    block: &crate::legalized_operations::LegalizedScalarBlock,
+    block: &legalized_operations::LegalizedScalarBlock,
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
     for parameter in &block.structural_parameters {
@@ -31,9 +31,7 @@ pub(in crate::selection::construction) fn block_entry(
             crate::selection::aggregate_result_input::block_parameter_shape(source, parameter)
                 .ok_or(SelectedInstructionError::custody())?
         } else {
-            abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(
-                16, 8,
-            )
+            calling_conventions::ValueShape::integer(16, 8)
         };
         let slot = LocalStorageSlotId::StructuralBlockParameter {
             block: block.id,

@@ -7,14 +7,12 @@ mod work;
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
 use crate::{StackSlotColoringError, ValidatedLogicalSpillOperations};
-use selected_instructions_to_selected_instructions::register_homes::{
-    FunctionStackSlotColoring, StackSlotColoringPlan, StackSlotColoringPolicy,
-};
+use register_homes::{FunctionStackSlotColoring, StackSlotColoringPlan, StackSlotColoringPolicy};
 
 pub(in crate::assignment::stack_slot_coloring) use first_fit::color_intervals_first_fit;
 pub(in crate::assignment::stack_slot_coloring) use intervals::StackSlotInterval;
 use intervals::intervals_for_function;
-use selected_instructions_to_selected_instructions::register_homes::logical_spill_operation_identity;
+use register_homes::logical_spill_operation_identity;
 
 pub(super) fn compute_stack_slot_coloring(
     source: &ValidatedLogicalSpillOperations,

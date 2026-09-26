@@ -1,9 +1,9 @@
-use crate::checked_trees::{
+use arena::{Arena, HandleSpan};
+use checked_trees::{
     CarryFacts, ContainedMachineFieldFact, ContainedMachineTargetFact, DataCarryFact,
     MachineCarryTopologyFact,
 };
-use arena::{Arena, HandleSpan};
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use typed_trees::TypedTrees;
 
 pub(super) fn build_carry_facts(program: &TypedTrees) -> CarryFacts {
     let data = program
@@ -12,7 +12,7 @@ pub(super) fn build_carry_facts(program: &TypedTrees) -> CarryFacts {
         .map(|definition| DataCarryFact {
             data: definition.symbol,
             declared: definition.properties.carry,
-            effective: crate::validation::effective_data_carry_policy(program, definition),
+            effective: validation::effective_data_carry_policy(program, definition),
         })
         .collect();
     let (machine_topologies, contained_fields, contained_targets) =
@@ -49,10 +49,7 @@ fn build_contained_machine_topology(
                 .find(|definition| definition.name == *attached_data)
         {
             for member in program.data_members(definition) {
-                let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
-                    field,
-                ) = member
-                else {
+                let typed_trees::data::DataMember::Field(field) = member else {
                     continue;
                 };
                 if field.relevance.is_erased() {

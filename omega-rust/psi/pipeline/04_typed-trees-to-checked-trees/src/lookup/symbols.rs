@@ -1,10 +1,8 @@
-use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use ::symbols::SymbolHandle;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use std::cell::RefCell;
 
-pub(crate) fn machine_state_count(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-) -> usize {
+pub(crate) fn machine_state_count(program: &typed_trees::TypedTrees) -> usize {
     program
         .machines()
         .iter()
@@ -23,7 +21,7 @@ pub(crate) fn machine_state_count(
 // reused, and a replacement that happens to match the count and the anchor
 // symbols would otherwise be told a machine it does own is absent.
 struct MachineIndex {
-    owner: symbol_resolved_trees_to_typed_trees::typed_trees::ProgramIdentity,
+    owner: typed_trees::ProgramIdentity,
     len: usize,
     first: Option<SymbolHandle>,
     last: Option<SymbolHandle>,
@@ -31,7 +29,7 @@ struct MachineIndex {
 }
 
 impl MachineIndex {
-    fn of(program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees) -> Self {
+    fn of(program: &typed_trees::TypedTrees) -> Self {
         let machines = program.machines();
         let mut positions = ::symbols::SymbolMap::default();
         positions.reserve(machines.len());
@@ -47,10 +45,7 @@ impl MachineIndex {
         }
     }
 
-    fn is_fresh_for(
-        &self,
-        program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    ) -> bool {
+    fn is_fresh_for(&self, program: &typed_trees::TypedTrees) -> bool {
         let machines = program.machines();
         self.owner.get() == program.identity.get()
             && self.len == machines.len()
@@ -64,7 +59,7 @@ thread_local! {
 }
 
 fn machine_index_by_symbol(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     symbol: SymbolHandle,
 ) -> Option<usize> {
     if !symbol.is_valid() {
@@ -94,9 +89,9 @@ fn machine_index_by_symbol(
 }
 
 pub(crate) fn machine_by_symbol(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     symbol: SymbolHandle,
-) -> Option<&symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine> {
+) -> Option<&typed_trees::machine::Machine> {
     machine_index_by_symbol(program, symbol).map(|index| &program.machines()[index])
 }
 
@@ -109,7 +104,7 @@ pub(crate) fn machine_by_symbol(
 thread_local! {
     static STATE_INDEX: RefCell<
         Option<(
-            symbol_resolved_trees_to_typed_trees::typed_trees::ProgramIdentity,
+            typed_trees::ProgramIdentity,
             usize,
             Option<SymbolHandle>,
             Option<SymbolHandle>,
@@ -122,8 +117,8 @@ thread_local! {
 }
 
 pub(crate) fn state_index_by_symbol(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
     symbol: SymbolHandle,
 ) -> Option<usize> {
     if !symbol.is_valid() {
@@ -190,8 +185,8 @@ pub(crate) fn state_index_by_symbol(
 thread_local! {
     static DATA_DEF_INDEX: RefCell<
         Option<(
-            symbol_resolved_trees_to_typed_trees::typed_trees::ProgramIdentity,
-            *const symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition,
+            typed_trees::ProgramIdentity,
+            *const typed_trees::data::DataDefinition,
             usize,
             Option<SymbolHandle>,
             Option<SymbolHandle>,
@@ -202,7 +197,7 @@ thread_local! {
 }
 
 fn data_definition_index_by_symbol(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     symbol: SymbolHandle,
 ) -> Option<usize> {
     if !symbol.is_valid() {
@@ -270,9 +265,9 @@ fn data_definition_index_by_symbol(
 }
 
 pub(crate) fn data_definition_by_symbol(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     symbol: SymbolHandle,
-) -> Option<&symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition> {
+) -> Option<&typed_trees::data::DataDefinition> {
     data_definition_index_by_symbol(program, symbol).map(|index| &program.data_definitions()[index])
 }
 
@@ -283,7 +278,7 @@ pub(crate) fn data_definition_by_symbol(
 thread_local! {
     static DROP_HOOK_INDEX: RefCell<
         Option<(
-            symbol_resolved_trees_to_typed_trees::typed_trees::ProgramIdentity,
+            typed_trees::ProgramIdentity,
             usize,
             Option<SymbolHandle>,
             Option<SymbolHandle>,
@@ -293,7 +288,7 @@ thread_local! {
 }
 
 pub(crate) fn attached_drop_machine_exists(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     data_symbol: SymbolHandle,
 ) -> bool {
     if !data_symbol.is_valid() {
@@ -335,40 +330,37 @@ pub(crate) fn attached_drop_machine_exists(
 }
 
 pub(crate) fn state_by_symbol<'program>(
-    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &'program symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    program: &'program typed_trees::TypedTrees,
+    machine: &'program typed_trees::machine::Machine,
     symbol: SymbolHandle,
-) -> Option<&'program symbol_resolved_trees_to_typed_trees::typed_trees::state::State> {
+) -> Option<&'program typed_trees::state::State> {
     state_index_by_symbol(program, machine, symbol)
         .map(|index| &program.machine_states(machine)[index])
 }
 
 pub(crate) fn machine_state_by_symbol(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-) -> Option<(
-    &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-)> {
+) -> Option<(&typed_trees::machine::Machine, &typed_trees::state::State)> {
     let machine = machine_by_symbol(program, machine_symbol)?;
     let state = state_by_symbol(program, machine, state_symbol)?;
     Some((machine, state))
 }
 
 pub(crate) fn machine_symbol_from_type_reference_handle(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    program: &typed_trees::TypedTrees,
+    type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> SymbolHandle {
     match program.type_reference_table.type_reference(type_reference) {
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+        typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
             machine_symbol_from_type_reference_handle(program, *referee)
         }
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+        typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
             machine_symbol_from_type_reference_handle(program, *base_type)
         }
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. }
-        | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named {
+        typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. }
+        | typed_trees::types::TypeReferenceNode::Named {
             symbol: base_symbol,
             ..
         } => *base_symbol,
@@ -376,20 +368,20 @@ pub(crate) fn machine_symbol_from_type_reference_handle(
         // drive devirtualization and descriptor lowering; changing this symbol
         // to a coincidentally unique carrier would discard that identity and
         // restore attached-machine discovery.
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::DynamicTrait {
+        typed_trees::types::TypeReferenceNode::DynamicTrait {
             symbol: trait_symbol,
             ..
         } => *trait_symbol,
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::ConstExpression(_)
-        | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::FixedArray { .. }
-        | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Slice { .. }
-        | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Unit => SymbolHandle::invalid(),
+        typed_trees::types::TypeReferenceNode::ConstExpression(_)
+        | typed_trees::types::TypeReferenceNode::FixedArray { .. }
+        | typed_trees::types::TypeReferenceNode::Slice { .. }
+        | typed_trees::types::TypeReferenceNode::Unit => SymbolHandle::invalid(),
     }
 }
 
 pub(crate) fn expression_root_symbol(
     expression: ExpressionHandle,
-    expressions: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionTable,
+    expressions: &typed_trees::expression::ExpressionTable,
     machine_symbol: SymbolHandle,
 ) -> Option<SymbolHandle> {
     match expressions.expression(expression) {
@@ -418,8 +410,8 @@ pub(crate) fn expression_root_symbol(
 }
 
 pub(crate) fn first_valid_name_path_symbol(
-    path: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableNamePath,
-    expressions: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionTable,
+    path: &typed_trees::expression::TableNamePath,
+    expressions: &typed_trees::expression::ExpressionTable,
 ) -> Option<SymbolHandle> {
     expressions
         .name_path_member_symbols(path.member_symbols)

@@ -4,9 +4,7 @@ use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
-use terminal_psi_to_abstract_operations::optimization_unit::{
-    PsiOptimizationUnit, PsiRewriteCandidate,
-};
+use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 
 use crate::rules::STATE_SPECIALIZATION_PASS_NAME;
 use crate::rules::catalog::BuiltInRuleRegistration;

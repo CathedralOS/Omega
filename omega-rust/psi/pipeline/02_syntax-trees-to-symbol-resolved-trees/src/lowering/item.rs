@@ -15,7 +15,7 @@ use crate::lowering::trait_definition::lower_trait_definition;
 use crate::lowering::type_reference::lower_child_type_references;
 use crate::resolution::lowerer::Lowerer;
 use diagnostics::Diagnostic;
-use tokens_to_syntax_trees::syntax_trees::{self as syntax, SyntaxTrees};
+use syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_item(
     lowerer: &mut Lowerer,
@@ -84,7 +84,7 @@ fn lower_item_with_exposure(
             )?;
             let implementation = match &conformance.body {
                 syntax::item::ConformanceBody::AttachedRequirementMachines => {
-                    crate::symbol_resolved_trees::trait_definition::ConformanceImplementation::AttachedRequirementMachines
+                    symbol_resolved_trees::trait_definition::ConformanceImplementation::AttachedRequirementMachines
                 }
                 syntax::item::ConformanceBody::Closed { members } => {
                     let conformance_name = conformance
@@ -104,7 +104,7 @@ fn lower_item_with_exposure(
                                     None,
                                     None,
                                     machine,
-                                    crate::symbol_resolved_trees::trait_definition::ConformanceRowSource::Inline,
+                                    symbol_resolved_trees::trait_definition::ConformanceRowSource::Inline,
                                 )?);
                             }
                             syntax::item::ConformanceMember::TraitDefault {
@@ -120,7 +120,7 @@ fn lower_item_with_exposure(
                                     Some(declaring_trait),
                                     Some(*requirement_ordinal),
                                     machine,
-                                    crate::symbol_resolved_trees::trait_definition::ConformanceRowSource::TraitDefault,
+                                    symbol_resolved_trees::trait_definition::ConformanceRowSource::TraitDefault,
                                 )?);
                             }
                             syntax::item::ConformanceMember::Reference {
@@ -155,7 +155,7 @@ fn lower_item_with_exposure(
                                             })
                                     });
                                 rows.push(
-                                    crate::symbol_resolved_trees::trait_definition::ConformanceRow {
+                                    symbol_resolved_trees::trait_definition::ConformanceRow {
                                         declaring_trait: symbols::SymbolHandle::invalid(),
                                         declaring_trait_name: crate::lowering::name::lower_name(
                                             declaring_trait,
@@ -166,24 +166,24 @@ fn lower_item_with_exposure(
                                         realization_machine: symbols::SymbolHandle::invalid(),
                                         realization_state: symbols::SymbolHandle::invalid(),
                                         realization_name:
-                                            crate::symbol_resolved_trees::name::DiagnosticName::generated(
+                                            symbol_resolved_trees::name::DiagnosticName::generated(
                                                 realization_name,
                                             ),
                                         authored_realization_source_span,
                                         provisional_realization_ordinal: None,
-                                        source: crate::symbol_resolved_trees::trait_definition::ConformanceRowSource::Reference,
+                                        source: symbol_resolved_trees::trait_definition::ConformanceRowSource::Reference,
                                     },
                                 );
                             }
                         }
                     }
-                    crate::symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed {
+                    symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed {
                         rows,
                     }
                 }
             };
             lowerer.symbol_resolved_trees.conformances.push(
-                crate::symbol_resolved_trees::trait_definition::Conformance {
+                symbol_resolved_trees::trait_definition::Conformance {
                     symbol: symbols::SymbolHandle::invalid(),
                     is_public: conformance.is_public,
                     lifetime_parameters: conformance
@@ -194,12 +194,12 @@ fn lower_item_with_exposure(
                     type_parameters,
                     subject: match &conformance.subject {
                         syntax::item::ConformanceSubject::Carrier(type_name) => {
-                            crate::symbol_resolved_trees::trait_definition::ConformanceSubject::Carrier(
+                            symbol_resolved_trees::trait_definition::ConformanceSubject::Carrier(
                                 crate::lowering::name::lower_name(type_name),
                             )
                         }
                         syntax::item::ConformanceSubject::Subjectless => {
-                            crate::symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless
+                            symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless
                         }
                     },
                     carrier_symbol: symbols::SymbolHandle::invalid(),
@@ -295,7 +295,7 @@ fn lower_item_with_exposure(
                 definition.type_reference,
             )?;
             lowerer.symbol_resolved_trees.roots.const_declarations.push(
-                crate::symbol_resolved_trees::constant::ConstDeclaration {
+                symbol_resolved_trees::constant::ConstDeclaration {
                     symbol: symbols::SymbolHandle::invalid(),
                     is_public: definition.is_public,
                     declared_type,
@@ -385,8 +385,8 @@ fn lower_closed_machine_row(
     declaring_trait: Option<&syntax::identifier::Identifier>,
     requirement_ordinal: Option<usize>,
     machine: &syntax::item::Machine,
-    source: crate::symbol_resolved_trees::trait_definition::ConformanceRowSource,
-) -> Result<crate::symbol_resolved_trees::trait_definition::ConformanceRow, Diagnostic> {
+    source: symbol_resolved_trees::trait_definition::ConformanceRowSource,
+) -> Result<symbol_resolved_trees::trait_definition::ConformanceRow, Diagnostic> {
     let requirement_name = machine.name.clone();
     let namespace = match &conformance.subject {
         syntax::item::ConformanceSubject::Carrier(type_name) => {
@@ -418,23 +418,19 @@ fn lower_closed_machine_row(
         syntax::item::ConformanceSubject::Subjectless => None,
     };
     lower_machine_into(lowerer, syntax_trees, &realization)?;
-    Ok(
-        crate::symbol_resolved_trees::trait_definition::ConformanceRow {
-            declaring_trait: symbols::SymbolHandle::invalid(),
-            declaring_trait_name: declaring_trait
-                .map(crate::lowering::name::lower_name)
-                .unwrap_or_default(),
-            requirement: symbols::SymbolHandle::invalid(),
-            requirement_name: crate::lowering::name::lower_name(&requirement_name),
-            provisional_requirement_ordinal: requirement_ordinal,
-            realization_machine: symbols::SymbolHandle::invalid(),
-            realization_state: symbols::SymbolHandle::invalid(),
-            realization_name: crate::symbol_resolved_trees::name::DiagnosticName::generated(
-                realization_name,
-            ),
-            authored_realization_source_span: None,
-            provisional_realization_ordinal: Some(realization_ordinal),
-            source,
-        },
-    )
+    Ok(symbol_resolved_trees::trait_definition::ConformanceRow {
+        declaring_trait: symbols::SymbolHandle::invalid(),
+        declaring_trait_name: declaring_trait
+            .map(crate::lowering::name::lower_name)
+            .unwrap_or_default(),
+        requirement: symbols::SymbolHandle::invalid(),
+        requirement_name: crate::lowering::name::lower_name(&requirement_name),
+        provisional_requirement_ordinal: requirement_ordinal,
+        realization_machine: symbols::SymbolHandle::invalid(),
+        realization_state: symbols::SymbolHandle::invalid(),
+        realization_name: symbol_resolved_trees::name::DiagnosticName::generated(realization_name),
+        authored_realization_source_span: None,
+        provisional_realization_ordinal: Some(realization_ordinal),
+        source,
+    })
 }

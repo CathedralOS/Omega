@@ -1,4 +1,4 @@
-use target_operations_to_selected_instructions::register_model::{
+use register_model::{
     RegisterInstructionConstraint, RegisterOperandAccess, TargetRegisterEnvironmentConstraintKeys,
     ValidatedRegisterConstraintCatalog,
 };

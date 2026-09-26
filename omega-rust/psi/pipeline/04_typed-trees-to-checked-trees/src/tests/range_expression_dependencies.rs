@@ -313,15 +313,9 @@ fn an_opaque_call_frame_retires_computed_bounds() {
         .expect("window");
     let statements = checked.typed.machine_states(machine)[0].statement_nodes;
     for statement in checked.typed.statement_table.statements_mut(statements) {
-        if let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Call(
-            call,
-        ) = statement
-        {
+        if let typed_trees::statement::StatementNode::Call(call) = statement {
             call.target_symbol = symbols::SymbolHandle::invalid();
-            call.target =
-                symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated(
-                    "unknown",
-                );
+            call.target = typed_trees::name::Identifier::generated("unknown");
         }
     }
     let machine = checked
@@ -336,13 +330,11 @@ fn an_opaque_call_frame_retires_computed_bounds() {
         .statements(statements)
         .iter()
         .find_map(|statement| match statement {
-            symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Call(
-                call,
-            ) => Some(call),
+            typed_trees::statement::StatementNode::Call(call) => Some(call),
             _ => None,
         })
         .expect("aggregate argument call");
-    let frames = crate::validation::CallFrameResolver::new(&checked.typed).expect("frame resolver");
+    let frames = validation::CallFrameResolver::new(&checked.typed).expect("frame resolver");
     assert!(frames.may_write_paths(machine, call).is_none());
     let diagnostics =
         crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)

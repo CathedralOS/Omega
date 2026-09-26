@@ -4,23 +4,21 @@ mod candidates;
 
 use candidates::ReplayCandidates;
 
-use target_operations_to_selected_instructions::register_model::{
+use register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile, target_register_environment_identity,
 };
 
-use crate::register_homes::{
-    AllocationLegalityPlan, EntryFixedViewTransition, VirtualEarlyClobberPointLegality,
-    VirtualPointLegality, VirtualRegisterAllocationLegality, allocation_legality_identity,
-};
 use crate::{
     AllocationLegalityError, AllocationLegalityValidationReceipt, ValidatedAllocationLegality,
     ValidatedAllocatorAvailability, ValidatedLiveRanges,
 };
-use target_operations_to_selected_instructions::{
-    LiveRangePoint, VirtualFixedConstraintSite, VirtualLiveRange,
+use register_homes::{
+    AllocationLegalityPlan, EntryFixedViewTransition, VirtualEarlyClobberPointLegality,
+    VirtualPointLegality, VirtualRegisterAllocationLegality, allocation_legality_identity,
 };
+use selected_instructions::{LiveRangePoint, VirtualFixedConstraintSite, VirtualLiveRange};
 
 #[allow(clippy::too_many_arguments)]
 pub fn validate_allocation_legality(
@@ -151,7 +149,7 @@ pub fn validate_allocation_legality(
 
 fn replay_register(
     function_index: usize,
-    function: &target_operations_to_selected_instructions::FunctionLiveRanges,
+    function: &selected_instructions::FunctionLiveRanges,
     register: &VirtualLiveRange,
     availability: &ValidatedAllocatorAvailability,
     physical: &ValidatedPhysicalRegisterModel,
@@ -275,7 +273,7 @@ fn replay_register(
                     position,
                     instruction,
                     operand,
-                    access: target_operations_to_selected_instructions::register_model::RegisterOperandAccess::Def,
+                    access: register_model::RegisterOperandAccess::Def,
                     ..
                 } if position == early.position
                     && instruction == early.instruction
@@ -348,7 +346,7 @@ fn replay_register(
     if pinned.len() >= 2 {
         for constraint in &register.fixed_constraints {
             let site @ VirtualFixedConstraintSite::Operand {
-                access: target_operations_to_selected_instructions::register_model::RegisterOperandAccess::Use,
+                access: register_model::RegisterOperandAccess::Use,
                 ..
             } = constraint.site
             else {
@@ -379,7 +377,7 @@ fn replay_register(
 #[cfg(test)]
 pub(crate) fn replay_register_for_test(
     function_index: usize,
-    function: &target_operations_to_selected_instructions::FunctionLiveRanges,
+    function: &selected_instructions::FunctionLiveRanges,
     register: &VirtualLiveRange,
     availability: &ValidatedAllocatorAvailability,
     physical: &ValidatedPhysicalRegisterModel,
@@ -399,11 +397,11 @@ pub(crate) fn replay_register_for_test(
 #[cfg(test)]
 pub(crate) fn replay_function_for_test(
     function_index: usize,
-    function: &target_operations_to_selected_instructions::FunctionLiveRanges,
+    function: &selected_instructions::FunctionLiveRanges,
     availability: &ValidatedAllocatorAvailability,
     physical: &ValidatedPhysicalRegisterModel,
     reservations: &ValidatedRegisterReservationProfile,
-) -> Result<crate::register_homes::FunctionAllocationLegality, AllocationLegalityError> {
+) -> Result<register_homes::FunctionAllocationLegality, AllocationLegalityError> {
     let mut candidates = ReplayCandidates::new(function, physical, reservations);
     let virtual_registers = function
         .virtual_registers
@@ -419,7 +417,7 @@ pub(crate) fn replay_function_for_test(
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(crate::register_homes::FunctionAllocationLegality {
+    Ok(register_homes::FunctionAllocationLegality {
         machine: function.machine,
         virtual_registers,
     })

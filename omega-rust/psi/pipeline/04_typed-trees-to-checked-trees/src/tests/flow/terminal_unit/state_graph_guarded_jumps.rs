@@ -28,10 +28,8 @@ fn state_graph_retains_ordered_literal_dispatch_chain() {
         .composed_for_machine(machine_named(&checked, "Root::run"))
         .expect("ordered literal dispatch preserves the complete authored chain");
     assert_eq!(plan.states.len(), 4);
-    let crate::checked_trees::CheckedComposedUnitControlTerminatorPlan::GuardedJumps {
-        arms,
-        fallback,
-    } = &plan.states[0].terminator
+    let checked_trees::CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback } =
+        &plan.states[0].terminator
     else {
         panic!("literal dispatch chain is not an ordered guarded jump tail");
     };
@@ -45,8 +43,8 @@ fn state_graph_retains_ordered_literal_dispatch_chain() {
     for arm in arms {
         assert!(matches!(
             &arm.guard,
-            crate::checked_trees::CheckedCallScalarArgument::Pure(
-                crate::checked_trees::CheckedScalarExpression::Boolean(_)
+            checked_trees::CheckedCallScalarArgument::Pure(
+                checked_trees::CheckedScalarExpression::Boolean(_)
             )
         ));
     }
@@ -79,10 +77,8 @@ fn state_graph_retains_longer_ordered_dispatch_chain() {
         .composed_for_machine(machine_named(&checked, "Root::run"))
         .expect("longer ordered dispatch preserves the complete authored chain");
     assert_eq!(plan.states.len(), 5);
-    let crate::checked_trees::CheckedComposedUnitControlTerminatorPlan::GuardedJumps {
-        arms,
-        fallback,
-    } = &plan.states[0].terminator
+    let checked_trees::CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback } =
+        &plan.states[0].terminator
     else {
         panic!("longer dispatch chain is not an ordered guarded jump tail");
     };

@@ -110,12 +110,12 @@
 //! refreshed coordinates.
 
 use super::super::super::super::BTreeSet;
-use semantic_vocabulary::{BlockId, PlaceId, ValueId};
-use semantic_vocabulary::{OperationId, ScalarType};
-use terminal_psi_to_abstract_operations::optimization_unit::{
+use optimization_unit::{
     OptimizationBlock, OptimizationNode, PsiOptimizationFunction, PsiOptimizationUnit,
     PsiProvenance,
 };
+use semantic_vocabulary::{BlockId, PlaceId, ValueId};
+use semantic_vocabulary::{OperationId, ScalarType};
 
 use super::super::CycleComponentId;
 use super::{BTreeMap, MachineId, OptimizationUnitValidationError, OptimizerCycleComponent};
@@ -237,10 +237,10 @@ pub(super) fn validate(
     let mut relocated_case_results: BTreeMap<CycleComponentId, BTreeSet<PlaceId>> = BTreeMap::new();
     for relocation in &moved {
         let result = match &relocation.expected.operation {
-            terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::EstablishScalarCase { result, .. }
-            | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::EstablishRecord { result, .. }
-            | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::CallStructural { result, .. } => result,
-            terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::EstablishTrivialAffineLocal {
+            abstract_operations::AbstractOperation::EstablishScalarCase { result, .. }
+            | abstract_operations::AbstractOperation::EstablishRecord { result, .. }
+            | abstract_operations::AbstractOperation::CallStructural { result, .. } => result,
+            abstract_operations::AbstractOperation::EstablishTrivialAffineLocal {
                 place, ..
             } => {
                 // A trivial affine local's declared place is affine by
@@ -1009,24 +1009,24 @@ fn same_relocated_node(
     // derivation is the exact reconstruction here too.
     let structural_call = matches!(
         operation,
-        terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::CallUnit { .. }
-            | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::CallStructuralScalar { .. }
-            | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::CallStructural { .. }
+        abstract_operations::AbstractOperation::CallUnit { .. }
+            | abstract_operations::AbstractOperation::CallStructuralScalar { .. }
+            | abstract_operations::AbstractOperation::CallStructural { .. }
     );
     let carries_routes = match &operation {
-        terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::Call {
+        abstract_operations::AbstractOperation::Call {
             crash_continuations,
             ..
         }
-        | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::CallUnit {
+        | abstract_operations::AbstractOperation::CallUnit {
             crash_continuations,
             ..
         }
-        | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::CallStructuralScalar {
+        | abstract_operations::AbstractOperation::CallStructuralScalar {
             crash_continuations,
             ..
         }
-        | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::CallStructural {
+        | abstract_operations::AbstractOperation::CallStructural {
             crash_continuations,
             ..
         } => !crash_continuations.is_empty(),
@@ -1034,19 +1034,19 @@ fn same_relocated_node(
     };
     if carries_routes {
         let callee = match &operation {
-            terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::Call {
+            abstract_operations::AbstractOperation::Call {
                 callee,
                 ..
             }
-            | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::CallUnit {
+            | abstract_operations::AbstractOperation::CallUnit {
                 callee,
                 ..
             }
-            | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::CallStructuralScalar {
+            | abstract_operations::AbstractOperation::CallStructuralScalar {
                 callee,
                 ..
             }
-            | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::CallStructural {
+            | abstract_operations::AbstractOperation::CallStructural {
                 callee,
                 ..
             } => *callee,
@@ -1057,22 +1057,22 @@ fn same_relocated_node(
             return false;
         };
         let (arguments, crash_continuations) = match &mut operation {
-            terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::Call {
+            abstract_operations::AbstractOperation::Call {
                 arguments,
                 crash_continuations,
                 ..
             }
-            | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::CallUnit {
+            | abstract_operations::AbstractOperation::CallUnit {
                 arguments,
                 crash_continuations,
                 ..
             }
-            | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::CallStructuralScalar {
+            | abstract_operations::AbstractOperation::CallStructuralScalar {
                 arguments,
                 crash_continuations,
                 ..
             }
-            | terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation::CallStructural {
+            | abstract_operations::AbstractOperation::CallStructural {
                 arguments,
                 crash_continuations,
                 ..

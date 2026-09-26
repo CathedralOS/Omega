@@ -1,11 +1,11 @@
 //! Fact domains, subjects and their labels.
 
-use crate::fact_plan::{FactPayload, FactPlace, PlaceRoot, PlaceSegment};
+use facts::{FactPayload, FactPlace, PlaceRoot, PlaceSegment};
 use language_semantics::ProgressSubject;
 use symbols::SymbolHandle;
 
 pub(crate) fn fact_domain(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     payload: FactPayload,
 ) -> Option<SymbolHandle> {
     let (domain_symbol, semantic_domain) = match payload {
@@ -27,17 +27,14 @@ pub(crate) fn fact_domain(
         .iter()
         .find(|domain| domain.symbol == domain_symbol)
         .filter(|domain| {
-            symbol_resolved_trees_to_typed_trees::typed_trees::domain::index_parameters(
-                program, domain,
-            )
-            .is_empty()
+            typed_trees::domain::index_parameters(program, domain).is_empty()
                 && (!semantic_domain.is_valid() || semantic_domain == domain.semantic_id)
         })
         .map(|domain| domain.symbol)
 }
 
 pub(crate) fn fact_subject(
-    semantic: &crate::fact_plan::FactPlan,
+    semantic: &facts::FactPlan,
     place: FactPlace,
 ) -> Option<ProgressSubject> {
     match place {
@@ -79,7 +76,7 @@ pub(crate) fn subject_from_place(
 }
 
 pub(crate) fn profile_label(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     profile: language_semantics::SemanticDomainId,
 ) -> String {
     program
@@ -90,7 +87,7 @@ pub(crate) fn profile_label(
 }
 
 pub(crate) fn subject_label(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     subject: &ProgressSubject,
 ) -> String {
     let mut label = program.symbols.display_path(subject.root, "::");

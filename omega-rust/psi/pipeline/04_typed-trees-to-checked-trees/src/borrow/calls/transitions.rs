@@ -1,10 +1,10 @@
 use crate::borrow::calls::BorrowCallCollection;
 use crate::borrow::calls::expression;
-use crate::checked_trees::statement::TransitionTargetNode;
+use checked_trees::statement::TransitionTargetNode;
 
 pub(super) fn collect_transition_target_borrow_calls(
     collection: &mut BorrowCallCollection<'_>,
-    target: symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetHandle,
+    target: typed_trees::statement::TransitionTargetHandle,
 ) {
     match collection.program.statement_table.transition_target(target) {
         TransitionTargetNode::Named {

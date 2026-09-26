@@ -3,11 +3,11 @@
 use crate::diagnostics::parse_error::ParseError;
 use crate::expressions::parse_expression::parse_expression_handle;
 use crate::input::token_cursor::Input;
-use crate::syntax_trees::SyntaxTrees;
-use crate::syntax_trees::identifier::Identifier;
-use crate::syntax_trees::statement::{StatementNode, TableLocalData};
 use arena::HandleSpan;
-use source_files_to_tokens::tokens::{KeywordKind, PunctuationKind};
+use syntax_trees::SyntaxTrees;
+use syntax_trees::identifier::Identifier;
+use syntax_trees::statement::{StatementNode, TableLocalData};
+use tokens::{KeywordKind, PunctuationKind};
 
 /// RECORD PATTERNS IN LET POSITION (owner spec 2026-07-18, ch6 growth):
 /// `let { x, y as horizontal, z as _ } = point;` -- exhaustive by law
@@ -23,10 +23,10 @@ pub(crate) fn try_parse_destructure_let<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> Option<(
-    HandleSpan<crate::syntax_trees::statement::StatementHandle>,
+    HandleSpan<syntax_trees::statement::StatementHandle>,
     Input<'tokens, 'source>,
 )> {
-    use crate::syntax_trees::expression::{ExpressionNode, TableMemberExpression};
+    use syntax_trees::expression::{ExpressionNode, TableMemberExpression};
 
     if !input.at_keyword(KeywordKind::Let) {
         return None;
@@ -40,8 +40,8 @@ pub(crate) fn try_parse_destructure_let<'tokens, 'source>(
         .ok()?;
     // (field, binding-or-None-for-waived)
     let mut fields: Vec<(
-        crate::syntax_trees::identifier::Identifier,
-        Option<crate::syntax_trees::identifier::Identifier>,
+        syntax_trees::identifier::Identifier,
+        Option<syntax_trees::identifier::Identifier>,
     )> = Vec::new();
     loop {
         if rest.at_punctuation(PunctuationKind::RightBrace) {
@@ -93,7 +93,7 @@ pub(crate) fn try_parse_destructure_let<'tokens, 'source>(
     // (pure re-readable place; calls would double-evaluate).
     fn is_place(
         syntax_trees: &SyntaxTrees,
-        expression: crate::syntax_trees::expression::ExpressionHandle,
+        expression: syntax_trees::expression::ExpressionHandle,
     ) -> bool {
         match syntax_trees.expressions.expression(expression) {
             ExpressionNode::Name(_) | ExpressionNode::SelfValue => true,
@@ -119,8 +119,8 @@ pub(crate) fn try_parse_destructure_let<'tokens, 'source>(
     let marker = syntax_trees
         .statements
         .insert(StatementNode::LocalData(TableLocalData {
-            name: crate::syntax_trees::identifier::Identifier::generated(marker_name),
-            type_reference: crate::syntax_trees::types::TypeReferenceHandle::invalid(),
+            name: syntax_trees::identifier::Identifier::generated(marker_name),
+            type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
             initial_value: value,
             is_mutable: false,
             relevance: language_core::BindingRelevance::Relevant,
@@ -144,7 +144,7 @@ pub(crate) fn try_parse_destructure_let<'tokens, 'source>(
             .statements
             .insert(StatementNode::LocalData(TableLocalData {
                 name: binding,
-                type_reference: crate::syntax_trees::types::TypeReferenceHandle::invalid(),
+                type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
                 initial_value: member,
                 is_mutable: false,
                 relevance: language_core::BindingRelevance::Relevant,
@@ -168,13 +168,11 @@ pub(crate) fn try_parse_proof_output_binding<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> Option<(
-    HandleSpan<crate::syntax_trees::statement::StatementHandle>,
+    HandleSpan<syntax_trees::statement::StatementHandle>,
     Input<'tokens, 'source>,
 )> {
-    use crate::syntax_trees::expression::ExpressionNode;
-    use crate::syntax_trees::statement::{
-        TableProofOutputBindingStatement, TableProofOutputSelector,
-    };
+    use syntax_trees::expression::ExpressionNode;
+    use syntax_trees::statement::{TableProofOutputBindingStatement, TableProofOutputSelector};
 
     let mut rest = input.take_keyword(KeywordKind::Let, "let").ok()?;
     rest = rest
@@ -228,7 +226,7 @@ pub(crate) fn try_parse_proof_output_binding<'tokens, 'source>(
         .take_punctuation(PunctuationKind::Semicolon, ";")
         .ok()?;
     let statement = syntax_trees.statements.insert(
-        crate::syntax_trees::statement::StatementNode::ProofOutputBindingStatement(
+        syntax_trees::statement::StatementNode::ProofOutputBindingStatement(
             TableProofOutputBindingStatement {
                 bindings: bindings.into_boxed_slice(),
                 call,

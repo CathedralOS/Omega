@@ -4,9 +4,7 @@ use super::{
     StatementNode, authored_state, collect_authored_storage_reads, validate_entry_read_expression,
     validate_expression, validate_normal_result_read_expression,
 };
-use typed_trees_to_checked_trees::checked_trees::{
-    CheckedIntegerComparisonKind, CheckedStructuralPredicatePathSegment,
-};
+use checked_trees::{CheckedIntegerComparisonKind, CheckedStructuralPredicatePathSegment};
 
 fn fixture(body: &str, result: &str) -> CheckedTrees {
     fixture_with_declarations(body, result, "")
@@ -118,9 +116,9 @@ fn ensures_left(checked: &CheckedTrees, owner: &str) -> (symbols::SymbolHandle, 
     let contract = checked
         .machine_contracts(machine)
         .iter()
-        .find(|contract| contract.kind == typed_trees_to_checked_trees::checked_trees::signature::SignatureContractKind::Ensures)
+        .find(|contract| contract.kind == checked_trees::signature::SignatureContractKind::Ensures)
         .expect("normal guarantee");
-    let [typed_trees_to_checked_trees::checked_trees::domain::ProofFact::Expression(expression)] =
+    let [checked_trees::domain::ProofFact::Expression(expression)] =
         checked.proof_facts.span_or_empty(contract.facts)
     else {
         panic!("expression guarantee");
@@ -293,11 +291,10 @@ fn case_membership_rejects_substituted_case_subject_and_erasure() {
     let membership = |parameter_position, case: &str| {
         CheckedScalarExpression::Boolean(Box::new(
             CheckedBooleanExpression::StructuralCaseMembership {
-                subject:
-                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralParameterField {
-                        parameter_position,
-                        path: Vec::new(),
-                    },
+                subject: checked_trees::CheckedStructuralParameterField {
+                    parameter_position,
+                    path: Vec::new(),
+                },
                 case: case.into(),
             },
         ))
@@ -348,14 +345,13 @@ fn projected_case_membership_replays_exact_root_field_index_and_case() {
     let membership = |parameter_position, field: &str, element_index, case: &str| {
         CheckedScalarExpression::Boolean(Box::new(
             CheckedBooleanExpression::StructuralCaseMembership {
-                subject:
-                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralParameterField {
-                        parameter_position,
-                        path: vec![
-                            CheckedStructuralPredicatePathSegment::Field(field.into()),
-                            CheckedStructuralPredicatePathSegment::FixedIndex(element_index),
-                        ],
-                    },
+                subject: checked_trees::CheckedStructuralParameterField {
+                    parameter_position,
+                    path: vec![
+                        CheckedStructuralPredicatePathSegment::Field(field.into()),
+                        CheckedStructuralPredicatePathSegment::FixedIndex(element_index),
+                    ],
+                },
                 case: case.into(),
             },
         ))
@@ -385,7 +381,7 @@ fn case_membership_receiver_rejoins_only_its_declaring_machine() {
         .expect("receiver return");
     let membership = CheckedScalarExpression::Boolean(Box::new(
         CheckedBooleanExpression::StructuralCaseMembership {
-            subject: typed_trees_to_checked_trees::checked_trees::CheckedStructuralParameterField {
+            subject: checked_trees::CheckedStructuralParameterField {
                 parameter_position: 0,
                 path: Vec::new(),
             },
@@ -439,7 +435,7 @@ fn case_membership_self_field_rejoins_inside_a_named_state() {
     };
     let membership = CheckedScalarExpression::Boolean(Box::new(
         CheckedBooleanExpression::StructuralCaseMembership {
-            subject: typed_trees_to_checked_trees::checked_trees::CheckedStructuralParameterField {
+            subject: checked_trees::CheckedStructuralParameterField {
                 parameter_position: 0,
                 path: vec![CheckedStructuralPredicatePathSegment::Field(
                     "result".into(),
@@ -453,7 +449,7 @@ fn case_membership_self_field_rejoins_inside_a_named_state() {
     );
     let forged = CheckedScalarExpression::Boolean(Box::new(
         CheckedBooleanExpression::StructuralCaseMembership {
-            subject: typed_trees_to_checked_trees::checked_trees::CheckedStructuralParameterField {
+            subject: checked_trees::CheckedStructuralParameterField {
                 parameter_position: 0,
                 path: vec![CheckedStructuralPredicatePathSegment::Field(
                     "result".into(),
@@ -568,7 +564,7 @@ fn owned_field_requires_exact_resolved_member_and_parameter_symbols() {
 fn numbered_owned_field_uses_identity_instead_of_spelling() {
     let mut checked = fixture("limits.limit", "u64");
     let members = checked.data_definitions()[0].members;
-    let typed_trees_to_checked_trees::checked_trees::data::DataMember::Field(field) =
+    let checked_trees::data::DataMember::Field(field) =
         &mut checked.typed.tables.data_members.span_mut_or_empty(members)[0]
     else {
         panic!("field")

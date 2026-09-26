@@ -100,20 +100,18 @@ fn literal_indexed_recast_retains_the_complete_range_for_both_polarities() {
     "#;
 
     let typed = typed_program(source);
-    crate::validation::validate_program(&typed).expect("both indexed recasts should validate");
+    validation::validate_program(&typed).expect("both indexed recasts should validate");
     let facts = build_borrow_facts(&typed);
     let loans = facts.loans.iter().map(|(_, loan)| loan).collect::<Vec<_>>();
 
     assert_eq!(loans.len(), 2, "one loan per validated indexed recast");
     assert!(loans.iter().any(|loan| {
-        loan.kind == crate::checked_trees::BorrowAccessKind::Read
-            && facts.loan_segments(loan)
-                == [crate::fact_plan::PlaceSegment::FixedRange { start: 2, end: 6 }]
+        loan.kind == checked_trees::BorrowAccessKind::Read
+            && facts.loan_segments(loan) == [facts::PlaceSegment::FixedRange { start: 2, end: 6 }]
     }));
     assert!(loans.iter().any(|loan| {
-        loan.kind == crate::checked_trees::BorrowAccessKind::Mutable
-            && facts.loan_segments(loan)
-                == [crate::fact_plan::PlaceSegment::FixedRange { start: 8, end: 10 }]
+        loan.kind == checked_trees::BorrowAccessKind::Mutable
+            && facts.loan_segments(loan) == [facts::PlaceSegment::FixedRange { start: 8, end: 10 }]
     }));
 }
 
@@ -176,20 +174,18 @@ fn literal_indexed_record_recast_retains_its_exact_padded_range() {
     "#;
 
     let typed = typed_program(source);
-    crate::validation::validate_program(&typed).expect("both record recasts should validate");
+    validation::validate_program(&typed).expect("both record recasts should validate");
     let facts = build_borrow_facts(&typed);
     let loans = facts.loans.iter().map(|(_, loan)| loan).collect::<Vec<_>>();
 
     assert_eq!(loans.len(), 2, "one loan per validated record recast");
     assert!(loans.iter().any(|loan| {
-        loan.kind == crate::checked_trees::BorrowAccessKind::Read
-            && facts.loan_segments(loan)
-                == [crate::fact_plan::PlaceSegment::FixedRange { start: 2, end: 10 }]
+        loan.kind == checked_trees::BorrowAccessKind::Read
+            && facts.loan_segments(loan) == [facts::PlaceSegment::FixedRange { start: 2, end: 10 }]
     }));
     assert!(loans.iter().any(|loan| {
-        loan.kind == crate::checked_trees::BorrowAccessKind::Mutable
-            && facts.loan_segments(loan)
-                == [crate::fact_plan::PlaceSegment::FixedRange { start: 12, end: 20 }]
+        loan.kind == checked_trees::BorrowAccessKind::Mutable
+            && facts.loan_segments(loan) == [facts::PlaceSegment::FixedRange { start: 12, end: 20 }]
     }));
 }
 
@@ -245,20 +241,18 @@ fn literal_indexed_fixed_array_recast_retains_the_exact_range_for_both_polaritie
     "#;
 
     let typed = typed_program(source);
-    crate::validation::validate_program(&typed).expect("both fixed-array recasts should validate");
+    validation::validate_program(&typed).expect("both fixed-array recasts should validate");
     let facts = build_borrow_facts(&typed);
     let loans = facts.loans.iter().map(|(_, loan)| loan).collect::<Vec<_>>();
 
     assert_eq!(loans.len(), 2, "one loan per validated fixed-array recast");
     assert!(loans.iter().any(|loan| {
-        loan.kind == crate::checked_trees::BorrowAccessKind::Read
-            && facts.loan_segments(loan)
-                == [crate::fact_plan::PlaceSegment::FixedRange { start: 2, end: 8 }]
+        loan.kind == checked_trees::BorrowAccessKind::Read
+            && facts.loan_segments(loan) == [facts::PlaceSegment::FixedRange { start: 2, end: 8 }]
     }));
     assert!(loans.iter().any(|loan| {
-        loan.kind == crate::checked_trees::BorrowAccessKind::Mutable
-            && facts.loan_segments(loan)
-                == [crate::fact_plan::PlaceSegment::FixedRange { start: 10, end: 16 }]
+        loan.kind == checked_trees::BorrowAccessKind::Mutable
+            && facts.loan_segments(loan) == [facts::PlaceSegment::FixedRange { start: 10, end: 16 }]
     }));
 }
 
@@ -295,20 +289,18 @@ fn literal_indexed_nested_fixed_array_recast_retains_the_exact_range_for_both_po
     "#;
 
     let typed = typed_program(source);
-    crate::validation::validate_program(&typed).expect("both nested-array recasts should validate");
+    validation::validate_program(&typed).expect("both nested-array recasts should validate");
     let facts = build_borrow_facts(&typed);
     let loans = facts.loans.iter().map(|(_, loan)| loan).collect::<Vec<_>>();
 
     assert_eq!(loans.len(), 2, "one loan per validated nested-array recast");
     assert!(loans.iter().any(|loan| {
-        loan.kind == crate::checked_trees::BorrowAccessKind::Read
-            && facts.loan_segments(loan)
-                == [crate::fact_plan::PlaceSegment::FixedRange { start: 2, end: 10 }]
+        loan.kind == checked_trees::BorrowAccessKind::Read
+            && facts.loan_segments(loan) == [facts::PlaceSegment::FixedRange { start: 2, end: 10 }]
     }));
     assert!(loans.iter().any(|loan| {
-        loan.kind == crate::checked_trees::BorrowAccessKind::Mutable
-            && facts.loan_segments(loan)
-                == [crate::fact_plan::PlaceSegment::FixedRange { start: 12, end: 20 }]
+        loan.kind == checked_trees::BorrowAccessKind::Mutable
+            && facts.loan_segments(loan) == [facts::PlaceSegment::FixedRange { start: 12, end: 20 }]
     }));
 }
 
@@ -358,21 +350,18 @@ fn literal_indexed_nested_record_array_recast_retains_padded_ranges_for_both_pol
     "#;
 
     let typed = typed_program(source);
-    crate::validation::validate_program(&typed)
-        .expect("both nested record-array recasts should validate");
+    validation::validate_program(&typed).expect("both nested record-array recasts should validate");
     let facts = build_borrow_facts(&typed);
     let loans = facts.loans.iter().map(|(_, loan)| loan).collect::<Vec<_>>();
 
     assert_eq!(loans.len(), 2, "one loan per nested record-array recast");
     assert!(loans.iter().any(|loan| {
-        loan.kind == crate::checked_trees::BorrowAccessKind::Read
-            && facts.loan_segments(loan)
-                == [crate::fact_plan::PlaceSegment::FixedRange { start: 2, end: 34 }]
+        loan.kind == checked_trees::BorrowAccessKind::Read
+            && facts.loan_segments(loan) == [facts::PlaceSegment::FixedRange { start: 2, end: 34 }]
     }));
     assert!(loans.iter().any(|loan| {
-        loan.kind == crate::checked_trees::BorrowAccessKind::Mutable
-            && facts.loan_segments(loan)
-                == [crate::fact_plan::PlaceSegment::FixedRange { start: 40, end: 72 }]
+        loan.kind == checked_trees::BorrowAccessKind::Mutable
+            && facts.loan_segments(loan) == [facts::PlaceSegment::FixedRange { start: 40, end: 72 }]
     }));
 }
 
@@ -436,22 +425,21 @@ fn records_with_nested_array_fields_retain_exact_ranges_for_direct_and_array_tar
     "#;
 
     let typed = typed_program(source);
-    crate::validation::validate_program(&typed)
+    validation::validate_program(&typed)
         .expect("record and record-array recasts with nested array fields should validate");
     let facts = build_borrow_facts(&typed);
     let loans = facts.loans.iter().map(|(_, loan)| loan).collect::<Vec<_>>();
 
     assert_eq!(loans.len(), 4, "one loan per validated recast");
     for (kind, start, end) in [
-        (crate::checked_trees::BorrowAccessKind::Read, 2, 42),
-        (crate::checked_trees::BorrowAccessKind::Mutable, 48, 88),
-        (crate::checked_trees::BorrowAccessKind::Read, 96, 176),
-        (crate::checked_trees::BorrowAccessKind::Mutable, 176, 256),
+        (checked_trees::BorrowAccessKind::Read, 2, 42),
+        (checked_trees::BorrowAccessKind::Mutable, 48, 88),
+        (checked_trees::BorrowAccessKind::Read, 96, 176),
+        (checked_trees::BorrowAccessKind::Mutable, 176, 256),
     ] {
         assert!(loans.iter().any(|loan| {
             loan.kind == kind
-                && facts.loan_segments(loan)
-                    == [crate::fact_plan::PlaceSegment::FixedRange { start, end }]
+                && facts.loan_segments(loan) == [facts::PlaceSegment::FixedRange { start, end }]
         }));
     }
 }
@@ -522,22 +510,21 @@ fn nonzero_records_with_zero_array_fields_retain_direct_and_array_ranges() {
     "#;
 
     let typed = typed_program(source);
-    crate::validation::validate_program(&typed)
+    validation::validate_program(&typed)
         .expect("otherwise-nonzero records may retain validated zero array fields");
     let facts = build_borrow_facts(&typed);
     let loans = facts.loans.iter().map(|(_, loan)| loan).collect::<Vec<_>>();
 
     assert_eq!(loans.len(), 4, "one loan per validated zero-field recast");
     for (kind, start, end) in [
-        (crate::checked_trees::BorrowAccessKind::Read, 2, 10),
-        (crate::checked_trees::BorrowAccessKind::Mutable, 12, 20),
-        (crate::checked_trees::BorrowAccessKind::Read, 24, 40),
-        (crate::checked_trees::BorrowAccessKind::Mutable, 40, 56),
+        (checked_trees::BorrowAccessKind::Read, 2, 10),
+        (checked_trees::BorrowAccessKind::Mutable, 12, 20),
+        (checked_trees::BorrowAccessKind::Read, 24, 40),
+        (checked_trees::BorrowAccessKind::Mutable, 40, 56),
     ] {
         assert!(loans.iter().any(|loan| {
             loan.kind == kind
-                && facts.loan_segments(loan)
-                    == [crate::fact_plan::PlaceSegment::FixedRange { start, end }]
+                && facts.loan_segments(loan) == [facts::PlaceSegment::FixedRange { start, end }]
         }));
     }
 }
@@ -924,7 +911,7 @@ fn bounded_runtime_indexed_recast_remains_outside_precise_loan_publication() {
     "#;
 
     let typed = typed_program(source);
-    crate::validation::validate_program(&typed).expect("the bounded runtime recast remains valid");
+    validation::validate_program(&typed).expect("the bounded runtime recast remains valid");
     let facts = build_borrow_facts(&typed);
     assert_eq!(
         facts.loans.iter().count(),
@@ -1146,7 +1133,7 @@ fn indexed_mutable_zero_field_record_recast_source(mutation: &str, final_use: &s
 
 fn assert_invalid_recast_has_no_loan(source: &str, expected_diagnostic: &str) {
     let typed = typed_program(source);
-    let diagnostics = crate::validation::validate_program(&typed)
+    let diagnostics = validation::validate_program(&typed)
         .expect_err("the malformed indexed recast must remain rejected");
     let combined = diagnostics
         .iter()
@@ -1168,7 +1155,7 @@ fn assert_invalid_recast_has_no_loan(source: &str, expected_diagnostic: &str) {
 
 fn assert_valid_recast_has_no_loan(source: &str, context: &str) {
     let typed = typed_program(source);
-    crate::validation::validate_program(&typed)
+    validation::validate_program(&typed)
         .unwrap_or_else(|diagnostics| panic!("{context} should remain valid: {diagnostics:#?}"));
     let facts = build_borrow_facts(&typed);
     assert_eq!(facts.loans.iter().count(), 0, "{context}");
@@ -1177,7 +1164,7 @@ fn assert_valid_recast_has_no_loan(source: &str, context: &str) {
 fn assert_typed_recast_has_no_loan(source: &str, context: &str) {
     let typed = typed_program(source);
     assert!(
-        crate::validation::validate_program(&typed).is_err(),
+        validation::validate_program(&typed).is_err(),
         "{context} unexpectedly entered the ordinary raw recast subset"
     );
     let facts = build_borrow_facts(&typed);

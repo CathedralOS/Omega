@@ -1,11 +1,9 @@
 use crate::TerminalMachineSelection;
 use crate::tests::lower_machine;
-use lowered_psi_to_terminal_psi::terminal_production::{
-    TerminalProductionCustody, TerminalProductionTimings,
-};
+use checked_trees::CheckedDynamicBinding::Direct;
+use checked_trees::CheckedDynamicDispatchPlan::{Scalar, Unit};
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::ClosedConformanceCallableResult;
-use typed_trees_to_checked_trees::checked_trees::CheckedDynamicBinding::Direct;
-use typed_trees_to_checked_trees::checked_trees::CheckedDynamicDispatchPlan::{Scalar, Unit};
 
 const MIXED_RESULTS: &str = r#"
     trait Device {
@@ -45,18 +43,15 @@ fn dynamic_table_retains_each_members_result_kind() {
         let checked = crate::front_end::checked_program(&source(call));
         let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
             .expect("query and command use the same complete mixed-result conformance");
-        let artifact =
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-                &checked,
-                lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                    "Main::run",
-                ),
-            )
-            .produce(TerminalProductionCustody::artifact_only(
-                &mut TerminalProductionTimings::default(),
-            ))
-            .expect("mixed-result table verifies and serializes")
-            .into_artifact();
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            terminal_production::TerminalMachineSelection::Name("Main::run"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("mixed-result table verifies and serializes")
+        .into_artifact();
         let decoded = terminal_codec::decode_module(artifact.semantic_bytes())
             .expect("mixed-result table decodes");
         assert_eq!(decoded, lowered.semantic_module);
@@ -121,11 +116,9 @@ fn mixed_table_cannot_omit_an_uncalled_member() {
             _ => panic!("one mixed-table call plan"),
         }
         assert!(
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            terminal_production::TerminalProductionRequest::new(
                 &checked,
-                lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                    "Main::run"
-                )
+                terminal_production::TerminalMachineSelection::Name("Main::run")
             )
             .produce(TerminalProductionCustody::artifact_only(
                 &mut TerminalProductionTimings::default()

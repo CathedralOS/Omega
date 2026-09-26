@@ -1,9 +1,7 @@
 //! Sum cases carrying structural payloads establish and return whole owned
 //! values through `EstablishStructuralCase`; the verifier must accept the
 //! emitted module and reject a tampered source.
-use lowered_psi_to_terminal_psi::terminal_production::{
-    TerminalProductionCustody, TerminalProductionTimings,
-};
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationKind, Terminator};
 
 const SOURCE: &str = r#"
@@ -24,9 +22,9 @@ const SOURCE: &str = r#"
 
 fn produce(machine: &str) -> terminal_codec::CanonicalTerminalArtifact {
     let checked = crate::front_end::checked_program(SOURCE);
-    lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+    terminal_production::TerminalProductionRequest::new(
         &checked,
-        lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(machine),
+        terminal_production::TerminalMachineSelection::Name(machine),
     )
     .produce(TerminalProductionCustody::artifact_only(
         &mut TerminalProductionTimings::default(),

@@ -2,19 +2,17 @@
 use super::LiveDefinitions;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use crate::target_operations::{
+use abstract_operations::{AbstractFunction, AbstractOperation};
+use semantic_vocabulary::{PlaceId, ScalarType, StructuralTypeId};
+use std::collections::{BTreeMap, BTreeSet};
+use target_operations::{
     TargetControlCasePayload, TargetControlCaseSuccessor, TargetControlTerminator,
     TargetScalarBlockValue, TargetStructuralCaseSource, TargetStructuralHomeLayout,
     TargetStructuralParameter,
 };
-use crate::target_operations::{TargetUnitOperation, TerminalPsiProvenance};
-use semantic_vocabulary::{PlaceId, ScalarType, StructuralTypeId};
-use std::collections::{BTreeMap, BTreeSet};
+use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
-use terminal_psi_to_abstract_operations::abstract_operations::{
-    AbstractFunction, AbstractOperation,
-};
 
 pub(super) fn observe(
     operation: &AbstractOperation,
@@ -123,7 +121,7 @@ fn case_source(
     if borrowed {
         // The parameter's shape is the pointer carrier, not the referent's;
         // the sum layout describes the referent the dispatch reads through it.
-        if parameter.shape.class != crate::calling_conventions::ValueClass::BorrowedReference {
+        if parameter.shape.class != calling_conventions::ValueClass::BorrowedReference {
             return Err(invalid());
         }
         return Ok(TargetStructuralCaseSource::BorrowedParameter {
@@ -304,7 +302,7 @@ mod tests {
             relevance: terminal_psi::BindingRelevance::Relevant,
             field_type,
         };
-        let catalog: terminal_psi_to_abstract_operations::abstract_operations::StructuralTypeCatalog = vec![
+        let catalog: abstract_operations::StructuralTypeCatalog = vec![
             StructuralTypeDeclaration {
                 id: sum,
                 identity: "Color".into(),

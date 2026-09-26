@@ -1,24 +1,22 @@
-use crate::checked_trees::ContractProofFact;
-use crate::fact_plan::FactPayload;
 use crate::labels::semantic_contract_fact_kind;
+use checked_trees::ContractProofFact;
+use facts::FactPayload;
 
 pub(super) fn semantic_contract_payload(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     contract: &ContractProofFact,
 ) -> FactPayload {
     let kind = semantic_contract_fact_kind(contract.kind);
     match program.proof_facts.get(contract.fact) {
-        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
-            expression,
-        ) => FactPayload::ContractBooleanExpression {
-            kind,
-            fact: contract.fact,
-            expression: *expression,
-            instantiated: arena::Handle::invalid(),
-        },
-        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(
-            membership,
-        ) => {
+        typed_trees::domain::ProofFact::Expression(expression) => {
+            FactPayload::ContractBooleanExpression {
+                kind,
+                fact: contract.fact,
+                expression: *expression,
+                instantiated: arena::Handle::invalid(),
+            }
+        }
+        typed_trees::domain::ProofFact::Membership(membership) => {
             let carry_permission = program
                 .domain_path_members(membership.domain)
                 .iter()
@@ -44,13 +42,13 @@ pub(super) fn semantic_contract_payload(
                 semantic_domain: membership.semantic_domain,
             }
         }
-        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(
-            application,
-        ) => FactPayload::ContractPropositionApplication {
-            kind,
-            fact: contract.fact,
-            proposition: application.proposition,
-            instantiated: arena::Handle::invalid(),
-        },
+        typed_trees::domain::ProofFact::Proposition(application) => {
+            FactPayload::ContractPropositionApplication {
+                kind,
+                fact: contract.fact,
+                proposition: application.proposition,
+                instantiated: arena::Handle::invalid(),
+            }
+        }
     }
 }

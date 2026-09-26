@@ -20,7 +20,7 @@ pub use facts::{
 pub(crate) use facts::{analyze_pre_allocation_machine_effects, machine_semantic_kind};
 
 use crate::ValidatedSelectedAnalysis;
-use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
+use register_environment::ValidatedTargetRegisterEnvironment;
 
 /// Construct and independently validate the target's machine-effect catalog
 /// against `constraints`.
@@ -30,11 +30,8 @@ use target_operations_to_selected_instructions::register_environment::ValidatedT
 /// declarations in it rather than re-deriving target-specific declarations.
 pub(crate) fn validated_machine_effect_catalog(
     target: target::NativeTarget,
-    constraints: &target_operations_to_selected_instructions::register_model::ValidatedRegisterConstraintCatalog,
-) -> Result<
-    target_operations_to_selected_instructions::ValidatedMachineEffectCatalog,
-    MachineEffectStageError,
-> {
+    constraints: &register_model::ValidatedRegisterConstraintCatalog,
+) -> Result<selected_instructions::ValidatedMachineEffectCatalog, MachineEffectStageError> {
     catalog::validated_catalog(target, constraints)
 }
 

@@ -21,14 +21,12 @@
 //! outside its window. A dynamic index or any projection the scan cannot
 //! separate stays opaque and reaches everything at or below it.
 
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, ExpressionNode,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
+use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::statement::{
     StatementNode, TableCall, TableTransition, TransitionGuardNode, TransitionTargetNode,
 };
-use symbols::SymbolHandle;
 
 /// Whether a mutable receiver's storage below `field_path` still holds the
 /// value the invocation bound it to. `self` is bound once and transitions
@@ -52,7 +50,7 @@ use symbols::SymbolHandle;
 /// still names no separable field and keeps no entry identity.
 pub(super) fn receiver_field_holds_entry_value(
     program: &TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    machine: &typed_trees::machine::Machine,
     state_symbol: SymbolHandle,
     before_statement: usize,
     field_path: &[PlaceSegment],
@@ -190,7 +188,7 @@ pub(super) fn receiver_field_holds_entry_value(
 /// the edge, so each ordinal needs its own pristine prefix.
 pub(super) fn self_target_ordinals(
     program: &TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    state: &typed_trees::state::State,
 ) -> Vec<usize> {
     program
         .statement_table
@@ -246,19 +244,17 @@ pub(crate) enum PlaceSegment {
 /// genuinely dynamic index stays opaque.
 pub(super) fn canonical_place_segment(
     program: &TypedTrees,
-    segment: &crate::fact_plan::PlaceSegment,
+    segment: &facts::PlaceSegment,
 ) -> PlaceSegment {
     match segment {
-        crate::fact_plan::PlaceSegment::Field { symbol } => PlaceSegment::Field(*symbol),
-        crate::fact_plan::PlaceSegment::Case { variant } => PlaceSegment::Case(*variant),
-        crate::fact_plan::PlaceSegment::FixedIndex { index } => PlaceSegment::FixedIndex(*index),
-        crate::fact_plan::PlaceSegment::FixedRange { start, end } => PlaceSegment::FixedRange {
+        facts::PlaceSegment::Field { symbol } => PlaceSegment::Field(*symbol),
+        facts::PlaceSegment::Case { variant } => PlaceSegment::Case(*variant),
+        facts::PlaceSegment::FixedIndex { index } => PlaceSegment::FixedIndex(*index),
+        facts::PlaceSegment::FixedRange { start, end } => PlaceSegment::FixedRange {
             start: *start,
             end: *end,
         },
-        crate::fact_plan::PlaceSegment::Index { expression } => {
-            fixed_index_segment(program, *expression)
-        }
+        facts::PlaceSegment::Index { expression } => fixed_index_segment(program, *expression),
     }
 }
 
@@ -408,7 +404,7 @@ fn rooted_place_path(
 /// cannot enumerate the write surface and stays conservative.
 fn receiver_member_symbols(
     program: &TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    machine: &typed_trees::machine::Machine,
 ) -> Option<Vec<SymbolHandle>> {
     let mut owners = program
         .data_definitions()
@@ -423,12 +419,8 @@ fn receiver_member_symbols(
             .data_members(data)
             .iter()
             .flat_map(|member| match member {
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
-                    field,
-                ) => vec![field.symbol],
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
-                    variant,
-                ) => std::iter::once(variant.symbol)
+                typed_trees::data::DataMember::Field(field) => vec![field.symbol],
+                typed_trees::data::DataMember::Variant(variant) => std::iter::once(variant.symbol)
                     .chain(
                         program
                             .data_payload_fields(variant)
@@ -465,7 +457,7 @@ pub(crate) fn statement_may_overwrite_place(
     statement: &StatementNode,
     place: &crate::flow::CanonicalPlace,
 ) -> bool {
-    let crate::fact_plan::PlaceRoot::Symbol(symbol) = place.root else {
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
         return true;
     };
     let read_path: Vec<PlaceSegment> = place
@@ -483,7 +475,7 @@ pub(crate) fn statement_may_overwrite_place(
 pub(super) fn storage_holds_bound_value(
     program: &TypedTrees,
     machine_symbol: SymbolHandle,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    state: &typed_trees::state::State,
     start: usize,
     end: usize,
     symbol: SymbolHandle,
@@ -707,7 +699,7 @@ fn expression_may_overwrite(
             ExpressionNode::Match(dispatch) => {
                 pending.push(dispatch.subject);
                 for arm in program.expression_table.match_arms(dispatch.arms) {
-                    if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                         pending.push(pattern);
                     }
                     pending.push(arm.value);

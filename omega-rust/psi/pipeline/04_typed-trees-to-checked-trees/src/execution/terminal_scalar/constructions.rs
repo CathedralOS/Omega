@@ -1,10 +1,10 @@
 //! Structural values retain a type namespace without inventing source parameters.
 
-use crate::checked_trees::{
+use checked_trees::{
     CheckedScalarComputationKind, CheckedScalarComputationPlans, CheckedUnitStructuralTypePlan,
 };
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
 
 /// Fresh records and whole-place copies or moves share ordered value
 /// establishment. Structural calls, references and selected
@@ -12,12 +12,12 @@ use symbols::SymbolHandle;
 /// emission. Scalar operands are ordinary computations.
 pub(super) fn record_value_root<'plans>(
     program: &TypedTrees,
-    plans: &'plans crate::checked_trees::CheckedStructuralValuePlans,
+    plans: &'plans checked_trees::CheckedStructuralValuePlans,
     machine: SymbolHandle,
     state: SymbolHandle,
     ordinal: u32,
-    local: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableLocalData,
-) -> Option<&'plans crate::checked_trees::CheckedStructuralValueRoot> {
+    local: &typed_trees::statement::TableLocalData,
+) -> Option<&'plans checked_trees::CheckedStructuralValueRoot> {
     let root = plans.root_at(state, ordinal)?;
     if root.machine != machine
         || root.expression != local.initial_value
@@ -40,27 +40,26 @@ pub(super) fn record_value_root<'plans>(
             return None;
         }
         match &node.kind {
-            crate::checked_trees::CheckedStructuralValueKind::Record { fields, .. }
-            | crate::checked_trees::CheckedStructuralValueKind::StructuralCase { fields, .. } => {
+            checked_trees::CheckedStructuralValueKind::Record { fields, .. }
+            | checked_trees::CheckedStructuralValueKind::StructuralCase { fields, .. } => {
                 for field in plans.record_fields.span(*fields)? {
-                    if let crate::checked_trees::CheckedStructuralRecordFieldValue::Structural(
-                        child,
-                    ) = field.value
+                    if let checked_trees::CheckedStructuralRecordFieldValue::Structural(child) =
+                        field.value
                     {
                         pending.push((child, field.type_reference));
                     }
                 }
             }
-            crate::checked_trees::CheckedStructuralValueKind::FixedArray { elements } => {
-                let symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } =
+            checked_trees::CheckedStructuralValueKind::FixedArray { elements } => {
+                let typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } =
                     program.type_reference_table.type_reference(reference)
                 else {
                     return None;
                 };
                 pending.extend(elements.iter().map(|element| (*element, *element_type)));
             }
-            crate::checked_trees::CheckedStructuralValueKind::Place(argument)
-                if argument.access == crate::checked_trees::CheckedStructuralAccess::Owned
+            checked_trees::CheckedStructuralValueKind::Place(argument)
+                if argument.access == checked_trees::CheckedStructuralAccess::Owned
                     && argument.path.is_empty()
                     && matches!(
                         program.type_multiplicity(reference),
@@ -77,12 +76,12 @@ pub(super) fn record_value_root<'plans>(
 
 pub(super) fn retain_record_locals(
     program: &TypedTrees,
-    plans: &crate::checked_trees::CheckedStructuralValuePlans,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    plans: &checked_trees::CheckedStructuralValuePlans,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     shapes: &mut Vec<CheckedUnitStructuralTypePlan>,
 ) -> Option<()> {
-    use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
+    use typed_trees::statement::StatementNode;
     for (ordinal, statement) in program
         .statement_table
         .statements(state.statement_nodes)
@@ -171,13 +170,12 @@ pub(super) fn retain_shapes(
         match &plans.nodes.get(handle).kind {
             CheckedScalarComputationKind::CaseMembership {
                 subject:
-                    crate::checked_trees::CheckedScalarComputationStructuralArgument::Place(_)
-                    | crate::checked_trees::CheckedScalarComputationStructuralArgument::Array { .. },
+                    checked_trees::CheckedScalarComputationStructuralArgument::Place(_)
+                    | checked_trees::CheckedScalarComputationStructuralArgument::Array { .. },
                 ..
             } => {}
             CheckedScalarComputationKind::CaseMembership {
-                subject:
-                    crate::checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
+                subject: checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
                 ..
             } => {
                 for shape in super::super::terminal_unit::scalar_case_value_shapes(
@@ -215,9 +213,7 @@ pub(super) fn retain_shapes(
             CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
                 pending.push(*subject);
                 for arm in plans.dispatch_arms.span(*arms)? {
-                    if let crate::checked_trees::CheckedScalarDispatchPattern::Value(value) =
-                        arm.pattern
-                    {
+                    if let checked_trees::CheckedScalarDispatchPattern::Value(value) = arm.pattern {
                         pending.push(value);
                     }
                     pending.push(arm.value);
@@ -230,7 +226,7 @@ pub(super) fn retain_shapes(
             } => {
                 pending.extend(plans.operands.span(*arguments)?);
                 for argument in plans.structural_arguments.span(*structural_arguments)? {
-                    if let crate::checked_trees::CheckedScalarComputationStructuralArgument::Case(
+                    if let checked_trees::CheckedScalarComputationStructuralArgument::Case(
                         subject,
                     ) = argument
                     {
@@ -257,7 +253,7 @@ pub(super) fn retain_shapes(
                                 .map(|field| field.value),
                         );
                     }
-                    if let crate::checked_trees::CheckedScalarComputationStructuralArgument::Array {
+                    if let checked_trees::CheckedScalarComputationStructuralArgument::Array {
                         elements,
                         ..
                     } = argument

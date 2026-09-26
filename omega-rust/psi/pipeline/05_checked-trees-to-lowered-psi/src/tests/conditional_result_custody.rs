@@ -1,4 +1,4 @@
-use super::lower_machine;
+use super::{LoweringError, lower_machine};
 use crate::TerminalMachineSelection;
 
 const SOURCE: &str = r#"
@@ -38,7 +38,7 @@ fn conditional_result_custody_requires_terminal_correspondence_only_when_demande
     assert_eq!(
         lower_machine(&checked, TerminalMachineSelection::Name("consume"))
             .expect_err("Terminal must retain both return origins"),
-        crate::LoweringError::Unsupported(
+        LoweringError::Unsupported(
             "conditional result custody requires Terminal exit-alternative correspondence"
         ),
     );
@@ -53,7 +53,7 @@ fn removing_the_join_receipt_does_not_make_joined_provenance_executable() {
     assert_eq!(
         lower_machine(&checked, TerminalMachineSelection::Name("consume"))
             .expect_err("missing correspondence is not a root"),
-        crate::LoweringError::Unsupported(
+        LoweringError::Unsupported(
             "conditional result custody requires Terminal exit-alternative correspondence"
         ),
     );

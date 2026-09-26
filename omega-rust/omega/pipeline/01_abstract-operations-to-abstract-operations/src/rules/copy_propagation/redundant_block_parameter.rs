@@ -7,7 +7,7 @@ use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
-use terminal_psi_to_abstract_operations::optimization_unit::{
+use optimization_unit::{
     BlockParameterIncomingBinding, NodeLocation, ProvenanceDisposition, ProvenanceRewrite,
     PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate, RedundantBlockParameterRewrite,
     RedundantBlockParameterWitness,

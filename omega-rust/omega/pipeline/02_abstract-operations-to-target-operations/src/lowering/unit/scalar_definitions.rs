@@ -2,14 +2,12 @@
 
 use super::scalar_call::{KnownUnitInteger, insert_known_unit_integer};
 use crate::LoweringError;
-use crate::target_operations::{
-    ScalarAbiValue, TargetIntegerExpression, TargetScalarExpression, TargetUnitOperation,
-    TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
-};
+use abstract_operations::{AbstractOperation, AbstractParameter};
 use semantic_vocabulary::{IntegerType, IntegerValue, MachineId, OperationId, ScalarType, ValueId};
 use std::collections::BTreeMap;
-use terminal_psi_to_abstract_operations::abstract_operations::{
-    AbstractOperation, AbstractParameter,
+use target_operations::{
+    ScalarAbiValue, TargetIntegerExpression, TargetScalarExpression, TargetUnitOperation,
+    TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
 };
 
 pub(in crate::lowering) fn lower_integer_widen(
@@ -52,13 +50,11 @@ pub(in crate::lowering) fn lower_integer_widen(
             if value != *operand || scalar_type != *source_type {
                 return Err(invalid());
             }
-            TargetIntegerExpression::BlockParameter(
-                crate::target_operations::TargetScalarBlockValue {
-                    block,
-                    value,
-                    scalar_type: ScalarType::Integer(scalar_type),
-                },
-            )
+            TargetIntegerExpression::BlockParameter(target_operations::TargetScalarBlockValue {
+                block,
+                value,
+                scalar_type: ScalarType::Integer(scalar_type),
+            })
         }
         KnownUnitInteger::Parameter {
             parameter_index,

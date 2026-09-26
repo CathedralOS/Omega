@@ -1,5 +1,7 @@
 //! Proof-bearing scalar cleanup projection and optimizer-context custody.
 
+use abstract_operations::AbstractOperation;
+use optimization_unit::{OwnershipFrontierOwnedPlace, OwnershipFrontierSite, ProofQuestionOwner};
 use proof_admission::{
     AdmissionProfile, CertificateEnvelope, EvidenceError, EvidenceRoute, ProofError, ProofNode,
     ProofRule, ProofSystemMarker,
@@ -14,10 +16,6 @@ use terminal_psi::{
     StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralTypeDeclaration,
     StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult,
     TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
-};
-use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
-use terminal_psi_to_abstract_operations::optimization_unit::{
-    OwnershipFrontierOwnedPlace, OwnershipFrontierSite, ProofQuestionOwner,
 };
 use terminal_psi_to_abstract_operations::{
     ArtifactLoweringError, build_verified_psi_optimization_unit, lower_artifact,

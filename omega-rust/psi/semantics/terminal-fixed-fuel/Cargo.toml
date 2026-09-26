@@ -1,0 +1,19 @@
+[package]
+name = "terminal-fixed-fuel"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "terminal_fixed_fuel"
+path = "src/lib.rs"
+
+[dependencies]
+semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
+terminal-psi = { path = "../../representations/terminal-psi" }
+terminal-codec = { path = "../terminal-codec" }
+terminal-fuel = { path = "../terminal-fuel" }
+terminal-verifier = { path = "../terminal-verifier" }
+
+[dev-dependencies]
+proof-admission = { path = "../proof-admission" }

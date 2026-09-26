@@ -3,16 +3,12 @@
 use super::{ExpressionHandle, ExpressionNode, TypedTrees};
 pub(super) fn formation_place(
     program: &TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     statement_index: usize,
     expression: ExpressionHandle,
-) -> Option<(
-    crate::flow::CanonicalPlace,
-    crate::checked_trees::CapturedPlace,
-)> {
-    if !crate::validation::place_has_builtin_coordinates(program, machine, Some(state), expression)
-    {
+) -> Option<(crate::flow::CanonicalPlace, checked_trees::CapturedPlace)> {
+    if !validation::place_has_builtin_coordinates(program, machine, Some(state), expression) {
         return None;
     }
     // Validate the authored coordinate spine; the ordinary place owner below
@@ -47,7 +43,7 @@ pub(super) fn formation_place(
                 break;
             }
             ExpressionNode::Member(member) => {
-                if crate::validation::exact_self_field(program, machine, current).is_some() {
+                if validation::exact_self_field(program, machine, current).is_some() {
                     current = member.receiver;
                     continue;
                 }
@@ -57,8 +53,7 @@ pub(super) fn formation_place(
                     statement_index,
                     member.receiver,
                 )?;
-                let receiver_type =
-                    crate::validation::unwrapped_type_reference(program, receiver_type)?;
+                let receiver_type = validation::unwrapped_type_reference(program, receiver_type)?;
                 let resolved = crate::flow::resolve_member_symbol_from_type_symbol(
                     program,
                     program.type_reference_table.type_symbol(receiver_type),
@@ -73,7 +68,7 @@ pub(super) fn formation_place(
                 if !program.expression_table.expression_is_valid(indexed.index)
                     || !matches!(
                         crate::flow::index_place_segment(program, indexed.index),
-                        crate::fact_plan::PlaceSegment::FixedIndex { .. }
+                        facts::PlaceSegment::FixedIndex { .. }
                     )
                 {
                     return None;
@@ -103,8 +98,8 @@ pub(super) fn formation_place(
         .chain(&capture.segments)
         .all(|segment| {
             matches!(segment,
-        crate::fact_plan::PlaceSegment::Field { symbol } if symbol.is_valid())
-                || matches!(segment, crate::fact_plan::PlaceSegment::FixedIndex { .. })
+        facts::PlaceSegment::Field { symbol } if symbol.is_valid())
+                || matches!(segment, facts::PlaceSegment::FixedIndex { .. })
         })
     {
         return None;

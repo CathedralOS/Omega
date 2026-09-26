@@ -3,7 +3,6 @@
 //! nominal drop respects them.
 
 use super::borrowed_windows;
-use crate::checked_trees::CheckFacts;
 use crate::checks::multiplicity::linear_validation::{
     event_statement_index, validate_linear_permission_events_with_incoming_guards,
 };
@@ -11,15 +10,14 @@ use crate::checks::multiplicity::permission_events::record_permission_events_wit
 use crate::checks::multiplicity::projected_affine;
 use crate::checks::multiplicity::temporary_results;
 use crate::checks::multiplicity::type_multiplicity::find_data_definition;
+use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 use language_semantics::{
     Multiplicity, PermissionClaimIdentity, PermissionEventSource, PermissionProvenance,
 };
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
-    TypeReferenceHandle, TypeReferenceNode,
-};
 use symbols::SymbolHandle;
+use typed_trees::statement::StatementNode;
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Debug, Clone)]
 pub(crate) struct LinearPlace {
@@ -28,7 +26,7 @@ pub(crate) struct LinearPlace {
     /// Canonical claim path below `symbol`. An empty path is one nominal claim;
     /// transparent records, active cases, and fixed arrays contribute one
     /// entry per contained linear claim instead of inventing an aggregate root.
-    pub(crate) path: Vec<crate::fact_plan::PlaceSegment>,
+    pub(crate) path: Vec<facts::PlaceSegment>,
     pub(crate) multiplicity: Multiplicity,
     pub(crate) claim_identity: Option<PermissionClaimIdentity>,
     pub(crate) provenance: Option<PermissionProvenance>,
@@ -47,8 +45,8 @@ pub(crate) struct LinearPlace {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct WrittenLinearTarget {
-    pub(crate) root: crate::fact_plan::PlaceRoot,
-    pub(crate) destination_path: Vec<crate::fact_plan::PlaceSegment>,
+    pub(crate) root: facts::PlaceRoot,
+    pub(crate) destination_path: Vec<facts::PlaceSegment>,
     pub(crate) place_index: usize,
     pub(crate) obligation_live: bool,
     pub(crate) claim_identity: Option<PermissionClaimIdentity>,
@@ -57,7 +55,7 @@ pub(crate) struct WrittenLinearTarget {
 
 #[derive(Debug, Clone)]
 pub(crate) struct LinearClaimTemplate {
-    pub(crate) path: Vec<crate::fact_plan::PlaceSegment>,
+    pub(crate) path: Vec<facts::PlaceSegment>,
     pub(crate) type_reference: TypeReferenceHandle,
     pub(super) multiplicity: Multiplicity,
     pub(super) conditional: bool,
@@ -72,7 +70,7 @@ pub(crate) struct CheckedClaimOutcomeMap {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CheckedClaimOutcomeEntry {
-    pub(crate) output_path: Vec<crate::fact_plan::PlaceSegment>,
+    pub(crate) output_path: Vec<facts::PlaceSegment>,
     pub(crate) source: CheckedClaimOutcomeSource,
 }
 
@@ -80,7 +78,7 @@ pub(crate) struct CheckedClaimOutcomeEntry {
 pub(crate) enum CheckedClaimOutcomeSource {
     Input {
         parameter_symbol: SymbolHandle,
-        path: Vec<crate::fact_plan::PlaceSegment>,
+        path: Vec<facts::PlaceSegment>,
     },
     Established {
         claim_identity: PermissionClaimIdentity,
@@ -115,7 +113,7 @@ impl ClaimIdentityAllocator {
 }
 
 pub(crate) fn check_linear_obligations(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &mut CheckFacts,
     incoming_guards: &crate::checks::ranges::incoming_guards::IncomingGuardIndex,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -130,7 +128,7 @@ pub(crate) fn check_linear_obligations(
 /// remains legal. Temporary partial moves must also retain every linear claim
 /// because there is no remaining local owner for an unselected sibling.
 fn validate_partial_moves(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
@@ -458,7 +456,7 @@ fn validate_partial_moves(
                     StatementNode::Transition(transition)
                         if matches!(
                             transition.exit,
-                            symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionExit::Crash(_)
+                            typed_trees::statement::TransitionExit::Crash(_)
                         )
                 );
                 if is_transition && !is_crash {
@@ -483,10 +481,10 @@ fn validate_partial_moves(
 /// storage that crosses an entitled prefix stays rejected even when a later
 /// repair would reseat the hole.
 fn borrowed_move_crosses_nominal_drop(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
     event: &crate::flow::DiscoveredMoveEvent,
-    path: &[crate::fact_plan::PlaceSegment],
+    path: &[facts::PlaceSegment],
 ) -> bool {
     (0..path.len()).any(|prefix_len| {
         let prefix = crate::flow::CanonicalPlace {
@@ -504,11 +502,11 @@ fn borrowed_move_crosses_nominal_drop(
 }
 
 fn event_is_owned_self_projection(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
     event: &crate::flow::DiscoveredMoveEvent,
 ) -> bool {
-    let crate::fact_plan::PlaceRoot::Symbol(event_root) = event.root else {
+    let facts::PlaceRoot::Symbol(event_root) = event.root else {
         return false;
     };
     if crate::semantic::calls::find_state_in_machine(program, event_root, state.symbol).is_none() {
@@ -520,7 +518,7 @@ fn event_is_owned_self_projection(
 }
 
 pub(crate) fn type_reference_is_reference(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
@@ -533,13 +531,13 @@ pub(crate) fn type_reference_is_reference(
 }
 
 fn nominal_drop_place_name<'program>(
-    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &'program typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: &crate::flow::CanonicalPlace,
 ) -> Option<&'program str> {
     if place.segments.is_empty()
-        && let crate::fact_plan::PlaceRoot::Symbol(root) = place.root
+        && let facts::PlaceRoot::Symbol(root) = place.root
         && let Some(attached) =
             crate::semantic::calls::find_state_with_machine(program, state_symbol).and_then(
                 |(machine, _)| {
@@ -557,7 +555,7 @@ fn nominal_drop_place_name<'program>(
 }
 
 fn data_name_with_nominal_drop<'program>(
-    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &'program typed_trees::TypedTrees,
     name: &str,
 ) -> Option<&'program str> {
     let definition = program
@@ -574,7 +572,7 @@ fn data_name_with_nominal_drop<'program>(
 /// must agree first, preventing an unrelated same-named machine from becoming
 /// automatic cleanup authority.
 pub(crate) fn nominal_drop_machine_symbol(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     data_symbol: SymbolHandle,
 ) -> Option<SymbolHandle> {
     let mut matches = program.machines().iter().filter(|machine| {
@@ -586,10 +584,10 @@ pub(crate) fn nominal_drop_machine_symbol(
 }
 
 fn move_event_is_production_target(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
     event: &crate::flow::DiscoveredMoveEvent,
-    path: &[crate::fact_plan::PlaceSegment],
+    path: &[facts::PlaceSegment],
 ) -> bool {
     // A source operand may be the same place the enclosing assignment repairs.
     // Equal paths do not turn that extraction into production of the result.
@@ -613,7 +611,7 @@ fn move_event_is_production_target(
     };
     let target = match statement {
         StatementNode::LocalData(local) => crate::flow::CanonicalPlace {
-            root: crate::fact_plan::PlaceRoot::Symbol(local.symbol),
+            root: facts::PlaceRoot::Symbol(local.symbol),
             segments: Vec::new(),
         },
         StatementNode::Assignment(assignment) => {
@@ -634,7 +632,7 @@ fn move_event_is_production_target(
 }
 
 fn nominal_drop_type_name(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<&str> {
     let (symbol, name) = match program.type_reference_table.type_reference(type_reference) {

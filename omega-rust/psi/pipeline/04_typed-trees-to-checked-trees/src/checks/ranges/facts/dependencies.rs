@@ -10,13 +10,9 @@ use reads::collect_reads;
 
 use super::RangeFacts;
 use crate::flow::CanonicalPlace;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, ExpressionNode,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::{
-    TypedTrees, machine::Machine, state::State,
-};
 use symbols::SymbolHandle;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::{TypedTrees, machine::Machine, state::State};
 
 /// Bound shared by every walk below: `record_dependencies` and
 /// `collect_reads` recurse over expression trees, while the captures.rs
@@ -153,17 +149,18 @@ impl<'field> RangeFacts<'field> {
                 (row.machine == machine.symbol
                     && row.state == state.symbol
                     && crate::flow::normalized_event_place_root(program, place.root)
-                        == crate::fact_plan::PlaceRoot::Symbol(machine.symbol)
+                        == facts::PlaceRoot::Symbol(machine.symbol)
                     && !place.segments.is_empty()
-                    && place.segments.iter().all(|segment| {
-                        matches!(segment, crate::fact_plan::PlaceSegment::Field { .. })
-                    }))
+                    && place
+                        .segments
+                        .iter()
+                        .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. })))
                 .then(|| {
                     Some(ReceiverLength {
                         expression: row.expression,
                         label: row.label.clone(),
                         place: CanonicalPlace {
-                            root: crate::fact_plan::PlaceRoot::Symbol(machine.symbol),
+                            root: facts::PlaceRoot::Symbol(machine.symbol),
                             segments: place.segments.clone(),
                         },
                         length: self.exact_length(&row.label)?,
@@ -229,7 +226,7 @@ impl<'field> RangeFacts<'field> {
             return;
         }
         let mut reads = Vec::new();
-        let complete = crate::validation::has_builtin_bound_expression_meaning(
+        let complete = validation::has_builtin_bound_expression_meaning(
             program,
             machine,
             Some(state),
@@ -287,7 +284,7 @@ impl<'field> RangeFacts<'field> {
                 state.symbol,
                 write,
             );
-            if !matches!(write.root, crate::fact_plan::PlaceRoot::Symbol(symbol) if symbol.is_valid() && program.symbols.get(symbol).kind != symbols::SymbolKind::Field)
+            if !matches!(write.root, facts::PlaceRoot::Symbol(symbol) if symbol.is_valid() && program.symbols.get(symbol).kind != symbols::SymbolKind::Field)
             {
                 return Vec::new();
             }
@@ -383,8 +380,8 @@ fn same_reads(
                 .zip(&right.segments)
                 .all(|(left, right)| match (*left, *right) {
                     (
-                        crate::fact_plan::PlaceSegment::Index { expression: left },
-                        crate::fact_plan::PlaceSegment::Index { expression: right },
+                        facts::PlaceSegment::Index { expression: left },
+                        facts::PlaceSegment::Index { expression: right },
                     ) => program
                         .expression_table
                         .expressions_structurally_equal(left, right),

@@ -1,15 +1,15 @@
 //! Exact authored mixed arguments on scalar state edges.
 
-use crate::checked_trees::{
+use arena::Arena;
+use checked_trees::{
     CheckedProofTerm, CheckedScalarBranchDestination, CheckedScalarExpressionPlans,
     CheckedScalarMachineGraph, CheckedScalarStateGraph, CheckedScalarStateTerminator,
     CheckedScalarSuccessor, CheckedStructuralAccess, CheckedStructuralControlTransferPlan,
     CheckedStructuralControlTransferSourcePlan, CheckedStructuralScalarArgumentPlan,
     CheckedStructuralScalarArgumentSourcePlan,
 };
-use arena::Arena;
 use language_semantics::{Multiplicity, PermissionEventSource};
-use symbol_resolved_trees_to_typed_trees::typed_trees::{
+use typed_trees::{
     TypedTrees,
     expression::ExpressionNode,
     state::State,
@@ -73,7 +73,7 @@ fn iter_mut(
 pub(super) fn resolve_arguments(
     program: &TypedTrees,
     expressions: &CheckedScalarExpressionPlans,
-    proof_terms: &crate::checked_trees::CheckedProofTerms,
+    proof_terms: &checked_trees::CheckedProofTerms,
     graph: &CheckedScalarMachineGraph,
 ) -> Option<Vec<SuccessorArguments>> {
     graph
@@ -115,7 +115,7 @@ pub(super) fn validate(
     structural: &Arena<CheckedStructuralControlTransferPlan>,
     scalar: &Arena<CheckedStructuralScalarArgumentPlan>,
     proof: &Arena<CheckedProofTerm>,
-    proof_terms: &crate::checked_trees::CheckedProofTerms,
+    proof_terms: &checked_trees::CheckedProofTerms,
 ) -> Option<()> {
     for source in &graph.states {
         for successor in iter(&source.terminator) {
@@ -135,7 +135,7 @@ pub(super) fn validate(
 fn arguments<'a>(
     program: &TypedTrees,
     expressions: &CheckedScalarExpressionPlans,
-    proof_terms: &crate::checked_trees::CheckedProofTerms,
+    proof_terms: &checked_trees::CheckedProofTerms,
     graph: &'a CheckedScalarMachineGraph,
     source: &'a CheckedScalarStateGraph,
     successor: &'a CheckedScalarSuccessor,
@@ -267,7 +267,7 @@ fn arguments<'a>(
     {
         return None;
     }
-    let proof_only = crate::validation::proof_only_classification(program);
+    let proof_only = validation::proof_only_classification(program);
     let mut rows = SuccessorArguments {
         structural: Vec::new(),
         scalar: Vec::new(),
@@ -292,13 +292,11 @@ fn arguments<'a>(
                     return None;
                 }
                 let role = if successor.is_continuation {
-                    crate::checked_trees::CheckedProofTermRole::TransitionContinuationArgument {
+                    checked_trees::CheckedProofTermRole::TransitionContinuationArgument {
                         argument_ordinal,
                     }
                 } else {
-                    crate::checked_trees::CheckedProofTermRole::TransitionArgument {
-                        argument_ordinal,
-                    }
+                    checked_trees::CheckedProofTermRole::TransitionArgument { argument_ordinal }
                 };
                 rows.proof.push(
                     proof_terms
@@ -361,7 +359,7 @@ fn arguments<'a>(
                 formal.type_reference,
                 *actual,
                 successor.statement_ordinal as usize,
-                crate::checked_trees::CheckedSubsliceSite::TransitionArgument {
+                checked_trees::CheckedSubsliceSite::TransitionArgument {
                     argument_ordinal: target_parameter.position,
                 },
             )?;
@@ -436,7 +434,7 @@ pub(super) fn owned_transfers(
     state: &State,
     source: &CheckedScalarStateGraph,
     structural: &Arena<CheckedStructuralControlTransferPlan>,
-) -> Option<Vec<(PermissionEventSource, crate::fact_plan::PlaceRoot)>> {
+) -> Option<Vec<(PermissionEventSource, facts::PlaceRoot)>> {
     let mut transfers = Vec::new();
     for successor in iter(&source.terminator) {
         let permission_source =
@@ -459,7 +457,7 @@ pub(super) fn owned_transfers(
                 .get(parameter.position as usize)?;
             transfers.push((
                 permission_source,
-                crate::fact_plan::PlaceRoot::Symbol(parameter.symbol),
+                facts::PlaceRoot::Symbol(parameter.symbol),
             ));
         }
     }

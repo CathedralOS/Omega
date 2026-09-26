@@ -2,8 +2,9 @@
 
 use std::collections::{HashMap, HashSet};
 
-use crate::checked_trees::CheckFacts;
-use symbol_resolved_trees_to_typed_trees::typed_trees::{
+use checked_trees::CheckFacts;
+use symbols::SymbolHandle;
+use typed_trees::{
     TypedTrees,
     domain::ProofFact,
     expression::{
@@ -17,7 +18,6 @@ use symbol_resolved_trees_to_typed_trees::typed_trees::{
     trait_definition::ConformanceImplementation,
     types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode},
 };
-use symbols::SymbolHandle;
 
 /// Exact declaration indices used to resolve machine references and to key
 /// machine-owner lookups without scanning the declaration table.
@@ -213,7 +213,7 @@ fn retain_static_machine_argument(
 fn retain_machine_argument(
     index: &MachineIndex,
     retained: &mut impl Extend<SymbolHandle>,
-    application: &symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::ClosedConformanceApplication,
+    application: &typed_trees::typed_trees::ClosedConformanceApplication,
 ) {
     for machine in application.machine_arguments.iter() {
         retain_symbol(retained, index, *machine);
@@ -250,14 +250,10 @@ fn retain_declaration_surface_machines(
         }
         for member in program.data_members(data) {
             match member {
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
-                    field,
-                ) => {
+                typed_trees::data::DataMember::Field(field) => {
                     retain_type_machines(program, index, retained, field.type_reference);
                 }
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
-                    variant,
-                ) => {
+                typed_trees::data::DataMember::Variant(variant) => {
                     for field in program.data_payload_fields(variant) {
                         retain_type_machines(program, index, retained, field.type_reference);
                     }
@@ -300,7 +296,7 @@ fn retain_declaration_surface_machines(
         retain_symbol(retained, index, proposition.symbol);
         for binder in program.proposition_binders(proposition) {
             retain_symbol(retained, index, binder.symbol);
-            if let symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionBinderKind::Const { type_reference } =
+            if let typed_trees::proposition::PropositionBinderKind::Const { type_reference } =
                 binder.kind
             {
                 retain_type_machines(program, index, retained, type_reference);
@@ -310,13 +306,13 @@ fn retain_declaration_surface_machines(
             retain_type_machines(program, index, retained, parameter.type_reference);
         }
         match &proposition.body {
-            symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionBody::Witness { evidence } => {
+            typed_trees::proposition::PropositionBody::Witness { evidence } => {
                 retain_type_machines(program, index, retained, *evidence);
             }
-            symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionBody::Transparent { proposition } => {
+            typed_trees::proposition::PropositionBody::Transparent { proposition } => {
                 retain_proposition_formula_machines(program, index, retained, proposition);
             }
-            symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionBody::Primitive => {}
+            typed_trees::proposition::PropositionBody::Primitive => {}
         }
     }
 
@@ -376,10 +372,7 @@ fn retain_declaration_surface_machines(
     for schema in program.wire_schemas() {
         retain_symbol(retained, index, schema.symbol);
         for member in program.tables.wire_members.span_or_empty(schema.members) {
-            if let symbol_resolved_trees_to_typed_trees::typed_trees::wire::WireMember::Field(
-                field,
-            ) = member
-            {
+            if let typed_trees::wire::WireMember::Field(field) = member {
                 retain_type_machines(program, index, retained, field.type_reference);
             }
         }
@@ -474,7 +467,7 @@ fn retain_signature_machines(
     program: &TypedTrees,
     index: &MachineIndex,
     retained: &mut impl Extend<SymbolHandle>,
-    signature: &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateSignature,
+    signature: &typed_trees::signature::StateSignature,
 ) {
     for parameter in program
         .tables
@@ -536,20 +529,20 @@ fn retain_type_machines(
             retain_type_machines(program, index, retained, *base_type);
             for constraint in program.type_reference_table.constraints(*constraints) {
                 match constraint {
-                    symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode::Range {
+                    typed_trees::types::TypeConstraintNode::Range {
                         minimum, maximum, ..
                     } => {
                         retain_expression_machines(program, index, retained, *minimum);
                         retain_expression_machines(program, index, retained, *maximum);
                     }
-                    symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode::Domain(domain) => {
+                    typed_trees::types::TypeConstraintNode::Domain(domain) => {
                         retain_symbol(retained, index, domain.symbol);
                         for argument in &domain.arguments {
                             retain_type_machines(program, index, retained, *argument);
                         }
                     }
-                    symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode::Named(_)
-                    | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeConstraintNode::ArithmeticDomain(_) => {}
+                    typed_trees::types::TypeConstraintNode::Named(_)
+                    | typed_trees::types::TypeConstraintNode::ArithmeticDomain(_) => {}
                 }
             }
         }
@@ -693,10 +686,7 @@ fn retain_match_arm_machines(
     retained: &mut impl Extend<SymbolHandle>,
     arm: &TableMatchArm,
 ) {
-    if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(
-        pattern,
-    ) = &arm.pattern
-    {
+    if let typed_trees::expression::MatchPattern::Value(pattern) = &arm.pattern {
         retain_expression_machines(program, index, retained, *pattern);
     }
     retain_expression_machines(program, index, retained, arm.value);
@@ -888,10 +878,8 @@ pub(super) fn collect_machine_edges(
     // Contract evidence calls owned by a machine are call edges into the
     // exact evidence target.
     for call in &facts.proof.contract_expression_evidence_calls {
-        if let crate::checked_trees::ContractProofFactOwner::Machine { machine_symbol }
-        | crate::checked_trees::ContractProofFactOwner::MachineState {
-            machine_symbol, ..
-        } = call.owner
+        if let checked_trees::ContractProofFactOwner::Machine { machine_symbol }
+        | checked_trees::ContractProofFactOwner::MachineState { machine_symbol, .. } = call.owner
         {
             push_edge(
                 &mut edges,
@@ -904,10 +892,9 @@ pub(super) fn collect_machine_edges(
         .proof
         .contract_expression_static_conformance_applications
     {
-        if let crate::checked_trees::ContractProofFactOwner::Machine { machine_symbol }
-        | crate::checked_trees::ContractProofFactOwner::MachineState {
-            machine_symbol, ..
-        } = application.owner
+        if let checked_trees::ContractProofFactOwner::Machine { machine_symbol }
+        | checked_trees::ContractProofFactOwner::MachineState { machine_symbol, .. } =
+            application.owner
         {
             for argument in application.application.machine_arguments.iter() {
                 push_edge(&mut edges, machine_symbol, index.machine_of(*argument));
@@ -1186,7 +1173,7 @@ mod tests {
     use crate::product_pruning::dependencies::retain_expression_machines;
     use crate::product_pruning::dependencies::retain_proof_fact_machines;
     use crate::product_pruning::dependencies::retain_type_machines;
-    use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
+    use typed_trees::machine::Machine;
 
     #[test]
     fn nested_expression_type_and_proof_dependencies_share_collection() {

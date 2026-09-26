@@ -1,11 +1,7 @@
-use crate::calling_conventions::{
-    CallPlan, CallSignature, CallingPolicy, ValueShape, evaluate_call_plan,
-};
-use crate::target_operations::{TargetOperationPlanWithPlacedViewInputs, TargetPlacedViewInput};
+use abstract_operations::{AbstractFunctionResult, AbstractOperationPlanWithPlacedViewInputs};
+use calling_conventions::{CallPlan, CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
 use target::NativeTarget;
-use terminal_psi_to_abstract_operations::abstract_operations::{
-    AbstractFunctionResult, AbstractOperationPlanWithPlacedViewInputs,
-};
+use target_operations::{TargetOperationPlanWithPlacedViewInputs, TargetPlacedViewInput};
 
 use crate::{
     LoweringError, PlacedViewInputTranslationError, SelectedPlacedViewInputPlan,

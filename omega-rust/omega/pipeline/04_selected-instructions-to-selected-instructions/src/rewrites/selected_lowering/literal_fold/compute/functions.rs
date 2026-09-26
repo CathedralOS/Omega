@@ -1,8 +1,6 @@
 //! Ordered per-function proposal derivation.
 
-use target_operations_to_selected_instructions::{
-    SelectedFunction, SelectedInstructionPlan, SelectedTerminator,
-};
+use selected_instructions::{SelectedFunction, SelectedInstructionPlan, SelectedTerminator};
 
 use crate::{
     FunctionLiteralFold, LiteralFoldError, ValidatedRecoveryClassifications,

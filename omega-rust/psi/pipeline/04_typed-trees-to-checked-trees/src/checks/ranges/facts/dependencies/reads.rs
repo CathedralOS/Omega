@@ -1,14 +1,14 @@
 use super::{
     EXPRESSION_WALK_DEPTH_BOUND, ExpressionHandle, ExpressionNode, Machine, State, TypedTrees,
 };
-use crate::checked_trees::{
-    CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedValueOrigin,
-    CheckedValueStatementRole,
-};
 use crate::checks::ranges::facts::RangeCallContext;
 use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression_in_state;
 use crate::semantic::calls::CallSite;
+use checked_trees::{
+    CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedValueOrigin,
+    CheckedValueStatementRole,
+};
 use symbols::SymbolHandle;
 
 pub(super) fn collect_reads<'a, 'b>(
@@ -21,7 +21,7 @@ pub(super) fn collect_reads<'a, 'b>(
     operators: Option<&CheckedOperatorFacts>,
     reads: &mut Vec<CanonicalPlace>,
     depth: usize,
-    bound_lookup: &crate::validation::ImmutableBoundLookup<'b>,
+    bound_lookup: &validation::ImmutableBoundLookup<'b>,
 ) -> bool {
     // Depth bound shared with the captures.rs walks and pinned by
     // tests/depth.rs.
@@ -273,7 +273,7 @@ pub(super) fn collect_reads<'a, 'b>(
                     state.symbol,
                     statement_index,
                     expression,
-                ) && matches!(place.root, crate::fact_plan::PlaceRoot::Symbol(_))
+                ) && matches!(place.root, facts::PlaceRoot::Symbol(_))
                 {
                     collect_selector_reads(
                         program,
@@ -430,7 +430,7 @@ pub(super) fn collect_reads<'a, 'b>(
                 .iter()
                 .all(|arm| {
                     (match arm.pattern {
-                        symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) => {
+                        typed_trees::expression::MatchPattern::Value(pattern) => {
                             collect_operand_reads(
                                 program,
                                 machine,
@@ -444,7 +444,7 @@ pub(super) fn collect_reads<'a, 'b>(
                                 bound_lookup,
                             )
                         }
-                        symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Wildcard => true,
+                        typed_trees::expression::MatchPattern::Wildcard => true,
                     }) && collect_operand_reads(
                         program,
                         machine,
@@ -530,7 +530,7 @@ pub(super) fn collect_reads<'a, 'b>(
 /// both stay unproven rather than being walked for a machine leaf.
 fn static_application_carries_no_caller_storage(
     program: &TypedTrees,
-    call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
+    call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
     call.machine_arguments.iter().all(|argument| {
         if argument.application.is_some() || argument.evidence_projection.is_some() {
@@ -574,12 +574,12 @@ fn collect_atomic_write_reads<'a, 'b>(
     state: &State,
     statement_index: usize,
     expression: ExpressionHandle,
-    atomic: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableAtomicExpression,
+    atomic: &typed_trees::expression::TableAtomicExpression,
     calls: Option<&RangeCallContext<'_>>,
     operators: Option<&CheckedOperatorFacts>,
     reads: &mut Vec<CanonicalPlace>,
     depth: usize,
-    bound_lookup: &crate::validation::ImmutableBoundLookup<'b>,
+    bound_lookup: &validation::ImmutableBoundLookup<'b>,
 ) -> bool {
     use language_core::atomic::AtomicOrderingPlan;
     // Canonical scalar custody is the only result form a scalar read set can
@@ -696,7 +696,7 @@ fn collect_atomic_write_reads<'a, 'b>(
         // The result destination is a slot the carrier owns: join its exact
         // local place so no write reaching it slips past the recorded label.
         let place = CanonicalPlace {
-            root: crate::fact_plan::PlaceRoot::Symbol(symbol),
+            root: facts::PlaceRoot::Symbol(symbol),
             segments: Vec::new(),
         };
         if !reads.contains(&place) {
@@ -719,10 +719,7 @@ fn atomic_carrier_target(
         .statement_table
         .statements(state.statement_nodes)
         .get(statement_index)?;
-    let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Assignment(
-        assignment,
-    ) = statement
-    else {
+    let typed_trees::statement::StatementNode::Assignment(assignment) = statement else {
         return None;
     };
     (assignment.value == expression).then_some(assignment.target)
@@ -763,7 +760,7 @@ fn atomic_local_name_symbol(
                 .take(statement_index)
                 .rev()
                 .find_map(|statement| match statement {
-                    symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local)
+                    typed_trees::statement::StatementNode::LocalData(local)
                         if local.name == *name =>
                     {
                         Some(local.symbol)
@@ -776,7 +773,7 @@ fn atomic_local_name_symbol(
         machine,
         state,
         statement_index,
-        crate::fact_plan::PlaceRoot::Symbol(symbol),
+        facts::PlaceRoot::Symbol(symbol),
     )
     .then_some(symbol)
 }
@@ -805,10 +802,10 @@ fn atomic_fetch_operand(
     machine: &Machine,
     state: &State,
     statement_index: usize,
-    atomic: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableAtomicExpression,
+    atomic: &typed_trees::expression::TableAtomicExpression,
     result_symbol: SymbolHandle,
 ) -> Option<ExpressionHandle> {
-    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator;
+    use typed_trees::expression::BinaryOperator;
     let ExpressionNode::Binary(binary) = program.expression_table.expression(atomic.value) else {
         return None;
     };
@@ -843,10 +840,10 @@ fn atomic_compare_exchange_operands(
     machine: &Machine,
     state: &State,
     statement_index: usize,
-    atomic: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableAtomicExpression,
+    atomic: &typed_trees::expression::TableAtomicExpression,
     result_symbol: SymbolHandle,
 ) -> Option<[ExpressionHandle; 2]> {
-    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator;
+    use typed_trees::expression::BinaryOperator;
     let ExpressionNode::Binary(sum) = program.expression_table.expression(atomic.value) else {
         return None;
     };
@@ -924,14 +921,9 @@ fn collect_operand_reads<'a, 'b>(
     operators: Option<&CheckedOperatorFacts>,
     reads: &mut Vec<CanonicalPlace>,
     depth: usize,
-    bound_lookup: &crate::validation::ImmutableBoundLookup<'b>,
+    bound_lookup: &validation::ImmutableBoundLookup<'b>,
 ) -> bool {
-    if crate::validation::has_builtin_bound_expression_meaning(
-        program,
-        machine,
-        Some(state),
-        operand,
-    ) {
+    if validation::has_builtin_bound_expression_meaning(program, machine, Some(state), operand) {
         return collect_reads(
             program,
             machine,
@@ -1006,12 +998,7 @@ fn collect_operand_reads<'a, 'b>(
     else {
         return false;
     };
-    if crate::validation::has_builtin_binary_expression_meaning(
-        program,
-        machine,
-        Some(state),
-        operand,
-    ) {
+    if validation::has_builtin_binary_expression_meaning(program, machine, Some(state), operand) {
         return collect_operand_reads(
             program,
             machine,
@@ -1073,7 +1060,7 @@ fn collect_selected_arithmetic_reads<'a, 'b>(
     operators: Option<&CheckedOperatorFacts>,
     reads: &mut Vec<CanonicalPlace>,
     depth: usize,
-    bound_lookup: &crate::validation::ImmutableBoundLookup<'b>,
+    bound_lookup: &validation::ImmutableBoundLookup<'b>,
 ) -> bool {
     if program
         .expression_table
@@ -1121,7 +1108,7 @@ fn validate_place_read(
     statement_index: usize,
     place: &mut CanonicalPlace,
 ) -> Option<SymbolHandle> {
-    let crate::fact_plan::PlaceRoot::Symbol(root) = place.root else {
+    let facts::PlaceRoot::Symbol(root) = place.root else {
         return None;
     };
     if !root.is_valid()
@@ -1137,11 +1124,11 @@ fn validate_place_read(
         && place.segments.iter().all(|segment| {
             matches!(
                 segment,
-                crate::fact_plan::PlaceSegment::Field { .. }
-                    | crate::fact_plan::PlaceSegment::Case { .. }
-                    | crate::fact_plan::PlaceSegment::FixedIndex { .. }
-                    | crate::fact_plan::PlaceSegment::FixedRange { .. }
-                    | crate::fact_plan::PlaceSegment::Index { .. }
+                facts::PlaceSegment::Field { .. }
+                    | facts::PlaceSegment::Case { .. }
+                    | facts::PlaceSegment::FixedIndex { .. }
+                    | facts::PlaceSegment::FixedRange { .. }
+                    | facts::PlaceSegment::Index { .. }
             )
         }))
     .then_some(root)
@@ -1168,16 +1155,18 @@ fn root_currency_fingerprint(state: &State) -> usize {
 fn statement_sample(program: &TypedTrees, state: &State, position: usize) -> usize {
     let statements = program.statement_table.statements(state.statement_nodes);
     match statements.get(position) {
-        Some(
-            symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
-                local,
-            ),
-        ) => 1usize ^ (local.symbol.arena_index() as usize).rotate_left(position as u32 + 2),
+        Some(typed_trees::statement::StatementNode::LocalData(local)) => {
+            1usize ^ (local.symbol.arena_index() as usize).rotate_left(position as u32 + 2)
+        }
         Some(_) => 2usize.rotate_left(position as u32 + 2),
         None => 0,
     }
 }
 
+/// `None` outside a [`RootCurrencyScope`]; inside one, the index built for
+/// the state last consulted. The owner is an address, and a later check pass
+/// can place a different state with matching samples at the same address, so
+/// an index never outlives the pass that built it.
 type RootCurrencySlot = Option<Option<(*const State, usize, RootCurrencyIndex)>>;
 
 thread_local! {
@@ -1213,7 +1202,7 @@ fn build_root_currency_index(program: &TypedTrees, state: &State) -> RootCurrenc
         .iter()
         .enumerate()
     {
-        if let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) = statement {
+        if let typed_trees::statement::StatementNode::LocalData(local) = statement {
             index.local_first.entry(local.symbol).or_insert(position);
         }
     }
@@ -1259,9 +1248,9 @@ pub(super) fn root_is_current(
     machine: &Machine,
     state: &State,
     statement_index: usize,
-    root: crate::fact_plan::PlaceRoot,
+    root: facts::PlaceRoot,
 ) -> bool {
-    let crate::fact_plan::PlaceRoot::Symbol(symbol) = root else {
+    let facts::PlaceRoot::Symbol(symbol) = root else {
         return false;
     };
     symbol == machine.symbol
@@ -1286,7 +1275,7 @@ fn collect_place_read<'a, 'b>(
     operators: Option<&CheckedOperatorFacts>,
     reads: &mut Vec<CanonicalPlace>,
     depth: usize,
-    bound_lookup: &crate::validation::ImmutableBoundLookup<'b>,
+    bound_lookup: &validation::ImmutableBoundLookup<'b>,
 ) -> bool {
     if !collect_selector_reads(
         program,
@@ -1335,7 +1324,7 @@ fn capture_place_read<'a, 'b>(
     mut place: CanonicalPlace,
     expression: ExpressionHandle,
     reads: &mut Vec<CanonicalPlace>,
-    bound_lookup: &crate::validation::ImmutableBoundLookup<'b>,
+    bound_lookup: &validation::ImmutableBoundLookup<'b>,
 ) -> bool {
     let Some(root) = validate_place_read(program, machine, state, statement_index, &mut place)
     else {
@@ -1362,10 +1351,10 @@ fn capture_place_read<'a, 'b>(
             machine,
             state,
             statement_index,
-            crate::fact_plan::PlaceRoot::Symbol(value),
+            facts::PlaceRoot::Symbol(value),
         )
     {
-        place.root = crate::fact_plan::PlaceRoot::Symbol(value);
+        place.root = facts::PlaceRoot::Symbol(value);
     }
     if !reads.contains(&place) {
         reads.push(place);
@@ -1392,12 +1381,12 @@ fn collect_member_reads<'a, 'b>(
     state: &State,
     statement_index: usize,
     expression: ExpressionHandle,
-    member: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableMemberExpression,
+    member: &typed_trees::expression::TableMemberExpression,
     calls: Option<&RangeCallContext<'_>>,
     operators: Option<&CheckedOperatorFacts>,
     reads: &mut Vec<CanonicalPlace>,
     depth: usize,
-    bound_lookup: &crate::validation::ImmutableBoundLookup<'b>,
+    bound_lookup: &validation::ImmutableBoundLookup<'b>,
 ) -> bool {
     let receiver_is_borrow = matches!(
         program.expression_table.expression(member.receiver),
@@ -1419,7 +1408,7 @@ fn collect_member_reads<'a, 'b>(
     }
     if let Some(place) =
         canonical_place_from_expression_in_state(program, state.symbol, statement_index, expression)
-        && matches!(place.root, crate::fact_plan::PlaceRoot::Symbol(_))
+        && matches!(place.root, facts::PlaceRoot::Symbol(_))
     {
         return collect_selector_reads(
             program,
@@ -1477,7 +1466,7 @@ fn temporary_member_symbol(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
-    member: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableMemberExpression,
+    member: &typed_trees::expression::TableMemberExpression,
 ) -> SymbolHandle {
     temporary_member_symbol_at(program, machine, state, member, 0)
 }
@@ -1486,7 +1475,7 @@ fn temporary_member_symbol_at(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
-    member: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableMemberExpression,
+    member: &typed_trees::expression::TableMemberExpression,
     depth: usize,
 ) -> SymbolHandle {
     if depth >= EXPRESSION_WALK_DEPTH_BOUND {
@@ -1533,7 +1522,7 @@ fn temporary_receiver_leaf(
         ExpressionNode::Match(dispatch) => {
             let mut leaf = SymbolHandle::invalid();
             for arm in program.expression_table.match_arms(dispatch.arms) {
-                let symbol = crate::validation::expression_result_type_reference(
+                let symbol = validation::expression_result_type_reference(
                     program, machine, state, arm.value,
                 )
                 .map(|reference| program.type_reference_table.type_symbol(reference))
@@ -1575,12 +1564,12 @@ fn collect_selected_index_reads<'a, 'b>(
     state: &State,
     statement_index: usize,
     expression: ExpressionHandle,
-    indexed: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableIndexedExpression,
+    indexed: &typed_trees::expression::TableIndexedExpression,
     calls: Option<&RangeCallContext<'_>>,
     operators: Option<&CheckedOperatorFacts>,
     reads: &mut Vec<CanonicalPlace>,
     depth: usize,
-    bound_lookup: &crate::validation::ImmutableBoundLookup<'b>,
+    bound_lookup: &validation::ImmutableBoundLookup<'b>,
 ) -> bool {
     use language_core::OperatorSpelling;
 
@@ -1682,7 +1671,7 @@ fn collect_selector_reads<'a, 'b>(
     operators: Option<&CheckedOperatorFacts>,
     reads: &mut Vec<CanonicalPlace>,
     depth: usize,
-    bound_lookup: &crate::validation::ImmutableBoundLookup<'b>,
+    bound_lookup: &validation::ImmutableBoundLookup<'b>,
 ) -> bool {
     if depth >= EXPRESSION_WALK_DEPTH_BOUND
         || !program.expression_table.expression_is_valid(expression)
@@ -1834,7 +1823,7 @@ fn has_builtin_index_meaning(
     state: &State,
     statement_index: usize,
     expression: ExpressionHandle,
-    indexed: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableIndexedExpression,
+    indexed: &typed_trees::expression::TableIndexedExpression,
 ) -> bool {
     use crate::checks::ranges::types::expression_type_reference;
     use language_core::OperatorSpelling;
@@ -1869,26 +1858,26 @@ fn has_builtin_index_meaning(
     // so `[..]` judges the collection shell itself.
     let builtin_storage = if spelling == OperatorSpelling::Range {
         expression_type_reference(program, machine, state, indexed.collection)
-            .and_then(|collection| crate::validation::unwrapped_type_reference(program, collection))
+            .and_then(|collection| validation::unwrapped_type_reference(program, collection))
             .is_some_and(|collection| {
                 matches!(
                     program.type_reference_table.type_reference(collection),
-                    symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::FixedArray { .. }
-                        | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Slice { .. }
+                    typed_trees::types::TypeReferenceNode::FixedArray { .. }
+                        | typed_trees::types::TypeReferenceNode::Slice { .. }
                 )
             })
     } else {
         expression_type_reference(program, machine, state, expression).is_some()
     };
     builtin_storage
-        && symbol_resolved_trees_to_typed_trees::typed_trees::operator::resolve_indexed_spelling_for_operands(
+        && typed_trees::operator::resolve_indexed_spelling_for_operands(
             program,
             spelling,
             &operands,
             program.expression_table.source_span(expression),
         )
         .is_empty()
-        && symbol_resolved_trees_to_typed_trees::typed_trees::operator::has_builtin_spelled_expression_meaning(
+        && typed_trees::operator::has_builtin_spelled_expression_meaning(
             program,
             machine.symbol,
             expression,

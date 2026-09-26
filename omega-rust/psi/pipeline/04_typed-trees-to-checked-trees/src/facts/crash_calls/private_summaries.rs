@@ -9,19 +9,19 @@ use crate::facts::crash_calls::summary_predicates::{
     normalize_summary_buckets,
 };
 use crate::facts::crash_plan_facts::is_true_crash_route;
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
 
 pub(crate) fn infer_private_body_summaries(
     program: &TypedTrees,
-    operators: &crate::checked_trees::CheckedOperatorFacts,
-    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
-    semantic: &crate::fact_plan::FactPlan,
-    flow: &crate::checked_trees::FlowFacts,
-    content_conservation: &[crate::validation::ContentConservationSourcePlan],
-    crash_capsules: &[crate::checked_trees::CrashContractCapsule],
-    plans: &[crate::checked_trees::MachineContractPlan],
-    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
+    operators: &checked_trees::CheckedOperatorFacts,
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
+    semantic: &facts::FactPlan,
+    flow: &checked_trees::FlowFacts,
+    content_conservation: &[validation::ContentConservationSourcePlan],
+    crash_capsules: &[checked_trees::CrashContractCapsule],
+    plans: &[checked_trees::MachineContractPlan],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Vec<(SymbolHandle, Vec<SummaryCrashBucket>)> {
     let mut nodes = plans
         .iter()
@@ -305,7 +305,7 @@ pub(crate) fn solve_private_summary_fixed_point(
 
 fn machine_non_transition_invocation_sites(
     program: &TypedTrees,
-    flow: &crate::checked_trees::FlowFacts,
+    flow: &checked_trees::FlowFacts,
     machine: SymbolHandle,
 ) -> Option<Vec<SummaryInvocationSite>> {
     let mut sites = Vec::new();
@@ -344,7 +344,7 @@ fn machine_non_transition_invocation_sites(
 }
 
 fn inferred_direct_body_crash_buckets(
-    target: &crate::checked_trees::MachineContractPlan,
+    target: &checked_trees::MachineContractPlan,
 ) -> Vec<SummaryCrashBucket> {
     let mut buckets = target
         .crash
@@ -357,7 +357,7 @@ fn inferred_direct_body_crash_buckets(
     // entry parameters, so no narrower guard is available to publish.
     if !target.crash.trapping_sites().is_empty() {
         buckets.push(SummaryCrashBucket::unconditional(
-            crate::checked_trees::CrashCause::Trap,
+            checked_trees::CrashCause::Trap,
         ));
     }
     // Selected operators are direct invocations in this body's summary, not
@@ -373,10 +373,8 @@ fn inferred_direct_body_crash_buckets(
                     .alternative_guards()
                     .iter()
                     .map(|guard| match guard {
-                        crate::checked_trees::CrashRouteGuard::Truth => {
-                            SummaryCrashRouteGuard::Truth
-                        }
-                        crate::checked_trees::CrashRouteGuard::Predicate(predicate) => predicate
+                        checked_trees::CrashRouteGuard::Truth => SummaryCrashRouteGuard::Truth,
+                        checked_trees::CrashRouteGuard::Predicate(predicate) => predicate
                             .expression()
                             .map_or(SummaryCrashRouteGuard::Truth, |identity| {
                                 SummaryCrashRouteGuard::Predicate(SummaryCrashPredicate {
@@ -396,7 +394,7 @@ fn inferred_direct_body_crash_buckets(
 fn private_dependency_reaches(
     program: &TypedTrees,
     nodes: &[SummaryNode],
-    plans: &[crate::checked_trees::MachineContractPlan],
+    plans: &[checked_trees::MachineContractPlan],
     start: SymbolHandle,
     goal: SymbolHandle,
 ) -> bool {
@@ -433,7 +431,7 @@ pub(crate) fn requirement_signature(
     program: &TypedTrees,
     target_machine: SymbolHandle,
     target_state: SymbolHandle,
-) -> Option<&symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateSignature> {
+) -> Option<&typed_trees::signature::StateSignature> {
     if target_machine == target_state {
         return program
             .machine_parameter_signature(target_state)
@@ -453,26 +451,23 @@ pub(crate) fn requirement_signature(
 
 pub(crate) fn crash_route_expressions_by_identity(
     program: &TypedTrees,
-    contracts: &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContract],
+    contracts: &[typed_trees::signature::SignatureContract],
     parameter_names: &[String],
-    content_conservation: &[crate::validation::ContentConservationSourcePlan],
+    content_conservation: &[validation::ContentConservationSourcePlan],
 ) -> std::collections::BTreeMap<
-    crate::checked_trees::CrashPredicateIdentity,
-    symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+    checked_trees::CrashPredicateIdentity,
+    typed_trees::expression::ExpressionHandle,
 > {
     let mut expressions = std::collections::BTreeMap::new();
     for contract in contracts {
         if !matches!(
             contract.kind,
-            symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Crashes { .. }
+            typed_trees::signature::SignatureContractKind::Crashes { .. }
         ) {
             continue;
         }
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
-                expression,
-            ) = fact
-            else {
+            let typed_trees::domain::ProofFact::Expression(expression) = fact else {
                 continue;
             };
             if is_true_crash_route(program, fact) {
@@ -485,7 +480,7 @@ pub(crate) fn crash_route_expressions_by_identity(
                 Some(content_conservation),
             );
             expressions.insert(
-                crate::checked_trees::CrashPredicateIdentity::from_expression(structured),
+                checked_trees::CrashPredicateIdentity::from_expression(structured),
                 *expression,
             );
         }

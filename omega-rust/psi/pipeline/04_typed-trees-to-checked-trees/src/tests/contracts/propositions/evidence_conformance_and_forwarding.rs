@@ -32,7 +32,7 @@ fn explicit_subjectless_conformance_introduces_named_evidence() {
         .next()
         .map(|(_, assignment)| assignment)
         .expect("one checked evidence assignment expected");
-    let crate::checked_trees::EvidenceAssignmentSource::ProducerConformance {
+    let checked_trees::EvidenceAssignmentSource::ProducerConformance {
         conformance,
         evidence_trait,
         rows,
@@ -100,8 +100,7 @@ fn incoming_evidence_binding_shadows_same_named_subjectless_conformance() {
         .next()
         .map(|(_, assignment)| assignment)
         .expect("one checked evidence assignment expected");
-    let crate::checked_trees::EvidenceAssignmentSource::Forwarded { term } = &assignment.source
-    else {
+    let checked_trees::EvidenceAssignmentSource::Forwarded { term } = &assignment.source else {
         panic!("the shadowing incoming binding must remain a forwarding source")
     };
     assert_eq!(
@@ -168,7 +167,7 @@ fn instantiated_generic_producer_interface_selects_exact_conformance() {
         .as_ref()
         .expect("the concrete evidence interface should have exact identity");
     assert_eq!(interface.arguments.len(), 1);
-    let crate::checked_trees::EvidenceAssignmentSource::ProducerConformance {
+    let checked_trees::EvidenceAssignmentSource::ProducerConformance {
         conformance,
         evidence_trait,
         rows,

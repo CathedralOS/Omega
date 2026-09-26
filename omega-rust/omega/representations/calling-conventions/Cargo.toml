@@ -1,0 +1,13 @@
+[package]
+name = "calling-conventions"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "calling_conventions"
+path = "src/lib.rs"
+
+[dependencies]
+target = { path = "../target" }
+sha2 = "0.10.9"

@@ -1,15 +1,11 @@
 //! Retype compiler-inferred temporaries from their exact selected call result.
 
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, ExpressionNode,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
-use symbol_resolved_trees_to_typed_trees::typed_trees::type_identity::TypeIdentityRequest;
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
-    TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-};
 use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::statement::StatementNode;
+use typed_trees::type_identity::TypeIdentityRequest;
+use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) fn refresh_generic_call_results(
     program: &mut TypedTrees,
@@ -99,7 +95,7 @@ pub(super) fn refresh_generic_call_results(
                 continue;
             }
             if let Some(binding) = binding
-                && let symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
+                && let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
                     program.type_reference_table.type_reference(*binding)
                 && symbol.is_valid()
             {
@@ -170,8 +166,8 @@ pub(super) fn refresh_generic_call_results(
 
 fn forwarded_result_selection(
     program: &TypedTrees,
-    caller: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    caller: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     candidates: &[super::Candidate],
     callees: &[super::CalleeState],
     selection: &super::CallSelection,
@@ -204,9 +200,9 @@ fn forwarded_result_selection(
         // The receiver place carries the same `self` evidence here as it
         // does during selection.
         if call.receiver.is_valid() {
-            crate::validation::declared_place_type_raw(program, caller, Some(state), call.receiver)
+            validation::declared_place_type_raw(program, caller, Some(state), call.receiver)
                 .or_else(|| {
-                    crate::validation::expression_result_type_reference(
+                    validation::expression_result_type_reference(
                         program,
                         caller,
                         state,
@@ -237,18 +233,16 @@ fn forwarded_result_selection(
         {
             return None;
         }
-        if let symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named {
-            symbol,
-            ..
-        } = program.type_reference_table.type_reference(binding)
+        if let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
+            program.type_reference_table.type_reference(binding)
             && symbol.is_valid()
         {
             let parameter = program
                 .machine_type_parameters(caller)
                 .iter()
                 .find(|parameter| parameter.symbol == *symbol)?;
-            let (symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Const { type_reference }
-            | symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Value { type_reference }) = parameter.kind
+            let (typed_trees::data::TypeParameterKind::Const { type_reference }
+            | typed_trees::data::TypeParameterKind::Value { type_reference }) = parameter.kind
             else {
                 return None;
             };

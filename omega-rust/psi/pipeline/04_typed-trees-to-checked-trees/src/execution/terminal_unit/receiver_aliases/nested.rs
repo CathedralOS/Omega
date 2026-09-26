@@ -1,6 +1,7 @@
 //! Exact checked custody for linear whole-referent alias chains.
 
-use crate::checked_trees::{
+use arena::{Handle, HandleSpan};
+use checked_trees::{
     BorrowAccessKind, BorrowLoanFact, BorrowLoanLineage, CheckFacts,
     CheckedBorrowResourceDispositionTarget, CheckedBorrowResourceLifecyclePhase,
     CheckedParentBorrowResource, CheckedReborrowAccessEffect,
@@ -12,7 +13,6 @@ use crate::checked_trees::{
     FlowConstraintKind, FlowInvalidationSource, FlowStateFact, ParentLexicalStatusAtChildEnd,
     StateBorrowFact,
 };
-use arena::{Handle, HandleSpan};
 use symbols::SymbolHandle;
 
 fn span_handle<T>(span: HandleSpan<T>, offset: usize) -> Option<Handle<T>> {
@@ -95,13 +95,13 @@ pub(super) fn formation(
     statement_index: usize,
     owner: SymbolHandle,
     source_owner: SymbolHandle,
-    projection: &[crate::fact_plan::PlaceSegment],
+    projection: &[facts::PlaceSegment],
     parent_loan: Handle<BorrowLoanFact>,
     access: &BorrowAccessKind,
     statement_count: usize,
 ) -> Option<(Handle<BorrowLoanFact>, usize)> {
     let parent = facts.borrow.loans.get(parent_loan);
-    let parent_place = crate::checked_trees::CapturedPlace {
+    let parent_place = checked_trees::CapturedPlace {
         root_symbol: parent.root_symbol,
         segments: facts.borrow.loan_segments(parent).to_vec(),
     };

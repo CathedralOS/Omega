@@ -4,7 +4,6 @@ use super::{
     PsiProvenance,
 };
 use crate::LegalizationError;
-use crate::legalized_operations;
 use semantic_vocabulary::{OperationId, PlaceId};
 use terminal_psi::StructuralOperationResult;
 
@@ -69,7 +68,7 @@ pub(in crate::legalization) fn source_result(
             } if result.place == source => Some((*psi_operation, result)),
             AbstractOperation::BoundaryCall {
                 psi_operation,
-                result: terminal_psi_to_abstract_operations::abstract_operations::AbstractBoundaryResult::Structural(result),
+                result: abstract_operations::AbstractBoundaryResult::Structural(result),
                 ..
             } if result.place == source => Some((*psi_operation, result)),
             _ => None,
@@ -84,10 +83,10 @@ pub(in crate::legalization) fn source_result(
 pub(in crate::legalization) fn source_owner(
     function: &PsiOptimizationFunction,
     place: PlaceId,
-) -> Result<crate::legalized_operations::LegalizedStructuralCaseSource, LegalizationError> {
+) -> Result<legalized_operations::LegalizedStructuralCaseSource, LegalizationError> {
     if let Ok((operation, result)) = source_result(function, place) {
         return Ok(
-            crate::legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+            legalized_operations::LegalizedStructuralCaseSource::OperationResult {
                 operation,
                 result: result.clone(),
             },
@@ -110,7 +109,7 @@ pub(in crate::legalization) fn source_owner(
         return Err(LegalizationError::custody());
     }
     Ok(
-        crate::legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+        legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
             block,
             declaration: declaration.clone(),
         },
@@ -126,7 +125,7 @@ pub(in crate::legalization) fn source_owner(
 pub(in crate::legalization) fn case_source(
     function: &PsiOptimizationFunction,
     place: PlaceId,
-) -> Result<crate::legalized_operations::LegalizedStructuralCaseSource, LegalizationError> {
+) -> Result<legalized_operations::LegalizedStructuralCaseSource, LegalizationError> {
     if let Ok(owner) = source_owner(function, place) {
         return Ok(owner);
     }
@@ -218,10 +217,7 @@ pub(in crate::legalization) fn membership_layout(
     };
     let layout = super::aggregate_results::sum_type_layout(identity, plan)?;
     if layout.tag_byte_offset != 0
-        || layout.tag_shape
-            != abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(
-                4, 4,
-            )
+        || layout.tag_shape != calling_conventions::ValueShape::integer(4, 4)
     {
         return Err(LegalizationError::custody());
     }
@@ -260,7 +256,7 @@ pub(in crate::legalization) fn leaf_copy_layout(
 ) -> Result<
     (
         u32,
-        abstract_operations_to_target_operations::calling_conventions::ValueShape,
+        calling_conventions::ValueShape,
         Vec<crate::structural_inputs::structural_reference_input::RuntimeElement>,
     ),
     LegalizationError,

@@ -2,10 +2,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
-use terminal_psi_to_abstract_operations::optimization_unit::{
-    PsiOptimizationFunction, PsiOptimizationUnit,
-};
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
 
 use super::{BlockControlFlow, ControlFlowAnalysis, ExitKind, FunctionControlFlow};
 

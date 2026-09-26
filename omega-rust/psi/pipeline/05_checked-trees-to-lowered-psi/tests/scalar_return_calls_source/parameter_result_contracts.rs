@@ -100,9 +100,7 @@ fn exclusive_carrier_endpoints_publish_normalized_entry_bounds() {
 
 #[test]
 fn entry_range_replay_rejects_changed_authored_end_kind() {
-    use typed_trees_to_checked_trees::checked_trees::types::{
-        TypeConstraintNode, TypeReferenceNode,
-    };
+    use checked_trees::types::{TypeConstraintNode, TypeReferenceNode};
     let source = "machine value(input: u8[0..128]) -> u8 { input }";
     let mut checked = checked_arms(source, false);
     let original = checked_trees_to_lowered_psi::lower_machine(

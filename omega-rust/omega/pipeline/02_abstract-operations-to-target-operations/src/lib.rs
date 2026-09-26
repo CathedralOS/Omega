@@ -14,12 +14,8 @@
 //! `placed_view_inputs` route is the in-progress direct-entry placed-view
 //! slice (TASKS.md PLAN-LAID-VIEWS).
 
-pub mod calling_conventions;
-pub mod function_identity;
 mod lowering;
 pub mod provider_admission;
-pub mod target_operations;
-pub mod task_plans;
 mod validation;
 
 pub use lowering::model::{
@@ -39,6 +35,5 @@ pub use validation::{
     AbstractToTargetTranslationValidationReceipt, validate_abstract_to_target_translation,
 };
 
-pub mod effects;
 #[cfg(test)]
 mod tests;

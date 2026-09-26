@@ -4,8 +4,8 @@ use super::{
     AbstractFunction, BTreeMap, BoundaryMachineId, BoundarySettlementBinding,
     InstalledProviderCallEvidence, MachineId, OperationId,
 };
-use crate::target_operations::BoundaryRealization;
-use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
+use abstract_operations::AbstractOperation;
+use target_operations::BoundaryRealization;
 pub(super) fn unsupported_scalar_call(
     function: &AbstractFunction,
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
@@ -30,15 +30,11 @@ pub(super) fn unsupported_scalar_call(
                 settlements
                     .get(boundary)
                     .map(|binding| &binding.realization),
-                Some(
-                    crate::target_operations::BoundarySettlementRealization::Builtin(
-                        BoundaryRealization::HostedExitProcessI32(_)
-                            | BoundaryRealization::HostedWriteByteI32(_)
-                    )
-                ) | Some(
-                    crate::target_operations::BoundarySettlementRealization::NormalizedForeignCall(
-                        _
-                    )
+                Some(target_operations::BoundarySettlementRealization::Builtin(
+                    BoundaryRealization::HostedExitProcessI32(_)
+                        | BoundaryRealization::HostedWriteByteI32(_)
+                )) | Some(
+                    target_operations::BoundarySettlementRealization::NormalizedForeignCall(_)
                 )
             ))
         .then_some((*psi_operation, *boundary))

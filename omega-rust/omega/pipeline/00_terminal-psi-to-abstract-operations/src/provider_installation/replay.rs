@@ -9,9 +9,7 @@
 
 use super::AdmittedInstalledProviderCall;
 use super::error::ProviderInstallationError;
-use crate::abstract_operations::{
-    AbstractFunctionResult, AbstractOperation, AbstractOperationPlan,
-};
+use abstract_operations::{AbstractFunctionResult, AbstractOperation, AbstractOperationPlan};
 use terminal_psi::{ProviderCandidateConformance, StructuralMultiplicity};
 
 pub(super) fn replay_installed_provider_calls(
@@ -70,15 +68,15 @@ pub(super) fn replay_installed_provider_calls(
                 .ok_or_else(malformed)?;
             let exact_result = match (result, &terminal_operation.result) {
                 (
-                    crate::abstract_operations::AbstractBoundaryResult::Unit,
+                    abstract_operations::AbstractBoundaryResult::Unit,
                     terminal_psi::OperationResult::Unit,
                 ) => true,
                 (
-                    crate::abstract_operations::AbstractBoundaryResult::Scalar(actual),
+                    abstract_operations::AbstractBoundaryResult::Scalar(actual),
                     terminal_psi::OperationResult::Scalar(expected),
                 ) => actual.value == expected.id && actual.scalar_type == expected.scalar_type,
                 (
-                    crate::abstract_operations::AbstractBoundaryResult::Structural(actual),
+                    abstract_operations::AbstractBoundaryResult::Structural(actual),
                     terminal_psi::OperationResult::Structural(expected),
                 ) => actual == expected,
                 _ => false,

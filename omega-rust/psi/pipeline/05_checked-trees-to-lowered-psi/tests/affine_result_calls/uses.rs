@@ -216,11 +216,11 @@ fn result_use_rejects_binding_cleanup_and_source_drift() {
                     unreachable!()
                 };
                 structural_arguments[0].source = if mutation == 1 {
-                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         binding_ordinal: 1,
                     }
                 } else {
-                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                         parameter_index: 0,
                     }
                 };

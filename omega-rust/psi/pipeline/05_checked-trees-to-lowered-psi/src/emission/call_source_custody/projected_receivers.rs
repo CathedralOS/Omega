@@ -2,13 +2,11 @@
 
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
+use checked_trees::CheckedTrees;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::types::TypeReferenceNode;
+use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment};
 use symbols::SymbolHandle;
-use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
-use typed_trees_to_checked_trees::checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode;
-use typed_trees_to_checked_trees::checked_trees::{
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
-};
 
 mod aliases;
 mod locals;
@@ -19,16 +17,14 @@ pub(crate) struct ReceiverSource {
     pub(crate) stamp: SymbolHandle,
     /// Authored carrier and capture remain distinct from normalized self paths.
     owner: SymbolHandle,
-    captured_place: typed_trees_to_checked_trees::checked_trees::CapturedPlace,
+    captured_place: checked_trees::CapturedPlace,
     erased_alias: bool,
 }
 
 impl ReceiverSource {
     /// Source borrow facts use this captured spelling, while Terminal arguments
     /// use the normalized parameter root and typed field path.
-    pub(crate) fn captured_place(
-        &self,
-    ) -> &typed_trees_to_checked_trees::checked_trees::CapturedPlace {
+    pub(crate) fn captured_place(&self) -> &checked_trees::CapturedPlace {
         &self.captured_place
     }
 
@@ -112,44 +108,36 @@ fn resolve_source(
                         || cursor != expression
                         || member.member_symbol.is_valid()) =>
             {
-                let field = typed_trees_to_checked_trees::validation::exact_self_field(
-                    &checked.typed,
-                    machine,
-                    cursor,
-                )
-                .or_else(|| {
-                    let reference =
-                        typed_trees_to_checked_trees::validation::declared_place_type_raw(
+                let field = validation::exact_self_field(&checked.typed, machine, cursor)
+                    .or_else(|| {
+                        let reference = validation::declared_place_type_raw(
                             &checked.typed,
                             machine,
                             Some(state),
                             member.receiver,
                         )?;
-                    let reference =
-                        typed_trees_to_checked_trees::validation::unwrapped_type_reference(
+                        let reference =
+                            validation::unwrapped_type_reference(&checked.typed, reference)?;
+                        let TypeReferenceNode::Named { symbol, .. } =
+                            checked.type_reference_table.type_reference(reference)
+                        else {
+                            return None;
+                        };
+                        let owner = checked
+                            .data_definitions()
+                            .iter()
+                            .find(|owner| owner.symbol == *symbol)?;
+                        validation::exact_data_member_field(
                             &checked.typed,
-                            reference,
-                        )?;
-                    let TypeReferenceNode::Named { symbol, .. } =
-                        checked.type_reference_table.type_reference(reference)
-                    else {
-                        return None;
-                    };
-                    let owner = checked
-                        .data_definitions()
-                        .iter()
-                        .find(|owner| owner.symbol == *symbol)?;
-                    typed_trees_to_checked_trees::validation::exact_data_member_field(
-                        &checked.typed,
-                        owner,
-                        member.member_symbol,
-                        member.member.as_str(),
-                        None,
-                    )
-                })
-                .ok_or(LoweringError::Unsupported(
-                    "projected receiver field has no exact declaration",
-                ))?;
+                            owner,
+                            member.member_symbol,
+                            member.member.as_str(),
+                            None,
+                        )
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "projected receiver field has no exact declaration",
+                    ))?;
                 if field.relevance.is_erased() {
                     return unsupported("projected receiver cannot select an erased field");
                 }
@@ -171,11 +159,9 @@ fn resolve_source(
                         ))?
                         .symbol;
                 }
-                captured_segments.push(
-                    typed_trees_to_checked_trees::fact_plan::PlaceSegment::Field {
-                        symbol: field.symbol,
-                    },
-                );
+                captured_segments.push(facts::PlaceSegment::Field {
+                    symbol: field.symbol,
+                });
                 cursor = member.receiver;
             }
             // An assignment destination's runtime selector is the statement's
@@ -195,7 +181,7 @@ fn resolve_source(
                         indexed.index,
                     ) =>
             {
-                if !typed_trees_to_checked_trees::validation::place_has_builtin_coordinates(
+                if !validation::place_has_builtin_coordinates(
                     &checked.typed,
                     machine,
                     Some(state),
@@ -203,17 +189,14 @@ fn resolve_source(
                 ) {
                     return unsupported("store destination index has no builtin address meaning");
                 }
-                let reference = typed_trees_to_checked_trees::validation::declared_place_type_raw(
+                let reference = validation::declared_place_type_raw(
                     &checked.typed,
                     machine,
                     Some(state),
                     indexed.collection,
                 )
                 .and_then(|reference| {
-                    typed_trees_to_checked_trees::validation::unwrapped_type_reference(
-                        &checked.typed,
-                        reference,
-                    )
+                    validation::unwrapped_type_reference(&checked.typed, reference)
                 })
                 .ok_or(LoweringError::Unsupported(
                     "store destination index has no declared collection",
@@ -221,20 +204,18 @@ fn resolve_source(
                 if !matches!(
                     checked.type_reference_table.type_reference(reference),
                     TypeReferenceNode::FixedArray {
-                        length: typed_trees_to_checked_trees::checked_trees::types::FixedArrayLength::Literal(_),
+                        length: checked_trees::types::FixedArrayLength::Literal(_),
                         ..
                     }
                 ) {
                     return unsupported("store destination index has no literal array length");
                 }
                 path.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
-                    typed_trees_to_checked_trees::checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
+                    checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
                 ));
-                captured_segments.push(
-                    typed_trees_to_checked_trees::fact_plan::PlaceSegment::Index {
-                        expression: indexed.index,
-                    },
-                );
+                captured_segments.push(facts::PlaceSegment::Index {
+                    expression: indexed.index,
+                });
                 cursor = indexed.collection;
             }
             ExpressionNode::Indexed(indexed) => {
@@ -249,7 +230,7 @@ fn resolve_source(
                     .ok_or(LoweringError::Unsupported(
                         "projected receiver index exceeds u64",
                     ))?;
-                if !typed_trees_to_checked_trees::validation::place_has_builtin_coordinates(
+                if !validation::place_has_builtin_coordinates(
                     &checked.typed,
                     machine,
                     Some(state),
@@ -257,26 +238,20 @@ fn resolve_source(
                 ) {
                     return unsupported("projected receiver index has no builtin address meaning");
                 }
-                let reference = typed_trees_to_checked_trees::validation::declared_place_type_raw(
+                let reference = validation::declared_place_type_raw(
                     &checked.typed,
                     machine,
                     Some(state),
                     indexed.collection,
                 )
                 .and_then(|reference| {
-                    typed_trees_to_checked_trees::validation::unwrapped_type_reference(
-                        &checked.typed,
-                        reference,
-                    )
+                    validation::unwrapped_type_reference(&checked.typed, reference)
                 })
                 .ok_or(LoweringError::Unsupported(
                     "projected receiver index has no declared collection",
                 ))?;
                 let TypeReferenceNode::FixedArray {
-                    length:
-                        typed_trees_to_checked_trees::checked_trees::types::FixedArrayLength::Literal(
-                            length,
-                        ),
+                    length: checked_trees::types::FixedArrayLength::Literal(length),
                     ..
                 } = checked.type_reference_table.type_reference(reference)
                 else {
@@ -289,13 +264,11 @@ fn resolve_source(
                     return unsupported("projected receiver index is out of bounds");
                 }
                 path.push(CheckedUnitStructuralPathSegment::FixedIndex(index));
-                captured_segments.push(
-                    typed_trees_to_checked_trees::fact_plan::PlaceSegment::FixedIndex {
-                        index: usize::try_from(index).map_err(|_| {
-                            LoweringError::Unsupported("projected receiver index exceeds usize")
-                        })?,
-                    },
-                );
+                captured_segments.push(facts::PlaceSegment::FixedIndex {
+                    index: usize::try_from(index).map_err(|_| {
+                        LoweringError::Unsupported("projected receiver index exceeds usize")
+                    })?,
+                });
                 cursor = indexed.collection;
             }
             ExpressionNode::Name(name)
@@ -362,7 +335,7 @@ fn resolve_source(
                     captured_segments.extend(alias.captured_place.segments.into_iter().rev());
                     break alias.root;
                 }
-                let field = typed_trees_to_checked_trees::validation::exact_attached_field(
+                let field = validation::exact_attached_field(
                     &checked.typed,
                     machine,
                     name.symbol,
@@ -402,7 +375,7 @@ fn resolve_source(
         path,
         stamp,
         owner,
-        captured_place: typed_trees_to_checked_trees::checked_trees::CapturedPlace {
+        captured_place: checked_trees::CapturedPlace {
             root_symbol: captured_root,
             segments: captured_segments,
         },
@@ -415,32 +388,25 @@ fn resolve_source(
 /// target selects through it.
 fn assignment_selector_depth(
     checked: &CheckedTrees,
-    state: &typed_trees_to_checked_trees::checked_trees::state::State,
+    state: &checked_trees::state::State,
     statement_index: Option<(usize, bool)>,
     index: ExpressionHandle,
 ) -> Option<u32> {
     let (statement_index, _) = statement_index?;
-    let typed_trees_to_checked_trees::checked_trees::statement::StatementNode::Assignment(
-        assignment,
-    ) = checked
+    let checked_trees::statement::StatementNode::Assignment(assignment) = checked
         .statement_table
         .statements(state.statement_nodes)
         .get(statement_index)?
     else {
         return None;
     };
-    let depth = typed_trees_to_checked_trees::validation::assignment_target_selectors(
-        &checked.typed,
-        assignment.target,
-    )
-    .iter()
-    .position(|selector| *selector == index)?;
+    let depth = validation::assignment_target_selectors(&checked.typed, assignment.target)
+        .iter()
+        .position(|selector| *selector == index)?;
     u32::try_from(depth).ok()
 }
 
-fn field_segment(
-    field: &typed_trees_to_checked_trees::checked_trees::data::DataField,
-) -> CheckedUnitStructuralPathSegment {
+fn field_segment(field: &checked_trees::data::DataField) -> CheckedUnitStructuralPathSegment {
     CheckedUnitStructuralPathSegment::Field(field.path_identity())
 }
 
@@ -449,8 +415,8 @@ fn field_segment(
 /// declaration using the same exact field owner as expression receivers.
 fn statement_alias_source(
     checked: &CheckedTrees,
-    state: &typed_trees_to_checked_trees::checked_trees::state::State,
-    call: &typed_trees_to_checked_trees::checked_trees::statement::TableCall,
+    state: &checked_trees::state::State,
+    call: &checked_trees::statement::TableCall,
     alias: ReceiverSource,
 ) -> Result<ReceiverSource, LoweringError> {
     let members = checked.statement_table.name_path_members(call.receiver);
@@ -459,9 +425,11 @@ fn statement_alias_source(
         .statements(state.statement_nodes)
         .iter()
         .find_map(|statement| match statement {
-            typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(
-                local,
-            ) if local.symbol == call.receiver_root_symbol => Some(local),
+            checked_trees::statement::StatementNode::LocalData(local)
+                if local.symbol == call.receiver_root_symbol =>
+            {
+                Some(local)
+            }
             _ => None,
         })
         .ok_or(LoweringError::Unsupported(
@@ -475,13 +443,9 @@ fn statement_alias_source(
     let mut path = alias.path;
     let mut captured_place = alias.captured_place;
     for (position, member) in members.iter().enumerate().skip(1) {
-        let nominal = typed_trees_to_checked_trees::validation::unwrapped_type_reference(
-            &checked.typed,
-            reference,
-        )
-        .ok_or(LoweringError::Unsupported(
-            "receiver alias field lost its nominal type",
-        ))?;
+        let nominal = validation::unwrapped_type_reference(&checked.typed, reference).ok_or(
+            LoweringError::Unsupported("receiver alias field lost its nominal type"),
+        )?;
         let TypeReferenceNode::Named { symbol, .. } =
             checked.type_reference_table.type_reference(nominal)
         else {
@@ -502,7 +466,7 @@ fn statement_alias_source(
         } else {
             SymbolHandle::invalid()
         };
-        let field = typed_trees_to_checked_trees::validation::exact_data_member_field(
+        let field = validation::exact_data_member_field(
             &checked.typed,
             owner,
             retained,
@@ -516,11 +480,9 @@ fn statement_alias_source(
             return unsupported("receiver alias cannot select an erased field");
         }
         path.push(field_segment(field));
-        captured_place.segments.push(
-            typed_trees_to_checked_trees::fact_plan::PlaceSegment::Field {
-                symbol: field.symbol,
-            },
-        );
+        captured_place.segments.push(facts::PlaceSegment::Field {
+            symbol: field.symbol,
+        });
         reference = field.type_reference;
         endpoint = field.symbol;
     }
@@ -543,9 +505,9 @@ pub(crate) fn validate(
     caller_machine: SymbolHandle,
     caller_state: SymbolHandle,
     caller_operations: &[CheckedUnitEffectOperationPlan],
-    caller_parameters: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralParameterPlan],
+    caller_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
     operation: &CheckedUnitEffectOperationPlan,
-    target_parameters: &[typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralParameterPlan],
+    target_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
 ) -> Result<(), LoweringError> {
     let (CheckedUnitEffectOperationPlan::CallUnit {
         coordinate,
@@ -576,9 +538,7 @@ pub(crate) fn validate(
         return Ok(());
     };
     let source = match authored.source_site {
-        Some(typed_trees_to_checked_trees::checked_trees::NominalMachineUseSite::Expression(
-            expression,
-        )) => {
+        Some(checked_trees::NominalMachineUseSite::Expression(expression)) => {
             let ExpressionNode::Call(call) = checked.expression_table.expression(expression) else {
                 return unsupported("receiver call lost its authored expression");
             };
@@ -596,14 +556,12 @@ pub(crate) fn validate(
                 call.receiver,
             )?
         }
-        Some(typed_trees_to_checked_trees::checked_trees::NominalMachineUseSite::Statement(_)) => {
+        Some(checked_trees::NominalMachineUseSite::Statement(_)) => {
             let (_, state) = crate::expression_preparation::source_custody::authored_state(
                 checked,
                 caller_state,
             )?;
-            let Some(typed_trees_to_checked_trees::checked_trees::statement::StatementNode::Call(
-                call,
-            )) = checked
+            let Some(checked_trees::statement::StatementNode::Call(call)) = checked
                 .statement_table
                 .statements(state.statement_nodes)
                 .get(coordinate.statement_index as usize)
@@ -621,7 +579,7 @@ pub(crate) fn validate(
                 path: Vec::new(),
                 stamp: call.receiver_root_symbol,
                 owner: call.receiver_root_symbol,
-                captured_place: typed_trees_to_checked_trees::checked_trees::CapturedPlace {
+                captured_place: checked_trees::CapturedPlace {
                     root_symbol: call.receiver_root_symbol,
                     segments: Vec::new(),
                 },
@@ -696,7 +654,7 @@ pub(crate) fn validate(
         ))?;
     if targets.next().is_some()
         || (source.erased_alias
-            && target.access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow)
+            && target.access != checked_trees::CheckedStructuralAccess::WriteOnlyBorrow)
         || argument.source_parameter_index() != u32::try_from(parameter).ok()
         || argument.path != source.path
         || argument.type_identity != target.type_identity

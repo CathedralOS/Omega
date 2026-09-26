@@ -1010,16 +1010,13 @@ fn rejects_tampered_owned_carrier_for_source_literal() {
         .find(|plan| {
             matches!(
                 plan.shape,
-                typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(_)
+                checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(_)
             )
         })
         .expect("literal type");
-    literal_type.shape =
-        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
-            typed_trees_to_checked_trees::checked_trees::CheckedByteSequenceCarrier::BoundedOwned {
-                capacity: 2,
-            },
-        );
+    literal_type.shape = checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
+        checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity: 2 },
+    );
     let error = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect_err("an owned carrier must not establish a borrowed source literal");
     assert!(

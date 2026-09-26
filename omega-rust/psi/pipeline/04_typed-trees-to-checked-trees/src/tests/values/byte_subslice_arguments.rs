@@ -1,12 +1,10 @@
 //! Endpoint custody is retained before executable range admission.
 use super::StatementNode;
 use crate::CheckingRequest;
-use crate::checked_trees::{CheckedScalarExpression, CheckedScalarExpressionRole};
 use crate::lower_typed_trees;
 use crate::tests::front_end::typed_program;
-use symbol_resolved_trees_to_typed_trees::typed_trees::{
-    expression::ExpressionNode, types::PrimitiveType,
-};
+use checked_trees::{CheckedScalarExpression, CheckedScalarExpressionRole};
+use typed_trees::{expression::ExpressionNode, types::PrimitiveType};
 
 #[test]
 fn byte_subslice_endpoints_bind_dense_structural_roles_and_prior_locals() {
@@ -36,14 +34,14 @@ fn byte_subslice_endpoints_bind_dense_structural_roles_and_prior_locals() {
     };
     let plans = crate::values::build_checked_scalar_expression_plans(
         &program,
-        &crate::checked_trees::CheckedOperatorFacts::default(),
+        &checked_trees::CheckedOperatorFacts::default(),
         &[],
         &mut Vec::new(),
     );
     for (role, authored, expected) in [
         (
             CheckedScalarExpressionRole::SubsliceStart {
-                site: crate::checked_trees::CheckedSubsliceSite::CallArgument {
+                site: checked_trees::CheckedSubsliceSite::CallArgument {
                     call_ordinal: 0,
                     argument_ordinal: 1,
                 },
@@ -56,7 +54,7 @@ fn byte_subslice_endpoints_bind_dense_structural_roles_and_prior_locals() {
         ),
         (
             CheckedScalarExpressionRole::SubsliceEnd {
-                site: crate::checked_trees::CheckedSubsliceSite::CallArgument {
+                site: checked_trees::CheckedSubsliceSite::CallArgument {
                     call_ordinal: 0,
                     argument_ordinal: 1,
                 },
@@ -85,7 +83,7 @@ fn byte_subslice_endpoints_bind_dense_structural_roles_and_prior_locals() {
                 state.symbol,
                 1,
                 CheckedScalarExpressionRole::SubsliceStart {
-                    site: crate::checked_trees::CheckedSubsliceSite::CallArgument {
+                    site: checked_trees::CheckedSubsliceSite::CallArgument {
                         call_ordinal: 0,
                         argument_ordinal: 3
                     }
@@ -120,14 +118,14 @@ fn byte_subslice_endpoint_retention_lands_only_exact_u64_and_keeps_omissions() {
         let state = &program.machine_states(machine)[0];
         let plans = crate::values::build_checked_scalar_expression_plans(
             &program,
-            &crate::checked_trees::CheckedOperatorFacts::default(),
+            &checked_trees::CheckedOperatorFacts::default(),
             &[],
             &mut Vec::new(),
         );
         for (role, retained) in [
             (
                 CheckedScalarExpressionRole::SubsliceStart {
-                    site: crate::checked_trees::CheckedSubsliceSite::CallArgument {
+                    site: checked_trees::CheckedSubsliceSite::CallArgument {
                         call_ordinal: 0,
                         argument_ordinal: 0,
                     },
@@ -136,7 +134,7 @@ fn byte_subslice_endpoint_retention_lands_only_exact_u64_and_keeps_omissions() {
             ),
             (
                 CheckedScalarExpressionRole::SubsliceEnd {
-                    site: crate::checked_trees::CheckedSubsliceSite::CallArgument {
+                    site: checked_trees::CheckedSubsliceSite::CallArgument {
                         call_ordinal: 0,
                         argument_ordinal: 0,
                     },
@@ -185,7 +183,7 @@ fn byte_subslice_full_view_retains_an_ordinary_checked_call_plan() {
         .terminal_unit_effects
         .for_machine(machine.symbol)
         .expect("full view retains the callable helper");
-    let crate::checked_trees::CheckedUnitEffectOperationPlan::CallUnit {
+    let checked_trees::CheckedUnitEffectOperationPlan::CallUnit {
         structural_arguments,
         ..
     } = &plan.operations[0]
@@ -194,8 +192,8 @@ fn byte_subslice_full_view_retains_an_ordinary_checked_call_plan() {
     };
     assert!(matches!(
         structural_arguments[0].source,
-        crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
-            root: crate::checked_trees::CheckedStorageRoot::Parameter { index: 0 },
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+            root: checked_trees::CheckedStorageRoot::Parameter { index: 0 },
             start: None,
             end: None,
             ..

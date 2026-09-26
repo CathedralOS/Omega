@@ -5,9 +5,7 @@ use super::{
     PermissionProvenance, SymbolHandle, authored_state, transition_permission_source, validate,
     validate_affine_permission,
 };
-use typed_trees_to_checked_trees::checked_trees::{
-    CheckedScalarBranchDestination, CheckedScalarStateTerminator,
-};
+use checked_trees::{CheckedScalarBranchDestination, CheckedScalarStateTerminator};
 
 fn fixture(copyable: bool, ranked: bool) -> CheckedTrees {
     let properties = if copyable { "[copy]" } else { "" };
@@ -117,10 +115,7 @@ fn structural_rows_reject_missing_duplicate_reordered_and_same_typed_foreign_sou
             }
             _ => {
                 rows[0].source = CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
-                    root:
-                        typed_trees_to_checked_trees::checked_trees::CheckedStorageRoot::Parameter {
-                            index: 1,
-                        },
+                    root: checked_trees::CheckedStorageRoot::Parameter { index: 1 },
                     expression: ExpressionHandle::invalid(),
                 }
             }
@@ -155,10 +150,7 @@ fn scalar_rows_reject_dense_authored_slot_confusion_and_foreign_primitive_reads(
             2 => rows.swap(0, 1),
             3 => rows[1].argument_ordinal = 1,
             4 => rows[1].target_scalar_parameter_index = 2,
-            5 => {
-                rows[1].primitive_type =
-                    typed_trees_to_checked_trees::checked_trees::types::PrimitiveType::Bool
-            }
+            5 => rows[1].primitive_type = checked_trees::types::PrimitiveType::Bool,
             _ => rows[1].source = CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 0 },
         }
         successor.scalar_arguments = plans.scalar_arguments.insert_many(rows);
@@ -196,8 +188,7 @@ fn affine_transfer_requires_exact_statement_root_and_claim_free_permission() {
         .find_map(|(handle, event)| {
             (event.machine_symbol == machine
                 && event.state_symbol == state
-                && event.root
-                    == typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(parameter)
+                && event.root == facts::PlaceRoot::Symbol(parameter)
                 && event.source == permission_source
                 && event.access == PermissionAccess::Owned)
                 .then_some(handle)
@@ -213,11 +204,7 @@ fn affine_transfer_requires_exact_statement_root_and_claim_free_permission() {
         match mutation {
             0 => event.machine_symbol = SymbolHandle::invalid(),
             1 => event.state_symbol = SymbolHandle::invalid(),
-            2 => {
-                event.root = typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(
-                    SymbolHandle::invalid(),
-                )
-            }
+            2 => event.root = facts::PlaceRoot::Symbol(SymbolHandle::invalid()),
             3 => {
                 event.source = PermissionEventSource::Statement {
                     statement_index: statement as usize + 1,
@@ -250,9 +237,9 @@ fn affine_transfer_requires_exact_statement_root_and_claim_free_permission() {
                 }
             }
             11 => {
-                event.segments = ownership.segments.insert_many([
-                    typed_trees_to_checked_trees::fact_plan::PlaceSegment::FixedIndex { index: 0 },
-                ])
+                event.segments = ownership
+                    .segments
+                    .insert_many([facts::PlaceSegment::FixedIndex { index: 0 }])
             }
             _ => {
                 ownership.permissions.append(event.clone());

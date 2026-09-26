@@ -7,17 +7,17 @@ use crate::rules::tests::fixtures::control_flow_cleanup::{
     linear_empty_block_unit, path_qualified_empty_block_unit,
 };
 use crate::rules::tests::fixtures::id;
+use abstract_operations::AbstractOperation as O;
 use optimization_core::OptimizationValidatorIdentity;
-use semantic_vocabulary::{BlockId, EdgeId, MachineId, ValueId};
-use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation as O;
-use terminal_psi_to_abstract_operations::optimization_unit::{
+use optimization_unit::{
     PsiProvenance, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch,
     recompute_psi_optimization_unit_identity,
 };
-use terminal_psi_to_abstract_operations::optimization_unit_semantics::{
+use optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_linear_empty_block_candidate,
     validate_path_qualified_empty_block_candidate,
 };
+use semantic_vocabulary::{BlockId, EdgeId, MachineId, ValueId};
 
 #[test]
 fn linear_empty_block_thread_composes_bindings_and_realizes_both_edges() {
@@ -129,7 +129,7 @@ fn linear_empty_block_validator_rejects_incomplete_fused_custody() {
         .unwrap()
         .pop()
         .unwrap();
-    let terminal_psi_to_abstract_operations::optimization_unit::PsiRewritePatch::ThreadLinearEmptyBlock(patch) = candidate.patch()
+    let optimization_unit::PsiRewritePatch::ThreadLinearEmptyBlock(patch) = candidate.patch()
     else {
         unreachable!()
     };
@@ -244,15 +244,13 @@ fn path_qualified_empty_block_thread_fans_out_only_on_incoming_edge_antichain() 
         .push(source);
     coexecuted.functions[0].blocks[0].nodes[0].successors[0]
         .fuel
-        .push(
-            terminal_psi_to_abstract_operations::optimization_unit::FuelSettlement {
-                site: source,
-                units: 1,
-            },
-        );
+        .push(optimization_unit::FuelSettlement {
+            site: source,
+            units: 1,
+        });
     coexecuted.identity = recompute_psi_optimization_unit_identity(&coexecuted);
     assert_eq!(
-        terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&coexecuted),
+        optimization_unit_semantics::validate_psi_optimization_unit(&coexecuted),
         Err(OptimizationUnitValidationError::CoExecutableProvenanceOccurrences(source))
     );
 }

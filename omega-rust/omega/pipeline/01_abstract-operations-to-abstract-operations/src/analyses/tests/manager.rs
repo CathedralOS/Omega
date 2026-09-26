@@ -3,7 +3,7 @@
 use super::fixtures::*;
 use crate::{AnalysisManager, AnalysisManagerError, AnalysisProduct, compute_analysis};
 use optimization_core::*;
-use terminal_psi_to_abstract_operations::optimization_unit::*;
+use optimization_unit::*;
 
 #[test]
 fn bound_revision_reuses_products_without_rechecking_content() {

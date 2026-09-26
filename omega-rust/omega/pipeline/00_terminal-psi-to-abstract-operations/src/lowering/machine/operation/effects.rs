@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::abstract_operations::{AbstractOperation, AbstractResult};
+use abstract_operations::{AbstractOperation, AbstractResult};
 use semantic_vocabulary::ScalarType;
 use terminal_psi::{Operation, OperationKind, StructuralTypeDeclaration, TerminalMachine};
 

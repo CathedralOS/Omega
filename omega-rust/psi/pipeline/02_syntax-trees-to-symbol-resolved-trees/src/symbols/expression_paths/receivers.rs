@@ -12,9 +12,9 @@ pub(in crate::symbols) fn resolve_expression_table_member_symbol(
     symbols: &SymbolTable,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-    expression_table: &crate::symbol_resolved_trees::expression::ExpressionTable,
-    receiver: crate::symbol_resolved_trees::expression::ExpressionHandle,
-    member: &crate::symbol_resolved_trees::name::DiagnosticName,
+    expression_table: &symbol_resolved_trees::expression::ExpressionTable,
+    receiver: symbol_resolved_trees::expression::ExpressionHandle,
+    member: &symbol_resolved_trees::name::DiagnosticName,
 ) -> SymbolHandle {
     let receiver_symbol = resolve_expression_table_receiver_symbol(
         symbols,
@@ -44,11 +44,11 @@ pub(in crate::symbols) fn resolve_expression_table_receiver_path_symbols(
     symbols: &SymbolTable,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-    expression_table: &crate::symbol_resolved_trees::expression::ExpressionTable,
-    receiver: crate::symbol_resolved_trees::expression::ExpressionHandle,
+    expression_table: &symbol_resolved_trees::expression::ExpressionTable,
+    receiver: symbol_resolved_trees::expression::ExpressionHandle,
 ) -> (SymbolHandle, SymbolHandle) {
     match expression_table.expression(receiver) {
-        crate::symbol_resolved_trees::expression::ExpressionNode::Name(path) => {
+        symbol_resolved_trees::expression::ExpressionNode::Name(path) => {
             resolve_state_scoped_table_path(
                 symbols,
                 machine_symbol,
@@ -57,7 +57,7 @@ pub(in crate::symbols) fn resolve_expression_table_receiver_path_symbols(
                 path,
             )
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Member(member) => {
+        symbol_resolved_trees::expression::ExpressionNode::Member(member) => {
             let (head_symbol, receiver_symbol) = resolve_expression_table_receiver_path_symbols(
                 symbols,
                 machine_symbol,
@@ -86,7 +86,7 @@ pub(in crate::symbols) fn resolve_expression_table_receiver_path_symbols(
                 invalid_symbol_pair()
             }
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
+        symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
             resolve_expression_table_receiver_path_symbols(
                 symbols,
                 machine_symbol,
@@ -95,8 +95,8 @@ pub(in crate::symbols) fn resolve_expression_table_receiver_path_symbols(
                 inner.target,
             )
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Indexed(indexed) => {
-            let crate::symbol_resolved_trees::expression::ExpressionNode::Integer(index) =
+        symbol_resolved_trees::expression::ExpressionNode::Indexed(indexed) => {
+            let symbol_resolved_trees::expression::ExpressionNode::Integer(index) =
                 expression_table.expression(indexed.index)
             else {
                 return invalid_symbol_pair();
@@ -123,12 +123,12 @@ fn resolve_indexed_expression_table_receiver_path_symbols(
     symbols: &SymbolTable,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-    expression_table: &crate::symbol_resolved_trees::expression::ExpressionTable,
-    collection: crate::symbol_resolved_trees::expression::ExpressionHandle,
+    expression_table: &symbol_resolved_trees::expression::ExpressionTable,
+    collection: symbol_resolved_trees::expression::ExpressionHandle,
     index: i64,
 ) -> (SymbolHandle, SymbolHandle) {
     match expression_table.expression(collection) {
-        crate::symbol_resolved_trees::expression::ExpressionNode::Name(path) => {
+        symbol_resolved_trees::expression::ExpressionNode::Name(path) => {
             resolve_state_scoped_table_path_with_indexed_last_member(
                 symbols,
                 machine_symbol,
@@ -138,7 +138,7 @@ fn resolve_indexed_expression_table_receiver_path_symbols(
                 index,
             )
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Member(member) => {
+        symbol_resolved_trees::expression::ExpressionNode::Member(member) => {
             let (head_symbol, receiver_symbol) = resolve_expression_table_receiver_path_symbols(
                 symbols,
                 machine_symbol,
@@ -168,7 +168,7 @@ fn resolve_indexed_expression_table_receiver_path_symbols(
                 invalid_symbol_pair()
             }
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
+        symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
             resolve_indexed_expression_table_receiver_path_symbols(
                 symbols,
                 machine_symbol,
@@ -186,11 +186,11 @@ pub(in crate::symbols::expression_paths) fn resolve_expression_table_receiver_sy
     symbols: &SymbolTable,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-    expression_table: &crate::symbol_resolved_trees::expression::ExpressionTable,
-    receiver: crate::symbol_resolved_trees::expression::ExpressionHandle,
+    expression_table: &symbol_resolved_trees::expression::ExpressionTable,
+    receiver: symbol_resolved_trees::expression::ExpressionHandle,
 ) -> SymbolHandle {
     match expression_table.expression(receiver) {
-        crate::symbol_resolved_trees::expression::ExpressionNode::Name(path) => {
+        symbol_resolved_trees::expression::ExpressionNode::Name(path) => {
             let (_, symbol) = resolve_state_scoped_table_path(
                 symbols,
                 machine_symbol,
@@ -200,7 +200,7 @@ pub(in crate::symbols::expression_paths) fn resolve_expression_table_receiver_sy
             );
             symbol
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Member(member) => {
+        symbol_resolved_trees::expression::ExpressionNode::Member(member) => {
             resolve_expression_table_member_symbol(
                 symbols,
                 machine_symbol,
@@ -210,7 +210,7 @@ pub(in crate::symbols::expression_paths) fn resolve_expression_table_receiver_sy
                 &member.member,
             )
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
+        symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
             resolve_expression_table_receiver_symbol(
                 symbols,
                 machine_symbol,
@@ -219,7 +219,7 @@ pub(in crate::symbols::expression_paths) fn resolve_expression_table_receiver_sy
                 inner.target,
             )
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Indexed(_) => {
+        symbol_resolved_trees::expression::ExpressionNode::Indexed(_) => {
             let (_, symbol) = resolve_expression_table_receiver_path_symbols(
                 symbols,
                 machine_symbol,
@@ -229,9 +229,7 @@ pub(in crate::symbols::expression_paths) fn resolve_expression_table_receiver_sy
             );
             symbol
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Range(_) => {
-            SymbolHandle::invalid()
-        }
+        symbol_resolved_trees::expression::ExpressionNode::Range(_) => SymbolHandle::invalid(),
         _ => SymbolHandle::invalid(),
     }
 }

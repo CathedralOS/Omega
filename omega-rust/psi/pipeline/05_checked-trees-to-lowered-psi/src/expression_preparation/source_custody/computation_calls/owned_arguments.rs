@@ -1,14 +1,14 @@
 //! Rejoin whole owned actuals before assigning Terminal places.
 
-use language_semantics::Multiplicity;
-use typed_trees_to_checked_trees::checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees_to_checked_trees::checked_trees::state::State;
-use typed_trees_to_checked_trees::checked_trees::statement::StatementNode;
-use typed_trees_to_checked_trees::checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-use typed_trees_to_checked_trees::checked_trees::{
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::state::State;
+use checked_trees::statement::StatementNode;
+use checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use checked_trees::{
     BorrowCallFact, CheckedStructuralAccess, CheckedTrees, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan,
 };
+use language_semantics::Multiplicity;
 
 use super::borrow_rows;
 use crate::lowering_error::LoweringError;
@@ -85,7 +85,7 @@ pub(super) fn validate(
                     || (!matches!(
                         checked.type_reference_table.type_reference(*reference),
                         TypeReferenceNode::Named { .. }
-                    ) && !typed_trees_to_checked_trees::validation::is_closed_primitive_array_type(checked, *reference))
+                    ) && !validation::is_closed_primitive_array_type(checked, *reference))
                     || checked.primitive_type_reference(*reference).is_some()
                     || !matches!(
                         checked.type_multiplicity(*reference),
@@ -111,8 +111,7 @@ pub(super) fn validate(
             .filter(|event| {
                 event.machine_symbol == owner.symbol
                     && event.state_symbol == state.symbol
-                    && event.root
-                        == typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(source.symbol)
+                    && event.root == facts::PlaceRoot::Symbol(source.symbol)
                     && event.source
                         == language_semantics::PermissionEventSource::Call {
                             statement_index: call.statement_index,
@@ -192,9 +191,7 @@ fn validate_array_local(
             !checked
                 .type_reference_table
                 .contains_type_reference(*reference)
-                || !typed_trees_to_checked_trees::validation::is_closed_primitive_array_type(
-                    checked, *reference,
-                )
+                || !validation::is_closed_primitive_array_type(checked, *reference)
                 || checked.type_multiplicity(*reference) != Multiplicity::Unrestricted
         })
         || checked.normalized_type_identity(local.type_reference)

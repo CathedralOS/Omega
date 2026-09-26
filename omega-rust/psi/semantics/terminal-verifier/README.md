@@ -1,0 +1,274 @@
+# Terminal verifier
+
+Contract: [verification](../../../../wiki/spec/terminal-psi/verification.md).
+[lib.rs](src/lib.rs) is the entry map for structural validation, obligation
+reconstruction, certificate checking, control cycles, and observation replay.
+
+## Reconstruction boundary
+
+The verifier reconstructs the question before examining evidence.
+[canonical_goal.rs](../terminal-semantics/src/proof_bearing_scalar/canonical_goal.rs)
+owns total scalar-goal projection; operation tags and typed operands select it.
+Production reconstruction does not run a sufficient-form reducer or search for
+an alternative question. Proof discovery belongs to producers; admission checks
+their serialized derivations.
+
+`EstablishScalarCase` atomically establishes a claim-free affine or unrestricted
+sum result from an exact declaration-ordered scalar field roster. Operands must
+be defined and exactly typed. Every restricted integer field has its own
+declaration-derived inclusive-range conjunction obligation; raw fields have none.
+All initializer obligations precede case membership and field-to-SSA equations.
+Structural, borrowed, erased, qualified, and linear payload construction remains
+unsupported. Empty selected payloads preserve the previous empty-case behavior;
+the guarded outcome importer still recognizes only that empty form.
+
+Plain scalar-case results use ordinary structural return custody and internal
+call composition. Mixed scalar arguments retain positional requirement and
+guarantee substitution, with fresh-result observation invalidation before
+requirements and argument-mutation invalidation before guarantees.
+
+Reconstruction separates machine context, path facts, operation facts,
+terminator facts, and deterministic control-flow scheduling. All-incoming and
+all-return intersections cannot be replaced by a union. An operation's
+pre-result premise snapshot excludes its own later result equation.
+
+Scalar block predicates provide the checked merge/induction route when an
+ordinary intersection loses a useful relationship. Every actual arrival proves
+the same destination-scoped predicate under exact simultaneous substitution.
+Acyclic destinations retain common incoming facts; cyclic cuts discard them.
+Predicates can name scalar formals, destination parameters and scalar storage
+observations rooted at machine parameters or the destination's own structural
+parameters, not branch-local values or operation-created places. Current field
+observations still expire on covering writes. The verifier never searches for a predicate
+or removes an edge because producer automation finds it contradictory.
+
+[Field snapshot reconstruction](src/verification/field_snapshots.rs) captures
+affected facts through live exact field-to-SSA equalities just before ordinary
+store/call invalidation. One fact yields at most one captured fact; conditional
+facts remain conditional and uncaptured observations still expire. The copied
+value keeps its old meaning, not the mutated field. Call requirements precede
+capture and guarantees follow invalidation. Private crash-entry reconstruction
+does not use this current-value capture route.
+
+Selected Boolean and integer case payloads retain their exact source, case,
+field and successor parameter identities. Their scalar binding equation is an
+edge observation, not an entry snapshot. Only the selected
+arrival may use it; the ordinary mutation invalidation, all-arrival intersection
+and cycle cuts still govern its lifetime. A selected bounded-integer field also
+establishes its exact declared inclusive bounds on the copied SSA payload.
+These scalar snapshot bounds survive later source mutation but not iteration
+cuts. Restricted record construction and field stores remain unsupported rather
+than treating carrier equality as an invariant-establishment proof. IEEE payloads retain
+their existing transfer behavior without an integer/Boolean field equation.
+
+Leaf schemas and call-composition policies belong to terminal-semantics.
+Call validation proves concrete signature, clause, substitution, movement,
+outcome, crash, and lifetime conditions before reconstruction imports guarantees.
+Do not duplicate those policies in operation-specific verifier branches.
+
+Contract formation checks every field term, including unused requirements and
+ordinary or outcome-specific guarantees. The existing scope traversal resolves
+canonical paths, exact Boolean/integer/IEEE leaf types, and byte-field kinds
+before proof reconstruction. Caller-supplied facts do not perform observations:
+write-only parameters may occur in those logical contracts without acquiring
+readable access. Executable field reads and tag dispatch require their own access
+judgment, even with a supplied case refinement. Nominal cleanup sites
+separately validate their action-bound proof-only receivers. These checks add
+neither arithmetic safety premises nor entry-snapshot authority. The codec's
+`canonical::contract_fields` tests exercise source-free decoding with substituted
+field identities; `terminal-verifier`'s field and guarded-guarantee tests cover
+formation directly.
+
+## Call and crash reconstruction
+
+Local affine records can own mutable primitive reference leaves through ordinary
+`EstablishRecord` operations. [references.rs](src/validation/references.rs)
+reconstructs each leaf's formation identity, current carrier path, original
+referent, and immediate parent. Packing relocates an existing permission rather
+than creating a child loan. Typed record-field paths ending in `Referent` borrow
+that leaf; whole-owner disposal checks reverse declaration order and rejects
+parents with surviving children before ending any loan. Ordinary results retain
+the complete reference-leaf map in canonical path order. Return replay compares
+actual origins against formal sources, and calls substitute the exact actual
+arguments; a formation place plus initial leaf path distinguishes sibling loans
+after later moves. Whole owned affine record parameters carry independently
+available reference leaves. Their abstract ingress origins distinguish exact
+formal paths; callers supply the actual formation identity, backing origin, and
+external parent. Passing such a record moves existing permissions rather than
+forming child loans. Complete normal exits account for returned and disposed
+leaves; live descendants, duplicate transfers, and aliased call arguments reject.
+Incoming reconstruction has a private 4,096-leaf capacity per machine because a
+small type DAG can describe an exponentially large roster. Exceeding it rejects
+explicitly, without supplying or weakening custody. Borrowed aggregate parameters,
+partial transfers, reference-bearing block parameters, arrays of references, and
+host realization remain unsupported. Plain record classification must not
+silently admit those boundaries.
+
+Boundary declarations retain their own published scalar crash routes. Their
+formal values are reconstructed from scalar signature order in a declaration-local
+namespace, validated without caller values, then simultaneously substituted at
+each executable `BoundaryCall`. This reuses ordinary same-cause ceiling coverage
+without storing another continuation roster. Structural/opaque/float guard forms
+remain unsupported here; mixed signatures may use their scalar inputs. Providers
+with a nonempty crash contract still require explicit refinement support.
+Source-free verification does not imply executable boundary-crash support:
+the interpreter and Omega lowering retain their outcome-handling fences.
+
+Contracts: [call substitution](../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#call-contracts)
+and [entry facts](../../../../wiki/spec/terminal-psi/verification.md#entry-facts-and-crash-coverage).
+[entry_requirements.rs](src/validation/crash/entry_requirements.rs) proves a
+same-cause published union from caller entry requirements. It supplies no CFG
+facts or current body values, preserves exact callee continuations, and shares
+4,096 search steps and depth 64 across one proof rather than resetting per route.
+Checked discreteness/weakening and explicit equality symmetry connect existing
+integer encodings without recanonicalizing the obligation.
+
+[site_truth.rs](src/validation/crash/site_truth.rs) separately checks each direct
+site against independent pre-terminator facts. The private path reconstruction
+retains raw branch polarities and bounded alternatives through joins; every path
+must prove the guard or contradiction. Acyclic joins replay identical ordered
+incoming premises only once, retaining the first traversal's order. Distinct
+premise sequences, including contradictions, remain separate. Cyclic graphs
+retain exhaustive traversal without memoization. Its limits remain 4,096 block
+visits and 4,096 generated/transported facts per machine. Join histories add at
+most 4,096 snapshot facts separately: each copies one already charged incoming
+path, so this storage cap cannot tighten the transport budget. This is bounded
+memoization, not prefix sharing; distinct states can still grow exponentially.
+Exhaustion rejects, never discards unvisited paths. Crash-only raw facts do not
+enter ordinary proof reconstruction.
+Ranked-site checking remains entry-only until invariant custody is available.
+
+Nonliteral Boolean operations retain their equation followed by both polarity
+implications, derived from typed denotation without caller hypotheses. The
+ordinary producer cites those implications and proves their premises. Private
+crash-path copies keep the original equations without duplicating auxiliary
+implications; authored guarantees remain retained. Bounded implication search
+does not make a cycle into a premise.
+
+Unversioned structural entry observations require exact shared-borrow roots;
+owned/mutable body reads cannot claim to be entry snapshots. Their scalar read
+results may still establish executable branch predicates. General mutable-origin
+transport, arithmetic/float entry coverage, and case-qualified entry paths need
+further work. The latter require canonical case identity, not a guessed field.
+
+## Cyclic control
+
+Full-graph dominance lives in [control_graph.rs](src/control_graph.rs). A compact
+immediate-dominator tree retains one interval/depth record per block, including
+backedges; it does not retain a set of ancestors for every block. Machine
+validation shares that analysis with frontier, disposal-order, and cycle checks.
+Proof reconstruction builds its own tree lazily, once per borrowed machine
+context, when a byte-length observation needs it. Neither route reuses a
+producer's dominance claim or grants facts across a proof-loop cut.
+
+Contract: [control flow and ranking](../../../../wiki/spec/terminal-psi/control_flow.md).
+[control_cycles](src/control_cycles.rs) reconstructs complete SCC topology,
+rank substitution, and proof questions. The natural carrier selects one fixed
+integer type per component; a signed carrier is a finite order too, and its sign
+enters the relation identity. Ranks are scalar machine/block parameters, actual
+byte-length observations, or one exact subtraction over parameters and integer
+constants (a climbing subject's `MAX - lower`); an arrival must carry the same
+subtraction over the edge's actual arguments. Its preserving-edge subgraph must
+be acyclic.
+`proof_bundle.control_cycles` groups those certificates independently of
+[proof-call recursion](src/proof_recursion.rs).
+
+[Cyclic eligibility](src/validation/control_flow/unranked_cycles.rs) admits
+scalar work, unrestricted shared byte views, and bounded Unit-effect operations.
+Ordinary scalar `Call` operations retain full callee/result and operand validation,
+invocation requirement evidence, and surviving crash-continuation checks. Their
+admission supplies no termination witness or facts from a preceding iteration.
+Persistent unrestricted mutable record receivers additionally admit independently
+typed integer/Boolean field observations, ordered scalar-field stores, and whole
+mutable `CallUnit` arguments with empty claims, requirements, and crash continuations.
+The same Unit-call fence admits whole immutable borrowed byte views from machine
+or block parameters, established literals, and subslice results. Exact source
+type/access and full-graph establishment dominance remain independently checked;
+a previous iteration's literal cannot authorize a call before its producer.
+The receiver remains a machine parameter; it is not a structural block parameter
+or an owned transfer. Mutable-field entry requirements remain outside this slice:
+the unversioned field vocabulary does not establish a loop-entry snapshot.
+Plain whole Owned Affine/Unrestricted inputs may transfer into exact structural
+block parameters. Integer/Boolean field reads and ordinary Unit/structural-scalar
+calls observe those current bindings; affine reads after consumption reject.
+Successor binding consumes all affine sources before establishing destinations,
+allowing swaps and self-loops without duplication or overwriting a live owner.
+Every arrival, including a backedge, must establish the same structural frontier.
+Disposal follows establishment dominance and parameter order, not serialized
+block IDs. Owned byte descriptors do not gain immutable-view read authority.
+Unit and plain scalar-sum-result loops also admit a claim-free, unqualified affine boundary-result sum with
+relevant scalar payloads when its producer and case inspection share a block.
+Every case edge discards that exact whole result before entering its successor;
+the result is never loop-carried custody. Full frontier equality and proof-loop
+cuts still apply, so no preceding iteration's result or case fact is reused.
+Scalar-case constructors can also establish the result on normal-return leaves.
+Fresh internal case results can be inspected/disposed under the same local
+custody rule. These additions preserve the existing full-graph checks and cuts;
+they establish no termination or loop-invariant authority.
+Qualified or partial owned cyclic custody, loop-carried structural results,
+projected claims, and arbitrary operation families remain unsupported. Eligibility is not dominance,
+frontier, or proof authority; all subsequent checks still run.
+
+Owned/mutable-field entry requirements enter the validity-scoped observation set,
+not the permanent assumption list. Unchanged paths retain them; stores, mutating
+calls, and loop cuts cannot reuse them as current-field facts. This is conservative
+invalidation, not an entry-snapshot or general loop-invariant representation.
+
+Stores forget semantic axioms observing their destination root. Ordinary
+structural calls capture requirement premises first, forget observations of
+their mutable arguments, then import verified guarantees. Consuming owned
+arguments also forget unversioned field and case observations: the recipient may
+mutably reborrow its value. Separately versioned content evidence keeps its
+existing conservation rules. Boundary arguments follow the same invalidation.
+This conservatively forgets the entire affected root until checked write frames
+can preserve individual paths. Captured SSA values remain values, but an earlier
+field equality cannot describe a later observation.
+
+[Primitive snapshot reconstruction](src/verification/reconstruction/primitive_snapshots.rs)
+checks exact reaching stores before introducing a read-result SSA equality.
+Every predecessor must reach the same stored value without a potentially
+aliasing write; an encountered feedback cut is unknown, not an omitted arrival.
+Fresh local roots may be disjoint from other fresh locals or original parameters;
+different forwarded/reborrowed identities alone do not prove separation. The
+bounded query never evaluates source expressions or infers floating equality.
+Its availability rule remains part of the explicitly trusted Rust reconstruction
+closure below, not a separately proved low-rung storage theorem.
+
+[Proof scheduling](src/control_graph.rs) cuts DFS ancestor edges in its working
+graph. Cut targets discard incoming semantic axioms. A declared scalar range
+may enter as an induction hypothesis only with checked establishment and
+preservation obligations for every actual arrival; ranking alone grants no range.
+The [block predicate reconstruction](src/verification/reconstruction/scalar_block_invariants.rs)
+emits these obligations alongside operation safety, before successor binding.
+Every normal return still contributes to the exit intersection. General invariant reconstruction,
+wider rank views/projections, callee-progress composition, and cyclic guarded-
+crash path enumeration need further support.
+
+The legacy unsigned countdown has separate interpreter, native, and fixed-fuel
+verifier entrances. Its acyclic skeleton and one covered backedge must agree on
+the complete structural frontier. Ordinary verification does not confer that
+specialized authority. Natural-rank verification is not countdown admission.
+
+## Trust and implementation gaps
+
+The [codec trust graph](../terminal-codec/src/sections/trust_graph/current.rs) binds the
+exact deciding source closure and registered dependencies. Source files moved
+during refactoring remain in that closure; a module split is not a proof.
+
+The authoritative low-rung byte decoder/ledger generator, row soundness proofs,
+and global composition bridge remain completion work. The Rust inventory must
+not be reported as fully derived merely because producer reductions now emit
+checked certificates. A second proof-kernel implementation does not reconstruct
+a ledger and supplies no reconstruction assurance by itself.
+
+The [execution board](../../../../TASKS.md) owns that work. Do not preserve old
+format-bound feasibility implementations or version-by-version migration
+reports here.
+
+Field note (review 23338b3d093c..58b08fc20f2f): `matches_return_source` in
+`validation/structural_result_contracts.rs` lets a declared result introduce
+whole-root qualifications the returned source does not carry, but Terminal Psi
+publishes no `established by` roster, so the verifier cannot re-decide that the
+machine is a declared establisher — the frontend is trusted for that domain
+minting. Close by publishing establishment authority on
+`StructuralDomainDeclaration` and checking it at the `ReturnStructural` edge.

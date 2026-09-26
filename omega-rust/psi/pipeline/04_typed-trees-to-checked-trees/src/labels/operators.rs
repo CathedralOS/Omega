@@ -1,9 +1,7 @@
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, ExpressionNode,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::proposition::ProofSubstitutions;
-use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
+use typed_trees::TypedTrees;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::proposition::ProofSubstitutions;
+use typed_trees::signature::StateParameter;
 
 /// Render an operator contract expression with each formal parameter replaced
 /// by its concrete operand label. This is shared by requires discharge and by
@@ -34,10 +32,10 @@ pub(crate) fn instantiate_operator_contract_expression_label_with_labels(
                 .iter()
                 .map(|arm| {
                     let pattern = match arm.pattern {
-                        symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) => {
+                        typed_trees::expression::MatchPattern::Value(pattern) => {
                             instantiate(pattern)
                         }
-                        symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Wildcard => "_".to_owned(),
+                        typed_trees::expression::MatchPattern::Wildcard => "_".to_owned(),
                     };
                     format!("{pattern} -> {}", instantiate(arm.value))
                 })
@@ -70,7 +68,7 @@ pub(crate) fn instantiate_operator_contract_expression_label_with_labels(
         ExpressionNode::Cast(cast) => format!(
             "{} as {}",
             instantiate(cast.value),
-            symbol_resolved_trees_to_typed_trees::typed_trees::expression::display_name_path(
+            typed_trees::expression::display_name_path(
                 program
                     .expression_table
                     .name_path_members(cast.target_label),

@@ -17,19 +17,17 @@
 use std::sync::Arc;
 
 use optimization_core::OptimizationWorkBudget;
-use semantic_vocabulary::{IntegerValue, ScalarType, ValueId};
-use target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment;
-use target_operations_to_selected_instructions::register_model::{
-    RegisterInstructionConstraint, RegisterOperandAccess,
-};
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
-use target_operations_to_selected_instructions::{
+use optimization_unit::ValueDefinitionSite;
+use register_environment::ValidatedTargetRegisterEnvironment;
+use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
+use selected_instructions::{
     SelectedBoundarySettlementPayload, SelectedCasePayloadTransport, SelectedFunction,
     SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
     SelectedInstructionProvenance, SelectedOperand, SelectedStructuralTransport,
     SelectedValueTransport, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
-use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
+use semantic_vocabulary::{IntegerValue, ScalarType, ValueId};
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::{
     RuntimeRematerializationError, RuntimeRematerializationReceipt,
@@ -287,7 +285,7 @@ fn reconstruct<'source>(
                 matches!(binding.transport,
                 SelectedStructuralTransport::Descriptor { argument, .. }
                 | SelectedStructuralTransport::Address {
-                    base: target_operations_to_selected_instructions::SelectedAddressBase::Register(argument),
+                    base: selected_instructions::SelectedAddressBase::Register(argument),
                     ..
                 } if argument == register)
             }) || successor.structural_case.as_ref().is_some_and(|case| {

@@ -1,6 +1,6 @@
 //! Reconstruct structural parameter shape and incoming ABI storage.
 
-use abstract_operations_to_target_operations::calling_conventions::{
+use calling_conventions::{
     CallPlan, IndirectPointerLocation, ValueClass, ValueLocation, ValuePlacement,
 };
 use semantic_vocabulary::{IntegerCarrier, ScalarType};
@@ -9,8 +9,7 @@ use terminal_psi::{StructuralAccess, StructuralTypeShape};
 #[derive(Clone, Copy)]
 pub(crate) struct Parameter<'a> {
     pub semantic: &'a terminal_psi::StructuralParameterDeclaration,
-    pub target:
-        &'a abstract_operations_to_target_operations::target_operations::TargetStructuralParameter,
+    pub target: &'a target_operations::TargetStructuralParameter,
 }
 
 /// Each graph parameter has its own storage relation; result shape and statement
@@ -68,9 +67,9 @@ pub(crate) fn accepts_graph(
         }
         shapes.push(shape);
     }
-    abstract_operations_to_target_operations::calling_conventions::evaluate_call_plan(
+    calling_conventions::evaluate_call_plan(
         call_plan.policy,
-        &abstract_operations_to_target_operations::calling_conventions::CallSignature {
+        &calling_conventions::CallSignature {
             parameters: shapes,
             result: call_plan.result.as_ref().map(|placement| placement.shape),
         },
@@ -92,7 +91,7 @@ pub(crate) fn accepts_borrowed_parameters(
     let result_shape = call_plan.result.as_ref().map(|placement| placement.shape);
     if result_shape.is_some_and(|shape| {
         ![1, 2, 4, 8].contains(&shape.byte_size)
-            || shape != abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(shape.byte_size, shape.byte_size)
+            || shape != calling_conventions::ValueShape::integer(shape.byte_size, shape.byte_size)
     }) {
         return false;
     }
@@ -102,10 +101,10 @@ pub(crate) fn accepts_borrowed_parameters(
         .collect::<Vec<_>>();
     if shapes.iter().any(|shape| {
         !([1, 2, 4, 8].contains(&shape.byte_size)
-            && *shape == abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(shape.byte_size, shape.byte_size)
+            && *shape == calling_conventions::ValueShape::integer(shape.byte_size, shape.byte_size)
             || [
-                abstract_operations_to_target_operations::calling_conventions::ValueShape::float(4),
-                abstract_operations_to_target_operations::calling_conventions::ValueShape::float(8),
+                calling_conventions::ValueShape::float(4),
+                calling_conventions::ValueShape::float(8),
             ]
             .contains(shape))
     }) {
@@ -151,7 +150,7 @@ pub(crate) fn accepts_borrowed_parameters(
         ) else {
             return false;
         };
-        let shape = abstract_operations_to_target_operations::calling_conventions::ValueShape::borrowed_reference(
+        let shape = calling_conventions::ValueShape::borrowed_reference(
             referent.byte_size,
             referent.alignment,
         );
@@ -184,9 +183,9 @@ pub(crate) fn accepts_borrowed_parameters(
         }
         shapes.push(shape);
     }
-    abstract_operations_to_target_operations::calling_conventions::evaluate_call_plan(
+    calling_conventions::evaluate_call_plan(
         call_plan.policy,
-        &abstract_operations_to_target_operations::calling_conventions::CallSignature {
+        &calling_conventions::CallSignature {
             parameters: shapes,
             result: result_shape,
         },
@@ -234,12 +233,8 @@ pub(crate) fn accepts_borrowed_view(
         .collect::<Vec<_>>();
     if shapes.iter().any(|shape| {
         ![
-            abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(
-                8, 8,
-            ),
-            abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(
-                1, 1,
-            ),
+            calling_conventions::ValueShape::integer(8, 8),
+            calling_conventions::ValueShape::integer(1, 1),
         ]
         .contains(shape)
     }) {
@@ -248,16 +243,15 @@ pub(crate) fn accepts_borrowed_view(
     shapes.extend(
         parameters
             .iter()
-            .map(|_| abstract_operations_to_target_operations::calling_conventions::ValueShape::borrowed_reference(16, 8)),
+            .map(|_| calling_conventions::ValueShape::borrowed_reference(16, 8)),
     );
-    let expected =
-        abstract_operations_to_target_operations::calling_conventions::evaluate_call_plan(
-            call_plan.policy,
-            &abstract_operations_to_target_operations::calling_conventions::CallSignature {
-                parameters: shapes,
-                result: call_plan.result.as_ref().map(|result| result.shape),
-            },
-        );
+    let expected = calling_conventions::evaluate_call_plan(
+        call_plan.policy,
+        &calling_conventions::CallSignature {
+            parameters: shapes,
+            result: call_plan.result.as_ref().map(|result| result.shape),
+        },
+    );
     expected
         .as_ref()
         .is_ok_and(|expected| expected == call_plan)
@@ -278,7 +272,7 @@ pub(crate) fn accepts_borrowed_view(
                 && parameter.target.projected_qualifications.is_empty()
                 && parameter.target.multiplicity == parameter.semantic.multiplicity
                 && parameter.target.shape
-                    == abstract_operations_to_target_operations::calling_conventions::ValueShape::borrowed_reference(16, 8)
+                    == calling_conventions::ValueShape::borrowed_reference(16, 8)
                 && parameter.target.placement == call_plan.parameters[scalar_count + position]
                 && structural_types.iter().any(|declaration| {
                     declaration.id == parameter.semantic.structural_type

@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><meta charset="utf-8"><title>fat stages — maximal fold</title>
+<head><meta charset="utf-8"><title>REJECTED — fat-stages consolidation</title>
 <style>
   body{background:#0d1117;color:#e6edf3;font:15px/1.5 system-ui,sans-serif;max-width:1040px;margin:36px auto;padding:0 24px}
   h1{font-size:24px}
@@ -27,7 +27,18 @@
 </style></head>
 <body>
 
-<h1>Maximal fold — 3 things</h1>
+<h1>REJECTED — fat-stages consolidation</h1>
+<div class="rule" role="note">
+  <strong>Owner decision, 2026-09-26: rejected completely. Do not implement or continue this plan.</strong>
+  <p>The owner directed reversal of commit <code>912b490c8f1</code>. Durable IRs remain independent
+  <code>representations/</code> packages. Shared foundations, utilities, semantics, backend,
+  compiler, build, packages, and tooling retain independent ownership; they must not be absorbed
+  into producing stages or the application crate to reduce crate count.</p>
+  <p>This map is historical evidence of the rejected proposal, not architecture authority.
+  See the <a href="fat_stages_consolidation.md">rejection record</a> and the
+  <a href="../../../omega-rust/pipeline.md">authoritative pipeline contract</a>.</p>
+</div>
+<h2>Rejected proposal (historical record)</h2>
 <p class="d"><b>Rule:</b> a stage owns its produced IR, its machinery, and its checker module. Outside <code>pipeline/</code> only universal substrate and the binary survive. Still stages 0–9 — just fat.</p>
 
 <div class="cols">

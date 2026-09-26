@@ -1,8 +1,8 @@
 //! Replaying recorded state-entry, statement and borrow permission events.
 
-use crate::checked_trees::{CheckFacts, FlowPermissionEventFact};
 use crate::checks::multiplicity::linear_obligations::{ClaimIdentityAllocator, LinearPlace};
 use crate::checks::multiplicity::linear_validation::permission_production::established_provenance;
+use checked_trees::{CheckFacts, FlowPermissionEventFact};
 use diagnostics::Diagnostic;
 use language_semantics::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
@@ -16,7 +16,7 @@ use symbols::SymbolHandle;
 /// with the authored initializer. Reuse production's semantic derivation with
 /// fresh output arenas; compare paths structurally rather than arena handles.
 pub(super) fn validate_permission_source_replay(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     incoming_guards: &crate::checks::ranges::incoming_guards::IncomingGuardIndex,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -32,10 +32,10 @@ pub(super) fn validate_permission_source_replay(
                 .iter()
                 .any(|statement| {
                     let expression = match statement {
-                        symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) => {
+                        typed_trees::statement::StatementNode::LocalData(local) => {
                             local.initial_value
                         }
-                        symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Assignment(assignment) => {
+                        typed_trees::statement::StatementNode::Assignment(assignment) => {
                             assignment.value
                         }
                         _ => return false,
@@ -43,7 +43,7 @@ pub(super) fn validate_permission_source_replay(
                     if !expression.is_valid() {
                         return false;
                     }
-                    let symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionNode::Call(call) =
+                    let typed_trees::expression::ExpressionNode::Call(call) =
                         program.expression_table.expression(expression)
                     else {
                         return false;
@@ -65,7 +65,7 @@ pub(super) fn validate_permission_source_replay(
     let mut reconstructed = CheckFacts {
         borrow: facts.borrow.clone(),
         operators: facts.operators.clone(),
-        flow: crate::checked_trees::FlowFacts {
+        flow: checked_trees::FlowFacts {
             contexts: facts.flow.contexts.clone(),
             control: facts.flow.control.clone(),
             borrow_lifetimes: facts.flow.borrow_lifetimes.clone(),
@@ -109,14 +109,14 @@ pub(super) fn validate_permission_source_replay(
 
 pub(crate) fn apply_recorded_state_entry_events(
     events: &[&FlowPermissionEventFact],
-    segments: &arena::Arena<crate::fact_plan::PlaceSegment>,
+    segments: &arena::Arena<facts::PlaceSegment>,
     places: &mut [LinearPlace],
 ) {
     for event in events.iter().copied().filter(|event| {
         event.source == PermissionEventSource::StateEntry
             && event.kind == PermissionEventKind::Establish
     }) {
-        let crate::fact_plan::PlaceRoot::Symbol(symbol) = event.root else {
+        let facts::PlaceRoot::Symbol(symbol) = event.root else {
             continue;
         };
         let event_path = segments.span_or_empty(event.segments);
@@ -137,7 +137,7 @@ pub(crate) fn apply_recorded_state_entry_events(
 pub(crate) fn apply_recorded_statement_events(
     statement_index: usize,
     events: &[&FlowPermissionEventFact],
-    segments: &arena::Arena<crate::fact_plan::PlaceSegment>,
+    segments: &arena::Arena<facts::PlaceSegment>,
     places: &mut [LinearPlace],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -145,7 +145,7 @@ pub(crate) fn apply_recorded_statement_events(
         permission_event_statement_index(event.source) == Some(statement_index)
             && event.kind != PermissionEventKind::AffineDrop
     }) {
-        let crate::fact_plan::PlaceRoot::Symbol(symbol) = event.root else {
+        let facts::PlaceRoot::Symbol(symbol) = event.root else {
             continue;
         };
         let event_path = segments.span_or_empty(event.segments);
@@ -273,12 +273,12 @@ pub(crate) fn append_borrow_permission_events(
             .span_or_empty(weakenings)
             .to_vec()
         {
-            let source =
-                if weakening.reason == crate::checked_trees::FlowBorrowWeakeningReason::StateExit {
-                    PermissionEventSource::StateExit
-                } else {
-                    permission_source_from_invalidation(weakening.source)
-                };
+            let source = if weakening.reason == checked_trees::FlowBorrowWeakeningReason::StateExit
+            {
+                PermissionEventSource::StateExit
+            } else {
+                permission_source_from_invalidation(weakening.source)
+            };
             let claim_identity = loan_claim_identities
                 .iter()
                 .rev()
@@ -303,7 +303,7 @@ fn append_borrow_permission_event(
     permission_events: &mut Vec<FlowPermissionEventFact>,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-    loan_handle: arena::Handle<crate::checked_trees::BorrowLoanFact>,
+    loan_handle: arena::Handle<checked_trees::BorrowLoanFact>,
     source: PermissionEventSource,
     kind: PermissionEventKind,
     claim_identity: PermissionClaimIdentity,
@@ -315,13 +315,13 @@ fn append_borrow_permission_event(
         .segments
         .insert_many(facts.borrow.loan_segments(&loan).iter().copied());
     let (multiplicity, access) = match loan.kind {
-        crate::checked_trees::BorrowAccessKind::Read => {
+        checked_trees::BorrowAccessKind::Read => {
             (Multiplicity::Unrestricted, PermissionAccess::Shared)
         }
-        crate::checked_trees::BorrowAccessKind::Mutable => {
+        checked_trees::BorrowAccessKind::Mutable => {
             (Multiplicity::Affine, PermissionAccess::Exclusive)
         }
-        crate::checked_trees::BorrowAccessKind::WriteOnly => {
+        checked_trees::BorrowAccessKind::WriteOnly => {
             // A write-only borrow is exclusive and therefore follows the same
             // affine use discipline as a mutable borrow. Its observation
             // restriction is validated separately.
@@ -343,20 +343,20 @@ fn append_borrow_permission_event(
                 statement_index: loan.statement_index,
             },
         ),
-        root: crate::fact_plan::PlaceRoot::Symbol(loan.root_symbol),
+        root: facts::PlaceRoot::Symbol(loan.root_symbol),
         segments,
         obligation_live: false,
     });
 }
 
 fn permission_source_from_invalidation(
-    source: crate::checked_trees::FlowInvalidationSource,
+    source: checked_trees::FlowInvalidationSource,
 ) -> PermissionEventSource {
     match source {
-        crate::checked_trees::FlowInvalidationSource::Statement { statement_index } => {
+        checked_trees::FlowInvalidationSource::Statement { statement_index } => {
             PermissionEventSource::Statement { statement_index }
         }
-        crate::checked_trees::FlowInvalidationSource::Call {
+        checked_trees::FlowInvalidationSource::Call {
             statement_index,
             call_ordinal,
             target_symbol,

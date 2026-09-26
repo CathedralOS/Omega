@@ -1,15 +1,11 @@
 //! Replay-local interval, candidate-domain, and register-unit mechanics.
 
-use target_operations_to_selected_instructions::VirtualRegisterId;
-use target_operations_to_selected_instructions::register_model::{
-    RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel,
-};
+use register_model::{RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel};
+use selected_instructions::VirtualRegisterId;
 
 use crate::unsequenced_spill_stages::RecursiveReloadValueHomeError;
-use selected_instructions_to_selected_instructions::register_homes::{
-    FunctionAllocationLegality, VirtualRegisterAllocationLegality,
-};
-use target_operations_to_selected_instructions::LiveRangePoint;
+use register_homes::{FunctionAllocationLegality, VirtualRegisterAllocationLegality};
+use selected_instructions::LiveRangePoint;
 
 pub(super) fn find_legality(
     function: usize,
@@ -51,7 +47,7 @@ pub(super) fn original_exclusive_end(
 pub(super) fn domain(
     function: usize,
     row: &VirtualRegisterAllocationLegality,
-    block: target_operations_to_selected_instructions::SelectedBlockId,
+    block: selected_instructions::SelectedBlockId,
     start: LiveRangePoint,
     exclusive_end: LiveRangePoint,
 ) -> Result<Vec<RegisterViewId>, RecursiveReloadValueHomeError> {

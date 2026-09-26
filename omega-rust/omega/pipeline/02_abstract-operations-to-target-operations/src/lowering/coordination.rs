@@ -32,13 +32,12 @@ use super::scalar_abi::{
 };
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use crate::target_operations::{BoundarySettlementBinding, TargetFunction, TargetOperationPlan};
+use abstract_operations::AbstractOperationPlan;
+use abstract_operations::{AbstractOperation, AbstractOperationPlan};
 use installation_evidence::ProviderInstallationEvidence;
 use std::collections::BTreeMap;
 use target::NativeTarget;
-use terminal_psi_to_abstract_operations::abstract_operations::{
-    AbstractOperation, AbstractOperationPlan,
-};
+use target_operations::{BoundarySettlementBinding, TargetFunction, TargetOperationPlan};
 
 mod installed_provider_calls;
 pub(crate) mod native_callbacks;

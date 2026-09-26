@@ -1,4 +1,4 @@
-use target_operations_to_selected_instructions::{
+use selected_instructions::{
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedOperand,
     SelectedTerminator, VirtualRegisterId,
 };
@@ -6,7 +6,7 @@ use target_operations_to_selected_instructions::{
 use crate::PressureRematerializationError;
 
 pub(super) fn operand(
-    row: &target_operations_to_selected_instructions::register_model::RegisterOperandConstraint,
+    row: &register_model::RegisterOperandConstraint,
     register: VirtualRegisterId,
 ) -> SelectedOperand {
     SelectedOperand {
@@ -21,7 +21,7 @@ pub(super) fn operand(
 }
 
 pub(super) fn find_instruction(
-    block: &target_operations_to_selected_instructions::SelectedBlock,
+    block: &selected_instructions::SelectedBlock,
     id: SelectedInstructionId,
 ) -> Option<&SelectedInstruction> {
     block

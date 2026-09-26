@@ -6,7 +6,7 @@ use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_psi::{TerminalNaturalRankComparison, TerminalRankedScc};
 
-fn lower_writer() -> checked_trees_to_lowered_psi::lowered_psi::LoweredPsi {
+fn lower_writer() -> lowered_psi::LoweredPsi {
     checked_trees_to_lowered_psi::lower_machine(
         &crate::front_end::checked_program(WRITER),
         TerminalMachineSelection::Name("Root::enter"),
@@ -71,13 +71,10 @@ fn slice_ranked_writer_retains_its_witness_through_serialized_execution() {
     // the component as unbounded by its rank (logical_work.md) rather than
     // fabricating a certificate.
     assert!(matches!(
-        omega::terminal_fixed_fuel::derive_fixed_entry_fuel(
-            &verified,
-            lowered.semantic_module.entry
-        ),
+        terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry),
         Err(
-            omega::terminal_fixed_fuel::FixedFuelError::UnboundedCycleComponent {
-                cause: omega::terminal_fixed_fuel::UnboundedCycleCause::UnboundedRank,
+            terminal_fixed_fuel::FixedFuelError::UnboundedCycleComponent {
+                cause: terminal_fixed_fuel::UnboundedCycleCause::UnboundedRank,
                 ..
             }
         )

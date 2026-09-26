@@ -4,8 +4,8 @@
 //! routing and target-sibling binding. Each pass supplies only its decision;
 //! the reach over the body is defined once here.
 
-use crate::symbol_resolved_trees::SymbolResolvedTrees;
-use crate::symbol_resolved_trees::name::DiagnosticName;
+use symbol_resolved_trees::SymbolResolvedTrees;
+use symbol_resolved_trees::name::DiagnosticName;
 use symbols::SymbolHandle;
 
 /// One call the traversal offers to a decision.
@@ -63,16 +63,16 @@ pub(crate) fn retarget_machine_calls(
 
 fn append_contract_expressions(
     program: &SymbolResolvedTrees,
-    contracts: arena::HandleSpan<crate::symbol_resolved_trees::signature::SignatureContract>,
-    expressions: &mut Vec<crate::symbol_resolved_trees::expression::ExpressionHandle>,
+    contracts: arena::HandleSpan<symbol_resolved_trees::signature::SignatureContract>,
+    expressions: &mut Vec<symbol_resolved_trees::expression::ExpressionHandle>,
 ) {
     for contract in program.signature_contracts(contracts) {
         for fact in program.proof_facts(contract.facts) {
             match fact {
-                crate::symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
+                symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
                     expressions.push(*expression);
                 }
-                crate::symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
+                symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
                     expressions.push(membership.value);
                 }
             }
@@ -82,7 +82,7 @@ fn append_contract_expressions(
 
 fn retarget_statement_span(
     program: &mut SymbolResolvedTrees,
-    statements: arena::HandleSpan<crate::symbol_resolved_trees::statement::StatementNode>,
+    statements: arena::HandleSpan<symbol_resolved_trees::statement::StatementNode>,
     subject_states: &[SymbolHandle],
     decide: &mut dyn FnMut(&CallSite<'_>) -> Option<SymbolHandle>,
 ) {
@@ -94,19 +94,19 @@ fn retarget_statement_span(
         let statement = program.tables.bodies.statements.statement(handle).clone();
         let mut expressions = Vec::new();
         match statement {
-            crate::symbol_resolved_trees::statement::StatementNode::RootBinding(binding) => {
+            symbol_resolved_trees::statement::StatementNode::RootBinding(binding) => {
                 expressions.push(binding.receiver);
                 if binding.implementation_operand.is_valid() {
                     expressions.push(binding.implementation_operand);
                 }
             }
-            crate::symbol_resolved_trees::statement::StatementNode::AssemblyFact(fact) => {
+            symbol_resolved_trees::statement::StatementNode::AssemblyFact(fact) => {
                 expressions.push(fact.expression);
             }
-            crate::symbol_resolved_trees::statement::StatementNode::Assignment(assignment) => {
+            symbol_resolved_trees::statement::StatementNode::Assignment(assignment) => {
                 expressions.extend([assignment.target, assignment.value]);
             }
-            crate::symbol_resolved_trees::statement::StatementNode::Call(call) => {
+            symbol_resolved_trees::statement::StatementNode::Call(call) => {
                 expressions.extend_from_slice(
                     program
                         .tables
@@ -122,25 +122,25 @@ fn retarget_statement_span(
                         || subject_states.contains(&call.target_symbol),
                 };
                 if let Some(target) = decide(&site)
-                    && let crate::symbol_resolved_trees::statement::StatementNode::Call(call) =
+                    && let symbol_resolved_trees::statement::StatementNode::Call(call) =
                         program.tables.bodies.statements.statement_mut(handle)
                 {
                     call.target_symbol = target;
                 }
             }
-            crate::symbol_resolved_trees::statement::StatementNode::ProofOutputBindingStatement(
+            symbol_resolved_trees::statement::StatementNode::ProofOutputBindingStatement(
                 package,
             ) => {
                 expressions.push(package.call);
             }
-            crate::symbol_resolved_trees::statement::StatementNode::Expression(expression) => {
+            symbol_resolved_trees::statement::StatementNode::Expression(expression) => {
                 expressions.push(expression);
             }
-            crate::symbol_resolved_trees::statement::StatementNode::LocalData(local) => {
+            symbol_resolved_trees::statement::StatementNode::LocalData(local) => {
                 expressions.push(local.initial_value);
             }
-            crate::symbol_resolved_trees::statement::StatementNode::Transition(transition) => {
-                if let crate::symbol_resolved_trees::statement::TransitionGuardNode::When(guard) =
+            symbol_resolved_trees::statement::StatementNode::Transition(transition) => {
+                if let symbol_resolved_trees::statement::TransitionGuardNode::When(guard) =
                     transition.guard
                 {
                     expressions.push(guard);
@@ -167,27 +167,25 @@ fn retarget_statement_span(
 }
 
 fn append_transition_target_expressions(
-    statements: &crate::symbol_resolved_trees::statement::StatementTable,
-    target: crate::symbol_resolved_trees::statement::TransitionTargetHandle,
-    expressions: &mut Vec<crate::symbol_resolved_trees::expression::ExpressionHandle>,
+    statements: &symbol_resolved_trees::statement::StatementTable,
+    target: symbol_resolved_trees::statement::TransitionTargetHandle,
+    expressions: &mut Vec<symbol_resolved_trees::expression::ExpressionHandle>,
 ) {
     match statements.transition_target(target) {
-        crate::symbol_resolved_trees::statement::TransitionTargetNode::Named {
-            arguments, ..
-        } => {
+        symbol_resolved_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
             expressions.extend_from_slice(statements.expression_handles(*arguments));
         }
-        crate::symbol_resolved_trees::statement::TransitionTargetNode::Value(value) => {
+        symbol_resolved_trees::statement::TransitionTargetNode::Value(value) => {
             expressions.push(*value);
         }
-        crate::symbol_resolved_trees::statement::TransitionTargetNode::SelfTarget
-        | crate::symbol_resolved_trees::statement::TransitionTargetNode::Terminal => {}
+        symbol_resolved_trees::statement::TransitionTargetNode::SelfTarget
+        | symbol_resolved_trees::statement::TransitionTargetNode::Terminal => {}
     }
 }
 
 fn retarget_expression(
     program: &mut SymbolResolvedTrees,
-    expression: crate::symbol_resolved_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees::expression::ExpressionHandle,
     subject_states: &[SymbolHandle],
     decide: &mut dyn FnMut(&CallSite<'_>) -> Option<SymbolHandle>,
     visited: &mut Vec<u32>,
@@ -204,31 +202,30 @@ fn retarget_expression(
         .clone();
     let mut children = Vec::new();
     match node {
-        crate::symbol_resolved_trees::expression::ExpressionNode::Match(dispatch) => {
+        symbol_resolved_trees::expression::ExpressionNode::Match(dispatch) => {
             children.push(dispatch.subject);
             for arm in program.tables.bodies.expressions.match_arms(dispatch.arms) {
-                if let crate::symbol_resolved_trees::expression::MatchPattern::Value(pattern) =
-                    arm.pattern
+                if let symbol_resolved_trees::expression::MatchPattern::Value(pattern) = arm.pattern
                 {
                     children.push(pattern);
                 }
                 children.push(arm.value);
             }
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::ArrayLiteral(values) => {
+        symbol_resolved_trees::expression::ExpressionNode::ArrayLiteral(values) => {
             children
                 .extend_from_slice(program.tables.bodies.expressions.expression_handles(values));
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Atomic(atomic) => {
+        symbol_resolved_trees::expression::ExpressionNode::Atomic(atomic) => {
             children.extend([atomic.value, atomic.result]);
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Binary(binary) => {
+        symbol_resolved_trees::expression::ExpressionNode::Binary(binary) => {
             children.extend([binary.left, binary.right]);
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Cast(cast) => {
+        symbol_resolved_trees::expression::ExpressionNode::Cast(cast) => {
             children.push(cast.value);
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Call(call) => {
+        symbol_resolved_trees::expression::ExpressionNode::Call(call) => {
             if call.receiver.is_valid() {
                 children.push(call.receiver);
             }
@@ -247,28 +244,28 @@ fn retarget_expression(
                     || subject_states.contains(&call.target_symbol),
             };
             if let Some(target) = decide(&site)
-                && let crate::symbol_resolved_trees::expression::ExpressionNode::Call(call) =
+                && let symbol_resolved_trees::expression::ExpressionNode::Call(call) =
                     program.tables.bodies.expressions.expression_mut(expression)
             {
                 call.target_symbol = target;
             }
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Indexed(indexed) => {
+        symbol_resolved_trees::expression::ExpressionNode::Indexed(indexed) => {
             children.extend([indexed.collection, indexed.index]);
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Membership(membership) => {
+        symbol_resolved_trees::expression::ExpressionNode::Membership(membership) => {
             children.push(membership.value);
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Member(member) => {
+        symbol_resolved_trees::expression::ExpressionNode::Member(member) => {
             children.push(member.receiver);
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
+        symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
             children.push(inner.target);
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Range(range) => {
+        symbol_resolved_trees::expression::ExpressionNode::Range(range) => {
             children.extend([range.start, range.end]);
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::StructLiteral(literal) => {
+        symbol_resolved_trees::expression::ExpressionNode::StructLiteral(literal) => {
             children.extend(
                 program
                     .tables
@@ -279,15 +276,15 @@ fn retarget_expression(
                     .map(|field| field.value),
             );
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Unary(unary) => {
+        symbol_resolved_trees::expression::ExpressionNode::Unary(unary) => {
             children.push(unary.operand);
         }
-        crate::symbol_resolved_trees::expression::ExpressionNode::Boolean(_)
-        | crate::symbol_resolved_trees::expression::ExpressionNode::Float(_)
-        | crate::symbol_resolved_trees::expression::ExpressionNode::Integer(_)
-        | crate::symbol_resolved_trees::expression::ExpressionNode::Name(_)
-        | crate::symbol_resolved_trees::expression::ExpressionNode::String(_)
-        | crate::symbol_resolved_trees::expression::ExpressionNode::ZeroValue(_) => {}
+        symbol_resolved_trees::expression::ExpressionNode::Boolean(_)
+        | symbol_resolved_trees::expression::ExpressionNode::Float(_)
+        | symbol_resolved_trees::expression::ExpressionNode::Integer(_)
+        | symbol_resolved_trees::expression::ExpressionNode::Name(_)
+        | symbol_resolved_trees::expression::ExpressionNode::String(_)
+        | symbol_resolved_trees::expression::ExpressionNode::ZeroValue(_) => {}
     }
     for child in children {
         retarget_expression(program, child, subject_states, decide, visited);
@@ -295,12 +292,12 @@ fn retarget_expression(
 }
 
 fn expression_is_self(
-    expressions: &crate::symbol_resolved_trees::expression::ExpressionTable,
-    expression: crate::symbol_resolved_trees::expression::ExpressionHandle,
+    expressions: &symbol_resolved_trees::expression::ExpressionTable,
+    expression: symbol_resolved_trees::expression::ExpressionHandle,
 ) -> bool {
     match expressions.expression(expression) {
-        crate::symbol_resolved_trees::expression::ExpressionNode::Name(path) => path.is_self_value,
-        crate::symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
+        symbol_resolved_trees::expression::ExpressionNode::Name(path) => path.is_self_value,
+        symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
             expression_is_self(expressions, inner.target)
         }
         _ => false,

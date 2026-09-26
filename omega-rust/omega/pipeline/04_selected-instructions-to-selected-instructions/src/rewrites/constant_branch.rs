@@ -66,11 +66,12 @@ mod validation;
 use std::sync::Arc;
 
 use optimization_core::OptimizationUnitIdentity;
-use semantic_vocabulary::FuelScheduleIdentity;
-use target_operations_to_selected_instructions::{
+use selected_instructions::{
     ConstantBranchIdentity, SelectedInstructionId, SelectedInstructionPlan,
     SelectedInstructionPlanIdentity,
 };
+use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
+use semantic_vocabulary::FuelScheduleIdentity;
 
 pub(crate) use rewrite::fold_selected_constant_branch;
 pub(crate) use validation::{measured_steps, surface_sizes, validate_constant_branch_fold};

@@ -32,7 +32,7 @@ pub(super) enum StoreRoots<'a> {
 pub(super) enum Root<'a> {
     Parameter {
         plan: &'a CheckedUnitStructuralParameterPlan,
-        parameter: &'a symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter,
+        parameter: &'a typed_trees::signature::StateParameter,
     },
     Local {
         symbol: SymbolHandle,
@@ -42,15 +42,15 @@ pub(super) enum Root<'a> {
 impl Root<'_> {
     pub(super) fn destination(
         &self,
-    ) -> crate::checked_trees::CheckedStructuralScalarFieldStoreDestination {
+    ) -> checked_trees::CheckedStructuralScalarFieldStoreDestination {
         match self {
             Self::Parameter { plan, .. } => {
-                crate::checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter {
+                checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter {
                     position: plan.position,
                 }
             }
             Self::Local { symbol } => {
-                crate::checked_trees::CheckedStructuralScalarFieldStoreDestination::Local {
+                checked_trees::CheckedStructuralScalarFieldStoreDestination::Local {
                     symbol: *symbol,
                 }
             }
@@ -73,39 +73,38 @@ impl Root<'_> {
 pub(super) struct Destination<'a> {
     pub(super) root: Root<'a>,
     pub(super) place: crate::flow::CanonicalPlace,
-    pub(super) dynamic_index:
-        Option<symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle>,
+    pub(super) dynamic_index: Option<typed_trees::expression::ExpressionHandle>,
     /// The target's admitted element selectors, when every indexed step is
     /// an element of a declared fixed array.
     selectors: Option<super::selectors::TargetSelectors>,
     /// Declared type of the root's referent (the borrowed record, or the
     /// local's own type) and its record owner when the root is a record.
-    root_type: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
-    root_owner: Option<&'a symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition>,
+    root_type: typed_trees::types::TypeReferenceHandle,
+    root_owner: Option<&'a typed_trees::data::DataDefinition>,
 }
 
 /// The checked carrier path to a record, and that record's declaration.
 pub(super) struct Carrier<'a> {
     pub(super) path: Vec<CheckedUnitStructuralPathSegment>,
-    pub(super) owner: &'a symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition,
+    pub(super) owner: &'a typed_trees::data::DataDefinition,
 }
 
 /// Resolve the authored target, its root and the root's write authority.
 pub(super) fn resolve<'a>(
     program: &'a TypedTrees,
     facts: &CheckFacts,
-    machine: &'a symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &'a symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &'a typed_trees::machine::Machine,
+    state: &'a typed_trees::state::State,
     roots: StoreRoots<'a>,
     statement_index: u32,
-    assignment: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableAssignment,
+    assignment: &typed_trees::statement::TableAssignment,
     trace: &LocalConstructionTrace,
 ) -> Option<Destination<'a>> {
     trace.phase("structural field store: target place");
     let ordinal = usize::try_from(statement_index).ok()?;
     let (target, dynamic_index) = match program.expression_table.expression(assignment.target) {
         ExpressionNode::Indexed(indexed) => {
-            if !crate::validation::place_has_builtin_coordinates(
+            if !validation::place_has_builtin_coordinates(
                 program,
                 machine,
                 Some(state),
@@ -126,7 +125,8 @@ pub(super) fn resolve<'a>(
         ordinal,
         target,
     )?;
-    let crate::fact_plan::PlaceRoot::Symbol(root_symbol) = place.root else {
+    let place = rejoin_loan_local(program, state, ordinal, place)?;
+    let facts::PlaceRoot::Symbol(root_symbol) = place.root else {
         return None;
     };
     let selectors = super::selectors::TargetSelectors::resolve(
@@ -202,7 +202,7 @@ pub(super) fn resolve<'a>(
                 return None;
             }
             super::super::scalar_graph_record_shapes(program, local.type_reference)?;
-            crate::validation::record_local_disposition(
+            validation::record_local_disposition(
                 program,
                 facts,
                 machine.symbol,
@@ -235,7 +235,7 @@ impl<'a> Destination<'a> {
     pub(super) fn exclusive_authority(
         &self,
         program: &TypedTrees,
-        state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+        state: &typed_trees::state::State,
         roots: StoreRoots<'_>,
         trace: &LocalConstructionTrace,
     ) -> Option<()> {
@@ -289,7 +289,7 @@ impl<'a> Destination<'a> {
     pub(super) fn carrier(
         &self,
         program: &'a TypedTrees,
-        segments: &[crate::fact_plan::PlaceSegment],
+        segments: &[facts::PlaceSegment],
     ) -> Option<Carrier<'a>> {
         if let Some(owner) = self.root_owner
             && !plain_record(owner, program)
@@ -301,7 +301,7 @@ impl<'a> Destination<'a> {
         let mut owner = self.root_owner;
         for segment in segments {
             match segment {
-                crate::fact_plan::PlaceSegment::Field { symbol } => {
+                facts::PlaceSegment::Field { symbol } => {
                     let field_owner = owner?;
                     if !plain_record(field_owner, program) {
                         return None;
@@ -321,14 +321,13 @@ impl<'a> Destination<'a> {
                     ));
                     carrier_type = carrier.type_reference;
                 }
-                crate::fact_plan::PlaceSegment::FixedIndex { .. }
-                | crate::fact_plan::PlaceSegment::Index { .. } => {
+                facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. } => {
                     // An arithmetic-policy shell (`[Entity; 3] in Wrapping`)
                     // qualifies element operations, not the array's layout.
-                    let array = crate::validation::unwrapped_type_reference(program, carrier_type)?;
+                    let array = validation::unwrapped_type_reference(program, carrier_type)?;
                     let TypeReferenceNode::FixedArray {
                         element_type,
-                        length: symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::Literal(length),
+                        length: typed_trees::types::FixedArrayLength::Literal(length),
                     } = program.type_reference_table.type_reference(array)
                     else {
                         return None;
@@ -337,14 +336,12 @@ impl<'a> Destination<'a> {
                         return None;
                     }
                     path.push(match segment {
-                        crate::fact_plan::PlaceSegment::FixedIndex { index }
-                            if *index < *length =>
-                        {
+                        facts::PlaceSegment::FixedIndex { index } if *index < *length => {
                             CheckedUnitStructuralPathSegment::FixedIndex(
                                 u64::try_from(*index).ok()?,
                             )
                         }
-                        crate::fact_plan::PlaceSegment::Index { expression } => {
+                        facts::PlaceSegment::Index { expression } => {
                             self.selectors.as_ref()?.runtime_segment(*expression)?
                         }
                         _ => return None,
@@ -367,13 +364,9 @@ impl<'a> Destination<'a> {
         let Root::Parameter { plan, .. } = self.root else {
             return None;
         };
-        let source_path = crate::fact_plan::canonical_place_label_from_parts(
-            program,
-            self.place.root,
-            &self.place.segments,
-        );
-        let source_root =
-            crate::fact_plan::canonical_place_label_from_parts(program, self.place.root, &[]);
+        let source_path =
+            facts::canonical_place_label_from_parts(program, self.place.root, &self.place.segments);
+        let source_root = facts::canonical_place_label_from_parts(program, self.place.root, &[]);
         let mutation_root = if plan.is_self {
             "self".to_owned()
         } else {
@@ -399,10 +392,7 @@ impl<'a> Destination<'a> {
 /// erased fields, `crosses_reference` stops every carrier hop at a reference,
 /// and a reference leaf has no primitive type. Runtime generic arity is still
 /// excluded by the type-parameter and owner-application tests below.
-pub(super) fn plain_record(
-    data: &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition,
-    program: &TypedTrees,
-) -> bool {
+pub(super) fn plain_record(data: &typed_trees::data::DataDefinition, program: &TypedTrees) -> bool {
     data.supply_mode == language_semantics::DataSupplyMode::CheckedShape
         && program.data_type_parameters(data).is_empty()
         && retained_record_owner_application(data, program)
@@ -410,14 +400,14 @@ pub(super) fn plain_record(
         // Interval-only facts are the fields' own bounds, which each store's
         // range obligation re-proves; relational facts stay refused.
         && (data.where_facts.is_empty()
-            || crate::validation::data_where_field_intervals(program, data).is_some())
+            || validation::data_where_field_intervals(program, data).is_some())
         && !data.zero_gated
-        && symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition::shape_kind_from_members(program.data_members(data))
+        && typed_trees::data::DataDefinition::shape_kind_from_members(program.data_members(data))
             == DataShapeKind::Record
 }
 
 fn retained_record_owner_application(
-    data: &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition,
+    data: &typed_trees::data::DataDefinition,
     program: &TypedTrees,
 ) -> bool {
     let Some(application) = data.generic_instance else {
@@ -470,7 +460,7 @@ fn retained_record_owner_application(
 /// `&`/`&mut` for the entry-invariant seed, so carrier hops test this first.
 pub(super) fn crosses_reference(
     program: &TypedTrees,
-    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { .. } => true,
@@ -481,9 +471,9 @@ pub(super) fn crosses_reference(
 
 pub(super) fn exact_relevant_field<'a>(
     program: &'a TypedTrees,
-    owner: &'a symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition,
+    owner: &'a typed_trees::data::DataDefinition,
     symbol: SymbolHandle,
-) -> Option<&'a symbol_resolved_trees_to_typed_trees::typed_trees::data::DataField> {
+) -> Option<&'a typed_trees::data::DataField> {
     let mut fields = program
         .data_members(owner)
         .iter()
@@ -495,4 +485,60 @@ pub(super) fn exact_relevant_field<'a>(
         });
     let field = fields.next()?;
     fields.next().is_none().then_some(field)
+}
+
+/// Rejoin a write through an exclusive loan local with the place it loans.
+///
+/// `let seen: &mut u8 = &mut self.byte; seen = 0;` writes `self.byte`. The
+/// local is immutable and a reference cannot be reseated, so the name denotes
+/// one place for its whole scope and the store is the ordinary parameter-rooted
+/// store of that place with the loan's own segments in front. This adds no
+/// authority: the loan's exclusivity, lifetime and conflicting-access rules are
+/// already checked, and a shared loan is not a write destination.
+///
+/// A place that is not rooted at such a local is returned unchanged.
+fn rejoin_loan_local(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    ordinal: usize,
+    place: crate::flow::CanonicalPlace,
+) -> Option<crate::flow::CanonicalPlace> {
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+        return Some(place);
+    };
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let mut declarations =
+        statements
+            .iter()
+            .enumerate()
+            .take(ordinal)
+            .filter_map(|(declared, statement)| match statement {
+                StatementNode::LocalData(local) if local.symbol == symbol => {
+                    Some((declared, local))
+                }
+                _ => None,
+            });
+    let Some((_, local)) = declarations.next() else {
+        return Some(place);
+    };
+    if declarations.next().is_some() {
+        return None;
+    }
+    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(local.initial_value)
+    else {
+        return Some(place);
+    };
+    // A reseatable binding does not denote one place, and a shared loan
+    // carries no write authority to rejoin.
+    if local.is_mutable || borrow.access != language_core::ReferenceAccess::Mutable {
+        return None;
+    }
+    let mut loaned = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        ordinal,
+        borrow.target,
+    )?;
+    loaned.segments.extend(place.segments);
+    Some(loaned)
 }

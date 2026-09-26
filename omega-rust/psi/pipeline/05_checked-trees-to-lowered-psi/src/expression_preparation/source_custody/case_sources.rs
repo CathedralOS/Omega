@@ -2,35 +2,31 @@
 //! operand-scope walk. A matching final type cannot replace source identity.
 use crate::expression_preparation::computation_graph::fields;
 use crate::lowering_error::{LoweringError, unsupported};
-use language_semantics::Multiplicity;
-use typed_trees_to_checked_trees::checked_trees::CheckedTrees;
-use typed_trees_to_checked_trees::checked_trees::data::DataMember;
-use typed_trees_to_checked_trees::checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-use typed_trees_to_checked_trees::checked_trees::{
+use checked_trees::CheckedTrees;
+use checked_trees::data::DataMember;
+use checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use checked_trees::{
     CheckedScalarCaseConstruction, CheckedScalarComputationStructuralArgument,
     CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
 };
-type Computation = typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationHandle;
-use typed_trees_to_checked_trees::checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use language_semantics::Multiplicity;
+type Computation = checked_trees::CheckedScalarComputationHandle;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 
 pub(crate) fn construction(
     checked: &CheckedTrees,
     subject: &CheckedScalarCaseConstruction,
 ) -> Result<Vec<(ExpressionHandle, Computation)>, LoweringError> {
-    let source = typed_trees_to_checked_trees::validation::scalar_case_constructor(
-        &checked.typed,
-        subject.expression,
-    )
-    .ok_or(LoweringError::Unsupported(
-        "computed case lost its exact authored constructor",
-    ))?;
+    let source = validation::scalar_case_constructor(&checked.typed, subject.expression).ok_or(
+        LoweringError::Unsupported("computed case lost its exact authored constructor"),
+    )?;
     if source.type_reference != subject.type_reference || source.case != subject.case {
         return unsupported("computed case constructor type or case changed");
     }
     // This is the existing no-code ownership classifier, not an inference
     // from the currently selected payload being scalar.
-    if !typed_trees_to_checked_trees::validation::has_plain_owned_contents_with_numeric_constraints(
+    if !validation::has_plain_owned_contents_with_numeric_constraints(
         &checked.typed,
         subject.type_reference,
     ) || !matches!(
@@ -104,7 +100,7 @@ pub(crate) fn membership(
             return unsupported("case membership cannot observe an array");
         }
     };
-    if !typed_trees_to_checked_trees::validation::has_exact_case_membership_meaning(
+    if !validation::has_exact_case_membership_meaning(
         &checked.typed,
         source_machine,
         Some(source_state),
@@ -116,19 +112,14 @@ pub(crate) fn membership(
     let ExpressionNode::Name(selected) = checked.expression_table.expression(binary.right) else {
         return unsupported("computed case observation lost its selected case");
     };
-    let typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Named {
-        symbol, ..
-    } = checked.type_reference_table.type_reference(type_reference)
+    let checked_trees::types::TypeReferenceNode::Named { symbol, .. } =
+        checked.type_reference_table.type_reference(type_reference)
     else {
         return unsupported("computed case observation lost its nominal type");
     };
-    let owner = typed_trees_to_checked_trees::validation::exact_case_reference_owner(
-        &checked.typed,
-        binary.right,
-    )
-    .ok_or(LoweringError::Unsupported(
-        "computed case observation has no exact case owner",
-    ))?;
+    let owner = validation::exact_case_reference_owner(&checked.typed, binary.right).ok_or(
+        LoweringError::Unsupported("computed case observation has no exact case owner"),
+    )?;
     if selected.symbol != case || owner.symbol != *symbol {
         return unsupported("computed case observation selected a foreign case");
     }
@@ -147,24 +138,18 @@ pub(crate) fn membership(
 /// still rejoin only through their authored constructor.
 fn match_membership(
     checked: &CheckedTrees,
-    machine: &typed_trees_to_checked_trees::checked_trees::machine::Machine,
-    state: &typed_trees_to_checked_trees::checked_trees::state::State,
-    dispatch: &typed_trees_to_checked_trees::checked_trees::expression::TableMatchExpression,
+    machine: &checked_trees::machine::Machine,
+    state: &checked_trees::state::State,
+    dispatch: &checked_trees::expression::TableMatchExpression,
     subject: &CheckedScalarComputationStructuralArgument,
     case: symbols::SymbolHandle,
 ) -> Result<Vec<(ExpressionHandle, Computation)>, LoweringError> {
-    let plan = typed_trees_to_checked_trees::validation::match_case_dispatch(
-        &checked.typed,
-        machine,
-        state,
-        dispatch,
-    )
-    .ok_or(LoweringError::Unsupported(
-        "computed case observation lost its discriminant dispatch",
-    ))?;
+    let plan = validation::match_case_dispatch(&checked.typed, machine, state, dispatch).ok_or(
+        LoweringError::Unsupported("computed case observation lost its discriminant dispatch"),
+    )?;
     let type_reference = match (&plan.subject, subject) {
         (
-            typed_trees_to_checked_trees::validation::MatchCaseSubject::Constructor,
+            validation::MatchCaseSubject::Constructor,
             CheckedScalarComputationStructuralArgument::Case(construction),
         ) => {
             if construction.expression != dispatch.subject {
@@ -173,8 +158,8 @@ fn match_membership(
             construction.type_reference
         }
         (
-            typed_trees_to_checked_trees::validation::MatchCaseSubject::ImmutableLocal { .. }
-            | typed_trees_to_checked_trees::validation::MatchCaseSubject::ParameterField,
+            validation::MatchCaseSubject::ImmutableLocal { .. }
+            | validation::MatchCaseSubject::ParameterField,
             CheckedScalarComputationStructuralArgument::Place(argument),
         ) => dispatch_place(checked, machine, state, dispatch.subject, argument)?,
         _ => {
@@ -218,8 +203,8 @@ fn match_membership(
 /// parameter the plan indexes.
 fn dispatch_place(
     checked: &CheckedTrees,
-    machine: &typed_trees_to_checked_trees::checked_trees::machine::Machine,
-    state: &typed_trees_to_checked_trees::checked_trees::state::State,
+    machine: &checked_trees::machine::Machine,
+    state: &checked_trees::state::State,
     expression: ExpressionHandle,
     argument: &CheckedUnitStructuralArgumentPlan,
 ) -> Result<TypeReferenceHandle, LoweringError> {
@@ -243,12 +228,11 @@ fn dispatch_place(
 /// The lookup during emission additionally requires the declaration to precede use.
 fn local_place(
     checked: &CheckedTrees,
-    state: &typed_trees_to_checked_trees::checked_trees::state::State,
+    state: &checked_trees::state::State,
     expression: ExpressionHandle,
-    argument: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan,
-) -> Result<typed_trees_to_checked_trees::checked_trees::types::TypeReferenceHandle, LoweringError>
-{
-    let typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
+    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+) -> Result<checked_trees::types::TypeReferenceHandle, LoweringError> {
+    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
         argument.source
     else {
         return unsupported("case membership requires an exact structural local");
@@ -265,8 +249,7 @@ fn local_place(
             .name_path_members(name.members)
             .len()
             != 1
-        || argument.access
-            != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
+        || argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow
         || !argument.path.is_empty()
         || checked
             .state_parameters(state)
@@ -280,9 +263,9 @@ fn local_place(
         .statements(state.statement_nodes)
         .iter()
         .filter_map(|statement| match statement {
-            typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(
-                local,
-            ) if local.symbol == symbol => Some(local),
+            checked_trees::statement::StatementNode::LocalData(local) if local.symbol == symbol => {
+                Some(local)
+            }
             _ => None,
         });
     let local = locals.next().ok_or(LoweringError::Unsupported(
@@ -307,9 +290,9 @@ fn local_place(
 /// `self` receiver is a member, matching the plan's own index convention.
 fn structural_parameter<'checked>(
     checked: &'checked CheckedTrees,
-    state: &'checked typed_trees_to_checked_trees::checked_trees::state::State,
+    state: &'checked checked_trees::state::State,
     parameter_index: u32,
-) -> Option<&'checked typed_trees_to_checked_trees::checked_trees::signature::StateParameter> {
+) -> Option<&'checked checked_trees::signature::StateParameter> {
     checked
         .state_parameters(state)
         .iter()
@@ -336,8 +319,8 @@ fn structural_parameter<'checked>(
 /// retained, ending at the observed sum's exact declared type.
 fn parameter_place(
     checked: &CheckedTrees,
-    machine: &typed_trees_to_checked_trees::checked_trees::machine::Machine,
-    state: &typed_trees_to_checked_trees::checked_trees::state::State,
+    machine: &checked_trees::machine::Machine,
+    state: &checked_trees::state::State,
     expression: ExpressionHandle,
     argument: &CheckedUnitStructuralArgumentPlan,
     parameter_index: u32,
@@ -413,13 +396,9 @@ fn parameter_place(
     }
     let mut type_reference = parameter.type_reference;
     for (step_index, (member, segment)) in members.iter().zip(&argument.path).enumerate() {
-        let unwrapped = typed_trees_to_checked_trees::validation::unwrapped_type_reference(
-            checked,
-            type_reference,
-        )
-        .ok_or(LoweringError::Unsupported(
-            "case membership lost its carrier type",
-        ))?;
+        let unwrapped = validation::unwrapped_type_reference(checked, type_reference).ok_or(
+            LoweringError::Unsupported("case membership lost its carrier type"),
+        )?;
         match member {
             Step::Field(member_symbol, member_expression) => {
                 let TypeReferenceNode::Named { symbol, .. } =
@@ -452,14 +431,10 @@ fn parameter_place(
                 // symbols; a first self step rejoins through the attached
                 // declaration rather than that retained member symbol.
                 let field = if authored_self && step_index == 0 {
-                    typed_trees_to_checked_trees::validation::exact_self_field(
-                        &checked.typed,
-                        machine,
-                        *member_expression,
-                    )
-                    .ok_or(LoweringError::Unsupported(
-                        "case membership lost its attached field",
-                    ))?
+                    validation::exact_self_field(&checked.typed, machine, *member_expression)
+                        .ok_or(LoweringError::Unsupported(
+                            "case membership lost its attached field",
+                        ))?
                 } else {
                     let mut fields =
                         checked

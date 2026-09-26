@@ -62,7 +62,7 @@ pub(crate) fn validate_empty_scalar_contract_source(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
 ) -> Result<(), LoweringError> {
-    use typed_trees_to_checked_trees::checked_trees::signature::SignatureContractKind;
+    use checked_trees::signature::SignatureContractKind;
 
     let source_machine = checked
         .machines()
@@ -99,10 +99,7 @@ pub(crate) fn validate_empty_scalar_contract_source(
     // Bracket ranges contribute requires rows even without signature clauses;
     // other qualifications retain their existing, separate contract owners.
     if checked.state_parameters(entry).iter().any(|parameter| {
-        typed_trees_to_checked_trees::checked_trees::wire::type_reference_carries_range(
-            &checked.typed,
-            parameter.type_reference,
-        )
+        checked_trees::wire::type_reference_carries_range(&checked.typed, parameter.type_reference)
     }) {
         return unsupported("empty scalar contract would erase an authored parameter range");
     }
@@ -147,7 +144,7 @@ pub(crate) fn exact_direct_result_float_meaning_reflexivity_contract(
             .iter()
             .filter(|contract| {
                 contract.binding.is_none()
-                    && contract.kind == typed_trees_to_checked_trees::checked_trees::signature::SignatureContractKind::Ensures
+                    && contract.kind == checked_trees::signature::SignatureContractKind::Ensures
             });
     let Some(ensures) = ensures_contracts.next() else {
         return false;
@@ -155,11 +152,8 @@ pub(crate) fn exact_direct_result_float_meaning_reflexivity_contract(
     if ensures_contracts.next().is_some() {
         return false;
     }
-    let [
-        typed_trees_to_checked_trees::checked_trees::domain::ProofFact::Expression(
-            source_expression,
-        ),
-    ] = checked.proof_facts.span_or_empty(ensures.facts)
+    let [checked_trees::domain::ProofFact::Expression(source_expression)] =
+        checked.proof_facts.span_or_empty(ensures.facts)
     else {
         return false;
     };
@@ -173,7 +167,7 @@ pub(crate) fn exact_direct_result_float_meaning_reflexivity_contract(
     if projection.validate().is_err() {
         return false;
     }
-    let typed_trees_to_checked_trees::checked_trees::CheckedFloatProjectionSource::DirectMachineResult(result) =
+    let checked_trees::CheckedFloatProjectionSource::DirectMachineResult(result) =
         projection.source
     else {
         return false;

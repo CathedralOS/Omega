@@ -1,7 +1,7 @@
 //! Selection preserves the exact legalized crash leaf independently of its ISA bytes.
 use super::{SelectedSelectionConstraints, build, fixture};
-use crate::legalized_operations::LegalizedScalarTerminator;
-use crate::selected_instructions::{SelectedInstructionKind, SelectedTerminator};
+use legalized_operations::LegalizedScalarTerminator;
+use selected_instructions::{SelectedInstructionKind, SelectedTerminator};
 use semantic_vocabulary::{ClaimId, EdgeId, Proposition};
 use terminal_psi::{CrashCause, CrashPredicateTerm};
 
@@ -31,16 +31,15 @@ fn explicit_crash_preserves_cause_site_frontier_and_fuel_without_successors() {
                     cause,
                     site_guard: vec![CrashPredicateTerm::new(Proposition::Truth)],
                     frontier_lower_bound: vec![ClaimId::new(7).unwrap(), ClaimId::new(9).unwrap()],
-                    fuel: vec![terminal_psi_to_abstract_operations::optimization_unit::FuelSettlement {
-                        site: terminal_psi_to_abstract_operations::optimization_unit::PsiProvenance::Edge(returned.edge),
+                    fuel: vec![optimization_unit::FuelSettlement {
+                        site: optimization_unit::PsiProvenance::Edge(returned.edge),
                         units: 3,
                     }],
                     effect: returned.effect,
                     ownership: Vec::new(),
                 };
                 let environment =
-                    crate::register_environment::baseline_target_register_environment(target)
-                        .unwrap();
+                    register_environment::baseline_target_register_environment(target).unwrap();
                 let constraints = SelectedSelectionConstraints {
                     keys: environment.selected_keys(),
                     fixed_inputs: Vec::new(),
@@ -55,8 +54,8 @@ fn explicit_crash_preserves_cause_site_frontier_and_fuel_without_successors() {
                 )
                 .unwrap();
                 let validate =
-                    |source: &crate::legalized_operations::LegalizedScalarFunction,
-                     candidate: &crate::selected_instructions::SelectedFunction| {
+                    |source: &legalized_operations::LegalizedScalarFunction,
+                     candidate: &selected_instructions::SelectedFunction| {
                         crate::selection::validation::scalar_graph::validate(
                             0,
                             source,
@@ -131,9 +130,7 @@ fn explicit_crash_preserves_cause_site_frontier_and_fuel_without_successors() {
                         5 => instruction.provenance.edges.clear(),
                         6 => instruction.kind = SelectedInstructionKind::HostedExitProcessI32,
                         7 => instruction.constraint = constraints.keys.return_unit,
-                        8 => instruction
-                            .clobbers
-                            .push(crate::register_model::RegisterUnitId(0)),
+                        8 => instruction.clobbers.push(register_model::RegisterUnitId(0)),
                         9 => {
                             candidate.blocks[0].terminator = SelectedTerminator::Return {
                                 instruction: instruction.clone(),
@@ -142,14 +139,8 @@ fn explicit_crash_preserves_cause_site_frontier_and_fuel_without_successors() {
                         }
                         10 => instruction.implicit_uses.clear(),
                         11 => instruction.implicit_defs.clear(),
-                        12 => {
-                            instruction.implicit_uses =
-                                vec![crate::register_model::RegisterUnitId(0)]
-                        }
-                        13 => {
-                            instruction.implicit_defs =
-                                vec![crate::register_model::RegisterUnitId(0)]
-                        }
+                        12 => instruction.implicit_uses = vec![register_model::RegisterUnitId(0)],
+                        13 => instruction.implicit_defs = vec![register_model::RegisterUnitId(0)],
                         14 => {
                             let mut deep_guard = Proposition::Truth;
                             for _ in 0..300 {

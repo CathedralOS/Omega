@@ -8,7 +8,7 @@
 
 use std::cell::Cell;
 
-use crate::checked_trees::CheckedUnitPlanOmissionStage;
+use checked_trees::CheckedUnitPlanOmissionStage;
 
 #[derive(Debug, Default)]
 pub(crate) struct LocalConstructionTrace {

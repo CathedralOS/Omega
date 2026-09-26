@@ -57,7 +57,7 @@ fn named_machine_back_edge_retains_entry_state_cleanup_and_shared_unit_plan() {
         .iter()
         .find(|state| state.state == emit.symbol)
         .unwrap();
-    let crate::checked_trees::CheckedComposedUnitControlTerminatorPlan::Jump { successor } =
+    let checked_trees::CheckedComposedUnitControlTerminatorPlan::Jump { successor } =
         &emit_plan.terminator
     else {
         panic!("the emit state jumps back to entry");
@@ -261,9 +261,8 @@ fn affine_locals_fail_closed_in_the_whole_parameter_edge_slice() {
             .find(|candidate| candidate.symbol == machine)
             .unwrap();
         let state = &checked.machine_states(declaration)[0];
-        let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
-            local,
-        ) = &checked.statement_table.statements(state.statement_nodes)[0]
+        let typed_trees::statement::StatementNode::LocalData(local) =
+            &checked.statement_table.statements(state.statement_nodes)[0]
         else {
             panic!("the local declaration opens the entry state");
         };
@@ -279,7 +278,7 @@ fn affine_locals_fail_closed_in_the_whole_parameter_edge_slice() {
                         && event.state_symbol == entry
                         && event.source == language_semantics::PermissionEventSource::StateExit
                         && event.kind == language_semantics::PermissionEventKind::AffineDrop
-                        && event.root == crate::fact_plan::PlaceRoot::Symbol(local.symbol)
+                        && event.root == ::facts::PlaceRoot::Symbol(local.symbol)
                 }),
             "the local's disposal stays a retained state-exit drop, not a parameter discard"
         );
@@ -343,7 +342,7 @@ fn attached_unit_direct_record_projection_retains_transfer_and_maximal_sibling()
         assert_eq!(edge.transfer.path.len(), 1);
         assert!(matches!(
             &edge.transfer.path[0],
-            crate::checked_trees::CheckedUnitStructuralPathSegment::Field(identity)
+            checked_trees::CheckedUnitStructuralPathSegment::Field(identity)
                 if identity.ends_with(moved)
         ));
         let [sibling] = edge.residual_affine_discards.as_slice() else {
@@ -351,14 +350,14 @@ fn attached_unit_direct_record_projection_retains_transfer_and_maximal_sibling()
         };
         assert_eq!(
             sibling.source,
-            crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index: 0
             }
         );
         assert_eq!(sibling.path.len(), 1);
         assert!(matches!(
             &sibling.path[0],
-            crate::checked_trees::CheckedUnitStructuralPathSegment::Field(identity)
+            checked_trees::CheckedUnitStructuralPathSegment::Field(identity)
                 if identity.ends_with(residual)
         ));
         assert_eq!(edge.transfer.type_identity, sibling.type_identity);
@@ -420,19 +419,17 @@ fn attached_unit_direct_record_projection_retains_transfer_and_maximal_sibling()
         );
 
         let mut overlapping = rebuilt.clone();
-        overlapping.states.push(
-            crate::checked_trees::CheckedStructuralControlStateCleanupPlan {
+        overlapping
+            .states
+            .push(checked_trees::CheckedStructuralControlStateCleanupPlan {
                 machine,
                 state: entry,
-                edges: vec![
-                    crate::checked_trees::CheckedStructuralControlEdgeCleanupPlan {
-                        statement_ordinal: 0,
-                        target_state: edge.target_state,
-                        trivial_affine_discard_parameter_positions: Vec::new(),
-                    },
-                ],
-            },
-        );
+                edges: vec![checked_trees::CheckedStructuralControlEdgeCleanupPlan {
+                    statement_ordinal: 0,
+                    target_state: edge.target_state,
+                    trivial_affine_discard_parameter_positions: Vec::new(),
+                }],
+            });
         assert!(
             overlapping.for_edge(machine, entry, 0).is_none(),
             "a forged whole-root overlap cannot hide the projected cleanup row"
@@ -595,7 +592,7 @@ fn projected_transition_cleanup_admits_wider_exact_paths() {
             .map(|residual| {
                 assert_eq!(
                     residual.source,
-                    crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                         parameter_index: 0
                     },
                     "{case}: residuals keep the source-parameter root"
@@ -608,21 +605,21 @@ fn projected_transition_cleanup_admits_wider_exact_paths() {
                     .path
                     .iter()
                     .map(|segment| match segment {
-                        crate::checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => {
+                        checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => {
                             identity.clone()
                         }
-                        crate::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => {
+                        checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => {
                             index.to_string()
                         }
-                        crate::checked_trees::CheckedUnitStructuralPathSegment::Referent => {
+                        checked_trees::CheckedUnitStructuralPathSegment::Referent => {
                             panic!("{case}: projected residuals never name a referent")
                         }
-                        crate::checked_trees::CheckedUnitStructuralPathSegment::FixedByteRange {
+                        checked_trees::CheckedUnitStructuralPathSegment::FixedByteRange {
                             ..
                         } => {
                             panic!("{case}: projected residuals never name a byte window")
                         }
-                        crate::checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex {
+                        checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex {
                             ..
                         } => {
                             panic!("{case}: projected residuals never name a runtime index")
@@ -693,9 +690,8 @@ fn projected_transition_cleanup_retains_construction_local_residuals() {
         .find(|candidate| candidate.symbol == machine)
         .unwrap();
     let state = &checked.machine_states(declaration)[0];
-    let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
-        local,
-    ) = &checked.statement_table.statements(state.statement_nodes)[0]
+    let typed_trees::statement::StatementNode::LocalData(local) =
+        &checked.statement_table.statements(state.statement_nodes)[0]
     else {
         panic!("the construction-local temporary opens the entry state")
     };
@@ -711,7 +707,7 @@ fn projected_transition_cleanup_retains_construction_local_residuals() {
     assert_eq!(edge.transfer.path.len(), 1);
     assert!(matches!(
         &edge.transfer.path[0],
-        crate::checked_trees::CheckedUnitStructuralPathSegment::Field(identity)
+        checked_trees::CheckedUnitStructuralPathSegment::Field(identity)
             if identity.ends_with("left")
     ));
     let [local_residual, parameter_residual] = edge.residual_affine_discards.as_slice() else {
@@ -719,22 +715,20 @@ fn projected_transition_cleanup_retains_construction_local_residuals() {
     };
     assert_eq!(
         local_residual.source,
-        crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
             symbol: local.symbol
         }
     );
     assert_eq!(local_residual.path.len(), 1);
     assert!(matches!(
         &local_residual.path[0],
-        crate::checked_trees::CheckedUnitStructuralPathSegment::Field(identity)
+        checked_trees::CheckedUnitStructuralPathSegment::Field(identity)
             if identity.ends_with("right")
     ));
     assert_eq!(local_residual.type_identity, edge.transfer.type_identity);
     assert_eq!(
         parameter_residual.source,
-        crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-            parameter_index: 0
-        }
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 }
     );
     assert_eq!(parameter_residual.path, local_residual.path);
     assert!(
@@ -804,10 +798,7 @@ fn projected_transition_cleanup_orders_mixed_dying_roots() {
     let state = &checked.machine_states(declaration)[0];
     let statements = checked.statement_table.statements(state.statement_nodes);
     let local_at = |index| {
-        let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
-            local,
-        ) = &statements[index]
-        else {
+        let typed_trees::statement::StatementNode::LocalData(local) = &statements[index] else {
             panic!("statement {index} is the temporary declaration")
         };
         local.symbol
@@ -826,13 +817,13 @@ fn projected_transition_cleanup_orders_mixed_dying_roots() {
     assert_eq!(
         residual_roots,
         vec![
-            crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                 symbol: local_at(2)
             },
-            crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                 symbol: local_at(0)
             },
-            crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index: 0
             },
         ],
@@ -842,7 +833,7 @@ fn projected_transition_cleanup_orders_mixed_dying_roots() {
         assert_eq!(residual.path.len(), 1);
         assert!(matches!(
             &residual.path[0],
-            crate::checked_trees::CheckedUnitStructuralPathSegment::Field(identity)
+            checked_trees::CheckedUnitStructuralPathSegment::Field(identity)
                 if identity.ends_with("right")
         ));
     }
@@ -977,17 +968,16 @@ fn projected_transition_shape_helper_rejects_nominal_root_cleanup() {
         .iter()
         .find(|data| data.name.as_str() == "Pair")
         .expect("Pair definition");
-    let moved_field =
-        typed
-            .data_members(pair)
-            .iter()
-            .find_map(|member| match member {
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
-                    field,
-                ) if field.name.as_str() == "left" => Some(field.symbol),
-                _ => None,
-            })
-            .expect("left field");
+    let moved_field = typed
+        .data_members(pair)
+        .iter()
+        .find_map(|member| match member {
+            typed_trees::data::DataMember::Field(field) if field.name.as_str() == "left" => {
+                Some(field.symbol)
+            }
+            _ => None,
+        })
+        .expect("left field");
     assert!(
         crate::execution::terminal_unit::exact_two_field_record_projection(
             &typed,
@@ -1036,13 +1026,11 @@ fn projected_transition_cleanup_admits_multi_state_machines() {
     };
     assert_eq!(
         sibling.source,
-        crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-            parameter_index: 0
-        }
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 }
     );
     assert!(matches!(
         &sibling.path[0],
-        crate::checked_trees::CheckedUnitStructuralPathSegment::Field(identity)
+        checked_trees::CheckedUnitStructuralPathSegment::Field(identity)
             if identity.ends_with("right")
     ));
 

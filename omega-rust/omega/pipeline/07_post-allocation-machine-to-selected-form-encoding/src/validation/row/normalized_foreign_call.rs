@@ -1,21 +1,21 @@
-use register_homes_to_post_allocation_machine::PostAllocationMachineInstruction;
-use target::{Architecture, NativeTarget};
-use target_operations_to_selected_instructions::isa_aarch64::{
+use isa_aarch64::{
     Aarch64NormalizedForeignCallFixup, Aarch64NormalizedForeignCallFixupKind,
     Aarch64NormalizedForeignCallFixupState,
     validate_aarch64_selected_normalized_foreign_call_template,
 };
-use target_operations_to_selected_instructions::isa_x86_64::{
+use isa_x86_64::{
     X86_64NormalizedForeignCallFixup, X86_64NormalizedForeignCallFixupKind,
     X86_64NormalizedForeignCallFixupState,
     validate_x86_64_selected_normalized_foreign_call_template,
 };
-use target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel;
-use target_operations_to_selected_instructions::{SelectedInstructionId, SelectedInstructionKind};
+use physical_instructions::PostAllocationMachineInstruction;
+use register_model::ValidatedPhysicalRegisterModel;
+use selected_instructions::{SelectedInstructionId, SelectedInstructionKind};
+use target::{Architecture, NativeTarget};
 
 use super::{decoded_footprint, operand_views, validate_machine_footprint, validate_size};
 use crate::OptimizedSelectedFormEncodingError;
-use crate::machine_code::{
+use machine_code::{
     SelectedFormEncodingState, SelectedFormNormalizedForeignCallFixupKind,
     SelectedFormNormalizedForeignCallFixupState,
 };
@@ -138,12 +138,9 @@ pub(super) fn validate(
 
 fn views_for_effects(
     machine: &PostAllocationMachineInstruction,
-    effects: &target_operations_to_selected_instructions::MachineEncodedEffects,
+    effects: &selected_instructions::MachineEncodedEffects,
     reads: bool,
-) -> Result<
-    Vec<target_operations_to_selected_instructions::register_model::RegisterViewId>,
-    OptimizedSelectedFormEncodingError,
-> {
+) -> Result<Vec<register_model::RegisterViewId>, OptimizedSelectedFormEncodingError> {
     let resolve = |operand: u16| {
         machine
             .operands

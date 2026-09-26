@@ -14,8 +14,8 @@
 //! equal lengths at the same addresses once the earlier one is freed, so an
 //! index never outlives the pass that built it. Outside a scope every lookup
 //! scans the table.
-use crate::checked_trees::{BorrowFacts, ContractCallFact, ProofFacts, StateBorrowFact};
 use arena::Handle;
+use checked_trees::{BorrowFacts, ContractCallFact, ProofFacts, StateBorrowFact};
 use symbols::SymbolHandle;
 
 pub(crate) struct BorrowStateIndex {

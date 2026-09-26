@@ -54,13 +54,11 @@ use numerics::bignum::BigInt;
 use numerics::literals::{IntegerLiteral, IntegerRadix};
 use source::SourceSpan;
 use std::collections::HashMap;
-use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
-use tokens_to_syntax_trees::syntax_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode,
-};
-use tokens_to_syntax_trees::syntax_trees::identifier::Identifier;
-use tokens_to_syntax_trees::syntax_trees::item::{ProofFact, TypeParameter, TypeParameterKind};
-use tokens_to_syntax_trees::syntax_trees::types::{
+use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use syntax_trees::identifier::Identifier;
+use syntax_trees::item::{ProofFact, TypeParameter, TypeParameterKind};
+use syntax_trees::types::{
     IntegerRangeNormalization, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 
@@ -95,7 +93,7 @@ impl TypeEquation {
 /// Closed instances must already have discharged equations and take no exemption.
 pub(crate) fn template_type_equation_offsets(
     syntax: &SyntaxTrees,
-    definition: &tokens_to_syntax_trees::syntax_trees::item::DataDefinition,
+    definition: &syntax_trees::item::DataDefinition,
 ) -> Result<Vec<usize>, Diagnostic> {
     if definition.type_parameters.is_empty() {
         return Ok(Vec::new());
@@ -144,9 +142,7 @@ pub(crate) fn validate_materialized_type_equations(
     else {
         return Ok(());
     };
-    let tokens_to_syntax_trees::syntax_trees::item::Item::Data(definition) =
-        syntax.root_item(declaration)
-    else {
+    let syntax_trees::item::Item::Data(definition) = syntax.root_item(declaration) else {
         return Ok(());
     };
     if !template_type_equation_offsets(syntax, definition)?.is_empty() {

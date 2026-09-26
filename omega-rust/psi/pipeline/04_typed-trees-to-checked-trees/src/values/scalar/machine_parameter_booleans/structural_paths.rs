@@ -1,14 +1,12 @@
 //! Types and primitives at a structural parameter path: the field or payload
 //! each `Field`, `Case`, and `FixedIndex` segment selects.
 
-use crate::checked_trees::CheckedStructuralPredicatePathSegment;
 use crate::values::scalar::structural_fields;
 use crate::values::scalar::structural_fields::structural_data;
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
-use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
-    PrimitiveType, TypeReferenceHandle,
-};
+use checked_trees::CheckedStructuralPredicatePathSegment;
+use typed_trees::TypedTrees;
+use typed_trees::signature::StateParameter;
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 fn field_type(
     program: &TypedTrees,
@@ -17,9 +15,7 @@ fn field_type(
 ) -> Option<TypeReferenceHandle> {
     let declaration = structural_data(program, receiver)?;
     program.data_members(declaration).iter().find_map(|member| {
-        let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) =
-            member
-        else {
+        let typed_trees::data::DataMember::Field(field) = member else {
             return None;
         };
         let matches_identity = match field.identity {
@@ -56,7 +52,7 @@ pub(super) fn path_type_reference(
                 }
                 let data = structural_data(program, receiver)?;
                 let variant = program.data_members(data).iter().find_map(|member| {
-                    let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant) = member else {
+                    let typed_trees::data::DataMember::Variant(variant) = member else {
                         return None;
                     };
                     let identity = variant.path_identity();
@@ -99,13 +95,11 @@ pub(super) fn path_primitive_type(
 pub(super) fn structural_record_fields(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
-) -> Option<Vec<&symbol_resolved_trees_to_typed_trees::typed_trees::data::DataField>> {
+) -> Option<Vec<&typed_trees::data::DataField>> {
     let data = structural_data(program, type_reference)?;
     let mut fields = Vec::new();
     for member in program.data_members(data) {
-        let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) =
-            member
-        else {
+        let typed_trees::data::DataMember::Field(field) = member else {
             return None;
         };
         if field.relevance.is_erased() {
@@ -123,18 +117,15 @@ pub(super) fn payloadless_sum_cases(
     let data = structural_data(program, type_reference)?;
     let members = program.data_members(data);
     if !matches!(
-        symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition::shape_kind_from_members(members),
-        symbol_resolved_trees_to_typed_trees::typed_trees::data::DataShapeKind::Enum
+        typed_trees::data::DataDefinition::shape_kind_from_members(members),
+        typed_trees::data::DataShapeKind::Enum
     ) {
         return None;
     }
     members
         .iter()
         .map(|member| {
-            let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
-                variant,
-            ) = member
-            else {
+            let typed_trees::data::DataMember::Variant(variant) = member else {
                 return None;
             };
             program

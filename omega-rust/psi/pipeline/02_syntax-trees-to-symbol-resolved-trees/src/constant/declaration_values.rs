@@ -3,13 +3,13 @@
 use crate::constant::initializer_normalization;
 use crate::constant::requires_const_initializer_evaluation;
 use crate::constant::substitution::semantic_const_name;
-use crate::symbol_resolved_trees::SymbolResolvedTrees;
-use crate::symbol_resolved_trees::expression::ExpressionHandle;
 use diagnostics::Diagnostic;
 use source::{SourceSpan, Span};
+use symbol_resolved_trees::SymbolResolvedTrees;
+use symbol_resolved_trees::expression::ExpressionHandle;
 use symbols::SymbolKind;
-use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
-use tokens_to_syntax_trees::syntax_trees::item::{ConstDefinition, DataMember, Item};
+use syntax_trees::SyntaxTrees;
+use syntax_trees::item::{ConstDefinition, DataMember, Item};
 
 /// Even unused private constants owe their exact nominal destination. Check
 /// resolved constructor and field identities after specialization, without
@@ -17,9 +17,9 @@ use tokens_to_syntax_trees::syntax_trees::item::{ConstDefinition, DataMember, It
 pub(super) fn validate_nominal_destinations(
     program: &SymbolResolvedTrees,
 ) -> Result<(), Diagnostic> {
-    use crate::symbol_resolved_trees::data::DataMember;
-    use crate::symbol_resolved_trees::expression::ExpressionNode;
-    use crate::symbol_resolved_trees::types::TypeReference;
+    use symbol_resolved_trees::data::DataMember;
+    use symbol_resolved_trees::expression::ExpressionNode;
+    use symbol_resolved_trees::types::TypeReference;
 
     let mut pending = program
         .const_declarations
@@ -117,11 +117,11 @@ pub(crate) fn public_declaration_value_encoding(
 
 pub(crate) fn validate_scalar_initializer(
     syntax: &SyntaxTrees,
-    constant: &tokens_to_syntax_trees::syntax_trees::item::ConstDefinition,
+    constant: &syntax_trees::item::ConstDefinition,
 ) -> Result<(), String> {
     use numerics::literals::{FloatFormat, FloatLiteral};
-    use tokens_to_syntax_trees::syntax_trees::expression::ExpressionNode;
-    use tokens_to_syntax_trees::syntax_trees::types::TypeReferenceNode;
+    use syntax_trees::expression::ExpressionNode;
+    use syntax_trees::types::TypeReferenceNode;
 
     // Unused private declarations never reach substitution or public identity
     // checks. Their numeric and Boolean landing obligations still apply.
@@ -194,10 +194,7 @@ pub(crate) fn validate_const_definition(
     // An unused private declaration never acquires a use-site proof obligation.
     // Its constrained destination is still mandatory; failure to encode a
     // public/index value must not swallow a false declaration-site predicate.
-    if let tokens_to_syntax_trees::syntax_trees::types::TypeReferenceNode::Constrained {
-        constraints,
-        ..
-    } = syntax
+    if let syntax_trees::types::TypeReferenceNode::Constrained { constraints, .. } = syntax
         .type_references
         .type_reference(definition.type_reference)
         && syntax
@@ -207,7 +204,7 @@ pub(crate) fn validate_const_definition(
             .any(|constraint| {
                 matches!(
                     constraint,
-                    tokens_to_syntax_trees::syntax_trees::types::TypeConstraintNode::Domain(_)
+                    syntax_trees::types::TypeConstraintNode::Domain(_)
                 )
             })
     {
@@ -283,7 +280,7 @@ pub(crate) fn retain_const_initializer(
 }
 
 fn has_scalar_initializer(syntax: &SyntaxTrees, definition: &ConstDefinition) -> bool {
-    use tokens_to_syntax_trees::syntax_trees::expression::ExpressionNode;
+    use syntax_trees::expression::ExpressionNode;
     matches!(
         syntax.expressions.expression(definition.value),
         ExpressionNode::Boolean(_)
@@ -298,9 +295,9 @@ fn has_scalar_initializer(syntax: &SyntaxTrees, definition: &ConstDefinition) ->
 /// module body names need not yet carry their finalized constant ledger rows.
 pub(crate) fn selected_expression_constant(
     program: &SymbolResolvedTrees,
-    expression: crate::symbol_resolved_trees::expression::ExpressionHandle,
+    expression: symbol_resolved_trees::expression::ExpressionHandle,
 ) -> Option<(SourceSpan, symbols::SymbolHandle)> {
-    use crate::symbol_resolved_trees::expression::ExpressionNode;
+    use symbol_resolved_trees::expression::ExpressionNode;
     let table = &program.tables.bodies.expressions;
     let ExpressionNode::Name(path) = table.expression(expression) else {
         return None;
@@ -341,9 +338,9 @@ pub(crate) fn selected_expression_constant(
 fn validate_literal_initializer(
     syntax_trees: &SyntaxTrees,
     definition: &ConstDefinition,
-    value: tokens_to_syntax_trees::syntax_trees::expression::ExpressionHandle,
+    value: syntax_trees::expression::ExpressionHandle,
 ) -> Result<(), Diagnostic> {
-    use tokens_to_syntax_trees::syntax_trees::expression::ExpressionNode;
+    use syntax_trees::expression::ExpressionNode;
     match syntax_trees.expressions.expression(value) {
         ExpressionNode::Boolean(_)
         | ExpressionNode::Integer(_)
@@ -397,7 +394,7 @@ fn validate_literal_initializer(
 fn invalid_literal_initializer(
     syntax_trees: &SyntaxTrees,
     definition: &ConstDefinition,
-    value: tokens_to_syntax_trees::syntax_trees::expression::ExpressionHandle,
+    value: syntax_trees::expression::ExpressionHandle,
 ) -> Result<(), Diagnostic> {
     Err(Diagnostic::error(format!(
         "const `{}::{}` initializer must be a literal (a scalar, a payloadless \

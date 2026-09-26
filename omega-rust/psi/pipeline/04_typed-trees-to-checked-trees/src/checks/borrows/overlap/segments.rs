@@ -6,26 +6,26 @@ use super::indexes::{
     index_extents_may_overlap,
 };
 use super::premises::StatedOrderingPremise;
-use crate::checked_trees::{
+use crate::flow::place_segment_has_unresolved_identity;
+use checked_trees::{
     BorrowCompatibilityPlaceSide, BorrowCompatibilityPremise, BorrowCompatibilitySelectorSnapshot,
     CapturedPlaceContainment,
 };
-use crate::flow::place_segment_has_unresolved_identity;
 
 /// One segment containment traversal. Evaluated `Index` extents are cached by
 /// exact selector location so the equality check and both containment
 /// directions observe each selector's bound through one recorded value.
 struct SegmentContainmentEvaluation<'program, 'session, 'frozen> {
-    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &'program typed_trees::TypedTrees,
     selectors: &'session mut SelectorSnapshotEvaluation<'frozen>,
     extents: Vec<(SelectorLocation, EvaluatedIndexExtent)>,
-    bound_lookup: &'session mut Option<crate::validation::ImmutableBoundLookup<'program>>,
+    bound_lookup: &'session mut Option<validation::ImmutableBoundLookup<'program>>,
 }
 
 impl SegmentContainmentEvaluation<'_, '_, '_> {
     fn index_extent(
         &mut self,
-        expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle,
+        expression: typed_trees::expression::ExpressionHandle,
         location: SelectorLocation,
     ) -> EvaluatedIndexExtent {
         if let Some((_, extent)) = self
@@ -61,18 +61,18 @@ impl SegmentContainmentEvaluation<'_, '_, '_> {
     /// compare their normalized bounds.
     fn segments_equal(
         &mut self,
-        left: crate::fact_plan::PlaceSegment,
-        right: crate::fact_plan::PlaceSegment,
+        left: facts::PlaceSegment,
+        right: facts::PlaceSegment,
         segment_index: usize,
     ) -> bool {
         if structural_segment_equal(left, right) {
             return true;
         }
         let (
-            crate::fact_plan::PlaceSegment::Index {
+            facts::PlaceSegment::Index {
                 expression: left_expression,
             },
-            crate::fact_plan::PlaceSegment::Index {
+            facts::PlaceSegment::Index {
                 expression: right_expression,
             },
         ) = (left, right)
@@ -94,9 +94,9 @@ impl SegmentContainmentEvaluation<'_, '_, '_> {
     /// every container segment contains the segment at the same position.
     fn path_contains(
         &mut self,
-        container: &[crate::fact_plan::PlaceSegment],
+        container: &[facts::PlaceSegment],
         container_side: BorrowCompatibilityPlaceSide,
-        contained: &[crate::fact_plan::PlaceSegment],
+        contained: &[facts::PlaceSegment],
         contained_side: BorrowCompatibilityPlaceSide,
     ) -> bool {
         container.len() <= contained.len()
@@ -114,9 +114,9 @@ impl SegmentContainmentEvaluation<'_, '_, '_> {
 
     fn segment_contains(
         &mut self,
-        container: crate::fact_plan::PlaceSegment,
+        container: facts::PlaceSegment,
         container_location: SelectorLocation,
-        contained: crate::fact_plan::PlaceSegment,
+        contained: facts::PlaceSegment,
         contained_location: SelectorLocation,
     ) -> bool {
         if structural_segment_equal(container, contained) {
@@ -124,15 +124,15 @@ impl SegmentContainmentEvaluation<'_, '_, '_> {
         }
         match (container, contained) {
             (
-                crate::fact_plan::PlaceSegment::FixedRange { start, end },
-                crate::fact_plan::PlaceSegment::FixedIndex { index },
+                facts::PlaceSegment::FixedRange { start, end },
+                facts::PlaceSegment::FixedIndex { index },
             ) => start < end && start <= index && index < end,
             (
-                crate::fact_plan::PlaceSegment::FixedRange {
+                facts::PlaceSegment::FixedRange {
                     start: outer_start,
                     end: outer_end,
                 },
-                crate::fact_plan::PlaceSegment::FixedRange {
+                facts::PlaceSegment::FixedRange {
                     start: inner_start,
                     end: inner_end,
                 },
@@ -143,10 +143,10 @@ impl SegmentContainmentEvaluation<'_, '_, '_> {
                     && inner_end <= outer_end
             }
             (
-                crate::fact_plan::PlaceSegment::Index {
+                facts::PlaceSegment::Index {
                     expression: container_expression,
                 },
-                crate::fact_plan::PlaceSegment::Index {
+                facts::PlaceSegment::Index {
                     expression: contained_expression,
                 },
             ) => {
@@ -155,10 +155,10 @@ impl SegmentContainmentEvaluation<'_, '_, '_> {
                 index_extent_contains(container_extent, contained_extent, self.selectors)
             }
             (
-                crate::fact_plan::PlaceSegment::Index {
+                facts::PlaceSegment::Index {
                     expression: container_expression,
                 },
-                crate::fact_plan::PlaceSegment::FixedIndex { index },
+                facts::PlaceSegment::FixedIndex { index },
             ) => {
                 let Ok(index) = i64::try_from(index) else {
                     return false;
@@ -176,10 +176,10 @@ impl SegmentContainmentEvaluation<'_, '_, '_> {
                 }
             }
             (
-                crate::fact_plan::PlaceSegment::Index {
+                facts::PlaceSegment::Index {
                     expression: container_expression,
                 },
-                crate::fact_plan::PlaceSegment::FixedRange { start, end },
+                facts::PlaceSegment::FixedRange { start, end },
             ) => {
                 let (Ok(start), Ok(end)) = (i64::try_from(start), i64::try_from(end)) else {
                     return false;
@@ -203,8 +203,8 @@ impl SegmentContainmentEvaluation<'_, '_, '_> {
                 }
             }
             (
-                crate::fact_plan::PlaceSegment::FixedIndex { index },
-                crate::fact_plan::PlaceSegment::Index {
+                facts::PlaceSegment::FixedIndex { index },
+                facts::PlaceSegment::Index {
                     expression: contained_expression,
                 },
             ) => {
@@ -220,8 +220,8 @@ impl SegmentContainmentEvaluation<'_, '_, '_> {
                 }
             }
             (
-                crate::fact_plan::PlaceSegment::FixedRange { start, end },
-                crate::fact_plan::PlaceSegment::Index {
+                facts::PlaceSegment::FixedRange { start, end },
+                facts::PlaceSegment::Index {
                     expression: contained_expression,
                 },
             ) => {
@@ -373,11 +373,11 @@ fn index_window_contains_window(
 }
 
 fn place_segments_containment_evaluated<'p>(
-    program: &'p symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    left: &[crate::fact_plan::PlaceSegment],
-    right: &[crate::fact_plan::PlaceSegment],
+    program: &'p typed_trees::TypedTrees,
+    left: &[facts::PlaceSegment],
+    right: &[facts::PlaceSegment],
     selectors: &mut SelectorSnapshotEvaluation<'_>,
-    bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> CapturedPlaceContainment {
     if left
         .iter()
@@ -422,37 +422,34 @@ fn place_segments_containment_evaluated<'p>(
     CapturedPlaceContainment::None
 }
 
-fn structural_segment_equal(
-    left: crate::fact_plan::PlaceSegment,
-    right: crate::fact_plan::PlaceSegment,
-) -> bool {
+fn structural_segment_equal(left: facts::PlaceSegment, right: facts::PlaceSegment) -> bool {
     match (left, right) {
         (
-            crate::fact_plan::PlaceSegment::Field {
+            facts::PlaceSegment::Field {
                 symbol: left_symbol,
             },
-            crate::fact_plan::PlaceSegment::Field {
+            facts::PlaceSegment::Field {
                 symbol: right_symbol,
             },
         ) => left_symbol == right_symbol,
         (
-            crate::fact_plan::PlaceSegment::Case {
+            facts::PlaceSegment::Case {
                 variant: left_variant,
             },
-            crate::fact_plan::PlaceSegment::Case {
+            facts::PlaceSegment::Case {
                 variant: right_variant,
             },
         ) => left_variant == right_variant,
         (
-            crate::fact_plan::PlaceSegment::FixedIndex { index: left_index },
-            crate::fact_plan::PlaceSegment::FixedIndex { index: right_index },
+            facts::PlaceSegment::FixedIndex { index: left_index },
+            facts::PlaceSegment::FixedIndex { index: right_index },
         ) => left_index == right_index,
         (
-            crate::fact_plan::PlaceSegment::FixedRange {
+            facts::PlaceSegment::FixedRange {
                 start: left_start,
                 end: left_end,
             },
-            crate::fact_plan::PlaceSegment::FixedRange {
+            facts::PlaceSegment::FixedRange {
                 start: right_start,
                 end: right_end,
             },
@@ -466,9 +463,9 @@ fn structural_segment_equal(
 
 #[cfg(test)]
 pub(super) fn place_segments_may_overlap(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    left: &[crate::fact_plan::PlaceSegment],
-    right: &[crate::fact_plan::PlaceSegment],
+    program: &typed_trees::TypedTrees,
+    left: &[facts::PlaceSegment],
+    right: &[facts::PlaceSegment],
 ) -> bool {
     let mut selectors = SelectorSnapshotEvaluation::capture(&[]);
     place_segments_may_overlap_evaluated(program, left, right, &mut selectors, &mut None)
@@ -476,9 +473,9 @@ pub(super) fn place_segments_may_overlap(
 
 #[cfg(test)]
 fn place_segments_containment(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    left: &[crate::fact_plan::PlaceSegment],
-    right: &[crate::fact_plan::PlaceSegment],
+    program: &typed_trees::TypedTrees,
+    left: &[facts::PlaceSegment],
+    right: &[facts::PlaceSegment],
 ) -> CapturedPlaceContainment {
     let mut selectors = SelectorSnapshotEvaluation::capture(&[]);
     place_segments_containment_evaluated(program, left, right, &mut selectors, &mut None)
@@ -490,11 +487,11 @@ fn place_segments_containment(
 /// contained places overlap by construction, so a disjoint verdict already
 /// fixes containment to `None` without evaluating more selectors.
 pub(super) fn place_segments_compatibility_with_snapshot<'p>(
-    program: &'p symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    left: &[crate::fact_plan::PlaceSegment],
-    right: &[crate::fact_plan::PlaceSegment],
+    program: &'p typed_trees::TypedTrees,
+    left: &[facts::PlaceSegment],
+    right: &[facts::PlaceSegment],
     premises: &[StatedOrderingPremise],
-    bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> (bool, CapturedPlaceContainment, SelectorSessionClosure) {
     let mut selectors = SelectorSnapshotEvaluation::capture(premises);
     let may_overlap =
@@ -517,13 +514,13 @@ pub(super) fn place_segments_compatibility_with_snapshot<'p>(
 /// the capture consumed is re-derived and positionally verified; a missing,
 /// reordered, or drifted row rejects the replay.
 pub(super) fn place_segments_compatibility_from_snapshot<'p>(
-    program: &'p symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    left: &[crate::fact_plan::PlaceSegment],
-    right: &[crate::fact_plan::PlaceSegment],
+    program: &'p typed_trees::TypedTrees,
+    left: &[facts::PlaceSegment],
+    right: &[facts::PlaceSegment],
     snapshot: &[BorrowCompatibilitySelectorSnapshot],
     premises: &[StatedOrderingPremise],
     recorded_premises: &[BorrowCompatibilityPremise],
-    bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> Result<(bool, CapturedPlaceContainment), CompatibilityReplayDrift> {
     let mut selectors = SelectorSnapshotEvaluation::replay(snapshot, premises, recorded_premises);
     let may_overlap =
@@ -537,11 +534,11 @@ pub(super) fn place_segments_compatibility_from_snapshot<'p>(
 }
 
 fn place_segments_may_overlap_evaluated<'p>(
-    program: &'p symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    left: &[crate::fact_plan::PlaceSegment],
-    right: &[crate::fact_plan::PlaceSegment],
+    program: &'p typed_trees::TypedTrees,
+    left: &[facts::PlaceSegment],
+    right: &[facts::PlaceSegment],
     selectors: &mut SelectorSnapshotEvaluation<'_>,
-    bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> bool {
     for (segment_index, (&left_segment, &right_segment)) in left.iter().zip(right).enumerate() {
         // A known prefix may already have proved disjointness. Once nominal
@@ -566,12 +563,12 @@ fn place_segments_may_overlap_evaluated<'p>(
 }
 
 fn place_segment_pair_may_overlap<'p>(
-    program: &'p symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    left: crate::fact_plan::PlaceSegment,
-    right: crate::fact_plan::PlaceSegment,
+    program: &'p typed_trees::TypedTrees,
+    left: facts::PlaceSegment,
+    right: facts::PlaceSegment,
     segment_index: usize,
     selectors: &mut SelectorSnapshotEvaluation<'_>,
-    bound_lookup: &mut Option<crate::validation::ImmutableBoundLookup<'p>>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> bool {
     let left_location = SelectorLocation {
         side: BorrowCompatibilityPlaceSide::Forming,
@@ -583,31 +580,31 @@ fn place_segment_pair_may_overlap<'p>(
     };
     match (left, right) {
         (
-            crate::fact_plan::PlaceSegment::Field {
+            facts::PlaceSegment::Field {
                 symbol: left_symbol,
             },
-            crate::fact_plan::PlaceSegment::Field {
+            facts::PlaceSegment::Field {
                 symbol: right_symbol,
             },
         ) => left_symbol == right_symbol,
         (
-            crate::fact_plan::PlaceSegment::Case {
+            facts::PlaceSegment::Case {
                 variant: left_variant,
             },
-            crate::fact_plan::PlaceSegment::Case {
+            facts::PlaceSegment::Case {
                 variant: right_variant,
             },
         ) => left_variant == right_variant,
         (
-            crate::fact_plan::PlaceSegment::FixedIndex { index: left_index },
-            crate::fact_plan::PlaceSegment::FixedIndex { index: right_index },
+            facts::PlaceSegment::FixedIndex { index: left_index },
+            facts::PlaceSegment::FixedIndex { index: right_index },
         ) => left_index == right_index,
         (
-            crate::fact_plan::PlaceSegment::FixedRange {
+            facts::PlaceSegment::FixedRange {
                 start: left_start,
                 end: left_end,
             },
-            crate::fact_plan::PlaceSegment::FixedRange {
+            facts::PlaceSegment::FixedRange {
                 start: right_start,
                 end: right_end,
             },
@@ -618,16 +615,16 @@ fn place_segment_pair_may_overlap<'p>(
                 && right_start < left_end
         }
         (
-            crate::fact_plan::PlaceSegment::FixedRange { start, end },
-            crate::fact_plan::PlaceSegment::FixedIndex { index },
+            facts::PlaceSegment::FixedRange { start, end },
+            facts::PlaceSegment::FixedIndex { index },
         )
         | (
-            crate::fact_plan::PlaceSegment::FixedIndex { index },
-            crate::fact_plan::PlaceSegment::FixedRange { start, end },
+            facts::PlaceSegment::FixedIndex { index },
+            facts::PlaceSegment::FixedRange { start, end },
         ) => start < end && start <= index && index < end,
         (
-            crate::fact_plan::PlaceSegment::FixedRange { start, end },
-            crate::fact_plan::PlaceSegment::Index { expression },
+            facts::PlaceSegment::FixedRange { start, end },
+            facts::PlaceSegment::Index { expression },
         ) => index_extents_may_overlap(
             fixed_range_extent(start, end),
             index_expression_extent_with_selectors(
@@ -640,8 +637,8 @@ fn place_segment_pair_may_overlap<'p>(
             selectors,
         ),
         (
-            crate::fact_plan::PlaceSegment::Index { expression },
-            crate::fact_plan::PlaceSegment::FixedRange { start, end },
+            facts::PlaceSegment::Index { expression },
+            facts::PlaceSegment::FixedRange { start, end },
         ) => index_extents_may_overlap(
             index_expression_extent_with_selectors(
                 program,
@@ -653,39 +650,37 @@ fn place_segment_pair_may_overlap<'p>(
             fixed_range_extent(start, end),
             selectors,
         ),
-        (
-            crate::fact_plan::PlaceSegment::FixedIndex { index },
-            crate::fact_plan::PlaceSegment::Index { expression },
-        ) => index_extents_may_overlap(
-            fixed_index_extent(index),
-            index_expression_extent_with_selectors(
-                program,
-                expression,
-                right_location,
+        (facts::PlaceSegment::FixedIndex { index }, facts::PlaceSegment::Index { expression }) => {
+            index_extents_may_overlap(
+                fixed_index_extent(index),
+                index_expression_extent_with_selectors(
+                    program,
+                    expression,
+                    right_location,
+                    selectors,
+                    bound_lookup,
+                ),
                 selectors,
-                bound_lookup,
-            ),
-            selectors,
-        ),
-        (
-            crate::fact_plan::PlaceSegment::Index { expression },
-            crate::fact_plan::PlaceSegment::FixedIndex { index },
-        ) => index_extents_may_overlap(
-            index_expression_extent_with_selectors(
-                program,
-                expression,
-                left_location,
+            )
+        }
+        (facts::PlaceSegment::Index { expression }, facts::PlaceSegment::FixedIndex { index }) => {
+            index_extents_may_overlap(
+                index_expression_extent_with_selectors(
+                    program,
+                    expression,
+                    left_location,
+                    selectors,
+                    bound_lookup,
+                ),
+                fixed_index_extent(index),
                 selectors,
-                bound_lookup,
-            ),
-            fixed_index_extent(index),
-            selectors,
-        ),
+            )
+        }
         (
-            crate::fact_plan::PlaceSegment::Index {
+            facts::PlaceSegment::Index {
                 expression: left_expression,
             },
-            crate::fact_plan::PlaceSegment::Index {
+            facts::PlaceSegment::Index {
                 expression: right_expression,
             },
         ) => index_expressions_may_overlap_with_selectors(

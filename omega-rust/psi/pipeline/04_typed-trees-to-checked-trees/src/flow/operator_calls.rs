@@ -2,14 +2,6 @@
 //! borrow-call fact: resolve the operator, list the places its mutable operands
 //! write, and add its `ensures` onto the caller's operands. Statement calls and
 //! expression-form named uses share these rules.
-use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use crate::checked_trees::{
-    ContractProofFactKind, DomainFacts, FlowConstraintKind, FlowConstraintRef,
-    FlowInvalidationSource, FlowSemanticContextRef,
-};
-use crate::fact_plan::{
-    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
-};
 use crate::flow::CanonicalPlace;
 use crate::flow::FlowBuildContext;
 use crate::flow::append_constraint_ref;
@@ -21,12 +13,19 @@ use crate::flow::symbol_type_symbol;
 use crate::labels::semantic_contract_fact_kind;
 use crate::semantic::calls::CallSite;
 use arena::{Handle, HandleSpan};
-use symbol_resolved_trees_to_typed_trees::typed_trees::proposition::PropositionLabels;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::{
+    ContractProofFactKind, DomainFacts, FlowConstraintKind, FlowConstraintRef,
+    FlowInvalidationSource, FlowSemanticContextRef,
+};
+use facts::{
+    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
+};
 use symbols::SymbolHandle;
+use typed_trees::proposition::PropositionLabels;
 
 pub(super) struct ResolvedOperatorStatementCall<'program> {
-    pub(super) operator:
-        &'program symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition,
+    pub(super) operator: &'program typed_trees::operator::OperatorDefinition,
     pub(super) receiver_is_value: bool,
 }
 
@@ -35,8 +34,8 @@ pub(super) struct ResolvedOperatorStatementCall<'program> {
 /// consumer (ownership, mutation invalidation, and postcondition flow) must use
 /// this one resolution rule rather than guessing independently.
 pub(super) fn resolve_operator_statement_call<'program>(
-    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    call: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableCall,
+    program: &'program typed_trees::TypedTrees,
+    call: &typed_trees::statement::TableCall,
 ) -> Option<ResolvedOperatorStatementCall<'program>> {
     // A valid receiver symbol that resolves to a typed value (a local,
     // parameter, or field) is a method-form receiver place; a static path
@@ -77,15 +76,14 @@ pub(super) fn resolve_operator_statement_call<'program>(
 /// Resolve an operator call from its already-separated path and arity facts.
 /// Expression-call ownership and statement-call flow share this exact rule.
 pub(super) fn resolve_operator_for_call<'program>(
-    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &'program typed_trees::TypedTrees,
     target_symbol: SymbolHandle,
     static_receiver_segments: Option<&[&str]>,
     target_name: &str,
     argument_count: usize,
     has_value_receiver: bool,
-) -> Option<&'program symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition>
-{
-    symbol_resolved_trees_to_typed_trees::typed_trees::operator::resolve_named_call(
+) -> Option<&'program typed_trees::operator::OperatorDefinition> {
+    typed_trees::operator::resolve_named_call(
         program,
         target_symbol,
         static_receiver_segments,
@@ -104,14 +102,14 @@ struct OperatorStatementOperand {
 }
 
 fn operator_statement_operands<'program>(
-    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &'program typed_trees::TypedTrees,
     build: &mut FlowBuildContext,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
-    call: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableCall,
+    call: &typed_trees::statement::TableCall,
 ) -> Option<(
-    &'program symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition,
+    &'program typed_trees::operator::OperatorDefinition,
     Vec<OperatorStatementOperand>,
 )> {
     let resolved = resolve_operator_statement_call(program, call)?;
@@ -142,13 +140,13 @@ fn operator_statement_operands<'program>(
         let (place, label) = if receiver_parameter_index == Some(parameter_index) {
             let label = receiver_place.as_ref().map_or_else(
                 || {
-                    symbol_resolved_trees_to_typed_trees::typed_trees::expression::display_name_path(
+                    typed_trees::expression::display_name_path(
                         program.statement_table.name_path_members(call.receiver),
                         "::",
                     )
                 },
                 |place| {
-                    crate::fact_plan::canonical_place_label_from_parts(program, place.root, &place.segments)
+                    facts::canonical_place_label_from_parts(program, place.root, &place.segments)
                 },
             );
             (receiver_place.clone(), label)
@@ -184,12 +182,12 @@ fn operator_statement_operands<'program>(
 /// places and labels canonicalize exactly as the statement form's do, so
 /// contract instantiation renders identical operand names either way.
 fn named_operator_call_operands<'program>(
-    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &'program typed_trees::TypedTrees,
     build: &mut FlowBuildContext,
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
-    call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
-    operator: &'program symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition,
+    call: &typed_trees::expression::TableCallExpression,
+    operator: &'program typed_trees::operator::OperatorDefinition,
 ) -> Option<Vec<OperatorStatementOperand>> {
     let parameters = program.operator_parameters(operator);
     let operand_expressions =
@@ -205,7 +203,7 @@ fn named_operator_call_operands<'program>(
                 let label = place.as_ref().map_or_else(
                     || program.expression_table.display_name(*expression),
                     |place| {
-                        crate::fact_plan::canonical_place_label_from_parts(
+                        facts::canonical_place_label_from_parts(
                             program,
                             place.root,
                             &place.segments,
@@ -232,28 +230,26 @@ fn named_operator_call_operands<'program>(
 /// then the operator's `ensures` publish onto the caller operands.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn apply_named_operator_call_effects(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     domains: &DomainFacts,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
-    call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
-    named_use: arena::Handle<crate::checked_trees::CheckedNamedOperatorUseFact>,
+    call: &typed_trees::expression::TableCallExpression,
+    named_use: arena::Handle<checked_trees::CheckedNamedOperatorUseFact>,
     active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut HandleSpan<FlowConstraintRef>,
 ) {
-    let Some(operator) =
-        symbol_resolved_trees_to_typed_trees::typed_trees::operator::declaration_by_symbol(
-            program,
-            build
-                .operators
-                .named_uses
-                .get(named_use)
-                .selected_operator_symbol,
-        )
-    else {
+    let Some(operator) = typed_trees::operator::declaration_by_symbol(
+        program,
+        build
+            .operators
+            .named_uses
+            .get(named_use)
+            .selected_operator_symbol,
+    ) else {
         return;
     };
     let Some(operands) = named_operator_call_operands(
@@ -321,22 +317,21 @@ pub(super) fn apply_named_operator_call_effects(
 /// nothing". The expression-form counterpart of
 /// `operator_statement_call_mutated_places`.
 pub(super) fn named_operator_call_mutated_places(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     build: &mut FlowBuildContext,
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
-    call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
-    named_use: arena::Handle<crate::checked_trees::CheckedNamedOperatorUseFact>,
+    call: &typed_trees::expression::TableCallExpression,
+    named_use: arena::Handle<checked_trees::CheckedNamedOperatorUseFact>,
 ) -> Option<Vec<CanonicalPlace>> {
-    let operator =
-        symbol_resolved_trees_to_typed_trees::typed_trees::operator::declaration_by_symbol(
-            program,
-            build
-                .operators
-                .named_uses
-                .get(named_use)
-                .selected_operator_symbol,
-        )?;
+    let operator = typed_trees::operator::declaration_by_symbol(
+        program,
+        build
+            .operators
+            .named_uses
+            .get(named_use)
+            .selected_operator_symbol,
+    )?;
     let operands = named_operator_call_operands(
         program,
         build,
@@ -356,12 +351,12 @@ pub(super) fn named_operator_call_mutated_places(
 /// operands still invalidate every fact depending on those places before the
 /// operator's postconditions are introduced.
 pub(super) fn operator_statement_call_mutated_places(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     build: &mut FlowBuildContext,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
-    call: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableCall,
+    call: &typed_trees::statement::TableCall,
 ) -> Vec<CanonicalPlace> {
     operator_statement_operands(
         program,
@@ -386,13 +381,13 @@ pub(super) fn operator_statement_call_mutated_places(
 /// operand, including any relative field/index segments.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_operator_statement_ensures(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
-    call: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableCall,
+    call: &typed_trees::statement::TableCall,
     active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut HandleSpan<FlowConstraintRef>,
 ) {
@@ -427,10 +422,10 @@ pub(super) fn append_operator_statement_ensures(
 /// `StatementNode::Call` path and the expression-form named-use path.
 #[allow(clippy::too_many_arguments)]
 fn append_operator_ensures_context(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
-    operator: &symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition,
+    operator: &typed_trees::operator::OperatorDefinition,
     operands: &[OperatorStatementOperand],
     point: ProgramPoint,
     active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
@@ -447,7 +442,7 @@ fn append_operator_ensures_context(
         .signature_contracts
         .span_or_empty(operator.contracts)
     {
-        if contract.kind != symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Ensures {
+        if contract.kind != typed_trees::signature::SignatureContractKind::Ensures {
             continue;
         }
         for offset in 0..contract.facts.count() {
@@ -461,13 +456,13 @@ fn append_operator_ensures_context(
                 contract.facts.start().generation(),
             );
             match program.proof_facts.get(fact_handle) {
-                symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(membership) => {
+                typed_trees::domain::ProofFact::Membership(membership) => {
                     let Some(relative) =
                         operator_contract_relative_place(program, operator, membership.value)
                     else {
                         continue;
                     };
-                    let crate::fact_plan::PlaceRoot::Symbol(parameter_symbol) = relative.root else {
+                    let facts::PlaceRoot::Symbol(parameter_symbol) = relative.root else {
                         continue;
                     };
                     let Some(operand) = operands
@@ -508,7 +503,7 @@ fn append_operator_ensures_context(
                     });
                     semantic.append_ref(&mut refs, fact);
                 }
-                symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(expression) => {
+                typed_trees::domain::ProofFact::Expression(expression) => {
                     let label =
                         crate::labels::instantiate_operator_contract_expression_label_with_labels(
                             program,
@@ -566,7 +561,7 @@ fn append_operator_ensures_context(
                         }
                     }
                 }
-                symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(application) => {
+                typed_trees::domain::ProofFact::Proposition(application) => {
                     let place = semantic.append_symbol_place(application.proposition);
                     let binder_labels = application
                         .binder_arguments
@@ -644,8 +639,8 @@ fn append_operator_ensures_context(
 /// operator's parameters. Contract name paths are intentionally not resolved
 /// as caller symbols, so the parameter's authored name is the fallback root.
 fn operator_contract_relative_place(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    operator: &symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition,
+    program: &typed_trees::TypedTrees,
+    operator: &typed_trees::operator::OperatorDefinition,
     expression: ExpressionHandle,
 ) -> Option<CanonicalPlace> {
     match program.expression_table.expression(expression) {
@@ -675,7 +670,7 @@ fn operator_contract_relative_place(
                 crate::flow::push_field_place_segments(program, &mut segments, symbol);
             }
             Some(CanonicalPlace {
-                root: crate::fact_plan::PlaceRoot::Symbol(parameter.symbol),
+                root: facts::PlaceRoot::Symbol(parameter.symbol),
                 segments,
             })
         }

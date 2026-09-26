@@ -126,7 +126,7 @@ fn selector_source(
     state: symbols::SymbolHandle,
     statement_index: u32,
     role: CheckedScalarExpressionRole,
-) -> Result<typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument, LoweringError> {
+) -> Result<checked_trees::CheckedCallScalarArgument, LoweringError> {
     if let Some((_, expression)) =
         checked
             .facts
@@ -134,11 +134,9 @@ fn selector_source(
             .scalar_expressions
             .bound_expression_at(state, statement_index, role)
     {
-        return Ok(
-            typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(
-                expression.clone(),
-            ),
-        );
+        return Ok(checked_trees::CheckedCallScalarArgument::Pure(
+            expression.clone(),
+        ));
     }
     let root = checked
         .facts
@@ -148,9 +146,7 @@ fn selector_source(
         .ok_or(LoweringError::Unsupported(
             "store runtime element lost its retained selector",
         ))?;
-    Ok(
-        typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Computation(
-            root.root,
-        ),
-    )
+    Ok(checked_trees::CheckedCallScalarArgument::Computation(
+        root.root,
+    ))
 }

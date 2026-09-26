@@ -33,7 +33,6 @@
 
 // The entrance.
 pub mod parser;
-pub mod syntax_trees;
 
 // The grammar, outermost form first; each reaches down this list.
 mod bodies;

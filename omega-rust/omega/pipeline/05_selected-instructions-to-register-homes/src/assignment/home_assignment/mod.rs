@@ -1,11 +1,11 @@
 //! Optimizer module role: executable entrance. Transition-free physical-home assignment entrance.
 
-use selected_instructions_to_selected_instructions::{
-    ValidatedAllocationLegality, ValidatedLiveRanges,
-};
-use target_operations_to_selected_instructions::register_model::{
+use register_model::{
     TargetRegisterEnvironmentConstraintKeys, ValidatedPhysicalRegisterModel,
     ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
+};
+use selected_instructions_to_selected_instructions::{
+    ValidatedAllocationLegality, ValidatedLiveRanges,
 };
 pub(crate) mod compute;
 mod physical_requirement;
@@ -14,15 +14,13 @@ pub(crate) mod validate;
 #[cfg(test)]
 mod tests;
 
-use selected_instructions_to_selected_instructions::register_homes::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity,
-};
-pub use selected_instructions_to_selected_instructions::register_homes::{
+use register_homes::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity};
+pub use register_homes::{
     FunctionRegisterHomes, RegisterHomeDecodeError, RegisterHomeIdentity, RegisterHomePlan,
     VirtualRegisterHome, register_home_identity,
 };
-use target_operations_to_selected_instructions::LiveRangeIdentity;
-use target_operations_to_selected_instructions::register_model::TargetRegisterEnvironmentIdentity;
+use register_model::TargetRegisterEnvironmentIdentity;
+use selected_instructions::LiveRangeIdentity;
 pub use validate::validate_register_homes;
 
 /// Assign deterministic physical views for the bounded transition-free,

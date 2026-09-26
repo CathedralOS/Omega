@@ -10,10 +10,10 @@ mod exact_input_memo;
 pub use exact_input_memo::{RepeatedCheckRetention, retain_repeated_checks};
 pub(crate) mod program_validation;
 
-use crate::checked_trees::CheckedTrees;
 use crate::checking::program_validation::validate_typed_program;
 use crate::checks;
 use crate::facts::build_check_facts;
+use checked_trees::CheckedTrees;
 
 /// One typed->checked lowering request. `settled()` is the final package
 /// checkpoint: every selection the orchestration owner settled is supplied
@@ -35,7 +35,7 @@ pub struct CheckingRequest<'a> {
     mode: CheckingMode,
     selected_generic_operator_providers: &'a [SelectedGenericOperatorProviderSpecialization],
     selected_boundary_families: &'a [SelectedBoundaryFamilySpecialization],
-    opaque_property_receipts: &'a [crate::validation::OpaqueDataPropertyReceipt],
+    opaque_property_receipts: &'a [validation::OpaqueDataPropertyReceipt],
 }
 
 impl<'a> CheckingRequest<'a> {
@@ -88,7 +88,7 @@ impl<'a> CheckingRequest<'a> {
     /// Exact orchestration receipts that close opaque-property validation.
     pub const fn with_opaque_property_receipts(
         mut self,
-        receipts: &'a [crate::validation::OpaqueDataPropertyReceipt],
+        receipts: &'a [validation::OpaqueDataPropertyReceipt],
     ) -> Self {
         self.opaque_property_receipts = receipts;
         self
@@ -100,7 +100,7 @@ impl<'a> CheckingRequest<'a> {
 /// selections may remain late-bound until build-time evaluation; ordinary
 /// authored selections remain strict in both modes.
 pub fn lower_typed_trees(
-    program: symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: typed_trees::TypedTrees,
     request: &CheckingRequest<'_>,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
     let key = exact_input_memo::RequestKey {
@@ -115,7 +115,7 @@ pub fn lower_typed_trees(
 }
 
 fn lower_typed_trees_uncached(
-    program: symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: typed_trees::TypedTrees,
     request: &CheckingRequest<'_>,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
     let CheckingRequest {
@@ -232,20 +232,20 @@ fn lower_typed_trees_uncached(
     // their format on the text carrier HERE, while the tree is still mutable
     // and before both engines fork off it -- every downstream read (native
     // and interpreter) then rounds once from the spelling.
-    crate::validation::land_float_literal_destinations(&mut program);
+    validation::land_float_literal_destinations(&mut program);
     // Calls through a typed `dyn Trait` receiver cannot be resolved during the
     // earlier symbol pass because local declared types are not available there.
     // Bind their declaring-trait requirement now so the ordinary result-
     // overload pass below starts in the correct trait family rather than from
     // an ambient same-named machine.
-    crate::validation::resolve_dynamic_call_targets(&mut program)?;
+    validation::resolve_dynamic_call_targets(&mut program)?;
     // Concrete substitutions may make previously open field types selectable.
     crate::lookup::resolve_projected_receiver_calls(&mut program)?;
     // Named-machine result overloads are provisionally bound to the first
     // same-named symbol during early resolution. Rebind them now, after domain
     // normalization and destination typing, before validation/backend facts
     // consume the call identity.
-    crate::validation::resolve_named_result_overloads(&mut program)?;
+    validation::resolve_named_result_overloads(&mut program)?;
     // A spelled use that selects a token-bearing machine is supplied by that
     // declaration's own body: bind it to an ordinary call now, after every
     // specialization and call-identity rebinding above, so validation and
@@ -255,7 +255,7 @@ fn lower_typed_trees_uncached(
     // call-identity rebinding above mutate it, so the plan memo scope can only
     // open here — the first of the consumers below computes the program-pure
     // operational and service-reach plans and the rest serve from them.
-    let _plan_scope = crate::validation::enter_program_plan_scope();
+    let _plan_scope = ::validation::enter_program_plan_scope();
     let _field_domain_scope = crate::facts::field_domain::enter_field_domain_scope();
     let _fact_row_scope = crate::flow::enter_fact_row_scope();
     let _root_currency_scope = checks::enter_root_currency_scope();
@@ -263,7 +263,7 @@ fn lower_typed_trees_uncached(
     // classification. The only mutation in the scope, contract-identity
     // binding, rewrites specialization fingerprints neither reads; the scope
     // closes before authored-selection finalization rewrites call targets.
-    let frozen_program_scope = crate::validation::enter_frozen_program_scope(&program);
+    let frozen_program_scope = validation::enter_frozen_program_scope(&program);
     crate::monomorphization::validate_selected_attached_method_bounds(&program)?;
     let mut validated = validate_typed_program(
         &program,
@@ -297,7 +297,7 @@ fn lower_typed_trees_uncached(
     // Sealed quotient requests were deferred by validation until termination
     // was proved: judge them now against the checked termination facts. The
     // batch is all-or-nothing and grants no executable operation.
-    crate::validation::admit_checked_quotient_requests(&program, &|machine| {
+    validation::admit_checked_quotient_requests(&program, &|machine| {
         facts
             .termination
             .for_machine(machine)
@@ -352,8 +352,8 @@ fn lower_typed_trees_uncached(
         crate::authored_selections::finalize_checked_authored_selections(&mut program, &facts)
     }
     .map_err(|diagnostic| vec![diagnostic])?;
-    crate::validation::validate_reserved_cleanup_selections(&program)?;
-    crate::validation::validate_declaration_visibility(&program)?;
+    validation::validate_reserved_cleanup_selections(&program)?;
+    validation::validate_declaration_visibility(&program)?;
 
     Ok(CheckedTrees::with_roots(program, facts))
 }
@@ -410,9 +410,9 @@ impl CheckingMode {
 /// snapshots and trust receipts; checked lowering calls it before capturing
 /// generic template fingerprints and again after specialization.
 pub fn normalize_open_index_identities(
-    program: &mut symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &mut typed_trees::TypedTrees,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    crate::validation::normalize_open_index_expressions(program)?;
+    ::validation::normalize_open_index_expressions(program)?;
     crate::monomorphization::refresh_closed_domain_instance_identities(program)
         .map_err(|diagnostic| vec![diagnostic])
 }
@@ -428,28 +428,28 @@ pub fn normalize_open_index_identities(
 /// underivable tuple is interim evidence, not a rejected program. The
 /// authoritative checking pass enforces the complete-tuple gate itself.
 pub fn specialize_static_machine_calls(
-    program: &mut symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &mut typed_trees::TypedTrees,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     specialize_static_machine_calls_with_selections(program, false).map(|_| ())
 }
 
 pub(crate) fn specialize_static_machine_calls_with_selections(
-    program: &mut symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &mut typed_trees::TypedTrees,
     enforce_complete_concrete_selections: bool,
-) -> Result<crate::validation::ValidatedStaticMachineSelections, Vec<diagnostics::Diagnostic>> {
+) -> Result<::validation::ValidatedStaticMachineSelections, Vec<diagnostics::Diagnostic>> {
     crate::conformance::conformance_application_lifetimes::resolve_elided_conformance_lifetimes(
         program,
     )?;
     crate::conformance::conformance_applications::validate_conformance_applications(program)?;
-    let mut selections = crate::validation::validate_static_machine_selections_with_facts(program)?;
-    crate::validation::validate_generic_machine_contract_entailment(program)?;
+    let mut selections = ::validation::validate_static_machine_selections_with_facts(program)?;
+    ::validation::validate_generic_machine_contract_entailment(program)?;
     crate::monomorphization::monomorphize_generic_machine_value_calls_with_selections(
         program,
         &mut selections,
         enforce_complete_concrete_selections,
     )?;
-    let operational = crate::validation::infer_operational_may(program);
-    crate::validation::validate_static_machine_call_contracts(program, &operational)
+    let operational = ::validation::infer_operational_may(program);
+    ::validation::validate_static_machine_call_contracts(program, &operational)
         .map_err(|diagnostic| vec![diagnostic])?;
     Ok(selections)
 }

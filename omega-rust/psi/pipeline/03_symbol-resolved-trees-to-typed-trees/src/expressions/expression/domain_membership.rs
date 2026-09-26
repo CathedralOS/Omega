@@ -1,8 +1,8 @@
 use super::lower_expression_handle_from_table_with_self_substitution;
 use crate::lowerer::name::lower_name;
-use crate::typed_trees as typed;
 use diagnostics::Diagnostic;
-use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees as resolved;
+use symbol_resolved_trees as resolved;
+use typed_trees as typed;
 
 /// `value in Type::Case` is the tag test (frozen decision 11): it lowers to
 /// a tag-equality compare against the case name. The lowered form is the

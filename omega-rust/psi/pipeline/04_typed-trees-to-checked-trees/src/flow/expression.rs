@@ -7,13 +7,6 @@
 //! have been scheduled. Otherwise flow retains calls that computation folding
 //! skips, breaking their exact occurrence correspondence. Runtime storage facts
 //! remain tied to the existing live contexts, never a second operand evaluation.
-use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use crate::checked_trees::statement::StatementNode;
-use crate::checked_trees::{
-    BorrowCallFact, BorrowFacts, DomainFacts, FlowCallFact, FlowConstraintRef,
-    FlowInvalidationSource, FlowSemanticContextRef, ProofFacts,
-};
-use crate::fact_plan::{FactPlan, ProgramPoint};
 use crate::flow::CanonicalPlace;
 use crate::flow::FlowBuildContext;
 use crate::flow::build_call_flow_fact;
@@ -23,13 +16,16 @@ use crate::flow::project_constraint_refs_to_active_contexts;
 use crate::flow::reference_spans;
 use crate::semantic::calls::CallSite;
 use arena::HandleSpan;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    BinaryOperator, UnaryOperator,
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::statement::StatementNode;
+use checked_trees::{
+    BorrowCallFact, BorrowFacts, DomainFacts, FlowCallFact, FlowConstraintRef,
+    FlowInvalidationSource, FlowSemanticContextRef, ProofFacts,
 };
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
-    TableTransition, TransitionTargetHandle, TransitionTargetNode,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
+use facts::{FactPlan, ProgramPoint};
+use typed_trees::expression::{BinaryOperator, UnaryOperator};
+use typed_trees::statement::{TableTransition, TransitionTargetHandle, TransitionTargetNode};
+use typed_trees::types::TypeReferenceNode;
 
 mod dispatch;
 mod result_domains;
@@ -52,12 +48,12 @@ enum InvocationSite {
 }
 
 pub(super) struct Execution<'a, 'b, 'plans> {
-    program: &'plans symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &'plans typed_trees::TypedTrees,
     borrow: &'a BorrowFacts,
     proof: &'a ProofFacts,
     domains: &'a DomainFacts,
-    machine: &'a symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &'a symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &'a typed_trees::machine::Machine,
+    state: &'a typed_trees::state::State,
     statement_index: usize,
     pub(super) semantic: &'b mut FactPlan,
     pub(super) context: &'b mut FlowBuildContext<'plans>,
@@ -68,14 +64,14 @@ pub(super) struct Execution<'a, 'b, 'plans> {
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_statement_calls<'plans>(
-    program: &'plans symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &'plans typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     proof: &ProofFacts,
     semantic: &mut FactPlan,
     domains: &DomainFacts,
     context: &mut FlowBuildContext<'plans>,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     statement_index: usize,
     statement: &StatementNode,
     calls: &[BorrowCallFact],
@@ -132,12 +128,12 @@ pub(super) fn append_statement_calls<'plans>(
 impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
-        program: &'plans symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+        program: &'plans typed_trees::TypedTrees,
         borrow: &'a BorrowFacts,
         proof: &'a ProofFacts,
         domains: &'a DomainFacts,
-        machine: &'a symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-        state: &'a symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+        machine: &'a typed_trees::machine::Machine,
+        state: &'a typed_trees::state::State,
         statement_index: usize,
         semantic: &'b mut FactPlan,
         context: &'b mut FlowBuildContext<'plans>,
@@ -314,12 +310,12 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         first_write: usize,
         contexts: HandleSpan<FlowSemanticContextRef>,
         constraints: HandleSpan<FlowConstraintRef>,
-    ) -> crate::checked_trees::FlowOperatorOperandFact {
+    ) -> checked_trees::FlowOperatorOperandFact {
         let changed = self.changed_operand_sources(&[(expression, first_write)]);
         let mut captured_contexts = contexts;
         let mut captured_constraints = constraints;
         self.filter_captured_sources(&changed, &mut captured_contexts, &mut captured_constraints);
-        crate::checked_trees::FlowOperatorOperandFact {
+        checked_trees::FlowOperatorOperandFact {
             expression,
             constraints: captured_constraints,
             referents: self.operand_referents(expression),
@@ -336,7 +332,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
     fn operand_referents(
         &mut self,
         expression: ExpressionHandle,
-    ) -> HandleSpan<crate::checked_trees::FlowOperandReferent> {
+    ) -> HandleSpan<checked_trees::FlowOperandReferent> {
         // A value-type query strips a borrow to its target, so `Borrow`
         // operands identify their view shape structurally.
         let is_view = if matches!(
@@ -379,9 +375,9 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         ) else {
             return HandleSpan::empty();
         };
-        let rows: Vec<crate::checked_trees::FlowOperandReferent> = referents
+        let rows: Vec<checked_trees::FlowOperandReferent> = referents
             .iter()
-            .map(|referent| crate::checked_trees::FlowOperandReferent {
+            .map(|referent| checked_trees::FlowOperandReferent {
                 root: referent.root,
                 segments: self
                     .context
@@ -399,8 +395,8 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
     fn record_operator_invocation(
         &mut self,
         expression: ExpressionHandle,
-        occurrence: crate::checked_trees::CheckedOperatorOccurrence,
-        captured_operands: &[crate::checked_trees::FlowOperatorOperandFact],
+        occurrence: checked_trees::CheckedOperatorOccurrence,
+        captured_operands: &[checked_trees::FlowOperatorOperandFact],
         constraints: HandleSpan<FlowConstraintRef>,
     ) {
         // Both spelled operators and Match comparisons consume saved operands.
@@ -413,7 +409,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             if use_fact.expression == expression
                 && use_fact.occurrence == occurrence
                 && use_fact.selected_operator_symbol.is_valid()
-                && matches!(use_fact.origin, crate::checked_trees::CheckedValueOrigin::StateStatement {
+                && matches!(use_fact.origin, checked_trees::CheckedValueOrigin::StateStatement {
                     machine_symbol, state_symbol, statement_index, ..
                 } if machine_symbol == self.machine.symbol && state_symbol == self.state.symbol && statement_index == self.statement_index)
             {
@@ -425,7 +421,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         .insert_many(captured_operands.iter().copied());
                 }
                 self.context.control.operator_invocations.append(
-                    crate::checked_trees::FlowOperatorInvocationFact {
+                    checked_trees::FlowOperatorInvocationFact {
                         operator_use,
                         named_use: arena::Handle::invalid(),
                         operands: operand_span,
@@ -442,14 +438,14 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
     fn named_uses_at(
         &self,
         expression: ExpressionHandle,
-    ) -> Vec<arena::Handle<crate::checked_trees::CheckedNamedOperatorUseFact>> {
+    ) -> Vec<arena::Handle<checked_trees::CheckedNamedOperatorUseFact>> {
         self.context
             .operators
             .named_uses
             .iter()
             .filter(|(_, named_use)| {
                 named_use.expression == expression
-                    && matches!(named_use.origin, crate::checked_trees::CheckedValueOrigin::StateStatement {
+                    && matches!(named_use.origin, checked_trees::CheckedValueOrigin::StateStatement {
                         machine_symbol, state_symbol, statement_index, ..
                     } if machine_symbol == self.machine.symbol
                         && state_symbol == self.state.symbol
@@ -468,25 +464,20 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
     /// `named_call_operands`.
     fn record_named_operator_invocations(
         &mut self,
-        call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
-        named_uses: &[arena::Handle<crate::checked_trees::CheckedNamedOperatorUseFact>],
-        captured: &[(
-            ExpressionHandle,
-            crate::checked_trees::FlowOperatorOperandFact,
-        )],
+        call: &typed_trees::expression::TableCallExpression,
+        named_uses: &[arena::Handle<checked_trees::CheckedNamedOperatorUseFact>],
+        captured: &[(ExpressionHandle, checked_trees::FlowOperatorOperandFact)],
         constraints: HandleSpan<FlowConstraintRef>,
     ) {
         for &named_use in named_uses {
-            let Some(operator) =
-                symbol_resolved_trees_to_typed_trees::typed_trees::operator::declaration_by_symbol(
-                    self.program,
-                    self.context
-                        .operators
-                        .named_uses
-                        .get(named_use)
-                        .selected_operator_symbol,
-                )
-            else {
+            let Some(operator) = typed_trees::operator::declaration_by_symbol(
+                self.program,
+                self.context
+                    .operators
+                    .named_uses
+                    .get(named_use)
+                    .selected_operator_symbol,
+            ) else {
                 continue;
             };
             let parameters = self.program.operator_parameters(operator);
@@ -520,7 +511,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 .operator_operands
                 .insert_many(bound.iter().copied());
             self.context.control.operator_invocations.append(
-                crate::checked_trees::FlowOperatorInvocationFact {
+                checked_trees::FlowOperatorInvocationFact {
                     operator_use: arena::Handle::invalid(),
                     named_use,
                     operands: operand_span,
@@ -606,7 +597,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 );
                 self.record_operator_invocation(
                     expression,
-                    crate::checked_trees::CheckedOperatorOccurrence::Expression,
+                    checked_trees::CheckedOperatorOccurrence::Expression,
                     &[left_operand, right_operand],
                     *constraints,
                 );
@@ -758,7 +749,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     self.append_result_domains(indexed.index, contexts, constraints);
                     self.record_operator_invocation(
                         expression,
-                        crate::checked_trees::CheckedOperatorOccurrence::Expression,
+                        checked_trees::CheckedOperatorOccurrence::Expression,
                         &[collection_operand, start_operand, end_operand],
                         *constraints,
                     );
@@ -773,7 +764,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     );
                     self.record_operator_invocation(
                         expression,
-                        crate::checked_trees::CheckedOperatorOccurrence::Expression,
+                        checked_trees::CheckedOperatorOccurrence::Expression,
                         &[collection_operand, index_operand],
                         *constraints,
                     );
@@ -828,7 +819,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 .map(|reference| self.semantic.contexts.get(reference.context)),
             &place,
         )? {
-            crate::fact_plan::ScalarValue::Boolean(value) => Some(value),
+            facts::ScalarValue::Boolean(value) => Some(value),
             _ => None,
         }
     }

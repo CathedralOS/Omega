@@ -19,7 +19,7 @@ use super::{
     is_record_pattern_marker, retain_selected_sources, scalar_computation_local_at,
     structural_operands,
 };
-use symbol_resolved_trees_to_typed_trees::typed_trees;
+use typed_trees;
 
 /// The sequence state a `let` statement reads and extends.
 pub(super) struct Planner<'a, 'program, 'shapes> {
@@ -27,9 +27,8 @@ pub(super) struct Planner<'a, 'program, 'shapes> {
     pub(super) facts: &'program CheckFacts,
     pub(super) scalar_callees: ScalarCalleePlans<'a>,
     pub(super) shapes: &'a mut ShapeCollector<'shapes>,
-    pub(super) machine:
-        &'program symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    pub(super) state: &'program symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    pub(super) machine: &'program typed_trees::machine::Machine,
+    pub(super) state: &'program typed_trees::state::State,
     pub(super) structural_parameters: &'a mut [CheckedUnitStructuralParameterPlan],
     pub(super) entry_claims: &'a [CheckedUnitEntryClaimPlan],
     pub(super) trivial_affine_locals:
@@ -44,10 +43,8 @@ pub(super) struct Planner<'a, 'program, 'shapes> {
     pub(super) windows: &'a mut crate::execution::terminal_unit::borrowed_windows::OpenWindows,
     pub(super) array_bindings: &'a mut Vec<(SymbolHandle, CheckedUnitStructuralResultBindingPlan)>,
     pub(super) atomic_result: &'a mut Option<CheckedUnitScalarResultBindingPlan>,
-    pub(super) structural_results: &'a mut Vec<(
-        CheckedUnitStructuralResultBindingPlan,
-        crate::fact_plan::PlaceRoot,
-    )>,
+    pub(super) structural_results:
+        &'a mut Vec<(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)>,
 }
 
 /// What a `let` statement left for its own call.
@@ -64,7 +61,7 @@ pub(super) fn plan(
     planner: Planner<'_, '_, '_>,
     index: usize,
     statement_index: u32,
-    local: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableLocalData,
+    local: &typed_trees::statement::TableLocalData,
 ) -> Option<LocalPlan> {
     let Planner {
         program,
@@ -119,7 +116,7 @@ pub(super) fn plan(
         *scalar_count = scalar_count.checked_add(1)?;
         return Some(LocalPlan::Planned);
     }
-    if crate::validation::atomic_load_carrier(program, local.initial_value).is_some() {
+    if validation::atomic_load_carrier(program, local.initial_value).is_some() {
         local_phase("statement sequence: local data: atomic load");
         let binding_ordinal = u32::try_from(*scalar_count).ok()?;
         operations.push(CheckedUnitEffectOperationPlan::AtomicAccess(
@@ -154,7 +151,7 @@ pub(super) fn plan(
         u32::try_from(*structural_count).ok()?,
     ) {
         *structural_count = structural_count.checked_add(1)?;
-        structural_results.push((result, crate::fact_plan::PlaceRoot::Symbol(local.symbol)));
+        structural_results.push((result, facts::PlaceRoot::Symbol(local.symbol)));
         structural_local_symbols.push(local.symbol);
         operations.push(operation);
         return Some(LocalPlan::Planned);
@@ -174,9 +171,9 @@ pub(super) fn plan(
         local.type_reference,
         local.initial_value,
         index,
-        crate::checked_trees::CheckedSubsliceSite::LocalBinding,
+        checked_trees::CheckedSubsliceSite::LocalBinding,
     ) {
-        if let crate::checked_trees::CheckedStorageRoot::ViewLocal { symbol } = subslice.range.root
+        if let checked_trees::CheckedStorageRoot::ViewLocal { symbol } = subslice.range.root
             && !structural_local_symbols.contains(&symbol)
         {
             return None;
@@ -192,10 +189,7 @@ pub(super) fn plan(
             multiplicity: Multiplicity::Unrestricted,
         };
         *structural_count = structural_count.checked_add(1)?;
-        structural_results.push((
-            result.clone(),
-            crate::fact_plan::PlaceRoot::Symbol(local.symbol),
-        ));
+        structural_results.push((result.clone(), facts::PlaceRoot::Symbol(local.symbol)));
         structural_local_symbols.push(local.symbol);
         operations.push(CheckedUnitEffectOperationPlan::EstablishViewSubslice {
             result,
@@ -273,10 +267,7 @@ pub(super) fn plan(
             multiplicity: program.type_multiplicity(local.type_reference),
         };
         *structural_count = structural_count.checked_add(1)?;
-        structural_results.push((
-            result.clone(),
-            crate::fact_plan::PlaceRoot::Symbol(local.symbol),
-        ));
+        structural_results.push((result.clone(), facts::PlaceRoot::Symbol(local.symbol)));
         structural_local_symbols.push(local.symbol);
         // Only affine values create disposal debt; copy locals
         // retain their result identity without a cleanup action.
@@ -290,7 +281,7 @@ pub(super) fn plan(
         });
         return Some(LocalPlan::Planned);
     }
-    if crate::validation::is_closed_primitive_array_type(program, local.type_reference)
+    if validation::is_closed_primitive_array_type(program, local.type_reference)
         && !matches!(
             program.expression_table.expression(local.initial_value),
             ExpressionNode::Call(_)
@@ -313,19 +304,16 @@ pub(super) fn plan(
             machine.symbol,
             state.symbol,
             statement_index,
-            crate::checked_trees::CheckedArrayConstructionSource::Statement,
+            checked_trees::CheckedArrayConstructionSource::Statement,
             local.initial_value,
             local.type_reference,
         )?;
         *structural_count = structural_count.checked_add(1)?;
         array_bindings.push((local.symbol, result.clone()));
-        structural_results.push((
-            result.clone(),
-            crate::fact_plan::PlaceRoot::Symbol(local.symbol),
-        ));
+        structural_results.push((result.clone(), facts::PlaceRoot::Symbol(local.symbol)));
         structural_local_symbols.push(local.symbol);
         operations.push(CheckedUnitEffectOperationPlan::EstablishScalarArray {
-            source: crate::checked_trees::CheckedArrayConstructionSource::Statement,
+            source: checked_trees::CheckedArrayConstructionSource::Statement,
             result,
             elements,
         });
@@ -460,10 +448,10 @@ pub(super) fn plan(
 /// loaned storage either way.
 fn is_exclusive_place_loan(
     program: &TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     statement_index: u32,
-    local: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableLocalData,
+    local: &typed_trees::statement::TableLocalData,
 ) -> bool {
     exclusive_place_loan_referent(
         program,
@@ -477,10 +465,10 @@ fn is_exclusive_place_loan(
 
 fn exclusive_place_loan_referent(
     program: &TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     statement_index: u32,
-    local: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableLocalData,
+    local: &typed_trees::statement::TableLocalData,
 ) -> Option<()> {
     let ExpressionNode::Borrow(borrow) = program.expression_table.expression(local.initial_value)
     else {
@@ -503,7 +491,7 @@ fn exclusive_place_loan_referent(
         statement,
         borrow.target,
     )?;
-    let crate::fact_plan::PlaceRoot::Symbol(symbol) = place.root else {
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
         return None;
     };
     let position = program

@@ -1,6 +1,4 @@
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
-    StatementNode, TransitionTargetNode,
-};
+use typed_trees::statement::{StatementNode, TransitionTargetNode};
 
 /// A transition edge between two states of a machine, identified by their
 /// indices into `program.machine_states(machine)`.
@@ -11,8 +9,8 @@ pub(super) struct StateEdge {
 }
 
 pub(super) fn machine_has_cycle(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
 ) -> bool {
     let adjacency = machine_adjacency(program, machine);
 
@@ -26,8 +24,8 @@ pub(super) fn machine_has_cycle(
 /// index of each entry corresponds to the state's position in
 /// `program.machine_states(machine)`.
 pub(super) fn machine_adjacency(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
 ) -> Vec<Vec<usize>> {
     let states = program.machine_states(machine);
     states
@@ -148,8 +146,8 @@ fn reaches_self(start: usize, adjacency: &[Vec<usize>]) -> bool {
 }
 
 fn outgoing_state_indices(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
     state_symbol: symbols::SymbolHandle,
 ) -> Vec<usize> {
     let states = program.machine_states(machine);
@@ -182,8 +180,8 @@ fn outgoing_state_indices(
 }
 
 fn target_state_index(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
     source_symbol: symbols::SymbolHandle,
     target: &TransitionTargetNode,
 ) -> Option<usize> {
@@ -204,8 +202,8 @@ fn target_state_index(
 /// progress analysis must share this normalization so an entry back-edge is
 /// not mistaken for a nested machine invocation.
 pub(crate) fn named_transition_target_state_index(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
     target_symbol: symbols::SymbolHandle,
 ) -> Option<usize> {
     if target_symbol == machine.symbol {

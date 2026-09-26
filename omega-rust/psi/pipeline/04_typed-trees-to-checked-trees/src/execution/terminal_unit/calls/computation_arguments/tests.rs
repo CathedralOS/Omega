@@ -31,14 +31,14 @@ machine enter(limits: Limits, marker: u64) -> u64 {
 }
 "#;
 
-fn checked(source: &str) -> crate::checked_trees::CheckedTrees {
+fn checked(source: &str) -> checked_trees::CheckedTrees {
     checked_program_result(source).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"))
 }
 
 fn machine<'program>(
     program: &'program TypedTrees,
     name: &str,
-) -> &'program symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine {
+) -> &'program typed_trees::machine::Machine {
     program
         .machines()
         .iter()
@@ -85,18 +85,17 @@ fn scalar_receiver_forwarding_retains_owner_and_projection() {
                 .is_some_and(|plan| plan.scalar_result.is_some() || plan.scalar_control.is_some()),
             "{name} retains its executable scalar completion body"
         );
-        let crate::checked_trees::CheckedScalarComputationKind::Call {
+        let checked_trees::CheckedScalarComputationKind::Call {
             structural_arguments,
             ..
         } = plans.nodes.get(root.root).kind
         else {
             panic!("ordinary receiver call");
         };
-        let [crate::checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)] =
-            plans
-                .structural_arguments
-                .span(structural_arguments)
-                .unwrap()
+        let [checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)] = plans
+            .structural_arguments
+            .span(structural_arguments)
+            .unwrap()
         else {
             panic!("one receiver");
         };
@@ -116,9 +115,11 @@ fn scalar_receiver_forwarding_retains_owner_and_projection() {
                 .data_members(data)
                 .iter()
                 .find_map(|member| match member {
-                    symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
-                        field,
-                    ) if field.name.as_str() == "inner" => Some(field),
+                    typed_trees::data::DataMember::Field(field)
+                        if field.name.as_str() == "inner" =>
+                    {
+                        Some(field)
+                    }
                     _ => None,
                 })
                 .unwrap();
@@ -154,7 +155,7 @@ fn scalar_receiver_call_retains_shared_parameter_and_ordinary_callee() {
                 CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 },
             )
             .expect("ordinary scalar receiver computation");
-        let crate::checked_trees::CheckedScalarComputationKind::Call {
+        let checked_trees::CheckedScalarComputationKind::Call {
             structural_arguments,
             arguments,
             target_machine,
@@ -164,11 +165,10 @@ fn scalar_receiver_call_retains_shared_parameter_and_ordinary_callee() {
             panic!("one retained scalar call");
         };
         assert!(arguments.is_empty());
-        let [crate::checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)] =
-            plans
-                .structural_arguments
-                .span(structural_arguments)
-                .unwrap()
+        let [checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)] = plans
+            .structural_arguments
+            .span(structural_arguments)
+            .unwrap()
         else {
             panic!("one retained implicit receiver");
         };
@@ -236,18 +236,17 @@ fn scalar_caller_retains_call_produced_record_local_before_getter() {
             CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 1 },
         )
         .expect("getter operand graph");
-    let crate::checked_trees::CheckedScalarComputationKind::Call {
+    let checked_trees::CheckedScalarComputationKind::Call {
         structural_arguments,
         ..
     } = computations.nodes.get(root.root).kind
     else {
         panic!("getter call");
     };
-    let [crate::checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)] =
-        computations
-            .structural_arguments
-            .span(structural_arguments)
-            .unwrap()
+    let [checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)] = computations
+        .structural_arguments
+        .span(structural_arguments)
+        .unwrap()
     else {
         panic!("one implicit receiver");
     };
@@ -313,7 +312,7 @@ fn owned_scalar_graphs_read_and_forward_customer_limits() {
             CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 },
         )
         .expect("owned forwarding computation");
-    let crate::checked_trees::CheckedScalarComputationKind::Call {
+    let checked_trees::CheckedScalarComputationKind::Call {
         arguments,
         structural_arguments,
         ..
@@ -426,7 +425,7 @@ fn owned_computation_rejects_synchronized_access_roster_tampering() {
             CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 },
         )
         .unwrap();
-    let crate::checked_trees::CheckedScalarComputationKind::Call { source_call, .. } =
+    let checked_trees::CheckedScalarComputationKind::Call { source_call, .. } =
         plans.nodes.get(root.root).kind
     else {
         panic!("call")
@@ -459,7 +458,7 @@ fn owned_computation_rejects_synchronized_access_roster_tampering() {
             }
             1 => rows.reverse(),
             2 => rows[1].root_symbol = rows[0].root_symbol,
-            _ => rows[1].kind = crate::checked_trees::BorrowAccessKind::Mutable,
+            _ => rows[1].kind = checked_trees::BorrowAccessKind::Mutable,
         }
         let accesses = borrow.argument_accesses.insert_many(rows);
         borrow.calls.get_mut(borrow_call).accesses = accesses;
@@ -676,7 +675,7 @@ fn affine_discard_permissions_do_not_authorize_nominal_cleanup_erasure() {
             Multiplicity::Affine
         );
         assert!(
-            !crate::validation::has_plain_owned_contents_with_numeric_constraints(
+            !validation::has_plain_owned_contents_with_numeric_constraints(
                 &checked,
                 parameter.type_reference
             )
@@ -693,7 +692,7 @@ fn affine_discard_permissions_do_not_authorize_nominal_cleanup_erasure() {
                         && event.state_symbol == state.symbol
                         && event.source == PermissionEventSource::StateExit
                         && event.kind == PermissionEventKind::AffineDrop
-                        && event.root == crate::fact_plan::PlaceRoot::Symbol(parameter.symbol)
+                        && event.root == facts::PlaceRoot::Symbol(parameter.symbol)
                         && event.access == PermissionAccess::Owned
                         && event.claim_identity == PermissionClaimIdentity::Unknown
                         && !event.obligation_live

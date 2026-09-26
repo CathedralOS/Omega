@@ -2,11 +2,11 @@
 
 use std::collections::BTreeSet;
 
-use semantic_vocabulary::BlockId;
-use terminal_psi_to_abstract_operations::optimization_unit::{
+use optimization_unit::{
     NodeLocation, PhiTranslatedScalarIncoming, ProvenanceDisposition, ProvenanceRewrite,
     PsiOptimizationFunction, PsiRealizationSite,
 };
+use semantic_vocabulary::BlockId;
 
 pub(super) fn phi_translated_cse_accounting(
     function: &PsiOptimizationFunction,

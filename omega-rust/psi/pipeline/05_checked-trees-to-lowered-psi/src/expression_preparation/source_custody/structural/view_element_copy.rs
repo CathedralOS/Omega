@@ -8,15 +8,15 @@
 //! shared borrow, the copy is provenance pass-through for owned custody.
 
 use super::{CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, unsupported};
-use typed_trees_to_checked_trees::checked_trees::{
+use checked_trees::{
     CheckedScalarExpression, CheckedStorageRoot, CheckedStructuralPredicatePathSegment,
 };
 
 pub(super) fn validate(
     checked: &CheckedTrees,
-    authored: &typed_trees_to_checked_trees::checked_trees::state::State,
+    authored: &checked_trees::state::State,
     expression: ExpressionHandle,
-    reference: typed_trees_to_checked_trees::checked_trees::types::TypeReferenceHandle,
+    reference: checked_trees::types::TypeReferenceHandle,
     reads: &[CheckedScalarExpression],
 ) -> Result<(), LoweringError> {
     let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(expression) else {
@@ -52,22 +52,16 @@ pub(super) fn validate(
     if !names_root {
         return unsupported("view element copy reads another view than it names");
     }
-    let record = typed_trees_to_checked_trees::validation::unwrapped_type_reference(
-        &checked.typed,
-        reference,
-    )
-    .and_then(
-        |reference| match checked.type_reference_table.type_reference(reference) {
-            typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Named {
-                symbol,
-                ..
-            } => checked
-                .data_definitions()
-                .iter()
-                .find(|data| data.symbol == *symbol),
-            _ => None,
-        },
-    );
+    let record =
+        validation::unwrapped_type_reference(&checked.typed, reference).and_then(|reference| {
+            match checked.type_reference_table.type_reference(reference) {
+                checked_trees::types::TypeReferenceNode::Named { symbol, .. } => checked
+                    .data_definitions()
+                    .iter()
+                    .find(|data| data.symbol == *symbol),
+                _ => None,
+            }
+        });
     let Some(record) = record else {
         return unsupported("view element copy establishes no declared record");
     };
@@ -75,9 +69,7 @@ pub(super) fn validate(
         .data_members(record)
         .iter()
         .map(|member| match member {
-            typed_trees_to_checked_trees::checked_trees::data::DataMember::Field(field) => {
-                Some(field.path_identity())
-            }
+            checked_trees::data::DataMember::Field(field) => Some(field.path_identity()),
             _ => None,
         })
         .collect::<Option<Vec<_>>>()

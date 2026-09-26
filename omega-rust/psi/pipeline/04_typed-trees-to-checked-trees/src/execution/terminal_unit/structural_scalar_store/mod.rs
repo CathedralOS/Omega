@@ -50,10 +50,10 @@ mod value;
 pub(in crate::execution) fn build_local_scalar_field_store(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     statement_index: u32,
-    assignment: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableAssignment,
+    assignment: &typed_trees::statement::TableAssignment,
 ) -> Option<CheckedStructuralScalarFieldStorePlan> {
     let stores = plan_assignment(
         program,
@@ -80,12 +80,12 @@ pub(in crate::execution) fn build_local_scalar_field_store(
 pub(super) fn build_structural_scalar_field_store_sequence_traced(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     scalar_parameters: &[CheckedStructuralScalarParameterPlan],
     statement_start: usize,
-    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
     trace: &LocalConstructionTrace,
 ) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
     let statements = program.statement_table.statements(state.statement_nodes);
@@ -119,7 +119,7 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
         };
         // An atomic carrier is one atomic event, planned by the sequence
         // (`atomic_operations.rs`), never a store of its arithmetic model.
-        if crate::validation::atomic_assignment_carrier(program, assignment).is_some() {
+        if validation::atomic_assignment_carrier(program, assignment).is_some() {
             continue;
         }
         let statement_index = u32::try_from(statement_index).ok()?;
@@ -197,12 +197,12 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
 pub(super) fn build_structural_call_result_field_store(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     scalar_parameters: &[CheckedStructuralScalarParameterPlan],
     statement_index: u32,
-    assignment: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableAssignment,
+    assignment: &typed_trees::statement::TableAssignment,
     (position, primitive_type): (u32, PrimitiveType),
     trace: &LocalConstructionTrace,
 ) -> Option<CheckedUnitEffectOperationPlan> {
@@ -232,12 +232,12 @@ pub(super) fn build_structural_call_result_field_store(
 pub(super) fn build_structural_scalar_field_store_sequence(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     scalar_parameters: &[CheckedStructuralScalarParameterPlan],
     statement_start: usize,
-    call_frames: Option<&crate::validation::CallFrameResolver<'_>>,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
     build_structural_scalar_field_store_sequence_traced(
         program,
@@ -257,11 +257,11 @@ pub(super) fn build_structural_scalar_field_store_sequence(
 fn plan_assignment(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     roots: StoreRoots<'_>,
     statement_index: u32,
-    assignment: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableAssignment,
+    assignment: &typed_trees::statement::TableAssignment,
     source: AssignmentSource,
     trace: &LocalConstructionTrace,
 ) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
@@ -308,7 +308,7 @@ fn plan_assignment(
             trace,
         );
     };
-    let crate::fact_plan::PlaceSegment::Field { symbol } = leaf else {
+    let facts::PlaceSegment::Field { symbol } = leaf else {
         return None;
     };
     let carrier = destination.carrier(program, carriers)?;
@@ -321,10 +321,10 @@ fn plan_assignment(
     // declines; the Reference node's access is the only place that
     // distinction survives before the carrier collapses to `BorrowedView`.
     let byte_leaf = match byte_sequence_carrier(program, field.type_reference, &[]) {
-        Some(crate::checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity }) => {
+        Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity }) => {
             Some(Some(capacity))
         }
-        Some(crate::checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. })
+        Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. })
             if byte_stores::field_view_is_mutable(program, field.type_reference) =>
         {
             Some(None)
@@ -459,7 +459,7 @@ fn plan_assignment(
 fn scalar_leaf(
     program: &TypedTrees,
     root: &Root<'_>,
-    field: &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataField,
+    field: &typed_trees::data::DataField,
 ) -> Option<PrimitiveType> {
     let primitive_type = program.primitive_type_reference(field.type_reference)?;
     match root {
@@ -509,11 +509,11 @@ fn scalar_leaf(
 fn record_literal_stores(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     destination: &Destination<'_>,
     statement_index: u32,
-    assignment: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableAssignment,
+    assignment: &typed_trees::statement::TableAssignment,
     source: AssignmentSource,
     trace: &LocalConstructionTrace,
 ) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
@@ -528,7 +528,7 @@ fn record_literal_stores(
         .place
         .segments
         .iter()
-        .any(|segment| !matches!(segment, crate::fact_plan::PlaceSegment::Field { .. }))
+        .any(|segment| !matches!(segment, facts::PlaceSegment::Field { .. }))
     {
         return None;
     }
@@ -541,7 +541,7 @@ fn record_literal_stores(
     if value_root.machine != machine.symbol {
         return None;
     }
-    let crate::checked_trees::CheckedStructuralValueKind::Record {
+    let checked_trees::CheckedStructuralValueKind::Record {
         data_symbol,
         fields,
     } = facts
@@ -628,14 +628,14 @@ fn record_literal_stores(
 /// carriers keep declining.
 fn case_field_store(
     program: &TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    state: &typed_trees::state::State,
     roots: StoreRoots<'_>,
     destination: &Destination<'_>,
     carrier_path: Vec<CheckedUnitStructuralPathSegment>,
-    field: &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataField,
-    field_data: &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition,
+    field: &typed_trees::data::DataField,
+    field_data: &typed_trees::data::DataDefinition,
     statement_index: u32,
-    assignment: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableAssignment,
+    assignment: &typed_trees::statement::TableAssignment,
     source: AssignmentSource,
 ) -> Option<CheckedUnitEffectOperationPlan> {
     let (
@@ -657,7 +657,7 @@ fn case_field_store(
         statement_index as usize,
         assignment.value,
     )?;
-    let crate::fact_plan::PlaceRoot::Symbol(value_root) = value_place.root else {
+    let facts::PlaceRoot::Symbol(value_root) = value_place.root else {
         return None;
     };
     let source_parameters = program.state_parameters(state);
@@ -707,13 +707,13 @@ fn case_field_store(
         return None;
     }
     Some(CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(
-        crate::checked_trees::CheckedStructuralCaseFieldStorePlan {
+        checked_trees::CheckedStructuralCaseFieldStorePlan {
             statement_index,
             destination: destination.root.destination(),
             carrier_path,
             field_identity: terminal_field_identity(program, field.symbol)?,
-            value: crate::checked_trees::CheckedUnitStructuralArgumentPlan {
-                source: crate::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            value: checked_trees::CheckedUnitStructuralArgumentPlan {
+                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                     parameter_index: u32::try_from(value_position).ok()?,
                 },
                 path: value_path,
@@ -729,10 +729,7 @@ fn case_field_store(
 /// multiplicity, and every member a payload-free case. Copying a whole owned
 /// place into such a field moves nothing, so the store needs no carrier
 /// borrow window.
-fn unrestricted_sum(
-    data: &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition,
-    program: &TypedTrees,
-) -> bool {
+fn unrestricted_sum(data: &typed_trees::data::DataDefinition, program: &TypedTrees) -> bool {
     data.supply_mode == language_semantics::DataSupplyMode::CheckedShape
         && data.lifetime_parameters.is_empty()
         && program.data_type_parameters(data).is_empty()
@@ -740,7 +737,7 @@ fn unrestricted_sum(
         && data.where_facts.is_empty()
         && !data.zero_gated
         && data.properties.multiplicity == language_semantics::Multiplicity::Unrestricted
-        && symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition::shape_kind_from_members(program.data_members(data))
+        && typed_trees::data::DataDefinition::shape_kind_from_members(program.data_members(data))
             == DataShapeKind::Enum
         && program.data_members(data).iter().all(|member| {
             let DataMember::Variant(variant) = member else {
@@ -755,8 +752,8 @@ fn unrestricted_sum(
 /// decides whether it repairs an open borrowed-storage window.
 fn restores_structural_local(
     program: &TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
-    assignment: &symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableAssignment,
+    state: &typed_trees::state::State,
+    assignment: &typed_trees::statement::TableAssignment,
 ) -> bool {
     let ExpressionNode::Name(path) = program.expression_table.expression(assignment.value) else {
         return false;

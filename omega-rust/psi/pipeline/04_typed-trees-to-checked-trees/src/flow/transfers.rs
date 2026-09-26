@@ -11,16 +11,6 @@
 //! and bounds; `declared_domains` records the destination's declared
 //! domains; and the new facts publish as one context per exact place.
 
-use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use crate::checked_trees::statement::StatementNode;
-use crate::checked_trees::{
-    BorrowFacts, FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef,
-};
-use crate::fact_plan::{
-    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceRoot, ProgramPoint,
-    QualificationEvidence,
-};
-use crate::fact_plan::{PlaceHandle, QualificationCorrespondence, QualificationPayloadIdentity};
 use crate::flow::CanonicalPlace;
 use crate::flow::FlowBuildContext;
 use crate::flow::append_constraint_ref;
@@ -28,6 +18,14 @@ use crate::flow::reference_spans;
 use crate::flow::retained_constraint_refs;
 use crate::flow::retained_flow_contexts;
 use arena::HandleSpan;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::statement::StatementNode;
+use checked_trees::{BorrowFacts, FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef};
+use facts::{
+    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceRoot, ProgramPoint,
+    QualificationEvidence,
+};
+use facts::{PlaceHandle, QualificationCorrespondence, QualificationPayloadIdentity};
 use symbols::SymbolHandle;
 
 mod byte_sequences;
@@ -43,7 +41,7 @@ mod write_target;
 mod byte_sequence_tests;
 
 pub(super) fn propagate_statement_transfers(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
@@ -216,7 +214,7 @@ pub(super) fn propagate_statement_transfers(
         && source_place.is_some_and(|place| {
             matches!(
                 semantic.places.get(place).root,
-                crate::fact_plan::PlaceRoot::Expression(_)
+                facts::PlaceRoot::Expression(_)
             )
         })
         && let Some(referent_place) = projected::bound_reference_referent_place(
@@ -447,7 +445,7 @@ fn publish_statement_contexts(
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    refs: HandleSpan<crate::fact_plan::FactRef>,
+    refs: HandleSpan<facts::FactRef>,
     active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut HandleSpan<FlowConstraintRef>,
 ) {
@@ -462,7 +460,7 @@ fn publish_statement_contexts(
         state_symbol,
         statement_index,
     };
-    let mut groups: Vec<(FactPlace, Vec<crate::fact_plan::FactRef>)> = Vec::new();
+    let mut groups: Vec<(FactPlace, Vec<facts::FactRef>)> = Vec::new();
     for reference in semantic.refs.span_or_empty(refs) {
         let place = semantic.facts.get(reference.fact).place;
         if let Some((_, group)) =
@@ -507,11 +505,11 @@ fn publish_statement_contexts(
 
 #[allow(clippy::too_many_arguments)]
 fn retain_qualification_correspondence(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     build: &mut FlowBuildContext,
     semantic: &mut FactPlan,
-    source_fact: crate::fact_plan::FactHandle,
-    destination_fact: crate::fact_plan::FactHandle,
+    source_fact: facts::FactHandle,
+    destination_fact: facts::FactHandle,
     source_place: PlaceHandle,
     source_occurrence_place: PlaceHandle,
     destination_place: PlaceHandle,
@@ -599,7 +597,7 @@ fn retain_qualification_correspondence(
 }
 
 fn exact_qualification_payload(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     payload: QualificationPayloadIdentity,
 ) -> bool {
     match payload {
@@ -620,7 +618,7 @@ fn exact_qualification_payload(
 }
 
 fn exact_evidence_source(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     evidence: QualificationEvidence,
 ) -> bool {
     evidence.source_symbol.is_valid()
@@ -633,7 +631,7 @@ fn exact_evidence_source(
 }
 
 fn exact_structural_symbol_place(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     build: &mut FlowBuildContext,
     semantic: &FactPlan,
     handle: PlaceHandle,
@@ -645,7 +643,7 @@ fn exact_structural_symbol_place(
         return false;
     }
     let place = semantic.places.get(handle);
-    let crate::fact_plan::PlaceRoot::Symbol(root) = place.root else {
+    let facts::PlaceRoot::Symbol(root) = place.root else {
         return false;
     };
     if !root.is_valid() {
@@ -677,7 +675,7 @@ fn exact_structural_symbol_place(
     let mut selected_variant = None;
     for segment in segments {
         match segment {
-            crate::fact_plan::PlaceSegment::Field { symbol } => {
+            facts::PlaceSegment::Field { symbol } => {
                 if !symbol.is_valid()
                     || program.symbols.get(*symbol).kind != symbols::SymbolKind::Field
                 {
@@ -688,7 +686,7 @@ fn exact_structural_symbol_place(
                 };
                 let field = if let Some(variant_symbol) = selected_variant.take() {
                     program.data_members(data).iter().find_map(|member| {
-                        let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant) = member else {
+                        let typed_trees::data::DataMember::Variant(variant) = member else {
                             return None;
                         };
                         (variant.symbol == variant_symbol).then(|| {
@@ -700,7 +698,7 @@ fn exact_structural_symbol_place(
                     })
                 } else {
                     program.data_members(data).iter().find_map(|member| {
-                        let symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field) = member else {
+                        let typed_trees::data::DataMember::Field(field) = member else {
                             return None;
                         };
                         (field.symbol == *symbol).then_some(field)
@@ -711,7 +709,7 @@ fn exact_structural_symbol_place(
                 };
                 current = field.type_reference;
             }
-            crate::fact_plan::PlaceSegment::Case { variant } => {
+            facts::PlaceSegment::Case { variant } => {
                 if selected_variant.is_some()
                     || !variant.is_valid()
                     || program.symbols.get(*variant).kind != symbols::SymbolKind::Variant
@@ -722,27 +720,27 @@ fn exact_structural_symbol_place(
                     return false;
                 };
                 if !program.data_members(data).iter().any(|member| {
-                    matches!(member, symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(candidate)
+                    matches!(member, typed_trees::data::DataMember::Variant(candidate)
                         if candidate.symbol == *variant)
                 }) {
                     return false;
                 }
                 selected_variant = Some(*variant);
             }
-            crate::fact_plan::PlaceSegment::FixedIndex { index } => {
+            facts::PlaceSegment::FixedIndex { index } => {
                 if selected_variant.is_some() {
                     return false;
                 }
                 loop {
                     match program.type_reference_table.type_reference(current) {
-                        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { referee, .. }
-                        | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained {
+                        typed_trees::types::TypeReferenceNode::Reference { referee, .. }
+                        | typed_trees::types::TypeReferenceNode::Constrained {
                             base_type: referee,
                             ..
                         } => current = *referee,
-                        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::FixedArray {
+                        typed_trees::types::TypeReferenceNode::FixedArray {
                             element_type,
-                            length: symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::Literal(length),
+                            length: typed_trees::types::FixedArrayLength::Literal(length),
                         } if *index < *length => {
                             current = *element_type;
                             break;
@@ -751,8 +749,7 @@ fn exact_structural_symbol_place(
                     }
                 }
             }
-            crate::fact_plan::PlaceSegment::FixedRange { .. }
-            | crate::fact_plan::PlaceSegment::Index { .. } => {
+            facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::Index { .. } => {
                 return false;
             }
         }
@@ -761,12 +758,12 @@ fn exact_structural_symbol_place(
 }
 
 fn correspondence_root_type_reference(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     formation_statement_index: usize,
     root: SymbolHandle,
-) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
+) -> Option<typed_trees::types::TypeReferenceHandle> {
     let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
     let state = program
         .machine_states(machine)
@@ -799,7 +796,7 @@ fn correspondence_root_type_reference(
                 .iter()
                 .take(formation_statement_index)
                 .filter_map(|statement| {
-                    let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(local) = statement else {
+                    let typed_trees::statement::StatementNode::LocalData(local) = statement else {
                         return None;
                     };
                     (local.symbol == root).then_some(local.type_reference)
@@ -812,16 +809,16 @@ fn correspondence_root_type_reference(
 }
 
 fn correspondence_data_type(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    program: &typed_trees::TypedTrees,
+    type_reference: typed_trees::types::TypeReferenceHandle,
     machine_symbol: SymbolHandle,
-) -> Option<&symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition> {
+) -> Option<&typed_trees::data::DataDefinition> {
     match program.type_reference_table.type_reference(type_reference) {
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference { referee, .. }
-        | symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Constrained {
+        typed_trees::types::TypeReferenceNode::Reference { referee, .. }
+        | typed_trees::types::TypeReferenceNode::Constrained {
             base_type: referee, ..
         } => correspondence_data_type(program, *referee, machine_symbol),
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named { symbol, name }
+        typed_trees::types::TypeReferenceNode::Named { symbol, name }
             if symbol.is_valid()
                 && program.symbols.get(*symbol).kind == symbols::SymbolKind::Data =>
         {
@@ -830,7 +827,7 @@ fn correspondence_data_type(
                 .iter()
                 .find(|definition| definition.symbol == *symbol && definition.name == *name)
         }
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named { symbol, name }
+        typed_trees::types::TypeReferenceNode::Named { symbol, name }
             if *symbol == machine_symbol && name.as_str() == "Self" =>
         {
             let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
@@ -845,7 +842,7 @@ fn correspondence_data_type(
 }
 
 fn exact_statement_owner(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
 ) -> bool {
@@ -857,7 +854,7 @@ fn exact_statement_owner(
 }
 
 fn contextual_expression_place(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,

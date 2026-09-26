@@ -8,16 +8,14 @@ use symbols::{
     SourceScopedTopLevelBinding, SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder,
     builtin_function_symbols, builtin_type_symbols,
 };
-use tokens_to_syntax_trees::syntax_trees::SyntaxTrees;
-use tokens_to_syntax_trees::syntax_trees::identifier::Identifier;
-use tokens_to_syntax_trees::syntax_trees::item::{
-    ConstDefinition, DataDefinition, DataMember, Item,
-};
+use syntax_trees::SyntaxTrees;
+use syntax_trees::identifier::Identifier;
+use syntax_trees::item::{ConstDefinition, DataDefinition, DataMember, Item};
 
 /// Private selection state; transient symbols never escape into normalized syntax.
 pub(crate) struct ConstantSelection<'base> {
     symbols: SymbolTable,
-    retained: Option<&'base crate::symbol_resolved_trees::SymbolResolvedTrees>,
+    retained: Option<&'base symbol_resolved_trees::SymbolResolvedTrees>,
 }
 
 impl<'base> ConstantSelection<'base> {
@@ -43,7 +41,7 @@ impl<'base> ConstantSelection<'base> {
         syntax: &SyntaxTrees,
         sources: Option<Arc<SourceMap>>,
         bindings: Vec<SourceScopedTopLevelBinding>,
-        retained: Option<&'base crate::symbol_resolved_trees::SymbolResolvedTrees>,
+        retained: Option<&'base symbol_resolved_trees::SymbolResolvedTrees>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let mut namespaces = crate::symbols::NamespaceDeclarations::default();
         let mut declarations = Vec::new();
@@ -190,14 +188,12 @@ impl<'base> ConstantSelection<'base> {
                 else {
                     return false;
                 };
-                matches!(
-                    parameter.kind,
-                    tokens_to_syntax_trees::syntax_trees::item::TypeParameterKind::Type
-                ) && matches!(
-                    syntax.type_references.type_reference(domain.target_type),
-                    tokens_to_syntax_trees::syntax_trees::types::TypeReferenceNode::Named(name)
-                        if name.as_str() == parameter.name.as_str()
-                )
+                matches!(parameter.kind, syntax_trees::item::TypeParameterKind::Type)
+                    && matches!(
+                        syntax.type_references.type_reference(domain.target_type),
+                        syntax_trees::types::TypeReferenceNode::Named(name)
+                            if name.as_str() == parameter.name.as_str()
+                    )
             });
             let retained_generic_carrier = self.retained.is_some_and(|retained| {
                 retained.domain_definitions.iter().any(|domain| {
@@ -212,10 +208,10 @@ impl<'base> ConstantSelection<'base> {
                     };
                     matches!(
                         parameter.kind,
-                        crate::symbol_resolved_trees::data::TypeParameterKind::Type
+                        symbol_resolved_trees::data::TypeParameterKind::Type
                     ) && matches!(
                         &domain.target_type,
-                        crate::symbol_resolved_trees::types::TypeReference::Named { symbol, .. }
+                        symbol_resolved_trees::types::TypeReference::Named { symbol, .. }
                             if parameter.symbol.is_valid() && *symbol == parameter.symbol
                     )
                 })
@@ -309,7 +305,7 @@ impl<'base> ConstantSelection<'base> {
             symbols::SymbolHandle::invalid()
         };
         let mut candidates = retained.domain_definitions.iter().filter(|domain| {
-            matches!(&domain.target_type, crate::symbol_resolved_trees::types::TypeReference::Named { symbol, .. } if *symbol == carrier)
+            matches!(&domain.target_type, symbol_resolved_trees::types::TypeReference::Named { symbol, .. } if *symbol == carrier)
                 && (if qualified.is_valid() {
                     domain.symbol == qualified
                 } else {
@@ -410,7 +406,7 @@ impl<'base> ConstantSelection<'base> {
         reference: source::SourceSpan,
     ) -> Vec<(
         symbols::SymbolHandle,
-        &'syntax tokens_to_syntax_trees::syntax_trees::item::DomainDefinition,
+        &'syntax syntax_trees::item::DomainDefinition,
     )> {
         let selected = self
             .symbols
@@ -483,7 +479,7 @@ impl<'base> ConstantSelection<'base> {
         syntax: &'syntax SyntaxTrees,
         authored: &str,
         reference: source::SourceSpan,
-    ) -> Option<&'syntax tokens_to_syntax_trees::syntax_trees::item::DomainDefinition> {
+    ) -> Option<&'syntax syntax_trees::item::DomainDefinition> {
         let pool = self.pooled_domains(syntax, authored, reference);
         // A preferred generic family owns or contests this selection, but its
         // closed membership still belongs to the downstream family
@@ -525,7 +521,7 @@ impl<'base> ConstantSelection<'base> {
         reference: source::SourceSpan,
     ) -> Option<(
         symbols::SymbolHandle,
-        &'syntax tokens_to_syntax_trees::syntax_trees::item::DomainDefinition,
+        &'syntax syntax_trees::item::DomainDefinition,
     )> {
         let pool = self.pooled_domains(syntax, authored, reference);
         let (first_symbol, first) = pool.first()?;
@@ -836,10 +832,8 @@ fn append_variants(
 /// Bindings only name arguments that already exist as handles; a member type
 /// still spelling an open parameter resolves one application level at a time
 /// rather than materializing a substituted handle inside an immutable forest.
-pub(crate) type GenericApplicationSubstitution = std::collections::HashMap<
-    String,
-    tokens_to_syntax_trees::syntax_trees::types::TypeReferenceHandle,
->;
+pub(crate) type GenericApplicationSubstitution =
+    std::collections::HashMap<String, syntax_trees::types::TypeReferenceHandle>;
 
 /// Whether `type_reference` still spells one of the bound parameter names.
 /// Only structural positions are scanned; an expression-bearing position (a
@@ -847,12 +841,10 @@ pub(crate) type GenericApplicationSubstitution = std::collections::HashMap<
 /// whenever any binding exists, because its expression may name a parameter.
 pub(crate) fn type_mentions_parameters(
     syntax: &SyntaxTrees,
-    type_reference: tokens_to_syntax_trees::syntax_trees::types::TypeReferenceHandle,
+    type_reference: syntax_trees::types::TypeReferenceHandle,
     substitution: &GenericApplicationSubstitution,
 ) -> bool {
-    use tokens_to_syntax_trees::syntax_trees::types::{
-        FixedArrayLength, TypeConstraintNode, TypeReferenceNode,
-    };
+    use syntax_trees::types::{FixedArrayLength, TypeConstraintNode, TypeReferenceNode};
     if substitution.is_empty() {
         return false;
     }
@@ -910,10 +902,10 @@ pub(crate) fn type_mentions_parameters(
 /// materialize a substituted handle inside an immutable forest and declines.
 pub(crate) fn resolved_generic_argument(
     syntax: &SyntaxTrees,
-    argument: tokens_to_syntax_trees::syntax_trees::types::TypeReferenceHandle,
+    argument: syntax_trees::types::TypeReferenceHandle,
     substitution: &GenericApplicationSubstitution,
-) -> Result<tokens_to_syntax_trees::syntax_trees::types::TypeReferenceHandle, String> {
-    if let tokens_to_syntax_trees::syntax_trees::types::TypeReferenceNode::Named(name) =
+) -> Result<syntax_trees::types::TypeReferenceHandle, String> {
+    if let syntax_trees::types::TypeReferenceNode::Named(name) =
         syntax.type_references.type_reference(argument)
         && let Some(resolved) = substitution.get(name.as_str())
     {
@@ -933,9 +925,9 @@ pub(crate) fn resolved_generic_argument(
 /// closed leaf destinations must be probe-stable.
 pub(crate) fn has_deferred_const_argument(
     syntax: &SyntaxTrees,
-    type_reference: tokens_to_syntax_trees::syntax_trees::types::TypeReferenceHandle,
+    type_reference: syntax_trees::types::TypeReferenceHandle,
 ) -> bool {
-    use tokens_to_syntax_trees::syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
+    use syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
     match syntax.type_references.type_reference(type_reference) {
         TypeReferenceNode::ConstExpression(_) => true,
         TypeReferenceNode::Generic { arguments, .. } => syntax
@@ -978,7 +970,7 @@ mod tests {
     use crate::preparation::generic_data::constant_selection::ConstantSelection;
     use source::SourceId;
     use source_files_to_tokens::Lexer;
-    use tokens_to_syntax_trees::syntax_trees::types::TypeReferenceNode;
+    use syntax_trees::types::TypeReferenceNode;
 
     fn parse_sources(sources: &[(SourceId, &str)]) -> SyntaxTrees {
         let mut syntax = SyntaxTrees::new(SourceId::default());
@@ -1049,9 +1041,8 @@ mod tests {
                     .expect("selection")
                     .expect("constant");
                 assert_eq!(declaration.name.source_span().source_id, source);
-                let tokens_to_syntax_trees::syntax_trees::expression::ExpressionNode::Integer(
-                    value,
-                ) = syntax.expressions.expression(declaration.value)
+                let syntax_trees::expression::ExpressionNode::Integer(value) =
+                    syntax.expressions.expression(declaration.value)
                 else {
                     panic!("integer initializer");
                 };

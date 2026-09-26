@@ -1,10 +1,8 @@
 //! Call results retain source identity independently of their shared array type.
 
 use super::reject;
+use checked_trees::{CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use typed_trees_to_checked_trees::checked_trees::{
-    CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-};
 
 fn fixture(tail: bool) -> CheckedTrees {
     let completion = if tail { "second_row()" } else { "first" };
@@ -159,7 +157,7 @@ fn array_call_result_source_target_and_return_custody_reject_substitution() {
                     "target state" => *target_state = other_state,
                     "body commitment" => {
                         *target_contract_commitment =
-                            typed_trees_to_checked_trees::checked_trees::MachineContractCommitment::from_digest([0; 32]);
+                            checked_trees::MachineContractCommitment::from_digest([0; 32]);
                     }
                     "result multiplicity" => {
                         result.multiplicity = language_semantics::Multiplicity::Affine

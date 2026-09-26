@@ -23,7 +23,7 @@ use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
 };
-use typed_trees_to_checked_trees::checked_trees::{
+use checked_trees::{
     CheckedStructuralRecordFieldValue, CheckedStructuralValueKind, CheckedUnitEffectOperationPlan,
 };
 
@@ -97,9 +97,7 @@ pub(super) fn prepare(
         return unsupported("scalar record construction requires structural call result custody");
     }
     let (_, source) = source_custody::authored_state(checked, state)?;
-    let Some(typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(
-        local,
-    )) = checked
+    let Some(checked_trees::statement::StatementNode::LocalData(local)) = checked
         .statement_table
         .statements(source.statement_nodes)
         .get(result.statement_index as usize)
@@ -108,7 +106,7 @@ pub(super) fn prepare(
     };
     // Independently check the local's eventual drop or exact initializer move.
     // The operation flag does not establish which owner survives to this exit.
-    typed_trees_to_checked_trees::validation::record_local_disposition(
+    validation::record_local_disposition(
         &checked.typed,
         &checked.facts,
         machine,
@@ -181,8 +179,8 @@ struct Preparation<'a> {
 impl Preparation<'_> {
     fn record(
         &mut self,
-        value: typed_trees_to_checked_trees::checked_trees::CheckedStructuralValueHandle,
-        reference: typed_trees_to_checked_trees::checked_trees::types::TypeReferenceHandle,
+        value: checked_trees::CheckedStructuralValueHandle,
+        reference: checked_trees::types::TypeReferenceHandle,
     ) -> Result<PlaceId, LoweringError> {
         let plans = &self.checked.facts.values.structural_values;
         let node = plans.nodes.get(value);
@@ -210,7 +208,7 @@ impl Preparation<'_> {
                     self.bind_place(source, declaration.id, StructuralMultiplicity::Unrestricted)
                 }
                 Multiplicity::Affine => {
-                    let typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                         symbol,
                     } = argument.source
                     else {
@@ -263,9 +261,11 @@ impl Preparation<'_> {
                 .data_members(owner)
                 .iter()
                 .find_map(|member| match member {
-                    typed_trees_to_checked_trees::checked_trees::data::DataMember::Field(
-                        candidate,
-                    ) if candidate.symbol == field.field => Some(candidate),
+                    checked_trees::data::DataMember::Field(candidate)
+                        if candidate.symbol == field.field =>
+                    {
+                        Some(candidate)
+                    }
                     _ => None,
                 })
                 .ok_or(LoweringError::Unsupported(
@@ -622,7 +622,7 @@ pub(super) fn exit_target(
         if result.multiplicity != Multiplicity::Affine {
             continue;
         }
-        if !typed_trees_to_checked_trees::validation::record_local_disposition(
+        if !validation::record_local_disposition(
             &checked.typed,
             &checked.facts,
             machine.symbol,
@@ -634,9 +634,7 @@ pub(super) fn exit_target(
         ))? {
             continue;
         }
-        let Some(typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(
-            local,
-        )) = checked
+        let Some(checked_trees::statement::StatementNode::LocalData(local)) = checked
             .statement_table
             .statements(source.statement_nodes)
             .get(result.statement_index as usize)
@@ -644,13 +642,13 @@ pub(super) fn exit_target(
             return unsupported("scalar cleanup lost its authored local");
         };
         let argument =
-            bindings.owned_argument(&typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan {
-                source: typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+            bindings.owned_argument(&checked_trees::CheckedUnitStructuralArgumentPlan {
+                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                     symbol: local.symbol,
                 },
                 path: Vec::new(),
                 type_identity: result.type_identity.clone(),
-                access: typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned,
+                access: checked_trees::CheckedStructuralAccess::Owned,
             })?;
         let structural_type = types
             .iter()

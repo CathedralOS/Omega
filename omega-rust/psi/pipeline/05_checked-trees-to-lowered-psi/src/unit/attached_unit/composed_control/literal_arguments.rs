@@ -204,7 +204,7 @@ pub(super) fn evaluate(
 }
 
 fn establish(
-    argument: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan,
+    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     parameter_qualifications: &[language_semantics::SemanticDomainId],
     catalogs: &mut catalogs::ComposedCatalogs,
     operations: &mut OperationBuffer,
@@ -216,8 +216,7 @@ fn establish(
         ))?;
     let structural_type = lookup_type_id(&catalogs.type_ids, &argument.type_identity)?;
     if !argument.path.is_empty()
-        || argument.access
-            != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
+        || argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow
         || !catalogs.structural_types.iter().any(|declaration| {
             declaration.id == structural_type
                 && matches!(

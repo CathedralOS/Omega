@@ -1,17 +1,17 @@
 use crate::ValidatedSelectedAnalysis;
-use target_operations_to_selected_instructions::register_model::{
+use register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile, target_register_environment_identity,
 };
-use target_operations_to_selected_instructions::{
+use selected_instructions::{
     MachineEffectDeclaration, MachineSemanticKind, SelectedConstraintKeys, SelectedFunction,
     SelectedInstruction, SelectedInstructionKind, SelectedTerminator,
     ValidatedMachineEffectCatalog,
 };
 
 use crate::MachineEffectError;
-use target_operations_to_selected_instructions::{
+use selected_instructions::{
     BlockMachineEffects, FunctionMachineEffects, InstructionMachineEffects,
     PreAllocationMachineEffectPlan, pre_allocation_machine_effect_identity,
 };
@@ -80,7 +80,7 @@ pub(super) fn compute_terminal_pre_allocation_machine_effects<S: ValidatedSelect
         });
     }
     let mut plan = PreAllocationMachineEffectPlan {
-        identity: target_operations_to_selected_instructions::PreAllocationMachineEffectIdentity::from_bytes([0; 32]),
+        identity: selected_instructions::PreAllocationMachineEffectIdentity::from_bytes([0; 32]),
         selected: selected.selected_identity(),
         optimization_unit: selected.optimization_unit_identity(),
         fuel_schedule: selected.fuel_schedule_identity(),
@@ -404,18 +404,10 @@ pub(crate) fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSem
         SelectedInstructionKind::CallScalar { .. } => MachineSemanticKind::CallScalar,
         SelectedInstructionKind::Load64 { .. } => MachineSemanticKind::Load64,
         SelectedInstructionKind::LoadPacked { width, .. } => match width {
-            target_operations_to_selected_instructions::PackedByteWidth::Three => {
-                MachineSemanticKind::LoadPacked3
-            }
-            target_operations_to_selected_instructions::PackedByteWidth::Five => {
-                MachineSemanticKind::LoadPacked5
-            }
-            target_operations_to_selected_instructions::PackedByteWidth::Six => {
-                MachineSemanticKind::LoadPacked6
-            }
-            target_operations_to_selected_instructions::PackedByteWidth::Seven => {
-                MachineSemanticKind::LoadPacked7
-            }
+            selected_instructions::PackedByteWidth::Three => MachineSemanticKind::LoadPacked3,
+            selected_instructions::PackedByteWidth::Five => MachineSemanticKind::LoadPacked5,
+            selected_instructions::PackedByteWidth::Six => MachineSemanticKind::LoadPacked6,
+            selected_instructions::PackedByteWidth::Seven => MachineSemanticKind::LoadPacked7,
         },
         SelectedInstructionKind::StorePacked { .. } => MachineSemanticKind::StorePacked,
         SelectedInstructionKind::Load8 { .. } => MachineSemanticKind::Load8,

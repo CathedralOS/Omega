@@ -3,24 +3,22 @@
 //! Origins alone supply no row. Every row is captured from an available fact;
 //! incoming joins can only remove claims, and root entry is never narrowed.
 use super::TransitionTargetNode;
-use crate::checked_trees::FlowSemanticContextRef;
-use crate::checked_trees::expression::ExpressionHandle;
-use crate::checked_trees::name::Identifier;
-use crate::fact_plan::{
-    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
-};
 use crate::flow::FlowBuildContext;
 use arena::HandleSpan;
-use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
-    TypeReferenceHandle, TypeReferenceNode,
+use checked_trees::FlowSemanticContextRef;
+use checked_trees::expression::ExpressionHandle;
+use checked_trees::name::Identifier;
+use facts::{
+    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
 };
 use symbols::SymbolHandle;
+use typed_trees::signature::StateParameter;
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::flow) struct QualifiedInput {
     parameter: SymbolHandle,
-    segments: Vec<crate::fact_plan::PlaceSegment>,
+    segments: Vec<facts::PlaceSegment>,
     domain: HandleSpan<Identifier>,
     domain_symbol: SymbolHandle,
     semantic_domain: language_semantics::SemanticDomainId,
@@ -39,7 +37,7 @@ impl QualifiedInput {
 
 pub(in crate::flow) struct CapturedQualification {
     input: QualifiedInput,
-    context: crate::fact_plan::FactContextHandle,
+    context: facts::FactContextHandle,
     isolated: bool,
 }
 
@@ -59,7 +57,7 @@ pub(super) fn meet(previous: &mut Vec<QualifiedInput>, incoming: &[QualifiedInpu
 }
 
 fn unconstrained(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     mut reference: TypeReferenceHandle,
 ) -> TypeReferenceHandle {
     while let TypeReferenceNode::Constrained { base_type, .. } =
@@ -73,10 +71,10 @@ fn unconstrained(
 /// A field chain may pass through owned records, but never another reference.
 /// The final qualified value must itself be isolated from referenced storage.
 fn owned_projection(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    frames: &crate::validation::CallFrameResolver<'_>,
+    program: &typed_trees::TypedTrees,
+    frames: &validation::CallFrameResolver<'_>,
     mut reference: TypeReferenceHandle,
-    segments: &[crate::fact_plan::PlaceSegment],
+    segments: &[facts::PlaceSegment],
 ) -> bool {
     reference = unconstrained(program, reference);
     if let TypeReferenceNode::Reference { referee, .. } =
@@ -85,7 +83,7 @@ fn owned_projection(
         reference = *referee;
     }
     for segment in segments {
-        let crate::fact_plan::PlaceSegment::Field { symbol } = segment else {
+        let facts::PlaceSegment::Field { symbol } = segment else {
             return false;
         };
         let TypeReferenceNode::Named { symbol: owner, .. } = program
@@ -108,9 +106,9 @@ fn owned_projection(
             .data_members(data)
             .iter()
             .find_map(|member| match member {
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
-                    field,
-                ) if field.symbol == *symbol => Some(field),
+                typed_trees::data::DataMember::Field(field) if field.symbol == *symbol => {
+                    Some(field)
+                }
                 _ => None,
             })
         else {
@@ -128,11 +126,11 @@ fn owned_projection(
 /// only the part below the argument.
 #[allow(clippy::too_many_arguments)]
 fn capture_place(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     semantic: &FactPlan,
     flow_context: &FlowBuildContext,
-    source_root: crate::fact_plan::PlaceRoot,
-    source_segments: &[crate::fact_plan::PlaceSegment],
+    source_root: facts::PlaceRoot,
+    source_segments: &[facts::PlaceSegment],
     source_type: TypeReferenceHandle,
     destination: SymbolHandle,
     contexts: HandleSpan<FlowSemanticContextRef>,
@@ -207,7 +205,7 @@ fn capture_place(
 }
 
 fn capture_parameter(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     semantic: &FactPlan,
     flow_context: &FlowBuildContext,
     source: &StateParameter,
@@ -218,7 +216,7 @@ fn capture_parameter(
         program,
         semantic,
         flow_context,
-        crate::fact_plan::PlaceRoot::Symbol(source.symbol),
+        facts::PlaceRoot::Symbol(source.symbol),
         &[],
         source.type_reference,
         destination,
@@ -235,13 +233,13 @@ fn capture_parameter(
 /// fails closed.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::flow) fn capture_argument(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     semantic: &FactPlan,
     flow_context: &mut FlowBuildContext,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     statement_index: usize,
-    target: symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetHandle,
+    target: typed_trees::statement::TransitionTargetHandle,
     ordinal: usize,
     argument: ExpressionHandle,
     contexts: HandleSpan<FlowSemanticContextRef>,
@@ -273,7 +271,7 @@ pub(in crate::flow) fn capture_argument(
     // A `self`-rooted argument moves through the transition's receiver path,
     // not through ordinary parameter evidence.
     if program.state_parameters(state).iter().any(|candidate| {
-        candidate.is_self && source.root == crate::fact_plan::PlaceRoot::Symbol(candidate.symbol)
+        candidate.is_self && source.root == facts::PlaceRoot::Symbol(candidate.symbol)
     }) {
         return Vec::new();
     }
@@ -320,10 +318,10 @@ pub(in crate::flow) fn finish(
 }
 
 pub(super) fn capture_self(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     semantic: &FactPlan,
     flow_context: &FlowBuildContext,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    state: &typed_trees::state::State,
     contexts: HandleSpan<FlowSemanticContextRef>,
 ) -> Vec<QualifiedInput> {
     let captured = program

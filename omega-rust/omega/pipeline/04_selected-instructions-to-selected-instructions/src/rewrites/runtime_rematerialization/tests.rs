@@ -8,21 +8,21 @@ use crate::rematerialize_selected_runtime_value;
 use crate::rewrites::test_support::{budget, instruction, measured_step_budget};
 use crate::validate_runtime_rematerialization;
 use optimization_core::OptimizationUnitIdentity;
-use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
-    IntegerValue, MachineId, OperationId, ScalarType, ValueId,
-};
-use target::NativeTarget;
-use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
-use target_operations_to_selected_instructions::{
+use optimization_unit::ValueDefinitionSite;
+use register_environment::baseline_target_register_environment;
+use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBoundarySettlement, SelectedBoundarySettlementPayload,
     SelectedFunction, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
     SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator, SelectedValueBinding,
     SelectedValueTransport, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
+use semantic_vocabulary::{
+    BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
+    IntegerValue, MachineId, OperationId, ScalarType, ValueId,
+};
+use target::NativeTarget;
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
-use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
 
 /// A raw selected-stage unit fixture, not a source/Terminal admission claim.
 /// Register 1 is defined by one `MaterializeI64` and consumed by three copies.
@@ -111,7 +111,7 @@ fn fixture(target: NativeTarget) -> ValidatedRuntimeRematerialization {
             virtual_registers: registers,
             blocks: vec![SelectedBlock {
                 id: SelectedBlockId(0),
-                origin: target_operations_to_selected_instructions::SelectedBlockOrigin::Source(
+                origin: selected_instructions::SelectedBlockOrigin::Source(
                     BlockId::new(1).unwrap(),
                 ),
                 instructions,
@@ -325,9 +325,8 @@ fn independent_replay_rejects_regeneration_and_lineage_corruption() {
                     Some(ValueDefinitionSite::FunctionParameter(1))
             }
             7 => {
-                function.virtual_registers[5].entry_fixed_view = Some(
-                    target_operations_to_selected_instructions::register_model::RegisterViewId(0),
-                )
+                function.virtual_registers[5].entry_fixed_view =
+                    Some(register_model::RegisterViewId(0))
             }
             8 => {
                 function.blocks[0].instructions.remove(1);
@@ -340,8 +339,8 @@ fn independent_replay_rejects_regeneration_and_lineage_corruption() {
             }
             10 => {
                 function.blocks[0].instructions[1].provenance.fuel.push(
-                    terminal_psi_to_abstract_operations::optimization_unit::FuelSettlement {
-                        site: terminal_psi_to_abstract_operations::optimization_unit::PsiProvenance::Operation(
+                    optimization_unit::FuelSettlement {
+                        site: optimization_unit::PsiProvenance::Operation(
                             semantic_vocabulary::OperationId::new(1).unwrap(),
                         ),
                         units: 1,
@@ -414,8 +413,7 @@ fn non_materialize_definitions_and_fixed_uses_gain_no_regeneration() {
     );
     let mut fixed = source.clone();
     Arc::make_mut(&mut fixed.transformed).functions[0].blocks[0].instructions[1].operands[0]
-        .fixed_view =
-        Some(target_operations_to_selected_instructions::register_model::RegisterViewId(0));
+        .fixed_view = Some(register_model::RegisterViewId(0));
     assert_eq!(
         rematerialize_selected_runtime_value(
             &fixed,
@@ -429,8 +427,7 @@ fn non_materialize_definitions_and_fixed_uses_gain_no_regeneration() {
     );
     let mut entry_pinned = source.clone();
     Arc::make_mut(&mut entry_pinned.transformed).functions[0].virtual_registers[1]
-        .entry_fixed_view =
-        Some(target_operations_to_selected_instructions::register_model::RegisterViewId(0));
+        .entry_fixed_view = Some(register_model::RegisterViewId(0));
     assert_eq!(
         rematerialize_selected_runtime_value(
             &entry_pinned,
@@ -461,7 +458,7 @@ fn successor(block: u32) -> SelectedSuccessor {
 /// the mutated plan is a well-formed analysis source.
 fn mutated(
     target: NativeTarget,
-    edit: impl FnOnce(&mut SelectedFunction, &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment),
+    edit: impl FnOnce(&mut SelectedFunction, &register_environment::ValidatedTargetRegisterEnvironment),
 ) -> ValidatedRuntimeRematerialization {
     let environment = baseline_target_register_environment(target).unwrap();
     let mut source = fixture(target);
@@ -477,7 +474,7 @@ fn mutated(
 
 fn rematerialize(
     source: &ValidatedRuntimeRematerialization,
-    environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<ValidatedRuntimeRematerialization, RuntimeRematerializationError> {
     rematerialize_selected_runtime_value(source, 0, VirtualRegisterId(1), environment, budget())
 }
@@ -504,9 +501,7 @@ fn spread(target: NativeTarget) -> ValidatedRuntimeRematerialization {
         );
         function.blocks.push(SelectedBlock {
             id: SelectedBlockId(1),
-            origin: target_operations_to_selected_instructions::SelectedBlockOrigin::Source(
-                BlockId::new(2).unwrap(),
-            ),
+            origin: selected_instructions::SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
             instructions: tail_instructions,
             terminator: tail_terminator,
         });
@@ -599,9 +594,7 @@ fn undominated_uses_and_outgoing_transports_reject() {
         );
         function.blocks.push(SelectedBlock {
             id: SelectedBlockId(1),
-            origin: target_operations_to_selected_instructions::SelectedBlockOrigin::Source(
-                BlockId::new(2).unwrap(),
-            ),
+            origin: selected_instructions::SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
             instructions: vec![definition],
             terminator: SelectedTerminator::Jump {
                 instruction: instruction(
@@ -615,9 +608,7 @@ fn undominated_uses_and_outgoing_transports_reject() {
         });
         function.blocks.push(SelectedBlock {
             id: SelectedBlockId(2),
-            origin: target_operations_to_selected_instructions::SelectedBlockOrigin::Source(
-                BlockId::new(3).unwrap(),
-            ),
+            origin: selected_instructions::SelectedBlockOrigin::Source(BlockId::new(3).unwrap()),
             instructions: Vec::new(),
             terminator: SelectedTerminator::Jump {
                 instruction: instruction(
@@ -631,9 +622,7 @@ fn undominated_uses_and_outgoing_transports_reject() {
         });
         function.blocks.push(SelectedBlock {
             id: SelectedBlockId(3),
-            origin: target_operations_to_selected_instructions::SelectedBlockOrigin::Source(
-                BlockId::new(4).unwrap(),
-            ),
+            origin: selected_instructions::SelectedBlockOrigin::Source(BlockId::new(4).unwrap()),
             instructions: uses,
             terminator: tail_terminator,
         });
@@ -650,7 +639,7 @@ fn undominated_uses_and_outgoing_transports_reject() {
             .unwrap();
         let mut edge = successor(1);
         edge.bindings.push(SelectedValueBinding {
-            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
+            semantic: abstract_operations::ValueBinding {
                 parameter: ValueId::new(9).unwrap(),
                 argument: ValueId::new(1).unwrap(),
                 scalar_type: ScalarType::Integer(
@@ -676,9 +665,7 @@ fn undominated_uses_and_outgoing_transports_reject() {
         );
         function.blocks.push(SelectedBlock {
             id: SelectedBlockId(1),
-            origin: target_operations_to_selected_instructions::SelectedBlockOrigin::Source(
-                BlockId::new(2).unwrap(),
-            ),
+            origin: selected_instructions::SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
             instructions: Vec::new(),
             terminator: tail_terminator,
         });
@@ -720,24 +707,24 @@ fn boundary_settlements_shift_over_inserted_materializations() {
                 block: SelectedBlockId(0),
                 instruction_index: 2,
                 settlement: SelectedBoundarySettlementPayload::ClaimCompletion(
-                    target_operations_to_selected_instructions::legalized_operations::LegalizedBoundarySettlement {
+                    legalized_operations::LegalizedBoundarySettlement {
                         operation: OperationId::new(8).unwrap(),
                         boundary: BoundaryMachineId::new(1).unwrap(),
                         provider_execution:
-                            abstract_operations_to_target_operations::target_operations::ProviderExecutionBinding::from_execution_record(
-                                abstract_operations_to_target_operations::target_operations::ProviderPlanReportIdentity::new(1).unwrap(),
+                            target_operations::ProviderExecutionBinding::from_execution_record(
+                                target_operations::ProviderPlanReportIdentity::new(1).unwrap(),
                                 1,
                                 1,
                                 1,
                                 1,
                             )
                             .unwrap(),
-                        realization: abstract_operations_to_target_operations::target_operations::ClaimCompletionOnlyRealization,
+                        realization: target_operations::ClaimCompletionOnlyRealization,
                         arguments: Vec::new(),
                         completion_claim_sources: Vec::new(),
                         completion_receipts: Vec::new(),
                         fuel: Vec::new(),
-                        effect: terminal_psi_to_abstract_operations::optimization_unit::EffectLink {
+                        effect: optimization_unit::EffectLink {
                             input: 0,
                             output: 1,
                         },
@@ -885,9 +872,7 @@ fn replay_rejects_drift_in_an_untouched_block() {
         );
         function.blocks.push(SelectedBlock {
             id: SelectedBlockId(1),
-            origin: target_operations_to_selected_instructions::SelectedBlockOrigin::Source(
-                BlockId::new(2).unwrap(),
-            ),
+            origin: selected_instructions::SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
             instructions: Vec::new(),
             terminator: tail,
         });
@@ -950,9 +935,7 @@ fn replay_rejects_drift_in_an_untouched_block() {
         .clone();
     proposed.functions[0].blocks.push(SelectedBlock {
         id: SelectedBlockId(2),
-        origin: target_operations_to_selected_instructions::SelectedBlockOrigin::Source(
-            BlockId::new(3).unwrap(),
-        ),
+        origin: selected_instructions::SelectedBlockOrigin::Source(BlockId::new(3).unwrap()),
         instructions: Vec::new(),
         terminator: SelectedTerminator::Return {
             instruction: instruction(

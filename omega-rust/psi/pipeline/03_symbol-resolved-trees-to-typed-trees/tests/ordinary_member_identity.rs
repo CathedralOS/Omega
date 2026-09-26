@@ -1,14 +1,10 @@
 //! Ordinary contract members retain declaration identities before checking.
 
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, ExpressionNode,
-};
+use typed_trees::data::DataMember;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
-fn resolved(
-    requirement: &str,
-) -> syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::SymbolResolvedTrees {
+fn resolved(requirement: &str) -> symbol_resolved_trees::SymbolResolvedTrees {
     let source = format!(
         "data Decoy {{ flag: bool; }}
          data Inner {{ flag: bool; }}
@@ -20,27 +16,19 @@ fn resolved(
     crate::front_end::resolved_program(&source)
 }
 
-fn requirement(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-) -> ExpressionHandle {
+fn requirement(program: &typed_trees::TypedTrees) -> ExpressionHandle {
     program
         .machine_contracts(&program.machines()[0])
         .iter()
         .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
         .find_map(|fact| match fact {
-            symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
-                expression,
-            ) => Some(*expression),
+            typed_trees::domain::ProofFact::Expression(expression) => Some(*expression),
             _ => None,
         })
         .expect("source requirement expression")
 }
 
-fn field(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    owner: &str,
-    name: &str,
-) -> symbols::SymbolHandle {
+fn field(program: &typed_trees::TypedTrees, owner: &str, name: &str) -> symbols::SymbolHandle {
     let owner = program
         .data_definitions()
         .iter()
@@ -92,8 +80,8 @@ fn nested_requires_members_retain_each_exact_declared_field() {
 
 #[test]
 fn explicit_ordinary_member_selections_are_not_rebound() {
-    use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::data::DataMember as ResolvedDataMember;
-    use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::expression::ExpressionNode as ResolvedExpression;
+    use symbol_resolved_trees::data::DataMember as ResolvedDataMember;
+    use symbol_resolved_trees::expression::ExpressionNode as ResolvedExpression;
 
     let original = resolved("record.flag");
     let field = |owner: &str| {
@@ -145,7 +133,7 @@ fn explicit_ordinary_member_selections_are_not_rebound() {
 
 #[test]
 fn missing_or_stale_ordinary_receiver_cannot_bind_by_spelling() {
-    use syntax_trees_to_symbol_resolved_trees::symbol_resolved_trees::expression::ExpressionNode as ResolvedExpression;
+    use symbol_resolved_trees::expression::ExpressionNode as ResolvedExpression;
 
     for predicate in ["record.flag", "record.inner.flag"] {
         let original = resolved(predicate);

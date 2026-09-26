@@ -27,10 +27,7 @@ fn attached_scalar_literal_return_retains_exact_structural_cleanup() {
         .for_machine(machine)
         .expect("closed scalar return should compose with structural cleanup");
     assert_eq!(plan.structural_parameters.len(), 2);
-    assert_eq!(
-        plan.result_type,
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::I32
-    );
+    assert_eq!(plan.result_type, typed_trees::types::PrimitiveType::I32);
     assert_eq!(plan.return_statement_ordinal, 0);
     assert_eq!(scalar_discard_positions(plan), [1, 0]);
 }
@@ -80,10 +77,7 @@ fn attached_closed_branch_free_boolean_retains_exact_structural_cleanup() {
         .terminal_structural_scalar_returns
         .for_machine(machine)
         .expect("closed branch-free Boolean should compose with structural cleanup");
-    assert_eq!(
-        plan.result_type,
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::Bool
-    );
+    assert_eq!(plan.result_type, typed_trees::types::PrimitiveType::Bool);
     assert_eq!(scalar_discard_positions(plan), [0]);
 }
 
@@ -179,10 +173,7 @@ fn structural_scalar_return_retains_short_circuit_return_cleanup() {
         .terminal_structural_scalar_returns
         .for_machine(machine)
         .expect("short-circuit return should retain cleanup for every terminal leaf");
-    assert_eq!(
-        plan.result_type,
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::Bool
-    );
+    assert_eq!(plan.result_type, typed_trees::types::PrimitiveType::Bool);
     assert_eq!(scalar_discard_positions(plan), [0]);
 }
 
@@ -218,8 +209,11 @@ fn structural_scalar_return_supports_repeated_carried_short_circuit_local_contin
         .for_machine(machine)
         .expect("branch-free scalar work may surround repeated short-circuit continuations");
     assert_eq!(plan.bindings.len(), 7);
-    assert!(plan.bindings.iter().all(|binding| binding.primitive_type
-        == symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::Bool));
+    assert!(
+        plan.bindings
+            .iter()
+            .all(|binding| binding.primitive_type == typed_trees::types::PrimitiveType::Bool)
+    );
     assert_eq!(plan.return_statement_ordinal, 7);
     assert_eq!(scalar_discard_positions(plan), [0]);
 
@@ -299,7 +293,7 @@ fn owned_call_result_cleanup_requires_exact_transfer_on_every_edge() {
         "#,
     );
     let (machine, state) = machine_and_entry_state(&checked, "route");
-    let rebuild = |facts: &crate::checked_trees::CheckFacts| {
+    let rebuild = |facts: &checked_trees::CheckFacts| {
         crate::execution::terminal_cleanup::build_checked_structural_control_cleanup_plans(
             &checked.typed,
             facts,

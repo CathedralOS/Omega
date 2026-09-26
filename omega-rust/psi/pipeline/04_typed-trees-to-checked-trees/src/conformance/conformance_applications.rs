@@ -7,19 +7,15 @@
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{CanonicalConstIdentity, CanonicalConstValue};
 use sha2::{Digest, Sha256};
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
-use symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionNode, StaticMachineArgument,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
-use symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::{
+use symbols::{SymbolHandle, SymbolKind};
+use typed_trees::TypedTrees;
+use typed_trees::data::TypeParameterKind;
+use typed_trees::expression::{ExpressionNode, StaticMachineArgument};
+use typed_trees::statement::StatementNode;
+use typed_trees::typed_trees::{
     ClosedConformanceApplication, ClosedConformanceConstArgument, ClosedConformanceRowIdentity,
 };
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
-    FixedArrayLength, TypeReferenceHandle, TypeReferenceNode,
-};
-use symbols::{SymbolHandle, SymbolKind};
+use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn validate_conformance_applications(
     program: &TypedTrees,
@@ -66,7 +62,7 @@ fn validate_bound_applications(
     program: &TypedTrees,
     owner_kind: &str,
     owner_name: &str,
-    bounds: &[symbol_resolved_trees_to_typed_trees::typed_trees::machine::GenericConformanceBound],
+    bounds: &[typed_trees::machine::GenericConformanceBound],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for bound in bounds {
@@ -405,7 +401,7 @@ fn close_const_argument(
                 ))
             })?;
         let value = CanonicalConstIdentity::integer(primitive.name(), value);
-        crate::validation::validate_exact_const_value_encoding(
+        validation::validate_exact_const_value_encoding(
             program,
             parameter_carrier,
             value.encoding.as_str(),
@@ -475,7 +471,7 @@ fn close_const_argument(
         )));
     };
     for carrier in [declaration.declared_type, parameter_carrier] {
-        crate::validation::validate_exact_const_value_encoding(program, carrier, encoding).map_err(
+        validation::validate_exact_const_value_encoding(program, carrier, encoding).map_err(
             |reason| {
                 Diagnostic::error(format!(
                     "conformance `{conformance}` parameter `{parameter}` names const `{}` whose canonical value does not replay against its exact carriers: {reason}",
@@ -631,7 +627,7 @@ pub(crate) fn substituted_type_identity_with_lifetimes(
 #[allow(clippy::too_many_arguments)]
 struct ApplicationIdentity {
     report_fingerprint: u64,
-    commitment: symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::ClosedConformanceApplicationCommitment,
+    commitment: typed_trees::typed_trees::ClosedConformanceApplicationCommitment,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -646,7 +642,7 @@ fn application_identity(
     trait_name: &str,
     trait_lifetime_arguments: &[String],
     trait_arguments: &[String],
-    rows: &[symbol_resolved_trees_to_typed_trees::typed_trees::trait_definition::ConformanceRow],
+    rows: &[typed_trees::trait_definition::ConformanceRow],
 ) -> ApplicationIdentity {
     const OFFSET: u64 = 0xcbf29ce484222325;
     const PRIME: u64 = 0x100000001b3;
@@ -777,7 +773,7 @@ fn application_identity(
     }
     ApplicationIdentity {
         report_fingerprint: hash,
-        commitment: symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::ClosedConformanceApplicationCommitment::from_digest(
+        commitment: typed_trees::typed_trees::ClosedConformanceApplicationCommitment::from_digest(
             strong.finalize().into(),
         ),
     }

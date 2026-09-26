@@ -74,10 +74,11 @@ mod value_case_dispatch;
 mod whole_view_results;
 mod widened_operand_sums;
 
-use crate::LoweringError;
 use crate::TerminalMachineSelection;
 use crate::lower_machine;
+use crate::lowering_error::LoweringError;
 use crate::retention::reborrow_root_handoff;
+use checked_trees::{CheckedScalarExpressionRole, CheckedTrees};
 use language_semantics::content::ContentFieldSegment;
 use language_semantics::content::{
     ContentAlgebraIdentity as CheckedContentAlgebraIdentity,
@@ -93,7 +94,6 @@ use std::path::PathBuf;
 use symbols::SymbolHandle;
 use terminal_psi::{TerminalMachineResult, TerminalModule};
 use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::checked_trees::{CheckedScalarExpressionRole, CheckedTrees};
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 /// The toolchain core service declaration, resident so raw-pipeline fixtures
@@ -114,9 +114,7 @@ const CORE_SERVICE_OMG: &str = include_str!(concat!(
 /// spell `Binding<R>` fields; the requirement trait they close over must be
 /// `pub`. The digest is a stand-in; nothing here compares it against a
 /// realized plan.
-fn checked_source_with_core_service(
-    source: &str,
-) -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
+fn checked_source_with_core_service(source: &str) -> checked_trees::CheckedTrees {
     let mut sources = SourceMap::default();
     let service_source_id = sources
         .add_with_metadata(
@@ -142,7 +140,7 @@ fn checked_source_with_core_service(
         .iter()
         .filter(|definition| definition.is_boundary)
         .map(
-            |definition| symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::FusedServiceErasureAuthorization {
+            |definition| typed_trees::typed_trees::FusedServiceErasureAuthorization {
                 requirement: definition.symbol,
             },
         )
@@ -153,8 +151,7 @@ fn checked_source_with_core_service(
     lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
 }
 
-fn checked_scalar_suspension_fixture() -> typed_trees_to_checked_trees::checked_trees::CheckedTrees
-{
+fn checked_scalar_suspension_fixture() -> checked_trees::CheckedTrees {
     crate::front_end::checked_program(
         r#"
             machine wait(value: bool) -> bool
@@ -175,7 +172,7 @@ fn checked_scalar_suspension_fixture() -> typed_trees_to_checked_trees::checked_
 }
 
 fn scalar_fixture_call_coordinate(
-    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+    checked: &checked_trees::CheckedTrees,
 ) -> (SymbolHandle, SymbolHandle, usize, usize, SymbolHandle) {
     let root = checked
         .machines()
@@ -201,9 +198,9 @@ fn scalar_fixture_call_coordinate(
     let root_computation = computations.roots.iter().map(|(_, root)| root).find(|computation| {
         computation.machine == root.symbol
             && computation.state == state.symbol
-            && matches!(computation.role, typed_trees_to_checked_trees::checked_trees::CheckedScalarExpressionRole::LocalInitializer { .. })
+            && matches!(computation.role, checked_trees::CheckedScalarExpressionRole::LocalInitializer { .. })
             && matches!(computations.nodes.get(computation.root).kind,
-                typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationKind::Call { target_machine, .. } if target_machine == target)
+                checked_trees::CheckedScalarComputationKind::Call { target_machine, .. } if target_machine == target)
     }).expect("real checked wait call computation");
     let binding = graph.states[0]
         .bindings
@@ -212,9 +209,9 @@ fn scalar_fixture_call_coordinate(
         .expect("wait computation has a scalar binding");
     assert_eq!(
         binding.value,
-        typed_trees_to_checked_trees::checked_trees::CheckedScalarBindingValue::Computation
+        checked_trees::CheckedScalarBindingValue::Computation
     );
-    let typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationKind::Call {
+    let checked_trees::CheckedScalarComputationKind::Call {
         call_ordinal,
         source_call,
         ..
@@ -237,9 +234,7 @@ fn scalar_fixture_call_coordinate(
     )
 }
 
-fn checked_float_projection_source(
-    source: &str,
-) -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
+fn checked_float_projection_source(source: &str) -> checked_trees::CheckedTrees {
     // A proof-only carrier like the real enum, whose `Rat` payload has no
     // layout: here the definition reaches itself inline, which classifies it
     // proof-only, so ensures facts mentioning it route to the structural
@@ -347,9 +342,7 @@ fn checked_float_projection_source(
     )
 }
 
-fn reborrow_source(
-    child_access: &str,
-) -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
+fn reborrow_source(child_access: &str) -> checked_trees::CheckedTrees {
     crate::front_end::checked_program(&format!(
         r#"
             data Cell {{ value: i32; }}
@@ -362,9 +355,7 @@ fn reborrow_source(
     ))
 }
 
-fn reborrow_restored_call_source(
-    child_access: &str,
-) -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
+fn reborrow_restored_call_source(child_access: &str) -> checked_trees::CheckedTrees {
     crate::front_end::checked_program(&format!(
         r#"
             data Harness {{}}
@@ -379,8 +370,7 @@ fn reborrow_restored_call_source(
     ))
 }
 
-fn shared_reborrow_restored_call_source()
--> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
+fn shared_reborrow_restored_call_source() -> checked_trees::CheckedTrees {
     crate::front_end::checked_program(
         r#"
             data Harness {}
@@ -395,14 +385,13 @@ fn shared_reborrow_restored_call_source()
     )
 }
 
-fn two_shared_reborrow_restored_call_source()
--> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
+fn two_shared_reborrow_restored_call_source() -> checked_trees::CheckedTrees {
     two_shared_reborrow_restored_call_source_with_observations("Sink::observe(left, right);")
 }
 
 fn two_shared_reborrow_restored_call_source_with_observations(
     observations: &str,
-) -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
+) -> checked_trees::CheckedTrees {
     crate::front_end::checked_program(&format!(
         r#"
             data Harness {{}}
@@ -420,8 +409,7 @@ fn two_shared_reborrow_restored_call_source_with_observations(
     ))
 }
 
-fn three_shared_reborrow_restored_call_source()
--> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
+fn three_shared_reborrow_restored_call_source() -> checked_trees::CheckedTrees {
     crate::front_end::checked_program(
         r#"
             data Harness {}
@@ -440,10 +428,7 @@ fn three_shared_reborrow_restored_call_source()
     )
 }
 
-fn multihop_reborrow_source(
-    middle_access: &str,
-    leaf_access: &str,
-) -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
+fn multihop_reborrow_source(middle_access: &str, leaf_access: &str) -> checked_trees::CheckedTrees {
     let leaf_call = if leaf_access == "&mut" {
         "mutate(leaf);"
     } else {
@@ -465,7 +450,7 @@ fn multihop_reborrow_source(
 }
 
 fn lower_reborrow_rows(
-    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+    checked: &checked_trees::CheckedTrees,
 ) -> Result<Vec<terminal_psi::TerminalReborrowRootHandoff>, LoweringError> {
     let source_machine = checked
         .facts
@@ -487,7 +472,7 @@ fn lower_reborrow_rows(
 }
 
 fn terminal_module_with_reborrow(
-    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
+    checked: &checked_trees::CheckedTrees,
 ) -> terminal_psi::TerminalModule {
     let empty = crate::front_end::checked_program(
         r#"
@@ -506,7 +491,7 @@ fn terminal_module_with_reborrow(
     module
 }
 
-fn checked_write_line_literal() -> typed_trees_to_checked_trees::checked_trees::CheckedTrees {
+fn checked_write_line_literal() -> checked_trees::CheckedTrees {
     let source = r#"
         boundary trait Console {
             machine write_line(text: &[u8])
@@ -653,7 +638,7 @@ fn mathematical_declarations_refuse_at_terminal_lowering() {
     assert!(
         matches!(
             error,
-            crate::LoweringError::Unsupported(reason) if reason.contains("PROOF-CONTRACT-MIGRATION")
+            LoweringError::Unsupported(reason) if reason.contains("PROOF-CONTRACT-MIGRATION")
         ),
         "unexpected lowering error: {error:?}"
     );

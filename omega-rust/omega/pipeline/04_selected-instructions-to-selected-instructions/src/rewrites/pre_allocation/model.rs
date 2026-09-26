@@ -24,7 +24,7 @@ use optimization_core::{
     Optimization, OptimizationSelectionIdentity, OptimizationSelections, OptimizationWorkBudget,
     OptimizationWorkUsage, PreAllocationOptimizationCompletionIdentity,
 };
-use target_operations_to_selected_instructions::{
+use selected_instructions::{
     AddressFoldIdentity, ConstantBooleanIdentity, ConstantBranchIdentity, CopyRemovalIdentity,
     LiveRangeIdentity, LivenessIdentity, RedundantExtensionIdentity, SelectedInstructionId,
     SelectedInstructionPlan, SelectedInstructionPlanIdentity,
@@ -258,6 +258,32 @@ pub enum PreAllocationTransformationIdentity {
     ConstantBranch(ConstantBranchIdentity),
 }
 
+/// The post-allocation ledger entry one committed pre-allocation step
+/// publishes: the same identity, under its downstream name.
+impl From<PreAllocationTransformationIdentity>
+    for register_homes::PostAllocationSelectedTransformation
+{
+    fn from(identity: PreAllocationTransformationIdentity) -> Self {
+        match identity {
+            PreAllocationTransformationIdentity::CopyRemoval(identity) => {
+                Self::CopyRemoval(identity)
+            }
+            PreAllocationTransformationIdentity::RedundantExtension(identity) => {
+                Self::RedundantExtension(identity)
+            }
+            PreAllocationTransformationIdentity::AddressFold(identity) => {
+                Self::AddressFold(identity)
+            }
+            PreAllocationTransformationIdentity::ConstantBoolean(identity) => {
+                Self::ConstantBoolean(identity)
+            }
+            PreAllocationTransformationIdentity::ConstantBranch(identity) => {
+                Self::ConstantBranch(identity)
+            }
+        }
+    }
+}
+
 /// One independently validated pre-allocation transformation plus the
 /// rebuilt analyses over its transformed program. No source analysis fact
 /// crosses the transformed selected-CFG boundary.
@@ -403,7 +429,7 @@ pub struct StagedPreAllocationOptimizationCustodyReceipt {
     pub(super) final_selected: SelectedInstructionPlanIdentity,
     pub(super) final_liveness: LivenessIdentity,
     pub(super) final_ranges: LiveRangeIdentity,
-    pub(super) final_legality: crate::register_homes::AllocationLegalityIdentity,
+    pub(super) final_legality: register_homes::AllocationLegalityIdentity,
     pub(super) final_virtual_register_count: usize,
 }
 
@@ -453,7 +479,7 @@ impl StagedPreAllocationOptimizationCustodyReceipt {
     pub const fn final_ranges(&self) -> LiveRangeIdentity {
         self.final_ranges
     }
-    pub const fn final_legality(&self) -> crate::register_homes::AllocationLegalityIdentity {
+    pub const fn final_legality(&self) -> register_homes::AllocationLegalityIdentity {
         self.final_legality
     }
     pub const fn final_virtual_register_count(&self) -> usize {
@@ -470,7 +496,7 @@ pub struct StagedOptimizedPreAllocationIterationReceipt {
     pub(super) transformed_selected: SelectedInstructionPlanIdentity,
     pub(super) fresh_liveness: LivenessIdentity,
     pub(super) fresh_ranges: LiveRangeIdentity,
-    pub(super) fresh_legality: crate::register_homes::AllocationLegalityIdentity,
+    pub(super) fresh_legality: register_homes::AllocationLegalityIdentity,
     pub(super) declined: usize,
     pub(super) evaluated: usize,
 }
@@ -498,7 +524,7 @@ impl StagedOptimizedPreAllocationIterationReceipt {
     pub const fn fresh_ranges(self) -> LiveRangeIdentity {
         self.fresh_ranges
     }
-    pub const fn fresh_legality(self) -> crate::register_homes::AllocationLegalityIdentity {
+    pub const fn fresh_legality(self) -> register_homes::AllocationLegalityIdentity {
         self.fresh_legality
     }
     pub const fn declined(self) -> usize {

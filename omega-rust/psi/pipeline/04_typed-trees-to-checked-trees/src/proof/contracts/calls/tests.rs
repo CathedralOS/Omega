@@ -1,9 +1,9 @@
-use crate::checked_trees::{ContractProofFactKind, ContractProofFactOwner, ProofFacts};
 use crate::tests::front_end::typed_program;
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
+use checked_trees::{ContractProofFactKind, ContractProofFactOwner, ProofFacts};
+use typed_trees::TypedTrees;
 
 fn proof(program: &TypedTrees) -> ProofFacts {
-    let plan = crate::proof_engine::obligations::build_proof_plan(program);
+    let plan = proof::obligations::build_proof_plan(program);
     let borrow = crate::borrow::build_borrow_facts(program);
     crate::proof::build_proof_facts(program, &plan, &borrow)
 }
@@ -131,16 +131,14 @@ fn ordinary_invocations_retain_requires_and_ensures() {
     }
 }
 
-fn entry_requirement(
-    program: &TypedTrees,
-) -> symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle {
+fn entry_requirement(program: &TypedTrees) -> typed_trees::expression::ExpressionHandle {
     program
         .machine_contracts(&program.machines()[0])
         .iter()
-        .filter(|contract| contract.kind == symbol_resolved_trees_to_typed_trees::typed_trees::signature::SignatureContractKind::Requires)
+        .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Requires)
         .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
         .find_map(|fact| match fact {
-            symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(expression) => Some(*expression),
+            typed_trees::domain::ProofFact::Expression(expression) => Some(*expression),
             _ => None,
         })
         .expect("an authored entry requirement")
@@ -164,7 +162,7 @@ fn good_ranking_cannot_discharge_an_unsupported_boolean_requirement() {
         .expect("the numeric ranking is valid independently of allowed");
     let goal = entry_requirement(&program);
     let machine = &program.machines()[0];
-    assert!(!crate::validation::arithmetic_entry_requirement_is_covered(
+    assert!(!validation::arithmetic_entry_requirement_is_covered(
         &program, machine, goal,
     ));
     assert!(!crate::checks::termination::proves_ranked_entry_requirement(&program, machine, goal,));
@@ -196,7 +194,7 @@ fn good_ranking_cannot_discharge_a_noninductive_numeric_requirement() {
         .expect("remaining decreases even though permission is lost");
     let goal = entry_requirement(&program);
     let machine = &program.machines()[0];
-    assert!(crate::validation::arithmetic_entry_requirement_is_covered(
+    assert!(validation::arithmetic_entry_requirement_is_covered(
         &program, machine, goal,
     ));
     assert!(!crate::checks::termination::proves_ranked_entry_requirement(&program, machine, goal,));

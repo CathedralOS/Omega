@@ -9,20 +9,20 @@ use super::{
 use crate::rewrites::unexecuted::dead_store::{
     DeadStoreEliminationError, eliminate_selected_dead_store, validate_dead_store_elimination,
 };
-use semantic_vocabulary::{
-    BlockId, EdgeId, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralCaseId,
-    StructuralFieldId, ValueId,
-};
-use target::NativeTarget;
-use target_operations_to_selected_instructions::register_environment::baseline_target_register_environment;
-use target_operations_to_selected_instructions::{
+use optimization_unit::ValueDefinitionSite;
+use register_environment::baseline_target_register_environment;
+use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, PackedByteWidth, SelectedBlock, SelectedBlockId,
     SelectedBlockOrigin, SelectedCasePayloadBinding, SelectedCasePayloadTransport,
     SelectedInstructionId, SelectedInstructionKind, SelectedLocalStorageSlot, SelectedMemoryAccess,
     SelectedMemoryAccessRole, SelectedStructuralBinding, SelectedStructuralCaseEdge,
     SelectedStructuralTransport, SelectedTerminator, SelectedValueBinding, SelectedValueTransport,
 };
-use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
+use semantic_vocabulary::{
+    BlockId, EdgeId, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralCaseId,
+    StructuralFieldId, ValueId,
+};
+use target::NativeTarget;
 
 #[test]
 fn cross_block_covering_store_eliminates_across_the_edge() {
@@ -157,9 +157,7 @@ fn cross_block_staging_slot_dead_store_dies_across_the_edge() {
         operation: OperationId::new(9).unwrap(),
         place: place(),
     };
-    let staged_pair = |edit: Option<
-        &dyn Fn(&mut target_operations_to_selected_instructions::SelectedFunction),
-    >| {
+    let staged_pair = |edit: Option<&dyn Fn(&mut selected_instructions::SelectedFunction)>| {
         mutated_chained(target, |function, environment| {
             let store64 = environment
                 .constraint(environment.selected_keys().store64.unwrap())
@@ -227,7 +225,7 @@ fn cross_block_staging_slot_dead_store_dies_across_the_edge() {
         crossed_edge(function)
             .structural_bindings
             .push(SelectedStructuralBinding {
-                semantic: terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding {
+                semantic: abstract_operations::AbstractStructuralBinding {
                     parameter: PlaceId::new(2).unwrap(),
                     argument: terminal_psi::StructuralArgument {
                         place: PlaceId::new(2).unwrap(),
@@ -253,7 +251,7 @@ fn cross_block_staging_slot_dead_store_dies_across_the_edge() {
         crossed_edge(function)
             .structural_bindings
             .push(SelectedStructuralBinding {
-                semantic: terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding {
+                semantic: abstract_operations::AbstractStructuralBinding {
                     parameter: PlaceId::new(2).unwrap(),
                     argument: terminal_psi::StructuralArgument {
                         place: PlaceId::new(2).unwrap(),
@@ -277,7 +275,7 @@ fn cross_block_staging_slot_dead_store_dies_across_the_edge() {
     // interval.
     let custody = staged_pair(Some(&|function| {
         crossed_edge(function).structural_case = Some(SelectedStructuralCaseEdge {
-            source: target_operations_to_selected_instructions::selected_instructions::SelectedCaseDispatchSource::Local { slot },
+            source: selected_instructions::SelectedCaseDispatchSource::Local { slot },
             case: StructuralCaseId::new(1).unwrap(),
             case_tag: 0,
             payloads: Vec::new(),
@@ -293,7 +291,7 @@ fn cross_block_staging_slot_dead_store_dies_across_the_edge() {
     // untouched, so the dead store still dies under its cover.
     let discarded = staged_pair(Some(&|function| {
         crossed_edge(function).structural_case = Some(SelectedStructuralCaseEdge {
-            source: target_operations_to_selected_instructions::selected_instructions::SelectedCaseDispatchSource::Local {
+            source: selected_instructions::SelectedCaseDispatchSource::Local {
                 slot: LocalStorageSlotId::Structural {
                     operation: OperationId::new(9).unwrap(),
                     place: PlaceId::new(2).unwrap(),
@@ -601,8 +599,8 @@ fn cross_block_fork_legs_reconverging_on_one_cover_eliminate() {
 fn cross_block_fork_legs_escaping_or_observing_reject() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
-    let branch_to = |function: &mut target_operations_to_selected_instructions::SelectedFunction,
-                     environment: &target_operations_to_selected_instructions::register_environment::ValidatedTargetRegisterEnvironment,
+    let branch_to = |function: &mut selected_instructions::SelectedFunction,
+                     environment: &register_environment::ValidatedTargetRegisterEnvironment,
                      zero: u32| {
         let branch = environment
             .constraint(environment.selected_keys().conditional_branch)
@@ -703,7 +701,7 @@ fn cross_block_fork_legs_escaping_or_observing_reject() {
         when_zero
             .structural_bindings
             .push(SelectedStructuralBinding {
-                semantic: terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding {
+                semantic: abstract_operations::AbstractStructuralBinding {
                     parameter: PlaceId::new(2).unwrap(),
                     argument: terminal_psi::StructuralArgument {
                         place: PlaceId::new(2).unwrap(),
@@ -854,7 +852,7 @@ fn cross_block_edge_transports_and_terminator_rows_decide() {
     // still eliminates.
     let carried = mutated_chained(target, |function, _| {
         crossed_edge(function).bindings.push(SelectedValueBinding {
-            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
+            semantic: abstract_operations::ValueBinding {
                 parameter: ValueId::new(5).unwrap(),
                 argument: ValueId::new(1).unwrap(),
                 scalar_type: ScalarType::Integer(
@@ -874,7 +872,7 @@ fn cross_block_edge_transports_and_terminator_rows_decide() {
         crossed_edge(function)
             .structural_bindings
             .push(SelectedStructuralBinding {
-                semantic: terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding {
+                semantic: abstract_operations::AbstractStructuralBinding {
                     parameter: PlaceId::new(2).unwrap(),
                     argument: terminal_psi::StructuralArgument {
                         place: PlaceId::new(2).unwrap(),
@@ -902,7 +900,7 @@ fn cross_block_edge_transports_and_terminator_rows_decide() {
         crossed_edge(function)
             .structural_bindings
             .push(SelectedStructuralBinding {
-                semantic: terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding {
+                semantic: abstract_operations::AbstractStructuralBinding {
                     parameter: PlaceId::new(2).unwrap(),
                     argument: terminal_psi::StructuralArgument {
                         place: PlaceId::new(2).unwrap(),
@@ -925,7 +923,7 @@ fn cross_block_edge_transports_and_terminator_rows_decide() {
     // Case custody on the dead place writes its slot inside the interval.
     let custody = mutated_chained(target, |function, _| {
         crossed_edge(function).structural_case = Some(SelectedStructuralCaseEdge {
-            source: target_operations_to_selected_instructions::selected_instructions::SelectedCaseDispatchSource::Local {
+            source: selected_instructions::SelectedCaseDispatchSource::Local {
                 slot: LocalStorageSlotId::Structural {
                     operation: OperationId::new(9).unwrap(),
                     place: place(),
@@ -944,7 +942,7 @@ fn cross_block_edge_transports_and_terminator_rows_decide() {
     // A trivially discarded case binding on the dead place retires storage.
     let discarded = mutated_chained(target, |function, _| {
         crossed_edge(function).structural_case = Some(SelectedStructuralCaseEdge {
-            source: target_operations_to_selected_instructions::selected_instructions::SelectedCaseDispatchSource::Local {
+            source: selected_instructions::SelectedCaseDispatchSource::Local {
                 slot: LocalStorageSlotId::Structural {
                     operation: OperationId::new(9).unwrap(),
                     place: PlaceId::new(2).unwrap(),
@@ -963,7 +961,7 @@ fn cross_block_edge_transports_and_terminator_rows_decide() {
     // A case payload's register parameter is a register transport only.
     let payload = mutated_chained(target, |function, _| {
         crossed_edge(function).structural_case = Some(SelectedStructuralCaseEdge {
-            source: target_operations_to_selected_instructions::selected_instructions::SelectedCaseDispatchSource::Local {
+            source: selected_instructions::SelectedCaseDispatchSource::Local {
                 slot: LocalStorageSlotId::Structural {
                     operation: OperationId::new(9).unwrap(),
                     place: PlaceId::new(2).unwrap(),
@@ -972,10 +970,10 @@ fn cross_block_edge_transports_and_terminator_rows_decide() {
             case: StructuralCaseId::new(1).unwrap(),
             case_tag: 0,
             payloads: vec![SelectedCasePayloadBinding {
-                semantic: target_operations_to_selected_instructions::legalized_operations::LegalizedStructuralCasePayload {
+                semantic: legalized_operations::LegalizedStructuralCasePayload {
                     field: StructuralFieldId::new(1).unwrap(),
                     field_byte_offset: 0,
-                    parameter: target_operations_to_selected_instructions::legalized_operations::LegalizedValueDefinition {
+                    parameter: legalized_operations::LegalizedValueDefinition {
                         value: ValueId::new(5).unwrap(),
                         scalar_type: ScalarType::Integer(
                             IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
@@ -1318,7 +1316,7 @@ fn cross_block_byte_span_copy_covers_across_the_edge() {
             );
             define_count(function, environment, 1, 0, SPAN_COUNT, span_length(), 16);
             crossed_edge(function).bindings.push(SelectedValueBinding {
-                semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
+                semantic: abstract_operations::ValueBinding {
                     parameter: ValueId::new(5).unwrap(),
                     argument: ValueId::new(1).unwrap(),
                     scalar_type: ScalarType::Integer(
@@ -1411,7 +1409,7 @@ fn cross_block_byte_sequence_store_covers_across_the_edge() {
                 4,
             );
             crossed_edge(function).bindings.push(SelectedValueBinding {
-                semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
+                semantic: abstract_operations::ValueBinding {
                     parameter: ValueId::new(5).unwrap(),
                     argument: ValueId::new(1).unwrap(),
                     scalar_type: ScalarType::Integer(
@@ -1525,7 +1523,7 @@ fn cross_block_byte_sequence_dead_store_covers_under_equal_constants() {
                 3,
             );
             crossed_edge(function).bindings.push(SelectedValueBinding {
-                semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
+                semantic: abstract_operations::ValueBinding {
                     parameter: ValueId::new(5).unwrap(),
                     argument: ValueId::new(1).unwrap(),
                     scalar_type: ScalarType::Integer(
@@ -1775,7 +1773,7 @@ fn cross_block_constant_index_rows_landing_off_the_dead_byte_walk_past() {
                 2,
             );
             crossed_edge(function).bindings.push(SelectedValueBinding {
-                semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
+                semantic: abstract_operations::ValueBinding {
                     parameter: ValueId::new(9).unwrap(),
                     argument: ValueId::new(1).unwrap(),
                     scalar_type: ScalarType::Integer(
@@ -2210,7 +2208,7 @@ fn cross_block_packed_dead_store_eliminates_and_keeps_scratch_custody() {
     let carried = mutated_chained(target, |function, environment| {
         make_packed_dead(function, environment);
         crossed_edge(function).bindings.push(SelectedValueBinding {
-            semantic: terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
+            semantic: abstract_operations::ValueBinding {
                 parameter: ValueId::new(5).unwrap(),
                 argument: ValueId::new(1).unwrap(),
                 scalar_type: ScalarType::Integer(
@@ -2232,7 +2230,7 @@ fn cross_block_packed_dead_store_eliminates_and_keeps_scratch_custody() {
     let payload = mutated_chained(target, |function, environment| {
         make_packed_dead(function, environment);
         crossed_edge(function).structural_case = Some(SelectedStructuralCaseEdge {
-            source: target_operations_to_selected_instructions::selected_instructions::SelectedCaseDispatchSource::Local {
+            source: selected_instructions::SelectedCaseDispatchSource::Local {
                 slot: LocalStorageSlotId::Structural {
                     operation: OperationId::new(9).unwrap(),
                     place: PlaceId::new(2).unwrap(),
@@ -2241,10 +2239,10 @@ fn cross_block_packed_dead_store_eliminates_and_keeps_scratch_custody() {
             case: StructuralCaseId::new(1).unwrap(),
             case_tag: 0,
             payloads: vec![SelectedCasePayloadBinding {
-                semantic: target_operations_to_selected_instructions::legalized_operations::LegalizedStructuralCasePayload {
+                semantic: legalized_operations::LegalizedStructuralCasePayload {
                     field: StructuralFieldId::new(1).unwrap(),
                     field_byte_offset: 0,
-                    parameter: target_operations_to_selected_instructions::legalized_operations::LegalizedValueDefinition {
+                    parameter: legalized_operations::LegalizedValueDefinition {
                         value: ValueId::new(5).unwrap(),
                         scalar_type: ScalarType::Integer(
                             IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),

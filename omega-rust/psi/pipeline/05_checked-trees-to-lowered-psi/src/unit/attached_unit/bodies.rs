@@ -6,7 +6,7 @@ use super::{
     CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, LoweringError, SemanticDomainId,
     ServiceReachSummary, unsupported,
 };
-use typed_trees_to_checked_trees::checked_trees::{
+use checked_trees::{
     CheckedComposedUnitControlMachinePlan, CheckedErasedProofParameterPlan,
     CheckedStructuralScalarParameterPlan, CheckedUnitEntryClaimPlan,
     CheckedUnitStructuralParameterPlan,
@@ -26,17 +26,14 @@ use typed_trees_to_checked_trees::checked_trees::{
 /// already carries yields to the published shape.
 #[derive(Clone, Copy)]
 pub(crate) struct UnitPlans<'a> {
-    checked: &'a typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectPlans,
+    checked: &'a checked_trees::CheckedUnitEffectPlans,
     staged_machine: Option<&'a CheckedUnitEffectMachinePlan>,
-    staged_structural_types:
-        &'a [typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypePlan],
+    staged_structural_types: &'a [checked_trees::CheckedUnitStructuralTypePlan],
 }
 
 impl<'a> UnitPlans<'a> {
     /// The ordinary roster alone.
-    pub(crate) fn published(
-        checked: &'a typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectPlans,
-    ) -> Self {
+    pub(crate) fn published(checked: &'a checked_trees::CheckedUnitEffectPlans) -> Self {
         Self {
             checked,
             staged_machine: None,
@@ -47,9 +44,9 @@ impl<'a> UnitPlans<'a> {
     /// The ordinary roster joined with one cleanup lane's dispatcher plan and
     /// the shapes that lane owns.
     pub(crate) fn with_staged(
-        checked: &'a typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectPlans,
+        checked: &'a checked_trees::CheckedUnitEffectPlans,
         machine: &'a CheckedUnitEffectMachinePlan,
-        structural_types: &'a [typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypePlan],
+        structural_types: &'a [checked_trees::CheckedUnitStructuralTypePlan],
     ) -> Self {
         Self {
             checked,
@@ -80,23 +77,17 @@ impl<'a> UnitPlans<'a> {
         self.checked.composed_for_machine(machine)
     }
 
-    pub(crate) fn boundary_machines(
-        self,
-    ) -> &'a [typed_trees_to_checked_trees::checked_trees::CheckedBoundaryMachinePlan] {
+    pub(crate) fn boundary_machines(self) -> &'a [checked_trees::CheckedBoundaryMachinePlan] {
         &self.checked.boundary_machines
     }
 
-    pub(crate) fn structural_domains(
-        self,
-    ) -> &'a [typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralDomainPlan] {
+    pub(crate) fn structural_domains(self) -> &'a [checked_trees::CheckedUnitStructuralDomainPlan] {
         &self.checked.structural_domains
     }
 
     pub(crate) fn structural_types(
         self,
-    ) -> impl Iterator<
-        Item = &'a typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypePlan,
-    > {
+    ) -> impl Iterator<Item = &'a checked_trees::CheckedUnitStructuralTypePlan> {
         let published = &self.checked.structural_types;
         published
             .iter()
@@ -110,8 +101,7 @@ impl<'a> UnitPlans<'a> {
     pub(crate) fn structural_type(
         self,
         identity: &str,
-    ) -> Option<&'a typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralTypePlan>
-    {
+    ) -> Option<&'a checked_trees::CheckedUnitStructuralTypePlan> {
         self.structural_types()
             .find(|shape| shape.identity == identity)
     }
@@ -154,9 +144,7 @@ impl<'a> UnitBody<'a> {
     /// ordinary body's scalar result binding or scalar control, or a state
     /// graph's scalar result. Such a body is called through the scalar call
     /// lane, not as a Unit or structural call.
-    pub(crate) fn scalar_result_type(
-        self,
-    ) -> Option<typed_trees_to_checked_trees::checked_trees::types::PrimitiveType> {
+    pub(crate) fn scalar_result_type(self) -> Option<checked_trees::types::PrimitiveType> {
         match self {
             Self::Ordinary(plan) => plan
                 .scalar_result
@@ -168,28 +156,25 @@ impl<'a> UnitBody<'a> {
                         .map(|control| control.primitive_type)
                 }),
             Self::Composed(plan) => match plan.result {
-                typed_trees_to_checked_trees::checked_trees::CheckedControlResultPlan::Scalar {
-                    primitive_type,
-                } => Some(primitive_type),
+                checked_trees::CheckedControlResultPlan::Scalar { primitive_type } => {
+                    Some(primitive_type)
+                }
                 _ => None,
             },
         }
     }
 
-    pub(crate) fn result(
-        self,
-    ) -> Result<typed_trees_to_checked_trees::checked_trees::CheckedControlResultPlan, LoweringError>
-    {
+    pub(crate) fn result(self) -> Result<checked_trees::CheckedControlResultPlan, LoweringError> {
         if matches!(self, Self::Ordinary(plan) if plan.scalar_result.is_some() || plan.scalar_control.is_some())
         {
             return unsupported("scalar operation-body result requires a scalar call catalog");
         }
         Ok(match self {
             Self::Ordinary(plan) => plan.structural_result.as_ref().map_or(
-                typed_trees_to_checked_trees::checked_trees::CheckedControlResultPlan::Unit,
+                checked_trees::CheckedControlResultPlan::Unit,
                 |result| {
-                    typed_trees_to_checked_trees::checked_trees::CheckedControlResultPlan::Structural(
-                        typed_trees_to_checked_trees::checked_trees::CheckedStructuralResultPlan {
+                    checked_trees::CheckedControlResultPlan::Structural(
+                        checked_trees::CheckedStructuralResultPlan {
                             type_identity: result.type_identity.clone(),
                             multiplicity: result.multiplicity,
                             qualifications: Vec::new(),

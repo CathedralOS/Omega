@@ -1,6 +1,6 @@
 //! Independent root admission, allocation replay, comparison, and receipt sealing.
 
-use target_operations_to_selected_instructions::register_model::{
+use register_model::{
     TargetRegisterEnvironmentConstraintKeys, ValidatedPhysicalRegisterModel,
     ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
 };

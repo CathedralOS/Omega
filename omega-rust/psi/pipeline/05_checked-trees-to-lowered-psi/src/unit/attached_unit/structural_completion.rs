@@ -6,12 +6,10 @@ use super::{
     CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentSourcePlan, LoweringError, Multiplicity, unsupported,
 };
-use typed_trees_to_checked_trees::checked_trees::expression::ExpressionNode;
-use typed_trees_to_checked_trees::checked_trees::statement::StatementNode;
-use typed_trees_to_checked_trees::checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-use typed_trees_to_checked_trees::checked_trees::{
-    CheckedArrayConstructionSource, CheckedStructuralAccess,
-};
+use checked_trees::expression::ExpressionNode;
+use checked_trees::statement::StatementNode;
+use checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use checked_trees::{CheckedArrayConstructionSource, CheckedStructuralAccess};
 
 /// A `&[T]` declared result type, either view family: the shared-borrowed
 /// slice reference whose storage the caller retains, the view family's
@@ -78,14 +76,14 @@ pub(super) fn validate(
     };
     let Some(result) = &machine.structural_result else {
         let mut reference = state.return_type;
-        while let typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
+        while let checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
             checked.typed.type_reference_table.type_reference(reference)
         {
             reference = *base_type;
         }
         if !matches!(
             checked.typed.type_reference_table.type_reference(reference),
-            typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Unit
+            checked_trees::types::TypeReferenceNode::Unit
         ) {
             return unsupported("Unit completion erases the authored result type");
         }
@@ -97,31 +95,28 @@ pub(super) fn validate(
         // borrow's type multiplicity spells Unrestricted.
         Multiplicity::Affine
     } else {
-        typed_trees_to_checked_trees::validation::reference_result_custody::result_multiplicity(
-            &checked.typed,
-            state.return_type,
-        )
+        validation::reference_result_custody::result_multiplicity(&checked.typed, state.return_type)
     };
     if state.symbol != machine.state
         || !source.body_is_present
         || result.multiplicity != expected_multiplicity
-        || !(typed_trees_to_checked_trees::validation::reference_result_custody::parts(&checked.typed, state.return_type)
+        || !(validation::reference_result_custody::parts(&checked.typed, state.return_type)
             .is_some()
-            || typed_trees_to_checked_trees::validation::reference_result_custody::shared_borrowed_parts(
+            || validation::reference_result_custody::shared_borrowed_parts(
                 &checked.typed,
                 state.return_type,
             )
             .is_some()
-            || typed_trees_to_checked_trees::validation::reference_result_custody::is_reference_record(
+            || validation::reference_result_custody::is_reference_record(
                 &checked.typed,
                 state.return_type,
             )
-            || typed_trees_to_checked_trees::validation::is_closed_primitive_array_type(&checked.typed, state.return_type)
-            || typed_trees_to_checked_trees::validation::has_plain_owned_contents_with_numeric_constraints(
+            || validation::is_closed_primitive_array_type(&checked.typed, state.return_type)
+            || validation::has_plain_owned_contents_with_numeric_constraints(
                 &checked.typed,
                 state.return_type,
             )
-            || typed_trees_to_checked_trees::validation::has_owned_or_shared_view_fields(&checked.typed, state.return_type)
+            || validation::has_owned_or_shared_view_fields(&checked.typed, state.return_type)
             || shared_borrowed_slice_view(checked, state.return_type))
         || !(checked
             .typed
@@ -145,19 +140,17 @@ pub(super) fn validate(
         return unsupported("structural result source has no completion value");
     };
     let whole_reference =
-        typed_trees_to_checked_trees::validation::reference_result_custody::parts(&checked.typed, state.return_type).is_some()
-            || typed_trees_to_checked_trees::validation::reference_result_custody::shared_borrowed_parts(
+        validation::reference_result_custody::parts(&checked.typed, state.return_type).is_some()
+            || validation::reference_result_custody::shared_borrowed_parts(
                 &checked.typed,
                 state.return_type,
             )
             .is_some()
             || shared_borrowed_slice_view(checked, state.return_type);
-    if typed_trees_to_checked_trees::validation::reference_result_custody::is_reference_record(
-        &checked.typed,
-        state.return_type,
-    ) {
+    if validation::reference_result_custody::is_reference_record(&checked.typed, state.return_type)
+    {
         let expected =
-            typed_trees_to_checked_trees::validation::reference_result_custody::returned_record_sources(&checked.typed, state)
+            validation::reference_result_custody::returned_record_sources(&checked.typed, state)
                 .ok_or(LoweringError::Unsupported(
                     "record completion has no exact returned leaf origins",
                 ))?;
@@ -178,11 +171,8 @@ pub(super) fn validate(
             return unsupported("returned reference has ambiguous establishments");
         }
         super::reference_results::validate_establishment(checked, machine, establishment)?;
-    } else if typed_trees_to_checked_trees::validation::reference_result_custody::parts(
-        &checked.typed,
-        state.return_type,
-    )
-    .is_some()
+    } else if validation::reference_result_custody::parts(&checked.typed, state.return_type)
+        .is_some()
     {
         return unsupported("reference result omits its retained ingress source");
     }
@@ -294,7 +284,7 @@ pub(super) fn validate(
             {
                 return unsupported("returned structural parameter differs from its owned source");
             }
-            if typed_trees_to_checked_trees::validation::is_closed_primitive_array_type(
+            if validation::is_closed_primitive_array_type(
                 &checked.typed,
                 source_parameter.type_reference,
             ) {
@@ -314,7 +304,7 @@ pub(super) fn validate(
                     })?,
                     *expression,
                     state.return_type,
-                    &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan {
+                    &checked_trees::CheckedUnitStructuralArgumentPlan {
                         source: result.source.clone(),
                         path: Vec::new(),
                         type_identity: result.type_identity.clone(),

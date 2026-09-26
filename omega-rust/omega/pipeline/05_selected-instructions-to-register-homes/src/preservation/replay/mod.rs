@@ -10,9 +10,7 @@ use std::collections::BTreeSet;
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
 use crate::AllocationOutput;
-use target_operations_to_selected_instructions::register_environment::{
-    FrameAbiPreservationConvention, selected_abi_preservation,
-};
+use register_environment::{FrameAbiPreservationConvention, selected_abi_preservation};
 
 use super::{
     AllocatedCalleeSavedRequirementError, AllocatedCalleeSavedRequirementPolicy,
@@ -22,8 +20,7 @@ use state::{ReplayTraversal, keyed_homes};
 
 pub(super) struct ReplayResult {
     pub(super) abi: FrameAbiPreservationConvention,
-    pub(super) callee_saved_units:
-        Vec<target_operations_to_selected_instructions::register_model::RegisterUnitId>,
+    pub(super) callee_saved_units: Vec<register_model::RegisterUnitId>,
     pub(super) functions: Vec<FunctionAllocatedCalleeSavedRequirements>,
     pub(super) usage: OptimizationWorkUsage,
 }

@@ -1,13 +1,13 @@
 //! Independent receiving checks for case metadata; never calls construction.
 use super::{AbstractOperationPlan, Error, scalar_graph_input};
 use crate::LegalizationError;
-use crate::legalized_operations::LegalizedScalarTerminator;
-use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
+use abstract_operations::AbstractOperation;
+use legalized_operations::LegalizedScalarTerminator;
 
 pub(super) fn validate(
     actual: &LegalizedScalarTerminator,
-    node: &terminal_psi_to_abstract_operations::optimization_unit::OptimizationNode,
-    function: &terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationFunction,
+    node: &optimization_unit::OptimizationNode,
+    function: &optimization_unit::PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
 ) -> Result<(), LegalizationError> {
     let invalid = Error::NonCanonicalLegalizedPlan;

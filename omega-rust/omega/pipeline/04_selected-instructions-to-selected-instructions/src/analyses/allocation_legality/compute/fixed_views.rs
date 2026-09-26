@@ -2,12 +2,12 @@
 
 use std::collections::BTreeSet;
 
-use target_operations_to_selected_instructions::SelectedBlockId;
-use target_operations_to_selected_instructions::register_model::RegisterViewId;
+use register_model::RegisterViewId;
+use selected_instructions::SelectedBlockId;
 
 use crate::AllocationLegalityError;
-use crate::register_homes::EntryFixedViewTransition;
-use target_operations_to_selected_instructions::{
+use register_homes::EntryFixedViewTransition;
+use selected_instructions::{
     EarlyClobberConstraint, LiveRangePoint, VirtualFixedConstraintSite, VirtualLiveRange,
 };
 
@@ -24,7 +24,7 @@ pub(super) fn for_early_clobber(
                 position,
                 instruction,
                 operand,
-                access: target_operations_to_selected_instructions::register_model::RegisterOperandAccess::Def,
+                access: register_model::RegisterOperandAccess::Def,
                 ..
             } if position == early.position
                 && instruction == early.instruction
@@ -82,8 +82,7 @@ pub(super) fn entry_transitions(register: &VirtualLiveRange) -> Vec<EntryFixedVi
     let mut transitions = Vec::new();
     for constraint in &register.fixed_constraints {
         let site @ VirtualFixedConstraintSite::Operand {
-            access:
-                target_operations_to_selected_instructions::register_model::RegisterOperandAccess::Use,
+            access: register_model::RegisterOperandAccess::Use,
             ..
         } = constraint.site
         else {

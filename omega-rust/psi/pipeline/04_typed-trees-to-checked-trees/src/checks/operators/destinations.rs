@@ -1,18 +1,12 @@
 //! Destination compatibility consumes finalized operator selection. Operand
 //! formats describe a builtin result only after selection retained that builtin.
 
-use crate::checked_trees::{CheckFacts, CheckedOperatorResolutionStatus, CheckedValueOrigin};
+use checked_trees::{CheckFacts, CheckedOperatorResolutionStatus, CheckedValueOrigin};
 use diagnostics::Diagnostic;
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
-    StatementNode, TransitionTargetNode,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
-    PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
-};
+use typed_trees::TypedTrees;
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::statement::{StatementNode, TransitionTargetNode};
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) fn check(program: &TypedTrees, facts: &CheckFacts) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
@@ -40,7 +34,7 @@ pub(super) fn check(program: &TypedTrees, facts: &CheckFacts) -> Vec<Diagnostic>
                         if let Some(symbol) =
                             crate::flow::resolved_operator_statement_symbol(program, call)
                             && let Some(operator) =
-                                symbol_resolved_trees_to_typed_trees::typed_trees::operator::declaration_by_symbol(program, symbol)
+                                typed_trees::operator::declaration_by_symbol(program, symbol)
                         {
                             let arguments =
                                 program.statement_table.expression_handles(call.arguments);
@@ -58,7 +52,7 @@ pub(super) fn check(program: &TypedTrees, facts: &CheckFacts) -> Vec<Diagnostic>
                         check(local.initial_value, local.type_reference)
                     }
                     StatementNode::Assignment(assignment) => {
-                        if let Some(destination) = crate::validation::declared_place_type_raw(
+                        if let Some(destination) = validation::declared_place_type_raw(
                             program,
                             machine,
                             Some(state),
@@ -141,12 +135,10 @@ pub(super) fn check(program: &TypedTrees, facts: &CheckFacts) -> Vec<Diagnostic>
         else {
             continue;
         };
-        let Some(operator) =
-            symbol_resolved_trees_to_typed_trees::typed_trees::operator::declaration_by_symbol(
-                program,
-                selected.selected_operator_symbol,
-            )
-        else {
+        let Some(operator) = typed_trees::operator::declaration_by_symbol(
+            program,
+            selected.selected_operator_symbol,
+        ) else {
             continue;
         };
         let arguments = program.expression_table.expression_handles(call.arguments);
@@ -169,10 +161,9 @@ pub(super) fn check(program: &TypedTrees, facts: &CheckFacts) -> Vec<Diagnostic>
 }
 
 fn positional_operator_parameters(
-    parameters: &[symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter],
+    parameters: &[typed_trees::signature::StateParameter],
     argument_count: usize,
-) -> impl Iterator<Item = &symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter>
-{
+) -> impl Iterator<Item = &typed_trees::signature::StateParameter> {
     // Named-call resolution has already checked this exact signature's arity.
     // Method form consumes either explicit self or the first ordinary parameter;
     // in the latter case it is the signature's one non-positional parameter.
@@ -213,12 +204,12 @@ fn check_destination(
                 .data_members(data)
                 .iter()
                 .find_map(|member| match member {
-                    symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(declared)
+                    typed_trees::data::DataMember::Field(declared)
                         if declared.symbol == field.field_symbol =>
                     {
                         Some(declared.type_reference)
                     }
-                    symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant)
+                    typed_trees::data::DataMember::Variant(variant)
                         if Some(variant.symbol) == literal.case_symbol =>
                     {
                         program
@@ -300,7 +291,7 @@ fn result_primitive(
         machine_symbol: program.symbols.get(state).parent,
         state_symbol: state,
         statement_index: statement,
-        role: crate::checked_trees::CheckedValueStatementRole::Expression,
+        role: checked_trees::CheckedValueStatementRole::Expression,
     };
     match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(atomic) => {
@@ -347,7 +338,7 @@ fn result_primitive(
             numerics::literals::FloatFormat::F64 => PrimitiveType::F64,
         }),
         ExpressionNode::Call(call) => {
-            symbol_resolved_trees_to_typed_trees::typed_trees::operator::resolve_named_expression_call(program, call)
+            typed_trees::operator::resolve_named_expression_call(program, call)
                 .map(|operator| operator.return_type)
                 .or_else(|| {
                     crate::semantic::calls::find_state(program, call.target_symbol)

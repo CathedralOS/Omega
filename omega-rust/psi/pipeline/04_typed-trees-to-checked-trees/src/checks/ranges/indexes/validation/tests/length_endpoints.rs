@@ -8,7 +8,7 @@ use crate::tests::front_end::typed_program;
 fn source(
     access: &str,
 ) -> (
-    symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    typed_trees::TypedTrees,
     ExpressionHandle,
     TableIndexedExpression,
 ) {
@@ -31,7 +31,7 @@ fn source(
 }
 
 fn check(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     expression: ExpressionHandle,
     indexed: &TableIndexedExpression,
     facts: &RangeFacts<'_>,

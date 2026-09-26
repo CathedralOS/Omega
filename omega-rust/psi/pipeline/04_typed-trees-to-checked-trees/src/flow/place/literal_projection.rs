@@ -1,22 +1,20 @@
 //! Project a callee access route through constructors, without replacing a
 //! caller binding by its captured storage origin. Constructors have no caller
 //! address; their actual field/element expressions supply the access routes.
-use crate::checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression_in_state;
-use symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember;
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::{
-    FixedArrayLength, TypeReferenceHandle, TypeReferenceNode,
-};
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
+use typed_trees::data::DataMember;
+use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn literal_argument_access_places(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
-    segments: &[crate::fact_plan::PlaceSegment],
+    segments: &[facts::PlaceSegment],
 ) -> Option<Vec<CanonicalPlace>> {
     literal_projections(
         program,
@@ -41,8 +39,8 @@ pub(crate) fn literal_argument_access_places(
 
 pub(crate) struct LiteralValueProjection {
     pub expression: ExpressionHandle,
-    pub remaining: Vec<crate::fact_plan::PlaceSegment>,
-    pub destination: Vec<crate::fact_plan::PlaceSegment>,
+    pub remaining: Vec<facts::PlaceSegment>,
+    pub destination: Vec<facts::PlaceSegment>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -57,13 +55,13 @@ enum ProjectionMode {
 /// nested fields/array elements through the same projection owner as accesses;
 /// never replay a local initializer to discover its former tag.
 pub(crate) fn literal_value_path_is_inactive(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
-    segments: &[crate::fact_plan::PlaceSegment],
+    segments: &[facts::PlaceSegment],
 ) -> bool {
     segments.iter().enumerate().any(|(position, segment)| {
-        let crate::fact_plan::PlaceSegment::Case { variant } = segment else {
+        let facts::PlaceSegment::Case { variant } = segment else {
             return false;
         };
         let Some(projections) =
@@ -104,10 +102,10 @@ pub(crate) fn literal_value_path_is_inactive(
 }
 
 pub(crate) fn literal_value_projections(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
-    segments: &[crate::fact_plan::PlaceSegment],
+    segments: &[facts::PlaceSegment],
     enumerate: bool,
 ) -> Option<Vec<LiteralValueProjection>> {
     literal_projections(
@@ -124,10 +122,10 @@ pub(crate) fn literal_value_projections(
 }
 
 fn literal_projections(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
-    segments: &[crate::fact_plan::PlaceSegment],
+    segments: &[facts::PlaceSegment],
     mode: ProjectionMode,
 ) -> Option<Vec<LiteralValueProjection>> {
     let mut pending = vec![(expression, reference, segments, Vec::new())];
@@ -210,10 +208,8 @@ fn literal_projections(
                         {
                             return None;
                         }
-                        if let Some((
-                            crate::fact_plan::PlaceSegment::Case { variant: selected },
-                            remaining,
-                        )) = segments.split_first()
+                        if let Some((facts::PlaceSegment::Case { variant: selected }, remaining)) =
+                            segments.split_first()
                         {
                             if *selected != variant.symbol {
                                 return None;
@@ -235,7 +231,7 @@ fn literal_projections(
                     };
                 let actuals = program.expression_table.struct_fields(literal.fields);
                 let selected = match segments.split_first() {
-                    Some((crate::fact_plan::PlaceSegment::Field { symbol }, remaining)) => {
+                    Some((facts::PlaceSegment::Field { symbol }, remaining)) => {
                         Some((*symbol, remaining))
                     }
                     None => None,
@@ -276,12 +272,10 @@ fn literal_projections(
                         return None;
                     };
                     let mut destination = destination.clone();
-                    if let Some(variant) =
-                        crate::fact_plan::payload_variant_for_field(program, field.symbol)
-                    {
-                        destination.push(crate::fact_plan::PlaceSegment::Case { variant });
+                    if let Some(variant) = facts::payload_variant_for_field(program, field.symbol) {
+                        destination.push(facts::PlaceSegment::Case { variant });
                     }
-                    destination.push(crate::fact_plan::PlaceSegment::Field {
+                    destination.push(facts::PlaceSegment::Field {
                         symbol: field.symbol,
                     });
                     pending.push((
@@ -308,14 +302,13 @@ fn literal_projections(
                     None => {
                         for (index, element) in elements.iter().enumerate() {
                             let mut destination = destination.clone();
-                            destination.push(crate::fact_plan::PlaceSegment::FixedIndex { index });
+                            destination.push(facts::PlaceSegment::FixedIndex { index });
                             pending.push((*element, *element_type, &[], destination));
                         }
                     }
-                    Some((crate::fact_plan::PlaceSegment::FixedIndex { index }, remaining)) => {
+                    Some((facts::PlaceSegment::FixedIndex { index }, remaining)) => {
                         let mut destination = destination;
-                        destination
-                            .push(crate::fact_plan::PlaceSegment::FixedIndex { index: *index });
+                        destination.push(facts::PlaceSegment::FixedIndex { index: *index });
                         pending.push((
                             *elements.get(*index)?,
                             *element_type,
@@ -323,20 +316,19 @@ fn literal_projections(
                             destination,
                         ));
                     }
-                    Some((crate::fact_plan::PlaceSegment::Index { .. }, remaining)) => {
+                    Some((facts::PlaceSegment::Index { .. }, remaining)) => {
                         for (index, element) in elements.iter().enumerate() {
                             let mut destination = destination.clone();
-                            destination.push(crate::fact_plan::PlaceSegment::FixedIndex { index });
+                            destination.push(facts::PlaceSegment::FixedIndex { index });
                             pending.push((*element, *element_type, remaining, destination));
                         }
                     }
-                    Some((
-                        crate::fact_plan::PlaceSegment::FixedRange { start, end },
-                        remaining,
-                    )) if start <= end && *end <= elements.len() => {
+                    Some((facts::PlaceSegment::FixedRange { start, end }, remaining))
+                        if start <= end && *end <= elements.len() =>
+                    {
                         for (offset, element) in elements[*start..*end].iter().enumerate() {
                             let mut destination = destination.clone();
-                            destination.push(crate::fact_plan::PlaceSegment::FixedIndex {
+                            destination.push(facts::PlaceSegment::FixedIndex {
                                 index: start + offset,
                             });
                             pending.push((*element, *element_type, remaining, destination));

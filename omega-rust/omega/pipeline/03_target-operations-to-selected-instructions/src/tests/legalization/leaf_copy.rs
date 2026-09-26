@@ -1,23 +1,23 @@
 //! An owned leaf copy of a readable root legalizes to a chunked storage copy.
-use crate::legalized_operations::LegalizedScalarInstructionKind;
-use crate::selected_instructions::{SelectedInstructionKind, SelectedMemoryAccessRole};
 use crate::{
     legalize_target_operations, select_instructions, selection_constraints,
     validate_selected_instructions,
 };
+use abstract_operations::AbstractOperation;
 use abstract_operations_to_target_operations::TargetLoweringRequest;
-use abstract_operations_to_target_operations::target_operations::TargetUnitOperation;
+use legalized_operations::LegalizedScalarInstructionKind;
+use selected_instructions::{SelectedInstructionKind, SelectedMemoryAccessRole};
 use semantic_vocabulary::{
     FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, OperationId, PlaceId, ScalarType,
     StructuralFieldId, StructuralTypeId, ValueId,
 };
 use target::NativeTarget;
+use target_operations::TargetUnitOperation;
 use terminal_psi::{
     StructuralAccess, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralOperationResult, StructuralPathSegment, StructuralTypeDeclaration,
     StructuralTypeShape,
 };
-use terminal_psi_to_abstract_operations::abstract_operations::AbstractOperation;
 
 fn i32_type() -> ScalarType {
     ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap())
@@ -246,9 +246,9 @@ pub(crate) fn endpoint_fixture(
     path: Vec<StructuralPathSegment>,
     result_type: StructuralTypeId,
 ) -> (
-    terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan,
-    abstract_operations_to_target_operations::target_operations::TargetOperationPlan,
-    terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
+    abstract_operations::AbstractOperationPlan,
+    target_operations::TargetOperationPlan,
+    optimization_unit::PsiOptimizationUnit,
 ) {
     let source = leaf_copy_source(param, path, result_type);
     let target = abstract_operations_to_target_operations::lower_to_target_operations(
@@ -257,13 +257,13 @@ pub(crate) fn endpoint_fixture(
     )
     .expect("a readable root admits a static leaf copy");
     let unit = super::accept_referenced_obligations(
-        terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
+        optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             FuelScheduleIdentity::new(1).unwrap(),
         )
         .unwrap(),
     );
-    terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&unit)
+    optimization_unit_semantics::validate_psi_optimization_unit(&unit)
         .expect("leaf copy graph keeps canonical custody");
     (source, target, unit)
 }
@@ -273,7 +273,7 @@ fn leaf_copy_source(
     param: StructuralTypeDeclaration,
     path: Vec<StructuralPathSegment>,
     result_type: StructuralTypeId,
-) -> terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan {
+) -> abstract_operations::AbstractOperationPlan {
     leaf_copy_source_access(param, path, result_type, StructuralAccess::SharedBorrow)
 }
 
@@ -283,7 +283,7 @@ fn leaf_copy_source_access(
     path: Vec<StructuralPathSegment>,
     result_type: StructuralTypeId,
     access: StructuralAccess,
-) -> terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan {
+) -> abstract_operations::AbstractOperationPlan {
     let (mut source, _, _) = crate::tests::fixtures::plain_unit::plain_unit_fixture();
     let mut declarations = catalog();
     declarations.retain(|declaration| declaration.id != param.id);
@@ -342,12 +342,9 @@ fn host(leaf_field_type: StructuralFieldType) -> StructuralTypeDeclaration {
 /// The retained leaf copy's `(byte_offset, shape)` in both target operations
 /// and the legalized scalar graph, asserting the stages agree.
 fn leaf_copy_rows(
-    target: &abstract_operations_to_target_operations::target_operations::TargetOperationPlan,
+    target: &target_operations::TargetOperationPlan,
     legal: &crate::ValidatedLegalizedOperations,
-) -> (
-    u32,
-    abstract_operations_to_target_operations::calling_conventions::ValueShape,
-) {
+) -> (u32, calling_conventions::ValueShape) {
     let copies: Vec<_> = target.functions[0]
         .graph
         .blocks
@@ -391,9 +388,9 @@ fn field_leaf(
     leaf_type: StructuralTypeDeclaration,
     result_type: StructuralTypeId,
 ) -> (
-    terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan,
-    abstract_operations_to_target_operations::target_operations::TargetOperationPlan,
-    terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
+    abstract_operations::AbstractOperationPlan,
+    target_operations::TargetOperationPlan,
+    optimization_unit::PsiOptimizationUnit,
 ) {
     endpoint_fixture(
         NativeTarget::linux_x64(),
@@ -410,9 +407,9 @@ fn structural_field(ty: StructuralTypeDeclaration) -> StructuralFieldType {
 pub(crate) fn fixture(
     native: NativeTarget,
 ) -> (
-    terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan,
-    abstract_operations_to_target_operations::target_operations::TargetOperationPlan,
-    terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
+    abstract_operations::AbstractOperationPlan,
+    target_operations::TargetOperationPlan,
+    optimization_unit::PsiOptimizationUnit,
 ) {
     endpoint_fixture(
         native,
@@ -474,7 +471,7 @@ fn leaf_copy_lowers_with_exact_projection_offset() {
                         ..
                     } if *source == PlaceId::new(1).unwrap()
                         && *byte_offset == 8
-                        && *shape == abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(16, 8)
+                        && *shape == calling_conventions::ValueShape::integer(16, 8)
                 )
             })
             .collect();
@@ -487,8 +484,7 @@ fn leaf_copy_selects_chunked_loads_and_stores_into_fresh_storage() {
     let native = NativeTarget::linux_x64();
     let (source, target, unit) = fixture(native);
     let legal = legalize_target_operations(&target, &source, &unit).unwrap();
-    let environment =
-        crate::register_environment::baseline_target_register_environment(native).unwrap();
+    let environment = register_environment::baseline_target_register_environment(native).unwrap();
     let constraints = selection_constraints(&legal, &environment);
     let selected = select_instructions(
         &legal,
@@ -509,7 +505,7 @@ fn leaf_copy_selects_chunked_loads_and_stores_into_fresh_storage() {
     assert_eq!(function.local_storage_slots.len(), 1);
     assert_eq!(
         function.local_storage_slots[0].id,
-        crate::selected_instructions::LocalStorageSlotId::Structural {
+        selected_instructions::LocalStorageSlotId::Structural {
             operation: OperationId::new(1).unwrap(),
             place: PlaceId::new(2).unwrap(),
         }
@@ -562,7 +558,7 @@ fn leaf_copy_selects_chunked_loads_and_stores_into_fresh_storage() {
             .virtual_registers
             .iter()
             .any(|register| matches!(register.origin,
-                crate::selected_instructions::VirtualRegisterOrigin::AbiTransport { place, .. }
+                selected_instructions::VirtualRegisterOrigin::AbiTransport { place, .. }
                     if place == PlaceId::new(2).unwrap())),
         "the copied leaf publishes its result pointer"
     );
@@ -590,7 +586,7 @@ fn leaf_copy_rejects_projection_and_home_substitution() {
             1 => *path = vec![StructuralPathSegment::Field("tag".into())],
             2 => *byte_offset = 0,
             3 => {
-                let abstract_operations_to_target_operations::target_operations::TargetStructuralHomeOrigin::OperationResult {
+                let target_operations::TargetStructuralHomeOrigin::OperationResult {
                     result, ..
                 } = &mut result_home.origin
                 else {
@@ -627,12 +623,7 @@ fn leaf_copy_scalar_field_endpoint_lowers_and_legalizes() {
         .expect("a scalar leaf endpoint legalizes");
     assert_eq!(
         leaf_copy_rows(&target, &legal),
-        (
-            0,
-            abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(
-                4, 4
-            )
-        )
+        (0, calling_conventions::ValueShape::integer(4, 4))
     );
 }
 
@@ -671,12 +662,7 @@ fn leaf_copy_fixed_index_traversal_resolves_the_element() {
         .expect("a fixed array element endpoint legalizes");
     assert_eq!(
         leaf_copy_rows(&target, &legal),
-        (
-            24,
-            abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(
-                16, 8
-            )
-        )
+        (24, calling_conventions::ValueShape::integer(16, 8))
     );
 }
 
@@ -724,10 +710,9 @@ fn leaf_copy_selects_fixed_array_copy() {
     // pairs into its fresh structural slot.
     let (source, target, unit) = field_leaf(array_type(), StructuralTypeId::new(60).unwrap());
     let legal = legalize_target_operations(&target, &source, &unit).unwrap();
-    let environment = crate::register_environment::baseline_target_register_environment(
-        NativeTarget::linux_x64(),
-    )
-    .unwrap();
+    let environment =
+        register_environment::baseline_target_register_environment(NativeTarget::linux_x64())
+            .unwrap();
     let constraints = selection_constraints(&legal, &environment);
     let selected = select_instructions(
         &legal,
@@ -782,7 +767,7 @@ fn u64_type() -> ScalarType {
 fn runtime_index_source(
     index: u64,
     index_scalar: ScalarType,
-) -> terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan {
+) -> abstract_operations::AbstractOperationPlan {
     let mut source = leaf_copy_source(
         host(structural_field(array_type())),
         vec![
@@ -794,19 +779,19 @@ fn runtime_index_source(
         ],
         StructuralTypeId::new(10).unwrap(),
     );
-    source.functions[0].parameters.push(
-        terminal_psi_to_abstract_operations::abstract_operations::AbstractParameter {
+    source.functions[0]
+        .parameters
+        .push(abstract_operations::AbstractParameter {
             value: ValueId::new(9).unwrap(),
             scalar_type: index_scalar,
-        },
-    );
+        });
     source
 }
 
 fn runtime_index_fixture() -> (
-    terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan,
-    abstract_operations_to_target_operations::target_operations::TargetOperationPlan,
-    terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
+    abstract_operations::AbstractOperationPlan,
+    target_operations::TargetOperationPlan,
+    optimization_unit::PsiOptimizationUnit,
 ) {
     let source = runtime_index_source(9, u64_type());
     let target = abstract_operations_to_target_operations::lower_to_target_operations(
@@ -815,13 +800,13 @@ fn runtime_index_fixture() -> (
     )
     .expect("a bounded runtime index admits a leaf copy");
     let unit = super::accept_referenced_obligations(
-        terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
+        optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             FuelScheduleIdentity::new(1).unwrap(),
         )
         .unwrap(),
     );
-    terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&unit)
+    optimization_unit_semantics::validate_psi_optimization_unit(&unit)
         .expect("runtime-index leaf copy graph keeps canonical custody");
     (source, target, unit)
 }
@@ -855,7 +840,7 @@ fn leaf_copy_runtime_index_copies_through_dynamic_address() {
     assert_eq!(index.stride, 16, "the record element stride");
     assert_eq!(
         index.operand,
-        abstract_operations_to_target_operations::target_operations::TargetUnitScalarArgumentSource::Parameter {
+        target_operations::TargetUnitScalarArgumentSource::Parameter {
             parameter_index: 0,
             source_value: ValueId::new(9).unwrap(),
             scalar_type: u64_type(),
@@ -885,16 +870,13 @@ fn leaf_copy_runtime_index_copies_through_dynamic_address() {
         unreachable!()
     };
     assert_eq!(*byte_offset, 8);
-    assert_eq!(
-        *shape,
-        abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(16, 8)
-    );
+    assert_eq!(*shape, calling_conventions::ValueShape::integer(16, 8));
     assert_eq!(
         indices.as_slice(),
         &[super::runtime_operand(
             &unit,
             OperationId::new(1).unwrap(),
-            terminal_psi_to_abstract_operations::abstract_operations::AbstractResult {
+            abstract_operations::AbstractResult {
                 value: ValueId::new(9).unwrap(),
                 scalar_type: u64_type(),
             },
@@ -903,8 +885,7 @@ fn leaf_copy_runtime_index_copies_through_dynamic_address() {
             semantic_vocabulary::ObligationId::new(1).unwrap(),
         )]
     );
-    let environment =
-        crate::register_environment::baseline_target_register_environment(native).unwrap();
+    let environment = register_environment::baseline_target_register_environment(native).unwrap();
     let constraints = selection_constraints(&legal, &environment);
     let selected = select_instructions(
         &legal,
@@ -976,7 +957,7 @@ fn leaf_copy_runtime_index_copies_through_dynamic_address() {
     assert_eq!(source_rows.len(), 2, "one element row per loaded chunk");
     assert!(source_rows.iter().all(|(_, role)| matches!(
         role,
-        crate::selected_instructions::SelectedMemoryAccessRole::ReadIndexedPrimitive {
+        selected_instructions::SelectedMemoryAccessRole::ReadIndexedPrimitive {
             index,
             stride: 16,
             extent: 2,
@@ -1003,20 +984,19 @@ fn leaf_copy_runtime_index_widens_integer_selectors() {
         )
         .unwrap_or_else(|error| panic!("{scalar:?} selector admits a leaf copy: {error:?}"));
         let unit = super::accept_referenced_obligations(
-            terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
+            optimization_unit::reconstruct_psi_optimization_unit_seed(
                 &source,
                 FuelScheduleIdentity::new(1).unwrap(),
             )
             .unwrap(),
         );
-        terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&unit)
+        optimization_unit_semantics::validate_psi_optimization_unit(&unit)
             .expect("integer-index leaf copy graph keeps canonical custody");
         let legal = legalize_target_operations(&target, &source, &unit)
             .unwrap_or_else(|error| panic!("{scalar:?} selector legalizes: {error:?}"));
-        let environment = crate::register_environment::baseline_target_register_environment(
-            NativeTarget::linux_x64(),
-        )
-        .unwrap();
+        let environment =
+            register_environment::baseline_target_register_environment(NativeTarget::linux_x64())
+                .unwrap();
         let constraints = selection_constraints(&legal, &environment);
         let selected = select_instructions(
             &legal,
@@ -1129,7 +1109,7 @@ fn leaf_copy_runtime_index_admits_a_defined_non_parameter_selector() {
     assert_eq!(index.stride, 16, "the record element stride");
     assert_eq!(
         index.operand,
-        abstract_operations_to_target_operations::target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
+        target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
             defining_operation: OperationId::new(2).unwrap(),
             source_value: ValueId::new(12).unwrap(),
             scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
@@ -1137,13 +1117,13 @@ fn leaf_copy_runtime_index_admits_a_defined_non_parameter_selector() {
         }
     );
     let unit = super::accept_referenced_obligations(
-        terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
+        optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             FuelScheduleIdentity::new(1).unwrap(),
         )
         .unwrap(),
     );
-    terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&unit)
+    optimization_unit_semantics::validate_psi_optimization_unit(&unit)
         .expect("defined-selector leaf copy graph keeps canonical custody");
     let legal = legalize_target_operations(&target, &source, &unit)
         .expect("defined-selector leaf copy legalizes");
@@ -1167,7 +1147,7 @@ fn leaf_copy_runtime_index_admits_a_defined_non_parameter_selector() {
         &[super::runtime_operand(
             &unit,
             OperationId::new(1).unwrap(),
-            terminal_psi_to_abstract_operations::abstract_operations::AbstractResult {
+            abstract_operations::AbstractResult {
                 value: ValueId::new(12).unwrap(),
                 scalar_type: u64_type(),
             },
@@ -1184,7 +1164,7 @@ fn leaf_copy_runtime_index_admits_a_defined_non_parameter_selector() {
 fn nested_runtime_index_source(
     indexes: (u64, u64),
     index_scalar: ScalarType,
-) -> terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan {
+) -> abstract_operations::AbstractOperationPlan {
     let runtime = |index, obligation| StructuralPathSegment::RuntimeIndex {
         index: ValueId::new(index).unwrap(),
         obligation: semantic_vocabulary::ObligationId::new(obligation).unwrap(),
@@ -1199,11 +1179,11 @@ fn nested_runtime_index_source(
         StructuralTypeId::new(10).unwrap(),
     );
     source.functions[0].parameters.extend([
-        terminal_psi_to_abstract_operations::abstract_operations::AbstractParameter {
+        abstract_operations::AbstractParameter {
             value: ValueId::new(9).unwrap(),
             scalar_type: index_scalar,
         },
-        terminal_psi_to_abstract_operations::abstract_operations::AbstractParameter {
+        abstract_operations::AbstractParameter {
             value: ValueId::new(10).unwrap(),
             scalar_type: index_scalar,
         },
@@ -1221,13 +1201,13 @@ fn leaf_copy_nested_runtime_indices_copy_through_chained_addresses() {
     )
     .expect("bounded runtime indices admit a leaf copy");
     let unit = super::accept_referenced_obligations(
-        terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
+        optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             FuelScheduleIdentity::new(1).unwrap(),
         )
         .unwrap(),
     );
-    terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&unit)
+    optimization_unit_semantics::validate_psi_optimization_unit(&unit)
         .expect("runtime-index leaf copy graph keeps canonical custody");
     let copies: Vec<_> = target.functions[0]
         .graph
@@ -1252,16 +1232,16 @@ fn leaf_copy_nested_runtime_indices_copy_through_chained_addresses() {
     assert_eq!(
         indices.as_slice(),
         &[
-            abstract_operations_to_target_operations::target_operations::TargetStructuralRuntimeIndex {
-                operand: abstract_operations_to_target_operations::target_operations::TargetUnitScalarArgumentSource::Parameter {
+            target_operations::TargetStructuralRuntimeIndex {
+                operand: target_operations::TargetUnitScalarArgumentSource::Parameter {
                     parameter_index: 0,
                     source_value: ValueId::new(9).unwrap(),
                     scalar_type: u64_type(),
                 },
                 stride: 48,
             },
-            abstract_operations_to_target_operations::target_operations::TargetStructuralRuntimeIndex {
-                operand: abstract_operations_to_target_operations::target_operations::TargetUnitScalarArgumentSource::Parameter {
+            target_operations::TargetStructuralRuntimeIndex {
+                operand: target_operations::TargetUnitScalarArgumentSource::Parameter {
                     parameter_index: 1,
                     source_value: ValueId::new(10).unwrap(),
                     scalar_type: u64_type(),
@@ -1295,17 +1275,14 @@ fn leaf_copy_nested_runtime_indices_copy_through_chained_addresses() {
         unreachable!()
     };
     assert_eq!(*byte_offset, 8);
-    assert_eq!(
-        *shape,
-        abstract_operations_to_target_operations::calling_conventions::ValueShape::integer(16, 8)
-    );
+    assert_eq!(*shape, calling_conventions::ValueShape::integer(16, 8));
     assert_eq!(
         indices.as_slice(),
         &[
             super::runtime_operand(
                 &unit,
                 OperationId::new(1).unwrap(),
-                terminal_psi_to_abstract_operations::abstract_operations::AbstractResult {
+                abstract_operations::AbstractResult {
                     value: ValueId::new(9).unwrap(),
                     scalar_type: u64_type(),
                 },
@@ -1316,7 +1293,7 @@ fn leaf_copy_nested_runtime_indices_copy_through_chained_addresses() {
             super::runtime_operand(
                 &unit,
                 OperationId::new(1).unwrap(),
-                terminal_psi_to_abstract_operations::abstract_operations::AbstractResult {
+                abstract_operations::AbstractResult {
                     value: ValueId::new(10).unwrap(),
                     scalar_type: u64_type(),
                 },
@@ -1326,8 +1303,7 @@ fn leaf_copy_nested_runtime_indices_copy_through_chained_addresses() {
             ),
         ]
     );
-    let environment =
-        crate::register_environment::baseline_target_register_environment(native).unwrap();
+    let environment = register_environment::baseline_target_register_environment(native).unwrap();
     let constraints = selection_constraints(&legal, &environment);
     let selected = select_instructions(
         &legal,
@@ -1442,17 +1418,16 @@ fn leaf_copy_fragment_backed_owned_param_selects_and_validates() {
     )
     .expect("an owned fragment-backed root admits a whole-root leaf copy");
     let unit = super::accept_referenced_obligations(
-        terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
+        optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             FuelScheduleIdentity::new(1).unwrap(),
         )
         .unwrap(),
     );
-    terminal_psi_to_abstract_operations::optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+    optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
     let legal = legalize_target_operations(&target, &source, &unit)
         .expect("leaf copy from a fragment-backed owned param legalizes");
-    let environment =
-        crate::register_environment::baseline_target_register_environment(native).unwrap();
+    let environment = register_environment::baseline_target_register_environment(native).unwrap();
     let constraints = selection_constraints(&legal, &environment);
     let selected = select_instructions(
         &legal,
@@ -1477,7 +1452,7 @@ fn leaf_copy_fragment_backed_owned_param_selects_and_validates() {
             .local_storage_slots
             .iter()
             .any(|slot| matches!(slot.id,
-                crate::selected_instructions::LocalStorageSlotId::StructuralParameter { place }
+                selected_instructions::LocalStorageSlotId::StructuralParameter { place }
                     if place == PlaceId::new(1).unwrap())),
         "no StructuralParameter home for the fragment-backed param"
     );
@@ -1522,7 +1497,7 @@ fn leaf_copy_fragment_backed_owned_param_selects_and_validates() {
             .virtual_registers
             .iter()
             .any(|register| matches!(register.origin,
-                crate::selected_instructions::VirtualRegisterOrigin::AbiTransport { place, .. }
+                selected_instructions::VirtualRegisterOrigin::AbiTransport { place, .. }
                     if place == PlaceId::new(2).unwrap())),
         "the copied leaf publishes its result pointer"
     );

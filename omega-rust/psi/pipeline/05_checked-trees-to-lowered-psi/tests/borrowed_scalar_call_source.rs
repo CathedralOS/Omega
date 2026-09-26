@@ -1,8 +1,5 @@
 //! Ordinary callers preserve borrowed primitive effects and scalar results.
 
-use lowered_psi_to_terminal_psi::terminal_production::{
-    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
-};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
@@ -10,14 +7,14 @@ use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralPrimitiveValue, TerminalStructuralValue,
 };
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 use terminal_psi::{OperationKind, StructuralAccess};
 
 // Catalog order includes scalar callees. Resolve the authored fixture owner once,
 // then join its exact symbol to the retained body being corrupted.
-fn ordinary_body_index(
-    checked: &typed_trees_to_checked_trees::checked_trees::CheckedTrees,
-    name: &str,
-) -> usize {
+fn ordinary_body_index(checked: &checked_trees::CheckedTrees, name: &str) -> usize {
     let mut machines = checked
         .machines()
         .iter()
@@ -59,16 +56,15 @@ fn immutable_snapshot_precedes_the_call_and_fresh_local_read_observes_zero() {
         }
     "#,
     );
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("enter"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .unwrap()
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     execute_with_expectations(
         &artifact,
         &[],
@@ -101,16 +97,15 @@ fn repeated_calls_keep_distinct_local_referents_and_charge_each_invocation() {
         }
     "#,
     );
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("enter"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .unwrap()
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert_eq!(
         module.machines.len(),
@@ -136,16 +131,15 @@ fn unused_primitive_local_still_establishes_once_and_cannot_be_removed_or_duplic
     let original = crate::front_end::checked_program(
         "machine enter(value: &mut u64) { let mut unused: u64 = 13; value = 7; }",
     );
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &original,
-            TerminalMachineSelection::Name("enter"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .unwrap()
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &original,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     execute_with_expectations(
         &artifact,
         &[],
@@ -165,7 +159,7 @@ fn unused_primitive_local_still_establishes_once_and_cannot_be_removed_or_duplic
             &mut changed.facts.flow.terminal_unit_effects.machines[caller_index].operations;
         assert!(matches!(
             operations[0],
-            typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
+            checked_trees::CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
         ));
         if duplicate {
             operations.insert(0, operations[0].clone());
@@ -173,7 +167,7 @@ fn unused_primitive_local_still_establishes_once_and_cannot_be_removed_or_duplic
             operations.remove(0);
         }
         assert!(
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            terminal_production::TerminalProductionRequest::new(
                 &changed,
                 TerminalMachineSelection::Name("enter")
             )
@@ -199,16 +193,15 @@ const TWO_LOCAL_SOURCE: &str = r#"
 #[test]
 fn primitive_local_initializer_cannot_move_after_its_borrow_or_use_another_symbol() {
     let original = crate::front_end::checked_program(TWO_LOCAL_SOURCE);
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &original,
-            TerminalMachineSelection::Name("enter"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .unwrap()
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &original,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     execute_with_expectations(
         &artifact,
         &[],
@@ -226,7 +219,7 @@ fn primitive_local_initializer_cannot_move_after_its_borrow_or_use_another_symbo
         let caller_index = ordinary_body_index(&changed, "enter");
         let operations =
             &mut changed.facts.flow.terminal_unit_effects.machines[caller_index].operations;
-        let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
+        let checked_trees::CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
             symbol: second,
             ..
         } = operations[1]
@@ -239,7 +232,7 @@ fn primitive_local_initializer_cannot_move_after_its_borrow_or_use_another_symbo
                 operations.insert(2, initializer);
             }
             1 => {
-                let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
+                let checked_trees::CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
                     symbol,
                     ..
                 } = &mut operations[0]
@@ -249,7 +242,7 @@ fn primitive_local_initializer_cannot_move_after_its_borrow_or_use_another_symbo
                 *symbol = second;
             }
             2 => {
-                let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::ScalarCall {
+                let checked_trees::CheckedUnitEffectOperationPlan::ScalarCall {
                     structural_arguments,
                     ..
                 } = &mut operations[2]
@@ -257,12 +250,12 @@ fn primitive_local_initializer_cannot_move_after_its_borrow_or_use_another_symbo
                     panic!("borrowed scalar call");
                 };
                 structural_arguments[0].source =
-                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal {
                         symbol: second,
                     };
             }
             3 => {
-                let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
+                let checked_trees::CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
                     statement_index,
                     ..
                 } = &mut operations[0]
@@ -274,7 +267,7 @@ fn primitive_local_initializer_cannot_move_after_its_borrow_or_use_another_symbo
             _ => unreachable!(),
         }
         assert!(
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            terminal_production::TerminalProductionRequest::new(
                 &changed,
                 TerminalMachineSelection::Name("enter")
             )
@@ -290,7 +283,7 @@ fn primitive_local_initializer_cannot_move_after_its_borrow_or_use_another_symbo
 #[test]
 fn primitive_storage_read_cannot_substitute_another_symbol_initializer_or_scalar_binding() {
     let original = crate::front_end::checked_program(TWO_LOCAL_SOURCE);
-    let _ = lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+    let _ = terminal_production::TerminalProductionRequest::new(
         &original,
         TerminalMachineSelection::Name("enter"),
     )
@@ -308,14 +301,14 @@ fn primitive_storage_read_cannot_substitute_another_symbol_initializer_or_scalar
         let caller_index = ordinary_body_index(&changed, "enter");
         let operations =
             &mut changed.facts.flow.terminal_unit_effects.machines[caller_index].operations;
-        let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
+        let checked_trees::CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
             symbol: second,
             ..
         } = operations[1]
         else {
             panic!("second primitive declaration");
         };
-        let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
+        let checked_trees::CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
             value: initializer,
             ..
         } = &operations[0]
@@ -323,14 +316,14 @@ fn primitive_storage_read_cannot_substitute_another_symbol_initializer_or_scalar
             panic!("first primitive initializer");
         };
         let initializer = initializer.clone();
-        let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
-            value: typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(value),
+        let checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+            value: checked_trees::CheckedCallScalarArgument::Pure(value),
             ..
         } = &mut operations[3]
         else {
             panic!("caller read and store");
         };
-        let typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::StorageRead {
+        let checked_trees::CheckedScalarExpression::StorageRead {
             symbol,
             primitive_type,
         } = value
@@ -338,32 +331,26 @@ fn primitive_storage_read_cannot_substitute_another_symbol_initializer_or_scalar
             panic!("authored read retains storage identity");
         };
         *value = match mutation {
-            0 => {
-                typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::StorageRead {
-                    symbol: symbols::SymbolHandle::invalid(),
-                    primitive_type: *primitive_type,
-                }
-            }
-            1 => {
-                typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::StorageRead {
-                    symbol: second,
-                    primitive_type: *primitive_type,
-                }
-            }
+            0 => checked_trees::CheckedScalarExpression::StorageRead {
+                symbol: symbols::SymbolHandle::invalid(),
+                primitive_type: *primitive_type,
+            },
+            1 => checked_trees::CheckedScalarExpression::StorageRead {
+                symbol: second,
+                primitive_type: *primitive_type,
+            },
             2 => initializer,
-            3 => typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::Local {
+            3 => checked_trees::CheckedScalarExpression::Local {
                 position: 0,
                 primitive_type: *primitive_type,
             },
-            4 => {
-                typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::StorageRead {
-                    symbol: symbols::SymbolHandle::from_parts(
-                        symbol.arena_index(),
-                        symbol.generation() + 1,
-                    ),
-                    primitive_type: *primitive_type,
-                }
-            }
+            4 => checked_trees::CheckedScalarExpression::StorageRead {
+                symbol: symbols::SymbolHandle::from_parts(
+                    symbol.arena_index(),
+                    symbol.generation() + 1,
+                ),
+                primitive_type: *primitive_type,
+            },
             _ => unreachable!(),
         };
         let replacement = value.clone();
@@ -378,7 +365,7 @@ fn primitive_storage_read_cannot_substitute_another_symbol_initializer_or_scalar
                     expression.state == caller_state
                         && expression.statement_ordinal == 3
                         && expression.role
-                            == typed_trees_to_checked_trees::checked_trees::CheckedScalarExpressionRole::AssignmentValue
+                            == checked_trees::CheckedScalarExpressionRole::AssignmentValue
                 });
             let expression = expressions
                 .next()
@@ -386,12 +373,12 @@ fn primitive_storage_read_cannot_substitute_another_symbol_initializer_or_scalar
             assert!(expressions.next().is_none());
             assert!(matches!(
                 expression.expression,
-                typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::StorageRead { .. }
+                checked_trees::CheckedScalarExpression::StorageRead { .. }
             ));
             expression.expression = replacement;
         }
         assert!(
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            terminal_production::TerminalProductionRequest::new(
                 &changed,
                 TerminalMachineSelection::Name("enter")
             )
@@ -407,7 +394,7 @@ fn primitive_storage_read_cannot_substitute_another_symbol_initializer_or_scalar
 #[test]
 fn primitive_local_plan_cannot_grant_mutability_to_an_immutable_authored_binding() {
     let mut changed = crate::front_end::checked_program(TWO_LOCAL_SOURCE);
-    let _ = lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+    let _ = terminal_production::TerminalProductionRequest::new(
         &changed,
         TerminalMachineSelection::Name("enter"),
     )
@@ -425,7 +412,7 @@ fn primitive_local_plan_cannot_grant_mutability_to_an_immutable_authored_binding
         .find(|state| state.symbol == state_symbol)
         .unwrap()
         .statement_nodes;
-    let typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(local) =
+    let checked_trees::statement::StatementNode::LocalData(local) =
         &mut changed.typed.statement_table.statements_mut(statements)[0]
     else {
         panic!("first authored local");
@@ -433,7 +420,7 @@ fn primitive_local_plan_cannot_grant_mutability_to_an_immutable_authored_binding
     assert!(local.is_mutable);
     local.is_mutable = false;
     assert!(
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+        terminal_production::TerminalProductionRequest::new(
             &changed,
             TerminalMachineSelection::Name("enter")
         )
@@ -457,16 +444,15 @@ fn pure_call_argument_replays_its_authored_local_even_when_cached_and_plan_reads
         }
     "#,
     );
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &original,
-            TerminalMachineSelection::Name("enter"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .unwrap()
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &original,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let caller = module
         .machines
@@ -504,7 +490,7 @@ fn pure_call_argument_replays_its_authored_local_even_when_cached_and_plan_reads
             .operations
             .iter()
             .filter_map(|operation| match operation {
-                typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
+                checked_trees::CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
                     symbol,
                     ..
                 } => Some(*symbol),
@@ -519,11 +505,11 @@ fn pure_call_argument_replays_its_authored_local_even_when_cached_and_plan_reads
             .find(|operation| {
                 matches!(
                     operation,
-                    typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::ScalarCall { .. }
+                    checked_trees::CheckedUnitEffectOperationPlan::ScalarCall { .. }
                 )
             })
             .unwrap();
-        let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::ScalarCall {
+        let checked_trees::CheckedUnitEffectOperationPlan::ScalarCall {
             coordinate,
             scalar_arguments,
             ..
@@ -532,19 +518,12 @@ fn pure_call_argument_replays_its_authored_local_even_when_cached_and_plan_reads
             panic!("consume scalar call");
         };
         let coordinate = *coordinate;
-        let [
-            typed_trees_to_checked_trees::checked_trees::CheckedCallScalarArgument::Pure(
-                expression,
-            ),
-        ] = scalar_arguments.as_mut_slice()
+        let [checked_trees::CheckedCallScalarArgument::Pure(expression)] =
+            scalar_arguments.as_mut_slice()
         else {
             panic!("one pure local read argument");
         };
-        let typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::StorageRead {
-            symbol,
-            ..
-        } = expression
-        else {
+        let checked_trees::CheckedScalarExpression::StorageRead { symbol, .. } = expression else {
             panic!("consume reads current primitive storage");
         };
         assert_eq!(*symbol, locals[0]);
@@ -561,7 +540,7 @@ fn pure_call_argument_replays_its_authored_local_even_when_cached_and_plan_reads
                     row.state == caller_state
                         && row.statement_ordinal == coordinate.statement_index
                         && row.role
-                            == typed_trees_to_checked_trees::checked_trees::CheckedScalarExpressionRole::UnitCallArgument {
+                            == checked_trees::CheckedScalarExpressionRole::UnitCallArgument {
                                 call_ordinal: coordinate.call_ordinal,
                                 argument_ordinal: 0,
                             }
@@ -569,11 +548,11 @@ fn pure_call_argument_replays_its_authored_local_even_when_cached_and_plan_reads
             let cached_row = cached.next().expect("source-bound consume argument");
             assert!(cached.next().is_none());
             assert!(matches!(cached_row.expression,
-                typed_trees_to_checked_trees::checked_trees::CheckedScalarExpression::StorageRead { symbol, .. } if symbol == locals[0]));
+                checked_trees::CheckedScalarExpression::StorageRead { symbol, .. } if symbol == locals[0]));
             cached_row.expression = substituted;
         }
         assert!(
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            terminal_production::TerminalProductionRequest::new(
                 &changed,
                 TerminalMachineSelection::Name("enter")
             )
@@ -784,16 +763,15 @@ fn scalar_parameters_and_write_only_reborrows_keep_their_authored_positions() {
     let checked = crate::front_end::checked_program(
         "machine reset(value: &write u64, returned: u64) -> u64 { value = 0; returned } machine enter(value: &mut u64, returned: u64) { let replacement: u64 = reset(&write value, returned); value = replacement; }",
     );
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("enter"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .unwrap()
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     execute(&artifact, &[unsigned(37)], 37);
 }
 
@@ -802,16 +780,15 @@ fn unrelated_structural_return_bodies_do_not_join_the_selected_call_catalog() {
     let source = format!(
         "{SOURCE} data Unused {{}} machine Unused::reset(value: &mut bool) -> bool {{ value = false; true }}"
     );
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &crate::front_end::checked_program(&source),
-            TerminalMachineSelection::Name("enter"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .unwrap()
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &crate::front_end::checked_program(&source),
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert_eq!(module.machines.len(), 2);
     assert_eq!(module.structural_types.len(), 1);
@@ -831,16 +808,15 @@ fn attached_callee_uses_the_shared_catalogs_nested_type_and_field_identities() {
         }
     "#;
     let checked = crate::front_end::checked_program(source);
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("Earlier::enter"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .unwrap()
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Earlier::enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     execute(&artifact, &[], 7);
 }
 
@@ -861,12 +837,14 @@ fn borrowed_scalar_call_rejects_missing_duplicated_or_substituted_callee_custody
             1 => plans.push(plans[0].clone()),
             2 => plans[0].effects.clear(),
             3 => plans[0].return_statement_ordinal = 0,
-            4 => plans[0].structural_parameters[0].access =
-                typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow,
+            4 => {
+                plans[0].structural_parameters[0].access =
+                    checked_trees::CheckedStructuralAccess::SharedBorrow
+            }
             _ => unreachable!(),
         }
         assert!(
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            terminal_production::TerminalProductionRequest::new(
                 &changed,
                 TerminalMachineSelection::Name("enter")
             )
@@ -884,7 +862,7 @@ fn same_typed_borrowed_parameter_cannot_replace_the_authored_actual() {
     let mut checked = crate::front_end::checked_program(
         "machine reset(value: &mut u64) -> u64 { value = 0; 7 } machine enter(first: &mut u64, second: &mut u64) { let returned: u64 = reset(&mut first); }",
     );
-    let _ = lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+    let _ = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("enter"),
     )
@@ -903,12 +881,12 @@ fn same_typed_borrowed_parameter_cannot_replace_the_authored_actual() {
             plan.operations.iter().any(|operation| {
                 matches!(
                     operation,
-                    typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::ScalarCall { .. }
+                    checked_trees::CheckedUnitEffectOperationPlan::ScalarCall { .. }
                 )
             })
         })
         .unwrap();
-    let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::ScalarCall {
+    let checked_trees::CheckedUnitEffectOperationPlan::ScalarCall {
         structural_arguments,
         ..
     } = &mut caller.operations[0]
@@ -916,9 +894,9 @@ fn same_typed_borrowed_parameter_cannot_replace_the_authored_actual() {
         panic!("scalar call");
     };
     structural_arguments[0].source =
-        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 1 };
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 1 };
     assert!(
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+        terminal_production::TerminalProductionRequest::new(
             &checked,
             TerminalMachineSelection::Name("enter")
         )
@@ -932,7 +910,7 @@ fn same_typed_borrowed_parameter_cannot_replace_the_authored_actual() {
 #[test]
 fn caller_store_cannot_substitute_a_literal_for_the_returned_value() {
     let mut checked = crate::front_end::checked_program(SOURCE);
-    let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+    let checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
         value: zero, ..
     } = &checked
         .facts
@@ -946,14 +924,14 @@ fn caller_store_cannot_substitute_a_literal_for_the_returned_value() {
     let zero = zero.clone();
     let caller_index = ordinary_body_index(&checked, "enter");
     let caller = &mut checked.facts.flow.terminal_unit_effects.machines[caller_index];
-    let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { value, .. } =
+    let checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { value, .. } =
         &mut caller.operations[1]
     else {
         panic!("caller store");
     };
     *value = zero;
     assert!(
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+        terminal_production::TerminalProductionRequest::new(
             &checked,
             TerminalMachineSelection::Name("enter")
         )
@@ -978,7 +956,7 @@ fn caller_store_roster_rejects_deleted_duplicate_or_stale_assignment_sites() {
             }
             1 => operations.insert(1, operations[1].clone()),
             2 | 3 => {
-                let typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                let checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                     statement_index,
                     ..
                 } = &mut operations[1]
@@ -990,7 +968,7 @@ fn caller_store_roster_rejects_deleted_duplicate_or_stale_assignment_sites() {
             _ => unreachable!(),
         }
         assert!(
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            terminal_production::TerminalProductionRequest::new(
                 &changed,
                 TerminalMachineSelection::Name("enter")
             )
@@ -1008,7 +986,7 @@ fn an_unused_scalar_result_cannot_erase_its_callees_borrowed_write() {
     let mut checked = crate::front_end::checked_program(
         "machine reset(value: &mut u64) -> u64 { value = 0; 7 } machine enter(value: &mut u64) { let returned: u64 = reset(&mut value); }",
     );
-    let _ = lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+    let _ = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("enter"),
     )
@@ -1022,7 +1000,7 @@ fn an_unused_scalar_result_cannot_erase_its_callees_borrowed_write() {
         .operations
         .remove(0);
     assert!(
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+        terminal_production::TerminalProductionRequest::new(
             &checked,
             TerminalMachineSelection::Name("enter")
         )
@@ -1048,24 +1026,23 @@ fn ordinary_borrowed_scalar_body_replays_store_result_and_completion_custody() {
     legacy.remove(0);
     // This actually executes the fallback, including the borrowed zero store
     // followed by the scalar seven returned into the caller's second store.
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &original,
-            TerminalMachineSelection::Name("enter"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("complete ordinary borrowed scalar body")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &original,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("complete ordinary borrowed scalar body")
+    .into_artifact();
     execute(&artifact, &[], 7);
     let plan = &original.facts.flow.terminal_unit_effects.machines[callee_index];
     assert!(matches!(
         plan.operations.as_slice(),
         [
-            typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. },
-            typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. },
-            typed_trees_to_checked_trees::checked_trees::CheckedUnitEffectOperationPlan::Complete { .. }
+            checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. },
+            checked_trees::CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. },
+            checked_trees::CheckedUnitEffectOperationPlan::Complete { .. }
         ]
     ));
     for mutation in 0..9 {
@@ -1084,8 +1061,10 @@ fn ordinary_borrowed_scalar_body_replays_store_result_and_completion_custody() {
                 plans[callee_index].operations.insert(0, store);
             }
             4 => plans[callee_index].operations.swap(0, 1),
-            5 => plans[callee_index].structural_parameters[0].access =
-                typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow,
+            5 => {
+                plans[callee_index].structural_parameters[0].access =
+                    checked_trees::CheckedStructuralAccess::SharedBorrow
+            }
             6 => plans[callee_index].scalar_result = None,
             7 => {
                 plans[callee_index].operations.remove(1);
@@ -1096,7 +1075,7 @@ fn ordinary_borrowed_scalar_body_replays_store_result_and_completion_custody() {
             _ => unreachable!(),
         }
         assert!(
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            terminal_production::TerminalProductionRequest::new(
                 &changed,
                 TerminalMachineSelection::Name("enter")
             )

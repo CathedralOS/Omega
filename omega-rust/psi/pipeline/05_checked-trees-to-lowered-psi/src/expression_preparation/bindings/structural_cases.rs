@@ -21,15 +21,13 @@ impl LocalCaseBinding {
     pub(crate) fn new(
         checked: &CheckedTrees,
         symbol: symbols::SymbolHandle,
-        reference: typed_trees_to_checked_trees::checked_trees::types::TypeReferenceHandle,
+        reference: checked_trees::types::TypeReferenceHandle,
         source: PlaceId,
         types: &[StructuralTypeDeclaration],
     ) -> Result<Self, LoweringError> {
         let type_identity = checked.normalized_type_identity(reference).into_string();
-        let typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode::Named {
-            symbol: owner,
-            ..
-        } = checked.type_reference_table.type_reference(reference)
+        let checked_trees::types::TypeReferenceNode::Named { symbol: owner, .. } =
+            checked.type_reference_table.type_reference(reference)
         else {
             return unsupported("observed local requires an exact nominal sum");
         };
@@ -51,9 +49,7 @@ impl LocalCaseBinding {
         };
         let mut bindings = Vec::new();
         for member in checked.data_members(data) {
-            let typed_trees_to_checked_trees::checked_trees::data::DataMember::Variant(variant) =
-                member
-            else {
+            let checked_trees::data::DataMember::Variant(variant) = member else {
                 continue;
             };
             let identity = variant.path_identity();
@@ -103,7 +99,7 @@ impl StructuralCaseBinding {
 
 pub(crate) fn resolve(
     bindings: &[StructuralCaseBinding],
-    subject: &typed_trees_to_checked_trees::checked_trees::CheckedStructuralParameterField,
+    subject: &checked_trees::CheckedStructuralParameterField,
     identity: &str,
 ) -> Result<
     (
@@ -140,7 +136,7 @@ pub(crate) fn resolve(
             .shape;
         match (segment, shape) {
             (
-                typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Field(identity),
+                checked_trees::CheckedStructuralPredicatePathSegment::Field(identity),
                 StructuralTypeShape::Record { fields },
             ) => {
                 let mut selected = fields.iter().filter(|field| field.identity == *identity);
@@ -159,7 +155,7 @@ pub(crate) fn resolve(
                 path.push(terminal_psi::StructuralPathSegment::Field(identity.clone()));
             }
             (
-                typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(element_index),
+                checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(element_index),
                 StructuralTypeShape::FixedArray { element, length },
             ) if element_index < length => {
                 structural_type = *element;

@@ -119,13 +119,10 @@ where machine Work()
     let [work] = typed.machine_type_parameters(apply) else {
         panic!("one Work parameter")
     };
-    let symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameterKind::Machine {
-        contract,
-    } = &work.kind
-    else {
+    let typed_trees::data::TypeParameterKind::Machine { contract } = &work.kind else {
         panic!("Work is a machine parameter")
     };
-    let symbol_resolved_trees_to_typed_trees::typed_trees::data::MachineParameterContract::Structural(signature) = contract else {
+    let typed_trees::data::MachineParameterContract::Structural(signature) = contract else {
         panic!("Work has a structural contract")
     };
     let work_reaches = typed

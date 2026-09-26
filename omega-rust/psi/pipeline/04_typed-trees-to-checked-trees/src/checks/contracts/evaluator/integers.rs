@@ -1,7 +1,5 @@
 use language_semantics::declaration_selection::CollectionMeasure;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode,
-};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
 use super::ContractExpressionEvaluator;
 

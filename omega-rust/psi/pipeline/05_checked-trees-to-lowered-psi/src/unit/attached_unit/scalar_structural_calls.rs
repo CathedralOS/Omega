@@ -7,8 +7,8 @@ use super::{
     CheckedScalarCallee, CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError, Multiplicity,
     primitive_locals, structural_calls, unsupported,
 };
-use typed_trees_to_checked_trees::checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees_to_checked_trees::checked_trees::types::TypeReferenceNode;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::types::TypeReferenceNode;
 
 /// Scalar calls with structural arguments retain the same authored parameter
 /// and permission identities as Unit calls; scalar production does not erase them.
@@ -100,7 +100,7 @@ pub(super) fn validate_call_source(
         }
         // An established structural local, such as a view local, lends
         // itself: the authored operand names exactly that local.
-        if let typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
+        if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
             argument.source
         {
             if !matches!(checked.expression_table.expression(expression), ExpressionNode::Name(name)
@@ -138,9 +138,7 @@ pub(super) fn validate_call_source(
         {
             return unsupported("scalar wrapper structural argument substituted its source place");
         }
-        if argument.access
-            != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
-        {
+        if argument.access != checked_trees::CheckedStructuralAccess::Owned {
             continue;
         }
         for claim in caller.entry_claims.iter().filter(|claim| {
@@ -150,14 +148,12 @@ pub(super) fn validate_call_source(
             if claim.claim_identity == PermissionClaimIdentity::Unknown {
                 return unsupported("scalar wrapper transfer has no exact source claim");
             }
-            expected_transfers.push(
-                typed_trees_to_checked_trees::checked_trees::CheckedUnitClaimTransferPlan {
-                    claim_identity: claim.claim_identity,
-                    argument_index: u32::try_from(argument_index).map_err(|_| {
-                        LoweringError::Unsupported("scalar wrapper argument count exceeds u32")
-                    })?,
-                },
-            );
+            expected_transfers.push(checked_trees::CheckedUnitClaimTransferPlan {
+                claim_identity: claim.claim_identity,
+                argument_index: u32::try_from(argument_index).map_err(|_| {
+                    LoweringError::Unsupported("scalar wrapper argument count exceeds u32")
+                })?,
+            });
         }
     }
     if *claim_transfers != expected_transfers {
@@ -204,13 +200,13 @@ pub(super) fn validate_call_source(
 fn validate_constructed_local(
     checked: &CheckedTrees,
     caller: &CallerView<'_>,
-    coordinate: typed_trees_to_checked_trees::checked_trees::CheckedUnitCallCoordinate,
+    coordinate: checked_trees::CheckedUnitCallCoordinate,
     source_target: symbols::SymbolHandle,
-    argument: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan,
+    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     expression: ExpressionHandle,
 ) -> Result<bool, LoweringError> {
     let ordinal = match argument.source {
-        typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal {
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal {
             declaration_ordinal,
         } => declaration_ordinal,
         _ => return Ok(false),
@@ -233,8 +229,7 @@ fn validate_constructed_local(
         || statement >= coordinate.statement_index
         || identity != &argument.type_identity
         || !argument.path.is_empty()
-        || argument.access
-            != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
+        || argument.access != checked_trees::CheckedStructuralAccess::Owned
     {
         return unsupported("scalar wrapper local substituted its establishment or access");
     }
@@ -253,9 +248,7 @@ fn validate_constructed_local(
     }
     let (_, state) =
         crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
-    let Some(typed_trees_to_checked_trees::checked_trees::statement::StatementNode::LocalData(
-        local,
-    )) = checked
+    let Some(checked_trees::statement::StatementNode::LocalData(local)) = checked
         .statement_table
         .statements(state.statement_nodes)
         .get(statement as usize)
@@ -327,8 +320,7 @@ fn validate_constructed_local(
         .filter_map(|(_, event)| {
             (event.machine_symbol == caller.machine
                 && event.state_symbol == caller.state
-                && event.root
-                    == typed_trees_to_checked_trees::fact_plan::PlaceRoot::Symbol(local.symbol))
+                && event.root == facts::PlaceRoot::Symbol(local.symbol))
             .then_some(event)
         })
         .collect::<Vec<_>>();

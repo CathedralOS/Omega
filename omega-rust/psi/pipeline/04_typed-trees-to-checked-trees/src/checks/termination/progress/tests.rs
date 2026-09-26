@@ -4,17 +4,17 @@ use super::SymbolHandle;
 use crate::checks::termination::progress::qualification_correspondences::{
     replay_root_type_reference, validate_qualification_correspondences,
 };
-use crate::fact_plan::{
+use arena::HandleSpan;
+use facts::{
     Fact, FactOrigin, QualificationCorrespondence, QualificationEvidence,
     QualificationPayloadIdentity,
 };
-use crate::fact_plan::{FactPayload, FactPlace, PlaceRoot, PlaceSegment};
-use arena::HandleSpan;
+use facts::{FactPayload, FactPlace, PlaceRoot, PlaceSegment};
 use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
 
 fn correspondence_fixture() -> (
-    symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    crate::fact_plan::FactPlan,
+    typed_trees::TypedTrees,
+    facts::FactPlan,
     SymbolHandle,
     SymbolHandle,
     SymbolHandle,
@@ -99,54 +99,47 @@ fn correspondence_fixture() -> (
     ))
     .next()
     .expect("foreign state local");
-    let mut program = symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees {
+    let mut program = typed_trees::TypedTrees {
         symbols: symbols.finish(),
-        ..symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees::default()
+        ..typed_trees::TypedTrees::default()
     };
     let unit = program
         .type_reference_table
-        .insert(symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Unit);
-    let pair_type = program.type_reference_table.insert(
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named {
-            symbol: data_symbol,
-            name: symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated(
-                "Pair",
-            ),
-        },
-    );
-    let mut data = symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition {
+        .insert(typed_trees::types::TypeReferenceNode::Unit);
+    let pair_type =
+        program
+            .type_reference_table
+            .insert(typed_trees::types::TypeReferenceNode::Named {
+                symbol: data_symbol,
+                name: typed_trees::name::Identifier::generated("Pair"),
+            });
+    let mut data = typed_trees::data::DataDefinition {
         symbol: data_symbol,
-        name: symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated(
-            "Pair",
-        ),
+        name: typed_trees::name::Identifier::generated("Pair"),
         ..Default::default()
     };
     for (symbol, name) in [(source_field, "source"), (destination_field, "destination")] {
         program.push_data_member(
             &mut data,
-            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(symbol_resolved_trees_to_typed_trees::typed_trees::data::DataField {
+            typed_trees::data::DataMember::Field(typed_trees::data::DataField {
                 symbol,
-                name: symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated(name),
+                name: typed_trees::name::Identifier::generated(name),
                 type_reference: unit,
                 ..Default::default()
             }),
         );
     }
     program.push_data_definition(data);
-    let mut state_node = symbol_resolved_trees_to_typed_trees::typed_trees::state::State {
+    let mut state_node = typed_trees::state::State {
         symbol: state,
-        name: symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated(
-            "entry",
-        ),
+        name: typed_trees::name::Identifier::generated("entry"),
         ..Default::default()
     };
     program.push_state_parameter(
         &mut state_node,
-        symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter {
+        typed_trees::signature::StateParameter {
             symbol: self_parameter,
-            name: symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated(
-                "self",
-            ),
+            name: typed_trees::name::Identifier::generated("self"),
             type_reference: pair_type,
             is_self: true,
             ..Default::default()
@@ -154,11 +147,11 @@ fn correspondence_fixture() -> (
     );
     program.statement_table.push_statement(
         &mut state_node.statement_nodes,
-        symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(symbol_resolved_trees_to_typed_trees::typed_trees::statement::TableLocalData {
+        typed_trees::statement::StatementNode::LocalData(typed_trees::statement::TableLocalData {
             symbol: exact_local,
-            name: symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated("local"),
+            name: typed_trees::name::Identifier::generated("local"),
             type_reference: pair_type,
-            initial_value: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid(),
+            initial_value: typed_trees::expression::ExpressionHandle::invalid(),
             is_mutable: true,
             type_is_inferred: false,
             relevance: language_core::BindingRelevance::Relevant,
@@ -166,27 +159,25 @@ fn correspondence_fixture() -> (
     );
     program.statement_table.push_statement(
         &mut state_node.statement_nodes,
-        symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Expression(
-            symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid(),
+        typed_trees::statement::StatementNode::Expression(
+            typed_trees::expression::ExpressionHandle::invalid(),
         ),
     );
     program.statement_table.push_statement(
         &mut state_node.statement_nodes,
-        symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::Expression(
-            symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid(),
+        typed_trees::statement::StatementNode::Expression(
+            typed_trees::expression::ExpressionHandle::invalid(),
         ),
     );
-    let mut machine_node = symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine {
+    let mut machine_node = typed_trees::machine::Machine {
         symbol: machine,
-        name: symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated(
-            "worker",
-        ),
+        name: typed_trees::name::Identifier::generated("worker"),
         ..Default::default()
     };
     program.push_machine_state(&mut machine_node, state_node);
     program.push_machine(machine_node);
 
-    let mut semantic = crate::fact_plan::FactPlan::default();
+    let mut semantic = facts::FactPlan::default();
     let source_place = semantic.append_symbol_place(self_parameter);
     semantic.push_place_segment(
         source_place,
@@ -201,15 +192,13 @@ fn correspondence_fixture() -> (
             symbol: destination_field,
         },
     );
-    let formation = crate::fact_plan::ProgramPoint::Statement {
+    let formation = facts::ProgramPoint::Statement {
         machine_symbol: machine,
         state_symbol: state,
         statement_index: 1,
     };
     let payload = FactPayload::DomainMembership {
-        value:
-            symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid(
-            ),
+        value: typed_trees::expression::ExpressionHandle::invalid(),
         domain: HandleSpan::empty(),
         domain_symbol: domain,
         semantic_domain: language_semantics::SemanticDomainId::NULL,
@@ -220,7 +209,7 @@ fn correspondence_fixture() -> (
     );
     let source_fact = semantic.append_fact(Fact {
         place: FactPlace::Place(source_place),
-        point: crate::fact_plan::ProgramPoint::CallEnsures {
+        point: facts::ProgramPoint::CallEnsures {
             machine_symbol: machine,
             state_symbol: state,
             statement_index: 0,
@@ -265,9 +254,9 @@ fn correspondence_fixture() -> (
 }
 
 fn set_replay_parameter_type(
-    program: &mut symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    semantic: &crate::fact_plan::FactPlan,
-    type_reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
+    program: &mut typed_trees::TypedTrees,
+    semantic: &facts::FactPlan,
+    type_reference: typed_trees::types::TypeReferenceHandle,
 ) {
     let correspondence = semantic
         .qualification_correspondences
@@ -275,7 +264,7 @@ fn set_replay_parameter_type(
         .next()
         .map(|(_, correspondence)| correspondence)
         .expect("correspondence");
-    let crate::fact_plan::ProgramPoint::Statement {
+    let facts::ProgramPoint::Statement {
         machine_symbol,
         state_symbol,
         ..
@@ -298,7 +287,7 @@ fn set_replay_parameter_type(
 }
 
 fn install_replay_paths(
-    semantic: &mut crate::fact_plan::FactPlan,
+    semantic: &mut facts::FactPlan,
     source: &[PlaceSegment],
     destination: &[PlaceSegment],
 ) {
@@ -310,21 +299,21 @@ fn install_replay_paths(
         .expect("correspondence");
     let retained = *semantic.qualification_correspondences.get(row);
     let root = semantic.places.get(retained.source_place).root;
-    let source_place = semantic.append_place(crate::fact_plan::Place {
+    let source_place = semantic.append_place(facts::Place {
         root,
         segments: HandleSpan::empty(),
     });
     for segment in source {
         semantic.push_place_segment(source_place, *segment);
     }
-    let source_occurrence_place = semantic.append_place(crate::fact_plan::Place {
+    let source_occurrence_place = semantic.append_place(facts::Place {
         root,
         segments: HandleSpan::empty(),
     });
     for segment in source {
         semantic.push_place_segment(source_occurrence_place, *segment);
     }
-    let destination_place = semantic.append_place(crate::fact_plan::Place {
+    let destination_place = semantic.append_place(facts::Place {
         root,
         segments: HandleSpan::empty(),
     });
@@ -340,7 +329,7 @@ fn install_replay_paths(
 }
 
 fn set_replay_roots(
-    semantic: &mut crate::fact_plan::FactPlan,
+    semantic: &mut facts::FactPlan,
     source_root: SymbolHandle,
     destination_root: SymbolHandle,
 ) {
@@ -360,16 +349,16 @@ fn set_replay_roots(
 }
 
 fn replay_state_statement_span(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    semantic: &crate::fact_plan::FactPlan,
-) -> HandleSpan<symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode> {
+    program: &typed_trees::TypedTrees,
+    semantic: &facts::FactPlan,
+) -> HandleSpan<typed_trees::statement::StatementNode> {
     let formation = semantic
         .qualification_correspondences
         .iter()
         .next()
         .map(|(_, row)| row.formation)
         .expect("correspondence");
-    let crate::fact_plan::ProgramPoint::Statement {
+    let facts::ProgramPoint::Statement {
         machine_symbol,
         state_symbol,
         ..
@@ -390,32 +379,25 @@ fn replay_state_statement_span(
         .expect("formation state")
 }
 
-fn nested_fixed_array_correspondence_fixture() -> (
-    symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    crate::fact_plan::FactPlan,
-) {
+fn nested_fixed_array_correspondence_fixture() -> (typed_trees::TypedTrees, facts::FactPlan) {
     let (mut program, mut semantic, _, _, _, _, _, _, _) = correspondence_fixture();
     let unit = program
         .type_reference_table
-        .insert(symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Unit);
-    let inner = program.type_reference_table.insert(
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::FixedArray {
-            element_type: unit,
-            length:
-                symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::Literal(
-                    2,
-                ),
-        },
-    );
-    let outer = program.type_reference_table.insert(
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::FixedArray {
-            element_type: inner,
-            length:
-                symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::Literal(
-                    2,
-                ),
-        },
-    );
+        .insert(typed_trees::types::TypeReferenceNode::Unit);
+    let inner =
+        program
+            .type_reference_table
+            .insert(typed_trees::types::TypeReferenceNode::FixedArray {
+                element_type: unit,
+                length: typed_trees::types::FixedArrayLength::Literal(2),
+            });
+    let outer =
+        program
+            .type_reference_table
+            .insert(typed_trees::types::TypeReferenceNode::FixedArray {
+                element_type: inner,
+                length: typed_trees::types::FixedArrayLength::Literal(2),
+            });
     set_replay_parameter_type(&mut program, &semantic, outer);
     install_replay_paths(
         &mut semantic,
@@ -487,11 +469,10 @@ fn checked_progress_rejects_local_declaration_type_missing_duplicate_and_order_d
     let mut wrong_type = program.clone();
     let unit = wrong_type
         .type_reference_table
-        .insert(symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Unit);
+        .insert(typed_trees::types::TypeReferenceNode::Unit);
     let statements = replay_state_statement_span(&wrong_type, &semantic);
-    let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
-        local,
-    ) = &mut wrong_type.statement_table.statements_mut(statements)[0]
+    let typed_trees::statement::StatementNode::LocalData(local) =
+        &mut wrong_type.statement_table.statements_mut(statements)[0]
     else {
         unreachable!("local declaration")
     };
@@ -504,9 +485,8 @@ fn checked_progress_rejects_local_declaration_type_missing_duplicate_and_order_d
 
     let mut missing = program.clone();
     let statements = replay_state_statement_span(&missing, &semantic);
-    let symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode::LocalData(
-        local,
-    ) = &mut missing.statement_table.statements_mut(statements)[0]
+    let typed_trees::statement::StatementNode::LocalData(local) =
+        &mut missing.statement_table.statements_mut(statements)[0]
     else {
         unreachable!("local declaration")
     };
@@ -533,11 +513,11 @@ fn checked_progress_rejects_local_declaration_type_missing_duplicate_and_order_d
         .get(row)
         .formation
     {
-        crate::fact_plan::ProgramPoint::Statement {
+        facts::ProgramPoint::Statement {
             machine_symbol,
             state_symbol,
             ..
-        } => crate::fact_plan::ProgramPoint::Statement {
+        } => facts::ProgramPoint::Statement {
             machine_symbol,
             state_symbol,
             statement_index: 2,
@@ -567,11 +547,11 @@ fn checked_progress_rejects_local_declaration_type_missing_duplicate_and_order_d
         .map(|(handle, _)| handle)
         .expect("correspondence");
     let formation = match reordered.qualification_correspondences.get(row).formation {
-        crate::fact_plan::ProgramPoint::Statement {
+        facts::ProgramPoint::Statement {
             machine_symbol,
             state_symbol,
             ..
-        } => crate::fact_plan::ProgramPoint::Statement {
+        } => facts::ProgramPoint::Statement {
             machine_symbol,
             state_symbol,
             statement_index: 0,
@@ -620,7 +600,7 @@ fn checked_progress_rejects_fixed_index_bounds_runtime_type_and_length_tamper() 
     install_replay_paths(
         &mut runtime,
         &[PlaceSegment::Index {
-            expression: symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid(),
+            expression: typed_trees::expression::ExpressionHandle::invalid(),
         }],
         &[PlaceSegment::FixedIndex { index: 0 }],
     );
@@ -645,7 +625,7 @@ fn checked_progress_rejects_fixed_index_bounds_runtime_type_and_length_tamper() 
     let mut wrong_type_program = program.clone();
     let unit = wrong_type_program
         .type_reference_table
-        .insert(symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Unit);
+        .insert(typed_trees::types::TypeReferenceNode::Unit);
     set_replay_parameter_type(&mut wrong_type_program, &semantic, unit);
     assert!(
         validate_qualification_correspondences(&wrong_type_program, &semantic)
@@ -656,22 +636,22 @@ fn checked_progress_rejects_fixed_index_bounds_runtime_type_and_length_tamper() 
     let mut nonliteral_program = program;
     let unit = nonliteral_program
         .type_reference_table
-        .insert(symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Unit);
+        .insert(typed_trees::types::TypeReferenceNode::Unit);
     let formation = semantic
         .qualification_correspondences
         .iter()
         .next()
         .map(|(_, row)| row.formation)
         .expect("correspondence");
-    let crate::fact_plan::ProgramPoint::Statement { machine_symbol, .. } = formation else {
+    let facts::ProgramPoint::Statement { machine_symbol, .. } = formation else {
         unreachable!("statement formation")
     };
     let nonliteral = nonliteral_program.type_reference_table.insert(
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::FixedArray {
+        typed_trees::types::TypeReferenceNode::FixedArray {
             element_type: unit,
-            length: symbol_resolved_trees_to_typed_trees::typed_trees::types::FixedArrayLength::ConstParameter {
+            length: typed_trees::types::FixedArrayLength::ConstParameter {
                 symbol: machine_symbol,
-                name: symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated("N"),
+                name: typed_trees::name::Identifier::generated("N"),
             },
         },
     );
@@ -693,7 +673,7 @@ fn checked_progress_rejects_generic_and_label_only_data_traversal() {
         .map(|(_, row)| row)
         .expect("correspondence");
     let (machine_symbol, state_symbol) = match row.formation {
-        crate::fact_plan::ProgramPoint::Statement {
+        facts::ProgramPoint::Statement {
             machine_symbol,
             state_symbol,
             ..
@@ -714,22 +694,16 @@ fn checked_progress_rejects_generic_and_label_only_data_traversal() {
         )
         .expect("root type"),
     ) {
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named {
-            symbol,
-            ..
-        } => *symbol,
+        typed_trees::types::TypeReferenceNode::Named { symbol, .. } => *symbol,
         _ => unreachable!("named fixture type"),
     };
     let arguments = generic_program
         .type_reference_table
         .insert_type_reference_handles([]);
     let generic = generic_program.type_reference_table.insert(
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Generic {
+        typed_trees::types::TypeReferenceNode::Generic {
             base_symbol: data_symbol,
-            base_name:
-                symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated(
-                    "Pair",
-                ),
+            base_name: typed_trees::name::Identifier::generated("Pair"),
             lifetime_arguments: Vec::new(),
             arguments,
         },
@@ -743,15 +717,13 @@ fn checked_progress_rejects_generic_and_label_only_data_traversal() {
 
     let mut label_only_program = generic_program;
     let wrong_symbol = match row.formation {
-        crate::fact_plan::ProgramPoint::Statement { machine_symbol, .. } => machine_symbol,
+        facts::ProgramPoint::Statement { machine_symbol, .. } => machine_symbol,
         _ => unreachable!("statement formation"),
     };
     let wrong = label_only_program.type_reference_table.insert(
-        symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Named {
+        typed_trees::types::TypeReferenceNode::Named {
             symbol: wrong_symbol,
-            name: symbol_resolved_trees_to_typed_trees::typed_trees::name::Identifier::generated(
-                "Pair",
-            ),
+            name: typed_trees::name::Identifier::generated("Pair"),
         },
     );
     set_replay_parameter_type(&mut label_only_program, &semantic, wrong);
@@ -810,7 +782,7 @@ fn checked_progress_rejects_correspondence_payload_place_and_order_drift() {
         .map(|(_, row)| row.source_place)
         .expect("source place");
     let root = indexed.places.get(source_place).root;
-    let indexed_place = indexed.append_place(crate::fact_plan::Place {
+    let indexed_place = indexed.append_place(facts::Place {
         root,
         segments: HandleSpan::empty(),
     });
@@ -872,8 +844,8 @@ fn checked_progress_rejects_excluded_roots_and_malformed_formation() {
 
     for excluded_root in [
         PlaceRoot::Unknown,
-        PlaceRoot::Expression(symbol_resolved_trees_to_typed_trees::typed_trees::expression::ExpressionHandle::invalid()),
-        PlaceRoot::TypeReference(symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle::invalid()),
+        PlaceRoot::Expression(typed_trees::expression::ExpressionHandle::invalid()),
+        PlaceRoot::TypeReference(typed_trees::types::TypeReferenceHandle::invalid()),
     ] {
         let mut drifted = semantic.clone();
         drifted.places.get_mut(source_place).root = excluded_root;
@@ -950,7 +922,7 @@ fn checked_progress_rejects_excluded_roots_and_malformed_formation() {
     formation
         .qualification_correspondences
         .get_mut(row)
-        .formation = crate::fact_plan::ProgramPoint::Statement {
+        .formation = facts::ProgramPoint::Statement {
         machine_symbol: SymbolHandle::invalid(),
         state_symbol: SymbolHandle::invalid(),
         statement_index: 1,
@@ -973,8 +945,8 @@ fn checked_progress_rejects_excluded_roots_and_malformed_formation() {
 /// in one, so that argument shape is exercised at the unit level in
 /// `origins::tests` instead.
 mod nested_call_arguments {
-    use crate::checked_trees::CheckedTrees;
     use crate::tests::front_end::checked_program_result;
+    use checked_trees::CheckedTrees;
     use diagnostics::Diagnostic;
     use language_semantics::TerminationGuarantee;
 
@@ -1016,7 +988,7 @@ mod nested_call_arguments {
     fn machine<'program>(
         program: &'program CheckedTrees,
         name: &str,
-    ) -> &'program crate::checked_trees::machine::Machine {
+    ) -> &'program checked_trees::checked_trees::machine::Machine {
         program
             .machines()
             .iter()

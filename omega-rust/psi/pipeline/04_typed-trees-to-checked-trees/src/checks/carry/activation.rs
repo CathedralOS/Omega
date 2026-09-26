@@ -5,20 +5,16 @@
 //! activation plan; it does not model or select a runtime preemption mode.
 
 use language_semantics::CarryPolicy;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, ExpressionNode,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
-    StatementNode, TransitionGuardNode, TransitionTargetNode,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle;
 use symbols::SymbolHandle;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+use typed_trees::types::TypeReferenceHandle;
 
 pub(super) fn build_machine_activation_carry_facts(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    carry: &crate::checked_trees::CarryFacts,
-    semantic: &crate::fact_plan::FactPlan,
-) -> Vec<crate::checked_trees::MachineActivationCarryFact> {
+    program: &typed_trees::TypedTrees,
+    carry: &checked_trees::CarryFacts,
+    semantic: &facts::FactPlan,
+) -> Vec<checked_trees::MachineActivationCarryFact> {
     let direct = program
         .machines()
         .iter()
@@ -34,10 +30,10 @@ pub(super) fn build_machine_activation_carry_facts(
 
 fn join_machine_subtree_activation_carry(
     root: SymbolHandle,
-    carry: &crate::checked_trees::CarryFacts,
-    direct: &[crate::checked_trees::MachineActivationCarryFact],
-) -> crate::checked_trees::MachineActivationCarryFact {
-    let mut joined = crate::checked_trees::MachineActivationCarryFact {
+    carry: &checked_trees::CarryFacts,
+    direct: &[checked_trees::MachineActivationCarryFact],
+) -> checked_trees::MachineActivationCarryFact {
+    let mut joined = checked_trees::MachineActivationCarryFact {
         machine: root,
         effective: CarryPolicy::PERMISSIVE,
         analysis_complete: true,
@@ -66,10 +62,10 @@ fn join_machine_subtree_activation_carry(
 }
 
 fn build_machine_activation_carry_fact(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    semantic: &crate::fact_plan::FactPlan,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-) -> crate::checked_trees::MachineActivationCarryFact {
+    program: &typed_trees::TypedTrees,
+    semantic: &facts::FactPlan,
+    machine: &typed_trees::machine::Machine,
+) -> checked_trees::MachineActivationCarryFact {
     let mut accumulator = ActivationCarryAccumulator {
         program,
         machine_type_parameters: program.machine_type_parameters(machine),
@@ -89,14 +85,10 @@ fn build_machine_activation_carry_fact(
     {
         for member in program.data_members(attached) {
             match member {
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(
-                    field,
-                ) => {
+                typed_trees::data::DataMember::Field(field) => {
                     accumulator.add_machine_type(field.type_reference);
                 }
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
-                    variant,
-                ) => {
+                typed_trees::data::DataMember::Variant(variant) => {
                     for field in program.data_payload_fields(variant) {
                         accumulator.add_machine_type(field.type_reference);
                     }
@@ -126,7 +118,7 @@ fn build_machine_activation_carry_fact(
         accumulator.effective = accumulator.effective.intersect(claim_policy);
     }
 
-    crate::checked_trees::MachineActivationCarryFact {
+    checked_trees::MachineActivationCarryFact {
         machine: machine.symbol,
         effective: accumulator.effective,
         analysis_complete: accumulator.analysis_complete,
@@ -136,11 +128,11 @@ fn build_machine_activation_carry_fact(
 }
 
 fn established_claim_carry_policy(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    semantic: &crate::fact_plan::FactPlan,
+    program: &typed_trees::TypedTrees,
+    semantic: &facts::FactPlan,
     machine: SymbolHandle,
 ) -> Option<CarryPolicy> {
-    let mut claims = Vec::<(String, crate::fact_plan::QualificationEvidence, CarryPolicy)>::new();
+    let mut claims = Vec::<(String, facts::QualificationEvidence, CarryPolicy)>::new();
 
     for (_, fact) in semantic.facts.iter() {
         if fact.evidence.origin == language_semantics::QualificationEvidenceOrigin::None
@@ -149,14 +141,12 @@ fn established_claim_carry_policy(
             continue;
         }
         let permission = match fact.payload {
-            crate::fact_plan::FactPayload::CarryPermission { permission, .. }
-            | crate::fact_plan::FactPayload::ContractCarryPermission { permission, .. } => {
-                Some(permission)
-            }
-            crate::fact_plan::FactPayload::CarryOrigin { .. } => None,
+            facts::FactPayload::CarryPermission { permission, .. }
+            | facts::FactPayload::ContractCarryPermission { permission, .. } => Some(permission),
+            facts::FactPayload::CarryOrigin { .. } => None,
             _ => continue,
         };
-        let crate::fact_plan::FactPlace::Place(place) = fact.place else {
+        let facts::FactPlace::Place(place) = fact.place else {
             continue;
         };
         let place = semantic.place_label(program, place);
@@ -187,27 +177,23 @@ fn established_claim_carry_policy(
     })
 }
 
-fn fact_point_machine(point: crate::fact_plan::ProgramPoint) -> Option<SymbolHandle> {
+fn fact_point_machine(point: facts::ProgramPoint) -> Option<SymbolHandle> {
     match point {
-        crate::fact_plan::ProgramPoint::Machine { machine_symbol }
-        | crate::fact_plan::ProgramPoint::State { machine_symbol, .. }
-        | crate::fact_plan::ProgramPoint::Statement { machine_symbol, .. }
-        | crate::fact_plan::ProgramPoint::Call { machine_symbol, .. }
-        | crate::fact_plan::ProgramPoint::CallRequires { machine_symbol, .. }
-        | crate::fact_plan::ProgramPoint::CallEnsures { machine_symbol, .. }
-        | crate::fact_plan::ProgramPoint::Exit { machine_symbol, .. }
-        | crate::fact_plan::ProgramPoint::TransitionArm { machine_symbol, .. } => {
-            Some(machine_symbol)
-        }
-        crate::fact_plan::ProgramPoint::Global
-        | crate::fact_plan::ProgramPoint::Definition { .. } => None,
+        facts::ProgramPoint::Machine { machine_symbol }
+        | facts::ProgramPoint::State { machine_symbol, .. }
+        | facts::ProgramPoint::Statement { machine_symbol, .. }
+        | facts::ProgramPoint::Call { machine_symbol, .. }
+        | facts::ProgramPoint::CallRequires { machine_symbol, .. }
+        | facts::ProgramPoint::CallEnsures { machine_symbol, .. }
+        | facts::ProgramPoint::Exit { machine_symbol, .. }
+        | facts::ProgramPoint::TransitionArm { machine_symbol, .. } => Some(machine_symbol),
+        facts::ProgramPoint::Global | facts::ProgramPoint::Definition { .. } => None,
     }
 }
 
 struct ActivationCarryAccumulator<'program> {
-    program: &'program symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine_type_parameters:
-        &'program [symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameter],
+    program: &'program typed_trees::TypedTrees,
+    machine_type_parameters: &'program [typed_trees::data::TypeParameter],
     effective: CarryPolicy,
     analysis_complete: bool,
     contributing_types: Vec<TypeReferenceHandle>,
@@ -225,7 +211,7 @@ impl ActivationCarryAccumulator<'_> {
 
     fn add_return_type(
         &mut self,
-        type_parameters: &[symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameter],
+        type_parameters: &[typed_trees::data::TypeParameter],
         type_reference: TypeReferenceHandle,
     ) {
         // An absent authored return type is the resolved unit result, whose
@@ -237,18 +223,15 @@ impl ActivationCarryAccumulator<'_> {
 
     fn add_type(
         &mut self,
-        type_parameters: &[symbol_resolved_trees_to_typed_trees::typed_trees::data::TypeParameter],
+        type_parameters: &[typed_trees::data::TypeParameter],
         type_reference: TypeReferenceHandle,
     ) {
         if !type_reference.is_valid() {
             self.analysis_complete = false;
             return;
         }
-        let policy = crate::validation::effective_type_carry_policy(
-            self.program,
-            type_parameters,
-            type_reference,
-        );
+        let policy =
+            validation::effective_type_carry_policy(self.program, type_parameters, type_reference);
         self.effective = self.effective.intersect(policy);
         if !self.contributing_types.contains(&type_reference) {
             self.contributing_types.push(type_reference);
@@ -297,10 +280,7 @@ impl ActivationCarryAccumulator<'_> {
         }
     }
 
-    fn visit_transition_target(
-        &mut self,
-        target: symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetHandle,
-    ) {
+    fn visit_transition_target(&mut self, target: typed_trees::statement::TransitionTargetHandle) {
         if !target.is_valid() {
             return;
         }
@@ -326,7 +306,7 @@ impl ActivationCarryAccumulator<'_> {
             ExpressionNode::Match(dispatch) => {
                 self.visit_expression(dispatch.subject);
                 for arm in self.program.expression_table.match_arms(dispatch.arms) {
-                    if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                         self.visit_expression(pattern);
                     }
                     self.visit_expression(arm.value);
@@ -401,9 +381,7 @@ impl ActivationCarryAccumulator<'_> {
             self.analysis_complete = false;
             return;
         };
-        if symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::from_name(name)
-            .is_some()
-        {
+        if typed_trees::types::PrimitiveType::from_name(name).is_some() {
             return;
         }
         let Some(definition) = self
@@ -415,7 +393,7 @@ impl ActivationCarryAccumulator<'_> {
             self.analysis_complete = false;
             return;
         };
-        self.add_unnamed_policy(crate::validation::effective_data_carry_policy(
+        self.add_unnamed_policy(validation::effective_data_carry_policy(
             self.program,
             definition,
         ));
@@ -478,9 +456,9 @@ impl ActivationCarryAccumulator<'_> {
 }
 
 fn find_operator(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     target: SymbolHandle,
-) -> Option<&symbol_resolved_trees_to_typed_trees::typed_trees::operator::OperatorDefinition> {
+) -> Option<&typed_trees::operator::OperatorDefinition> {
     program
         .operators()
         .iter()

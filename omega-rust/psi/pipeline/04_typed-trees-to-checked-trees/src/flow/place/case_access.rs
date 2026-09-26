@@ -6,14 +6,12 @@
 use super::{
     CanonicalPlace, canonical_place_from_expression_in_state, canonical_place_from_semantic_place,
 };
-use crate::fact_plan::{
-    FactContextHandle, FactPayload, FactPlace, FactPlan, PlaceRoot, PlaceSegment,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::{
+use facts::{FactContextHandle, FactPayload, FactPlace, FactPlan, PlaceRoot, PlaceSegment};
+use symbols::SymbolHandle;
+use typed_trees::{
     TypedTrees,
     expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator},
 };
-use symbols::SymbolHandle;
 
 pub(crate) fn place_cases_are_selected(
     program: &TypedTrees,
@@ -125,8 +123,8 @@ fn stable_subject(subject: &CanonicalPlace) -> bool {
 
 struct CaseAccess<'program> {
     program: &'program TypedTrees,
-    machine: &'program symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &'program symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &'program typed_trees::machine::Machine,
+    state: &'program typed_trees::state::State,
     statement_index: usize,
 }
 
@@ -161,7 +159,7 @@ impl CaseAccess<'_> {
             }
             ExpressionNode::Binary(binary)
                 if binary.operator == BinaryOperator::Equal
-                    && crate::validation::has_builtin_decomposed_guard_meaning(
+                    && validation::has_builtin_decomposed_guard_meaning(
                         self.program,
                         self.machine,
                         Some(self.state),
@@ -176,7 +174,7 @@ impl CaseAccess<'_> {
             }
             ExpressionNode::Binary(binary)
                 if binary.operator == BinaryOperator::Equal
-                    && crate::validation::has_builtin_decomposed_guard_meaning(
+                    && validation::has_builtin_decomposed_guard_meaning(
                         self.program,
                         self.machine,
                         Some(self.state),
@@ -190,7 +188,7 @@ impl CaseAccess<'_> {
                 self.predicate(binary.right, value, subject, case, required, depth + 1)
             }
             ExpressionNode::Binary(binary)
-                if crate::validation::has_exact_case_membership_meaning(
+                if validation::has_exact_case_membership_meaning(
                     self.program,
                     self.machine,
                     Some(self.state),

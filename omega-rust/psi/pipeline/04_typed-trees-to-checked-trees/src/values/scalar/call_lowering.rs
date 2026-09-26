@@ -1,20 +1,18 @@
 //! Lowering call arguments into scalar plans: retained arguments, boundary
 //! calls, direct call bindings and qualified call expressions.
 
-use crate::checked_trees::{
+use crate::values::scalar::expression_facts::is_integer;
+use crate::values::scalar::expression_plans::ScalarLocal;
+use crate::values::scalar::scalar_lowering::lower_return_expression;
+use checked_trees::{
     CheckedLocatedProofTerm, CheckedLocatedScalarExpression, CheckedOperatorFacts,
     CheckedProofTerm, CheckedProofTermField, CheckedProofTermRole, CheckedScalarExpressionBindings,
     CheckedScalarExpressionRole,
 };
-use crate::values::scalar::expression_facts::is_integer;
-use crate::values::scalar::expression_plans::ScalarLocal;
-use crate::values::scalar::scalar_lowering::lower_return_expression;
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, ExpressionNode,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::signature::StateParameter;
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType;
+use typed_trees::TypedTrees;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::signature::StateParameter;
+use typed_trees::types::PrimitiveType;
 
 /// The arguments a call site retains: scalar-lane expressions plus the
 /// proof terms erased proof-only formals contribute to the contract lane.
@@ -69,7 +67,7 @@ pub(crate) fn call_is_boundary(program: &TypedTrees, target_symbol: symbols::Sym
                 .trait_machine_signatures(definition)
                 .iter()
                 .any(|signature| signature.symbol == requirement_symbol)
-    }) || crate::validation::exact_compiler_intrinsic_boundary_requirement(program, target_symbol)
+    }) || validation::exact_compiler_intrinsic_boundary_requirement(program, target_symbol)
         .is_some()
 }
 
@@ -77,7 +75,7 @@ pub(crate) fn call_is_boundary(program: &TypedTrees, target_symbol: symbols::Sym
 pub(crate) fn lower_call_arguments(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    state: &typed_trees::state::State,
     statement_ordinal: u32,
     call_ordinal: usize,
     call_site: &crate::semantic::calls::CallSite<'_>,
@@ -85,7 +83,7 @@ pub(crate) fn lower_call_arguments(
     authored_parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
     locals: &[ScalarLocal],
-    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<LoweredCallArguments> {
     let target_symbol = match call_site {
         crate::semantic::calls::CallSite::Statement(call) => call.target_symbol,
@@ -107,7 +105,7 @@ pub(crate) fn lower_call_arguments(
     let mut structural_index = 0usize;
     let mut scalar_erased_index = 0usize;
     let mut proof_erased_index = 0usize;
-    let proof_only = crate::validation::proof_only_classification(program);
+    let proof_only = validation::proof_only_classification(program);
     let mut proof_terms = Vec::new();
     let mut output = Vec::new();
     for target in target_parameters {
@@ -184,7 +182,7 @@ pub(crate) fn lower_call_arguments(
         let Some(expected_type) = program.primitive_type_reference(target.type_reference) else {
             let argument_ordinal = u32::try_from(structural_index).ok()?;
             structural_index = structural_index.checked_add(1)?;
-            let site = crate::checked_trees::CheckedSubsliceSite::CallArgument {
+            let site = checked_trees::CheckedSubsliceSite::CallArgument {
                 call_ordinal: u32::try_from(call_ordinal).ok()?,
                 argument_ordinal,
             };
@@ -276,7 +274,7 @@ fn proof_field_type(
     data_symbol: symbols::SymbolHandle,
     case_symbol: Option<symbols::SymbolHandle>,
     field_symbol: symbols::SymbolHandle,
-) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
+) -> Option<typed_trees::types::TypeReferenceHandle> {
     let definition = program
         .data_definitions()
         .iter()
@@ -285,18 +283,18 @@ fn proof_field_type(
         .data_members(definition)
         .iter()
         .find_map(|member| match member {
-            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field)
-                if case_symbol.is_none() =>
-            {
+            typed_trees::data::DataMember::Field(field) if case_symbol.is_none() => {
                 (field.symbol == field_symbol).then_some(field.type_reference)
             }
-            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
-                variant,
-            ) if Some(variant.symbol) == case_symbol => program
-                .data_payload_fields(variant)
-                .iter()
-                .find(|field| field.symbol == field_symbol)
-                .map(|field| field.type_reference),
+            typed_trees::data::DataMember::Variant(variant)
+                if Some(variant.symbol) == case_symbol =>
+            {
+                program
+                    .data_payload_fields(variant)
+                    .iter()
+                    .find(|field| field.symbol == field_symbol)
+                    .map(|field| field.type_reference)
+            }
             _ => None,
         })
 }
@@ -316,8 +314,8 @@ pub(crate) fn lower_proof_term(
     authored_parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
     locals: &[ScalarLocal],
-    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
-    proof_only: &symbol_resolved_trees_to_typed_trees::typed_trees::proof_only::ProofOnlyClassification,
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
+    proof_only: &typed_trees::proof_only::ProofOnlyClassification,
 ) -> Option<CheckedProofTerm> {
     match program.expression_table.expression(expression) {
         ExpressionNode::StructLiteral(literal) => {
@@ -371,7 +369,7 @@ pub(crate) fn lower_proof_term(
                 .find_named_type_reference(literal.type_symbol)
                 .map(|reference| {
                     program
-                        .type_identity(symbol_resolved_trees_to_typed_trees::typed_trees::type_identity::TypeIdentityRequest::ordinary(
+                        .type_identity(typed_trees::type_identity::TypeIdentityRequest::ordinary(
                             reference,
                         ))
                         .into_string()
@@ -412,7 +410,7 @@ pub(crate) fn lower_direct_call_binding_arguments(
     authored_parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
     locals: &[ScalarLocal],
-    exact_integer_casts: &[crate::validation::ExactIntegerCastFact],
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<LoweredCallArguments> {
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return None;
@@ -445,7 +443,7 @@ pub(crate) fn lower_direct_call_binding_arguments(
     let mut argument_ordinal = 0u32;
     let mut erased_ordinal = 0u32;
     let mut proof_erased_ordinal = 0u32;
-    let proof_only = crate::validation::proof_only_classification(program);
+    let proof_only = validation::proof_only_classification(program);
     let mut scalar_arguments = Vec::new();
     let mut proof_terms = Vec::new();
     for (argument, target_parameter) in arguments.iter().zip(target_parameters) {

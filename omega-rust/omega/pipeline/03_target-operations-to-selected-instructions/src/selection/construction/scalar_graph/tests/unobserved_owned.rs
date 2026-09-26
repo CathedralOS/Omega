@@ -15,7 +15,7 @@ use terminal_psi::{
 fn source(native: target::NativeTarget) -> LegalizedScalarFunction {
     let mut source = super::control::graph(
         native,
-        crate::legalized_operations::LegalizedScalarComparison::Equal,
+        legalized_operations::LegalizedScalarComparison::Equal,
         false,
     );
     let identity = StructuralTypeId::new(1).unwrap();
@@ -38,7 +38,7 @@ fn source(native: target::NativeTarget) -> LegalizedScalarFunction {
         },
     )
     .unwrap();
-    source.structural = Some(crate::legalized_operations::LegalizedStructuralContract {
+    source.structural = Some(legalized_operations::LegalizedStructuralContract {
         result: None,
         structural_types: vec![StructuralTypeDeclaration {
             id: identity,
@@ -57,9 +57,9 @@ fn source(native: target::NativeTarget) -> LegalizedScalarFunction {
             },
         }]
         .into(),
-        parameters: vec![crate::legalized_operations::LegalizedCallUnitParameter {
+        parameters: vec![legalized_operations::LegalizedCallUnitParameter {
             semantic: declaration(1),
-            target: abstract_operations_to_target_operations::target_operations::TargetStructuralParameter {
+            target: target_operations::TargetStructuralParameter {
                 place: place(1),
                 structural_type: identity,
                 multiplicity: StructuralMultiplicity::Affine,
@@ -81,9 +81,9 @@ fn source(native: target::NativeTarget) -> LegalizedScalarFunction {
             block.structural_parameters.push(declaration(ordinal + 10));
             place(ordinal + 10)
         };
-        let bind = |edge: &mut crate::legalized_operations::LegalizedScalarSuccessor| {
+        let bind = |edge: &mut legalized_operations::LegalizedScalarSuccessor| {
             edge.structural_bindings
-                .push(terminal_psi_to_abstract_operations::abstract_operations::AbstractStructuralBinding {
+                .push(abstract_operations::AbstractStructuralBinding {
                     parameter: place(edge.target.get() + 10),
                     argument: terminal_psi::StructuralArgument {
                         place: owner,
@@ -103,13 +103,9 @@ fn source(native: target::NativeTarget) -> LegalizedScalarFunction {
                 bind(when_false);
             }
             LegalizedScalarTerminator::Return(returned) => {
-                returned.ownership = vec![
-                    terminal_psi_to_abstract_operations::optimization_unit::OwnershipEvent::Cleanup(
-                        vec![terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
-                            owner,
-                        )],
-                    ),
-                ]
+                returned.ownership = vec![optimization_unit::OwnershipEvent::Cleanup(vec![
+                    terminal_psi::TerminalAffineCleanupAction::DiscardRoot(owner),
+                ])]
             }
             _ => unreachable!(),
         }
@@ -180,7 +176,7 @@ fn bounded_owned_fields_keep_range_identity_without_storage_or_write_authority()
             "a writable sibling follows the restricted field's full carrier width",
         );
         let environment =
-            crate::register_environment::baseline_target_register_environment(native).unwrap();
+            register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -261,7 +257,7 @@ fn unused_owned_bindings_select_and_replay_without_homes_or_copies() {
     ] {
         let source = source(native);
         let environment =
-            crate::register_environment::baseline_target_register_environment(native).unwrap();
+            register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = SelectedSelectionConstraints {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
@@ -328,7 +324,7 @@ fn unused_owned_bindings_select_and_replay_without_homes_or_copies() {
                 assert_eq!(edge.structural_bindings.len(), 1);
                 assert_eq!(
                     edge.structural_bindings[0].transport,
-                    crate::selected_instructions::SelectedStructuralTransport::Unused
+                    selected_instructions::SelectedStructuralTransport::Unused
                 );
                 assert_eq!(
                     edge.structural_bindings[0].semantic.argument.access,
@@ -358,8 +354,8 @@ fn unused_owned_bindings_select_and_replay_without_homes_or_copies() {
         let mut changed = selected.clone();
         changed
             .local_storage_slots
-            .push(crate::selected_instructions::SelectedLocalStorageSlot {
-                id: crate::selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
+            .push(selected_instructions::SelectedLocalStorageSlot {
+                id: selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
                     block: BlockId::new(4).unwrap(),
                     place: semantic_vocabulary::PlaceId::new(14).unwrap(),
                 },
@@ -381,13 +377,12 @@ fn unused_owned_bindings_select_and_replay_without_homes_or_copies() {
                 _ => None,
             })
             .unwrap();
-        binding.transport = crate::selected_instructions::SelectedStructuralTransport::Descriptor {
+        binding.transport = selected_instructions::SelectedStructuralTransport::Descriptor {
             argument: VirtualRegisterId(0),
-            destination:
-                crate::selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
-                    block: BlockId::new(4).unwrap(),
-                    place: semantic_vocabulary::PlaceId::new(14).unwrap(),
-                },
+            destination: selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
+                block: BlockId::new(4).unwrap(),
+                place: semantic_vocabulary::PlaceId::new(14).unwrap(),
+            },
         };
         assert!(
             validate(&changed).is_err(),

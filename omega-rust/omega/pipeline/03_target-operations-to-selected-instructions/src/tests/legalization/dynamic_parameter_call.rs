@@ -3,20 +3,18 @@
 //! requirement slot, the erased call plan, and the table offset; replay
 //! re-derives each from the roster and target ABI.
 
-use crate::legalized_operations::{LegalizedScalarInstructionKind, LegalizedScalarTerminator};
 use crate::{legalize_target_operations, select_instructions, validate_legalized_operations};
-use abstract_operations_to_target_operations::target_operations::TargetUnitOperation;
+use abstract_operations::{AbstractOperation, AbstractParameterDynamicDispatch, AbstractResult};
+use legalized_operations::{LegalizedScalarInstructionKind, LegalizedScalarTerminator};
 use semantic_vocabulary::{
     EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, OperationId, ScalarType,
     ValueId,
 };
 use target::NativeTarget;
+use target_operations::TargetUnitOperation;
 use terminal_psi::{
     ClosedConformanceCallableResult, StructuralAccess, TerminalDynamicDescriptorParameter,
     TerminalDynamicRequirement, TerminalParameterDynamicDispatch,
-};
-use terminal_psi_to_abstract_operations::abstract_operations::{
-    AbstractOperation, AbstractParameterDynamicDispatch, AbstractResult,
 };
 
 fn i32_type() -> ScalarType {
@@ -43,9 +41,9 @@ fn descriptor_parameter(
 pub(crate) fn scalar_fixture(
     native: NativeTarget,
 ) -> (
-    terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan,
-    abstract_operations_to_target_operations::target_operations::TargetOperationPlan,
-    terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
+    abstract_operations::AbstractOperationPlan,
+    target_operations::TargetOperationPlan,
+    optimization_unit::PsiOptimizationUnit,
 ) {
     let (mut source, _, _) = crate::tests::fixtures::plain_unit::plain_unit_fixture();
     let machine = MachineId::new(1).unwrap();
@@ -65,10 +63,7 @@ pub(crate) fn scalar_fixture(
             result: ClosedConformanceCallableResult::I32,
         }],
     );
-    source.functions[0].result =
-        terminal_psi_to_abstract_operations::abstract_operations::AbstractFunctionResult::Scalar(
-            result,
-        );
+    source.functions[0].result = abstract_operations::AbstractFunctionResult::Scalar(result);
     source.functions[0].operations = vec![
         AbstractOperation::DynamicDescriptorParameter {
             parameter: parameter.clone(),
@@ -101,7 +96,7 @@ pub(crate) fn scalar_fixture(
         abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
     )
     .unwrap();
-    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),
     )
@@ -114,9 +109,9 @@ pub(crate) fn scalar_fixture(
 pub(crate) fn unit_fixture(
     native: NativeTarget,
 ) -> (
-    terminal_psi_to_abstract_operations::abstract_operations::AbstractOperationPlan,
-    abstract_operations_to_target_operations::target_operations::TargetOperationPlan,
-    terminal_psi_to_abstract_operations::optimization_unit::PsiOptimizationUnit,
+    abstract_operations::AbstractOperationPlan,
+    target_operations::TargetOperationPlan,
+    optimization_unit::PsiOptimizationUnit,
 ) {
     let (mut source, _, _) = crate::tests::fixtures::plain_unit::plain_unit_fixture();
     let machine = MachineId::new(1).unwrap();
@@ -159,7 +154,7 @@ pub(crate) fn unit_fixture(
         abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
     )
     .unwrap();
-    let unit = terminal_psi_to_abstract_operations::optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),
     )
@@ -191,7 +186,7 @@ fn parameter_dynamic_scalar_call_legalizes_with_replayed_contract() {
             panic!("scalar return")
         };
         assert!(
-            matches!(returned.value, crate::legalized_operations::LegalizedScalarReturnValue::Value { value, .. } if value == ValueId::new(1).unwrap())
+            matches!(returned.value, legalized_operations::LegalizedScalarReturnValue::Value { value, .. } if value == ValueId::new(1).unwrap())
         );
     }
 }
@@ -214,7 +209,7 @@ fn parameter_dynamic_unit_call_legalizes_without_result_home() {
 fn parameter_dynamic_call_replay_rejects_contract_substitution() {
     let (source, target, unit) = scalar_fixture(NativeTarget::linux_x64());
     let legal = legalize_target_operations(&target, &source, &unit).unwrap();
-    let identity = crate::legalized_operations::legalized_operation_plan_identity(legal.plan());
+    let identity = legalized_operations::legalized_operation_plan_identity(legal.plan());
     for mutation in 0..6 {
         let mut changed = legal.plan().clone();
         let row = &mut changed.scalar_functions[0].blocks[0].instructions[0];
@@ -236,7 +231,7 @@ fn parameter_dynamic_call_replay_rejects_contract_substitution() {
             _ => unreachable!(),
         }
         assert_ne!(
-            crate::legalized_operations::legalized_operation_plan_identity(&changed),
+            legalized_operations::legalized_operation_plan_identity(&changed),
             identity
         );
         assert!(
@@ -311,10 +306,9 @@ fn parameter_dynamic_call_selection_still_rejects_the_new_kind() {
     // the restored lane ends at the selected-instruction boundary.
     let (source, target, unit) = scalar_fixture(NativeTarget::linux_x64());
     let legal = legalize_target_operations(&target, &source, &unit).unwrap();
-    let environment = crate::register_environment::baseline_target_register_environment(
-        NativeTarget::linux_x64(),
-    )
-    .unwrap();
+    let environment =
+        register_environment::baseline_target_register_environment(NativeTarget::linux_x64())
+            .unwrap();
     let constraints = crate::selection_constraints(&legal, &environment);
     assert!(
         select_instructions(

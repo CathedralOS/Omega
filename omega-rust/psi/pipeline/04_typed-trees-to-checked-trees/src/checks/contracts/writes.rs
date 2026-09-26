@@ -14,20 +14,18 @@
 //! of the #63 assignment range-check; without it the field-read narrowing would
 //! rest on an unenforced refinement (the #40 trap).
 
-use crate::checked_trees::{CheckFacts, FlowStateFact};
-use crate::fact_plan::FactPayload;
+use checked_trees::{CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, ExpressionNode,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle;
+use facts::FactPayload;
 use symbols::SymbolHandle;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::statement::StatementNode;
+use typed_trees::types::TypeReferenceHandle;
 
 use crate::labels::{machine_name, symbol_name};
 
 pub(super) fn check_domain_field_writes(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     diagnostics: &mut Vec<Diagnostic>,
@@ -118,9 +116,9 @@ pub(super) fn check_domain_field_writes(
                 // target's integer range: the bounded-assignment obligation
                 // proves every write inside it, from guards and operand
                 // ranges alike, as it did for the bracketed range.
-                let exact_interval = crate::validation::exact_declared_domain_interval(
+                let exact_interval = validation::exact_declared_domain_interval(
                     program,
-                    &symbol_resolved_trees_to_typed_trees::typed_trees::types::DomainConstraint {
+                    &typed_trees::types::DomainConstraint {
                         symbol: domain_symbol,
                         ..Default::default()
                     },
@@ -234,7 +232,7 @@ pub(super) fn check_domain_field_writes(
             .map(|reference| reference.context)
             .collect::<Vec<_>>();
         if let StatementNode::Transition(transition) = statement {
-            if let symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
+            if let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
                 scan_construction_field_domains(
                     program,
                     facts,
@@ -250,7 +248,7 @@ pub(super) fn check_domain_field_writes(
                     continue;
                 }
                 let mut branch_contexts = contexts.clone();
-                let point = crate::fact_plan::ProgramPoint::TransitionArm {
+                let point = facts::ProgramPoint::TransitionArm {
                     machine_symbol: state_flow.machine_symbol,
                     state_symbol: state_flow.state_symbol,
                     statement_index,
@@ -264,13 +262,13 @@ pub(super) fn check_domain_field_writes(
                         .filter_map(|(handle, context)| (context.point == point).then_some(handle)),
                 );
                 let expressions = match program.statement_table.transition_target(target) {
-                    symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
+                    typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
                         program
                             .statement_table
                             .expression_handles(*arguments)
                             .to_vec()
                     }
-                    symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Value(expression) => {
+                    typed_trees::statement::TransitionTargetNode::Value(expression) => {
                         vec![*expression]
                     }
                     _ => Vec::new(),
@@ -307,7 +305,7 @@ pub(super) fn check_domain_field_writes(
 /// may appear, possibly nested). The exhaustive set keeps the construction walk
 /// in step with the statement shapes.
 fn statement_root_expressions(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     statement: &StatementNode,
 ) -> Vec<ExpressionHandle> {
     match statement {
@@ -346,9 +344,9 @@ fn statement_root_expressions(
 /// bound. Thus in-place append uses the proven current length when one reaches
 /// the statement, never merely the storage capacity.
 fn static_max_byte_length(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     statement_index: usize,
     expression: ExpressionHandle,
     known_lengths: &[KnownByteLength],
@@ -359,7 +357,7 @@ fn static_max_byte_length(
     match program.expression_table.expression(expression) {
         ExpressionNode::String(literal) => Some(literal.len()),
         ExpressionNode::Binary(binary)
-            if binary.operator == symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Add =>
+            if binary.operator == typed_trees::expression::BinaryOperator::Add =>
         {
             let left = static_max_byte_length(
                 program,
@@ -431,9 +429,9 @@ struct KnownByteLength {
 /// place. Ordinary assignments retain disjoint facts, invalidate overlapping
 /// places, and publish the assigned value's new maximum length.
 fn known_byte_lengths_before(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     statement_index: usize,
 ) -> Vec<KnownByteLength> {
     let mut known = Vec::new();
@@ -501,7 +499,7 @@ fn known_byte_lengths_before(
 }
 
 fn forget_overlapping_lengths(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     known: &mut Vec<KnownByteLength>,
     written: &crate::flow::CanonicalPlace,
 ) {
@@ -516,7 +514,7 @@ fn forget_overlapping_lengths(
 }
 
 fn expression_contains_value_call(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> bool {
     if !expression.is_valid() {
@@ -531,7 +529,7 @@ fn expression_contains_value_call(
                     .match_arms(dispatch.arms)
                     .iter()
                     .any(|arm| {
-                        matches!(arm.pattern, symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern)
+                        matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(pattern)
                         if expression_contains_value_call(program, pattern))
                             || expression_contains_value_call(program, arm.value)
                     })
@@ -576,12 +574,12 @@ fn expression_contains_value_call(
 /// field whose declared type carries a domain, require the field value provably
 /// in that domain (reusing the assignment discharge `value_proves_domain`).
 fn scan_construction_field_domains(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     statement_index: usize,
     expression: ExpressionHandle,
-    contexts: &mut Vec<crate::fact_plan::FactContextHandle>,
+    contexts: &mut Vec<facts::FactContextHandle>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if !expression.is_valid() {
@@ -607,10 +605,10 @@ fn scan_construction_field_domains(
                 contexts,
                 diagnostics,
             );
-            let mut joined_contexts: Option<Vec<crate::fact_plan::FactContextHandle>> = None;
+            let mut joined_contexts: Option<Vec<facts::FactContextHandle>> = None;
             for arm in program.expression_table.match_arms(dispatch.arms) {
                 let mut arm_contexts = contexts.clone();
-                if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                     scan_construction_field_domains(
                         program,
                         facts,
@@ -903,7 +901,7 @@ fn scan_construction_field_domains(
 /// Mirrors validation `struct_literals::construction_field_type` + domain
 /// extraction.
 fn construction_field_domain_identities(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     type_symbol: SymbolHandle,
     case_name: Option<&str>,
     field_name: &str,
@@ -940,7 +938,7 @@ fn construction_field_domain_identities(
 /// statement, otherwise its entry context; never read the destination binding's
 /// post-statement facts or equate places by their display names.
 fn value_proves_qualification(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     state: &FlowStateFact,
     statement_index: usize,
@@ -999,7 +997,7 @@ fn value_proves_qualification(
 /// establishment never survives a rewrite, and a foreign case or owner fails
 /// the exact variant-symbol comparison.
 fn initializer_satisfies_predicate_domain(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     state: &FlowStateFact,
     statement_index: usize,
@@ -1053,21 +1051,19 @@ fn initializer_satisfies_predicate_domain(
         .collect::<Vec<_>>();
     active.push(domain_symbol);
     let satisfied = program.proof_facts(domain).iter().all(|fact| match fact {
-        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
-            expression,
-        ) => predicate_expression_holds_on_value(
-            program,
-            facts,
-            state,
-            statement_index,
-            &contexts,
-            value,
-            *expression,
-            type_symbol,
-        ),
-        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(
-            membership,
-        ) => {
+        typed_trees::domain::ProofFact::Expression(expression) => {
+            predicate_expression_holds_on_value(
+                program,
+                facts,
+                state,
+                statement_index,
+                &contexts,
+                value,
+                *expression,
+                type_symbol,
+            )
+        }
+        typed_trees::domain::ProofFact::Membership(membership) => {
             membership.domain_arguments.is_empty()
                 && member_subject_satisfies_domain(
                     program,
@@ -1082,9 +1078,7 @@ fn initializer_satisfies_predicate_domain(
                     active,
                 )
         }
-        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(_) => {
-            false
-        }
+        typed_trees::domain::ProofFact::Proposition(_) => false,
     });
     active.pop();
     satisfied
@@ -1095,18 +1089,18 @@ fn initializer_satisfies_predicate_domain(
 /// `self.f` predicates compare a member's scalar. Anything else is not
 /// decidable here and falls back to the membership proof.
 fn predicate_expression_holds_on_value(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     state: &FlowStateFact,
     statement_index: usize,
-    contexts: &[crate::fact_plan::FactContextHandle],
+    contexts: &[facts::FactContextHandle],
     value: ExpressionHandle,
     expression: ExpressionHandle,
     type_symbol: Option<SymbolHandle>,
 ) -> bool {
     match program.expression_table.expression(expression) {
         ExpressionNode::Binary(binary)
-            if binary.operator == symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::And =>
+            if binary.operator == typed_trees::expression::BinaryOperator::And =>
         {
             predicate_expression_holds_on_value(
                 program,
@@ -1129,7 +1123,7 @@ fn predicate_expression_holds_on_value(
             )
         }
         ExpressionNode::Binary(binary)
-            if binary.operator == symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Or =>
+            if binary.operator == typed_trees::expression::BinaryOperator::Or =>
         {
             predicate_expression_holds_on_value(
                 program,
@@ -1164,8 +1158,8 @@ fn predicate_expression_holds_on_value(
                 type_symbol,
             ) {
                 return match binary.operator {
-                    symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Equal => selected,
-                    symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::NotEqual => !selected,
+                    typed_trees::expression::BinaryOperator::Equal => selected,
+                    typed_trees::expression::BinaryOperator::NotEqual => !selected,
                     _ => false,
                 };
             }
@@ -1192,7 +1186,7 @@ fn predicate_expression_holds_on_value(
                 value,
                 expression,
                 type_symbol,
-            ) == Some(crate::fact_plan::ScalarValue::Boolean(true))
+            ) == Some(facts::ScalarValue::Boolean(true))
         }
         _ => false,
     }
@@ -1204,11 +1198,11 @@ fn predicate_expression_holds_on_value(
 /// case evidence exists for the subject.
 #[allow(clippy::too_many_arguments)]
 fn case_membership_decision(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     state: &FlowStateFact,
     statement_index: usize,
-    contexts: &[crate::fact_plan::FactContextHandle],
+    contexts: &[facts::FactContextHandle],
     value: ExpressionHandle,
     left: ExpressionHandle,
     right: ExpressionHandle,
@@ -1245,13 +1239,13 @@ fn case_membership_decision(
 /// `case_symbol`. A place answers from live case evidence; a construction
 /// literal answers from its own selected variant and member initializers.
 fn selected_case_is(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     state: &FlowStateFact,
     statement_index: usize,
-    contexts: &[crate::fact_plan::FactContextHandle],
+    contexts: &[facts::FactContextHandle],
     value: ExpressionHandle,
-    segments: &[crate::fact_plan::PlaceSegment],
+    segments: &[facts::PlaceSegment],
     case_symbol: SymbolHandle,
 ) -> Option<bool> {
     if let Some(selected) = literal_member_value(program, value, segments)
@@ -1265,7 +1259,7 @@ fn selected_case_is(
         statement_index,
         value,
     )?;
-    if !matches!(place.root, crate::fact_plan::PlaceRoot::Symbol(_)) {
+    if !matches!(place.root, facts::PlaceRoot::Symbol(_)) {
         return None;
     }
     let mut subject = place.clone();
@@ -1287,7 +1281,7 @@ fn selected_case_is(
 /// a `T::Case(...)` call, or a bare variant name. Record literals and
 /// non-construction expressions have no selected case.
 fn construction_selected_case(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     value: ExpressionHandle,
 ) -> Option<SymbolHandle> {
     match program.expression_table.expression(value) {
@@ -1305,7 +1299,7 @@ fn construction_selected_case(
                 .data_members(data_definition)
                 .iter()
                 .find_map(|member| match member {
-                    symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(variant)
+                    typed_trees::data::DataMember::Variant(variant)
                         if variant.name.as_str() == call.target.as_str() =>
                     {
                         Some(variant.symbol)
@@ -1327,13 +1321,13 @@ fn construction_selected_case(
 /// initializers. An empty segment list is the literal itself; a non-field
 /// segment or a non-literal member value cannot be descended into.
 fn literal_member_value(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     value: ExpressionHandle,
-    segments: &[crate::fact_plan::PlaceSegment],
+    segments: &[facts::PlaceSegment],
 ) -> Option<ExpressionHandle> {
     let mut current = value;
     for segment in segments {
-        let crate::fact_plan::PlaceSegment::Field { symbol } = segment else {
+        let facts::PlaceSegment::Field { symbol } = segment else {
             return None;
         };
         let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(current)
@@ -1354,15 +1348,15 @@ fn literal_member_value(
 /// the place's member segments, or the literal field's own constant.
 #[allow(clippy::too_many_arguments)]
 fn member_scalar_at_subject(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     state: &FlowStateFact,
     statement_index: usize,
-    contexts: &[crate::fact_plan::FactContextHandle],
+    contexts: &[facts::FactContextHandle],
     value: ExpressionHandle,
     member_path: ExpressionHandle,
     type_symbol: Option<SymbolHandle>,
-) -> Option<crate::fact_plan::ScalarValue> {
+) -> Option<facts::ScalarValue> {
     let segments =
         crate::flow::relative_place_segments_from_expression(program, member_path, type_symbol)?;
     if let Some(scalar) = literal_member_value(program, value, &segments)
@@ -1376,7 +1370,7 @@ fn member_scalar_at_subject(
         statement_index,
         value,
     )?;
-    if !matches!(place.root, crate::fact_plan::PlaceRoot::Symbol(_)) {
+    if !matches!(place.root, facts::PlaceRoot::Symbol(_)) {
         return None;
     }
     let mut subject = place.clone();
@@ -1392,17 +1386,15 @@ fn member_scalar_at_subject(
 }
 
 fn expression_constant_scalar(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     expression: ExpressionHandle,
-) -> Option<crate::fact_plan::ScalarValue> {
+) -> Option<facts::ScalarValue> {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Boolean(value) => Some(crate::fact_plan::ScalarValue::Boolean(*value)),
+        ExpressionNode::Boolean(value) => Some(facts::ScalarValue::Boolean(*value)),
         _ => program
             .expression_table
             .constant_integer_value(expression)
-            .map(|value| {
-                crate::fact_plan::ScalarValue::Integer(numerics::bignum::BigInt::from_i64(value))
-            }),
+            .map(|value| facts::ScalarValue::Integer(numerics::bignum::BigInt::from_i64(value))),
     }
 }
 
@@ -1412,18 +1404,18 @@ fn expression_constant_scalar(
 /// constant leads, the operator is mirrored so the member stays the subject.
 #[allow(clippy::too_many_arguments)]
 fn member_comparison_holds_on_value(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     state: &FlowStateFact,
     statement_index: usize,
-    contexts: &[crate::fact_plan::FactContextHandle],
+    contexts: &[facts::FactContextHandle],
     value: ExpressionHandle,
-    operator: symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator,
+    operator: typed_trees::expression::BinaryOperator,
     left: ExpressionHandle,
     right: ExpressionHandle,
     type_symbol: Option<SymbolHandle>,
 ) -> bool {
-    use symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator;
+    use typed_trees::expression::BinaryOperator;
     for (member, constant, operator) in [
         (left, right, operator),
         (
@@ -1458,26 +1450,24 @@ fn member_comparison_holds_on_value(
         };
         let expected = expression_constant_scalar(program, constant).expect("checked above");
         return match (&actual, &expected) {
-            (
-                crate::fact_plan::ScalarValue::Integer(actual),
-                crate::fact_plan::ScalarValue::Integer(expected),
-            ) => match operator {
-                BinaryOperator::Equal => actual == expected,
-                BinaryOperator::NotEqual => actual != expected,
-                BinaryOperator::Less => actual < expected,
-                BinaryOperator::LessOrEqual => actual <= expected,
-                BinaryOperator::Greater => actual > expected,
-                BinaryOperator::GreaterOrEqual => actual >= expected,
-                _ => false,
-            },
-            (
-                crate::fact_plan::ScalarValue::Boolean(actual),
-                crate::fact_plan::ScalarValue::Boolean(expected),
-            ) => match operator {
-                BinaryOperator::Equal => actual == expected,
-                BinaryOperator::NotEqual => actual != expected,
-                _ => false,
-            },
+            (facts::ScalarValue::Integer(actual), facts::ScalarValue::Integer(expected)) => {
+                match operator {
+                    BinaryOperator::Equal => actual == expected,
+                    BinaryOperator::NotEqual => actual != expected,
+                    BinaryOperator::Less => actual < expected,
+                    BinaryOperator::LessOrEqual => actual <= expected,
+                    BinaryOperator::Greater => actual > expected,
+                    BinaryOperator::GreaterOrEqual => actual >= expected,
+                    _ => false,
+                }
+            }
+            (facts::ScalarValue::Boolean(actual), facts::ScalarValue::Boolean(expected)) => {
+                match operator {
+                    BinaryOperator::Equal => actual == expected,
+                    BinaryOperator::NotEqual => actual != expected,
+                    _ => false,
+                }
+            }
             _ => false,
         };
     }
@@ -1489,11 +1479,11 @@ fn member_comparison_holds_on_value(
 /// ordinary way.
 #[allow(clippy::too_many_arguments)]
 fn member_subject_satisfies_domain(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     state: &FlowStateFact,
     statement_index: usize,
-    contexts: &[crate::fact_plan::FactContextHandle],
+    contexts: &[facts::FactContextHandle],
     value: ExpressionHandle,
     member: ExpressionHandle,
     domain_symbol: SymbolHandle,
@@ -1546,7 +1536,7 @@ fn member_subject_satisfies_domain(
 /// Resolve the selected definition, not the authored spelling: a qualified
 /// foreign construction must establish that exact owner's field contracts.
 fn construction_field_type_by_symbol(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     type_symbol: SymbolHandle,
     case_name: Option<&str>,
     field_name: &str,
@@ -1562,8 +1552,8 @@ fn construction_field_type_by_symbol(
 }
 
 fn construction_field_type(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    data_definition: &symbol_resolved_trees_to_typed_trees::typed_trees::data::DataDefinition,
+    program: &typed_trees::TypedTrees,
+    data_definition: &typed_trees::data::DataDefinition,
     case_name: Option<&str>,
     field_name: &str,
 ) -> Option<TypeReferenceHandle> {
@@ -1572,9 +1562,11 @@ fn construction_field_type(
             .data_members(data_definition)
             .iter()
             .find_map(|member| match member {
-                symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Variant(
-                    variant,
-                ) if variant.name.as_str() == case_name => Some(variant),
+                typed_trees::data::DataMember::Variant(variant)
+                    if variant.name.as_str() == case_name =>
+                {
+                    Some(variant)
+                }
                 _ => None,
             })
     {
@@ -1591,9 +1583,7 @@ fn construction_field_type(
         .data_members(data_definition)
         .iter()
         .find_map(|member| match member {
-            symbol_resolved_trees_to_typed_trees::typed_trees::data::DataMember::Field(field)
-                if field.name.as_str() == field_name =>
-            {
+            typed_trees::data::DataMember::Field(field) if field.name.as_str() == field_name => {
                 field
                     .type_reference
                     .is_valid()
@@ -1607,7 +1597,7 @@ fn construction_field_type(
 /// can consume its field facts. Use the same completed-operand contexts as
 /// routed membership, never an initializer or a post-assignment destination.
 fn value_case_path_is_selected(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     state: &FlowStateFact,
     statement_index: usize,
@@ -1624,7 +1614,7 @@ fn value_case_path_is_selected(
     if !subject
         .segments
         .iter()
-        .any(|segment| matches!(segment, crate::fact_plan::PlaceSegment::Case { .. }))
+        .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
     {
         return true;
     }
@@ -1666,7 +1656,7 @@ fn value_case_path_is_selected(
 /// Prove an assigned value from live membership or an independently checked
 /// predicate. A declared field alone cannot license an inactive payload read.
 fn value_proves_domain(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     statement_index: usize,
@@ -1705,14 +1695,14 @@ fn value_proves_domain(
 }
 
 fn construction_value_proves_qualification(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     state: &FlowStateFact,
     statement_index: usize,
     value: ExpressionHandle,
     domain: SymbolHandle,
     identity: language_semantics::SemanticDomainId,
-    contexts: &[crate::fact_plan::FactContextHandle],
+    contexts: &[facts::FactContextHandle],
 ) -> bool {
     let subject = crate::flow::canonical_place_from_expression_in_state(
         program,
@@ -1743,11 +1733,17 @@ fn construction_value_proves_qualification(
     // Numeric field domains use the same contextual proof as nominal call
     // arguments; requiring only an existing membership token would reject a
     // construction whose scalar value already establishes the predicate.
-    if symbol_resolved_trees_to_typed_trees::typed_trees::domain::supports_symbol_only_proof(
-        program, domain,
-    ) && subject.as_ref().is_some_and(|subject| {
-        super::prover::prove_domain_at_place(program, &facts.semantic, contexts, subject, domain)
-    }) {
+    if typed_trees::domain::supports_symbol_only_proof(program, domain)
+        && subject.as_ref().is_some_and(|subject| {
+            super::prover::prove_domain_at_place(
+                program,
+                &facts.semantic,
+                contexts,
+                subject,
+                domain,
+            )
+        })
+    {
         return true;
     }
     value_proves_domain_in_contexts(
@@ -1762,18 +1758,15 @@ fn construction_value_proves_qualification(
 }
 
 fn value_proves_domain_in_contexts(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     statement_index: usize,
     value: ExpressionHandle,
     domain_symbol: SymbolHandle,
-    contexts: &[crate::fact_plan::FactContextHandle],
+    contexts: &[facts::FactContextHandle],
 ) -> bool {
-    if !symbol_resolved_trees_to_typed_trees::typed_trees::domain::supports_symbol_only_proof(
-        program,
-        domain_symbol,
-    ) {
+    if !typed_trees::domain::supports_symbol_only_proof(program, domain_symbol) {
         return false;
     }
     if crate::facts::field_domain::string_literal_expression_grants_domain(
@@ -1792,8 +1785,7 @@ fn value_proves_domain_in_contexts(
     // the separate length-fits check at the write site, so admitting the domain
     // here is not on its own a license to overflow the target.
     if let ExpressionNode::Binary(binary) = program.expression_table.expression(value)
-        && binary.operator
-            == symbol_resolved_trees_to_typed_trees::typed_trees::expression::BinaryOperator::Add
+        && binary.operator == typed_trees::expression::BinaryOperator::Add
         && crate::facts::field_domain::domain_is_concat_preserving(program, domain_symbol)
     {
         let (left, right) = (binary.left, binary.right);
@@ -1883,7 +1875,7 @@ fn value_proves_domain_in_contexts(
                 | FactPayload::ContractDomainMembership { domain_symbol, .. } => domain_symbol,
                 _ => return false,
             };
-            if !symbol_resolved_trees_to_typed_trees::typed_trees::domain::supports_symbol_only_proof(program, fact_domain) {
+            if !typed_trees::domain::supports_symbol_only_proof(program, fact_domain) {
                 return false;
             }
             if !facts.semantic.domain_implies(fact_domain, domain_symbol)
@@ -1899,7 +1891,7 @@ fn value_proves_domain_in_contexts(
             // fact's place label and (for a contract membership) its declared
             // `value` expression label -- the same two-pronged match the
             // statement-transfer propagation uses.
-            let crate::fact_plan::FactPlace::Place(fact_place) = fact.place else {
+            let facts::FactPlace::Place(fact_place) = fact.place else {
                 return false;
             };
             if value_place.as_ref().is_some_and(|value_place| {
@@ -1930,7 +1922,7 @@ fn value_proves_domain_in_contexts(
 /// Whether `value` is a state place whose declared leaf type carries a
 /// ZII-admitting domain that implies `domain_symbol`.
 fn declared_value_domain_implies(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     state_flow: &FlowStateFact,
     value: ExpressionHandle,
     domain_symbol: SymbolHandle,
@@ -1967,7 +1959,7 @@ fn declared_value_domain_implies(
 /// Whether `value` is a value-position call whose resolved target state declares
 /// a return type carrying a domain that implies `domain_symbol`.
 fn value_call_return_domain_implies(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     value: ExpressionHandle,
     domain_symbol: SymbolHandle,
 ) -> bool {
@@ -2000,7 +1992,7 @@ fn value_call_return_domain_implies(
 /// `x as T`, a place read, or any other shape -- yields `None` and keeps the
 /// ordinary discharge paths.
 fn recast_view_source_expression(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     value: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
     let mut current = value;
@@ -2026,12 +2018,12 @@ fn recast_view_source_expression(
 /// or a carried `DomainMembership`/`ContractDomainMembership` fact at the
 /// place (a minted local, a contract-proven parameter, a checked prior write).
 fn recast_source_proves_domain(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     statement_index: usize,
     source: ExpressionHandle,
-    contexts: &[crate::fact_plan::FactContextHandle],
+    contexts: &[facts::FactContextHandle],
     domain_symbol: SymbolHandle,
 ) -> bool {
     let Some(subject) = crate::flow::canonical_place_from_expression_in_state(
@@ -2062,7 +2054,7 @@ fn recast_source_proves_domain(
 /// the zero value violates stays a write-time obligation rather than an
 /// invariant, so its reads must still follow a proven write.
 fn recast_source_declared_domain_implies(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     state_flow: &FlowStateFact,
     source: ExpressionHandle,
     domain_symbol: SymbolHandle,
@@ -2120,8 +2112,8 @@ fn recast_source_declared_domain_implies(
 /// storage case as a machine field -- and any other root conservatively
 /// reports unestablished.
 fn state_place_is_established(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
     source: ExpressionHandle,
 ) -> bool {
     let Some(symbol) = state_place_root_symbol(program, source) else {
@@ -2151,7 +2143,7 @@ fn state_place_is_established(
 /// it through `attached_data_field_type` first), so a `self`-headed name is
 /// not special-cased here.
 fn state_place_root_symbol(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
     match program.expression_table.expression(expression) {
@@ -2177,14 +2169,14 @@ fn state_place_root_symbol(
 /// -- conservatively refuses, so an unproven domain stays a write-time
 /// obligation rather than an invariant.
 fn domain_admits_zero_value(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     domain_symbol: SymbolHandle,
 ) -> bool {
     domain_admits_zero_value_inner(program, domain_symbol, &mut Vec::new())
 }
 
 fn domain_admits_zero_value_inner(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     domain_symbol: SymbolHandle,
     active: &mut Vec<SymbolHandle>,
 ) -> bool {
@@ -2212,23 +2204,17 @@ fn domain_admits_zero_value_inner(
     }
     active.push(domain_symbol);
     let admitted = facts.iter().all(|fact| match fact {
-        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Expression(
-            expression,
-        ) => matches!(
+        typed_trees::domain::ProofFact::Expression(expression) => matches!(
             super::prover::evaluate_scalar(program, *expression, &mut |leaf| {
                 zero_value_scalar_leaf(program, domain, leaf)
             }),
             Some(super::prover::ScalarValue::Boolean(true))
         ),
-        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Membership(
-            membership,
-        ) => {
+        typed_trees::domain::ProofFact::Membership(membership) => {
             expression_is_self_relative(program, membership.value)
                 && domain_admits_zero_value_inner(program, membership.domain_symbol, active)
         }
-        symbol_resolved_trees_to_typed_trees::typed_trees::domain::ProofFact::Proposition(_) => {
-            false
-        }
+        typed_trees::domain::ProofFact::Proposition(_) => false,
     });
     active.pop();
     admitted
@@ -2242,8 +2228,8 @@ fn domain_admits_zero_value_inner(
 /// scalar here, so the leaf stays unresolved and the enclosing evaluation
 /// fails closed.
 fn zero_value_scalar_leaf(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    domain: &symbol_resolved_trees_to_typed_trees::typed_trees::domain::DomainDefinition,
+    program: &typed_trees::TypedTrees,
+    domain: &typed_trees::domain::DomainDefinition,
     leaf: ExpressionHandle,
 ) -> Option<super::prover::ScalarValue> {
     let leaf_type =
@@ -2264,7 +2250,7 @@ fn zero_value_scalar_leaf(
             )
         })?;
     match program.type_reference_table.primitive_type(leaf_type) {
-        Some(symbol_resolved_trees_to_typed_trees::typed_trees::types::PrimitiveType::Bool) => {
+        Some(typed_trees::types::PrimitiveType::Bool) => {
             Some(super::prover::ScalarValue::Boolean(false))
         }
         Some(primitive) if primitive.accepts_integer_literal() => Some(
@@ -2279,7 +2265,7 @@ fn zero_value_scalar_leaf(
 /// target value. A membership fact over any other subject (a constant, an
 /// unrelated place) is not evidence about the domain's own zero value.
 fn expression_is_self_relative(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> bool {
     match program.expression_table.expression(expression) {
@@ -2304,7 +2290,7 @@ fn expression_is_self_relative(
 /// of that domain. A value with no resolvable declared type, or one carrying a
 /// different domain, answers `false` and leaves every other route to decide.
 fn value_declared_type_carries_domain(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     state_flow: &FlowStateFact,
     value: ExpressionHandle,
     domain_symbol: SymbolHandle,
@@ -2320,7 +2306,7 @@ fn value_declared_type_carries_domain(
         return false;
     };
     let Some(type_reference) =
-        crate::validation::declared_place_type_raw(program, machine, Some(state), value)
+        validation::declared_place_type_raw(program, machine, Some(state), value)
     else {
         return false;
     };

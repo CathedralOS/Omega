@@ -3,34 +3,32 @@
 //! the actual death edge. A path constructing a fresh result discards, at the
 //! join edge, the one source whose residual slot the result displaces; every
 //! other complement stays in the receipt until the actual death edge.
-use crate::checked_trees::CheckFacts;
-use crate::checked_trees::{
-    FlowOwnedSelectionClaim, FlowOwnedSelectionReceipt, FlowOwnedSelectionSource,
-    FlowOwnedSelectionTransfer,
-};
 use crate::checks::multiplicity::linear_obligations::LinearPlace;
 use crate::checks::multiplicity::linear_obligations::type_reference_is_reference;
 use crate::checks::type_multiplicity;
 use arena::Handle;
 use arena::HandleSpan;
+use checked_trees::CheckFacts;
+use checked_trees::{
+    FlowOwnedSelectionClaim, FlowOwnedSelectionReceipt, FlowOwnedSelectionSource,
+    FlowOwnedSelectionTransfer,
+};
 use diagnostics::Diagnostic;
 use language_semantics::Multiplicity;
 use language_semantics::PermissionClaimIdentity;
 use language_semantics::PermissionEventSource;
 use language_semantics::PermissionProvenance;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, ExpressionNode, MatchPattern, TableMatchArm,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle;
-use symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode;
 use symbols::SymbolHandle;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode, MatchPattern, TableMatchArm};
+use typed_trees::statement::StatementNode;
+use typed_trees::types::TypeReferenceHandle;
+use typed_trees::types::TypeReferenceNode;
 
 pub(super) fn record_statement(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &mut CheckFacts,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     statement_index: usize,
     statement: &StatementNode,
     places: &mut [LinearPlace],
@@ -116,10 +114,10 @@ pub(super) fn record_statement(
     // owned walls as a plain record — no loans, slices, nominal cleanup, or
     // recursive storage.
     let destination_ok = if linear_result {
-        crate::validation::has_linear_owned_contents(program, type_reference)
+        validation::has_linear_owned_contents(program, type_reference)
     } else {
         program.type_multiplicity(type_reference) == Multiplicity::Affine
-            && crate::validation::has_linear_owned_contents(program, type_reference)
+            && validation::has_linear_owned_contents(program, type_reference)
     };
     if !selected.contains(&expression) || !destination_ok {
         return Err(unsupported());
@@ -161,10 +159,10 @@ pub(super) fn record_statement(
     // Fresh per-edge products carry no tracked place and join vacuously.
     if linear_result {
         let terminals = terminal_arm_values(program, expression);
-        let mut consumed: Vec<(SymbolHandle, Vec<crate::fact_plan::PlaceSegment>)> = Vec::new();
+        let mut consumed: Vec<(SymbolHandle, Vec<facts::PlaceSegment>)> = Vec::new();
         let mut symbol_leaves = 0usize;
         for (_, _, root, path, _) in &leaves {
-            let crate::fact_plan::PlaceRoot::Symbol(symbol) = root else {
+            let facts::PlaceRoot::Symbol(symbol) = root else {
                 continue;
             };
             symbol_leaves += 1;
@@ -191,7 +189,7 @@ pub(super) fn record_statement(
     for (_, _, root, _, _) in &leaves {
         // A call's structural product roots its own once-evaluated custody;
         // only whole-local roots carry a roster source.
-        let crate::fact_plan::PlaceRoot::Symbol(symbol) = *root else {
+        let facts::PlaceRoot::Symbol(symbol) = *root else {
             continue;
         };
         if sources
@@ -205,9 +203,9 @@ pub(super) fn record_statement(
         // claim's position below the leaf. Distinct claim paths can never
         // overlap inside one frontier, so overlapping-but-distinct entries
         // here mean the leaf set disagrees with itself.
-        let mut consumed_paths: Vec<Vec<crate::fact_plan::PlaceSegment>> = Vec::new();
+        let mut consumed_paths: Vec<Vec<facts::PlaceSegment>> = Vec::new();
         for (_, _, leaf_root, leaf_path, leaf_type) in &leaves {
-            if *leaf_root != crate::fact_plan::PlaceRoot::Symbol(symbol) {
+            if *leaf_root != facts::PlaceRoot::Symbol(symbol) {
                 continue;
             }
             for template in &leaf_frontier(*leaf_type) {
@@ -341,12 +339,11 @@ pub(super) fn record_statement(
             }
             consumed.push(place);
         }
-        let source_ok =
-            if consumed.is_empty() {
-                root_place.is_some_and(|place| place.multiplicity == Multiplicity::Affine)
-            } else {
-                true
-            } && crate::validation::has_linear_owned_contents(program, source_reference);
+        let source_ok = if consumed.is_empty() {
+            root_place.is_some_and(|place| place.multiplicity == Multiplicity::Affine)
+        } else {
+            true
+        } && validation::has_linear_owned_contents(program, source_reference);
         if !source_ok {
             return Err(Diagnostic::error(
                 "owned match source must be an available immutable owned local or parameter claim of the exact result type",
@@ -365,7 +362,7 @@ pub(super) fn record_statement(
         // leaves instead owes the exact moved path recorded on each transfer;
         // the projected leaf type was already checked against the result.
         if leaves.iter().any(|(_, _, leaf_root, path, _)| {
-            *leaf_root == crate::fact_plan::PlaceRoot::Symbol(symbol) && path.is_empty()
+            *leaf_root == facts::PlaceRoot::Symbol(symbol) && path.is_empty()
         }) && program.normalized_type_identity(source_reference)
             != program.normalized_type_identity(type_reference)
         {
@@ -429,7 +426,7 @@ pub(super) fn record_statement(
     let mut transfers = Vec::new();
     for (expression, source_arm, root, path, leaf_type) in leaves {
         let (source, claims) = match root {
-            crate::fact_plan::PlaceRoot::Symbol(symbol) => {
+            facts::PlaceRoot::Symbol(symbol) => {
                 let ordinal = facts
                     .flow
                     .ownership
@@ -471,7 +468,7 @@ pub(super) fn record_statement(
             }
             // A call-product root is identified by the transfer expression's
             // authored place, not a roster source.
-            crate::fact_plan::PlaceRoot::Expression(root_expression)
+            facts::PlaceRoot::Expression(root_expression)
                 if matches!(
                     program.expression_table.expression(root_expression),
                     ExpressionNode::Call(_)
@@ -515,8 +512,8 @@ pub(super) fn record_statement(
 }
 
 pub(super) fn apply_availability(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    ownership: &crate::checked_trees::FlowOwnershipFacts,
+    program: &typed_trees::TypedTrees,
+    ownership: &checked_trees::FlowOwnershipFacts,
     receipt: &FlowOwnedSelectionReceipt,
     places: &mut [LinearPlace],
 ) {
@@ -650,10 +647,10 @@ pub(super) fn apply_availability(
 /// unresolvable call receiver conservatively counts as a whole-source use.
 #[allow(clippy::too_many_arguments)]
 fn linear_source_use_conflicts(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     statement_index: usize,
     statement: &StatementNode,
     expressions: &[ExpressionHandle],
@@ -713,7 +710,7 @@ fn linear_source_use_conflicts(
     if consumed_paths.is_empty() {
         return false;
     }
-    let mut used_paths: Vec<Vec<crate::fact_plan::PlaceSegment>> = expressions
+    let mut used_paths: Vec<Vec<facts::PlaceSegment>> = expressions
         .iter()
         .filter_map(|expression| {
             crate::flow::canonical_place_from_expression_in_state(
@@ -723,7 +720,7 @@ fn linear_source_use_conflicts(
                 *expression,
             )
         })
-        .filter(|place| place.root == crate::fact_plan::PlaceRoot::Symbol(source_symbol))
+        .filter(|place| place.root == facts::PlaceRoot::Symbol(source_symbol))
         .map(|place| place.segments)
         .collect();
     if let StatementNode::Call(call) = statement
@@ -736,7 +733,7 @@ fn linear_source_use_conflicts(
             &crate::semantic::calls::CallSite::Statement(call),
             statement_index,
         ) {
-            Some(place) if place.root == crate::fact_plan::PlaceRoot::Symbol(source_symbol) => {
+            Some(place) if place.root == facts::PlaceRoot::Symbol(source_symbol) => {
                 used_paths.push(place.segments)
             }
             _ => return true,
@@ -745,7 +742,7 @@ fn linear_source_use_conflicts(
     // The inner `Name` nodes of a projection are strict prefixes of the
     // outermost use; keep only maximal touched paths so reading a residual
     // sibling does not count as using the consumed whole.
-    let used_paths: Vec<Vec<crate::fact_plan::PlaceSegment>> = used_paths
+    let used_paths: Vec<Vec<facts::PlaceSegment>> = used_paths
         .iter()
         .filter(|path| {
             !used_paths
@@ -765,17 +762,17 @@ fn linear_source_use_conflicts(
 /// name the same place; a dynamic index cannot be statically excluded from a
 /// fixed element claim, so it conflicts on the element axis.
 pub(super) fn place_paths_overlap(
-    used: &[crate::fact_plan::PlaceSegment],
-    consumed: &[crate::fact_plan::PlaceSegment],
+    used: &[facts::PlaceSegment],
+    consumed: &[facts::PlaceSegment],
 ) -> bool {
     used.iter().zip(consumed.iter()).all(|(used, consumed)| {
         used == consumed
-            || (matches!(used, crate::fact_plan::PlaceSegment::Index { .. })
+            || (matches!(used, facts::PlaceSegment::Index { .. })
                 && matches!(
                     consumed,
-                    crate::fact_plan::PlaceSegment::FixedIndex { .. }
-                        | crate::fact_plan::PlaceSegment::Index { .. }
-                        | crate::fact_plan::PlaceSegment::FixedRange { .. }
+                    facts::PlaceSegment::FixedIndex { .. }
+                        | facts::PlaceSegment::Index { .. }
+                        | facts::PlaceSegment::FixedRange { .. }
                 ))
     })
 }
@@ -789,10 +786,10 @@ pub(super) fn place_paths_overlap(
 /// live loan keeps the explicit rejection instead of guessing at referent
 /// custody across the conditional move.
 fn source_needs_loan_closure(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     statement_index: usize,
     prior_statements: &[StatementNode],
     symbol: SymbolHandle,
@@ -844,9 +841,9 @@ fn unsupported() -> Diagnostic {
 }
 
 fn has_owned_leaf(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     statement_index: usize,
     expression: ExpressionHandle,
 ) -> bool {
@@ -855,14 +852,12 @@ fn has_owned_leaf(
             .iter()
             .any(|(_, arm)| has_owned_leaf(program, machine, state, statement_index, arm.value)),
         ExpressionNode::Name(_) => {
-            crate::validation::expression_result_type_reference(program, machine, state, expression)
+            validation::expression_result_type_reference(program, machine, state, expression)
                 .is_some_and(|reference| {
                     program.type_multiplicity(reference) != Multiplicity::Unrestricted
-                        && (crate::validation::affine_owned_value_source(
-                            program, expression, reference,
-                        )
-                        .is_some()
-                            || crate::validation::linear_owned_value_source(
+                        && (validation::affine_owned_value_source(program, expression, reference)
+                            .is_some()
+                            || validation::linear_owned_value_source(
                                 program, expression, reference,
                             )
                             .is_some())
@@ -890,15 +885,12 @@ fn has_owned_leaf(
 /// root may be a whole local or a call's structural product; the product is
 /// its own once-evaluated owner and carries no roster source.
 fn projected_leaf_source(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     statement_index: usize,
     expression: ExpressionHandle,
-) -> Option<(
-    crate::fact_plan::PlaceRoot,
-    Vec<crate::fact_plan::PlaceSegment>,
-)> {
+) -> Option<(facts::PlaceRoot, Vec<facts::PlaceSegment>)> {
     if !matches!(
         program.expression_table.expression(expression),
         ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
@@ -915,15 +907,14 @@ fn projected_leaf_source(
         || !place.segments.iter().all(|segment| {
             matches!(
                 segment,
-                crate::fact_plan::PlaceSegment::Field { .. }
-                    | crate::fact_plan::PlaceSegment::FixedIndex { .. }
+                facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
             )
         })
     {
         return None;
     }
     match place.root {
-        crate::fact_plan::PlaceRoot::Symbol(symbol) => {
+        facts::PlaceRoot::Symbol(symbol) => {
             if program
                 .state_parameters(state)
                 .iter()
@@ -937,7 +928,7 @@ fn projected_leaf_source(
                 return None;
             }
         }
-        crate::fact_plan::PlaceRoot::Expression(root)
+        facts::PlaceRoot::Expression(root)
             if matches!(
                 program.expression_table.expression(root),
                 ExpressionNode::Call(_)
@@ -966,17 +957,17 @@ fn projected_leaf_source(
     // A temporary root (a call's structural product) can drop an affine
     // residual sibling, but a linear residual has no surviving owner place;
     // a projected linear child may only leave a named local or parameter.
-    if linear_leaf && !matches!(place.root, crate::fact_plan::PlaceRoot::Symbol(_)) {
+    if linear_leaf && !matches!(place.root, facts::PlaceRoot::Symbol(_)) {
         return None;
     }
     let contents_ok = |type_reference| {
         if linear_leaf {
-            crate::validation::has_linear_owned_contents(program, type_reference)
+            validation::has_linear_owned_contents(program, type_reference)
         } else {
-            crate::validation::has_plain_owned_contents(program, type_reference)
+            validation::has_plain_owned_contents(program, type_reference)
         }
     };
-    let place_type_ok = |segments: &[crate::fact_plan::PlaceSegment], expected: Multiplicity| {
+    let place_type_ok = |segments: &[facts::PlaceSegment], expected: Multiplicity| {
         crate::flow::canonical_place_type_reference(
             program,
             state.symbol,
@@ -1021,9 +1012,9 @@ fn projected_leaf_source(
 }
 
 fn collect_leaves(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     statement_index: usize,
     expression: ExpressionHandle,
     type_reference: TypeReferenceHandle,
@@ -1031,26 +1022,22 @@ fn collect_leaves(
     leaves: &mut Vec<(
         ExpressionHandle,
         Handle<TableMatchArm>,
-        crate::fact_plan::PlaceRoot,
-        Vec<crate::fact_plan::PlaceSegment>,
+        facts::PlaceRoot,
+        Vec<facts::PlaceSegment>,
         TypeReferenceHandle,
     )>,
 ) -> Result<(), Diagnostic> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(_) if source_arm.is_valid() => {
-            match crate::validation::affine_owned_value_source(program, expression, type_reference)
+            match validation::affine_owned_value_source(program, expression, type_reference)
                 .or_else(|| {
-                    crate::validation::linear_owned_value_source(
-                        program,
-                        expression,
-                        type_reference,
-                    )
+                    validation::linear_owned_value_source(program, expression, type_reference)
                 }) {
                 Some(symbol) => {
                     leaves.push((
                         expression,
                         source_arm,
-                        crate::fact_plan::PlaceRoot::Symbol(symbol),
+                        facts::PlaceRoot::Symbol(symbol),
                         Vec::new(),
                         type_reference,
                     ));
@@ -1151,7 +1138,7 @@ fn collect_leaves(
                     program.expression_table.expression(*operand),
                     ExpressionNode::Name(_)
                 ) && !tag_operands.contains(operand)
-                    && crate::validation::expression_result_type_reference(
+                    && validation::expression_result_type_reference(
                         program, machine, state, *operand,
                     )
                     .is_none_or(|reference| {
@@ -1186,17 +1173,17 @@ fn collect_leaves(
 /// declared member type, not the source root's whole-place type, so a whole
 /// name at field position cannot name the moved custody the roster records.
 fn collect_field_leaves(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     statement_index: usize,
     field: ExpressionHandle,
     source_arm: Handle<TableMatchArm>,
     leaves: &mut Vec<(
         ExpressionHandle,
         Handle<TableMatchArm>,
-        crate::fact_plan::PlaceRoot,
-        Vec<crate::fact_plan::PlaceSegment>,
+        facts::PlaceRoot,
+        Vec<facts::PlaceSegment>,
         TypeReferenceHandle,
     )>,
 ) -> Result<(), Diagnostic> {
@@ -1224,7 +1211,7 @@ fn collect_field_leaves(
                     )
                     .ok_or_else(unsupported)?;
                     if Some(leaf_type)
-                        != crate::validation::expression_result_type_reference(
+                        != validation::expression_result_type_reference(
                             program, machine, state, field,
                         )
                     {
@@ -1238,7 +1225,7 @@ fn collect_field_leaves(
         }
         ExpressionNode::StructLiteral(literal) if literal.case_symbol.is_none() => {
             let reference =
-                crate::validation::expression_result_type_reference(program, machine, state, field)
+                validation::expression_result_type_reference(program, machine, state, field)
                     .ok_or_else(unsupported)?;
             let fields = fresh_leaf_shape(program, machine, state, field, reference)?;
             for nested in fields {
@@ -1262,9 +1249,9 @@ fn collect_field_leaves(
 /// no transfer; its field operands obey the same no-hidden-ownership rules as
 /// selection predicates.
 fn fresh_leaf(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     expression: ExpressionHandle,
     type_reference: TypeReferenceHandle,
 ) -> Result<(), Diagnostic> {
@@ -1287,47 +1274,45 @@ fn fresh_leaf(
 /// the multiplicity's owned-storage walls, and the field value list is handed
 /// back for the caller's per-field disposition.
 fn fresh_leaf_shape(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     expression: ExpressionHandle,
     type_reference: TypeReferenceHandle,
 ) -> Result<Vec<ExpressionHandle>, Diagnostic> {
-    let (reference, fields) = if let Some(constructor) =
-        crate::validation::scalar_case_constructor(program, expression)
-    {
-        (
-            constructor.type_reference,
-            constructor
-                .fields
-                .into_iter()
-                .map(|(_, value, _)| value)
-                .collect::<Vec<_>>(),
-        )
-    } else if let ExpressionNode::StructLiteral(literal) =
-        program.expression_table.expression(expression)
-        && literal.case_symbol.is_none()
-    {
-        let reference = crate::validation::expression_result_type_reference(
-            program, machine, state, expression,
-        )
-        .ok_or_else(unsupported)?;
-        (
-            reference,
-            program
-                .expression_table
-                .struct_fields(literal.fields)
-                .iter()
-                .map(|field| field.value)
-                .collect(),
-        )
-    } else {
-        return Err(unsupported());
-    };
+    let (reference, fields) =
+        if let Some(constructor) = validation::scalar_case_constructor(program, expression) {
+            (
+                constructor.type_reference,
+                constructor
+                    .fields
+                    .into_iter()
+                    .map(|(_, value, _)| value)
+                    .collect::<Vec<_>>(),
+            )
+        } else if let ExpressionNode::StructLiteral(literal) =
+            program.expression_table.expression(expression)
+            && literal.case_symbol.is_none()
+        {
+            let reference =
+                validation::expression_result_type_reference(program, machine, state, expression)
+                    .ok_or_else(unsupported)?;
+            (
+                reference,
+                program
+                    .expression_table
+                    .struct_fields(literal.fields)
+                    .iter()
+                    .map(|field| field.value)
+                    .collect(),
+            )
+        } else {
+            return Err(unsupported());
+        };
     let contents_ok = if program.type_multiplicity(type_reference) == Multiplicity::Linear {
-        crate::validation::has_linear_owned_contents(program, reference)
+        validation::has_linear_owned_contents(program, reference)
     } else {
-        crate::validation::has_plain_owned_contents(program, reference)
+        validation::has_plain_owned_contents(program, reference)
     };
     if !contents_ok
         || program.normalized_type_identity(reference)
@@ -1343,8 +1328,8 @@ fn fresh_leaf_shape(
 /// and its arguments cannot smuggle an owned leaf the receipt does not name.
 /// An unresolvable target conservatively counts as a transfer.
 fn call_moves_no_ownership(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    call: &symbol_resolved_trees_to_typed_trees::typed_trees::expression::TableCallExpression,
+    program: &typed_trees::TypedTrees,
+    call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
     !call.receiver.is_valid()
         && crate::semantic::calls::call_target_parameters(program, call.target_symbol).is_some_and(
@@ -1362,9 +1347,9 @@ fn call_moves_no_ownership(
 /// no custody itself; borrows, atomics, custody-moving calls, and named owned
 /// operands all keep their explicit rejections.
 fn hidden_ownership_operands(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     operands: &[ExpressionHandle],
     message: &str,
 ) -> Result<(), Diagnostic> {
@@ -1383,12 +1368,10 @@ fn hidden_ownership_operands(
             program.expression_table.expression(*operand),
             ExpressionNode::Name(_)
         ) && !tag_operands.contains(operand)
-            && crate::validation::expression_result_type_reference(
-                program, machine, state, *operand,
-            )
-            .is_none_or(|reference| {
-                program.type_multiplicity(reference) != Multiplicity::Unrestricted
-            })
+            && validation::expression_result_type_reference(program, machine, state, *operand)
+                .is_none_or(|reference| {
+                    program.type_multiplicity(reference) != Multiplicity::Unrestricted
+                })
     }) {
         return Err(Diagnostic::error(message));
     }
@@ -1402,9 +1385,9 @@ fn hidden_ownership_operands(
 /// unrestricted-operand rule; calls, borrows and atomic subjects still reject
 /// separately, and operands of genuine authored equality are unchanged.
 fn case_tag_operands(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    machine: &symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine,
-    state: &symbol_resolved_trees_to_typed_trees::typed_trees::state::State,
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     operands: &[ExpressionHandle],
 ) -> Vec<ExpressionHandle> {
     operands
@@ -1413,7 +1396,7 @@ fn case_tag_operands(
         .flat_map(
             |operand| match program.expression_table.expression(operand) {
                 ExpressionNode::Binary(binary)
-                    if crate::validation::has_exact_case_membership_meaning(
+                    if validation::has_exact_case_membership_meaning(
                         program,
                         machine,
                         Some(state),
@@ -1430,7 +1413,7 @@ fn case_tag_operands(
 }
 
 fn names_symbol(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     expression: ExpressionHandle,
     symbol: SymbolHandle,
 ) -> bool {
@@ -1438,7 +1421,7 @@ fn names_symbol(
 }
 
 fn expression_names(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     expression: ExpressionHandle,
     symbol: SymbolHandle,
 ) -> bool {
@@ -1448,7 +1431,7 @@ fn expression_names(
 }
 
 fn statement_expressions(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     statement: &StatementNode,
 ) -> Vec<ExpressionHandle> {
     let roots = match statement {
@@ -1469,7 +1452,7 @@ fn statement_expressions(
         StatementNode::AssemblyFact(fact) => vec![fact.expression],
         StatementNode::Transition(transition) => {
             let mut roots = Vec::new();
-            if let symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
+            if let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
                 roots.push(guard);
             }
             for target in [transition.target, transition.continuation] {
@@ -1477,10 +1460,10 @@ fn statement_expressions(
                     continue;
                 }
                 match program.statement_table.transition_target(target) {
-                    symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Value(value) => {
+                    typed_trees::statement::TransitionTargetNode::Value(value) => {
                         roots.push(*value)
                     }
-                    symbol_resolved_trees_to_typed_trees::typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => roots
+                    typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => roots
                         .extend_from_slice(program.expression_table.expression_handles(*arguments)),
                     _ => {}
                 }
@@ -1495,7 +1478,7 @@ fn statement_expressions(
 }
 
 fn expression_nodes(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     root: ExpressionHandle,
 ) -> Vec<ExpressionHandle> {
     let mut pending = vec![root];
@@ -1546,10 +1529,7 @@ fn expression_nodes(
 
 /// Count the reachable complete arm paths through nested selections: every
 /// non-`match` arm value is one edge the linear frontier must agree on.
-fn terminal_arm_values(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
-    expression: ExpressionHandle,
-) -> usize {
+fn terminal_arm_values(program: &typed_trees::TypedTrees, expression: ExpressionHandle) -> usize {
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => reachable_arms(program, dispatch.arms)
             .iter()
@@ -1563,7 +1543,7 @@ fn terminal_arm_values(
 /// authored arms. Only literal equality and complete Boolean/wildcard coverage
 /// remove ownership alternatives here; no predicate theorem is invented.
 pub(super) fn reachable_arms(
-    program: &symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     arms: HandleSpan<TableMatchArm>,
 ) -> Vec<(Handle<TableMatchArm>, &TableMatchArm)> {
     let mut selected = Vec::new();

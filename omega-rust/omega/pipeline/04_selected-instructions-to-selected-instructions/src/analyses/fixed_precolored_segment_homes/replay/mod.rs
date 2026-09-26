@@ -7,14 +7,14 @@ mod placement;
 mod work;
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use target_operations_to_selected_instructions::register_model::ValidatedPhysicalRegisterModel;
+use register_model::ValidatedPhysicalRegisterModel;
 
 use crate::FixedPrecoloredSegmentHomeError;
-use crate::register_homes::{
+use register_homes::{
     FixedPrecoloredSegmentHomePolicy, FunctionFixedPrecoloredSegmentHomes,
     FunctionFixedPrecoloredSplitRequirements,
 };
-use target_operations_to_selected_instructions::FunctionLiveRanges;
+use selected_instructions::FunctionLiveRanges;
 
 pub(super) struct ReplayedHomes {
     pub(super) functions: Vec<FunctionFixedPrecoloredSegmentHomes>,

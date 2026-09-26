@@ -2,13 +2,9 @@ use super::parameter_place;
 use crate::checks::ranges::facts::RangeFacts;
 use crate::flow::CanonicalPlace;
 use crate::tests::front_end::typed_program;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, ExpressionNode,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::StatementNode;
-use symbol_resolved_trees_to_typed_trees::typed_trees::{
-    TypedTrees, machine::Machine, state::State,
-};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::statement::StatementNode;
+use typed_trees::{TypedTrees, machine::Machine, state::State};
 
 fn atomic_source(body: &str) -> TypedTrees {
     typed_program(&format!(
@@ -48,7 +44,7 @@ fn local_place(program: &TypedTrees, state: &State, name: &str) -> CanonicalPlac
         })
         .expect("named local");
     CanonicalPlace {
-        root: crate::fact_plan::PlaceRoot::Symbol(symbol),
+        root: facts::PlaceRoot::Symbol(symbol),
         segments: Vec::new(),
     }
 }

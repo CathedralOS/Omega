@@ -1,23 +1,21 @@
 use crate::{LogicalSpillOperationValidationReceipt, ValidatedLogicalSpillOperations};
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
-use selected_instructions_to_selected_instructions::register_homes::{
+use optimization_unit::ValueDefinitionSite;
+use register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FunctionLogicalSpillOperations,
     LogicalReloadValueId, LogicalSpillAction, LogicalSpillOperationPlan,
     LogicalSpillOperationPolicy, LogicalSpillReload, LogicalSpillStorage, LogicalSpillStorageClass,
     LogicalSpillStorageId, LogicalSpillStore, LogicalSpillUseRewrite, SpillChoiceIdentity,
     logical_spill_operation_identity,
 };
-use semantic_vocabulary::{
-    BlockId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, ScalarType, ValueId,
-};
-use target_operations_to_selected_instructions::register_model::{
-    RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity,
-};
-use target_operations_to_selected_instructions::{
+use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
+use selected_instructions::{
     LiveRangeIdentity, LiveRangePoint, SelectedBlockId, SelectedInstructionId,
     SelectedInstructionPlanIdentity, VirtualRegisterId, VirtualRegisterOrigin,
 };
-use terminal_psi_to_abstract_operations::optimization_unit::ValueDefinitionSite;
+use semantic_vocabulary::{
+    BlockId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, ScalarType, ValueId,
+};
 
 pub(super) fn budget() -> OptimizationWorkBudget {
     OptimizationWorkBudget::new(10, 10, 20, 10, 1).unwrap()

@@ -1,17 +1,17 @@
 //! Independently reconstruct exact edge storage reads before destination writes.
 use super::{SelectedFunction, SelectedSuccessor};
 use crate::SelectedInstructionError;
-use crate::selected_instructions::{
-    FrameStorageSlotId, SelectedMemoryAccess, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
-    SelectedStructuralTransport,
-};
-use crate::selected_instructions::{
-    SelectedBlock, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
-    SelectedSelectionConstraints, VirtualRegister, VirtualRegisterOrigin,
-};
 use crate::selection::edge_transfers::chunks;
 use crate::selection::edge_transfers::invalid;
 use crate::selection::edge_transfers::stored_transport;
+use selected_instructions::{
+    FrameStorageSlotId, SelectedMemoryAccess, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
+    SelectedStructuralTransport,
+};
+use selected_instructions::{
+    SelectedBlock, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
+    SelectedSelectionConstraints, VirtualRegister, VirtualRegisterOrigin,
+};
 
 pub(super) fn check(
     function: usize,
@@ -45,7 +45,7 @@ pub(super) fn check(
         if argument.0 as usize >= original_register_count
             || byte_size == 0
             || destination
-                != (crate::selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
+                != (selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
                     block: continuation.source_target,
                     place: binding.semantic.parameter,
                 })

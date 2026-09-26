@@ -4,19 +4,17 @@
 use super::LiveDefinitions;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use crate::target_operations::{
-    TargetStructuralArgument, TargetStructuralParameter, TargetUnitOperation, TerminalPsiProvenance,
-};
+use abstract_operations::{AbstractFunction, AbstractOperation};
 use semantic_vocabulary::{OperationId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
+use target_operations::{
+    TargetStructuralArgument, TargetStructuralParameter, TargetUnitOperation, TerminalPsiProvenance,
+};
 use terminal_psi::{
     StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralPathSegment,
     StructuralTypeShape,
 };
 use terminal_psi::{StructuralArgument, StructuralOperationResult};
-use terminal_psi_to_abstract_operations::abstract_operations::{
-    AbstractFunction, AbstractOperation,
-};
 
 /// One outstanding loan tracked during lowering: which carrier leaf holds it,
 /// which referent root it suspends, which parent leaf it descends from, and
@@ -749,7 +747,7 @@ pub(super) fn call_results(
     structural_arguments: &[StructuralArgument],
     live: &mut LiveDefinitions,
     moved: &BTreeMap<(PlaceId, Vec<StructuralPathSegment>), ReferenceCustody>,
-) -> Result<Vec<crate::target_operations::TargetReferenceResult>, LoweringError> {
+) -> Result<Vec<target_operations::TargetReferenceResult>, LoweringError> {
     if !contains_reference(types, result.structural_type) {
         return Ok(Vec::new());
     }
@@ -811,7 +809,7 @@ pub(super) fn call_results(
         if !roots.insert(leaf.root.clone()) {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
-        reference_results.push(crate::target_operations::TargetReferenceResult {
+        reference_results.push(target_operations::TargetReferenceResult {
             path: mapping.path.clone(),
             root: leaf.root.place(),
         });
@@ -871,7 +869,7 @@ pub(super) fn referent_argument(
         }
         (
             home.structural_type(),
-            crate::target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
+            target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
                 psi_operation: defining_operation,
             },
         )

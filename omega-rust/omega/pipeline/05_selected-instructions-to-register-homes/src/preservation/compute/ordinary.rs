@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use target_operations_to_selected_instructions::{SelectedInstruction, SelectedTerminator};
+use selected_instructions::{SelectedInstruction, SelectedTerminator};
 
 use super::{
     super::{AllocatedCalleeSavedRequirementError, FunctionAllocatedCalleeSavedRequirements},
@@ -9,7 +9,7 @@ use super::{
 
 pub(super) fn derive(
     traversal: &mut DirectTraversal<'_>,
-    selected: &target_operations_to_selected_instructions::SelectedFunctions,
+    selected: &selected_instructions::SelectedFunctions,
     homes: &[crate::FunctionRegisterHomes],
 ) -> Result<(), AllocatedCalleeSavedRequirementError> {
     if selected.len() != homes.len() {

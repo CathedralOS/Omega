@@ -92,17 +92,15 @@ impl ScalarBindings {
     /// to the `is_self` parameter.
     pub(crate) fn shared_structural_argument(
         &self,
-        argument: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan,
-        machine: &typed_trees_to_checked_trees::checked_trees::machine::Machine,
-        parameters: &[typed_trees_to_checked_trees::checked_trees::signature::StateParameter],
+        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        machine: &checked_trees::machine::Machine,
+        parameters: &[checked_trees::signature::StateParameter],
     ) -> Result<StructuralArgument, LoweringError> {
-        if argument.access
-            != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
-        {
+        if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
             return unsupported("computed shared argument changes its access");
         }
         let place = match argument.source {
-            typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
                 let mut locals = self.structural_locals.iter().filter(|row| row.0 == symbol);
                 match locals.next() {
                     Some(source) => {
@@ -159,7 +157,7 @@ impl ScalarBindings {
                     }
                 }
             }
-            typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index,
             } => {
                 let (_, source) = self
@@ -194,10 +192,10 @@ impl ScalarBindings {
     /// Observe an established whole local without transferring its ownership.
     pub(crate) fn structural_local_observation(
         &self,
-        argument: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan,
+        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
         case: symbols::SymbolHandle,
     ) -> Result<(PlaceId, semantic_vocabulary::StructuralCaseId), LoweringError> {
-        let typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
+        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
             argument.source
         else {
             return unsupported("case observation requires an established structural local");
@@ -212,7 +210,7 @@ impl ScalarBindings {
         if !symbol.is_valid()
             || matches.next().is_some()
             || !argument.path.is_empty()
-            || argument.access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
+            || argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow
             || !source.path.is_empty()
             || source.access != StructuralAccess::Owned
         {
@@ -244,7 +242,7 @@ impl ScalarBindings {
     /// case-binding resolver for the retained path and selected case.
     pub(crate) fn parameter_case_observation(
         &self,
-        argument: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan,
+        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
         case: &str,
     ) -> Result<
         (
@@ -254,14 +252,12 @@ impl ScalarBindings {
         ),
         LoweringError,
     > {
-        let typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
+        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
             argument.source
         else {
             return unsupported("case observation requires an exact parameter source");
         };
-        if argument.access
-            != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
-        {
+        if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
             return unsupported("case observation changed its parameter custody");
         }
         let (parameter_position, _) = self
@@ -276,11 +272,11 @@ impl ScalarBindings {
             .path
             .iter()
             .map(|segment| match segment {
-                typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => Some(
-                    typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::Field(identity.clone()),
+                checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => Some(
+                    checked_trees::CheckedStructuralPredicatePathSegment::Field(identity.clone()),
                 ),
-                typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => {
-                    Some(typed_trees_to_checked_trees::checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(*index))
+                checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => {
+                    Some(checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(*index))
                 }
                 _ => None,
             })
@@ -290,7 +286,7 @@ impl ScalarBindings {
             ))?;
         structural_cases::resolve(
             &self.structural_cases,
-            &typed_trees_to_checked_trees::checked_trees::CheckedStructuralParameterField {
+            &checked_trees::CheckedStructuralParameterField {
                 parameter_position: *parameter_position,
                 path,
             },
@@ -418,18 +414,18 @@ impl ScalarBindings {
     /// materializing its contents as an immutable scalar argument.
     pub(crate) fn primitive_borrow(
         &self,
-        argument: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan,
+        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
         scalar_type: ScalarType,
     ) -> Result<StructuralArgument, LoweringError> {
         let access = match argument.access {
-            typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
-            typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow => {
+            checked_trees::CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
+            checked_trees::CheckedStructuralAccess::MutableBorrow => {
                 StructuralAccess::MutableBorrow
             }
-            typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
+            checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
                 StructuralAccess::WriteOnlyBorrow
             }
-            typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned => {
+            checked_trees::CheckedStructuralAccess::Owned => {
                 return unsupported("computed primitive argument cannot transfer ownership");
             }
         };
@@ -437,10 +433,10 @@ impl ScalarBindings {
             return unsupported("computed primitive argument requires a whole referent");
         }
         let place = match argument.source {
-            typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } => {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } => {
                 primitive_storage_place(&self.primitive_storage, symbol, scalar_type)?
             }
-            typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
                 // A `&T` local is itself a shared-borrow join result: the call
                 // loans the referent's exact established place onward under
                 // the same custody rather than copying the scalar out of it.
@@ -458,7 +454,7 @@ impl ScalarBindings {
                 }
                 source.place
             }
-            typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index,
             } => {
                 let (_, parameter) = self
@@ -502,9 +498,9 @@ impl ScalarBindings {
     /// Resolve a source-validated whole owned parameter without inventing a loan.
     pub(crate) fn owned_argument(
         &self,
-        argument: &typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentPlan,
+        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     ) -> Result<StructuralArgument, LoweringError> {
-        if let typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
+        if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
             argument.source
         {
             let mut locals = self.structural_locals.iter().filter(|row| row.0 == symbol);
@@ -514,7 +510,7 @@ impl ScalarBindings {
             if !symbol.is_valid()
                 || locals.next().is_some()
                 || !argument.path.is_empty()
-                || argument.access != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
+                || argument.access != checked_trees::CheckedStructuralAccess::Owned
                 || !source.path.is_empty()
                 || source.access != StructuralAccess::Owned
             {
@@ -522,7 +518,7 @@ impl ScalarBindings {
             }
             return Ok(source.clone());
         }
-        let typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
+        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
             argument.source
         else {
             return unsupported("computed owned operand requires an existing parameter");
@@ -534,8 +530,7 @@ impl ScalarBindings {
                 "computed owned operand lost its source parameter",
             ))?;
         if !argument.path.is_empty()
-            || argument.access
-                != typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned
+            || argument.access != checked_trees::CheckedStructuralAccess::Owned
             || parameter.access != StructuralAccess::Owned
             || !matches!(
                 parameter.multiplicity,
@@ -563,7 +558,7 @@ impl ScalarBindings {
             return unsupported("mutable parameter storage has no exact entry operand");
         }
         self.append(
-            typed_trees_to_checked_trees::checked_trees::CheckedScalarBindingDestination::StorageInitialize { symbol },
+            checked_trees::CheckedScalarBindingDestination::StorageInitialize { symbol },
             scalar_type,
             position,
         )?;
@@ -575,11 +570,11 @@ impl ScalarBindings {
 
     pub(crate) fn append(
         &mut self,
-        destination: typed_trees_to_checked_trees::checked_trees::CheckedScalarBindingDestination,
+        destination: checked_trees::CheckedScalarBindingDestination,
         scalar_type: ScalarType,
         position: usize,
     ) -> Result<(), LoweringError> {
-        use typed_trees_to_checked_trees::checked_trees::CheckedScalarBindingDestination;
+        use checked_trees::CheckedScalarBindingDestination;
         match destination {
             CheckedScalarBindingDestination::Immutable => self.immutable.push(Some(position)),
             CheckedScalarBindingDestination::StorageInitialize { symbol } => {

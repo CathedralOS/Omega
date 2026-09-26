@@ -2,12 +2,10 @@
 use super::{SymbolHandle, lower_machine};
 use crate::TerminalMachineSelection;
 use crate::terminal_identities::obligation_id;
-use lowered_psi_to_terminal_psi::terminal_production::{
-    TerminalProductionCustody, TerminalProductionTimings,
-};
+use checked_trees::CheckedScalarComputationKind;
+use checked_trees::types::PrimitiveType;
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationKind, StructuralAccess, StructuralTypeShape};
-use typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationKind;
-use typed_trees_to_checked_trees::checked_trees::types::PrimitiveType;
 
 const SOURCE: &str = "
     data Record { prefix: u8; payload: u64; }
@@ -74,7 +72,7 @@ fn projected_self_borrow_lowers_from_its_declared_endpoint() {
         .unwrap();
     for corruption in ["sibling", "root", "access"] {
         let mut changed = checked.clone();
-        let typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) =
+        let checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) =
             &mut changed
                 .facts
                 .values
@@ -88,15 +86,15 @@ fn projected_self_borrow_lowers_from_its_declared_endpoint() {
         match corruption {
             "sibling" => {
                 argument.path[0] =
-                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field("sibling".into())
+                    checked_trees::CheckedUnitStructuralPathSegment::Field("sibling".into())
             }
             "root" => {
                 argument.source =
-                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                         parameter_index: 1,
                     }
             }
-            "access" => argument.access = typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow,
+            "access" => argument.access = checked_trees::CheckedStructuralAccess::MutableBorrow,
             _ => unreachable!(),
         }
         assert!(
@@ -166,25 +164,25 @@ fn projected_shared_actual_preserves_root_path_and_observation_custody() {
         .unwrap();
     assert_eq!(original.len(), 2);
     for (position, argument) in original.iter().enumerate() {
-        let typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) = argument
+        let checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) = argument
         else {
             panic!("projected borrow");
         };
         assert_eq!(
             argument.source,
-            typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index: position as u32,
             }
         );
         assert_eq!(
             argument.path,
-            [typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field(
+            [checked_trees::CheckedUnitStructuralPathSegment::Field(
                 "inner".into()
             )]
         );
         assert_eq!(
             argument.access,
-            typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::SharedBorrow
+            checked_trees::CheckedStructuralAccess::SharedBorrow
         );
     }
     let caller = checked
@@ -232,9 +230,7 @@ fn projected_shared_actual_preserves_root_path_and_observation_custody() {
         .data_members(outer)
         .iter()
         .find_map(|member| match member {
-            typed_trees_to_checked_trees::checked_trees::data::DataMember::Field(field)
-                if field.name.as_str() == "sibling" =>
-            {
+            checked_trees::data::DataMember::Field(field) if field.name.as_str() == "sibling" => {
                 Some(field.symbol)
             }
             _ => None,
@@ -242,7 +238,7 @@ fn projected_shared_actual_preserves_root_path_and_observation_custody() {
         .unwrap();
     for corruption in ["sibling", "root", "access", "coordinated sibling"] {
         let mut changed = checked.clone();
-        let typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) =
+        let checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) =
             &mut changed
                 .facts
                 .values
@@ -256,15 +252,15 @@ fn projected_shared_actual_preserves_root_path_and_observation_custody() {
         match corruption {
             "sibling" | "coordinated sibling" => {
                 argument.path[0] =
-                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field("sibling".into())
+                    checked_trees::CheckedUnitStructuralPathSegment::Field("sibling".into())
             }
             "root" => {
                 argument.source =
-                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                         parameter_index: 0,
                     }
             }
-            "access" => argument.access = typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::MutableBorrow,
+            "access" => argument.access = checked_trees::CheckedStructuralAccess::MutableBorrow,
             _ => unreachable!(),
         }
         if corruption == "coordinated sibling" {
@@ -276,8 +272,7 @@ fn projected_shared_actual_preserves_root_path_and_observation_custody() {
                 .borrow
                 .access_segments
                 .span_mut(observation_segments)
-                .unwrap()[0] =
-                typed_trees_to_checked_trees::fact_plan::PlaceSegment::Field { symbol: sibling };
+                .unwrap()[0] = facts::PlaceSegment::Field { symbol: sibling };
         }
         assert!(
             lower_machine(&changed, TerminalMachineSelection::Name("Outer::equals")).is_err(),
@@ -290,18 +285,15 @@ fn projected_shared_actual_preserves_root_path_and_observation_custody() {
 fn local_record_reads_publish_direct_and_transported_places() {
     let checked = crate::front_end::checked_program(SOURCE);
     for name in ["observe", "joined"] {
-        let artifact =
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-                &checked,
-                lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                    name,
-                ),
-            )
-            .produce(TerminalProductionCustody::artifact_only(
-                &mut TerminalProductionTimings::default(),
-            ))
-            .expect("record read publishes")
-            .into_artifact();
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            terminal_production::TerminalMachineSelection::Name(name),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("record read publishes")
+        .into_artifact();
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         let entry = module
             .machines
@@ -343,18 +335,15 @@ fn nested_record_reads_reject_same_typed_path_substitution() {
              record.left.value
          }",
     );
-    let _artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "observe",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("nested record path publishes")
-        .into_artifact();
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("observe"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("nested record path publishes")
+    .into_artifact();
     let handle = checked
         .facts
         .values
@@ -384,15 +373,13 @@ fn nested_record_reads_reject_same_typed_path_substitution() {
         subject.path = replacement
             .into_iter()
             .map(|identity| {
-                typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralPathSegment::Field(identity.to_owned())
+                checked_trees::CheckedUnitStructuralPathSegment::Field(identity.to_owned())
             })
             .collect();
         assert!(
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            terminal_production::TerminalProductionRequest::new(
                 &changed,
-                lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                    "observe"
-                )
+                terminal_production::TerminalMachineSelection::Name("observe")
             )
             .produce(TerminalProductionCustody::artifact_only(
                 &mut TerminalProductionTimings::default()
@@ -406,18 +393,15 @@ fn nested_record_reads_reject_same_typed_path_substitution() {
 #[test]
 fn local_record_reads_reject_changed_field_source_and_carrier() {
     let checked = crate::front_end::checked_program(SOURCE);
-    let _artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "observe",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("uncorrupted source publishes")
-        .into_artifact();
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("observe"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("uncorrupted source publishes")
+    .into_artifact();
     let handle = checked
         .facts
         .values
@@ -452,20 +436,18 @@ fn local_record_reads_reject_changed_field_source_and_carrier() {
             0 => *field = SymbolHandle::invalid(),
             1 => {
                 subject.source =
-                    typed_trees_to_checked_trees::checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                         symbol: SymbolHandle::invalid(),
                     }
             }
-            2 => *source_expression = typed_trees_to_checked_trees::checked_trees::expression::ExpressionHandle::invalid(),
+            2 => *source_expression = checked_trees::expression::ExpressionHandle::invalid(),
             3 => node.primitive_type = PrimitiveType::U8,
             _ => unreachable!(),
         }
         assert!(
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+            terminal_production::TerminalProductionRequest::new(
                 &changed,
-                lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                    "observe"
-                )
+                terminal_production::TerminalMachineSelection::Name("observe")
             )
             .produce(TerminalProductionCustody::artifact_only(
                 &mut TerminalProductionTimings::default()
@@ -486,18 +468,15 @@ fn bounded_record_reads_require_exact_construction_and_observation_evidence() {
             accept(record.payload)
         }",
     );
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "observe",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("bounded record publishes with range evidence")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("observe"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("bounded record publishes with range evidence")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let bundle = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     let profile = proof_admission::AdmissionProfile::default();
@@ -564,18 +543,15 @@ fn shared_record_getter_keeps_receiver_custody_separate_from_arguments() {
             retained.get_payload()
         }",
     );
-    let artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "observe",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("shared local getter publishes")
-        .into_artifact();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("observe"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("shared local getter publishes")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let entry = module
         .machines
@@ -621,18 +597,16 @@ fn shared_record_getter_keeps_receiver_custody_separate_from_arguments() {
             _ => None,
         })
         .unwrap();
-    let typed_trees_to_checked_trees::checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) =
+    let checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) =
         &mut plans.structural_arguments.span_mut(span).unwrap()[0]
     else {
         panic!("local receiver")
     };
-    argument.access = typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned;
+    argument.access = checked_trees::CheckedStructuralAccess::Owned;
     assert!(
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+        terminal_production::TerminalProductionRequest::new(
             &changed,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "observe"
-            )
+            terminal_production::TerminalMachineSelection::Name("observe")
         )
         .produce(TerminalProductionCustody::artifact_only(
             &mut TerminalProductionTimings::default()
@@ -660,18 +634,15 @@ fn local_record_reads_compose_with_calls_and_selective_booleans() {
          }",
     ] {
         let checked = crate::front_end::checked_program(source);
-        let artifact =
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-                &checked,
-                lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                    "observe",
-                ),
-            )
-            .produce(TerminalProductionCustody::artifact_only(
-                &mut TerminalProductionTimings::default(),
-            ))
-            .expect("record reads compose in ordinary expressions")
-            .into_artifact();
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            terminal_production::TerminalMachineSelection::Name("observe"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("record reads compose in ordinary expressions")
+        .into_artifact();
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         terminal_verifier::verify_module(
             &module,
@@ -692,18 +663,15 @@ fn local_record_reads_cannot_swap_same_typed_operand_occurrences() {
             retained.first ^ retained.second
         }",
     );
-    let _artifact =
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-            &checked,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "observe",
-            ),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("distinct fields publish")
-        .into_artifact();
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("observe"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("distinct fields publish")
+    .into_artifact();
     let fields = checked
         .facts
         .values
@@ -736,11 +704,9 @@ fn local_record_reads_cannot_swap_same_typed_operand_occurrences() {
         .get_mut(fields[0])
         .kind = replacement;
     assert!(
-        lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+        terminal_production::TerminalProductionRequest::new(
             &changed,
-            lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                "observe"
-            )
+            terminal_production::TerminalMachineSelection::Name("observe")
         )
         .produce(TerminalProductionCustody::artifact_only(
             &mut TerminalProductionTimings::default()

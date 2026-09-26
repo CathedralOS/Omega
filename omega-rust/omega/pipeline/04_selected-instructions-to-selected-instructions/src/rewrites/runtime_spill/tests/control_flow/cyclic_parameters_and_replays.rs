@@ -6,12 +6,12 @@ use crate::rewrites::runtime_spill::tests::{
     baseline_target_register_environment, budget, fixture, selected_instruction_plan_identity,
 };
 use crate::{RuntimeSpillError, spill_selected_runtime_value, validate_runtime_spill};
-use semantic_vocabulary::{BoundaryMachineId, OperationId};
-use target_operations_to_selected_instructions::{
+use selected_instructions::{
     LocalStorageSlotId, SelectedBlockOrigin, SelectedBoundarySettlement,
     SelectedBoundarySettlementPayload, SelectedSuccessorRole, SelectedValueBinding,
     SelectedValueTransport,
 };
+use semantic_vocabulary::{BoundaryMachineId, OperationId};
 
 #[test]
 fn cycles_disconnected_from_parameter_arrivals_do_not_freeze_spills() {
@@ -212,12 +212,11 @@ fn cyclic_parameter_arrivals_still_require_dedicated_edge_stores() {
             // instruction slot exists that executes only on that arrival.
             0 => {
                 let binding = SelectedValueBinding {
-                    semantic:
-                        terminal_psi_to_abstract_operations::abstract_operations::ValueBinding {
-                            parameter: ValueId::new(2).unwrap(),
-                            argument: ValueId::new(2).unwrap(),
-                            scalar_type: function.virtual_registers[1].scalar_type,
-                        },
+                    semantic: abstract_operations::ValueBinding {
+                        parameter: ValueId::new(2).unwrap(),
+                        argument: ValueId::new(2).unwrap(),
+                        scalar_type: function.virtual_registers[1].scalar_type,
+                    },
                     transport: SelectedValueTransport::Registers {
                         argument: VirtualRegisterId(7),
                         parameter: VirtualRegisterId(1),
@@ -334,10 +333,10 @@ fn replay_rejects_changed_edges_untouched_blocks_and_foreign_settlements() {
 // case-payload parameter fixtures in `parameters.rs`.)
 #[test]
 fn case_payload_parameter_and_unmaterialized_references_remain_outside_spill_admission() {
-    use semantic_vocabulary::{StructuralCaseId, StructuralFieldId};
-    use target_operations_to_selected_instructions::{
+    use selected_instructions::{
         SelectedCasePayloadBinding, SelectedCasePayloadTransport, SelectedStructuralCaseEdge,
     };
+    use semantic_vocabulary::{StructuralCaseId, StructuralFieldId};
     let environment = baseline_target_register_environment(NativeTarget::linux_x64()).unwrap();
     for mutation in 0..3 {
         let mut source = cfg_fixture(NativeTarget::linux_x64());
@@ -367,7 +366,7 @@ fn case_payload_parameter_and_unmaterialized_references_remain_outside_spill_adm
             unreachable!()
         };
         successor.structural_case = Some(SelectedStructuralCaseEdge {
-            source: target_operations_to_selected_instructions::selected_instructions::SelectedCaseDispatchSource::Local {
+            source: selected_instructions::SelectedCaseDispatchSource::Local {
                 slot: LocalStorageSlotId::Boundary {
                     operation: OperationId::new(1).unwrap(),
                 },
@@ -376,10 +375,10 @@ fn case_payload_parameter_and_unmaterialized_references_remain_outside_spill_adm
             case_tag: 0,
             trivial_affine_discards: Vec::new(),
             payloads: vec![SelectedCasePayloadBinding {
-                semantic: target_operations_to_selected_instructions::legalized_operations::LegalizedStructuralCasePayload {
+                semantic: legalized_operations::LegalizedStructuralCasePayload {
                     field: StructuralFieldId::new(1).unwrap(),
                     field_byte_offset: 0,
-                    parameter: target_operations_to_selected_instructions::legalized_operations::LegalizedValueDefinition {
+                    parameter: legalized_operations::LegalizedValueDefinition {
                         value: ValueId::new(1).unwrap(),
                         scalar_type,
                         definition_site: ValueDefinitionSite::BlockParameter {
@@ -432,24 +431,24 @@ fn hosted_boundary_locations_skip_reload_prefixes_but_eliminated_completions_do_
             block: SelectedBlockId(0),
             instruction_index: 1,
             settlement: SelectedBoundarySettlementPayload::ClaimCompletion(
-                target_operations_to_selected_instructions::legalized_operations::LegalizedBoundarySettlement {
+                legalized_operations::LegalizedBoundarySettlement {
                     operation,
                     boundary,
                     provider_execution:
-                        abstract_operations_to_target_operations::target_operations::ProviderExecutionBinding::from_execution_record(
-                            abstract_operations_to_target_operations::target_operations::ProviderPlanReportIdentity::new(1).unwrap(),
+                        target_operations::ProviderExecutionBinding::from_execution_record(
+                            target_operations::ProviderPlanReportIdentity::new(1).unwrap(),
                             1,
                             1,
                             1,
                             1,
                         )
                         .unwrap(),
-                    realization: abstract_operations_to_target_operations::target_operations::ClaimCompletionOnlyRealization,
+                    realization: target_operations::ClaimCompletionOnlyRealization,
                     arguments: Vec::new(),
                     completion_claim_sources: Vec::new(),
                     completion_receipts: Vec::new(),
                     fuel: Vec::new(),
-                    effect: terminal_psi_to_abstract_operations::optimization_unit::EffectLink {
+                    effect: optimization_unit::EffectLink {
                         input: 0,
                         output: 1,
                     },

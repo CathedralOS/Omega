@@ -4,15 +4,13 @@ use super::{
     checked_source_with_core_service, lower_machine, roundtrip,
 };
 use crate::TerminalMachineSelection;
-use lowered_psi_to_terminal_psi::terminal_production::{
-    TerminalProductionCustody, TerminalProductionTimings,
-};
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralBooleanFieldValue, TerminalStructuralValue,
 };
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 fn source(route: usize, qualified: bool, trailing: bool) -> String {
     let source = DYNAMIC_CONTINUATION_SOURCE
@@ -102,9 +100,9 @@ fn dynamic_routes_share_ordinary_bodies_and_scalar_helpers() {
                 let lowered = roundtrip(&checked);
                 assert_closure(&checked, &lowered, route);
                 assert_source_custody(&checked);
-                let artifact = lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
+                let artifact = terminal_production::TerminalProductionRequest::new(
                     &checked,
-                    lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name("Main::main"),
+                    terminal_production::TerminalMachineSelection::Name("Main::main"),
                 )
                 .produce(TerminalProductionCustody::artifact_only(
                     &mut TerminalProductionTimings::default(),
@@ -160,18 +158,15 @@ fn unused_root_provider_field_retains_identity_without_a_fabricated_requirement(
             place.kind,
             semantic_vocabulary::StructuralPlaceKind::ProviderAttachment { .. }
         )));
-        let artifact =
-            lowered_psi_to_terminal_psi::terminal_production::TerminalProductionRequest::new(
-                &checked,
-                lowered_psi_to_terminal_psi::terminal_production::TerminalMachineSelection::Name(
-                    "Main::main",
-                ),
-            )
-            .produce(TerminalProductionCustody::artifact_only(
-                &mut TerminalProductionTimings::default(),
-            ))
-            .expect("unused provider field survives public publication")
-            .into_artifact();
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            terminal_production::TerminalMachineSelection::Name("Main::main"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("unused provider field survives public publication")
+        .into_artifact();
         assert_eq!(
             terminal_codec::decode_module(artifact.semantic_bytes()).unwrap(),
             lowered.semantic_module
@@ -303,7 +298,7 @@ fn assert_source_custody(checked: &CheckedTrees) {
         .find(|(_, root)| {
             matches!(
                 root.role,
-                typed_trees_to_checked_trees::checked_trees::CheckedScalarExpressionRole::UnitCallArgument { .. }
+                checked_trees::CheckedScalarExpressionRole::UnitCallArgument { .. }
             )
         })
         .expect("computed ordinary argument");

@@ -1,12 +1,8 @@
-use crate::flow_effects::{CallOperational, OperationalPlan};
 use diagnostics::Diagnostic;
-use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
-use symbol_resolved_trees_to_typed_trees::typed_trees::expression::{
-    ExpressionHandle, ExpressionNode,
-};
-use symbol_resolved_trees_to_typed_trees::typed_trees::statement::{
-    StatementNode, TransitionGuardNode, TransitionTargetNode,
-};
+use flow_effects::{CallOperational, OperationalPlan};
+use typed_trees::TypedTrees;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
 /// Validate the source acknowledgement set against the call envelope already
 /// normalized by `flow-effects`, and reject suspension in a nested expression
@@ -232,7 +228,7 @@ fn validate_expression(
                 diagnostics,
             );
             for arm in program.expression_table.match_arms(dispatch.arms) {
-                if let symbol_resolved_trees_to_typed_trees::typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                     validate_expression(
                         program,
                         pattern,
