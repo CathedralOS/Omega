@@ -1075,7 +1075,12 @@ _run_natively_with_zero_extent_nonconsumption` was the coverage claimed here,
   went 102.5 s -> 66.3 s. What remains is the library checked twice inside
   one pass: the pre-build gate's preliminary check and the settled check
   (BUILD-EVALUATES-ONCE deletes the former), plus any package whose typed
-  program the bound bindings do change.
+  program the bound bindings do change. `samples/cli/algorithms/
+  insertion_sort` `--check` now takes 54.9 s (was 113.6 s): the discovery
+  pass 43.9 s (std 40.7 s) and the bound pass 8.9 s (std 8.3 s). The bound
+  pass still reruns std's front end and build evaluation, whose inputs the
+  bindings leave unchanged; sharing that prefix within one review session is
+  the next cut.
 
   Skipping any compile must still account for what it did: the compile in
   `package_pass.rs` writes back `prepared_source_output` for the preparation
