@@ -29,6 +29,7 @@ validation = { path = "../../semantics/validation" }
 sha2 = "0.10.9"
 
 [dev-dependencies]
+mimalloc = { version = "0.1", default-features = false }
 diagnostics = { path = "../../foundation/diagnostics" }
 optimization = { path = "../../representations/optimization" }
 lowered-psi-to-lowered-psi = { path = "../06_lowered-psi-to-lowered-psi" }

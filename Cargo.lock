@@ -375,6 +375,7 @@ dependencies = [
  "lowered-psi",
  "lowered-psi-to-lowered-psi",
  "lowered-psi-to-terminal-psi",
+ "mimalloc",
  "numerics",
  "optimization",
  "proof-admission",
