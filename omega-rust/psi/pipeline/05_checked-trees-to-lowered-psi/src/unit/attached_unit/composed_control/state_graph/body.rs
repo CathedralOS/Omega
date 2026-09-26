@@ -660,6 +660,42 @@ pub(super) fn validate(
                     completion_receipts,
                 )?;
             }
+            // A scalar boundary call whose result an assignment stores into a
+            // field replays like the `let`-bound arm: the store's checked
+            // value is the call's scalar result (its primitive matched the
+            // declared result type at plan construction).
+            (
+                CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                    coordinate,
+                    result,
+                    target_state,
+                    structural_arguments,
+                    completion_receipts,
+                    ..
+                },
+                StatementNode::Assignment(_) | StatementNode::Call(_),
+            ) if coordinate.statement_index as usize == ordinal
+                && coordinate.call_ordinal == 0
+                && result.statement_index == coordinate.statement_index =>
+            {
+                crate::emission::call_source_custody::validate_operation(
+                    checked,
+                    machine,
+                    state.state,
+                    operation,
+                    &state.structural_parameters,
+                )?;
+                super::claims::validate_boundary_consumption(
+                    checked,
+                    machine,
+                    source,
+                    state,
+                    *coordinate,
+                    *target_state,
+                    structural_arguments,
+                    completion_receipts,
+                )?;
+            }
             (
                 CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. },
                 StatementNode::LocalData(_),
@@ -790,6 +826,7 @@ fn authored_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32>
         | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { coordinate, .. }
         | CheckedUnitEffectOperationPlan::ScalarCall { coordinate, .. }
         | CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. }
+        | CheckedUnitEffectOperationPlan::BoundaryScalarCall { coordinate, .. }
         | CheckedUnitEffectOperationPlan::BoundaryCall { coordinate, .. } => {
             Some(coordinate.statement_index)
         }
