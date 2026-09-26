@@ -397,6 +397,7 @@ impl<T: Default> Arena<T> {
         )
     }
 
+    #[inline]
     pub fn get(&self, handle: Handle<T>) -> &T {
         let index = self.index_from_valid_handle(handle);
 
@@ -430,10 +431,12 @@ impl<T: Default> Arena<T> {
         true
     }
 
+    #[inline]
     pub fn is_valid(&self, handle: Handle<T>) -> bool {
         self.index_from_valid_handle(handle) != invalid_index()
     }
 
+    #[inline]
     pub fn span(&self, span: HandleSpan<T>) -> Option<&[T]> {
         if span.is_empty() {
             return Some(&[]);
@@ -444,10 +447,12 @@ impl<T: Default> Arena<T> {
         self.items.get(range)
     }
 
+    #[inline]
     pub fn span_or_empty(&self, span: HandleSpan<T>) -> &[T] {
         self.span(span).unwrap_or(&self.items[0..0])
     }
 
+    #[inline]
     pub fn span_mut(&mut self, span: HandleSpan<T>) -> Option<&mut [T]> {
         if span.is_empty() {
             return Some(&mut []);
@@ -458,6 +463,7 @@ impl<T: Default> Arena<T> {
         self.items.get_mut(range)
     }
 
+    #[inline]
     pub fn span_mut_or_empty(&mut self, span: HandleSpan<T>) -> &mut [T] {
         if let Some(range) = self.valid_span_range(span) {
             &mut self.items[range]
@@ -466,7 +472,23 @@ impl<T: Default> Arena<T> {
         }
     }
 
+    #[inline]
     fn valid_span_range(&self, span: HandleSpan<T>) -> Option<Range<usize>> {
+        // A fresh arena has every slot occupied at generation 1, so the
+        // start handle resolves to its index by arithmetic alone — no
+        // per-slot metadata reads, and the whole-span check reduces to a
+        // single bounds test.
+        if self.fresh {
+            let start_handle = span.start();
+            if !start_handle.is_valid() || start_handle.generation() != 1 {
+                return None;
+            }
+            let start = storage_index_from_arena_index(start_handle.arena_index());
+            let count = usize::try_from(span.count()).ok()?;
+            let end = start.checked_add(count)?;
+            return (end <= self.items.len()).then_some(start..end);
+        }
+
         let start = self.index_from_valid_handle(span.start());
         if start == invalid_index() {
             return None;
@@ -474,9 +496,6 @@ impl<T: Default> Arena<T> {
 
         let count = usize::try_from(span.count()).ok()?;
         let end = start.checked_add(count)?;
-        if self.fresh {
-            return (end <= self.items.len()).then_some(start..end);
-        }
         let occupied = self.occupied.get(start..end)?;
         let generations = self.generations.get(start..end)?;
 
@@ -494,10 +513,12 @@ impl<T: Default> Arena<T> {
         Some(start..end)
     }
 
+    #[inline]
     pub fn len(&self) -> usize {
         self.active_count
     }
 
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -585,6 +606,7 @@ impl<T: Default> Arena<T> {
         }
     }
 
+    #[inline]
     fn index_from_valid_handle(&self, handle: Handle<T>) -> usize {
         if !handle.is_valid() || handle.generation() == 0 {
             return invalid_index();
@@ -660,10 +682,12 @@ impl<'arena, T: Default> Iterator for ArenaIter<'arena, T> {
     }
 }
 
+#[inline]
 fn invalid_index() -> usize {
     usize::MAX
 }
 
+#[inline]
 fn next_arena_index(storage_len: usize) -> u32 {
     storage_len
         .checked_add(1)
@@ -671,6 +695,7 @@ fn next_arena_index(storage_len: usize) -> u32 {
         .expect("arena index overflow")
 }
 
+#[inline]
 fn storage_index_from_arena_index(arena_index: u32) -> usize {
     arena_index
         .checked_sub(1)
@@ -678,6 +703,7 @@ fn storage_index_from_arena_index(arena_index: u32) -> usize {
         .unwrap_or_else(invalid_index)
 }
 
+#[inline]
 fn next_generation(generation: u32) -> u32 {
     let next = generation.wrapping_add(1);
 

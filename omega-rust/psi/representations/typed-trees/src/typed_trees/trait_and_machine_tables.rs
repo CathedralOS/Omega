@@ -217,10 +217,12 @@ impl TypedTrees {
             .find(|machine| machine.target.is_none() && machine.name.as_str() == name)
     }
 
+    #[inline]
     pub fn machines(&self) -> &[machine::Machine] {
         self.tables.machines.span_or_empty(self.roots.machines)
     }
 
+    #[inline]
     pub fn machines_mut(&mut self) -> &mut [machine::Machine] {
         self.tables.machines.span_mut_or_empty(self.roots.machines)
     }
@@ -234,6 +236,7 @@ impl TypedTrees {
             .append_to_span(&mut machine.type_parameters, type_parameter);
     }
 
+    #[inline]
     pub fn machine_type_parameters(&self, machine: &machine::Machine) -> &[data::TypeParameter] {
         self.data_type_parameters
             .span_or_empty(machine.type_parameters)
@@ -369,12 +372,63 @@ impl TypedTrees {
             .append_to_span(&mut machine.states, state);
     }
 
+    #[inline]
     pub fn machine_states(&self, machine: &machine::Machine) -> &[crate::state::State] {
         self.machine_states.span_or_empty(machine.states)
     }
 
+    #[inline]
     pub fn machine_states_mut(&mut self, machine: &machine::Machine) -> &mut [crate::state::State] {
         self.machine_states.span_mut_or_empty(machine.states)
+    }
+
+    /// The machine whose state list stores `state_symbol`. A state's
+    /// retained parent names its owning machine, so the common case is one
+    /// symbol read, one machines-row scan, and one membership check; the
+    /// whole-program scan still runs when the retained parent disagrees
+    /// with storage. State spans are disjoint append-only ranges, so at
+    /// most one machine can contain a given state symbol.
+    pub fn machine_holding_state(
+        &self,
+        state_symbol: symbols::SymbolHandle,
+    ) -> Option<&machine::Machine> {
+        if !state_symbol.is_valid() {
+            return None;
+        }
+        let parent = self.symbols.get(state_symbol).parent;
+        if let Some(machine) = self
+            .machines()
+            .iter()
+            .find(|candidate| candidate.symbol == parent)
+            && self
+                .machine_states(machine)
+                .iter()
+                .any(|state| state.symbol == state_symbol)
+        {
+            return Some(machine);
+        }
+        self.machines()
+            .iter()
+            .filter(|candidate| candidate.symbol != parent)
+            .find(|machine| {
+                self.machine_states(machine)
+                    .iter()
+                    .any(|state| state.symbol == state_symbol)
+            })
+    }
+
+    /// The state `state_symbol` names, resolved through its owning
+    /// machine's span rather than a whole-program state scan.
+    pub fn state_by_symbol(
+        &self,
+        state_symbol: symbols::SymbolHandle,
+    ) -> Option<&crate::state::State> {
+        self.machine_holding_state(state_symbol)
+            .and_then(|machine| {
+                self.machine_states(machine)
+                    .iter()
+                    .find(|state| state.symbol == state_symbol)
+            })
     }
 
     pub fn push_state_parameter(
@@ -386,6 +440,7 @@ impl TypedTrees {
             .append_to_span(&mut state.parameters, parameter);
     }
 
+    #[inline]
     pub fn state_parameters(&self, state: &crate::state::State) -> &[signature::StateParameter] {
         self.state_parameters.span_or_empty(state.parameters)
     }
@@ -399,6 +454,7 @@ impl TypedTrees {
             .append_to_span(&mut state.contracts, contract);
     }
 
+    #[inline]
     pub fn state_contracts(&self, state: &crate::state::State) -> &[signature::SignatureContract] {
         self.signature_contracts.span_or_empty(state.contracts)
     }

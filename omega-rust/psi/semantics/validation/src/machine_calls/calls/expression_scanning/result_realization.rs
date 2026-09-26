@@ -124,19 +124,14 @@ fn reference_result_nested_operand_call_is_supported(
     {
         return false;
     }
-    let mut owners = program.machines().iter().filter(|owner| {
-        owner.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
-            && program
-                .machine_states(owner)
-                .iter()
-                .any(|candidate| candidate.symbol == call.target_symbol)
-    });
-    let Some(owner) = owners.next() else {
+    // State spans are disjoint append-only ranges: a state symbol's holder
+    // is unique, so a second owner cannot exist.
+    let Some(owner) = program
+        .machine_holding_state(call.target_symbol)
+        .filter(|owner| owner.supply_mode == language_semantics::MachineSupplyMode::CheckedBody)
+    else {
         return false;
     };
-    if owners.next().is_some() {
-        return false;
-    }
     let Some(destination) = program
         .machine_states(owner)
         .iter()
@@ -200,19 +195,12 @@ fn reference_result_nested_operand_call_is_supported(
     {
         return false;
     }
-    let mut nested_owners = program.machines().iter().filter(|owner| {
-        owner.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
-            && program
-                .machine_states(owner)
-                .iter()
-                .any(|candidate| candidate.symbol == nested.target_symbol)
-    });
-    let Some(nested_owner) = nested_owners.next() else {
+    let Some(nested_owner) = program
+        .machine_holding_state(nested.target_symbol)
+        .filter(|owner| owner.supply_mode == language_semantics::MachineSupplyMode::CheckedBody)
+    else {
         return false;
     };
-    if nested_owners.next().is_some() {
-        return false;
-    }
     let Some(nested_destination) = program
         .machine_states(nested_owner)
         .iter()
@@ -452,17 +440,19 @@ fn ordinary_structural_initializer(
     let ExpressionNode::Call(call) = program.expression_table.expression(value) else {
         return false;
     };
-    program.machines().iter().any(|owner| {
-        owner.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
-            && program.machine_states(owner).first().is_some_and(|target| {
-                target.symbol == call.target_symbol
-                    && !unit_type(program, target.return_type)
-                    && program
-                        .primitive_type_reference(target.return_type)
-                        .is_none()
-                    && ordinary_structural_result_type(program, target.return_type)
-            })
-    })
+    program
+        .machine_holding_state(call.target_symbol)
+        .is_some_and(|owner| {
+            owner.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+                && program.machine_states(owner).first().is_some_and(|target| {
+                    target.symbol == call.target_symbol
+                        && !unit_type(program, target.return_type)
+                        && program
+                            .primitive_type_reference(target.return_type)
+                            .is_none()
+                        && ordinary_structural_result_type(program, target.return_type)
+                })
+        })
 }
 
 /// The same statement sequence owns these results in Unit and structural-return
@@ -504,18 +494,24 @@ fn initializer_target_is_supported(
     {
         return false;
     }
-    let mut targets = program.machines().iter().filter_map(|owner| {
-        let entry = program.machine_states(owner).first()?;
-        (entry.symbol == call.target_symbol).then_some((owner, entry))
-    });
-    if let Some((owner, target)) = targets.next() {
-        return targets.next().is_none()
-            && (program.call_has_no_runtime_receiver(call, owner, target)
-                || (allow_parameter_receiver
-                    && owner.supply_mode.is_boundary_declaration()
-                    && boundary_return::has_parameter_receiver(
-                        program, machine, call, owner, target,
-                    )))
+    // The target entry is unique: state spans are disjoint, so at most one
+    // machine can hold `call.target_symbol` as its first state.
+    let target_pair = program
+        .machine_holding_state(call.target_symbol)
+        .and_then(|owner| {
+            program
+                .machine_states(owner)
+                .first()
+                .filter(|entry| entry.symbol == call.target_symbol)
+                .map(|entry| (owner, entry))
+        });
+    if let Some((owner, target)) = target_pair {
+        return (program.call_has_no_runtime_receiver(call, owner, target)
+            || (allow_parameter_receiver
+                && owner.supply_mode.is_boundary_declaration()
+                && boundary_return::has_parameter_receiver(
+                    program, machine, call, owner, target,
+                )))
             && !unit_type(program, target.return_type)
             && (allow_ordinary
                 || program.primitive_type_reference(target.return_type)
@@ -681,17 +677,13 @@ fn unit_store_call_result_primitive(
         return None;
     }
     let entry = program
-        .machines()
-        .iter()
-        .find(|owner| {
+        .machine_holding_state(call.target_symbol)
+        .filter(|owner| {
             owner.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
                 && free_scalar_machine(program, owner)
-                && program
-                    .machine_states(owner)
-                    .first()
-                    .is_some_and(|entry| entry.symbol == call.target_symbol)
         })
-        .and_then(|owner| program.machine_states(owner).first())?;
+        .and_then(|owner| program.machine_states(owner).first())
+        .filter(|entry| entry.symbol == call.target_symbol)?;
     program.primitive_type_reference(entry.return_type)
 }
 
@@ -1348,35 +1340,38 @@ fn scalar_computation_call(
         && call.static_requirement_dispatch.is_none()
         && call.quotient_operation.is_none()
         && call.private_layout_operation.is_none()
-        && program.machines().iter().any(|target| {
-            let Some(entry) = program.machine_states(target).first() else {
-                return false;
-            };
-            let Some(result_type) = program.primitive_type_reference(entry.return_type) else {
-                return false;
-            };
-            let parameters = program.state_parameters(entry);
-            target.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
-                && entry.symbol == call.target_symbol
-                && parameters.first().is_some_and(|parameter| {
-                    parameter.is_self
-                        && !parameter.is_const
-                        && matches!(program.type_reference_table.type_reference(parameter.type_reference),
-                            typed_trees::types::TypeReferenceNode::Reference {
-                                access: language_semantics::ReferenceAccess::Shared,
-                                referee, ..
-                            } if matches!(program.type_reference_table.type_reference(*referee),
-                                typed_trees::types::TypeReferenceNode::Named { .. }))
-                })
-                && parameters.iter().filter(|parameter| parameter.is_self).count() == 1
-                && program.machine_states(machine).iter().any(|state| {
-                    program.statement_table.statements(state.statement_nodes).iter().any(|statement| {
-                        matches!(statement, StatementNode::LocalData(local)
-                            if local.initial_value == value
-                                && program.primitive_type_reference(local.type_reference) == Some(result_type))
+        && program
+            .machine_holding_state(call.target_symbol)
+            .is_some_and(|target| {
+                let Some(entry) = program.machine_states(target).first() else {
+                    return false;
+                };
+                let Some(result_type) = program.primitive_type_reference(entry.return_type)
+                else {
+                    return false;
+                };
+                let parameters = program.state_parameters(entry);
+                target.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+                    && entry.symbol == call.target_symbol
+                    && parameters.first().is_some_and(|parameter| {
+                        parameter.is_self
+                            && !parameter.is_const
+                            && matches!(program.type_reference_table.type_reference(parameter.type_reference),
+                                typed_trees::types::TypeReferenceNode::Reference {
+                                    access: language_semantics::ReferenceAccess::Shared,
+                                    referee, ..
+                                } if matches!(program.type_reference_table.type_reference(*referee),
+                                    typed_trees::types::TypeReferenceNode::Named { .. }))
                     })
-                })
-        })
+                    && parameters.iter().filter(|parameter| parameter.is_self).count() == 1
+                    && program.machine_states(machine).iter().any(|state| {
+                        program.statement_table.statements(state.statement_nodes).iter().any(|statement| {
+                            matches!(statement, StatementNode::LocalData(local)
+                                if local.initial_value == value
+                                    && program.primitive_type_reference(local.type_reference) == Some(result_type))
+                        })
+                    })
+            })
     {
         return true;
     }
@@ -1386,13 +1381,15 @@ fn scalar_computation_call(
         && call.machine_arguments.is_empty()
         && call.evidence_arguments.is_empty()
         && call.static_requirement_dispatch.is_none()
-        && program.machines().iter().any(|target| {
-            free_scalar_machine(program, target)
-                && program
-                    .machine_states(target)
-                    .first()
-                    .is_some_and(|entry| entry.symbol == call.target_symbol)
-        })
+        && program
+            .machine_holding_state(call.target_symbol)
+            .is_some_and(|target| {
+                free_scalar_machine(program, target)
+                    && program
+                        .machine_states(target)
+                        .first()
+                        .is_some_and(|entry| entry.symbol == call.target_symbol)
+            })
 }
 
 fn static_scalar_local(program: &TypedTrees, machine: &Machine, value: ExpressionHandle) -> bool {

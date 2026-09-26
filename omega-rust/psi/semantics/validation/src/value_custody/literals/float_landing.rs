@@ -71,12 +71,7 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
                 }
             }
             ExpressionNode::Call(call) => {
-                let Some(callee) = program.machines().iter().find_map(|machine| {
-                    program
-                        .machine_states(machine)
-                        .iter()
-                        .find(|state| state.symbol == call.target_symbol)
-                }) else {
+                let Some(callee) = program.state_by_symbol(call.target_symbol) else {
                     continue;
                 };
                 let parameters = program

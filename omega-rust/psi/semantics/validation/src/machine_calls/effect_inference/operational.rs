@@ -481,18 +481,8 @@ fn push_call(
 }
 
 fn machine_symbol_for_state(program: &TypedTrees, state_symbol: SymbolHandle) -> SymbolHandle {
-    if !state_symbol.is_valid() {
-        return SymbolHandle::invalid();
-    }
     program
-        .machines()
-        .iter()
-        .find(|machine| {
-            program
-                .machine_states(machine)
-                .iter()
-                .any(|state| state.symbol == state_symbol)
-        })
+        .machine_holding_state(state_symbol)
         .map(|machine| machine.symbol)
         .unwrap_or_else(SymbolHandle::invalid)
 }

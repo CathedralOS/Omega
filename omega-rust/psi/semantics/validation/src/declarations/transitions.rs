@@ -108,14 +108,11 @@ pub(crate) fn validate_transition_target_node(
     if current_machine.attached_data.is_some() {
         let members = program.statement_table.name_path_members(path.members);
         if members.len() == 1
-            && program.machines().iter().any(|candidate| {
-                candidate.symbol != current_machine.symbol
-                    && (candidate.symbol == path.symbol
-                        || program
-                            .machine_states(candidate)
-                            .iter()
-                            .any(|state| state.symbol == path.symbol))
-            })
+            && (program.machines().iter().any(|candidate| {
+                candidate.symbol == path.symbol && candidate.symbol != current_machine.symbol
+            }) || program
+                .machine_holding_state(path.symbol)
+                .is_some_and(|holder| holder.symbol != current_machine.symbol))
         {
             diagnostics.push(Diagnostic::error(format!(
                 "unsupported transition target `{}`",
