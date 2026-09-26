@@ -502,8 +502,10 @@ pub fn revalidate_top_level_requirement_realization(
             machine.name
         )));
     } else {
-        let symbols =
-            crate::declarations::symbols::TopLevelSymbols::build(program, &mut diagnostics);
+        let symbols = crate::validation::declarations::symbols::TopLevelSymbols::build(
+            program,
+            &mut diagnostics,
+        );
         validate_machine_top_level_requirement_conformance(
             program,
             &service_reaches,

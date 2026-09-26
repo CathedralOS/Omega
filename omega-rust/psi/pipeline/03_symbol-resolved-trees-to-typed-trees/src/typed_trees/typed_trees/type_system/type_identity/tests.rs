@@ -25,6 +25,37 @@ use source::{SourceMap, SourceOrigin, SourceSpan, Span};
 use symbols::{SymbolHandle, SymbolKind, SymbolNameRef, SymbolTableBuilder, builtin_type_symbols};
 
 #[test]
+fn resolved_nominal_identity_matches_named_type_reference_normalization() {
+    let mut builder = SymbolTableBuilder::new();
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let owner = SymbolTableBuilder::child_handles(builder.insert_children(
+        root,
+        [(SymbolKind::Data, SymbolNameRef::Static("Owner(escaped)"))],
+    ))
+    .next()
+    .expect("owner");
+    let mut program = TypedTrees {
+        symbols: builder.finish(),
+        ..TypedTrees::default()
+    };
+    let identity = program
+        .normalized_nominal_type_identity(owner)
+        .expect("resolved owner");
+    let reference = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Named {
+            symbol: owner,
+            name: Identifier::generated("diagnostic spelling is not identity"),
+        });
+    assert_eq!(identity, program.normalized_type_identity(reference));
+    assert!(
+        program
+            .normalized_nominal_type_identity(SymbolHandle::invalid())
+            .is_none()
+    );
+}
+
+#[test]
 fn symbolic_range_endpoints_preserve_owner_slots_and_substitution() {
     let mut builder = SymbolTableBuilder::new();
     let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));

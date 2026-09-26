@@ -708,15 +708,69 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         return unsupported("free Unit graph cannot retain provider attachment requirements");
     }
     for (boundary, _) in &boundaries {
-        if boundary
+        let has_receiver = boundary
             .structural_parameters
             .iter()
-            .any(|parameter| parameter.is_self)
-            != boundary.attachment_type_identity.is_some()
-        {
+            .any(|parameter| parameter.is_self);
+        let source_has_receiver = if boundary.machine == boundary.state {
+            // Static trait signatures have no runtime provider receiver.
+            if boundary.attachment_type_identity.is_some() {
+                return unsupported("Unit graph static trait boundary acquired an attachment");
+            }
+            false
+        } else {
+            let (owner, source) = crate::expression_preparation::source_custody::authored_state(
+                checked,
+                boundary.state,
+            )?;
+            if owner.symbol != boundary.machine
+                || owner.attached_data.is_some() != boundary.attachment_type_identity.is_some()
+            {
+                return unsupported("Unit graph boundary attachment lost its authored owner");
+            }
+            if let Some(retained) = &boundary.attachment_type_identity {
+                let data = checked
+                    .data_definitions()
+                    .iter()
+                    .find(|data| data.symbol == owner.attached_data_symbol)
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit graph boundary has no resolved nominal owner",
+                    ))?;
+                let identity = if owner.attached_data_application.is_valid() {
+                    checked.normalized_type_identity(owner.attached_data_application)
+                } else if let Some(application) = data.generic_instance {
+                    checked.normalized_type_identity(application)
+                } else {
+                    checked
+                        .normalized_nominal_type_identity(data.symbol)
+                        .ok_or(LoweringError::Unsupported(
+                            "Unit graph boundary has no normalized nominal owner",
+                        ))?
+                };
+                if identity.as_str() != retained {
+                    return unsupported(
+                        "Unit graph boundary attachment disagrees with its authored nominal identity",
+                    );
+                }
+            }
+            checked
+                .state_parameters(source)
+                .iter()
+                .any(|parameter| parameter.is_self)
+        };
+        if has_receiver != source_has_receiver {
+            return unsupported(
+                "Unit graph boundary receiver disagrees with its authored signature",
+            );
+        }
+        // An attached declaration retains its nominal owner even when its
+        // signature is static. Only an actual self parameter receives custody;
+        // the attachment alone must not invent a receiver or constrain results.
+        if has_receiver && boundary.attachment_type_identity.is_none() {
             return unsupported("Unit graph boundary attachment disagrees with its receiver");
         }
-        if let Some(attachment) = &boundary.attachment_type_identity
+        if has_receiver
+            && let Some(attachment) = &boundary.attachment_type_identity
             && (!matches!(boundary.structural_parameters.as_slice(), [parameter]
                 if parameter.is_self
                     && parameter.type_identity == *attachment

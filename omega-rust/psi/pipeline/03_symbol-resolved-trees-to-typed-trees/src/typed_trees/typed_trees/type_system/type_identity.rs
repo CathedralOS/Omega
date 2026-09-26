@@ -127,6 +127,28 @@ impl TypedTrees {
         self.type_identity(TypeIdentityRequest::ordinary(type_reference))
     }
 
+    /// The ordinary named-type identity of an exact resolved nominal symbol,
+    /// including owners that have no occurrence in the type-reference arena.
+    /// Applied owners must normalize their complete type application instead.
+    pub fn normalized_nominal_type_identity(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Option<NormalizedTypeIdentity> {
+        if !symbol.is_valid() || self.symbols.display_path(symbol, "::").is_empty() {
+            return None;
+        }
+        Some(NormalizedTypeIdentity(compound(
+            "named",
+            [identity_context::normalize_const_or_nominal_name(
+                self,
+                symbol,
+                "",
+                "name",
+                &TypeIdentityContext::default(),
+            )],
+        )))
+    }
+
     /// Canonical type identity for a package graph. Every non-binder nominal
     /// carries both its stable declaration path and its exact source owner:
     /// the managed package-key digest, the toolchain marker, or an explicit

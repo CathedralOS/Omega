@@ -153,8 +153,8 @@ fn boundary_token_satisfaction_selects_each_exact_operand_overload() {
         assert_eq!(conformance.symbol, requirement.symbol);
         assert_eq!(conformance.requirement_symbol, requirement.symbol);
         assert!(matches!(
-            typed_trees::machine::resolve_satisfied_declaration(&program, provider, conformance),
-            Some(typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(selected))
+            crate::typed_trees::machine::resolve_satisfied_declaration(&program, provider, conformance),
+            Some(crate::typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(selected))
                 if selected.symbol == requirement.symbol
         ));
     }
@@ -178,7 +178,7 @@ fn boundary_token_satisfaction_does_not_settle_a_mismatch() {
     );
     assert!(!conformance.requirement_symbol.is_valid());
     assert!(
-        typed_trees::machine::resolve_satisfied_declaration(&program, provider, conformance)
+        crate::typed_trees::machine::resolve_satisfied_declaration(&program, provider, conformance)
             .is_none()
     );
 }

@@ -7,17 +7,20 @@
 //! resulting signature, contracts, lifetimes and effect ceiling.
 
 use diagnostics::Diagnostic;
+use language_semantics::MachineSupplyMode;
 use symbol_resolved_trees_to_typed_trees::typed_trees::TypedTrees;
 use symbol_resolved_trees_to_typed_trees::typed_trees::machine::Machine;
 use symbol_resolved_trees_to_typed_trees::typed_trees::operator::{
     ClosedOperatorApplicationArgument, ClosedOperatorRealizationApplication,
+    closed_operator_realization_application,
 };
+use symbol_resolved_trees_to_typed_trees::typed_trees::typed_trees::MachineSpecialization;
 
 pub(super) fn resolve<'program>(
     program: &'program TypedTrees,
     provider: &Machine,
     requirement: &'program Machine,
-    symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
+    symbols: &crate::validation::declarations::symbols::TopLevelSymbols<'_>,
 ) -> Result<&'program Machine, Diagnostic> {
     if program.machine_type_parameters(requirement).is_empty()
         || !program.machine_type_parameters(provider).is_empty()
@@ -30,6 +33,9 @@ pub(super) fn resolve<'program>(
             provider.name, requirement.name,
         ))
     };
+    if provider.supply_mode != MachineSupplyMode::CheckedBody || !provider.body_is_present {
+        return Err(failure());
+    }
     let operator = program
         .machine_token_bindings()
         .iter()
@@ -49,15 +55,12 @@ pub(super) fn resolve<'program>(
         .filter(|application| application.requirement_symbol == requirement.symbol);
     let application = applications.next().ok_or_else(failure)?;
     if applications.next().is_some()
-        || typed_trees::operator::closed_operator_realization_application(
-            program, provider, operator,
-        )
-        .as_ref()
+        || closed_operator_realization_application(program, provider, operator).as_ref()
             != Some(application)
     {
         return Err(failure());
     }
-    crate::declarations::operators::validate_closed_operator_application(
+    crate::validation::declarations::operators::validate_closed_operator_application(
         program,
         symbols,
         operator,
@@ -72,20 +75,90 @@ pub(super) fn resolve<'program>(
                 .machines()
                 .iter()
                 .find(|machine| machine.symbol == receipt.instance)
+                .map(|machine| (receipt, machine))
         })
-        .filter(|candidate| {
-            candidate.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+        .filter(|(_, candidate)| {
+            candidate.supply_mode == MachineSupplyMode::TopLevelRequirement
                 && program.machine_type_parameters(candidate).is_empty()
-                && typed_trees::operator::closed_operator_realization_application(
-                    program, candidate, operator,
-                )
-                .is_some_and(|reconstructed| same_application(program, application, &reconstructed))
+                && closed_operator_realization_application(program, candidate, operator)
+                    .is_some_and(|reconstructed| {
+                        same_application(program, application, &reconstructed)
+                    })
         });
-    let closed = requirements.next().ok_or_else(failure)?;
+    let (closed_receipt, closed) = requirements.next().ok_or_else(failure)?;
     if requirements.next().is_some() {
         return Err(failure());
     }
+    // Uniqueness is instance-wide, not scoped to the expected template: an
+    // extra receipt under another template must not lend this instance two
+    // incompatible origins. The retained tuple must also name the application
+    // reconstructed from its signature. Checked commitment replay remains the
+    // later authority for the rest of specialization custody.
+    let identity = program
+        .normalized_machine_overload_identity(requirement)
+        .ok_or_else(failure)?;
+    if program
+        .machine_specializations
+        .iter()
+        .filter(|receipt| receipt.instance == closed.symbol)
+        .count()
+        != 1
+        || closed_receipt.template_parameters != requirement.type_parameters
+        || !crate::validation::machine_specialization_matches_template_identity(
+            program,
+            closed_receipt,
+            &identity.identity(),
+            program.symbols.symbol_package_identity(requirement.symbol),
+        )
+        || !retains_application_tuple(program, closed_receipt, application)
+    {
+        return Err(failure());
+    }
     Ok(closed)
+}
+
+fn retains_application_tuple(
+    program: &TypedTrees,
+    receipt: &MachineSpecialization,
+    application: &ClosedOperatorRealizationApplication,
+) -> bool {
+    let mut types = receipt.type_argument_identities.iter();
+    let mut constants = receipt.const_argument_identities.iter();
+    for argument in &application.arguments {
+        let matches = match argument {
+            ClosedOperatorApplicationArgument::Type { type_reference, .. } => {
+                types.next().is_some_and(|identity| {
+                    *identity
+                        == program
+                            .normalized_type_identity(*type_reference)
+                            .into_string()
+                })
+            }
+            ClosedOperatorApplicationArgument::Const { value, .. } => {
+                let Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer {
+                    value,
+                    ..
+                }) = value.decode_encoding()
+                else {
+                    return false;
+                };
+                let value = value.to_string();
+                let reference = program
+                    .type_reference_table
+                    .named_references()
+                    .find(|(_, symbol, name)| !symbol.is_valid() && *name == value);
+                reference.is_some_and(|(reference, _, _)| {
+                    constants.next().is_some_and(|identity| {
+                        *identity == program.normalized_type_identity(reference).into_string()
+                    })
+                })
+            }
+        };
+        if !matches {
+            return false;
+        }
+    }
+    types.next().is_none() && constants.next().is_none()
 }
 
 fn same_application(

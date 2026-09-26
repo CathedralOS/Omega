@@ -325,7 +325,7 @@ fn initializer_call_computations_preserve_the_free_scalar_whole_result_route() {
 
 #[test]
 fn state_graph_initializers_retain_boundary_results_and_ordinary_helper_computations() {
-    use checked_trees::CheckedScalarExpressionRole;
+    use crate::checked_trees::CheckedScalarExpressionRole;
 
     let checked = lower_typed_trees(
         typed_program(
