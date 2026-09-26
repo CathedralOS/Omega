@@ -10,7 +10,6 @@ use crate::isa_x86_64::selected_form_encoding::trapping_forms::{
 use crate::isa_x86_64::selected_form_encoding::{
     X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint,
 };
-use crate::isa_x86_64::x86_64_physical_register_model;
 use crate::register_model::RegisterViewId;
 use crate::selected_instructions::{
     MachineAlternativeKey, MachineEncodedControlEffect, MachineEncodedEffects,
@@ -1646,7 +1645,7 @@ fn saturating_footprint(
     form: SaturatingForm,
     operands: &[RegisterViewId],
 ) -> X86_64SelectedFormFootprint {
-    let physical = x86_64_physical_register_model();
+    let physical = crate::isa_x86_64::x86_64_physical_register_model_ref();
     let units = |name: &str| physical.view_named(name).unwrap().units.clone();
     let (reads, writes) = form.operand_reads_and_writes();
     let register_reads = reads
@@ -1811,7 +1810,7 @@ pub(crate) fn footprint(
             unreachable!("trapping forms handled above")
         }
     };
-    let physical = x86_64_physical_register_model();
+    let physical = crate::isa_x86_64::x86_64_physical_register_model_ref();
     let units = |name: &str| physical.view_named(name).unwrap().units.clone();
     let encoded = if kind == SelectedInstructionKind::Crash {
         super::crash::effects(&units("rip"))

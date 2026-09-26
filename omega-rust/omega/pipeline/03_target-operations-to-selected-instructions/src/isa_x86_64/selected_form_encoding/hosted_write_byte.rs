@@ -15,7 +15,7 @@ use crate::selected_instructions::{
 };
 
 pub(crate) fn effects() -> MachineEncodedEffects {
-    let physical = crate::isa_x86_64::x86_64_physical_register_model();
+    let physical = crate::isa_x86_64::x86_64_physical_register_model_ref();
     let view = |name: &str| {
         physical
             .view_named(name)
