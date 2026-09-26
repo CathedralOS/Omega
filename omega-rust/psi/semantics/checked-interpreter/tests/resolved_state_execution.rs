@@ -68,7 +68,10 @@ fn resolved_calls_evaluate_arguments_once_in_source_order() {
          }
          machine main() -> i32 {
              let mut count: i32 in Wrapping = 0;
-             let result: i32 = combine(step(&mut count), step(&mut count));
+             let result: i32 = combine(
+                 step(&mut count) as i32 in Wrapping,
+                 step(&mut count) as i32 in Wrapping
+             );
              transition result == 12 && count == 2 { true -> 7 false -> 0 }
          }",
     );
