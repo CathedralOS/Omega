@@ -1,0 +1,62 @@
+// PASS canary: transition edges forward a slice-view FIELD of the receiver —
+// `-> state(self.cells)` where `cells` is a stored `&mut [u8]` view — not
+// just a whole parameter. The state-graph transfer gate only admitted
+// empty-place sources before this leg; a record field spelled directly
+// declined "parameter transfer: no source place".
+//
+// Two admissions witnessed together:
+//   1. a `&'ext [u8]` field into a `&[u8]` state parameter (shared view),
+//   2. a `&'ext mut [u8]` field into a `&mut [u8]` parameter (mutable
+//      re-borrow of the descriptor the field stores).
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Store<'ext> {
+    names: &'ext [u8];
+    cells: &'ext mut [u8];
+}
+
+machine Store::probe<'ext>(&mut self) -> u64 {
+    transition self.cells.len > 0 && self.names.len > 0 {
+        true -> write(self.cells)
+        _ -> missed()
+    }
+
+    // Mutable field view re-borrowed into the state's `&mut` parameter.
+    state write(&mut self, cells: &'ext mut [u8]) -> u64
+        requires cells.len > 0
+    {
+        cells[0] = 70;
+        transition self.names.len > 0 {
+            true -> share(self.names)
+            _ -> missed()
+        }
+    }
+
+    // Shared field view forwarded into the state's `&` parameter.
+    state share(&mut self, names: &'ext [u8]) -> u64
+        requires names.len > 0
+    {
+        transition names[0] == 7 {
+            true -> done()
+            _ -> missed()
+        }
+    }
+
+    state done(&mut self) -> u64 {
+        transition { _ -> (70) }
+    }
+
+    state missed(&mut self) -> u64 {
+        transition { _ -> (9) }
+    }
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.console.exit_process(0);
+}
