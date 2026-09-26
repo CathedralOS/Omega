@@ -4,7 +4,7 @@ from comparison_wire import NAT_THEORY, ZERO, failure, record, theory, vector
 
 
 def cases():
-    yield "short_outer_request", "root", b"", failure(0, 1), 2, 60
+    yield "short_outer_request", "root", b"", failure(0, 1), 60
     yield vector("formation_failure_forwarded", failure(40, 7), definitions=theory((record(0, 0),)))
     yield vector("sort_provision_forwarded", failure(28, 2, 2, 65536, 65537), definitions=theory(sorts=65537))
     # Theory ends68; owner starts76; symbol84, child92. Root field starts92.

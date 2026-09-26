@@ -5,7 +5,7 @@ from wire import LIMIT, certificate, clause, envelope, example, function, layout
 
 def cases():
     def accepted(name, sections):
-        return name, envelope(sections), layout(sections), 2, 60
+        return name, envelope(sections), layout(sections), 60
 
     yield accepted("format_example_228_bytes", example())
     yield accepted("empty_tables_and_zero_sorts_are_not_formation", (
@@ -55,7 +55,7 @@ def source_spine():
     sections = (example()[0], proposition(terms, count, count), example()[2])
     request = envelope(sections)
     assert len(request) == 929848
-    return "46484_row_source_spine", request, layout(sections), 1, 600
+    return "46484_row_source_spine", request, layout(sections), 600
 
 
 def full_extent():
@@ -67,4 +67,4 @@ def full_extent():
     sections = (theory(), proposition(), certificate(terms=(term,)))
     request = envelope(sections)
     assert len(request) == LIMIT
-    return "exact_extent_inner_traversal", request, layout(sections), 1, 1800
+    return "exact_extent_inner_traversal", request, layout(sections), 1800

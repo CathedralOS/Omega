@@ -48,6 +48,8 @@ Beta compiler contained:
 2,337 authored lines and four semantic/build layers
 ```
 
+This gate owns execution of the fixtures in
+[self-augmentation-experiment](../self-augmentation-experiment/README.md).
 The direct evaluator runs the unchanged 85-line Gamma `const` augmenter,
 requires its exact 51-byte Gamma receipt, and evaluates that receipt to byte 42.
 It also covers literals, lexical bindings, every scalar operator, true/false

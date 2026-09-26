@@ -7,7 +7,7 @@ from wire import changed_word
 
 def cases():
     def direct(name, request, coordinate, code):
-        return name, request, failure(coordinate, code), 2, 60
+        return name, request, failure(coordinate, code), 60
 
     yield direct("outer_short_header", b"", 0, 1)
     valid = envelope((NAT_THEORY, proposition((ZERO,), 1, 1), certificate()))

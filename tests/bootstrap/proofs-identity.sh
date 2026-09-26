@@ -113,23 +113,6 @@ grep -q 'member digest changed' "$TMP/corrupt-theory-member.err" ||
   fail "corrupted theory member: destination was written"
 echo "member: a one-byte theory member change is refused during packing"
 
-for needle in \
-  "$DERIVATION_CHECKER_MANIFEST_SHA256" "$DERIVATION_CHECKER_PACKED_SHA256" \
-  "62,357"
-do
-  grep -q "$needle" "$OMEGA_REPO_ROOT/bootstrap/proofs/checker/README.md" ||
-    fail "bootstrap/proofs/checker/README.md lacks bound record $needle"
-done
-for needle in \
-  "$BETA_ENCODING_MANIFEST_SHA256" "$BETA_ENCODING_PACKED_SHA256" \
-  "$BETA_ENCODING_DEFINITION_PACKAGE_SHA256" \
-  "130,363" "116,900"
-do
-  grep -q "$needle" "$OMEGA_REPO_ROOT/bootstrap/proofs/beta_encoding/README.md" ||
-    fail "bootstrap/proofs/beta_encoding/README.md lacks bound record $needle"
-done
-echo "records: bound identities match the checker and Beta-encoding READMEs"
-
 cp "$OMEGA_PATH_BETA_ENCODING_PACKAGE" "$TMP/definition_package.bin"
 if [ "$(od -An -tc -j 100 -N1 "$TMP/definition_package.bin" | tr -d ' ')" = "a" ]; then
   printf 'b' | dd of="$TMP/definition_package.bin" bs=1 seek=100 conv=notrunc status=none

@@ -320,9 +320,9 @@ augmenter = Path(os.environ["AUGMENTER"]).read_bytes()
 augmented = Path(os.environ["AUGMENTED"]).read_bytes()
 expanded = Path(os.environ["EXPANDED"]).read_bytes()
 if run(augmenter, augmented) != (0, expanded):
-    raise SystemExit("Delta-authored augmentation did not produce exact source")
+    raise SystemExit("Gamma-authored augmentation did not produce exact source")
 if run(expanded) != (0, b"*"):
-    raise SystemExit("expanded Delta program did not produce 42")
+    raise SystemExit("expanded Gamma program did not produce 42")
 PY
 
 echo "Direct Beta Gamma evaluator: semantics, exact bounded-depth capacities, and augmentation passed"

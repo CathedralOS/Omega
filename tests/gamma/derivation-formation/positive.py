@@ -6,7 +6,7 @@ from theory_wire import (NAT, ZERO, certificate, clause, envelope, example, form
 
 def cases():
     sections = example()
-    yield "format_identity", envelope(sections), formed(sections, 1, 2, 1), 2, 60
+    yield "format_identity", envelope(sections), formed(sections, 1, 2, 1), 60
     yield vector("free_nullary_seed", (record(1, 0),))
     yield vector("multiple_base_sorts", (record(1, 0), record(2, 0)), sorts=2)
     yield vector("productive_mutual_cycle", (

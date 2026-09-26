@@ -44,8 +44,12 @@ authored test rows, which ordinary Gamma source admits and checks.
 
 ## Retained controls
 
-There are 82 vectors and 160 observations: 78 small vectors run twice with a
-60-second host timeout, and four large vectors run once with 600 seconds.
+By default, 83 vectors each execute once: 78 small vectors use a
+60-second host timeout, and five large vectors use 600 seconds.
+Setting `OMEGA_GAMMA_CHECKING_OPT_IN=checking_work_provision_exhaustion`
+replaces those five resource vectors with the work-exhaustion control under
+a 43,200-second watchdog; the 78 small vectors still run. Unknown selections
+reject explicitly. The opt-in control is not part of the routine gate.
 
 - [positive.py](positive.py): all five rules, ordered constructor congruence,
   repeated premises, duplicate/witness structural aliases, and a connected

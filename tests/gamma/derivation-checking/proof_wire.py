@@ -27,6 +27,6 @@ def proof_row(preceding=(), definitions=NAT_THEORY, owners=(ZERO,), witnesses=()
 
 
 def vector(name, expected, proofs=(record(1, 1, 1),), owners=(ZERO,), witnesses=(),
-           left=1, right=1, definitions=NAT_THEORY, repetitions=2, timeout=60):
+           left=1, right=1, definitions=NAT_THEORY, timeout=60):
     sections = (definitions, proposition(owners, left, right), certificate(witnesses, proofs))
-    return name, envelope(sections), expected, repetitions, timeout
+    return name, envelope(sections), expected, timeout

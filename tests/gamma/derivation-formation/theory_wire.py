@@ -21,12 +21,12 @@ def failure(coordinate, code=7, tag=1, limit=0, requested=0):
 
 
 def vector(name, constructors=NAT, functions=(), sorts=1, expected=None,
-           ground=None, proofs=None, repetitions=2, timeout=60):
+           ground=None, proofs=None, timeout=60):
     sections = (theory(constructors, functions, sorts),
                 proposition() if ground is None else ground,
                 certificate() if proofs is None else proofs)
     observation = formed(sections, sorts, len(constructors), len(functions))
-    return name, envelope(sections), observation if expected is None else expected, repetitions, timeout
+    return name, envelope(sections), observation if expected is None else expected, timeout
 
 
 def function_start(constructors, preceding=()):

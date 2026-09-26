@@ -74,8 +74,9 @@ Step derivations are independent of the implementation:
   is 1,859,508 bytes. A 1,024-row shared binary DAG costs `5T+2 = 5122`; its request
   is 49,312 bytes. Neither path expands a logical tree on the host or native stack.
 
-There are 57 vectors and 112 observations: 55 small vectors run twice under a
-60-second host watchdog; the two larger vectors run once under 600 seconds.
+There are 59 vectors, each executed once: 57 small vectors use a
+60-second host watchdog; the two larger vectors use 600 seconds.
+The Gamma entries retain their in-process unfolding and comparison session reuse.
 These are watchdogs, not language bounds or owned refusals. Coverage includes
 mode 0 / mode 1, local clause ordinals, unchanged child and other-parameter bindings,
 incorrect target children, constructor/function heads, cross-space row-number

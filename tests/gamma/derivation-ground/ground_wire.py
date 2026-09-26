@@ -38,11 +38,11 @@ def grounded(sections, owner_count, witness_count, left, right, witness_bytes):
 
 
 def vector(name, owners=(ZERO,), witnesses=(), left=1, right=1,
-           definitions=NAT_THEORY, proofs=(), expected=None, repetitions=2, timeout=60):
+           definitions=NAT_THEORY, proofs=(), expected=None, timeout=60):
     sections = (definitions, proposition(owners, left, right), certificate(witnesses, proofs))
     observation = grounded(sections, len(owners), len(witnesses), left, right,
                            sum(map(len, witnesses)))
-    return name, envelope(sections), observation if expected is None else expected, repetitions, timeout
+    return name, envelope(sections), observation if expected is None else expected, timeout
 
 
 def constant(result=1, constructor=1):

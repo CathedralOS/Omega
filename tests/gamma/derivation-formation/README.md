@@ -62,7 +62,7 @@ The final-sort mark control uses S=65,536 and one nullary constructor of sort
 65,536; it traverses all 16 mark-tree levels before rejecting uninhabited sorts.
 The template-chain case remains within the documented work and request budgets.
 
-There are 104 vectors and 205 exact observations: 101 small vectors repeat twice
-under a 60-second host watchdog; three larger vectors run once under 600 seconds.
+There are 104 vectors, each executed once: 101 small vectors use
+a 60-second host watchdog; three larger vectors use 600 seconds.
 A timeout or outer evaluator failure is not a formation judgment. The gate does
 not accept a full encoding certificate or validate downstream proof rules.

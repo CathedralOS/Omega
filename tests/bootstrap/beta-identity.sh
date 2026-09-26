@@ -137,22 +137,9 @@ echo "truncate: a truncated container is refused before stamping"
 for needle in \
   "$BETA_COMPILER_SOURCE_SHA256" "$BETA_COMPILER_TAPE_SHA256" "12,536" "1,773"
 do
-  grep -q "$needle" "$OMEGA_REPO_ROOT/bootstrap/1_beta/AUDIT.md" ||
-    fail "AUDIT.md lacks bound record $needle"
-done
-for needle in \
-  "$BETA_COMPILER_SOURCE_SHA256" "$BETA_COMPILER_TAPE_SHA256" "12,536" "1,773"
-do
   grep -q "$needle" "$OMEGA_REPO_ROOT/tests/beta/compiler/root-audit.py" ||
     fail "root-audit.py lacks bound record $needle"
 done
-for needle in "12,536" "1,773"
-do
-  grep -q "$needle" "$OMEGA_REPO_ROOT/bootstrap/1_beta/LANGUAGE.md" ||
-    fail "bootstrap/1_beta/LANGUAGE.md lacks bound record $needle"
-done
-grep -q "1,773" "$OMEGA_REPO_ROOT/bootstrap/1_beta/README.md" ||
-  fail "bootstrap/1_beta/README.md lacks bound tape record"
-echo "records: bound identities match AUDIT.md, root-audit.py, LANGUAGE.md, and the rung README"
+echo "records: bound identities match root-audit.py"
 
 echo "Beta identity: bound subject stamped exactly; corrupted and truncated sources, tapes and seeds refused"

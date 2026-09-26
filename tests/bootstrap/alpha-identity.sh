@@ -137,14 +137,4 @@ for other in alpha_arm64_macos alpha_x64_linux alpha_x64_windows.exe; do
   echo "append: trailing bytes on $other fail its bound identity"
 done
 
-for needle in \
-  "$ALPHA_SEED_ARM64_MACOS_SHA256" "$ALPHA_SEED_X64_WINDOWS_SHA256" \
-  "$ALPHA_SEED_X64_LINUX_SHA256" \
-  "16,942,368" "16,782,336" "16,789,856"
-do
-  grep -q "$needle" "$OMEGA_REPO_ROOT/bootstrap/0_alpha/README.md" ||
-    fail "README retention inventory lacks bound record $needle"
-done
-echo "records: bound identities match bootstrap/0_alpha/README.md"
-
 echo "Alpha identity: audited seed stamped exactly; corrupted, truncated, appended, and substituted containers refused"

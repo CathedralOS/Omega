@@ -21,7 +21,7 @@ def cases():
     yield vector("clause_zero", failure(903), owners, entry="clause")
     yield vector("clause_above_count", failure(903), owners, right=3, entry="clause")
     yield vector("invalid_clause_before_wrong_body", failure(903), owners, right=3, entry="case")
-    yield "outer_failure_forwarded", "root", b"", failure(0, 1), 2, 60
+    yield "outer_failure_forwarded", "root", b"", failure(0, 1), 60
     yield vector("formation_failure_forwarded", failure(40, 7),
                  definitions=theory((record(0, 0),)))
     # With the 100-byte identity theory, first owner row starts132, symbol140.

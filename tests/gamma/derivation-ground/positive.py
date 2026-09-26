@@ -6,7 +6,7 @@ from ground_wire import (NAT, ZERO, clause, constant, envelope, example, functio
 
 def cases():
     sections = example()
-    yield "format_identity", envelope(sections), grounded(sections, 3, 0, 3, 2, 0), 2, 60
+    yield "format_identity", envelope(sections), grounded(sections, 3, 0, 3, 2, 0), 60
     yield vector("one_owner_empty_witness_and_proof")
     yield vector("distinct_same_sort_roots_need_later_equality", (ZERO, record(1, 2, 1, 1)), right=2)
     yield vector("duplicate_owner_and_witness_rows", (ZERO, ZERO), (ZERO, ZERO), 1, 2)

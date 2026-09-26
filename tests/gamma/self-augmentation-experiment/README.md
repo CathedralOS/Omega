@@ -1,7 +1,8 @@
 # Gamma self-augmentation experiment
 
-This selected test proves the staged-bootstrap mechanism without the downgraded
-concatenative language:
+These fixtures are executed by
+`sh tests/gamma/evaluator-development/run.sh` from the repository root. That
+gate checks the staged-bootstrap mechanism:
 
 ```text
 Beta-written Gamma evaluator

@@ -18,11 +18,11 @@ def failure(coordinate, code=10, tag=1, limit=0, requested=0):
 
 
 def vector(name, expected, owners=(ZERO, record(2, 1, 1, 1)), left=2, right=1,
-           definitions=None, witnesses=(), proofs=(), entry="root", repetitions=2, timeout=60):
+           definitions=None, witnesses=(), proofs=(), entry="root", timeout=60):
     if definitions is None:
         definitions = theory(NAT, (IDENTITY,))
     sections = (definitions, proposition(owners, left, right), certificate(witnesses, proofs))
-    return name, entry, envelope(sections), expected, repetitions, timeout
+    return name, entry, envelope(sections), expected, timeout
 
 
 def ordinary(rows, arguments=(), body=1):

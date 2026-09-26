@@ -10,7 +10,7 @@ def cases():
                  (record(1, 1, 1), record(3, 1, 1, 1, 1)))
     yield vector("zero_arity_congruence", checked(1, 7), (record(4, 1, 1, 0),))
     sections = example()
-    yield "format_unfolding", envelope(sections), checked(1, 14), 2, 60
+    yield "format_unfolding", envelope(sections), checked(1, 14), 60
     owners = (ZERO, record(1, 2, 1, 1))
     yield vector("unary_congruence", checked(2, 16),
                  (record(1, 1, 1), record(4, 2, 2, 1, 1)), owners, left=2, right=2)

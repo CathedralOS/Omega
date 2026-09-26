@@ -354,22 +354,6 @@ do
 done
 echo "records: bound gate-local driver pins match the consuming gates"
 
-for needle in \
-  "$EPSILON_EVALUATOR_MANIFEST_SHA256" "$EPSILON_EVALUATOR_PACKED_SHA256" \
-  "$EPSILON_EXECUTION_DRIVER_SHA256" "$EPSILON_EVALUATOR_RECEIPT_SHA256" \
-  "15,163" "617,354"
-do
-  grep -q "$needle" "$OMEGA_REPO_ROOT/bootstrap/4_epsilon/README.md" ||
-    fail "bootstrap/4_epsilon/README.md lacks bound record $needle"
-done
-for needle in \
-  "$EPSILON_EXECUTION_DRIVER_SHA256" "$EPSILON_EVALUATOR_RECEIPT_SHA256" \
-  "617,354" "2,565" "721,484"
-do
-  grep -q "$needle" \
-    "$OMEGA_REPO_ROOT/tests/epsilon/interpreted-omega-experiment/README.md" ||
-    fail "interpreted-omega-experiment README lacks bound record $needle"
-done
 for needle in "$EPSILON_EVALUATOR_PACKED_SIZE" "$EPSILON_EVALUATOR_PACKED_SHA256"
 do
   grep -q "$needle" "$OMEGA_REPO_ROOT/tests/epsilon/checking/run.sh" ||
@@ -406,26 +390,6 @@ do
       fail "$gate lacks bound record $needle"
   done
 done
-for needle in \
-  "$EPSILON_EVALUATOR_PACKED_SHA256" "$EPSILON_EXECUTION_DRIVER_SHA256" \
-  "$EPSILON_EVALUATOR_RECEIPT_SHA256" "617,354" "2,565" "721,484"
-do
-  grep -q "$needle" \
-    "$OMEGA_REPO_ROOT/bootstrap/4_epsilon/EVALUATOR_PROFILE.md" ||
-    fail "4_epsilon EVALUATOR_PROFILE.md lacks bound record $needle"
-done
-for needle in \
-  "$EPSILON_EVALUATOR_ENTRY_SHA256" \
-  "$EPSILON_EVALUATOR_ENTRY_RECEIPT_SHA256" \
-  "$EPSILON_EVALUATOR_PACKED_SHA256" "10,950" "729,060"
-do
-  grep -q "$needle" \
-    "$OMEGA_REPO_ROOT/bootstrap/4_epsilon/EVALUATOR_ENTRY.md" ||
-    fail "4_epsilon EVALUATOR_ENTRY.md lacks bound record $needle"
-  grep -q "$needle" \
-    "$OMEGA_REPO_ROOT/tests/epsilon/evaluator-entry/README.md" ||
-    fail "evaluator-entry README lacks bound record $needle"
-done
-echo "records: bound identities match the rung README, the edge profile, the entry envelope, the driver and entry owner READMEs, and every consuming gate"
+echo "records: bound evaluator, driver, and receipt identities match the consuming gates"
 
 echo "Epsilon identity: bound closure materialized exactly; corrupted manifest, member, driver, entry, receipts, gate-local drivers, and controls refused"

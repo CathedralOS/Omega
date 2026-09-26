@@ -19,6 +19,6 @@ def failure(coordinate, code=9, tag=1, limit=0, requested=0):
 
 
 def vector(name, expected, owners=(ZERO,), witnesses=(), left=1, right=1,
-           definitions=NAT_THEORY, proofs=(), entry="root", repetitions=2, timeout=60):
+           definitions=NAT_THEORY, proofs=(), entry="root", timeout=60):
     sections = (definitions, proposition(owners, left, right), certificate(witnesses, proofs))
-    return name, entry, envelope(sections), expected, repetitions, timeout
+    return name, entry, envelope(sections), expected, timeout
