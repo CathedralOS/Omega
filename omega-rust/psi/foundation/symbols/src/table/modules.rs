@@ -23,6 +23,19 @@ pub(super) struct ModuleImport {
     exact_source: bool,
 }
 
+/// One module-import binding with the strings the candidate loop needs
+/// precomputed once per lookup instead of per (candidate, binding) pair.
+struct ImportBindingScope<'a> {
+    binding: &'a SourceScopedTopLevelBinding,
+    /// `logical_import_path` of the binding's import.
+    logical: String,
+    /// `import.path` members up to `package_prefix_members`, joined.
+    package_prefix: String,
+    /// `name(module)` when the binding's declaration source declares a
+    /// module whose display path is exactly `logical`.
+    module_leaf: Option<String>,
+}
+
 impl SourceScopedTopLevelBinding {
     /// Bind one authored import to the exact source loaded through the
     /// requester's reconciled package graph. Only the loader may strip the
@@ -49,7 +62,7 @@ impl SourceScopedTopLevelBinding {
 impl SymbolTable {
     /// Authored import spellings retained for source lookup diagnostics.
     pub fn source_module_import_paths(&self, source: SourceId) -> impl Iterator<Item = &str> {
-        self.source_scoped_top_level_bindings
+        self.source_scoped_bindings_for(source)
             .iter()
             .filter_map(move |binding| {
                 (binding.reference_source == source)
@@ -70,6 +83,7 @@ impl SymbolTable {
             return Err("a source file may declare only one module");
         }
         self.root_names.clear();
+        self.module_path_index.clear();
         let mut parent = self.root;
         for (name, span) in members {
             let existing = self
@@ -146,14 +160,11 @@ impl SymbolTable {
         reference_source: SourceId,
         path: &str,
     ) -> Result<(), String> {
-        for binding in &self.source_scoped_top_level_bindings {
+        for binding in self.source_scoped_bindings_for(reference_source) {
             let Some(import) = &binding.module_import else {
                 continue;
             };
-            if binding.reference_source != reference_source
-                || import.path.as_ref() != path
-                || !import.exact_source
-            {
+            if import.path.as_ref() != path || !import.exact_source {
                 continue;
             }
             let module = self.source_module(binding.declaration_source);
@@ -161,8 +172,8 @@ impl SymbolTable {
                 continue;
             }
             let logical = logical_import_path(import);
-            let namespace = self.display_path(module, "::");
-            if logical == namespace {
+            let namespace = self.indexed_display_path(module);
+            if logical == namespace.as_ref() {
                 continue;
             }
             let declarations =
@@ -171,7 +182,7 @@ impl SymbolTable {
                     .flatten()
                     .filter(|candidate| {
                         self.import_owner_matches(binding, *candidate)
-                            && self.display_path(*candidate, "::") == logical
+                            && self.indexed_display_path(*candidate) == logical.as_str()
                     });
             if unique(declarations).is_none() {
                 return Err(format!(
@@ -189,11 +200,11 @@ impl SymbolTable {
         reference_source: SourceId,
         path: &str,
     ) -> Option<SymbolHandle> {
-        for binding in &self.source_scoped_top_level_bindings {
+        for binding in self.source_scoped_bindings_for(reference_source) {
             let Some(import) = &binding.module_import else {
                 continue;
             };
-            if binding.reference_source != reference_source || import.path.as_ref() != path {
+            if import.path.as_ref() != path {
                 continue;
             }
             if import.exact_source && !self.source_module(binding.declaration_source).is_valid() {
@@ -207,7 +218,7 @@ impl SymbolTable {
                     .chain(self.module_symbols.iter().map(|(_, symbol)| *symbol))
                     .filter(|candidate| {
                         self.import_owner_matches(binding, *candidate)
-                            && self.display_path(*candidate, "::") == logical
+                            && self.indexed_display_path(*candidate) == logical.as_str()
                     }),
             );
         }
@@ -241,8 +252,8 @@ impl SymbolTable {
         authored: &str,
         reference: SourceSpan,
     ) -> bool {
-        let qualified = self.display_path(domain, "::");
-        if qualified == authored {
+        let qualified = self.indexed_display_path(domain);
+        if qualified.as_ref() == authored {
             return true;
         }
         let domain_name = self.name(domain);
@@ -367,15 +378,17 @@ impl SymbolTable {
         let Some(declaration) = self.symbol_source_span(symbol) else {
             return false;
         };
-        self.source_scoped_top_level_bindings.iter().any(|binding| {
-            let Some(import) = &binding.module_import else {
-                return false;
-            };
-            binding.reference_source == reference
-                && binding.declaration_source == declaration.source_id
-                && ((import.exact_source && !self.source_module(declaration.source_id).is_valid())
-                    || self.display_path(symbol, "::") == logical_import_path(import))
-        })
+        self.source_scoped_bindings_for(reference)
+            .iter()
+            .any(|binding| {
+                let Some(import) = &binding.module_import else {
+                    return false;
+                };
+                binding.declaration_source == declaration.source_id
+                    && ((import.exact_source
+                        && !self.source_module(declaration.source_id).is_valid())
+                        || self.indexed_display_path(symbol) == logical_import_path(import))
+            })
     }
 
     pub fn symbol_module(&self, symbol: SymbolHandle) -> SymbolHandle {
@@ -445,22 +458,35 @@ impl SymbolTable {
         if !local.is_empty() {
             return SymbolLookup::from_candidates(local.into_iter());
         }
+        let import_scopes: Vec<(&SourceScopedTopLevelBinding, String)> = self
+            .source_scoped_bindings_for(reference.source_id)
+            .iter()
+            .filter(|binding| binding.module_import.is_some())
+            .map(|binding| {
+                (
+                    binding,
+                    logical_import_path(
+                        binding
+                            .module_import
+                            .as_ref()
+                            .expect("import bindings carry module imports"),
+                    ),
+                )
+            })
+            .collect();
         let imported = candidates
             .iter()
             .copied()
             .filter(|candidate| {
-                self.source_scoped_top_level_bindings.iter().any(|binding| {
-                    if binding.reference_source != reference.source_id {
-                        return false;
-                    }
-                    let Some(import) = &binding.module_import else {
-                        return false;
-                    };
+                import_scopes.iter().any(|(binding, logical)| {
+                    let import = binding
+                        .module_import
+                        .as_ref()
+                        .expect("import bindings carry module imports");
                     if !self.import_owner_matches(binding, *candidate) {
                         return false;
                     }
-                    let logical = logical_import_path(import);
-                    self.display_path(*candidate, "::") == logical
+                    self.indexed_display_path(*candidate) == logical.as_str()
                         || (import.exact_source
                             && self.name(*candidate) == name
                             && !self.source_module(binding.declaration_source).is_valid()
@@ -547,11 +573,36 @@ impl SymbolTable {
         let current_module = self.source_module(reference.source_id);
         // The imported-path arm only ever consults this source's module-import
         // bindings; filter once here instead of walking the whole binding list
-        // for every candidate.
-        let import_bindings: Vec<&SourceScopedTopLevelBinding> = self
+        // for every candidate. Each binding also carries its precomputed
+        // logical import path and the string fragments the candidate loop
+        // would otherwise re-derive per (candidate, binding) pair.
+        let import_bindings: Vec<ImportBindingScope<'_>> = self
             .source_scoped_bindings_for(reference.source_id)
             .iter()
             .filter(|binding| binding.module_import.is_some())
+            .map(|binding| {
+                let import = binding
+                    .module_import
+                    .as_ref()
+                    .expect("import bindings carry module imports");
+                let logical = logical_import_path(import);
+                let package_prefix = import
+                    .path
+                    .split("::")
+                    .take(import.package_prefix_members)
+                    .collect::<Vec<_>>()
+                    .join("::");
+                let module = self.source_module(binding.declaration_source);
+                let module_leaf = (module.is_valid()
+                    && self.indexed_display_path(module) == logical.as_str())
+                .then(|| self.name(module).to_string());
+                ImportBindingScope {
+                    binding,
+                    logical,
+                    package_prefix,
+                    module_leaf,
+                }
+            })
             .collect();
         let needs_candidate_path = qualified || !import_bindings.is_empty();
         let mut matches = Vec::new();
@@ -563,14 +614,15 @@ impl SymbolTable {
             .flatten()
             .chain(self.module_symbols.iter().map(|(_, handle)| *handle))
         {
-            let is_module = self.get(candidate).kind == SymbolKind::Module;
-            if !kinds.contains(&self.get(candidate).kind)
+            let candidate_kind = self.get(candidate).kind;
+            let is_module = candidate_kind == SymbolKind::Module;
+            if !kinds.contains(&candidate_kind)
                 || !matches_candidate(candidate)
                 || !self.source_reference_can_see_symbol(reference, candidate)
             {
                 continue;
             }
-            let candidate_path = needs_candidate_path.then(|| self.display_path(candidate, "::"));
+            let candidate_path = needs_candidate_path.then(|| self.indexed_display_path(candidate));
             // A relative attached path first belongs to the current module,
             // just like a bare declaration name. A root legacy spelling must
             // not compete with that local owner; competing local declarations
@@ -596,11 +648,13 @@ impl SymbolTable {
                 && !is_module
                 && !self.symbol_module(candidate).is_valid()
                 && self.name(candidate) == name;
-            let imported_path = import_bindings.iter().any(|binding| {
+            let imported_path = import_bindings.iter().any(|scope| {
+                let binding = scope.binding;
                 let import = binding
                     .module_import
                     .as_ref()
                     .expect("import bindings carry module imports");
+                let logical = scope.logical.as_str();
                 // The loader certifies the requester's package prefix against
                 // this imported source. A full alias-qualified path may name
                 // another loaded source of that exact package, while ordinary
@@ -617,14 +671,8 @@ impl SymbolTable {
                             )
                         })
                 {
-                    let prefix = import
-                        .path
-                        .split("::")
-                        .take(import.package_prefix_members)
-                        .collect::<Vec<_>>()
-                        .join("::");
                     if name
-                        .strip_prefix(&prefix)
+                        .strip_prefix(scope.package_prefix.as_str())
                         .and_then(|suffix| suffix.strip_prefix("::"))
                         == candidate_path.as_deref()
                     {
@@ -634,10 +682,9 @@ impl SymbolTable {
                 if !self.import_owner_matches(binding, candidate) {
                     return false;
                 }
-                let logical = logical_import_path(import);
                 if !qualified {
                     return is_module
-                        && candidate_path.as_deref() == Some(logical.as_str())
+                        && candidate_path.as_deref() == Some(logical)
                         && self.name(candidate) == name;
                 }
                 if candidate_path.as_deref() == Some(name) {
@@ -648,8 +695,11 @@ impl SymbolTable {
                         .strip_prefix(short)
                         .and_then(|suffix| suffix.strip_prefix("::"))
                         .is_some_and(|suffix| {
-                            candidate_path.as_deref()
-                                == Some(format!("{logical}::{suffix}").as_str())
+                            candidate_path
+                                .as_deref()
+                                .and_then(|path| path.strip_prefix(logical))
+                                .and_then(|rest| rest.strip_prefix("::"))
+                                == Some(suffix)
                         })
                 {
                     return true;
@@ -657,15 +707,16 @@ impl SymbolTable {
                 if is_module {
                     return false;
                 }
-                let module = self.source_module(binding.declaration_source);
-                if module.is_valid() && self.display_path(module, "::") == logical {
-                    let short = self.name(module);
+                if let Some(module_leaf) = scope.module_leaf.as_deref() {
                     return name
-                        .strip_prefix(short)
+                        .strip_prefix(module_leaf)
                         .and_then(|suffix| suffix.strip_prefix("::"))
                         .is_some_and(|suffix| {
-                            candidate_path.as_deref()
-                                == Some(format!("{logical}::{suffix}").as_str())
+                            candidate_path
+                                .as_deref()
+                                .and_then(|path| path.strip_prefix(logical))
+                                .and_then(|rest| rest.strip_prefix("::"))
+                                == Some(suffix)
                         });
                 }
                 false
