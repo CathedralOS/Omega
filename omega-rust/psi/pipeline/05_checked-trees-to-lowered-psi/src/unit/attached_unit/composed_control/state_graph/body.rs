@@ -802,7 +802,11 @@ fn is_exclusive_loan_marker(checked: &CheckedTrees, statement: &StatementNode) -
             checked_trees::expression::ExpressionNode::Borrow(borrow)
                 if borrow.access == language_core::ReferenceAccess::Mutable
         )
-        && validation::reference_result_custody::parts(checked, local.type_reference).is_some()
+        && validation::reference_result_custody::mutable_borrowed_parts(
+            checked,
+            local.type_reference,
+        )
+        .is_some()
 }
 
 fn is_arm_pattern_marker(statement: &StatementNode) -> bool {
