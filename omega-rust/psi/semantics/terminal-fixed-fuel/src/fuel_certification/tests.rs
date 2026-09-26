@@ -85,7 +85,8 @@ mod machine_bounds {
         TerminalRankedScc, Terminator, identity,
     };
     use semantic_vocabulary::{
-        ContractId, IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType, ValueId,
+        ContractId, IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, ScalarTerm,
+        ScalarType, ValueId,
     };
     use std::collections::{BTreeMap, BTreeSet};
     use terminal_psi::{
@@ -2068,6 +2069,253 @@ mod machine_bounds {
         assert_eq!(
             used_contract_premises(module.machines.first().expect("one machine")),
             vec![conjunction]
+        );
+    }
+
+    /// A `MathValue` names a parameter's unbounded mathematical value:
+    /// `IntegerMathLessOrEqual(MathValue p, k)` caps `p` at `k`, and the
+    /// affine solver folds the surrounding arithmetic — `2*p + 3 <= 9`
+    /// still caps `p` at 3, `p < 6` at 5, `p == 7` at 7.
+    #[test]
+    fn contract_requires_integer_math_affine_ceilings() {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let math_value = |parameter: u64| IntegerMathTerm::MathValue {
+            source_type: rank_type,
+            value: id(parameter),
+        };
+        let math_literal = |value: u128| IntegerMathTerm::literal(IntegerValue::Unsigned(value));
+        let cases = [
+            // `p <= 5`.
+            (
+                Proposition::IntegerMathLessOrEqual(math_value(100), math_literal(5)),
+                6,
+            ),
+            // `2*p + 3 <= 9` — `p <= 3`.
+            (
+                Proposition::IntegerMathLessOrEqual(
+                    IntegerMathTerm::Add(
+                        Box::new(IntegerMathTerm::Multiply(
+                            Box::new(math_literal(2)),
+                            Box::new(math_value(100)),
+                        )),
+                        Box::new(math_literal(3)),
+                    ),
+                    math_literal(9),
+                ),
+                4,
+            ),
+            // `p < 6` — `p <= 5`.
+            (
+                Proposition::IntegerMathLessThan(math_value(100), math_literal(6)),
+                6,
+            ),
+            // `p == 7` — an exact quotient is still a ceiling.
+            (
+                Proposition::IntegerMathEqual(math_value(100), math_literal(7)),
+                8,
+            ),
+            // `p - 2 <= 5` — `p <= 7`.
+            (
+                Proposition::IntegerMathLessOrEqual(
+                    IntegerMathTerm::Subtract(Box::new(math_value(100)), Box::new(math_literal(2))),
+                    math_literal(5),
+                ),
+                8,
+            ),
+        ];
+        for (clause, visits) in cases {
+            let mut walk = ranked_countdown_machine(8);
+            walk.contract.requires = vec![clause.clone()];
+            let built = module(1, vec![walk]);
+            assert_eq!(
+                derive_maximum_entry_bound(&built, id(1)),
+                Ok(1 + 4 * visits + 1),
+                "{clause:?} did not tighten the entry rank"
+            );
+            assert_eq!(
+                used_contract_premises(built.machines.first().expect("one machine")),
+                vec![clause]
+            );
+        }
+    }
+
+    /// Mathematical orderings between values transfer ceilings the same
+    /// way scalar comparisons do: `MathValue p <= MathValue q` hands `p`
+    /// `q`'s bound, and `p + 2 <= q` deducts the constant. `p == q` keeps
+    /// the bidirectional zero-cost pair.
+    #[test]
+    fn contract_requires_integer_math_relational_ceilings() {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let math_value = |parameter: u64| IntegerMathTerm::MathValue {
+            source_type: rank_type,
+            value: id(parameter),
+        };
+        let math_literal = |value: u128| IntegerMathTerm::literal(IntegerValue::Unsigned(value));
+        let q_ceiling = Proposition::IntegerMathLessOrEqual(math_value(101), math_literal(4));
+        let walk = |clause: Proposition| {
+            let mut walk = ranked_countdown_machine(8);
+            walk.parameters.push(ValueDeclaration {
+                qualifications: Default::default(),
+                id: id(101),
+                scalar_type: ScalarType::Integer(rank_type),
+            });
+            walk.contract.requires = vec![q_ceiling.clone(), clause];
+            module(1, vec![walk])
+        };
+        // `p <= q` under `q <= 4` — `p <= 4`.
+        let built = walk(Proposition::IntegerMathLessOrEqual(
+            math_value(100),
+            math_value(101),
+        ));
+        assert_eq!(derive_maximum_entry_bound(&built, id(1)), Ok(1 + 4 * 5 + 1));
+        // `p + 2 <= q` under `q <= 4` — `p <= 2`.
+        let built = walk(Proposition::IntegerMathLessOrEqual(
+            IntegerMathTerm::Add(Box::new(math_value(100)), Box::new(math_literal(2))),
+            math_value(101),
+        ));
+        assert_eq!(derive_maximum_entry_bound(&built, id(1)), Ok(1 + 4 * 3 + 1));
+        // `p == q` under `q <= 4` — `p <= 4`.
+        let built = walk(Proposition::IntegerMathEqual(
+            math_value(100),
+            math_value(101),
+        ));
+        assert_eq!(derive_maximum_entry_bound(&built, id(1)), Ok(1 + 4 * 5 + 1));
+        // `p <= q + 2` is a slack relation the transfer edges cannot
+        // express — it must not fabricate a bound.
+        let built = walk(Proposition::IntegerMathLessOrEqual(
+            math_value(100),
+            IntegerMathTerm::Add(Box::new(math_value(101)), Box::new(math_literal(2))),
+        ));
+        assert_eq!(
+            derive_maximum_entry_bound(&built, id(1)),
+            Ok(1 + 4 * 256 + 1)
+        );
+        // `2*p <= q` names a non-unit coefficient — outside the solved
+        // fragment, contributes nothing.
+        let built = walk(Proposition::IntegerMathLessOrEqual(
+            IntegerMathTerm::Multiply(Box::new(math_literal(2)), Box::new(math_value(100))),
+            math_value(101),
+        ));
+        assert_eq!(
+            derive_maximum_entry_bound(&built, id(1)),
+            Ok(1 + 4 * 256 + 1)
+        );
+    }
+
+    /// Mathematical contradictions prune disjunction arms like scalar
+    /// ones: `p <= 5` or impossible `p < 0` is `p <= 5`, and an equality
+    /// with no solution — `2*p == 5` over integers — is unsatisfiable on
+    /// its own. A mathematical premise also discharges against a settled
+    /// scalar ceiling.
+    #[test]
+    fn contract_requires_integer_math_conditional_forms() {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let math_value = |parameter: u64| IntegerMathTerm::MathValue {
+            source_type: rank_type,
+            value: id(parameter),
+        };
+        let math_literal = |value: u128| IntegerMathTerm::literal(IntegerValue::Unsigned(value));
+        let math_signed_literal =
+            |value: i128| IntegerMathTerm::literal(IntegerValue::Signed(value));
+        // `(p <= 5) or (p < 0)`.
+        let disjunction = Proposition::Disjunction(vec![
+            Proposition::IntegerMathLessOrEqual(math_value(100), math_literal(5)),
+            Proposition::IntegerMathLessThan(math_value(100), math_signed_literal(0)),
+        ]);
+        let mut walk = ranked_countdown_machine(8);
+        walk.contract.requires = vec![disjunction.clone()];
+        let built = module(1, vec![walk]);
+        assert_eq!(derive_maximum_entry_bound(&built, id(1)), Ok(1 + 4 * 6 + 1));
+        assert_eq!(
+            used_contract_premises(built.machines.first().expect("one machine")),
+            vec![disjunction]
+        );
+
+        // `(2*p == 5) or (p <= 3)` — the impossible arm drops out.
+        let disjunction = Proposition::Disjunction(vec![
+            Proposition::IntegerMathEqual(
+                IntegerMathTerm::Multiply(Box::new(math_literal(2)), Box::new(math_value(100))),
+                math_literal(5),
+            ),
+            Proposition::IntegerMathLessOrEqual(math_value(100), math_literal(3)),
+        ]);
+        let mut walk = ranked_countdown_machine(8);
+        walk.contract.requires = vec![disjunction.clone()];
+        let built = module(1, vec![walk]);
+        assert_eq!(derive_maximum_entry_bound(&built, id(1)), Ok(1 + 4 * 4 + 1));
+        assert_eq!(
+            used_contract_premises(built.machines.first().expect("one machine")),
+            vec![disjunction]
+        );
+
+        // `q <= 3` discharges the math premise `q <= 4`, whose conclusion
+        // then caps `p` at 5 — the ceiling belongs to the implication row,
+        // not the ambient one.
+        let ambient = Proposition::LessOrEqual(
+            parameter_term(101, rank_type),
+            integer_literal(rank_type, 3),
+        );
+        let implication = Proposition::Implication {
+            premise: Box::new(Proposition::IntegerMathLessOrEqual(
+                math_value(101),
+                math_literal(4),
+            )),
+            conclusion: Box::new(Proposition::IntegerMathLessOrEqual(
+                math_value(100),
+                math_literal(5),
+            )),
+        };
+        let mut walk = ranked_countdown_machine(8);
+        walk.parameters.push(ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(101),
+            scalar_type: ScalarType::Integer(rank_type),
+        });
+        walk.contract.requires = vec![ambient.clone(), implication.clone()];
+        let built = module(1, vec![walk]);
+        assert_eq!(derive_maximum_entry_bound(&built, id(1)), Ok(1 + 4 * 6 + 1));
+        assert_eq!(
+            used_contract_premises(built.machines.first().expect("one machine")),
+            vec![ambient, implication]
+        );
+
+        // An affine premise discharges through a chain: `p + 1 <= q`
+        // follows from `p < q` alone — the strict hop's cost is the 1 the
+        // premise needs, and the `q <= 9` ceiling row is not consulted.
+        let hops = [
+            Proposition::LessOrEqual(
+                parameter_term(101, rank_type),
+                integer_literal(rank_type, 9),
+            ),
+            Proposition::LessThan(
+                parameter_term(100, rank_type),
+                parameter_term(101, rank_type),
+            ),
+        ];
+        let implication = Proposition::Implication {
+            premise: Box::new(Proposition::IntegerMathLessOrEqual(
+                IntegerMathTerm::Add(Box::new(math_value(100)), Box::new(math_literal(1))),
+                math_value(101),
+            )),
+            conclusion: Box::new(Proposition::IntegerMathLessOrEqual(
+                math_value(100),
+                math_literal(5),
+            )),
+        };
+        let mut walk = ranked_countdown_machine(8);
+        walk.parameters.push(ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(101),
+            scalar_type: ScalarType::Integer(rank_type),
+        });
+        walk.contract.requires = vec![hops[0].clone(), hops[1].clone(), implication.clone()];
+        let built = module(1, vec![walk]);
+        assert_eq!(derive_maximum_entry_bound(&built, id(1)), Ok(1 + 4 * 6 + 1));
+        assert_eq!(
+            used_contract_premises(built.machines.first().expect("one machine")),
+            vec![hops[1].clone(), implication],
+            "the premise rests on the strict hop; the unconsulted ceiling \
+             row stays out"
         );
     }
 
