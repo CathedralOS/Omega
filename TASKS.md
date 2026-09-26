@@ -3085,6 +3085,29 @@ syntax and other terminal services are not prerequisites.
   canary and sample that stores across integer types or policies spells the
   cast.
 
+  This rejection broke 16 tests outside the item's claimed paths, all in
+  `typed-trees-to-checked-trees` and all deterministic: 6100 of 6116 pass at
+  7bb32a4d88. Their fixtures still carry implicit store conversions, and they
+  are not all one repair. Ten distinct messages appear:
+  `i32` to `i32 in Wrapping` (4), `u8 in Wrapping` to `u8` (3), `u8` to
+  `u8 in Wrapping` (2), `u8` to `u16` (2), `u8` to `u64`, `f32` to `f64`,
+  `f32` to `f32 in Saturating`, `f32 in Saturating` to `f32`, `f64` to
+  `f64 in Trapping`, and `f64 in Trapping` to `f64`.
+
+  Two kinds need different answers. Adding or dropping an arithmetic policy is
+  the spelling the rule asks for, and those fixtures take an `as`. The width
+  widenings -- `u8` to `u16`, `u8` to `u64`, `f32` to `f64` -- are a broader
+  refusal than "a typed value keeps its arithmetic policy", and whether the
+  rule should reach them is this item's call, not a fixture repair.
+
+  `call_bounds::tests::widening::argument_widening_does_not_reinterpret_saved\
+_wrapping_computations` is repaired as the worked example: it asserts rejection
+  carrying "cannot prove requires" and was being refused earlier for the
+  conversion instead, so its own subject went unexercised. Spelling
+  `input as u8 in Wrapping` restores it. The other fifteen each need the same
+  judgement -- incidental conversion, or a subject the new rule now refuses
+  earlier -- which wants this item's context.
+
 - **TARGET-SET-COMPILATION.** (new-scope) Multi-target compilation is
   repeated single-target compilation at two layers
   ([plan](wiki/drafts/designs/target_set_compilation.md), measured at

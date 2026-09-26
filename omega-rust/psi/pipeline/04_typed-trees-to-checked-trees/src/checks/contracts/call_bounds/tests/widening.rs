@@ -98,7 +98,7 @@ fn argument_widening_does_not_reinterpret_saved_wrapping_computations() {
     assert_call_requirement_rejected(
         "machine demand(value: u64) -> u64 requires value != 0 { value }
          machine forward(input: u8) -> u64 {
-             let saved: u8 in Wrapping = input;
+             let saved: u8 in Wrapping = input as u8 in Wrapping;
              let widened: u64 = (saved + 1) as u64;
              demand(widened)
          }",
