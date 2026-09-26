@@ -4447,6 +4447,18 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   store of that place; it adds no authority over the checked loan.
 
   Still omitting: every shared loan, and any *read* through a loan name.
+  The read has a supported analogue to copy. `scalar_lowering`'s name branch
+  already lowers a mutable reference *parameter* to
+  `CheckedScalarExpression::StorageRead { symbol, primitive_type }` through
+  `mutable_scalar_parameter_type`, and `self.out = r;` with `r: &mut u8`
+  compiles on that path today. A loan local is in neither `parameters` nor
+  the scalar `locals` list, so it has no operand form at all and
+  `transition r == 0` omits at `state graph: terminator: conditional
+  successors: guard expression`. Give the loan local the same read of its
+  loaned place rather than inventing an operand kind. Separately, passing
+  `&mut self.raw` as a transition successor argument omits earlier still, at
+  `state graph: terminator: jump successor: parameter transfer`, so a
+  reference cannot yet be handed to a successor state either.
   Do not close those by making the local alias its place in
   `resolve_contextual_name_path_root`: it roots a local at its own symbol so
   borrow facts, write frames and releases keep a loan identity to key on.
