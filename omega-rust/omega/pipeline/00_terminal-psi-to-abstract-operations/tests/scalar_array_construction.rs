@@ -215,6 +215,6 @@ fn assert_array_retention(source: &str, entry: &str) {
             *elements
         );
     }
-    // Native payload transport and remaining ABI limits are exercised through
-    // image publication in native-differential/tests/scalar_array_results.rs.
+    // Native payload transport and remaining ABI limits are outside this
+    // stage; the corpus native leg builds and runs source programs end to end.
 }

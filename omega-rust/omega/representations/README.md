@@ -58,8 +58,8 @@ symbol resolution or independent component publication.
 
 Representation migrations must preserve exact places, widths, call results,
 argument transfers, control flow, and byte/relocation correspondence. Use the
-affected interpreter/native differential cases and x86-64/AArch64 encoder checks
-as acceptance evidence. Extending calls or frames requires exact stack ownership
+affected corpus cases under `python3 tools/corpus_gate.py --both` (interpreter
+against native) and x86-64/AArch64 encoder checks as acceptance evidence. Extending calls or frames requires exact stack ownership
 and disjointness evidence, not an assumption that whole-image addresses remain
 valid across a component boundary. Existing frame and spill work owns wider
 physical support; historical selection failures do not by themselves establish

@@ -189,10 +189,8 @@ payload extraction, nested structural payload construction/transport,
 loop-carried owned results, and whole nominal receiver replacement remain
 separate dependencies. The `owned_case_state_transport` compiler test exercises
 the filesystem's actual `ErrorKind` through calls and owned state dispatch.
-The native [owned-state tests](../../../../tests/native-differential/tests/scalar_case_results/owned_state.rs)
-exercise scalar-sum result transport through destination-owned homes, joins,
-and dispatch using the ordinary publication pipeline. The complete filesystem
-entry still requires the remaining source dependencies above.
+The complete filesystem entry still requires the remaining source dependencies
+above.
 
 Closed scalar-payload sum expressions use that same owned-result namespace. An
 ordered scalar `match` evaluates its subject once and either constructs the
@@ -219,11 +217,8 @@ owner and its still-live complement travel through ordinary typed block
 parameters. Untouched locals retain their own type, identity and relative cleanup
 order; no owner is disposed merely to equalize a join. Nested alternatives share one
 continuation. Cleanup follows reverse declaration order; a return transfers
-the selected result with its actual multiplicity. The
-[owned-selection tests](../../../../tests/native-differential/tests/scalar_case_results/owned_selection.rs)
-exercise source-to-native execution and hostile source, optimizer and target
-cleanup correspondence. Receiving stages reconstruct custody instead of trusting
-producer assertions.
+the selected result with its actual multiplicity. Receiving stages reconstruct
+custody instead of trusting producer assertions.
 
 This does not admit parameter/projected selection sources, fresh/existing
 mixtures, references, linear values, or nominal cleanup. Selected residuals
@@ -276,8 +271,7 @@ call-bearing plain scalar fields. Structural payloads and loop-carried owned sum
 results remain separate dependencies. Ordinary native scalar-sum construction,
 return/call transport, and selected-case observation retain full-width payloads
 through installation replay for Linux x64/ARM64 and macOS ARM64. Windows
-indirect aggregate returns remain a realization dependency; see
-`tests/native-differential/tests/scalar_case_results.rs` at the repository root.
+indirect aggregate returns remain a realization dependency.
 
 Plain records use the same checked structural-value roots and ordinary operand
 evaluator, followed by `EstablishRecord`. Runtime integer, Boolean, IEEE, and
@@ -299,9 +293,9 @@ mutable calls; selected state exits and normal Unit returns use the same exact
 establishment/disposal receipts and reverse-order cleanup. A shared observation
 of a mutable local is a read of its current backing, not an immutable snapshot.
 The source regressions are `state_local_record_lifetimes` and
-`checked-trees-to-lowered-psi --test local_record_receivers_source`; native
-publication and execution are checked separately by
-`tests/native-differential/tests/local_record_receivers.rs`.
+`checked-trees-to-lowered-psi --test local_record_receivers_source`;
+`python3 tools/corpus_gate.py --native --filter structural/local_record_receivers`
+records the host build outcome of the same fixture.
 
 The admitted record is affine or unrestricted, unqualified, and claim-free.
 Erased fields still require additional construction/evidence support; a
@@ -337,9 +331,6 @@ Direct integer and Boolean field reads resolve the exact declared field against
 the local's current place, including after an unrelated owned selection. Each
 read materializes its own scalar observation before subsequent operands or calls;
 an earlier observation is not a delayed load from the final storage contents.
-The native `scalar_case_results::records` controls consume full-width integer
-getter results through further computation; `scalar_case_results::record_reads`
-also covers direct reads, padded layouts, distinct roots, and block arrivals.
 Direct nested-field reads retain their separate source-admission boundary.
 
 The current legacy range-field producer retains exact carriers and inclusive
@@ -369,10 +360,7 @@ the `local_record_reads`/`byte_write_loop` source regressions pin obligation
 identity on `EstablishRecord`/`EstablishScalarCase`. The dynamic realization
 store route still declines bounded fields for want of a range-proof emission
 context. Opaque interpreter inputs/results cannot establish these restrictions
-from type identity alone. The authored `terminal_byte_views/read_line.omg` native fixture
-composes the byte leaf, guarded writes, and payload-bearing line outcomes through
-installation replay. It does not establish the bundled library's provider/API
-migration or the complete `cli_mvp` entry path.
+from type identity alone.
 
 The general state-graph path also retains one persistent unrestricted mutable
 record receiver. It shares ordinary Unit statement construction for ordered
@@ -436,8 +424,7 @@ does not erase either the caller or callee from the closure. Source replay rejoi
 the exact authored argument, not merely its type. Structural returns retain the
 source exit's remaining affine disposals, independently checked against the final
 live frontier. The `owned_record_return_source` tests cover source custody and
-fuel pauses; `scalar_case_results::record_reads` covers four-target publication
-and matching-host payload observations.
+fuel pauses.
 Direct array-literal operands retain the enclosing call occurrence and authored
 formal position on their constructor and scalar-element bindings. The shared
 argument schedule interleaves constructors with scalar actuals and nested
@@ -467,15 +454,13 @@ The source and independently decoded/fuel-resumed probe is
 `cargo nextest run -p checked-trees-to-lowered-psi --test scalar_array_source scalar_array_local_control_keeps_prefix_effects_and_call_result_storage --no-fail-fast`.
 The CLI entry is
 `cargo run -p omega -- inspect-terminal --machine selected --target macos_arm64 tests/omega/pass/collections/array_local_control/main.omg`.
-Native acceptance is
-`cargo nextest run -p omega-native-differential-test --test scalar_array_results array_local_control_preserves_selected_returns_and_prefix_effects --no-fail-fast`.
-It publishes on all four native targets and executes both branches over every
-byte input on a matching Linux/macOS host; other runtime legs explicitly skip.
+`python3 tools/corpus_gate.py --native --filter collections/array_local_control`
+records the fixture's host build outcome; it is not an `*_exit` case, so the
+leg does not execute it.
 The comparison probes are
 `cargo run -p omega -- inspect-terminal --machine scalar_comparison --target macos_arm64 tests/omega/pass/collections/owned_array_scalar_comparisons/main.omg`
 and the same command with `--machine array_comparison`. These publish Terminal
-Psi. The native `scalar_array_results` suite publishes both entries on all four
-targets and checks their exact Boolean scalar/array payloads on supported hosts.
+Psi.
 Scalar computation calls retain array-valued actuals in expression-owned structural
 slots. The shared evaluator completes each array's scalar leaves, establishes its
 real structural result, then evaluates the next authored formal. Empty arrays use
@@ -512,9 +497,7 @@ payloads still need their complete value/storage paths. Native constructors and
 direct array results now use the ordinary aggregate graph; see the
 [native transport owner](../../../omega/pipeline/03_target-operations-to-selected-instructions/README.md#ordinary-selected-control-flow).
 The transitive example also reaches native owned-argument and incoming-result
-transport through those shared homes; the native differential
-`scalar_array_results` test loads this complete source, publishes all four
-target artifacts and executes on matching supported hosts. Ordinary array result
+transport through those shared homes. Ordinary array result
 locals retain the regular free-machine signature even without scalar parameters;
 their presence does not imply a selected-operator affine signature.
 Floating literals, parameters, locals, and ordinary calls retain binary32/binary64
@@ -523,12 +506,8 @@ check every sibling's format before selecting leaves; source replay rejects chan
 bits or formats. Floating arithmetic still requires its own selected execution.
 The native array ABI transports integer aggregate fragments, not foreign C
 homogeneous-floating aggregates; scalar floating parameters retain their float-bank
-placement. The `scalar_array_results` regressions observe raw bits, including
-signed zero, subnormals, infinities, and NaN payloads, through owned-array calls.
-Calls combining scalar floating arguments with an array result retain exact
-mixed-bank constraints and integer result fragments. The complete `selected`
-caller in `scalar_array_results/floating.rs` covers publication and native bits,
-not just its separate construction and owned-array forwarding entries.
+placement. Calls combining scalar floating arguments with an array result retain
+exact mixed-bank constraints and integer result fragments.
 General slice-backed `.len` operands require retained view formation and bounds
 evidence; endpoint subtraction alone cannot justify eliminating the view operation.
 
@@ -698,10 +677,7 @@ the rank while authored cyclic transfers strictly decrease it. The existing
 single-state cyclic-component restriction and unsupported explicit rank ranges
 remain; this does not introduce a fixed-work ceiling. Native projected record
 loops use ordinary borrowed-reference signatures and field stores, including
-loop-carried integer sources. The `terminal_psi_indexed_receivers::cyclic_receivers`
-regressions publish ranked/unranked callers on four hosted targets, retain the
-full callee stack demand, and check original backing storage after return on
-the supported execution host.
+loop-carried integer sources.
 
 Projection replay rejoins every field/index, array bound, type, and source
 application. Nonescaping alias prefixes with immutable bindings to mutable or
@@ -739,14 +715,6 @@ exact source/loan tampering, and fuel-boundary interpretation, with:
 ```sh
 cargo nextest run -p checked-trees-to-lowered-psi --test receiver_call_source --no-fail-fast --no-tests fail
 ```
-
-For four-target publication and supported-host caller-storage observations:
-
-```sh
-cargo nextest run -p omega-native-differential-test --test terminal_psi_indexed_receivers --no-fail-fast --no-tests fail -E 'test(nested_aliases::) | test(projected_aliases::) | test(mutable_aliases::)'
-```
-
-Cross-publication is not runtime coverage on the other targets.
 
 Whole-root and plain-record field stores accept exactly typed IEEE literals and
 runtime parameters alongside bounded fixed-integer/Boolean scalar sources.

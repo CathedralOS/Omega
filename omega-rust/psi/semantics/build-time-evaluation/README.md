@@ -60,9 +60,6 @@ late-selected result receivers and provider-dependent operations still need
 their complete contexts.
 `cargo nextest run -p compiler --test module_machine_indices const_argument_calls --no-fail-fast --no-tests fail`
 checks exact index consumers, selective execution and lexical rejection.
-`cargo nextest run -p omega-native-differential-test --test scalar_case_results const_arguments --no-fail-fast --no-tests fail`
-publishes those consumers for four hosted targets and executes on a supported
-matching host after removing source files.
 
 The public ownership-taking pre-resolution and pre-check conveyors keep these
 Psi phases separate. Omega interposes target machine selection and schedules
@@ -211,9 +208,6 @@ The call customer is
 `cargo run -p omega -- --check tests/omega/pass/modules/machine_constant_initializers/main.omg`;
 `cargo nextest run -p compiler --test module_machine_indices machine_initializers:: --no-fail-fast --no-tests fail`
 checks source-free Terminal execution and module/index identity.
-`cargo nextest run -p omega-native-differential-test --test scalar_case_results floating_constants --no-fail-fast --no-tests fail`
-checks source-free publication for the four hosted targets and exact floating
-return bits on the matching host, after removing the source files.
 An empty checked callee failure summary admits every argument with respect to
 crashes. Otherwise, a disposable ordinary call checks the exact materialized
 scalar arguments and must have a complete empty invocation summary before the

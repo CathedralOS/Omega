@@ -94,8 +94,6 @@ For a mutable fixed-byte-array view, the projected storage type is the array
 while the callee receives a view descriptor. Validation reconstructs the exact
 byte element, array extent and unit stride alongside the original root and
 offset; neither descriptor type equality nor a producer-supplied length suffices.
-The source/native regression is
-`cargo nextest run -p omega-native-differential-test --test terminal_byte_views --no-fail-fast mutable_writes::fixed_arrays`.
 
 Graph operations retain original invocation places, projections and widths.
 Byte views retain their backing pointer, length, checked slice derivation, and
@@ -168,10 +166,9 @@ See the descriptor recovery task on [TASKS.md](../../../../TASKS.md).
 
 [Scalar value regressions](src/tests/scalar/shared_values.rs) check bounded
 per-operation storage and once-only definitions.
-[Source-produced native controls](../../../../tests/native-differential/tests/scalar_control_cycles.rs)
-exercise common scalar control, call-result reuse, independent corruption checks,
-and four-target publication. Runtime checks require a supported matching host;
-cross-emission is not host-execution evidence.
+The corpus native leg (`python3 tools/corpus_gate.py --native`) builds source
+programs through this stage and executes the `run` tier and `*_exit` fixtures on
+the host; cross-emission is not host-execution evidence.
 
 Borrowed storage, descriptor, boundary and cleanup coverage must exercise the
 caller-visible result and invalid provenance/ownership controls. A target-only

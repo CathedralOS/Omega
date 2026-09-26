@@ -27,7 +27,7 @@ observation for that lane:
 
 ```text
 python3 tools/release/release_record.py run --target linux_x86_64 \
-    --native-execution "mbx nextest run -p omega-native-differential-test"
+    --native-execution "python3 tools/corpus_gate.py --native"
 ```
 
 `--native-execution` is the lane's native-observation evidence: one command
@@ -60,7 +60,7 @@ A platform test may skip only when irrelevant to its runner. Declare each
 expected skip while recording:
 
 ```text
---expect-skip 'RC-NATIVE-MATRIX|native_differential::uefi_row|no UEFI host here'
+--expect-skip '<gate>|<skipped test path>|<why this runner cannot run it>'
 ```
 
 Skipped tests observed in nextest/cargo output that are not declared this way

@@ -82,12 +82,7 @@ command as the outer acceptance check rather than deriving completion from a
 passing isolated store test.
 
 Native scalar access beside bounded byte fields now uses the existing record
-layout. `record_reads::scalar_updates_preserve_neighboring_bounded_byte_storage`
-in `omega-native-differential-test --test scalar_case_results` publishes for all
-four hosted targets and executes on macOS ARM64: shared reads around a nested
-mutable call observe signed updates, while byte-buffer regions, padding, and the
-sibling record remain unchanged. Its function harness supplies valid empty
-buffers; it does not provision a hosted receiver or execute byte replacement.
+layout.
 
 Hosted receivers now admit direct and nested bounded byte fields whose complete
 understood source constraints accept empty storage. `bounded_integer_field_stores_run_natively`

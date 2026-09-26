@@ -16,7 +16,7 @@
 //! analyses they read compile only for tests and the `test-support` feature:
 //! no Psi optimization selection reaches them from
 //! [`optimize_abstract_operations`]. `test_support` names what the
-//! repository's native-differential suite drives directly.
+//! `psi_optimization_allocations` example drives directly.
 mod abstract_optimization;
 mod analyses;
 mod field_value_specialization;
@@ -74,9 +74,9 @@ pub(crate) use rules::registry::{
 #[cfg(test)]
 pub(crate) use rules::{WrappingIntegerAddConstantsRule, built_in_psi_registry};
 
-/// The analyses, ranked rewrites, rule catalog, and pipeline runs that the
-/// repository's native-differential tests drive directly from compiled Omega
-/// source. Production consumers use only the stage entry and its validated
+/// The analyses, ranked rewrites, rule catalog, and pipeline runs exposed to
+/// harnesses outside the crate, such as the `psi_optimization_allocations`
+/// example. Production consumers use only the stage entry and its validated
 /// plan above.
 #[cfg(feature = "test-support")]
 pub mod test_support {

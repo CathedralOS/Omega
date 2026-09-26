@@ -39,7 +39,7 @@ completion surface. Unaccepted experiments are not counted as accepted features.
 | `RC-PCC-REPLAY` | Requested artifact/`.proof` pairs round-trip; hostile or substituted evidence rejects before PCC-required interpretation or lowering. Ordinary output still checks without publishing PCC. | `mbx nextest run -p checked-trees-to-lowered-psi -p terminal-codec -p terminal-verifier -p terminal-interpreter -p terminal-psi-to-abstract-operations --no-fail-fast`; also run the same package selection with `mbx test --doc`. |
 | `RC-PORTABLE-PSI` | One process publishes a complete source-free Terminal Psi envelope and exits; a second process reconstructs, verifies, and interprets it using newly supplied authority. | `mbx nextest run -p terminal-codec -p terminal-verifier -p terminal-interpreter --no-fail-fast`. These round-trip, verify and interpret source-free Terminal Psi in one process; the two-process reload test was deleted with the compiler test tree on 2026-09-25, so the cross-process leg has no automated evidence. |
 | `RC-BUILD-AND-PACKAGES` | Build declarations, immutable inputs, package identities, reviewed evidence, resolution, and compilation handoff agree without path/name inference or hidden ambient mutation. | The package/build command block below. |
-| `RC-NATIVE-MATRIX` | Each hosted target produces independently validated machine code, object/image bytes, ABI behavior, provider settlement, and observable execution on its matching host. | `mbx nextest run -p omega-native-differential-test --all-targets --no-fail-fast` and `python tools/corpus_gate.py --native`, which builds every pass and run fixture and executes the run tier and `*_exit` fixtures, on every required host in the platform table below. |
+| `RC-NATIVE-MATRIX` | Each hosted target produces independently validated machine code, object/image bytes, ABI behavior, provider settlement, and observable execution on its matching host. | `python tools/corpus_gate.py --native`, which builds every pass and run fixture and executes the run tier and `*_exit` fixtures, on every required host in the platform table below. |
 | `RC-DIAGNOSTICS` | Rejected source and failed product admission report stable, actionable diagnostics rather than panics, silent fallback, or accidental acceptance. | `python tools/corpus_gate.py --filter fail/`, which also belongs to `RC-SOURCE-SEMANTICS`. |
 | `RC-REPRESENTATIVE-PROGRAMS` | Every maintained sample reaches checked semantics; every sample with an authored host entry reaches its native product; every documented deterministic exit/output oracle passes. | `mbx run -p omega -- refresh-samples` on every required host. It builds every sample natively for the host; it does not yet run the exit/output oracles. |
 
@@ -90,8 +90,9 @@ it is not a pass.
   2026-09-03)`, cargo `b2e9d5f9d`); cargo-nextest 0.9.144. `mbx` is not
   present in this environment; `cargo` was used directly.
 - Host: Linux x86_64 (`x86_64-unknown-linux-gnu`).
-- Gate command (`mbx nextest run -p omega-native-differential-test
-  --all-targets --no-fail-fast`, cargo equivalent): **compiles and runs**
+- Gate command at this revision: the Rust native differential crate's
+  `--all-targets` run (cargo equivalent), which was removed on 2026-09-25; the
+  gate is now `python tools/corpus_gate.py --native`. It **compiles and runs**
   at this revision — the custody-fixture drift (`decision_custody.rs` 6↔7
   `Optimization` roster, `ordinary_graph_controls.rs` `Crash` arm) recorded
   at `9684ea54ff` is repaired. Result: **1006 passed (36 slow) / 116
@@ -128,8 +129,9 @@ it is not a pass.
   `const_fold_unsigned_shift_right_arg`, `runtime_bitwise_high_ops`
   (exit 71 where 70 expected).
 - Next acceptance: the dominant ProgramEntry-establishment family and the
-  carrier-spelling fixture drift in `coverage`; re-run both commands on a
-  matching host after those legs land.
+  carrier-spelling fixture drift in `coverage`; run the current
+  RC-NATIVE-MATRIX gate and the direct-execution command on a matching host
+  after those legs land.
 
 ## Closure rule
 
