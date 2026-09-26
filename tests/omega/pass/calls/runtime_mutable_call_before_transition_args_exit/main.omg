@@ -31,8 +31,13 @@ machine Loader::fill(&mut self) {
     state present(&mut self, index: u64)
     requires index <= 16383
     {
-        self.tag = self.tags[index];
-        self.first = self.firsts[index];
+        // `tags`/`firsts` are `[u8; N] in Trapping`, so an element reads as
+        // `u8 in Trapping` while `tag`/`first` are bare `u8`. A typed value
+        // keeps its policy across a store, so dropping `Trapping` is spelled
+        // rather than implicit. `starts`/`ends` need no cast: their elements
+        // are already `u64 in Wrapping`, which is what `start`/`end` hold.
+        self.tag = self.tags[index] as u8;
+        self.first = self.firsts[index] as u8;
         self.start = self.starts[index];
         self.end = self.ends[index];
     }
