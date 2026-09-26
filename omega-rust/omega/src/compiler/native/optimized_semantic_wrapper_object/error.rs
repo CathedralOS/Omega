@@ -3,8 +3,6 @@ use resolved_layout_to_resolved_layout::native_artifact::OptimizedProgramStorage
 use resolved_layout_to_resolved_layout::object_file::OptimizedObjectArtifactError;
 use resolved_layout_to_resolved_layout::program_entry_plan::OptimizedProgramStorageSemanticWrapperEncodingError;
 use target_operations_to_selected_instructions::isa_x86_64::X86_64SemanticUnitWrapperResolutionError;
-use crate::compiler::OptimizedProgramStorageSemanticWrapperObjectRecordError;
-use terminal_psi_to_abstract_operations::NativeProgramEntrySettlementError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedProgramStorageSemanticWrapperObjectError {

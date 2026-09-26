@@ -9,8 +9,6 @@
 
 use crate::compiler::native::ValidatedNativeProgramEntrySettlement;
 use resolved_layout_to_resolved_layout::native_artifact::{
-//! `crate::compiler::semantic_wrapper_object`; this stage binds them to the
-use crate::compiler::{
     OptimizedProgramStorageSemanticWrapperObjectContainer,
     OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt,
     OptimizedProgramStorageSemanticWrapperObjectPlan,
@@ -24,7 +22,6 @@ use resolved_layout_to_resolved_layout::program_entry_plan::{
     StagedOptimizedProgramStorageSemanticWrapperEncoding,
     validate_optimized_program_storage_semantic_wrapper_encoding,
 };
-use terminal_psi_to_abstract_operations::ValidatedNativeProgramEntrySettlement;
 
 mod error;
 mod object;
