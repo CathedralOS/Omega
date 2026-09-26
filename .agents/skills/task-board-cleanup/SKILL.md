@@ -8,8 +8,9 @@ description: Audit and debloat Omega execution boards into actionable unfinished
 Make the requested board trustworthy enough to assign work without rediscovering
 the problem. Shorter is useful only when the remaining requirements stay clear.
 
-Read [AGENTS.md](../../../AGENTS.md), especially its workflow and validation
-rules. Follow its worktree, claims and publication procedures. The invocation
+Read [AGENTS.md](../../../AGENTS.md) and
+[CONTRIBUTING.md](../../../CONTRIBUTING.md), especially the workflow and
+validation rules. Follow its worktree, claims and publication procedures. The invocation
 determines scope, persistence and any overlap permission; this skill grants no
 standing exception. A review-only request produces findings, not board edits.
 

@@ -415,7 +415,11 @@ fn validate(
                 // fences.
                 incoming_environments
                     .get_or_insert_with(|| {
-                        arithmetic_domains::incoming_guard_environments(program, machine)
+                        arithmetic_domains::incoming_guard_environments(
+                            program,
+                            machine,
+                            call_frames.as_ref(),
+                        )
                     })
                     .iter()
                     .find_map(|(symbol, environment)| {

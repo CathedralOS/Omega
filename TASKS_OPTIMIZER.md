@@ -130,8 +130,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   re-exports the foundation harness; Psi consumers use its foundation owner
   directly.
 
-  Reuse `custody_field_inventory!`, `run_one_field_substitution_matrix`, and
-  the `custody_mutation_matrix` architecture gate. Nested installation,
+  Reuse `custody_field_inventory!` and `run_one_field_substitution_matrix`. Nested installation,
   optimization-execution custody, trust-graph custody, component-publication
   external stack provision, the executable-installation container wire, and the
   Terminal codec debug-map, artifact-envelope, PCC sidecar, obligation-ledger,
@@ -584,8 +583,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   fixed-point, or corruption axes.
 
   Keep [inventory rows](omega-rust/omega/representations/optimization-core/rules.md)
-  resolving to actual tests under
-  `tests/architecture/optimizer_rollout/coverage.rs`. New exact rules land with
+  resolving to actual optimizer tests. New exact rules land with
   the full [stage-extension matrix](omega-rust/optimization.md#validation-when-extending-a-stage);
   mandatory runtime recovery retains its explicit no-disabled-axis distinction.
 

@@ -414,7 +414,6 @@ fn nested_state_contract_projects_an_exact_terminal_block_parameter() {
         &[terminal_machine],
         &[],
         &[],
-        &[],
         projection.clone(),
     )
     .expect("the emitted artifact admits the exact binding")
@@ -440,7 +439,6 @@ fn nested_state_contract_projects_an_exact_terminal_block_parameter() {
     // transitional fallback rather than binding to a foreign block.
     let unbound = resolve_direct_float_source_binding(
         &checked,
-        &[],
         &[],
         &[],
         &[],
@@ -602,7 +600,6 @@ fn transported_ensures_result_lowers_to_the_emitted_call_result() {
         std::slice::from_ref(&terminal_machine),
         &[],
         std::slice::from_ref(&occurrence),
-        &[],
         use_site_row.clone(),
     )
     .expect("the emitted artifact admits the exact binding")
@@ -632,7 +629,6 @@ fn transported_ensures_result_lowers_to_the_emitted_call_result() {
             &[non_call_machine],
             &[],
             std::slice::from_ref(&occurrence),
-            &[],
             use_site_row.clone(),
         )
         .is_err(),
@@ -641,22 +637,14 @@ fn transported_ensures_result_lowers_to_the_emitted_call_result() {
     // An owner outside the emitted module, or an emitted owner with no
     // occurrence at the coordinate, retains the transitional fallback rather
     // than fabricating a producer.
-    let unbound = resolve_direct_float_source_binding(
-        &checked,
-        &[],
-        &[],
-        &[],
-        &[],
-        &[],
-        use_site_row.clone(),
-    )
-    .expect("an owner outside the emitted module is not an error");
+    let unbound =
+        resolve_direct_float_source_binding(&checked, &[], &[], &[], &[], use_site_row.clone())
+            .expect("an owner outside the emitted module is not an error");
     assert_eq!(unbound, None);
     let unjoined = resolve_direct_float_source_binding(
         &checked,
         &[(caller.symbol, terminal_owner)],
         &[terminal_machine],
-        &[],
         &[],
         &[],
         use_site_row.clone(),

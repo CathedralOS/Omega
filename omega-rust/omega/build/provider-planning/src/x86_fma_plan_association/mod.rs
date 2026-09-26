@@ -87,25 +87,6 @@ impl CheckedX86ScalarFmaPlanAssociation {
                 )
                 .is_some()
     }
-
-    pub fn matches_lowered_occurrence(
-        &self,
-        occurrence: &lowered_psi::LoweredSelectedIeeeFloatFmaOccurrence,
-        selected: &effects::SelectedProviderPlanFacts,
-        admitted_provider: AdmittedX86ScalarFmaProvider,
-    ) -> bool {
-        self.matches_checked_inputs(selected, admitted_provider)
-            && occurrence.requirement_operator == self.requirement_operator
-            && occurrence.provider_plan_report_fingerprint
-                == self.selected_plan.report_fingerprint()
-            && occurrence.provider_plan_commitment.as_bytes()
-                == self.selected_plan.identity_digest().as_bytes()
-            && occurrence.format
-                == match self.slot {
-                    X86ScalarFmaSlot::Binary32 => semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    X86ScalarFmaSlot::Binary64 => semantic_vocabulary::IeeeFloatFormat::Binary64,
-                }
-    }
 }
 
 pub fn bind_checked_x86_scalar_fma_plan_associations(

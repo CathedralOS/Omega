@@ -69,7 +69,7 @@ struct CallTargetIndex {
 
 thread_local! {
     static CALL_TARGET_INDEX: std::cell::RefCell<
-        Option<(*const TypedTrees, usize, CallTargetIndex)>,
+        Option<(typed_trees::ProgramIdentity, usize, CallTargetIndex)>,
     > = const { std::cell::RefCell::new(None) };
 }
 
@@ -83,8 +83,7 @@ fn call_target_index_fingerprint(program: &TypedTrees) -> usize {
             0
         }
     };
-    (program as *const TypedTrees) as usize
-        ^ machines.len().rotate_left(11)
+    machines.len().rotate_left(11)
         ^ program.traits().len().rotate_left(23)
         ^ sample(0).rotate_left(31)
         ^ sample(machines.len() / 2).rotate_left(41)
@@ -96,7 +95,7 @@ fn with_call_target_index<R>(program: &TypedTrees, run: impl FnOnce(&CallTargetI
         let mut slot = cell.borrow_mut();
         let fingerprint = call_target_index_fingerprint(program);
         let fresh = matches!(&*slot, Some((owner, seen, _))
-            if std::ptr::eq(*owner, program as *const _) && *seen == fingerprint);
+            if owner.get() == program.identity.get() && *seen == fingerprint);
         if !fresh {
             let mut index = CallTargetIndex {
                 boundary_machine_by_state: symbols::SymbolKeyMap::default(),
@@ -155,7 +154,7 @@ fn with_call_target_index<R>(program: &TypedTrees, run: impl FnOnce(&CallTargetI
                         .or_insert(handle);
                 }
             }
-            *slot = Some((program as *const TypedTrees, fingerprint, index));
+            *slot = Some((program.identity, fingerprint, index));
         }
         run(&slot.as_ref().expect("index slot is populated").2)
     })

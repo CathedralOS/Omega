@@ -341,7 +341,6 @@ pub(super) fn emit(
             machines.push(emitted.machine);
             occurrences.retain(
                 emitted.source_call_occurrences,
-                emitted.selected_ieee_float_fma_occurrences,
                 emitted.selected_ieee_float_comparison_occurrences,
                 emitted.selected_integer_comparison_occurrences,
             );

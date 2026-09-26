@@ -6,10 +6,6 @@ use super::super::super::{
     unsupported,
 };
 use super::super::bodies::UnitPlans;
-use super::super::selected_operator::{
-    validate_selected_operator_scalar_call, validate_selected_operator_structural_call,
-    validate_selected_operator_structural_scalar_call,
-};
 use super::super::{provider_attachments, reference_results, scalar_arrays, structural_calls};
 use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
 use checked_trees::CheckedBoundaryMachinePlan;
@@ -74,100 +70,6 @@ pub(super) fn validate<'a>(
                     );
                 }
             }
-            CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
-                coordinate,
-                result,
-                requirement_operator,
-                provider_plan_report_fingerprint,
-                provider_plan_commitment,
-                realization_machine,
-                realization_state,
-                realization_contract_report_fingerprint,
-                realization_contract_commitment,
-                service_reach,
-                scalar_arguments,
-                ..
-            } => {
-                validate_selected_operator_scalar_call(
-                    checked,
-                    machine,
-                    *coordinate,
-                    *result,
-                    *requirement_operator,
-                    *provider_plan_report_fingerprint,
-                    *provider_plan_commitment,
-                    *realization_machine,
-                    *realization_state,
-                    *realization_contract_report_fingerprint,
-                    *realization_contract_commitment,
-                    *service_reach,
-                    scalar_arguments,
-                )?;
-            }
-            CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
-                coordinate,
-                result,
-                requirement_operator,
-                provider_plan_report_fingerprint,
-                provider_plan_commitment,
-                realization_machine,
-                realization_state,
-                realization_contract_report_fingerprint,
-                realization_contract_commitment,
-                service_reach,
-                scalar_arguments,
-                structural_arguments,
-            } => {
-                validate_selected_operator_structural_scalar_call(
-                    checked,
-                    machine,
-                    *coordinate,
-                    *result,
-                    *requirement_operator,
-                    *provider_plan_report_fingerprint,
-                    *provider_plan_commitment,
-                    *realization_machine,
-                    *realization_state,
-                    *realization_contract_report_fingerprint,
-                    *realization_contract_commitment,
-                    *service_reach,
-                    scalar_arguments,
-                    structural_arguments,
-                )?;
-            }
-            CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
-                coordinate,
-                result,
-                requirement_operator,
-                provider_plan_report_fingerprint,
-                provider_plan_commitment,
-                realization_machine,
-                realization_state,
-                realization_contract_report_fingerprint,
-                realization_contract_commitment,
-                service_reach,
-                scalar_arguments,
-                structural_arguments,
-                discard_result_on_return,
-            } => {
-                validate_selected_operator_structural_call(
-                    checked,
-                    machine,
-                    *coordinate,
-                    result,
-                    *requirement_operator,
-                    *provider_plan_report_fingerprint,
-                    *provider_plan_commitment,
-                    *realization_machine,
-                    *realization_state,
-                    *realization_contract_report_fingerprint,
-                    *realization_contract_commitment,
-                    *service_reach,
-                    scalar_arguments,
-                    structural_arguments,
-                    *discard_result_on_return,
-                )?;
-            }
             // Every other call was admitted by `calls::admit` above.
             CheckedUnitEffectOperationPlan::CallUnit { .. }
             | CheckedUnitEffectOperationPlan::StructuralCall { .. }
@@ -178,7 +80,6 @@ pub(super) fn validate<'a>(
             | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
-            | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
             | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
             | CheckedUnitEffectOperationPlan::AtomicAccess(_)
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)

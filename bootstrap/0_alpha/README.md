@@ -35,8 +35,8 @@ PAGE_READWRITE)` through a fourth import entry, traps on a null return, and
 keeps `MEMSIZE`/`MEMSIZE-8` in callee-saved `r13`/`r14` because `imm32` cannot
 encode the extent. The tape hole still begins at file offset `0x1400`.
 Windows execution is now measured: the container reconstructs exactly and
-executes, but divide/remainder traps take the hardware `0xC0000094` fault
-rather than the audited illegal-instruction routine; see
+executes, but divide/remainder traps take the hardware `0xC0000094`/`0xC0000095`
+faults rather than the audited illegal-instruction routine; see
 [bounds conformance](../../tests/alpha/README.md#bounds-conformance) for the
 measured record.
 

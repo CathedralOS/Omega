@@ -9,7 +9,7 @@ Use this skill to choose where decisions happen, who owns working state, and wha
 
 ## Start from Omega
 
-Read [AGENTS.md](../../../AGENTS.md), including its authoritative [repository conventions](../../../AGENTS.md#repository-conventions), then the owning design or task contract. Trace the affected producer and consuming callers. Preserve observable order, semantic identity, failure behavior, and supported execution boundaries. Use the repository toolchain and APIs. Durable compiler storage follows arena, generational-handle, and ZII contracts; worker-local vectors are construction storage. Source text beyond resolution is limited to the payload roles named in those conventions, not semantic identity.
+Read [AGENTS.md](../../../AGENTS.md) and the authoritative [repository conventions](../../../CONTRIBUTING.md#repository-conventions), then the owning design or task contract. Trace the affected producer and consuming callers. Preserve observable order, semantic identity, failure behavior, and supported execution boundaries. Use the repository toolchain and APIs. Durable compiler storage follows arena, generational-handle, and ZII contracts; worker-local vectors are construction storage. Source text beyond resolution is limited to the payload roles named in those conventions, not semantic identity.
 
 Use this exact repository skill when invoked by path. A delegated evaluation should report the absolute path it read. Do not create a framework or refactor unrelated code just to demonstrate the skill.
 
@@ -32,7 +32,7 @@ Read the relevant reference, not every reference. A simple change may need none 
 
 ## Shape the implementation
 
-For compiler lowering, apply [compositional lowering](../../../AGENTS.md#compositional-lowering).
+For compiler lowering, apply [compositional lowering](../../../omega-rust/pipeline.md#compositional-lowering).
 Recognizers for incidental source arrangements are code rot, not a reusable
 implementation boundary. Before widening one, trace whether ordinary operation
 sequencing or explicit data/control/ownership joins can replace the special path.
@@ -48,11 +48,11 @@ Use coherent domain names and responsibility-focused modules. Preserve precise i
 
 For a proposed change, identify the avoided work and the contract that must survive. Inspect the whole path, including post-processing and inherited equality, hashing, formatting, or serialization. A smaller source diff or fewer allocations at one stage does not prove lower peak RAM or faster execution.
 
-For implementation, carry the smallest justified change through formatting and [scoped validation](../../../AGENTS.md#validation-scope). Test the changed ownership/order/boundary behavior; measure performance when making a performance claim. Report what changed, what was verified, and any remaining copy or bottleneck that limits the result. A justified no-change decision is valid; generic advice is not a substitute for an authorized implementation.
+For implementation, carry the smallest justified change through formatting and [scoped validation](../../../tools/testing.md#validation-scope). Test the changed ownership/order/boundary behavior; measure performance when making a performance claim. Report what changed, what was verified, and any remaining copy or bottleneck that limits the result. A justified no-change decision is valid; generic advice is not a substitute for an authorized implementation.
 
 When changing code organization, follow the touched route from its public
 entrypoint to the operation and result handling before handoff, applying
-[Discoverability architecture](../../../AGENTS.md#discoverability-architecture).
+[Discoverability architecture](../../../omega-rust/pipeline.md#discoverability-architecture).
 Use the linked main.rs and compiler.rs as orchestration examples. Repeat that
 ownership test at subordinate multi-step flows; a tidy crate root above
 unstructured sibling folders is incomplete. First choose

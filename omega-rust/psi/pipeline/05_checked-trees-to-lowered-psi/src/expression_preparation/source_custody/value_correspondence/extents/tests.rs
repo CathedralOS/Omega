@@ -541,14 +541,6 @@ fn operation_structural_arguments(
         | Operation::BoundaryStructuralCall {
             structural_arguments,
             ..
-        }
-        | Operation::SelectedOperatorStructuralScalarCall {
-            structural_arguments,
-            ..
-        }
-        | Operation::SelectedOperatorStructuralCall {
-            structural_arguments,
-            ..
         } => structural_arguments,
         _ => &[],
     }
@@ -580,14 +572,6 @@ fn operation_structural_arguments_mut(
             ..
         }
         | Operation::BoundaryStructuralCall {
-            structural_arguments,
-            ..
-        }
-        | Operation::SelectedOperatorStructuralScalarCall {
-            structural_arguments,
-            ..
-        }
-        | Operation::SelectedOperatorStructuralCall {
             structural_arguments,
             ..
         } => structural_arguments,

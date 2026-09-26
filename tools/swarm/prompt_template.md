@@ -4,7 +4,7 @@ You are one session of a coordinated wave. Your customer is board item
 **{item}** in `{board}`. Read its current text from fresh `origin/main`, not
 from this prompt; the board may have moved since this prompt was written.
 
-Read `AGENTS.md` fully, then run the `advance` skill
+Read `AGENTS.md` and `CONTRIBUTING.md` fully, then run the `advance` skill
 (`.agents/skills/advance/SKILL.md`) restricted to this item. Do not select
 another item.
 
@@ -85,10 +85,10 @@ improvement.
 
 ## Commits and reasoning
 
-Commit naming follows the AGENTS.md lanes (`lane: statement`). Every commit
+Commit naming follows the CONTRIBUTING.md lanes (`lane: statement`). Every commit
 carries a body covering the previous behavior, rejected alternatives, and the
 gates that ran — omit it only when the subject already carries the full
-reasoning (AGENTS.md commit convention). Preserve the reasoning a next reader
+reasoning (CONTRIBUTING.md commit convention). Preserve the reasoning a next reader
 needs on the common reading path, per the advance skill.
 
 ## Structured output

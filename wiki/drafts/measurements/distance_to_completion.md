@@ -72,7 +72,7 @@ Each family has a named board owner and an unblocked repair path.
    samples run. **One mechanism**: `04_typed-trees-to-checked-trees/src/
    execution/terminal_unit/` omits a machine's Unit plan whenever a
    statement's shape falls outside a per-site recognizer set — the
-   compositional-lowering defect AGENTS.md warns about, quantified. Largest
+   compositional-lowering defect omega-rust/pipeline.md warns about, quantified. Largest
    sites: `local data: structural call binding` (21), `structural field
    store: pure source` (12), `call: call operation` (12). Sample sites
    rank differently than fixture sites — fixtures pin what prior fixtures

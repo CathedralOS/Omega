@@ -51,7 +51,7 @@ iteration gate; the unfiltered diff is the baseline/scheduled gate.
 
 This is the iteration smoke gate, not the landing gate: changes to
 internal-only surfaces still need the scoped white-box suites named by
-AGENTS.md's Validation scope. What it replaces is the habit of running
+tools/testing.md's Validation scope. What it replaces is the habit of running
 several per-crate nextest suites just to smell-test an e2e-visible change.
 
 Recording caveat: `timeout` records are hardware- and load-relative — a

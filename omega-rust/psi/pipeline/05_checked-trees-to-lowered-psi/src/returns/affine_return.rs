@@ -46,7 +46,6 @@ pub(crate) fn lower_affine_return_machine(
         proof_bundle: ProofBundle::default(),
         debug_map: None,
         source_call_occurrences: Vec::new(),
-        selected_ieee_float_fma_occurrences: Vec::new(),
         selected_ieee_float_comparison_occurrences: Vec::new(),
         selected_integer_comparison_occurrences: Vec::new(),
     })

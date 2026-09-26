@@ -16,8 +16,9 @@ mod build_prelude;
 mod build_vocabulary;
 mod checkpoint;
 mod entry_contract_seed;
-pub use checkpoint::{ExactTargetSourceAssembly, ImmutableSourceParseCheckpoint};
+pub use checkpoint::ImmutableSourceParseCheckpoint;
 
+#[derive(Clone)]
 pub struct AssembledSyntax {
     pub syntax_trees: SyntaxTrees,
     pub sources: Arc<source::SourceMap>,
@@ -235,22 +236,9 @@ pub fn retain_generated_syntax_extension(
 fn append_dependency_generated_sources_to_storage(
     source_storage: &mut SourceStorage,
     imports: &mut ImportQueue,
-    target_name: Option<&str>,
     package_inputs: &PackageCompilationInputs,
     timings: &mut CompileTimings,
 ) -> Result<Vec<(source::SourceId, build_output::PackageGeneratedSource)>, Vec<Diagnostic>> {
-    let selected_target = target_name
-        .map(|target_name| target::TargetProfile::from_omega_target_name(Some(target_name)))
-        .transpose()
-        .map_err(|diagnostic| vec![diagnostic])?;
-    package_inputs
-        .validate_dependency_generated_source_target(selected_target)
-        .map_err(|errors| {
-            errors
-                .into_iter()
-                .map(|error| Diagnostic::error(error.to_string()))
-                .collect::<Vec<_>>()
-        })?;
     // A virtual path can name different bytes in the two checked scopes.
     // Route from the source graph to its exact activation bundle, not from a
     // package-wide 'build-only' classification. The acquisition remains shared.

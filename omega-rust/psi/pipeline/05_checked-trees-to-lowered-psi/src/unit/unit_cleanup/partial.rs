@@ -428,16 +428,6 @@ fn lower_general_partial_affine_unit_cleanup_machine(
                 coordinate,
                 ..
             }
-            | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
-                structural_arguments,
-                coordinate,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
-                structural_arguments,
-                coordinate,
-                ..
-            }
             | CheckedUnitEffectOperationPlan::StructuralCall {
                 structural_arguments,
                 coordinate,

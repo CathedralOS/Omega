@@ -65,7 +65,7 @@ separately while working; cancel if the queued change needs more implementation.
 
 ## Check locally, then publish
 
-Capture the exact candidate before running the checks required by `AGENTS.md`
+Capture the exact candidate before running the checks required by [tools/testing.md](testing.md)
 and the task. Keep the actual exits and keep the worktree clean at that commit.
 The command checks Git state, not test success. Shape guards apply at
 publish: a candidate that changes no files is refused outright (an empty commit
@@ -81,7 +81,7 @@ SHA-256: that is a verifier change nobody revalidated against the ledger
 entries citing it. Revalidate them, then run
 `python3 tools/trusted_surface_digests.py --write`. Only the candidate's own
 changes are checked, so drift already on main never blocks unrelated work. Compiler advancement uses the
-change-scoped validation policy in `AGENTS.md`; a fresh full baseline is not a
+change-scoped validation policy in [tools/testing.md](testing.md); a fresh full baseline is not a
 publication prerequisite. Reuse evidence for unchanged inputs after rebasing,
 and rerun checks whose inputs changed.
 

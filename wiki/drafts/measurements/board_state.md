@@ -46,7 +46,7 @@ queue numbers.
 | NOMINAL-FIELD-FLOW | [mutable-self-receiver-declared-field-rows](../../spec/language/dependent_values.md#mutable-receivers-and-declared-field-domains), settled |
 | NATIVE-WRAPPER-ENCODING-AARCH64 | `aarch64-semantic-wrapper-arrival-shape` |
 | OWNED-SELF-RECEIVER-AFFINE-DISCARD | `owned-self-receiver-implicit-retirement` |
-| ARITHMETIC-POLICY-REALIZATION | `terminal-operation-level-trap-crash-site`, now [delegated implementation](../../../AGENTS.md#psi-implementation-and-deferred-human-audit), not owner-blocked |
+| ARITHMETIC-POLICY-REALIZATION | `terminal-operation-level-trap-crash-site`, now [delegated implementation](../../../omega-rust/pipeline.md#psi-implementation-and-deferred-human-audit), not owner-blocked |
 
 `SCALAR-ROUTE-REQUIREMENT-OBLIGATION-COUNT` reads as owner-blocked and is
 not: its "owner" is the scalar-graph code owner, not the language owner. The

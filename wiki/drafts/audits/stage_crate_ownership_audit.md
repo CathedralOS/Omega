@@ -1,7 +1,7 @@
 # Stage-crate ownership audit
 
 Audit of every pipeline stage crate against the ownership rules in
-[AGENTS.md](../../../AGENTS.md) — pipeline crates (`X-to-Y` / `X-to-X`) own
+[omega-rust/pipeline.md](../../../omega-rust/pipeline.md) — pipeline crates (`X-to-Y` / `X-to-X`) own
 transformations and private working state, not public program structs
 containing previous stage objects; representations hold durable IR; semantics
 crates hold meaning and independent verification; backends own only

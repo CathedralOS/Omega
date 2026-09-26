@@ -145,6 +145,7 @@ pub(crate) fn checked_call_target(
             expression,
             call,
             authored_source_span,
+            None,
         )
     {
         return operator.symbol;

@@ -40,10 +40,7 @@ pub(super) fn admit(
     provider_planning::component_progress::reject_undischarged_build_bound_progress(
         checked.component_progress(),
     )?;
-    selected_dispatch::validate_selected_operator_terminal_custody(
-        checked,
-        checked.selected_provider_plans(),
-    )?;
+    selected_dispatch::validate_selected_operator_terminal_custody(checked)?;
     selected_dispatch::validate_fused_service_terminal_custody(
         checked,
         checked.selected_provider_provenance(),

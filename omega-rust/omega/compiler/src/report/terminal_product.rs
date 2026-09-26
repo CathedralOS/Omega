@@ -147,49 +147,12 @@ impl TerminalCompilerBuiltinProposal {
     }
 }
 
-/// Admitted x86 carrier for one retained target-neutral nearest-FMA
-/// occurrence. The provider is immutable deployment evidence; this row does
-/// not itself select or emit an instruction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TerminalX86ScalarFmaAdmission {
-    slot: target::X86ScalarFmaSlot,
-    provider: target::AdmittedX86ScalarFmaProvider,
-}
-
-impl TerminalX86ScalarFmaAdmission {
-    pub const fn new(
-        slot: target::X86ScalarFmaSlot,
-        provider: target::AdmittedX86ScalarFmaProvider,
-    ) -> Self {
-        Self { slot, provider }
-    }
-
-    pub const fn slot(&self) -> target::X86ScalarFmaSlot {
-        self.slot
-    }
-
-    pub const fn provider(&self) -> target::AdmittedX86ScalarFmaProvider {
-        self.provider
-    }
-}
-
 mod float_comparisons;
 mod integer_comparisons;
 use float_comparisons::validate_float_comparison_occurrences;
 use integer_comparisons::{
     validate_integer_comparison_coverage, validate_integer_comparison_occurrences,
 };
-
-/// Source-free join from one canonical Terminal nearest-FMA operation to the
-/// exact selected plan that authored it and, on x86, its admitted deployment
-/// carrier.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TerminalIeeeFloatFmaOccurrenceProposal {
-    terminal_operation: semantic_vocabulary::OperationId,
-    provider_plan_index: usize,
-    format: semantic_vocabulary::IeeeFloatFormat,
-    x86_admission: Option<TerminalX86ScalarFmaAdmission>,
-}
 
 /// Source-free custody for one IEEE comparison and its exact selected plan.
 /// This records semantic association, not native realization authority.
@@ -350,38 +313,6 @@ impl TerminalIntegerComparisonOccurrenceProposal {
     }
 }
 
-impl TerminalIeeeFloatFmaOccurrenceProposal {
-    pub const fn new(
-        terminal_operation: semantic_vocabulary::OperationId,
-        provider_plan_index: usize,
-        format: semantic_vocabulary::IeeeFloatFormat,
-        x86_admission: Option<TerminalX86ScalarFmaAdmission>,
-    ) -> Self {
-        Self {
-            terminal_operation,
-            provider_plan_index,
-            format,
-            x86_admission,
-        }
-    }
-
-    pub const fn terminal_operation(&self) -> semantic_vocabulary::OperationId {
-        self.terminal_operation
-    }
-
-    pub const fn provider_plan_index(&self) -> usize {
-        self.provider_plan_index
-    }
-
-    pub const fn format(&self) -> semantic_vocabulary::IeeeFloatFormat {
-        self.format
-    }
-
-    pub const fn x86_admission(&self) -> Option<TerminalX86ScalarFmaAdmission> {
-        self.x86_admission
-    }
-}
-
 /// Exact target-constrained proposal retained beside a target-neutral
 /// Terminal artifact.
 ///
@@ -416,7 +347,6 @@ pub struct TerminalNativeRealizationProposal {
     package_terminal_authority_permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
     compiler_builtins: Vec<TerminalCompilerBuiltinProposal>,
     callback_occurrences: Vec<TerminalCallbackOccurrenceProposal>,
-    ieee_float_fma_occurrences: Vec<TerminalIeeeFloatFmaOccurrenceProposal>,
     ieee_float_comparison_occurrences: Vec<TerminalIeeeFloatComparisonOccurrenceProposal>,
     integer_comparison_occurrences: Vec<TerminalIntegerComparisonOccurrenceProposal>,
     boundary_application_coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
@@ -452,7 +382,6 @@ pub struct TerminalNativeRealizationInputs {
     pub package_terminal_authority_permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
     pub compiler_builtins: Vec<TerminalCompilerBuiltinProposal>,
     pub callback_occurrences: Vec<TerminalCallbackOccurrenceProposal>,
-    pub ieee_float_fma_occurrences: Vec<TerminalIeeeFloatFmaOccurrenceProposal>,
     pub ieee_float_comparison_occurrences: Vec<TerminalIeeeFloatComparisonOccurrenceProposal>,
     pub integer_comparison_occurrences: Vec<TerminalIntegerComparisonOccurrenceProposal>,
     pub boundary_application_demands: boundary_applications::TerminalBoundaryApplicationDemands,
@@ -484,7 +413,6 @@ impl TerminalNativeRealizationProposal {
             mut package_terminal_authority_permissions,
             compiler_builtins,
             callback_occurrences,
-            ieee_float_fma_occurrences,
             ieee_float_comparison_occurrences,
             integer_comparison_occurrences,
             boundary_application_demands,
@@ -526,7 +454,6 @@ impl TerminalNativeRealizationProposal {
             package_terminal_authority_permissions,
             compiler_builtins,
             callback_occurrences,
-            ieee_float_fma_occurrences,
             ieee_float_comparison_occurrences,
             integer_comparison_occurrences,
             boundary_application_coverage,
@@ -789,76 +716,10 @@ impl TerminalNativeRealizationProposal {
                 )
             })
             .collect::<Vec<_>>();
-        if terminal_fma_operations.len() != self.ieee_float_fma_occurrences.len() {
-            return Err(
-                "Terminal native proposal does not retain every nearest-FMA occurrence exactly once",
-            );
-        }
-        let x86_target = self.native_target.architecture == target::Architecture::X86_64;
-        let mut fma_operation_ids = std::collections::BTreeSet::new();
-        for occurrence in &self.ieee_float_fma_occurrences {
-            if !fma_operation_ids.insert(occurrence.terminal_operation) {
-                return Err("Terminal native proposal repeats a nearest-FMA occurrence");
-            }
-            if self
-                .selected_provider_plans
-                .plans()
-                .get(occurrence.provider_plan_index)
-                .is_none()
-            {
-                return Err("Terminal nearest-FMA occurrence names an absent selected plan");
-            }
-            let matching = terminal_fma_operations
-                .iter()
-                .filter(|operation| operation.id == occurrence.terminal_operation)
-                .collect::<Vec<_>>();
-            let [operation] = matching.as_slice() else {
-                return Err(
-                    "Terminal nearest-FMA occurrence does not name one exact canonical operation",
-                );
-            };
-            let Some(result) = operation.result.scalar() else {
-                return Err("Terminal nearest-FMA occurrence has no scalar result");
-            };
-            let semantic_vocabulary::ScalarType::IeeeFloat(format) = result.scalar_type else {
-                return Err("Terminal nearest-FMA occurrence has a non-float result");
-            };
-            if format != occurrence.format {
-                return Err("Terminal nearest-FMA occurrence changed its IEEE format");
-            }
-            match (x86_target, occurrence.x86_admission) {
-                (true, Some(admission)) => {
-                    let expected_slot = match occurrence.format {
-                        semantic_vocabulary::IeeeFloatFormat::Binary32 => {
-                            target::X86ScalarFmaSlot::Binary32
-                        }
-                        semantic_vocabulary::IeeeFloatFormat::Binary64 => {
-                            target::X86ScalarFmaSlot::Binary64
-                        }
-                    };
-                    let provider = admission.provider;
-                    if admission.slot != expected_slot
-                        || !provider.has_canonical_identity()
-                        || provider.profile() != self.target_profile
-                        || !provider.admits(provider.requirement(), admission.slot)
-                    {
-                        return Err(
-                            "Terminal nearest-FMA occurrence has invalid x86 admission custody",
-                        );
-                    }
-                }
-                (true, None) => {
-                    return Err(
-                        "x86 Terminal nearest-FMA occurrence lacks admitted deployment custody",
-                    );
-                }
-                (false, Some(_)) => {
-                    return Err(
-                        "non-x86 Terminal nearest-FMA occurrence carries an x86 deployment admission",
-                    );
-                }
-                (false, None) => {}
-            }
+        // Settlement no longer produces a selected nearest-FMA occurrence, so no
+        // Terminal operation of that kind has provider custody to realize.
+        if !terminal_fma_operations.is_empty() {
+            return Err("Terminal nearest-FMA operation has no selected-provider custody");
         }
         Ok(())
     }
@@ -1171,10 +1032,6 @@ impl TerminalNativeRealizationProposal {
 
     pub fn callback_occurrences(&self) -> &[TerminalCallbackOccurrenceProposal] {
         &self.callback_occurrences
-    }
-
-    pub fn ieee_float_fma_occurrences(&self) -> &[TerminalIeeeFloatFmaOccurrenceProposal] {
-        &self.ieee_float_fma_occurrences
     }
 
     pub fn ieee_float_comparison_occurrences(

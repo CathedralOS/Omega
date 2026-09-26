@@ -52,22 +52,24 @@ its compiler byte-identically, `io-registers.hex` returns 0 with stdout
 `ABCDEF` for input `AB`, and 29 of 34 `conformance.sh` cases pass. The five
 red cases decompose into one real divergence and one host-observation limit:
 
-- `div_zero_trap`/`div_ovf_trap` reach the hardware `0xC0000094`
-  (`STATUS_INTEGER_DIVIDE_BY_ZERO`) fault rather than the illegal-instruction
-  trap routine that unknown opcodes and memory bounds deliver (`0xC000001D`,
-  which Git Bash reports as 132). The semantic Trap contract — a
-  non-resumable halt that preserves the stdout prefix and appends no bytes —
-  still holds, but the audited mechanism says implementations raise an
-  illegal instruction, and the Windows divide/remainder handlers do not carry
-  the divisor pre-check the Linux and arm64 seeds use for exactly this
-  hardware/OS mismatch.
+- `div_zero_trap`/`div_ovf_trap` reach the hardware divide faults —
+  `0xC0000094` (`STATUS_INTEGER_DIVIDE_BY_ZERO`) for a zero divisor and
+  `0xC0000095` (`STATUS_INTEGER_OVERFLOW`) for `INT64_MIN / -1` — rather
+  than the illegal-instruction trap routine that unknown opcodes and memory
+  bounds deliver (`0xC000001D`, which Git Bash reports as 132). The semantic
+  Trap contract — a non-resumable halt that preserves the stdout prefix and
+  appends no bytes — still holds, but the audited mechanism says
+  implementations raise an illegal instruction, and the Windows
+  divide/remainder handlers do not carry the divisor pre-check the Linux and
+  arm64 seeds use for exactly this hardware/OS mismatch.
 - `div_neg`/`mod_neg`/`read_eof` (and the diamond's `jlt_signed` via its
   halt-r0 target) halt with a sign-bit-set register. The seed exits with the
-  raw low-32 code (PowerShell reads `$LASTEXITCODE = -5` for a `-5` halt), so
-  the VM itself is correct; Git Bash collapses every negative process exit
-  code to 127, which makes the byte-level expected values unobservable through
-  that shell. Those cases need a native-shell observation route or a
-  normalized expected-127 surface on MSYS hosts.
+  raw low-32 code (PowerShell reads `$LASTEXITCODE = -3` for the `-7/2 = -3`
+  case, `-1` for the `-1` halts), so the VM itself is correct; Git Bash
+  collapses every negative process exit code to 127, which makes the
+  byte-level expected values unobservable through that shell. Those cases
+  need a native-shell observation route or a normalized expected-127 surface
+  on MSYS hosts.
 
 ## Register isolation
 
@@ -78,5 +80,5 @@ sentinels across read/write/EOF through another register, preserve their own
 values when used as write operands, and receive EOF when used as read operands.
 This catches the Windows seed's former overlap of those registers with its host
 handles, byte buffer, and count slot. The native conformance gate pins the result;
-the reference gate independently compares it. The fixture passes on macOS arm64
-and the Python reference; Windows execution remains open on the bootstrap board.
+the reference gate independently compares it. The fixture passes on macOS arm64,
+Windows x64, and the Python reference.

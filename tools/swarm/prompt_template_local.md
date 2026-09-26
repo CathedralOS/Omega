@@ -10,6 +10,7 @@ Read and follow, in this order:
 - the current text of board item `**{item}**` in `{board}` on fresh
   `origin/main` — the item's own acceptance criteria govern
 - `AGENTS.md`
+- `CONTRIBUTING.md`
 - `.agents/skills/advance/SKILL.md` — invoke the advance skill, scoped to
   this one item
 - `tools/landing.md` for the landing protocol
@@ -78,10 +79,10 @@ on ANY terminal outcome: landed, blocked, superseded, or abandoned.
 
 ## Commits and reasoning
 
-Commit naming follows the AGENTS.md lanes (`lane: statement`). Every commit
+Commit naming follows the CONTRIBUTING.md lanes (`lane: statement`). Every commit
 carries a body covering the previous behavior, rejected alternatives, and the
 gates that ran — omit it only when the subject already carries the full
-reasoning (AGENTS.md commit convention).
+reasoning (CONTRIBUTING.md commit convention).
 
 ## Landing
 

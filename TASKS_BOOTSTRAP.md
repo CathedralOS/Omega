@@ -36,7 +36,7 @@ it decomposes an existing item. Items added before 2026-09-14 are untagged.
 
 ## Selection and stopping rules
 
-- Apply [scope checkpoints](AGENTS.md#scope-checkpoints) before each milestone.
+- Apply [scope checkpoints](CONTRIBUTING.md#scope-checkpoints) before each milestone.
   Challenge the task's premise against the final audit goal, not just its tests.
   A concrete compiler customer or named proof obligation is necessary but does
   not alone establish that the proposed mechanism is the simplest solution.
@@ -54,7 +54,7 @@ it decomposes an existing item. Items added before 2026-09-14 are untagged.
   evergreen feature task. Remove completed tasks rather than logging milestones.
 - Question questionable checker/encoding designs as well as compiler designs.
   Report evidence and alternatives before extending a faulty premise. Changes
-  to ratified language/trust contracts follow [owner escalation](AGENTS.md#workflow);
+  to ratified language/trust contracts follow [owner escalation](CONTRIBUTING.md#workflow);
   engineering review does not authorize silently weakening the proof claim.
 - Keep language-facility and implementation comparisons on this board under
   [whole-chain minimization](bootstrap/MINIMIZATION.md). Experiments remain
@@ -87,10 +87,11 @@ prerequisite to every lower-rung milestone.
 - **ALPHA-WINDOWS-DIV-TRAP.** (split-of:ALPHA-WINDOWS-CONFORMANCE) Windows
   x64 execution is measured and recorded in
   [bounds conformance](tests/alpha/README.md#bounds-conformance); one real
-  divergence remains. `div`/`mod` traps take the hardware `0xC0000094`
-  divide fault rather than the audited illegal-instruction routine every
-  other trap class uses; conforming means carrying the divisor pre-check
-  the Linux and arm64 seeds already use for this hardware/OS mismatch, then
+  divergence remains. `div`/`mod` traps take the hardware divide faults
+  (`0xC0000094` for a zero divisor, `0xC0000095` for `INT64_MIN / -1`)
+  rather than the audited illegal-instruction routine every other trap
+  class uses; conforming means carrying the divisor pre-check the Linux
+  and arm64 seeds already use for this hardware/OS mismatch, then
   re-forging, re-auditing, and re-pinning the Windows inventory identities.
   Escalate to `OWNER_QUESTIONS.md` only if accepting `#DE` as the Windows
   trap form instead. The gate's byte-level expected values also need a

@@ -8,11 +8,9 @@
 //! boundary applications to their checked realizations,
 //! `float_comparisons` rejoins IEEE comparisons to their selected meanings,
 //! `integer_comparisons` rejoins integer comparisons the same way, and
-//! `float_fma` rejoins selected nearest fused multiply-adds to their plans.
 
 mod application_coverage;
 mod float_comparisons;
-mod float_fma;
 mod integer_comparisons;
 mod native_proposal;
 mod terminal_artifact;

@@ -134,9 +134,8 @@ pub use production_manifest::{
 pub use terminal_product::{
     RetainedTerminalArtifact, TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact,
     TerminalCompilerBuiltinProposal, TerminalIeeeFloatComparisonOccurrenceProposal,
-    TerminalIeeeFloatFmaOccurrenceProposal, TerminalIntegerComparisonOccurrenceProposal,
-    TerminalNativeRealizationInputs, TerminalNativeRealizationProposal,
-    TerminalX86ScalarFmaAdmission,
+    TerminalIntegerComparisonOccurrenceProposal, TerminalNativeRealizationInputs,
+    TerminalNativeRealizationProposal,
 };
 
 /// Complete non-clonable Terminal-Psi native artifact retained before output

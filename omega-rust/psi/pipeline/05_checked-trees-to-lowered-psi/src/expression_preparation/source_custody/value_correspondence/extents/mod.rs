@@ -410,16 +410,6 @@ impl Context<'_> {
                 coordinate,
                 structural_arguments,
                 ..
-            }
-            | Plan::SelectedOperatorStructuralScalarCall {
-                coordinate,
-                structural_arguments,
-                ..
-            }
-            | Plan::SelectedOperatorStructuralCall {
-                coordinate,
-                structural_arguments,
-                ..
             } => (coordinate.statement_index, structural_arguments),
             Plan::EstablishStructuralValue { calls, .. } => {
                 for call in calls {
