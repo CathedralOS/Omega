@@ -1751,7 +1751,11 @@ syntax and other terminal services are not prerequisites.
   here and an invoked route. What stops them is their own text -- each ends
   in `machine Main::main(&mut self) {}`, so the declared contract is never
   called. `pass/terminal_psi/content_custody_exit` has the same empty entry
-  despite its name.
+  despite its name, and so does
+  `pass/terminal_psi/structural_content_passthrough`. Those four are every
+  fixture in the corpus that mentions `in Owned` bar one compile-only case,
+  so owned-content custody has never executed anywhere: this is a domain
+  without runtime coverage, not one fixture that forgot its entry.
 
   Writing the invocation with a bodied provider is refused on four separate
   grounds, and all four look correct. A provider returning fresh
