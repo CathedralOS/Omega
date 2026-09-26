@@ -25,8 +25,7 @@ pub(super) fn has_aggregate_case_shape(
     program: &TypedTrees,
     reference: super::TypeReferenceHandle,
 ) -> bool {
-    declared_origins(program, SymbolHandle::invalid(), "", reference)
-        .is_some_and(|origins| !origins.cases.is_empty())
+    type_origins::declares_cases(program, reference)
 }
 
 pub(super) use assignments::assigned_stored_origins;
