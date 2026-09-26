@@ -82,11 +82,22 @@ not loop cost — keep it out of routine iteration.
 
 The default run checks fixtures only. `--native` realizes each pass and run
 fixture that binds a program-entry root in its own `build.omg`, executes the
-run tier and `*_exit` fixtures in a temporary directory (stdin from
-`input.txt`, stdout compared with `expected_stdout.txt`), and diffs against
+run tier, `*_exit` fixtures and fixtures with `expected_native_exit.txt` in a
+temporary directory (stdin from `input.txt`, stdout compared with
+`expected_stdout.txt`), and diffs against
 that host's golden `tests/omega/corpus_native_<target>.txt`; records gain
 `exit:<code>` and `stdout:match|differs`. Use it with `--filter` for
 backend-visible changes.
+
+`expected_native_exit.txt` holds one decimal process exit code or `trap`.
+The latter requires SIGTRAP for ARM64, SIGILL for Unix x86-64, or
+STATUS_ILLEGAL_INSTRUCTION for Windows x86-64. Missing execution, timeout,
+segmentation faults and ordinary exits cannot satisfy a trap expectation.
+These native oracles are enforced before golden comparison or `--record`, so
+re-recording cannot bless a wrong runtime result. Bind the host in `build.omg`
+when providing an oracle. Without an oracle, the existing observation-only
+golden behavior is unchanged. `--both` attempts the checked interpreter too;
+its `declined` result (currently including traps) is not proof of agreement.
 
 It realizes for the target the fixture declares, preferring the host when the
 fixture binds it so the product can also run; a fixture binding only foreign
@@ -298,4 +309,3 @@ If small crates each pause for seconds before parsing, inspect `target/` before
 changing test or compiler architecture: a long-lived `target/debug/deps` with
 hundreds of thousands of stale hashed artifacts makes rustc rescan it per
 crate. `cargo clean` fixes it.
-

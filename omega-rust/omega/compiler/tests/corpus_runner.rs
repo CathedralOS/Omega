@@ -22,13 +22,14 @@
 //! `OMEGA_CORPUS_NATIVE=1` switches to the native leg for the host target:
 //! every pass and run fixture is built as a published native executable
 //! (status `built`), fail fixtures are skipped, and run fixtures and pass
-//! fixtures named `*_exit` are executed in a fresh temporary directory with
+//! fixtures named `*_exit` or carrying `expected_native_exit.txt` are executed
+//! in a fresh temporary directory with
 //! `input.txt` as stdin. Their records gain `exit:<code>` (or `exit:timeout`,
-//! `exit:signal`) and, beside an `expected_stdout.txt`, `stdout:match` or
+//! `exit:signal` plus `signal:<number>`) and, beside an `expected_stdout.txt`, `stdout:match` or
 //! `stdout:differs`.
 //!
 //! `OMEGA_CORPUS_INTERPRET=1` also executes each runnable fixture (the run
-//! tier and `*_exit` pass fixtures) on the checked interpreter that
+//! tier, `*_exit` and explicit native-exit fixtures) on the checked interpreter that
 //! `omega run --both` uses, for the host target (or the first target the
 //! fixture's build binds), with `input.txt` as stdin. The record gains
 //! `interpreter-exit:<code>` and, beside an `expected_stdout.txt`,
@@ -46,11 +47,11 @@
 //! tab, with backslash, newline, carriage return and tab escaped as `\\`,
 //! `\n`, `\r` and `\t`.
 
+use checked_interpreter;
 use compiler::{
     CheckedCompileRequest, CompileOptions, CompileRequest, RequestedCompileProduct,
     compile_to_checked,
 };
-use checked_interpreter;
 use std::path::{Path, PathBuf};
 use std::{env, fs, process};
 
@@ -288,9 +289,16 @@ fn execute_fixture(executable: &Path, fixture_dir: &Path, sequence: usize) -> Ve
         bytes
     });
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    let mut facts = Vec::new();
     let exit = loop {
         match child.try_wait() {
             Ok(Some(status)) => {
+                // Preserve the actual signal: a segmentation fault must not
+                // satisfy an expected trap merely because neither has a code.
+                #[cfg(unix)]
+                if let Some(signal) = std::os::unix::process::ExitStatusExt::signal(&status) {
+                    facts.push(format!("signal:{signal}"));
+                }
                 break status
                     .code()
                     .map_or_else(|| "exit:signal".to_owned(), |code| format!("exit:{code}"));
@@ -307,7 +315,7 @@ fn execute_fixture(executable: &Path, fixture_dir: &Path, sequence: usize) -> Ve
     };
     let output = reader.join().unwrap_or_default();
     let _ = fs::remove_dir_all(&work);
-    let mut facts = vec![exit];
+    facts.insert(0, exit);
     if let Ok(expected) = fs::read_to_string(fixture_dir.join("expected_stdout.txt")) {
         let actual = String::from_utf8_lossy(&output).replace("\r\n", "\n");
         facts.push(if actual == expected.replace("\r\n", "\n") {
@@ -440,6 +448,9 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
         .to_string_lossy()
         .replace('\\', "/");
     let mut facts = Vec::new();
+    let runnable = tier == "run"
+        || rel.ends_with("_exit")
+        || fixture_dir.join("expected_native_exit.txt").is_file();
     // A pass/run fixture is realized only for a target it binds a program
     // entry for. Realizing one that binds none, or binding the host in its
     // place, reports this harness's own selection rather than the fixture's
@@ -454,7 +465,7 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
             let built = build_native_fixture(main, &build_dir, target);
             if let Ok(executable) = &built
                 && *executes_here
-                && (tier == "run" || rel.ends_with("_exit"))
+                && runnable
             {
                 facts = execute_fixture(executable, &fixture_dir, sequence);
             }
@@ -466,7 +477,7 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
     if tier == "fail" && outcome.is_ok() {
         outcome = realize_fail_fixture(main, unique_build_dir(sequence));
     }
-    if interpreter_leg() && tier != "fail" && (tier == "run" || rel.ends_with("_exit")) {
+    if interpreter_leg() && tier != "fail" && runnable {
         facts.extend(interpret_fixture(main, &fixture_dir));
         if let Some(agreement) = interpreter_agreement(&facts) {
             facts.push(agreement);

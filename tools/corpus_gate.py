@@ -26,8 +26,8 @@ Subsets — the inner-loop mode:
     python3 tools/corpus_gate.py --filter fail/proofs,wire/ # several fragments
 
 Native leg — build every pass and run fixture for this host and execute the
-run tier and `*_exit` fixtures, diffing against this host's golden
-`tests/omega/corpus_native_<target>.txt`:
+run tier, `*_exit` fixtures and fixtures with `expected_native_exit.txt`,
+diffing against this host's golden `tests/omega/corpus_native_<target>.txt`:
 
     python3 tools/corpus_gate.py --native --filter providers/
 
@@ -104,6 +104,43 @@ HOST_TARGETS = {
 
 def host_target() -> str | None:
     return HOST_TARGETS.get((platform.system().lower(), platform.machine().lower()))
+
+
+def native_exit_failures(records: list[dict], corpus: Path, target: str) -> list[str]:
+    """Check authored runtime oracles before comparing or recording observations.
+
+    A golden may retain an unfinished compile, but cannot redefine an explicit
+    runtime promise. `trap` means the ISA crash leaf: BRK/SIGTRAP on ARM64,
+    UD2/SIGILL on Unix x86-64, or STATUS_ILLEGAL_INSTRUCTION on Windows.
+    Segfaults, missing execution and timeouts are not successful traps.
+    """
+    traps = {"macos_arm64": {"exit": "signal", "signal": "5"},
+             "linux_arm64": {"exit": "signal", "signal": "5"},
+             "linux_x86_64": {"exit": "signal", "signal": "4"},
+             "windows_x86_64": {"exit": str(-1073741795)}}
+    failures = []
+    for record in records:
+        path = corpus / record["fixture"] / "expected_native_exit.txt"
+        if not path.exists():
+            continue
+        try:
+            expectation = path.read_text(encoding="utf-8").strip()
+            if expectation == "trap":
+                expected = traps[target]
+            else:
+                code = int(expectation)
+                if not -(2 ** 31) <= code < 2 ** 31:
+                    raise ValueError("exit code is outside i32")
+                expected = {"exit": str(code)}
+        except (OSError, UnicodeError, ValueError, KeyError) as error:
+            failures.append(f"{record['fixture']}: invalid native exit expectation ({error})")
+            continue
+        facts = record.get("facts", {})
+        matches = all(facts.get(key) == value for key, value in expected.items())
+        if record["status"] != "built" or not matches:
+            failures.append(f"{record['fixture']}: expected native {expectation}, "
+                            f"observed {record['status']} {facts}")
+    return failures
 
 
 def build_runner() -> Path:
@@ -361,7 +398,8 @@ def main() -> int:
     parser.add_argument("--golden", type=Path, default=GOLDEN)
     parser.add_argument("--native", action="store_true",
                         help="build pass and run fixtures for this host, execute "
-                             "the run tier and *_exit fixtures, and diff against "
+                             "the run tier, *_exit and explicit native-exit fixtures, "
+                             "and diff against "
                              "tests/omega/corpus_native_<target>.txt")
     parser.add_argument("--interpret", action="store_true",
                         help="also execute runnable fixtures on the checked "
@@ -430,6 +468,12 @@ def main() -> int:
         os.environ["OMEGA_CORPUS_TIMINGS"] = str(options.golden)
     binary = options.runner or build_runner()
     records = run_runner(binary)
+    if options.native:
+        failures = native_exit_failures(records, ROOT / "tests" / "omega", target)
+        if failures:
+            for failure in failures:
+                print(f"corpus_gate: {failure}", file=sys.stderr)
+            return 1
     rendered = corpus_records.render(records)
 
     if options.record:
