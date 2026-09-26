@@ -1,0 +1,44 @@
+data LineBuf {
+    case Active(text: [u8; 512]);
+    case Empty;
+    case Closed;
+}
+
+data Main {
+    line_buffer: [u8; 512];
+    cells: [u8; 512];
+    buf: LineBuf;
+    score: u64;
+}
+
+machine Main::main(&mut self) {
+    self.buf = LineBuf::Empty;
+    self.score = 0;
+    transition { _ -> begin(&mut self.line_buffer, &self.buf, 8) }
+    state begin(&mut self, line: &mut [u8], buf: &LineBuf, count: u64) {
+        transition buf {
+            LineBuf::Active { text } -> parse(line, &text[0..count])
+            LineBuf::Empty -> empty(line)
+            _ -> wrong()
+        }
+    }
+    state parse(&mut self, line: &mut [u8], text: &[u8]) {
+        transition text.len {
+            text.len == 0 -> empty(line)
+            text.len < 8 -> take(line, &self.cells[0..8])
+            _ -> wrong()
+        }
+    }
+    state take(&mut self, line: &mut [u8], whole: &[u8]) {
+        transition whole.len >= 8 { true -> good() _ -> wrong() }
+    }
+    state empty(&mut self, line: &mut [u8]) {
+        transition { _ -> good() }
+    }
+    state good(&mut self) {
+        self.score = 70;
+    }
+    state wrong(&mut self) {
+        self.score = 71;
+    }
+}
