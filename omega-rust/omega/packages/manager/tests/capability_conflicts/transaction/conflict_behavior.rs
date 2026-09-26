@@ -167,7 +167,7 @@ pub(super) fn assert_comparison_limits_and_risk_classes(
         r#"boundary data PlatformToken;
 
 pub machine add_u64(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 {
-    left + right
+    (left + right) as u64
 }
 "#,
     );
