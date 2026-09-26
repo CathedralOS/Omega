@@ -1092,6 +1092,7 @@ pass/control_flow/arm_pattern_rest_optout_exit checked 163ms
 pass/control_flow/case_pattern_rename_waive_exit checked 189ms
 pass/control_flow/copy_enum_cycle_edge_write_frame checked 3ms
 pass/control_flow/explicit_state_value_frontier checked 1ms
+pass/control_flow/guarded_jump_field_view_forward checked 734ms
 pass/control_flow/guarded_leaf_branch_expansion rejected 57ms
 	cannot make a boundary or service call at statement 4 while `self.first` is absent: restore the value moved out of borrowed storage at statement 4 first
 	cannot make a boundary or service call at statement 5 while `self.first` is absent: restore the value moved out of borrowed storage at statement 4 first
