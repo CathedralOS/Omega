@@ -149,10 +149,15 @@ fn contract_expression_place(
     }
 
     if let Some(result) = crate::validation::reserved_result_place(program, expression) {
+        // A public trait requirement owns its `result` through the signature
+        // symbol: the contract owner carries it as `StateSignature`.
         let owner_matches = match contract.owner {
             ContractProofFactOwner::Machine { machine_symbol }
             | ContractProofFactOwner::MachineState { machine_symbol, .. } => {
                 machine_symbol == result.machine_symbol
+            }
+            ContractProofFactOwner::StateSignature { state_symbol, .. } => {
+                state_symbol == result.machine_symbol
             }
             _ => false,
         };
