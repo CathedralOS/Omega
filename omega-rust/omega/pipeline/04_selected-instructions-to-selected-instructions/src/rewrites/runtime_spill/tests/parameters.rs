@@ -263,12 +263,14 @@ pub(super) fn case_parameter_fixture(target: NativeTarget) -> ValidatedRuntimeSp
         },
     }
     };
-    let case_edge = |payloads| SelectedStructuralCaseEdge {
-        source: selected_instructions::SelectedCaseDispatchSource::Local { slot },
+    let case_edge = |payloads| {
+        SelectedStructuralCaseEdge {
+        source: target_operations_to_selected_instructions::structural_case::SelectedCaseDispatchSource::Local { slot },
         case: StructuralCaseId::new(1).unwrap(),
         case_tag: 0,
         trivial_affine_discards: Vec::new(),
         payloads,
+    }
     };
     // The semantic edge keeps the case declaration with its payloads all
     // `Unused` — edge construction moves materialization into the bridge.
@@ -1006,7 +1008,7 @@ fn case_payload_parameter_arrivals_still_require_exact_edge_definitions() {
                     .structural_case
                     .as_mut()
                     .unwrap()
-                    .source = selected_instructions::SelectedCaseDispatchSource::Local {
+                    .source = target_operations_to_selected_instructions::structural_case::SelectedCaseDispatchSource::Local {
                     slot: LocalStorageSlotId::Boundary {
                         operation: OperationId::new(1).unwrap(),
                     },
