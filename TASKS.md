@@ -362,6 +362,30 @@ the complete product bar; focused successes below do not establish that baseline
   invariant-window check in `validation/src/proof_contracts/default_domains/
   assignment_windows.rs`.
 
+  `c1303f89d4` (macw9) ran the `source/library` leg: 49 suffixes migrated
+  under canonical forms only — 35 redundant narrow-conversion parameters
+  whose `requires` already carried the bound, 9 `Vec` index parameters to
+  `requires`, and 5 entry locals whose interval facts already flow from
+  suffixed inputs. No generated domains. Suffixes stay where the checker
+  cannot yet carry the equivalent fact: `widen_*` `ensures` cannot read
+  interval facts through `as` casts, const declarations cannot run
+  domain-membership proofs (`time.omg`), destructured-payload membership
+  does not discharge a callee's numeric `requires` (`console.omg`), call
+  arguments such as `fuel - 1`/`index + 1` do not fold into a callee
+  `requires` (`layout.omg` state parameters), indexed-path field writes
+  do not establish membership (`calling.omg`), and requires-admission is
+  textual where a `< 255` guard numerically implies `<= 254` (the five
+  `field_range` entry parameters).
+  `18500aa356` (macw9) closed the widest of those gaps on the checker side:
+  predicate-only `in D` membership is now established at ordinary statement
+  calls and dominating incoming guards when every instantiated predicate
+  is supported — `proven_predicates_grant_domain` in
+  `checks/contracts/calls.rs`, six probes, 5430/5430 crate tests, and a
+  19-case e2e matrix (10 accepts, 9 rejects). Aliases, indexed arguments,
+  routed domains, unsupported expressions and empty fact sets still
+  decline. Its unblocked customers are a re-migration leg, not part of
+  this landing.
+
   Acceptance: bracketed integer and float range annotations reject in every type
   position after migration. Equivalent data/case `where`, parameter `requires`,
   result `ensures`, and local flow facts preserve construction, call, write,
@@ -1964,10 +1988,18 @@ syntax and other terminal services are not prerequisites.
   relaxes a conjunctive `requires` relation graph (`<=` transfers the
   ceiling, `<` less one, `==` both ways), recovers one achieving simple
   path deterministically, and binds every contract row on it as
-  `relevant_preconditions`. Reuse the existing acyclic max-arm,
+  `relevant_preconditions`. `52a1f10575` (macw9) landed the
+  conditional forms — a `ClauseScope` resolver discharges implication
+  premises to a fixpoint against conjunctive context and resolves
+  disjunctions in row order (max across live arm ceilings, shared transfer
+  edges at weakest strictness, unsatisfiable arms skipped), and
+  `8d8174bd0b` (macw9) added the `IntegerMath*` affine fragment:
+  literal ceilings floor-divide through a single-variable `coeff*value +
+  offset` solve, unit-coefficient var-var rows become transfer edges
+  (nonnegative constants only — slack dropped), and equalities emit both
+  feasible directions. Reuse the existing acyclic max-arm,
   ranked-interior, and topology-derived cycle bounds. Remaining:
-  disjunctive/implied ceilings (need per-arm support semantics),
-  `IntegerMath*` vocabulary clauses (linear checked reasoning),
+  `IntegerMath*` rows outside the affine fragment,
   guard/path-fact bounds (a separate premise channel, not contract rows),
   and the wait/foreign-edge cause (needs semantic vocabulary first).
   Preserve `InvocationBoundCallee` and `UnboundedCycleComponent` when
@@ -2124,11 +2156,14 @@ syntax and other terminal services are not prerequisites.
     machinery can derive, avoiding the direct fold and carrier-less `i_C ->
     i_B` casts. Serialized-Terminal execution tests cover every sign/width
     combination.
-  - Complete signed/mixed-sign saturating conversion beyond existing admitted
-    cases. Boolean-to-integer and unsigned narrowing already lower; reuse them
-    as controls. A signed saturating subtraction is not the unsigned clamp
-    identity. Missing representation/realization is implementation work, not a
-    reason to mark this whole row owner-blocked.
+  - Signed/mixed-sign saturating conversions landed at `3590f2f67c`
+    (macw9): `IntegerSaturatingCast` retained for every fixed-integer
+    source/destination pair — unsigned sources clamp via
+    `value -% (value sat_sub target_max)`, signed sources extract the
+    nonnegative portion via a sign-mask floor plus modular ceiling clamp,
+    and the clamped operand crosses through the wrapping conversion's
+    masked-halves route. Serialized-Terminal coverage in
+    `integer_policy_realization.rs` exercises every sign/width pair.
 
   Acceptance: the six `core/numeric_*` canaries and Trapping conversions in
   `source/library/core/numeric_conversion.omg` reach native execution with
@@ -3693,9 +3728,12 @@ syntax and other terminal services are not prerequisites.
   per-arity syscall constraint rows, `DirectSyscallRealization`, and
   `AdmittedBoundaryExecution::ToolchainSettled` through lowering and
   provider-plan evidence binding. Resume branch:
-  `swarm/macw8b-terminal-authority` at `7f856f6d43` (20 files, +496/−60 —
-  provider settlement + boundary lowering slice, interrupted mid-work;
-  unvalidated).
+  `swarm/macw9-terminal-authority` at `5728d45a2f` (supersedes
+  `7f856f6d43`): the macw9 leg carried the blueprint into a full
+  `direct_syscall` instruction family — selected-instruction identity,
+  legalization replay, scalar-graph selection, row encoding, aarch64 and
+  x86-64 form encoding, ABI call machinery across 176 files (+2913/−213),
+  still unvalidated at interrupt.
 
   Remaining delivery:
 
