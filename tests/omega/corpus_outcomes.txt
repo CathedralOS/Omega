@@ -384,6 +384,8 @@ fail/domains/call_requires_invalidated_by_mutation rejected 1ms expected
 	cannot prove requires contract for call heal from Main::main: self.player in Player::Valid (invalidated by prior mutation of self.player.health; self.player.health is part of Player::Valid)
 fail/domains/call_requires_unproven rejected 1ms expected
 	cannot prove requires contract for call heal from Main::main: self.player in Player::Valid
+fail/domains/capacity_specializations_disagree_in_one_owner rejected 69ms expected
+	domain `[u8; N]::Utf8` is declared more than once with different normalized semantics; repeated capacity specializations may share a name only when their semantic identities are equal
 fail/domains/domain_alias_cycle rejected 0ms expected
 	public interface selects private data `Socket`
 	public interface selects private data `Socket`
@@ -1171,6 +1173,7 @@ pass/dependent/transitive_call_frame_preserves_disjoint_fact_compile checked 0ms
 pass/dependent/valuation_order_cycle checked 3ms
 pass/dependent/zero_case_absorbs_nested_gate_compile checked 184ms
 pass/domains/bodyless_owner_establishment checked 1ms
+pass/domains/bounded_byte_domain_beside_toolchain_leaf checked 162ms
 pass/domains/call_requires_domain_intersection_preserved checked 3ms
 pass/domains/call_requires_scalar_member_expression_from_domain_fact checked 1ms
 pass/domains/domain_operator_requires_discharged checked 1ms
@@ -1350,6 +1353,7 @@ pass/modules/computed_nominal_constants checked 2ms
 pass/modules/domain_constant_indices checked 3ms
 pass/modules/fixed_array_machine_indices checked 3ms
 pass/modules/literal_boolean_indices checked 3ms
+pass/modules/loaded_sources_expose_nothing checked 162ms
 pass/modules/machine_constant_indices checked 5ms
 pass/modules/machine_constant_initializers checked 2ms
 pass/modules/match_constant_indices checked 7ms
@@ -1524,6 +1528,7 @@ pass/storage/runtime_machine_owned_indexed_struct_copy_exit checked 177ms
 pass/structs/deep_nested_write_paths_exit checked 198ms
 pass/structs/runtime_nested_struct_construction_exit checked 183ms
 pass/structs/runtime_struct_array_literal_exit checked 197ms
+pass/structs/zeroed_record_members_exit checked 402ms
 pass/structural/case_field_local_store checked 762ms
 pass/structural/case_payload_record_member_read checked 441ms
 pass/structural/local_record_receivers checked 8ms
