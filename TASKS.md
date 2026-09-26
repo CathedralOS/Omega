@@ -553,8 +553,26 @@ the complete product bar; focused successes below do not establish that baseline
   `compile_sample_to_checked`. Reuse unchanged checked inputs under their exact
   identities and measure the complete sweep before reporting sample coverage.
 
-  MEASURED SWEEP 2026-09-24: `compiler --test samples_compile` runs 33 and
-  passes 16 in 1116 s. Sixteen of the seventeen failures are one cause, the
+  `compiler --test samples_compile` no longer exists; it went with the
+  deleted per-feature `compiler --test` targets, so the sweep below cannot be
+  refreshed by its own route and the command at the end of this item names a
+  target that is gone. Its cohort was also 33 of the 148 sample projects that
+  carry a `build.omg`, so it never measured the tree.
+
+  A direct CLI slice of the whole tree, every seventh project in path order,
+  17 of 22 completed before the sweep was stopped: 7 check clean and 10
+  refuse. The dominant cause over that population is not the one recorded
+  below -- 5 stop at "selected ProgramEntry Binding field `Main::clock`
+  requires a selected Fused provider for boundary `Clock`", 3 at the
+  unit-plan omission, and 1 at IMPLICIT-STORE-CONVERSION's new refusal.
+  Both readings can hold, since the curated 33 and the full 148 are
+  different populations; measure the one being reported.
+  `cli/simulation/game_of_life_glider` alone took over two minutes to check,
+  which belongs with `windowed_calculator`'s stall below rather than with
+  its own refusal.
+
+  MEASURED SWEEP 2026-09-24: `compiler --test samples_compile` ran 33 and
+  passed 16 in 1116 s. Sixteen of the seventeen failures are one cause, the
   frontier this file names at the top -- "selected ProgramEntry establishment
   rejoins 0 Terminal attachment identities; the machine's unit plan was
   omitted at local construction" -- reached by the `basics`, `gui`,
