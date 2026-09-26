@@ -298,17 +298,9 @@ pub fn derive_fused_program_entry_establishments(
             )));
             continue;
         }
-        let Some(authorization) = checked.fused_service_erasure(carrier.requirement) else {
+        if checked.fused_service_erasure(carrier.requirement).is_none() {
             diagnostics.push(Diagnostic::error(format!(
                 "selected ProgramEntry Binding field `{}::{}` lacks Fused erasure authority",
-                owner.name,
-                field_path.join("::"),
-            )));
-            continue;
-        };
-        if authorization.provider_plan_digest != erasure.provider_plan_digest {
-            diagnostics.push(Diagnostic::error(format!(
-                "selected ProgramEntry Binding field `{}::{}` substituted its selected plan digest",
                 owner.name,
                 field_path.join("::"),
             )));
@@ -339,8 +331,6 @@ pub fn derive_fused_program_entry_establishments(
             .iter()
             .filter(|candidate| {
                 candidate.plan.schema == schema
-                    && candidate.plan.identity_digest().as_bytes()
-                        == &authorization.provider_plan_digest
                     && candidate.selected_by.composition_mode() == Ok(CompositionMode::Fused)
             })
             .collect::<Vec<_>>();

@@ -18,12 +18,13 @@ pub struct BoundaryCallingPlanIdentity {
     pub commitment: BoundaryCallingPlanCommitment,
 }
 
-/// Exact selected-plan custody that licenses one routed `Binding<R>`
-/// carrier to enter the existing provider-attachment specialization path.
+/// Compiler-owned authority that licenses one routed `Binding<R>` carrier to
+/// enter the existing provider-attachment specialization path. Erasure is a
+/// requirement-level decision; which provider plan realizes the requirement
+/// is each target's selection, joined by requirement identity in Omega.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FusedServiceErasureAuthorization {
     pub requirement: symbols::SymbolHandle,
-    pub provider_plan_digest: [u8; 32],
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

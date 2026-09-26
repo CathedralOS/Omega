@@ -141,7 +141,6 @@ fn checked_source_with_core_service(source: &str) -> checked_trees::CheckedTrees
         .map(
             |definition| typed_trees::typed_trees::FusedServiceErasureAuthorization {
                 requirement: definition.symbol,
-                provider_plan_digest: [0x5a; 32],
             },
         )
         .collect();

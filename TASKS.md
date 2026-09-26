@@ -179,8 +179,7 @@ backend-visible; full corpus runs only at the end of an item.
   const folds through selected operators and provider bodies
   (`const_evaluation.rs`), stage 04's selected inputs
   (`selected_generic_operator_provider_specializations`,
-  `selected_boundary_family_specializations`), operator-use plan stamps
-  (`bind_selected_provider_plan_facts`), selected float-comparison executions,
+  `selected_boundary_family_specializations`), selected float-comparison executions,
   boundary-dispatch settlement (`selected_dispatch::settle_selected_execution_dispatch`),
   callback materialization, task activations, component progress, the x86 FMA
   plan association and fused program-entry establishments. Measured on the
@@ -191,13 +190,14 @@ backend-visible; full corpus runs only at the end of an item.
   `pass/providers/checked_boundary_requirement_dispatch_exit`, so the
   per-target Psi runs duplicate work rather than produce different Terminal
   semantics; target dependence enters through the checked sidecars and
-  through selection inputs to checking. Two of those inputs change what Psi
-  checks and must move first: fused service erasure
-  (`provider_settlement` calls `TypedTrees::bind_fused_service_erasures`
-  before checking, while [entry roots](wiki/spec/build/entry_roots.md) and
-  [component publication](wiki/spec/build/component_publication.md) place
-  erasure in lowering and Terminal replay) and stage 04's selected generic
-  operator providers and boundary families (`CheckingRequest`). Moving the
+  through selection inputs to checking. Checked uses carry no plan stamps
+  (Omega joins by requirement, `provider_planning::selected_use_plan`) and
+  fused-service erasure is a requirement-level authorization with no plan
+  digest. Still target-dependent inputs that change what Psi checks: which
+  requirements are Fused (`provider_settlement` binds them from the target's
+  selection before checking; with Psi once the realized targets must agree)
+  and stage 04's selected generic operator providers and boundary families
+  (`CheckingRequest`), which become the union over realized targets. Moving the
   provider-body const folds follows the settled rule in
   [multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation):
   every realized target must select the same provider for a folded
