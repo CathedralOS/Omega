@@ -3348,6 +3348,19 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   judgement -- incidental conversion, or a subject the new rule now refuses
   earlier -- which wants this item's context.
 
+  The Omega-written product compiler was an unrecorded customer and is now
+  migrated: `source/omega/main.omg` failed real package resolution with 33
+  diagnostics, all the policy add/drop kind, and `source/psi/{lex,parse,source}`
+  plus that entry now spell them. Clearing them uncovered 8 crash-route
+  refusals the conversion errors had masked, since checking never reached that
+  validation -- `Parser::skip_trivia` derives a Trap route from
+  `input.tokens[...]` on a `[Token; 16384] in Trapping` array -- so
+  `Parser::parse` and `Lexer::tokenize` publish `crashes Trap`. One diagnostic
+  remains and belongs to the unit-plan omission roster, not here: the entry's
+  plan is omitted at `call operation: projected operand support`. Until that
+  clears, `omega`'s `routed_production_entry_roots_pass_real_package_resolution`
+  and `acquired_generator_publishes_occurrence_local_files_for_artifact_and_native_products` stay red on main.
+
   The corpus migration landed in c6e04262f5: 34 of the 40 corpus fixtures the
   rule rejected now check or reject as their golden records say. Two of them
   needed `as` inside `std`'s UEFI handoff and `core`'s float order keys. Four
