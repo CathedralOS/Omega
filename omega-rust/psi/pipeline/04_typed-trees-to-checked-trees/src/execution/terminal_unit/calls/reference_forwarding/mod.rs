@@ -81,15 +81,17 @@ fn exact_mutable_referent(
     }
     let parameters = crate::semantic::calls::call_target_parameters(program, target_symbol)?;
     let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
-    if parameters.len() != arguments.len()
-        || parameters
-            .iter()
-            .any(|parameter| parameter.is_self || parameter.is_const)
-    {
+    // Method calls pass no expression for the receiver: align the formal list
+    // with the authored argument list by dropping `self`, then compare kinds.
+    let formals: Vec<&typed_trees::signature::StateParameter> = parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect();
+    if formals.len() != arguments.len() || formals.iter().any(|parameter| parameter.is_const) {
         return None;
     }
     let mut matched = false;
-    for (parameter, expression) in parameters.iter().zip(arguments) {
+    for (parameter, expression) in formals.iter().zip(arguments) {
         let ExpressionNode::Name(path) = program.expression_table.expression(*expression) else {
             continue;
         };
