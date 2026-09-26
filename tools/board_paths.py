@@ -93,6 +93,34 @@ def source_files(root):
     return files
 
 
+def strip_stage_numbers(path):
+    """`02_abstract-operations/src/x.rs` -> `abstract-operations/src/x.rs`.
+
+    Pipeline stage directories carry a numeric ordering prefix that has been
+    added and renumbered over time, so a citation written before a renumber
+    names a live file under a stale spelling.
+    """
+    return "/".join(
+        re.sub(r"^\d+_", "", segment) for segment in path.split("/")
+    )
+
+
+def resolves_ignoring_stage_numbers(candidate, files):
+    """The real file a citation names once stage prefixes are ignored.
+
+    A citation that only misses a stage number is NOT dead: the anchor is
+    alive and only its spelling is stale, which is a substitution rather than
+    the restating a dead anchor calls for. Reporting the two together sends a
+    reader hunting for a file that is right there.
+    """
+    wanted = strip_stage_numbers(candidate.lstrip("./"))
+    for path in files:
+        stripped = strip_stage_numbers(path)
+        if stripped == wanted or stripped.endswith("/" + wanted):
+            return path
+    return None
+
+
 def resolves(candidate, files):
     """A citation resolves when a real file IS it or ENDS WITH it.
 
@@ -128,6 +156,7 @@ def main():
         by_basename.setdefault(os.path.basename(path), []).append(path)
 
     dead_total = 0
+    stale_total = 0
     cited_total = 0
     skipped_total = 0
     for board in options.boards or BOARDS:
@@ -139,6 +168,7 @@ def main():
             citations = cited_paths(handle.read())
         cited_total += len(citations)
         dead = []
+        stale = []
         for citation in sorted(citations):
             alternatives = expand_braces(citation)
             if any("*" in alternative for alternative in alternatives):
@@ -149,12 +179,28 @@ def main():
                 for alternative in alternatives
                 if not resolves(alternative, files)
             ]
-            if missing:
+            if not missing:
+                continue
+            renamed = {
+                alternative: resolves_ignoring_stage_numbers(alternative, files)
+                for alternative in missing
+            }
+            if all(renamed.values()):
+                stale.append((citation, renamed))
+            else:
                 dead.append((citation, missing))
         dead_total += len(dead)
+        stale_total += len(stale)
         if options.quiet:
             continue
-        print(f"{board}: {len(citations)} cited, {len(dead)} dead")
+        print(
+            f"{board}: {len(citations)} cited, {len(dead)} dead, "
+            f"{len(stale)} stale stage prefix"
+        )
+        for citation, renamed in stale:
+            print(f"  {citation}")
+            for actual in renamed.values():
+                print(f"      stale prefix, now: {actual}")
         for citation, missing in dead:
             print(f"  {citation}")
             if missing != [citation]:
@@ -169,9 +215,10 @@ def main():
 
     print(
         f"board_paths: {cited_total} cited, {dead_total} dead, "
+        f"{stale_total} stale stage prefix, "
         f"{skipped_total} glob citation(s) skipped"
     )
-    return 1 if dead_total else 0
+    return 1 if dead_total or stale_total else 0
 
 
 if __name__ == "__main__":
