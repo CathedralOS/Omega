@@ -862,6 +862,7 @@ impl Evaluation {
             .with_view_locals(&self.view_locals)
             .with_element_views(&self.element_views)
             .with_structural_parameters(&self.structural_parameters)
+            .with_structural_locals(&self.structural_locals)
             .with_resolved_structural_observations(&self.structural_fields, &self.structural_cases);
         let qualifications = prepare_shared_qualifications(checked, machine, values)?;
         let source_types = values
