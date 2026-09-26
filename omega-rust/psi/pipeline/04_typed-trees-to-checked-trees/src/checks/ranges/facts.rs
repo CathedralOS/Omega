@@ -20,6 +20,7 @@ use typed_trees::expression::ExpressionHandle;
 mod call_writes;
 pub(super) use call_writes::RangeCallContext;
 mod dependencies;
+pub(crate) use dependencies::enter_root_currency_scope;
 mod invalidation;
 mod proofs;
 mod values;

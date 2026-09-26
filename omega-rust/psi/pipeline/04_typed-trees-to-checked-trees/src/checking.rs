@@ -229,6 +229,7 @@ pub fn lower_typed_trees(
     let _plan_scope = ::validation::enter_program_plan_scope();
     let _field_domain_scope = crate::facts::field_domain::enter_field_domain_scope();
     let _fact_row_scope = crate::flow::enter_fact_row_scope();
+    let _root_currency_scope = checks::enter_root_currency_scope();
     crate::monomorphization::validate_selected_attached_method_bounds(&program)?;
     let mut validated = validate_typed_program(
         &program,

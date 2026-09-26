@@ -2,6 +2,7 @@
 
 mod captures;
 mod reads;
+pub(crate) use reads::enter_root_currency_scope;
 #[cfg(test)]
 mod tests;
 
