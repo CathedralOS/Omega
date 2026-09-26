@@ -38,6 +38,11 @@ pub struct SymbolTable {
     /// chain -- allocating a `String` per candidate per reference. Cleared
     /// alongside the other roster indexes.
     module_path_index: ModulePathIndexCache,
+    /// The top-level + module roster bucketed by full name, display path,
+    /// and (for Domain kinds) declared leaf, so `find_module_qualified_reference`
+    /// consults only name- or path-bearing candidates instead of walking the
+    /// roster per reference. Cleared alongside `module_path_index`.
+    module_scope_index: ModuleScopeIndexCache,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -182,6 +187,48 @@ impl PartialEq for ModulePathIndexCache {
     }
 }
 
+/// Candidates for a module-qualified lookup, keyed by how the match arms
+/// select them. `order` is the position in the original roster walk —
+/// root children then module symbols — so gathering buckets and sorting
+/// reproduces the scan's candidate order exactly, including a handle that
+/// appears in both halves (its two positions stay distinct).
+#[derive(Clone, Default)]
+struct ModuleScopeIndex {
+    /// `name` → (order, handle).
+    by_name: std::collections::HashMap<Box<str>, Vec<(u32, SymbolHandle)>>,
+    /// `display_path("::")` → (order, handle).
+    by_path: std::collections::HashMap<Box<str>, Vec<(u32, SymbolHandle)>>,
+    /// Declared leaf name → (order, handle), for Domain-kind candidates
+    /// only: the carrier-qualified arm is the sole leaf-shaped selector.
+    domain_leaves: std::collections::HashMap<Box<str>, Vec<(u32, SymbolHandle)>>,
+}
+
+/// The module-qualified roster index is built on the first
+/// `find_module_qualified_reference` and cleared wherever `module_path_index`
+/// or `root_names` clears; equality ignores it.
+#[derive(Clone, Default)]
+struct ModuleScopeIndexCache(std::sync::OnceLock<ModuleScopeIndex>);
+
+impl ModuleScopeIndexCache {
+    fn clear(&mut self) {
+        self.0.take();
+    }
+}
+
+impl PartialEq for ModuleScopeIndexCache {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for ModuleScopeIndexCache {}
+
+impl std::fmt::Debug for ModuleScopeIndexCache {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("ModuleScopeIndexCache")
+    }
+}
+
 impl Eq for ModulePathIndexCache {}
 
 impl std::fmt::Debug for ModulePathIndexCache {
@@ -302,6 +349,7 @@ impl SymbolTableBuilder {
             root_names: RootNameIndexCache::default(),
             binding_source_index: BindingSourceIndexCache::default(),
             module_path_index: ModulePathIndexCache::default(),
+            module_scope_index: ModuleScopeIndexCache::default(),
         }
     }
 
@@ -373,6 +421,7 @@ impl SymbolTable {
                 .insert(SymbolName::from_ref(SymbolNameRef::Borrowed(name))),
         };
         self.symbols.get_mut(symbol).name = name;
+        self.module_scope_index.clear();
         self.root_names.clear();
     }
 
@@ -388,6 +437,7 @@ impl SymbolTable {
             .extend(additional_source_scoped_top_level_bindings);
         self.binding_source_index.clear();
         self.module_path_index.clear();
+        self.module_scope_index.clear();
         SymbolTableExtension { table: self }
     }
 
@@ -408,6 +458,7 @@ impl SymbolTable {
         );
         self.root_names.clear();
         self.module_path_index.clear();
+        self.module_scope_index.clear();
         let name = self
             .names
             .insert(SymbolName::from_ref(SymbolNameRef::Borrowed(name)));
@@ -430,6 +481,7 @@ impl SymbolTable {
     ) -> HandleSpan<Symbol> {
         self.root_names.clear();
         self.module_path_index.clear();
+        self.module_scope_index.clear();
         let names = &mut self.names;
         self.symbols.insert_generated_children(
             parent,
@@ -891,6 +943,46 @@ impl SymbolTable {
             }
         }
         index
+    }
+
+    /// The `find_module_qualified_reference` candidate roster — root
+    /// children then module symbols, in the same order — bucketed by every
+    /// key the match arms can select on. Built once per table state.
+    fn module_scope_index(&self) -> &ModuleScopeIndex {
+        self.module_scope_index.0.get_or_init(|| {
+            let mut index = ModuleScopeIndex::default();
+            let mut order = 0u32;
+            for candidate in self
+                .child_handles(self.root)
+                .into_iter()
+                .flatten()
+                .chain(self.module_symbols.iter().map(|(_, handle)| *handle))
+            {
+                let name = self.name(candidate);
+                index
+                    .by_name
+                    .entry(name.into())
+                    .or_default()
+                    .push((order, candidate));
+                let path = self.indexed_display_path(candidate);
+                index
+                    .by_path
+                    .entry(path.as_ref().into())
+                    .or_default()
+                    .push((order, candidate));
+                if self.get(candidate).kind == SymbolKind::Domain
+                    && let Some((_, leaf)) = name.rsplit_once("::")
+                {
+                    index
+                        .domain_leaves
+                        .entry(leaf.into())
+                        .or_default()
+                        .push((order, candidate));
+                }
+                order += 1;
+            }
+            index
+        })
     }
 
     fn lookup_top_level(
@@ -1418,6 +1510,7 @@ impl SymbolTableExtension {
     pub fn finish(mut self) -> SymbolTable {
         self.table.root_names.clear();
         self.table.module_path_index.clear();
+        self.table.module_scope_index.clear();
         self.table
     }
 }
