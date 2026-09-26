@@ -5806,6 +5806,19 @@ but report the missing runtime leg explicitly; it does not close that host row.
   at the release commit, with failures and skips accounted for by exact test
   names rather than another chronology on this board.
 
+  Formatting is clean as of `f3b2955238`, except
+  `02_abstract-operations-to-target-operations/src/lib.rs`, held by another
+  lane. The Clippy leg cannot finish until the stage-04 tail compiles, but
+  on the 20 crates that build independently of it `-D warnings` leaves two
+  findings: `symbols/src/table.rs`'s loop counter, held by another lane, and
+  `clippy::module_inception`. The second is not a local repair -- the fold
+  produced 22 `X/X` module nestings (`omega/src/package_manager/
+  package_manager`, `provider_planning/provider_planning`,
+  `typed_trees/typed_trees` and so on), so it wants one decision for the
+  folded layout, an allow or a rename, from POST-FOLD-REPAIR rather than 22
+  separate edits. Clippy halts at the first failing crate, so expect more
+  behind these.
+
 - **RC-BUILD-AND-PACKAGES.** Close all three build/package command blocks in
   the [completion contract](wiki/drafts/reference/rust_compiler_completion.md#release-matrix):
   the seven-package nextest run, those packages' doctests, and the six compiler
