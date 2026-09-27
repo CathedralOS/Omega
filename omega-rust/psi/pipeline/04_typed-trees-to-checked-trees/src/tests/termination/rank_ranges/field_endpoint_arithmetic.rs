@@ -17,26 +17,55 @@ const SYMBOLIC_QUOTIENT: &str = include_str!(concat!(
     "/../../../../tests/omega/pass/termination/symbolic_quotient_endpoints/main.omg"
 ));
 
+// Corpus fixtures evolve independently of these derived cases. Check every
+// rewritten anchor so a range/carrier mutation cannot silently become a no-op.
+fn rewrite_fixture(source: &str, replacements: &[(&str, &str)]) -> String {
+    replacements
+        .iter()
+        .fold(source.to_owned(), |source, (before, after)| {
+            assert!(source.contains(before), "missing fixture anchor: {before}");
+            source.replace(before, after)
+        })
+}
+
 #[test]
 fn symbolic_remainder_keeps_signed_quotient_formation() {
-    let source = SYMBOLIC_QUOTIENT
-        .replace("cap: u64 [0..=20]", "cap: i8 [-7..=-5]")
-        .replace("limit: u64 [0..=20]", "limit: i8 [-7..=-5]")
-        .replace("u64 [1..=5]", "i8 [-3..=-2]")
-        .replace("cap / divisor + 6", "cap % divisor + 8");
+    let source = rewrite_fixture(
+        SYMBOLIC_QUOTIENT,
+        &[
+            ("cap: u64", "cap: i8"),
+            ("limit: u64", "limit: i8"),
+            ("divisor: u64", "divisor: i8"),
+            ("width: u64", "width: i8"),
+            ("0 <= cap && cap <= 20", "-7 <= cap && cap <= -5"),
+            ("0 <= limit && limit <= 20", "-7 <= limit && limit <= -5"),
+            (
+                "1 <= divisor && divisor <= 5",
+                "-3 <= divisor && divisor <= -2",
+            ),
+            ("1 <= width && width <= 5", "-3 <= width && width <= -2"),
+            ("cap / divisor + 6", "cap % divisor + 8"),
+        ],
+    );
     accepts_named(&source);
-    accepts_named(&source.replace("[-3..=-2]", "[2..=3]"));
+    accepts_named(&rewrite_fixture(
+        &source,
+        &[
+            (
+                "-3 <= divisor && divisor <= -2",
+                "2 <= divisor && divisor <= 3",
+            ),
+            ("-3 <= width && width <= -2", "2 <= width && width <= 3"),
+        ],
+    ));
     rejects_named(&source.replace("+ 8", "+ 7"));
     let canceled = source
         .replace("cap % divisor + 8", "cap % divisor - cap % divisor + 6")
-        .replace("[-7..=-5]", "[-128..=-128]");
+        .replace("-7 <=", "-128 <=")
+        .replace("<= -5", "<= -128");
     accepts_named(&canceled);
-    rejects_named(&canceled.replace("[-3..=-2]", "[-3..=-1]"));
-    accepts_named(
-        &canceled
-            .replace("[-3..=-2]", "[-3..=-1]")
-            .replace("[-128..=-128]", "[-127..=-127]"),
-    );
+    rejects_named(&rewrite_fixture(&canceled, &[("<= -2", "<= -1")]));
+    accepts_named(&canceled.replace("<= -2", "<= -1").replace("-128", "-127"));
 }
 
 #[test]
@@ -79,11 +108,10 @@ fn symbolic_shift_endpoint_preserves_value_and_count_at_named_arrivals() {
     }
     // The count's carrier is independent of the shifted operand's: a `u8`
     // count beside a `u64` value is an ordinary exact shift.
-    accepts_named(
-        &source
-            .replace("divisor: u64 [1..=5]", "divisor: u8 [1..=5]")
-            .replace("width: u64 [1..=5]", "width: u8 [1..=5]"),
-    );
+    accepts_named(&rewrite_fixture(
+        &source,
+        &[("divisor: u64", "divisor: u8"), ("width: u64", "width: u8")],
+    ));
     // A spelled zero count is defined (`value << 0` is the value); a
     // nested non-polynomial endpoint transports innermost-first.
     accepts_named(&source.replace("(cap << divisor)", "(cap << 0)"));
@@ -98,7 +126,13 @@ fn symbolic_shift_endpoint_preserves_value_and_count_at_named_arrivals() {
         "(cap << divisor) - (cap << divisor) + 6",
     );
     accepts_named(&canceled);
-    rejects_named(&canceled.replace("[1..=5]", "[1..=70]"));
+    rejects_named(&rewrite_fixture(
+        &canceled,
+        &[
+            ("divisor <= 5", "divisor <= 70"),
+            ("width <= 5", "width <= 70"),
+        ],
+    ));
     // Out-of-width counts reject: a spelled constant at the width fails
     // its own formation, and a count interval reaching the width cannot
     // prove `< 64` under the endpoint's hypotheses.
@@ -106,7 +140,13 @@ fn symbolic_shift_endpoint_preserves_value_and_count_at_named_arrivals() {
         let source = source.replace("(cap << divisor)", endpoint);
         lower_typed_trees(typed_program(&source), &CheckingRequest::settled()).expect_err(&source);
     }
-    rejects_named(&source.replace("[1..=5]", "[1..=70]"));
+    rejects_named(&rewrite_fixture(
+        &source,
+        &[
+            ("divisor <= 5", "divisor <= 70"),
+            ("width <= 5", "width <= 70"),
+        ],
+    ));
 }
 
 #[test]
@@ -126,11 +166,10 @@ fn symbolic_shift_right_endpoint_preserves_value_and_count_at_named_arrivals() {
     }
     // The count's carrier is independent of the shifted operand's: a `u8`
     // count beside a `u64` value is an ordinary exact shift.
-    accepts_named(
-        &source
-            .replace("divisor: u64 [1..=5]", "divisor: u8 [1..=5]")
-            .replace("width: u64 [1..=5]", "width: u8 [1..=5]"),
-    );
+    accepts_named(&rewrite_fixture(
+        &source,
+        &[("divisor: u64", "divisor: u8"), ("width: u64", "width: u8")],
+    ));
     // A spelled zero count is defined (`value >> 0` is the value); nested
     // non-polynomial endpoints transport innermost-first, including a `<<`
     // operand inside the `>>` value.
@@ -147,7 +186,13 @@ fn symbolic_shift_right_endpoint_preserves_value_and_count_at_named_arrivals() {
         "(cap >> divisor) - (cap >> divisor) + 6",
     );
     accepts_named(&canceled);
-    rejects_named(&canceled.replace("[1..=5]", "[1..=70]"));
+    rejects_named(&rewrite_fixture(
+        &canceled,
+        &[
+            ("divisor <= 5", "divisor <= 70"),
+            ("width <= 5", "width <= 70"),
+        ],
+    ));
     // Out-of-width counts reject: a spelled constant at the width fails
     // its own formation, and a count interval reaching the width cannot
     // prove `< 64` under the endpoint's hypotheses.
@@ -155,7 +200,13 @@ fn symbolic_shift_right_endpoint_preserves_value_and_count_at_named_arrivals() {
         let source = source.replace("(cap >> divisor)", endpoint);
         lower_typed_trees(typed_program(&source), &CheckingRequest::settled()).expect_err(&source);
     }
-    rejects_named(&source.replace("[1..=5]", "[1..=70]"));
+    rejects_named(&rewrite_fixture(
+        &source,
+        &[
+            ("divisor <= 5", "divisor <= 70"),
+            ("width <= 5", "width <= 70"),
+        ],
+    ));
 }
 
 #[test]
@@ -164,11 +215,20 @@ fn signed_shift_right_endpoint_uses_floor_division() {
     // truncating quotient `-10`. The signed endpoint's interval keeps that
     // floor corner through the named arrival, so `(cap >> divisor) + 17`
     // lands the ceiling at `6`.
-    let signed = SYMBOLIC_QUOTIENT
-        .replace("cap: u64 [0..=20]", "cap: i8 [-21..=-21]")
-        .replace("limit: u64 [0..=20]", "limit: i8 [-21..=-21]")
-        .replace("u64 [1..=5]", "i8 [1..=1]")
-        .replace("cap / divisor + 6", "(cap >> divisor) + 17");
+    let signed = rewrite_fixture(
+        SYMBOLIC_QUOTIENT,
+        &[
+            ("cap: u64", "cap: i8"),
+            ("limit: u64", "limit: i8"),
+            ("divisor: u64", "divisor: i8"),
+            ("width: u64", "width: i8"),
+            ("0 <= cap && cap <= 20", "-21 <= cap && cap <= -21"),
+            ("0 <= limit && limit <= 20", "-21 <= limit && limit <= -21"),
+            ("divisor <= 5", "divisor <= 1"),
+            ("width <= 5", "width <= 1"),
+            ("cap / divisor + 6", "(cap >> divisor) + 17"),
+        ],
+    );
     accepts_named(&signed);
     // `+ 16` puts the ceiling at `5`, which `pending = 5` violates; a
     // truncating model would reach `6` and accept, so this rejection is the
@@ -178,7 +238,13 @@ fn signed_shift_right_endpoint_uses_floor_division() {
     // nondecreasing cycle still rejects, and a count interval reaching the
     // `i8` width cannot prove `< 8`.
     rejects_named(&signed.replace("pending - 1", "pending"));
-    rejects_named(&signed.replace("i8 [1..=1]", "i8 [1..=9]"));
+    rejects_named(&rewrite_fixture(
+        &signed,
+        &[
+            ("divisor <= 1", "divisor <= 9"),
+            ("width <= 1", "width <= 9"),
+        ],
+    ));
 }
 
 #[test]
@@ -216,7 +282,10 @@ fn symbolic_bitwise_and_endpoint_preserves_both_operands_at_named_arrivals() {
     for endpoint in ["(cap & 5u8)", "(cap & 18446744073709551616)", "(cap & -1)"] {
         rejects_any_stage(&source.replace("(cap & divisor)", endpoint));
     }
-    rejects_any_stage(&source.replace("divisor: u64 [1..=5]", "divisor: u8 [1..=5]"));
+    rejects_any_stage(&rewrite_fixture(
+        &source,
+        &[("divisor: u64", "divisor: u8")],
+    ));
 }
 
 /// A malformed endpoint can fail typing or checking; either rejection is the

@@ -64,8 +64,9 @@ fn field_relation_requires_exact_reconstruction_owner_and_carrier() {
     let borrowed = COUNTDOWN.replace("countdown: Countdown,", "countdown: &Countdown,");
     reject_termination(&borrowed);
     prove_termination(&borrowed.replace("walk(Countdown {", "walk(&Countdown {"));
+    assert!(COUNTDOWN.contains("amount: u64"));
     lower_typed_trees(
-        typed_program(&COUNTDOWN.replace("amount: u64 [1..=2]", "amount: i32 [1..=2]")),
+        typed_program(&COUNTDOWN.replace("amount: u64", "amount: i32")),
         &CheckingRequest::settled(),
     )
     .expect_err("a positive step range does not establish compatible arithmetic carriers");
@@ -74,7 +75,7 @@ fn field_relation_requires_exact_reconstruction_owner_and_carrier() {
 #[test]
 fn field_relation_does_not_turn_membership_into_strict_descent() {
     for source in [
-        COUNTDOWN.replace("amount: u64 [1..=2]", "amount: u64 [0..=2]"),
+        COUNTDOWN.replace("1 <= amount", "0 <= amount"),
         COUNTDOWN.replace("remaining - amount", "remaining - 0"),
         COUNTDOWN.replace("remaining - amount", "remaining"),
         COUNTDOWN.replace("remaining - amount", "remaining + amount"),
@@ -86,6 +87,7 @@ fn field_relation_does_not_turn_membership_into_strict_descent() {
             "false -> walk(countdown, ceiling, amount)",
         ),
     ] {
+        assert_ne!(source, COUNTDOWN, "negative fixture mutation must apply");
         reject_termination(&source);
     }
 }

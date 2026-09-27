@@ -130,12 +130,30 @@ fn a_computed_claimant_leaves_the_record_role_to_its_bare_forward() {
             "iterate(ceiling, countdown)",
             "iterate(ceiling, countdown, countdown.remaining)",
         )
+        .replace("pending: Countdown)", "pending: Countdown, echo: u64)")
         .replace(
-            "pending: Countdown)",
-            "pending: Countdown, echo: u64 [0..=5])",
+            "requires 5 <= limit && limit <= 10",
+            "requires 5 <= limit && limit <= 10 && 0 <= echo && echo <= 5",
         )
         .replace("pending.remaining - 1 })", "pending.remaining - 1 }, echo)");
     prove(&source);
+    // The scalar arrival consumes the nominal field's where-bound through
+    // its own requires clause; copying a value does not waive that obligation.
+    assert!(source.contains("echo <= 5"));
+    let invalid = source.replace(
+        "iterate(ceiling, countdown, countdown.remaining)",
+        "iterate(ceiling, countdown, countdown.remaining + 1)",
+    );
+    assert_ne!(invalid, source, "arrival mutation must apply");
+    let diagnostics = lower_typed_trees(typed_program(&invalid), &CheckingRequest::settled())
+        .expect_err("the field may equal five, so its successor cannot promise echo <= 5");
+    assert!(
+        diagnostics.iter().any(
+            |diagnostic| diagnostic.message.contains("cannot prove requires")
+                && diagnostic.message.contains("echo")
+        ),
+        "{diagnostics:#?}"
+    );
     // With no bare forward at all, every computed claimant demotes at that
     // arrival -- but the literal still lands in the destination's one
     // `Countdown` formal, so `fresh_record_carrier` keeps `pending` the
@@ -147,7 +165,11 @@ fn a_computed_claimant_leaves_the_record_role_to_its_bare_forward() {
         )
         .replace(
             "pending: Countdown)",
-            "pending: Countdown, echo: u64 [0..=5])",
+            "pending: Countdown, echo: u64)",
+        )
+        .replace(
+            "requires 5 <= limit && limit <= 10",
+            "requires 5 <= limit && limit <= 10 && 0 <= echo && echo <= 5",
         )
         .replace(
             "pending.remaining - 1 })",
