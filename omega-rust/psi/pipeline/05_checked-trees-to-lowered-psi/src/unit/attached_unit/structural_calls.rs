@@ -13,6 +13,7 @@ use super::{
     unsupported, validate_transfer_shape,
 };
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
+use crate::emission::operation_emission::calls::CallEmissionContext;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 
@@ -291,6 +292,8 @@ pub(super) fn emit(
     earlier_results: &[(StructuralPlaceDeclaration, bool)],
     next_place: &mut u64,
     operations: &mut OperationBuffer,
+    caller_scalar_values: Option<&[ValueDeclaration]>,
+    calls: Option<&mut CallEmissionContext<'_>>,
 ) -> Result<(StructuralPlaceDeclaration, bool), LoweringError> {
     let CheckedUnitEffectOperationPlan::StructuralCall {
         coordinate,
@@ -348,6 +351,8 @@ pub(super) fn emit(
         earlier_results,
         &[],
         &[],
+        caller_scalar_values,
+        calls,
     )?;
     let id = operations.allocate();
     let place = place_id(allocate_dense(next_place)?);

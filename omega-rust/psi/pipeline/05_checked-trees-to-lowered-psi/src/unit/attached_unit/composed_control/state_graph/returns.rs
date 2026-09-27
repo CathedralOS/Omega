@@ -532,6 +532,8 @@ pub(super) fn result(
                 &[],
                 &[],
                 &[],
+                None,
+                None,
             )?;
             Ok(terminal_psi::StructuralReferenceResultSource {
                 path: crate::expression_preparation::bindings::structural_paths::lower_structural_path(&reference.path)?,

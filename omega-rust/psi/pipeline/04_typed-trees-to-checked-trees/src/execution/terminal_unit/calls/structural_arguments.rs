@@ -3,8 +3,8 @@
 
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::calls::argument_paths::{
-    byte_sequence_literal_argument, projected_argument_path,
-    projected_argument_path_with_identity, projected_borrowed_receiver_path,
+    byte_sequence_literal_argument, projected_argument_path, projected_argument_path_with_identity,
+    projected_borrowed_receiver_path,
 };
 use crate::execution::terminal_unit::calls::boundary_admission::{
     boundary_argument_presentation_is_admitted, fixed_array_slice_view_is_admitted,
@@ -638,28 +638,30 @@ pub(crate) fn structural_call_arguments(
             // range proves it inside the enclosing fixed array's extent;
             // terminal verification replays that bound.
             segments
-                if segments.iter().any(|segment| {
-                    matches!(segment, facts::PlaceSegment::Index { .. })
-                }) && segments.iter().all(|segment| {
-                    matches!(
-                        segment,
-                        facts::PlaceSegment::Field { .. }
-                            | facts::PlaceSegment::FixedIndex { .. }
-                            | facts::PlaceSegment::Index { .. }
-                    )
-                }) && target_machine.supply_mode == MachineSupplyMode::CheckedBody
+                if segments
+                    .iter()
+                    .any(|segment| matches!(segment, facts::PlaceSegment::Index { .. }))
+                    && segments.iter().all(|segment| {
+                        matches!(
+                            segment,
+                            facts::PlaceSegment::Field { .. }
+                                | facts::PlaceSegment::FixedIndex { .. }
+                                | facts::PlaceSegment::Index { .. }
+                        )
+                    })
+                    && target_machine.supply_mode == MachineSupplyMode::CheckedBody
                     && matches!(
-                        structural_access_for_type_reference(
-                            program,
-                            target.type_reference
-                        )?,
+                        structural_access_for_type_reference(program, target.type_reference)?,
                         CheckedStructuralAccess::SharedBorrow
                     )
-                    && matches!(
+                    && (matches!(
                         caller_parameters[source_index].access,
                         CheckedStructuralAccess::SharedBorrow
                             | CheckedStructuralAccess::MutableBorrow
-                    )
+                    ) || (caller_parameters[source_index].access
+                        == CheckedStructuralAccess::Owned
+                        && caller_parameters[source_index].multiplicity
+                            == Multiplicity::Affine))
                     && caller_parameters
                         .get(source_index)?
                         .qualifications

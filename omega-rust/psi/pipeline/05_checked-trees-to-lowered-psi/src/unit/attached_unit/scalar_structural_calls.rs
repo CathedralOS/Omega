@@ -128,8 +128,13 @@ pub(super) fn validate_call_source(
             .ok_or(LoweringError::Unsupported(
                 "scalar wrapper parameter lost its authored position",
             ))?;
-        let (root, path, explicit_access) =
-            source_path(checked, source_machine, source.type_reference, expression)?;
+        let (root, path, explicit_access) = source_path(
+            checked,
+            source_machine,
+            Some(source_state),
+            source.type_reference,
+            expression,
+        )?;
         if !source.symbol.is_valid()
             || !(root == source.symbol || (source.is_self && root == caller.machine))
             || retained.is_self != source.is_self

@@ -668,6 +668,8 @@ pub(super) fn emit(
                                 &[],
                                 &[],
                                 &[],
+                                None,
+                                None,
                             )?;
                             Ok(terminal_psi::StructuralReferenceResultSource {
                                 path: lower_structural_path(&reference.path)?,

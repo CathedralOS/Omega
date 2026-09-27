@@ -176,7 +176,7 @@ pub(super) fn validate_argument_source(
     let (machine, _) =
         crate::expression_preparation::source_custody::authored_state(checked, plan.state)?;
     let (root, path, access) =
-        parameters::source_path(checked, machine, local.type_reference, expression)?;
+        parameters::source_path(checked, machine, None, local.type_reference, expression)?;
     if root != symbol
         || !path.is_empty()
         || !argument.path.is_empty()

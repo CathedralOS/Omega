@@ -513,18 +513,26 @@ pub(crate) fn is_unrestricted_shared_subloan(
         return true;
     }
     (terminal_psi::is_bounded_structural_scalar_store_path(&argument.path)
-        || (matches!(
+        || ((matches!(
             actual.access,
             StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-        ) && (is_static_borrow_path(&argument.path)
-            // A shared observation through a runtime index lends one
-            // element of the same root without moving it; the selector's
-            // bounds are replayed by the argument check itself.
-            || is_runtime_indexed_borrow_path(&argument.path))))
+        ) || (actual.access == StructuralAccess::Owned
+            && actual.multiplicity == StructuralMultiplicity::Affine))
+            && (is_static_borrow_path(&argument.path)
+                // A shared observation through a runtime index lends one
+                // element of the same root without moving it; the selector's
+                // bounds are replayed by the argument check itself.
+                || is_runtime_indexed_borrow_path(&argument.path))))
         && argument.access == StructuralAccess::SharedBorrow
         && expected.access == StructuralAccess::SharedBorrow
         && expected.multiplicity == StructuralMultiplicity::Unrestricted
-        && actual.multiplicity == StructuralMultiplicity::Unrestricted
+        // An affine root presents unrestricted through a shared view of a
+        // subtree: the loan observes without consuming, and the root's
+        // custody obligation stays with the caller's own place.
+        && matches!(
+            actual.multiplicity,
+            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        )
 }
 
 pub(crate) fn is_unrestricted_mutable_subloan(

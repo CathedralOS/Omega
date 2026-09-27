@@ -6,6 +6,7 @@ use checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 enum SourceProjection {
     Field(ExpressionHandle, symbols::SymbolHandle),
     Index(u64),
+    RuntimeIndex(u32),
     ByteRange(ExpressionHandle),
 }
 
@@ -47,6 +48,7 @@ pub(crate) fn expression_producer(
 pub(crate) fn source_path(
     checked: &CheckedTrees,
     machine: &checked_trees::machine::Machine,
+    source_state: Option<&checked_trees::state::State>,
     source_type: TypeReferenceHandle,
     expression: ExpressionHandle,
 ) -> Result<
@@ -57,7 +59,8 @@ pub(crate) fn source_path(
     ),
     LoweringError,
 > {
-    let (root, path, access) = source_place_path(checked, machine, source_type, expression)?;
+    let (root, path, access) =
+        source_place_path(checked, machine, source_state, source_type, expression)?;
     let facts::PlaceRoot::Symbol(symbol) = root else {
         return unsupported("structural argument is not a named source place");
     };
@@ -67,6 +70,7 @@ pub(crate) fn source_path(
 pub(crate) fn source_place_path(
     checked: &CheckedTrees,
     machine: &checked_trees::machine::Machine,
+    source_state: Option<&checked_trees::state::State>,
     source_type: TypeReferenceHandle,
     mut expression: ExpressionHandle,
 ) -> Result<
@@ -123,6 +127,27 @@ pub(crate) fn source_place_path(
                         return unsupported("byte range must end a borrowed call projection");
                     }
                     projections.push(SourceProjection::ByteRange(expression));
+                    expression = indexed.collection;
+                    continue;
+                }
+                // A bare immutable scalar of the calling state selects the
+                // element at runtime; the checker minted the matching
+                // `RuntimeIndex::Parameter` segment, so this mirror must
+                // reproduce it to keep the paths identical.
+                if let ExpressionNode::Name(name) =
+                    checked.expression_table.expression(indexed.index)
+                    && name.symbol.is_valid()
+                    && name.head_symbol == name.symbol
+                    && checked
+                        .expression_table
+                        .name_path_members(name.members)
+                        .len()
+                        == 1
+                    && let Some(position) = source_state.and_then(|state| {
+                        runtime_index_parameter_position(checked, state, name.symbol)
+                    })
+                {
+                    projections.push(SourceProjection::RuntimeIndex(position));
                     expression = indexed.collection;
                     continue;
                 }
@@ -292,9 +317,66 @@ pub(crate) fn source_place_path(
                 ));
                 type_reference = *element_type;
             }
+            SourceProjection::RuntimeIndex(position) => {
+                let TypeReferenceNode::FixedArray { element_type, .. } =
+                    checked.type_reference_table.type_reference(type_reference)
+                else {
+                    return unsupported("scalar wrapper runtime index has no fixed-array backing");
+                };
+                path.push(
+                    checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                        checked_trees::CheckedRuntimeIndex::Parameter { position },
+                    ),
+                );
+                type_reference = *element_type;
+            }
         }
     }
     Ok((root, path, access))
+}
+
+/// The dense scalar position of an immutable integer parameter of `state`,
+/// matching the checker's `RuntimeIndex::Parameter` coordinate: erased and
+/// non-scalar formals do not occupy positions.
+fn runtime_index_parameter_position(
+    checked: &CheckedTrees,
+    state: &checked_trees::state::State,
+    symbol: symbols::SymbolHandle,
+) -> Option<u32> {
+    let parameters = checked.state_parameters(state);
+    let authored_position = parameters
+        .iter()
+        .position(|parameter| parameter.symbol == symbol)?;
+    let parameter = &parameters[authored_position];
+    if parameter.is_mutable
+        || !matches!(
+            checked.primitive_type_reference(parameter.type_reference),
+            Some(
+                checked_trees::types::PrimitiveType::U8
+                    | checked_trees::types::PrimitiveType::U16
+                    | checked_trees::types::PrimitiveType::U32
+                    | checked_trees::types::PrimitiveType::U64
+                    | checked_trees::types::PrimitiveType::I8
+                    | checked_trees::types::PrimitiveType::I16
+                    | checked_trees::types::PrimitiveType::I32
+                    | checked_trees::types::PrimitiveType::I64
+            )
+        )
+    {
+        return None;
+    }
+    u32::try_from(
+        parameters[..authored_position]
+            .iter()
+            .filter(|parameter| {
+                !parameter.relevance.is_erased()
+                    && checked
+                        .primitive_type_reference(parameter.type_reference)
+                        .is_some()
+            })
+            .count(),
+    )
+    .ok()
 }
 
 fn unqualified_source_type(
