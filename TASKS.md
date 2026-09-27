@@ -301,6 +301,32 @@ backend-visible; full corpus runs only at the end of an item.
   keep all three conditions at once -- field subject, three or more named
   arms, no authored `_` -- plus its terminal effect, or it guards nothing.
 
+- **FLOAT-RANGE-ATTACHED-FIELD.** (new-scope) A FLOAT field carrying a
+  bracketed RANGE in a machine's attached data makes the machine
+  unplannable, at `state graph: state signature: parameter signature:
+  attached data shape`. One token decides it and neither half is enough
+  alone: `i32`, `f32`, `i32 [0..=10]` and `f64 in Finite` all check, while
+  `f32 [0.0..=1.0]` and `f64 [0.0..=1.0]` omit -- an integer range is fine
+  and a float DOMAIN is fine. Pinned at
+  `tests/omega/pending/float/float_range_attached_field`.
+  The phase name misleads twice: a state PARAMETER is not required (a
+  parameterless state omits identically), and the mark sits above four `?`
+  exits in `terminal_unit/calls/signatures.rs` -- attached name, data
+  definition, `shapes.add_attached_application`, then
+  `scalar_and_structural_parameters` -- of which only the third is a
+  plausible site for a shape the collector cannot add. Confirm which before
+  repairing; `signatures.rs` is held by MIXED-SIGNATURE-BORROWED-PARAMS.
+  FOUR of the five corpus fixtures at this phase are this:
+  `pass/float/finite_core_domain_range_discharge`,
+  `pass/recast/{runtime_float_range_representation_recast_exit,
+  runtime_mutable_equivalent_record_recast_exit,
+  runtime_shared_record_float_range_weakening_exit}` -- the last two carry
+  the float range inside a RECORD, so the shell need not be the attached
+  type's own field list. The fifth,
+  `pass/generics/runtime_const_container_methods_exit`, has no float at all
+  (`FixedBuffer<2>`, `FixedBuffer<4>`) and is a different, unattributed
+  cause. Acceptance: the pending fixture checks and those four move.
+
 - **VALUE-CALL-SUBEXPRESSION.** (new-scope) A value (machine) call omits
   whenever it is not the ROOT of the expression its construction site lowers;
   any parent node over it is enough. `self.twelve()` checks, `(self.twelve())`
