@@ -4138,55 +4138,44 @@ syntax and other terminal services are not prerequisites.
   before claiming improvement over explicit branches. No implicit boxing,
   general generic virtual-method or reflection extension.
 
-- **DOMAIN-ISSUER-ROUTES.** Finish source-driven, independently replayed
-  qualification establishment for
-  [requirement/exact-machine routes](wiki/spec/resources/authority.md#requirement-and-exact-machine-routes)
-  and [private issuer catalogs](wiki/spec/resources/authority.md#private-issuer-routes).
-  Structural route catalogs, result bindings, codec and present-binding validation
-  exist; scalar catalogs and issuer checks on qualification introduction exist too.
-  Do not rebuild them or treat package-row recovery as artifact acceptance.
+- **DOMAIN-ISSUER-ROUTES.** Execute issuance, wrapper forwarding and consumption
+  with an observable result, then serialize Terminal and independently replay
+  [requirement, exact-machine and boundary establishment](wiki/spec/resources/authority.md#requirement-and-exact-machine-routes)
+  without source. Cover scalar and structural carriers, private issuers and
+  authorized selected payloads. `tests/omega/pass/domains/bodyless_owner_establishment`
+  currently checks an ordinary issuer/forwarder but binds no executable entry.
+
+  In `05_checked-trees-to-lowered-psi/src/unit/attached_unit.rs`, ordinary units
+  publish no conformance applications; its `catalog.rs` emits result establishment
+  bindings only for boundary requirements with an exact `CallEnsures` admitted
+  receipt. Retain ordinary callee/conformance identities and bind checked evidence
+  to the exact invocation result. Complete source-produced boundary roundtrips too.
+  Reuse existing structural/scalar route catalogs, codec and issuer validation.
+  `terminal-verifier --test suite`'s `calls/qualification_establishments.rs` and
+  `straight_line/scalar_qualifications.rs` use assembled Terminal fixtures; they
+  do not demonstrate this source path. Structural verification skips empty
+  establishment lists: prove evidence completeness as well as validating present rows.
 
   Apply the settled [qualification rule](wiki/spec/language/domains.md#declaration-and-membership)
-  uniformly to copyable, affine and linear carriers. Remove
-  `domain_target_is_custody_marked`'s sibling-domain inference: an unrelated
-  predicate or issuer route cannot restrict an otherwise route-free tag.
-  BUMP-ALLOCATOR-CANARY owns completing `source/library/core/extent.omg`'s
-  `Vacant`/`Resident` routes with the actual custody operations; reconcile that
-  declaration work with the checker change rather than admitting forged custody
-  or retaining a carrier-wide exception. Keep the `Region::Left`/`Right` move
-  control, and verify that adding unrelated predicate/routed domains changes
-  neither it nor `i32::Km`. Both authority cast-forgery controls must use the
-  protected declarations and reject without the heuristic.
+  to copyable, affine and linear carriers. Remove `domain_target_is_custody_marked`
+  from stage 04's `facts/index_compatibility.rs`; unrelated domains must not
+  restrict a route-free tag. Coordinate with **BUMP-ALLOCATOR-CANARY** to give
+  `source/library/core/extent.omg`'s bare `Vacant`/`Resident` the actual custody
+  routes. Test protected declarations against both casts and unevidenced calls;
+  migrate `fail/memory/bump_allocator_cast_minted_vacant` off the heuristic.
+  Preserve the `Region::Left`/`Right` linear move and vacuous scalar tags when
+  unrelated predicate/routed domains are added.
 
-  The remaining ordinary-call producer gap is in
-  `05_checked-trees-to-lowered-psi/src/unit/attached_unit.rs` and its `catalog.rs`:
-  ordinary attached units publish no conformance applications, and
-  `call_result_qualification_establishments` emits only boundary-requirement
-  bindings backed by an exact `CallEnsures` admitted receipt. Retain the
-  missing ordinary callee/conformance identities and connect checked establishment
-  evidence to its exact invocation result. Establish a source-produced qualified
-  boundary-result roundtrip too; manually assembled Terminal fixtures do not
-  establish source admission. Review the unverified candidate
-  `swarm/macw7-domain-issuer-routes` (`b38ff7561a (revision absent from the repository)`) before duplicating that work.
-
-  Acceptance: source examples serialize, reload without source and independently
-  validate requirement, exact-machine and boundary establishment, including
-  private issuers and authorized selected payloads. Prove carrier, predicate
-  and custody obligations without assuming the introduced qualification.
-  Reject forged, missing or rebound establishment evidence, substituted
-  same-spelled/module/package issuers, and direct calls borrowing admitted
-  requirement authority. The verifier currently skips empty establishment lists;
-  validating present rows alone does not prove evidence completeness.
-
-  Preserve private owner/declaration identity and dependencies without granting
-  consumer call/conformance/private-type access or hiding admissions; public
-  ordinary requirements must still admit valid downstream conformers. Keep
-  resource-capacity and classification-specific boundary restrictions.
-  Extend `terminal-verifier/tests/calls/qualification_establishments.rs`
-  and `tests/straight_line/scalar_qualifications.rs` with source-produced
-  evidence. Retain `package-evidence --test suite` public-domain/module-namespace
-  and compiler `package_compilation_inputs` private-catalog controls.
-  Reuse the existing issuer surfaces rather than parallel metadata.
+  Acceptance: independently prove carrier, predicate and custody obligations
+  without assuming the introduced qualification. Reject missing, forged or rebound
+  evidence, same-spelled/module/package issuer substitution, and direct calls
+  borrowing admitted requirement authority. Preserve
+  [private catalog](wiki/spec/resources/authority.md#private-issuer-routes) identity
+  and dependencies without granting consumer call/conformance/private-type access
+  or hiding admissions. Public ordinary requirements still admit valid downstream
+  conformers; resource-capacity and classification-specific restrictions remain.
+  Keep `package-evidence --test suite`'s public-domain and module-namespace controls;
+  their catalog/review roundtrips do not establish Terminal or executable acceptance.
 
 - **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Complete ordinary package review,
   retained permissions, selected-mechanism classification and explicit receiver
