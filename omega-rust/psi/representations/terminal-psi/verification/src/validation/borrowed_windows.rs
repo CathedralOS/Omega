@@ -560,23 +560,21 @@ fn borrowed_window_root(
 ) -> Option<()> {
     if let Some(parameter) = machine.structural_parameters.iter().find(|parameter| {
         parameter.place == place && parameter.access == StructuralAccess::MutableBorrow
-    }) {
-        if matches!(
-            parameter.multiplicity,
-            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-        ) && parameter.qualifications.is_empty()
-            && parameter.projected_qualifications.is_empty()
-            && !machine
-                .entry_claims
-                .iter()
-                .any(|claim| claim.input == place)
-            && !machine
-                .content_entry_claims
-                .iter()
-                .any(|claim| claim.input.root == place)
-        {
-            return Some(());
-        }
+    }) && matches!(
+        parameter.multiplicity,
+        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+    ) && parameter.qualifications.is_empty()
+        && parameter.projected_qualifications.is_empty()
+        && !machine
+            .entry_claims
+            .iter()
+            .any(|claim| claim.input == place)
+        && !machine
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == place)
+    {
+        return Some(());
     }
     super::record::completed_source(module, machine, place).map(|_| ())
 }

@@ -220,7 +220,7 @@ pub(crate) fn structural_field_store_write_path(
             fields
                 .iter()
                 .any(|candidate| candidate.id == field && !candidate.relevance.is_erased())
-                .then(|| (root, written))
+                .then_some((root, written))
         }
         _ => {
             let structural_type = if window {
