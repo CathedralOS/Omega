@@ -7,18 +7,16 @@ const COUNTDOWN: &str = include_str!(concat!(
 
 #[test]
 fn direct_field_rank_uses_only_the_selected_fields_enforced_bounds() {
-    let unrelated = COUNTDOWN
-        .replace(
-            "data Countdown",
-            "data Other { remaining: u64 [0..=5]; } data Countdown",
-        )
-        .replace(
-            "data Countdown { remaining: u64 [0..=5]; }",
-            "data Countdown { remaining: u64; }",
-        );
+    let field_bounds = " where 0 <= remaining, remaining <= 5";
+    assert!(COUNTDOWN.contains(field_bounds));
+    let unrelated = COUNTDOWN.replace(field_bounds, "").replace(
+        "data Countdown",
+        "data Other where 0 <= remaining, remaining <= 5 { remaining: u64; } data Countdown",
+    );
     crate::checks::termination::check_machine_termination(&typed_program(&unrelated))
         .expect_err("another owner's same-named field cannot supply this rank's bounds");
-    let wrapping = COUNTDOWN.replace("u64 [0..=5]", "u64 [0..=5] in Wrapping");
+    let wrapping = COUNTDOWN.replace("remaining: u64;", "remaining: u64 in Wrapping;");
+    assert_ne!(wrapping, COUNTDOWN, "field policy mutation must apply");
     crate::checks::termination::check_machine_termination(&typed_program(&wrapping))
-        .expect_err("permissive wrapping storage has no enforced declared interval");
+        .expect_err("a wrapping field is not an exact arithmetic rank");
 }

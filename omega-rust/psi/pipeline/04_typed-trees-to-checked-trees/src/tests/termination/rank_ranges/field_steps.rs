@@ -38,7 +38,7 @@ fn field_rank_accepts_positive_batch_sizes_and_equivalent_guard_polarities() {
 #[test]
 fn field_rank_rejects_zero_steps_weak_guards_and_non_decreasing_continuations() {
     for source in [
-        COUNTDOWN.replace("amount: u64 [1..=2]", "amount: u64 [0..=2]"),
+        COUNTDOWN.replace("1 <= amount", "0 <= amount"),
         COUNTDOWN.replace("remaining >= amount", "remaining > 0"),
         COUNTDOWN.replace("remaining >= amount", "remaining < amount"),
         COUNTDOWN.replace("remaining - amount", "remaining + amount"),
@@ -48,6 +48,7 @@ fn field_rank_rejects_zero_steps_weak_guards_and_non_decreasing_continuations() 
             "false -> walk(countdown, amount)",
         ),
     ] {
+        assert_ne!(source, COUNTDOWN, "negative fixture mutation must apply");
         crate::checks::termination::check_machine_termination(&typed_program(&source))
             .expect_err(&source);
     }
