@@ -1,8 +1,8 @@
 //! Closed argument identities and lifetime-bearing type substitution.
+use crate::preparation::declaration_selection;
 use crate::preparation::generic_data::ClosedArgumentIdentity;
 use crate::preparation::generic_data::ClosedConstraintIdentity;
 use crate::preparation::generic_data::GenericData;
-use crate::preparation::declaration_selection;
 use crate::preparation::generic_data::selected_data_item;
 use crate::preparation::type_equations::{EquationTemplate, complete_equation_arguments};
 use arena::HandleSpan;

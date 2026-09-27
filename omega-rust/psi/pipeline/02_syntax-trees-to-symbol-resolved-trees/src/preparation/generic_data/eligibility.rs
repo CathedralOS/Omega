@@ -1,7 +1,7 @@
 //! Eligible data shapes, recursion and substitutable types.
+use crate::preparation::declaration_selection;
 use crate::preparation::generic_data::GenericData;
 use crate::preparation::generic_data::GenericDataShape;
-use crate::preparation::declaration_selection;
 use crate::preparation::generic_data::selected_generic_data;
 use crate::preparation::generic_data::type_reference_mentions_parameter;
 use std::collections::HashMap;

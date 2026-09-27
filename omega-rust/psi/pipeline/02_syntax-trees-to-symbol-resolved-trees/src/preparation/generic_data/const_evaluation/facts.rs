@@ -1518,8 +1518,7 @@ pub(crate) fn prove_const_literal_leaf_domain_constraints(
         definition.type_reference,
         definition.value,
         selection,
-        &crate::preparation::declaration_selection::GenericApplicationSubstitution::new(
-        ),
+        &crate::preparation::declaration_selection::GenericApplicationSubstitution::new(),
     )
     .map(|_| ())
 }

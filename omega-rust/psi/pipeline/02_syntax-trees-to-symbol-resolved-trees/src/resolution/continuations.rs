@@ -19,8 +19,7 @@ use syntax_trees::SyntaxTrees;
 /// resolution result and grants no authority to type, execute, or publish it.
 pub struct ConstInitializerSelection {
     pub(crate) trees: SymbolResolvedTrees,
-    pub(crate) selection:
-        crate::preparation::declaration_selection::ConstantSelection<'static>,
+    pub(crate) selection: crate::preparation::declaration_selection::ConstantSelection<'static>,
 }
 
 impl ConstInitializerSelection {

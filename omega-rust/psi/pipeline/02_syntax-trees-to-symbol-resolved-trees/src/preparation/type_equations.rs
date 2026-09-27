@@ -41,10 +41,10 @@
 //! and sends completed type roots back through ordinary data normalization;
 //! an equation does not discharge the selected constructor's own obligations.
 
+use crate::preparation::declaration_selection;
 use crate::preparation::generic_data::ClosedArgumentIdentity;
 use crate::preparation::generic_data::closed_argument_identity;
 use crate::preparation::generic_data::closed_name_identity;
-use crate::preparation::declaration_selection;
 use crate::preparation::generic_data::evaluate_const_fact_expression;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{

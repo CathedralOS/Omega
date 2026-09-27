@@ -39,11 +39,8 @@ pub(crate) fn prepare(
     top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     constants: crate::resolution::lowerer::ConstResolutionMode,
 ) -> Result<Prepared, Vec<Diagnostic>> {
-    let constant_selection = declaration_selection::ConstantSelection::new(
-        syntax,
-        sources,
-        top_level_bindings,
-    )?;
+    let constant_selection =
+        declaration_selection::ConstantSelection::new(syntax, sources, top_level_bindings)?;
     let mut syntax = syntax.clone();
     // Initializer-selection probes can arrive before generic synthesis. Their
     // module constant admission needs the same lexical carrier-head binding.
