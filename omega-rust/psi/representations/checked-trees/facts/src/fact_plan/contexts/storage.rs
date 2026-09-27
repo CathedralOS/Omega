@@ -107,6 +107,7 @@ impl FactContexts {
         context
     }
 
+    #[inline]
     pub fn get(&self, context: FactContextHandle) -> &FactContext {
         self.contexts.get(context)
     }

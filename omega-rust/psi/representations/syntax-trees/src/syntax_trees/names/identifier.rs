@@ -46,6 +46,7 @@ impl Identifier {
         }
     }
 
+    #[inline]
     pub fn as_str(&self) -> &str {
         match &self.text {
             IdentifierText::Missing => "",
