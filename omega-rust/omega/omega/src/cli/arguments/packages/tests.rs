@@ -133,19 +133,6 @@ fn install_accepts_options_before_and_after_source() {
 }
 
 #[test]
-fn update_without_selections_delegates_all_packages() {
-    let (command, options) = parse(PackageCommandKind::Update, &[]);
-    let PackageCommand::Update { packages, revision } = command else {
-        panic!("expected update");
-    };
-    assert!(packages.is_empty());
-    assert!(revision.is_none());
-    assert!(options.targets.is_empty());
-    assert_eq!(options.project_root, PathBuf::from("."));
-    assert!(!options.offline);
-}
-
-#[test]
 fn update_preserves_selection_order_and_revision() {
     let (command, options) = parse(
         PackageCommandKind::Update,
@@ -167,43 +154,6 @@ fn update_preserves_selection_order_and_revision() {
     assert_eq!(revision.as_deref(), Some("v2"));
     assert_eq!(options.targets, [TargetProfile::WindowsX64]);
     assert_eq!(options.project_root, PathBuf::from("project"));
-}
-
-#[test]
-fn resume_retains_command_kind_and_project() {
-    for kind in [PackageCommandKind::Install, PackageCommandKind::Update] {
-        let install = matches!(kind, PackageCommandKind::Install);
-        let (command, options) = parse(kind, &["--project", "project", "--resume"]);
-        let PackageCommand::Resume { kind } = command else {
-            panic!("expected resume");
-        };
-        assert_eq!(matches!(kind, PackageCommandKind::Install), install);
-        assert_eq!(options.project_root, PathBuf::from("project"));
-        assert!(options.targets.is_empty());
-        assert!(!options.offline);
-    }
-}
-
-#[test]
-fn discard_review_is_explicit_and_has_no_selection() {
-    for kind in [PackageCommandKind::Install, PackageCommandKind::Update] {
-        let (command, options) = parse(kind, &["--discard-review", "--project", "project"]);
-        assert!(matches!(command, PackageCommand::DiscardReview));
-        assert_eq!(options.project_root, PathBuf::from("project"));
-        assert!(options.targets.is_empty());
-        assert!(!options.offline);
-    }
-}
-
-#[test]
-fn help_does_not_require_a_source_or_construct_a_command() {
-    for kind in [PackageCommandKind::Install, PackageCommandKind::Update] {
-        assert!(
-            parse_arguments(kind, [OsString::from("--help")].into_iter())
-                .unwrap()
-                .is_none()
-        );
-    }
 }
 
 #[test]

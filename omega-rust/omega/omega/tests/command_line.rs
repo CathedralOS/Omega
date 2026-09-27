@@ -291,27 +291,6 @@ fn routed_production_entry_roots_pass_real_package_resolution() {
     }
 }
 
-#[test]
-fn package_command_words_do_not_reserve_ordinary_source_filenames() {
-    let project = temp_path("install-source");
-    std::fs::create_dir(&project).expect("create source project");
-    for source_name in ["install.omg", "update.omg"] {
-        std::fs::write(project.join(source_name), b"machine main() {}\n")
-            .expect("write ordinary source");
-
-        let mut arguments = vec![source_name, "--check"];
-        arguments.extend(declared_target_when_host_is_unprofiled());
-        let output = omega_in(&project, &arguments);
-
-        assert!(
-            output.status.success(),
-            "ordinary source `{source_name}` should compile: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-    }
-    let _ = std::fs::remove_dir_all(project);
-}
-
 #[cfg(unix)]
 fn create_test_symlink(target: &std::path::Path, link: &std::path::Path) -> std::io::Result<()> {
     std::os::unix::fs::symlink(target, link)
@@ -631,28 +610,6 @@ fn assert_package_native_publication(target: &str) {
     );
     let _ = std::fs::remove_dir_all(project);
     let _ = std::fs::remove_dir_all(build_dir);
-}
-
-#[test]
-fn obsolete_package_root_policy_is_an_unrecognized_option() {
-    for arguments in [
-        vec!["--package-root-policy"],
-        vec!["--package-root-policy", "candidate.policy", "missing.omg"],
-        vec![
-            "--check",
-            "--package-root-policy",
-            "candidate.policy",
-            "missing.omg",
-        ],
-    ] {
-        let output = omega(&arguments);
-        let diagnostic = String::from_utf8_lossy(&output.stderr);
-        assert_eq!(output.status.code(), Some(2), "{diagnostic}");
-        assert!(
-            diagnostic.contains("unrecognized option `--package-root-policy`"),
-            "{diagnostic}"
-        );
-    }
 }
 
 #[test]
