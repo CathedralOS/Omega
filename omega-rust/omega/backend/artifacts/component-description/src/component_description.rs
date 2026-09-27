@@ -1396,6 +1396,21 @@ pub fn encode_component_description(description: &ComponentDescription) -> Vec<u
 pub fn decode_component_description(
     bytes: &[u8],
 ) -> Result<ComponentDescription, DescriptionDecodeRejection> {
+    decode_component_description_with_artifact(bytes).map(|(description, _artifact)| description)
+}
+
+/// Decode the description and retain its independently replayed canonical
+/// artifact for verification. This proves canonical encoding only; subject,
+/// proof admission, and inventory checks remain the verifier's responsibility.
+pub(crate) fn decode_component_description_with_artifact(
+    bytes: &[u8],
+) -> Result<
+    (
+        ComponentDescription,
+        terminal_codec::CanonicalTerminalArtifact,
+    ),
+    DescriptionDecodeRejection,
+> {
     if bytes.len() > MAX_COMPONENT_DESCRIPTION_BYTES {
         return Err(DescriptionDecodeRejection::RosterBoundExceeded(
             "description byte length",
@@ -1411,7 +1426,7 @@ pub fn decode_component_description(
 
     let artifact_length = reader.u32()? as usize;
     let artifact_bytes = reader.take(artifact_length)?.to_vec();
-    let _artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact_bytes)
+    let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact_bytes)
         .map_err(|_| DescriptionDecodeRejection::Corrupt("embedded artifact did not decode"))?;
 
     let mut imports = Vec::new();
@@ -1630,22 +1645,25 @@ pub fn decode_component_description(
         return Err(DescriptionDecodeRejection::Corrupt("trailing bytes"));
     }
 
-    Ok(ComponentDescription {
-        schema,
-        frontier,
-        artifact_bytes,
-        imports,
-        exports,
-        entries,
-        outgoing,
-        service_bounds,
-        custody,
-        providers,
-        provider_closure_digest,
-        obligations,
-        assumptions,
-        realization_identity,
-    })
+    Ok((
+        ComponentDescription {
+            schema,
+            frontier,
+            artifact_bytes,
+            imports,
+            exports,
+            entries,
+            outgoing,
+            service_bounds,
+            custody,
+            providers,
+            provider_closure_digest,
+            obligations,
+            assumptions,
+            realization_identity,
+        },
+        artifact,
+    ))
 }
 
 /// Reconstruct the description's semantic subject from the embedded artifact.
