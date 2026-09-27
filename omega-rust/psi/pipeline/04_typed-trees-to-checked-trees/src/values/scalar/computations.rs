@@ -229,12 +229,6 @@ pub(crate) fn build_checked_value_computation_plans(
                     && !program
                         .expression_table
                         .expression_is_valid(local.initial_value)
-                    && matches!(
-                        program
-                            .type_reference_table
-                            .type_reference(local.type_reference),
-                        typed_trees::types::TypeReferenceNode::FixedArray { .. }
-                    )
                     && validation::zeroed_structural_parts(program, local.type_reference)
                 {
                     let root = structural_values.nodes.append(

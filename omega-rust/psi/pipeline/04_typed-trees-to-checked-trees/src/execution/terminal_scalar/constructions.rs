@@ -33,13 +33,21 @@ pub(super) fn record_value_root<'plans>(
         }
         visited.push(handle);
         let node = plans.nodes.get(handle);
-        if !program
+        // A zeroed establishment keys its node on the local's invalid
+        // initializer handle — no authored expression exists to validate.
+        if !matches!(
+            node.kind,
+            checked_trees::CheckedStructuralValueKind::ZeroedStructural {}
+        ) && !program
             .expression_table
             .expression_is_valid(node.expression)
         {
             return None;
         }
         match &node.kind {
+            // The whole declared shape begins zero and its fields are written
+            // by later stores — the establishment carries no operand children.
+            checked_trees::CheckedStructuralValueKind::ZeroedStructural {} => {}
             checked_trees::CheckedStructuralValueKind::Record { fields, .. }
             | checked_trees::CheckedStructuralValueKind::StructuralCase { fields, .. } => {
                 for field in plans.record_fields.span(*fields)? {
