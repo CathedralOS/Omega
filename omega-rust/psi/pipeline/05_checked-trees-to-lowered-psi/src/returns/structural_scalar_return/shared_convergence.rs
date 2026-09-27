@@ -1,17 +1,25 @@
-//! Runtime-input custody for checked shared-convergence plans.
+//! Runtime inputs for the nominal structural return's shared Boolean convergence.
+//!
+//! `nominal` prepares and validates the decision once before block emission.
+//! This owner collects its runtime roots; `decision_normalization` resolves
+//! structural member leaves and normalizes the admitted comparisons.
 //!
 //! Arithmetic operation trees are emitted compositionally. Runtime-root
 //! collection grants no proof authority; completed operation graphs still need
 //! independently checked canonical certificates for every partial operation.
-use super::{
-    BTreeSet, IntegerType, LoweringError, PlaceId, ScalarType, StructuralFieldId,
-    StructuralParameterDeclaration, StructuralTypeDeclaration,
-};
+use std::collections::BTreeSet;
+
+use semantic_vocabulary::{IntegerType, PlaceId, ScalarType, StructuralFieldId};
+
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::operation_emission::integer::LoweredIntegerBinaryKind;
 
-mod boolean;
+mod decision_normalization;
+
+pub(crate) use decision_normalization::{
+    normalize_shared_boolean_comparison_leaves, resolve_shared_boolean_member_fields,
+};
 
 pub(crate) fn shared_boolean_runtime_parameters(
     expression: &LoweredBooleanReturnExpression,
@@ -175,21 +183,17 @@ pub(crate) enum SharedBooleanRuntimeInput {
 pub(crate) fn valid_shared_boolean_runtime_inputs(
     inputs: &BTreeSet<SharedBooleanRuntimeInput>,
 ) -> bool {
-    boolean::valid_shared_boolean_runtime_inputs(inputs)
-}
-
-pub(crate) fn resolve_shared_boolean_member_fields(
-    expression: LoweredBooleanReturnExpression,
-    parameters: &[StructuralParameterDeclaration],
-    structural_types: &[StructuralTypeDeclaration],
-) -> Result<LoweredBooleanReturnExpression, LoweringError> {
-    boolean::resolve_shared_boolean_member_fields(expression, parameters, structural_types)
-}
-
-pub(crate) fn normalize_shared_boolean_comparison_leaves(
-    expression: &LoweredBooleanReturnExpression,
-) -> Option<LoweredBooleanReturnExpression> {
-    boolean::normalize_shared_boolean_comparison_leaves(expression)
+    let has_structural_field = inputs
+        .iter()
+        .any(|input| matches!(input, SharedBooleanRuntimeInput::StructuralField { .. }));
+    !inputs.is_empty()
+        && (!has_structural_field
+            || (inputs
+                .iter()
+                .any(|input| matches!(input, SharedBooleanRuntimeInput::BooleanScalar(_)))
+                && !inputs
+                    .iter()
+                    .any(|input| matches!(input, SharedBooleanRuntimeInput::IntegerScalar(_)))))
 }
 
 #[cfg(test)]

@@ -3,7 +3,7 @@ use crate::TerminalMachineSelection;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::lower_machine;
 use crate::retention::conformance_applications::lower_closed_conformance_applications;
-use crate::scalar_graph::shared_runtime_parameters::normalize_shared_boolean_comparison_leaves;
+use crate::returns::structural_scalar_return::shared_convergence::normalize_shared_boolean_comparison_leaves;
 use crate::terminal_identities::service_id;
 use crate::unit::attached_unit::lower_root_service_reach;
 use semantic_vocabulary::{IeeeFloatFormat, Proposition, ScalarType};

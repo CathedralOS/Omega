@@ -78,10 +78,6 @@ use crate::returns::structural_types::{
     lower_mixed_cases, lower_mixed_fields, lower_structural_type_plans,
     retain_additional_structural_types, terminal_byte_sequence_carrier,
 };
-use crate::scalar_graph::shared_runtime_parameters::{
-    normalize_shared_boolean_comparison_leaves, resolve_shared_boolean_member_fields,
-    shared_boolean_runtime_parameters, valid_shared_boolean_runtime_inputs,
-};
 use crate::terminal_identities::{
     TERMINAL_MACHINE_IDENTITY_STRIDE, allocate_dense, block_id, boundary_machine_id, claim_id,
     contract_id, dense_identity, edge_id, lookup_claim_id, lookup_domain_id, lookup_machine_id,

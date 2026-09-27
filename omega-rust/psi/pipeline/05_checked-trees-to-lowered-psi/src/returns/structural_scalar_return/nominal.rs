@@ -9,10 +9,8 @@ use super::super::{
     CheckedStructuralScalarIntegerBoundPlan, CheckedUnitEffectMachinePlan,
     CheckedUnitEffectOperationPlan, IntegerSign, PlaceId, Proposition, ScalarTerm,
     StructuralFieldType, StructuralTypeShape, integer_value,
-    lower_nominal_affine_unit_cleanup_machine, normalize_shared_boolean_comparison_leaves,
-    obligation_id, place_id, resolve_shared_boolean_member_fields,
-    retain_additional_structural_types, shared_boolean_runtime_parameters,
-    valid_shared_boolean_runtime_inputs,
+    lower_nominal_affine_unit_cleanup_machine, obligation_id, place_id,
+    retain_additional_structural_types,
 };
 use super::{
     BTreeSet, Block, CheckedScalarBindingValue, CheckedScalarExpressionRole,
@@ -33,6 +31,10 @@ use crate::returns::structural_scalar_return::expressions::{
     boolean_local_reference_count, is_branch_free_structural_boolean_expression,
     is_branch_free_structural_scalar_expression, is_structural_short_circuit_boolean_decision,
     source_distribute_boolean_local, validate_boolean_decision_parameter_types,
+};
+use crate::returns::structural_scalar_return::shared_convergence::{
+    normalize_shared_boolean_comparison_leaves, resolve_shared_boolean_member_fields,
+    shared_boolean_runtime_parameters, valid_shared_boolean_runtime_inputs,
 };
 
 /// Reuse the already ratified bounded nominal-Unit closure construction, then
@@ -1199,7 +1201,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
         .iter()
         .map(|value| value.scalar_type)
         .collect::<Vec<_>>();
-    if let Some(convergence) = plan.shared_boolean_convergence {
+    let prepared_convergence = if let Some(convergence) = plan.shared_boolean_convergence {
         let binding_index = usize::try_from(convergence.binding_ordinal).map_err(|_| {
             LoweringError::Unsupported("shared Boolean convergence binding exceeds usize")
         })?;
@@ -1234,44 +1236,17 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
             return unsupported("shared Boolean convergence has no normalized runtime input");
         }
         validate_boolean_parameter_types(&decision, &parameter_types)?;
+        Some(decision)
     } else if let Some((_, decision)) = &source_distributed_short_circuit_bindings {
         validate_boolean_decision_parameter_types(decision, &parameter_types)?;
+        None
     } else {
         validate_direct_parameter_types(&expression, &parameter_types)?;
-    }
-    let blocks = if let Some(convergence) = plan.shared_boolean_convergence {
-        usize::try_from(convergence.binding_ordinal).map_err(|_| {
-            LoweringError::Unsupported("shared Boolean convergence binding exceeds usize")
-        })?;
-        let decision = lower_checked_scalar_expression_at(
-            checked,
-            plan.state,
-            convergence.binding_ordinal,
-            CheckedScalarExpressionRole::LocalInitializer {
-                binding_ordinal: convergence.binding_ordinal,
-            },
-        )?;
-        let LoweredDirectExpression::Boolean {
-            expression: decision,
-        } = decision
-        else {
-            return unsupported("shared Boolean convergence decision is not Boolean");
-        };
-        let decision = resolve_shared_boolean_member_fields(
-            *decision,
-            &structural_parameters,
-            &lowered.semantic_module.structural_types,
-        )?;
-        let decision = normalize_shared_boolean_comparison_leaves(&decision).ok_or(
-            LoweringError::Unsupported(
-                "shared Boolean convergence contains a non-normalizable comparison leaf",
-            ),
-        )?;
-        if shared_boolean_runtime_parameters(&decision)
-            .is_none_or(|inputs| !valid_shared_boolean_runtime_inputs(&inputs))
-        {
-            return unsupported("shared Boolean convergence has no normalized runtime input");
-        }
+        None
+    };
+    // Reuse the exact admitted decision: replay and input normalization above
+    // completed before emission, and none of their inputs have changed.
+    let blocks = if let Some(decision) = prepared_convergence {
         let decision = lower_boolean_value_decision(&decision);
         let decision_block_count = boolean_decision_block_count(&decision);
         let continuation_block = block_id(

@@ -1,28 +1,14 @@
-//! Boolean and relevant structural-field runtime-input custody.
-use super::super::{StructuralFieldType, StructuralMultiplicity, StructuralTypeShape, unsupported};
-use super::{
-    BTreeSet, LoweringError, ScalarType, SharedBooleanRuntimeInput, StructuralParameterDeclaration,
-    StructuralTypeDeclaration,
-};
+//! Resolve structural member leaves and normalize shared-convergence comparisons.
+
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
+use crate::lowering_error::{LoweringError, unsupported};
+use semantic_vocabulary::ScalarType;
+use terminal_psi::{
+    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape,
+};
 
-pub(super) fn valid_shared_boolean_runtime_inputs(
-    inputs: &BTreeSet<SharedBooleanRuntimeInput>,
-) -> bool {
-    let has_structural_field = inputs
-        .iter()
-        .any(|input| matches!(input, SharedBooleanRuntimeInput::StructuralField { .. }));
-    !inputs.is_empty()
-        && (!has_structural_field
-            || (inputs
-                .iter()
-                .any(|input| matches!(input, SharedBooleanRuntimeInput::BooleanScalar(_)))
-                && !inputs
-                    .iter()
-                    .any(|input| matches!(input, SharedBooleanRuntimeInput::IntegerScalar(_)))))
-}
-
-pub(super) fn resolve_shared_boolean_member_fields(
+pub(crate) fn resolve_shared_boolean_member_fields(
     expression: LoweredBooleanReturnExpression,
     parameters: &[StructuralParameterDeclaration],
     structural_types: &[StructuralTypeDeclaration],
@@ -135,7 +121,7 @@ pub(super) fn resolve_shared_boolean_member_fields(
 /// comparisons retain their exact operation and bounded total-computation
 /// operands. The one already-resolved structural-field leaf is preserved
 /// unchanged.
-pub(super) fn normalize_shared_boolean_comparison_leaves(
+pub(crate) fn normalize_shared_boolean_comparison_leaves(
     expression: &LoweredBooleanReturnExpression,
 ) -> Option<LoweredBooleanReturnExpression> {
     Some(match expression {
