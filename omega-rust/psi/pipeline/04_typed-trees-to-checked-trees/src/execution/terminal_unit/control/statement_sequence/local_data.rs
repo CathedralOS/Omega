@@ -92,20 +92,13 @@ pub(super) fn plan(
     };
     local_phase("statement sequence: local data: initializer expression");
     // A mutable local with no initializer survives when its declared type
-    // is a zero-constructible fixed array: value checking minted its
-    // whole-shape zeroed establishment root at this statement, and the
-    // structural-value arm below binds it like any initialized structural
-    // local.
+    // is zero-constructible: value checking minted its whole-shape zeroed
+    // establishment root at this statement, and the structural-value arm
+    // below binds it like any initialized structural local.
     let uninit_zeroed = local.is_mutable
         && !program
             .expression_table
             .expression_is_valid(local.initial_value)
-        && matches!(
-            program
-                .type_reference_table
-                .type_reference(local.type_reference),
-            typed_trees::types::TypeReferenceNode::FixedArray { .. }
-        )
         && validation::zeroed_structural_parts(program, local.type_reference);
     if !program
         .expression_table
