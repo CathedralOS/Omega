@@ -561,7 +561,7 @@ fail/operators/domain_operator_return_only_overload rejected 0ms expected
 	domain `Quantity::Additive` has duplicate operator `combine`
 fail/operators/named_operator_result_overload_duplicate_dispatch rejected 0ms expected
 	duplicate named requirement overload `Convert::value` with parameter signature `operands(named(name(i32)));flags(self=false;mutable=false;const=false)` and result dispatch set `arithmetic:Trapping`; predicate-only result refinements do not distinguish overloads
-fail/operators/operand_requires_invalidated rejected 148ms unexpected
+fail/operators/operand_requires_invalidated rejected 104ms expected
 	cannot prove requires contract for call equal from compare: value >= 0 (needs fact `right >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/operators/root_operator_alpha_equivalent_generic_duplicate rejected 0ms expected
 	duplicate operator declaration `Slice::index`
@@ -792,7 +792,7 @@ fail/relevance/erased_nonscalar_parameter rejected 0ms expected
 	machine `Main::record::record` erased parameter `w` is not scalar; an erased formal on a runtime machine needs a scalar lane or a contract term carrier
 fail/relevance/erased_parameter_runtime_read rejected 0ms expected
 	erased parameter `bound` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
-fail/slices/index_operator_contract_unproven rejected 152ms unexpected
+fail/slices/index_operator_contract_unproven rejected 106ms expected
 	cannot prove requires contract for call index from Main::main: 3 < self.values.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/slices/invalid_slice_reassigned_local_index_unchecked rejected 1ms expected
 	cannot prove index `index` is within length 4
@@ -806,8 +806,8 @@ fail/slices/signed_slice_index_upper_only rejected 1ms expected
 	cannot prove index `index` is non-negative
 fail/slices/signed_slice_range_upper_only rejected 1ms expected
 	cannot prove every subslice range endpoint of `start..end` is non-negative
-fail/slices/subslice_range_operator_contract_unproven rejected 40ms unexpected
-	`range` was selected for its fixed operator token `[..]` but the range use omits its end; the omitted endpoint would be the collection's length, which a declared telescope cannot form -- closed `start..end`, `..end`, `start..=end`, and `..=end` uses bind the declaration's own body
+fail/slices/subslice_range_operator_contract_unproven rejected 107ms expected
+	cannot prove requires contract for call range from Main::main: 9 <= 4 && 4 <= view.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/slices/termination_slice_length_order_unimplemented rejected 1ms expected
 	cannot prove the `terminates by` ranking for machine Main::walk
 fail/slices/unguarded_slice_parameter_index_compile rejected 1ms expected
@@ -1383,6 +1383,7 @@ pass/operators/parenthesized_precedence_value checked 0ms
 pass/operators/runtime_bitwise_operators_exit checked 166ms
 pass/operators/runtime_xorshift_prng_exit checked 195ms
 pass/operators/slice_index_bounds_from_operator_contract checked 2ms
+pass/operators/slice_range_bounds_from_operator_contract checked 115ms
 pass/operators/unary_negation_exit checked 179ms
 pass/optimizer/constant_branch_selection_compile checked 1858ms
 pass/optimizer/dead_compare_selection_compile checked 227ms

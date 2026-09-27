@@ -1,1 +1,2 @@
-cannot prove subslice range start bound `9..` is within slice length 4; cannot prove `start <= end && end <= items.len` — the `requires` of `Slice::range` (spelled `[..]`)
+cannot prove requires contract for call range from Main::main: 9 <= 4 && 4 <= view.len
+needs fact `start <= end && end <= items.len` here

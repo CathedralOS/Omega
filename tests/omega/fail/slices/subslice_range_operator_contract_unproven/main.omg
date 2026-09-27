@@ -4,6 +4,8 @@
 // bound must therefore name the operator and its `requires` clause so the user
 // can browse to `Slice::range` and read the contract that sourced the
 // obligation.
+// Keep both endpoints explicit: an omitted end currently stops at operator
+// selection, before this fixture can exercise the selected range contract.
 
 use omega::language::core::slice;
 
@@ -17,6 +19,6 @@ data Main {
 
 machine Main::main(&mut self) -> u64 {
     let view: &[Entry] = self.entries.as_slice();
-    let tail: &[Entry] = view[9..];
+    let tail: &[Entry] = view[9..4];
     tail.len
 }
