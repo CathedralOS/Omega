@@ -118,6 +118,7 @@ pass/calls/runtime_option_value_call_exit built 950ms exit:70
 pass/calls/runtime_owned_case_temporaries_exhaustive_dispatch_exit built 741ms exit:70
 pass/calls/runtime_param_receiver_second_instance_exit rejected 538ms
 	native-artifact Terminal production failed: Lowering(InvalidTerminalModule(OverlappingExclusiveStructuralArguments { operation: OperationId(14), first_argument: 0, second_argument: 1 }))
+pass/calls/runtime_qualified_tail_recursion_exit built 983ms exit:70
 pass/calls/runtime_reference_returned_slice_element_write_exit rejected 412ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::fill`), which was itself omitted at local construction at `structural field store: destination parameter`
 pass/calls/runtime_referenced_local_outlives_sibling_guard_call_exit rejected 543ms
@@ -127,6 +128,7 @@ pass/calls/runtime_shared_ref_param_member_exit rejected 535ms
 	native-artifact Terminal production failed: Lowering(InvalidTerminalModule(OverlappingExclusiveStructuralArguments { operation: OperationId(5), first_argument: 0, second_argument: 1 }))
 pass/calls/runtime_std_math_sin_cos_exit rejected 1757ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 0)
+pass/calls/runtime_structural_literal_call_initializer_exit built 1055ms exit:70
 pass/calls/runtime_transition_subject_call_single_evaluation_exit rejected 521ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 1)
 pass/calls/runtime_value_call_dispatch_results_exit built 951ms exit:70

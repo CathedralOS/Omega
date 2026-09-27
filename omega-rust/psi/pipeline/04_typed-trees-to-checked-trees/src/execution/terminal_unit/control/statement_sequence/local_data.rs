@@ -207,11 +207,14 @@ pub(super) fn plan(
         });
         return Some(LocalPlan::Planned);
     }
-    if let Some(root) = facts
-        .values
-        .structural_values
-        .root_at(state.symbol, statement_index)
-    {
+    // An initializer call may establish structural argument values at this
+    // same statement. Only the initializer's own occurrence can establish the
+    // local directly; argument roots stay with the ordinary call planner.
+    if let Some(root) = facts.values.structural_values.root_for_expression(
+        state.symbol,
+        statement_index,
+        local.initial_value,
+    ) {
         local_phase("statement sequence: local data: structural value: reference record loans");
         if super::super::super::reference_results::local_owes_record_loans(
             program,

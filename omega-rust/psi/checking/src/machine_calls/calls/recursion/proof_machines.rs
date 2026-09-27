@@ -599,6 +599,33 @@ pub(crate) fn validate_proof_machine_recursion(
             );
         }
     }
+    // Runtime tail normalization changes an exact self call into an entry
+    // backedge. Proof-only classification happens later, so retain that edge
+    // in this same induction check: constant-stack execution is not descent.
+    if let StatementNode::Transition(transition) = statement {
+        let entry_symbol = program
+            .machine_states(machine)
+            .first()
+            .map(|entry| entry.symbol);
+        for target in [transition.target, transition.continuation] {
+            if !target.is_valid() {
+                continue;
+            }
+            if let TransitionTargetNode::Named {
+                path, arguments, ..
+            } = program.statement_table.transition_target(target)
+                && path.symbol.is_valid()
+                && (path.symbol == machine.symbol || Some(path.symbol) == entry_symbol)
+            {
+                self_calls.push(
+                    program
+                        .statement_table
+                        .expression_handles(*arguments)
+                        .to_vec(),
+                );
+            }
+        }
+    }
     for root in statement_expression_roots(program, statement) {
         collect_self_entry_call_arguments(program, entry_name, root, &mut self_calls);
     }

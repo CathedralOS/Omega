@@ -53,6 +53,7 @@ pub(crate) fn emit(
         result,
         value,
         calls: operand_calls,
+        operand_source,
         ..
     } = operation
     else {
@@ -283,6 +284,10 @@ pub(crate) fn emit(
         checked,
         state,
         result,
+        !matches!(
+            operand_source,
+            Some(checked_trees::CheckedArrayConstructionSource::CallArgument { .. })
+        ),
         terminal_psi::StructuralOperationResult {
             qualification_establishments: Vec::new(),
             place,

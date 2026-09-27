@@ -840,18 +840,16 @@ the complete product bar; focused successes below do not establish that baseline
   and omits that compiler flag for execution. With compiler `210c832a7b37` on
   macOS ARM64 and application source `5fd89ec0a100`,
   `RUST_MIN_STACK=67108864 OMEGA_REVIEW_TIMINGS=1 omega update --project
-  samples/apps/squalr/squalr-tests --target linux_x86_64` completes discovery
-  and binding for all 17 package occurrences in about 59 minutes, then exits 3
-  at ordinary review with 130 decisions. Exact comparison attributes those
-  decisions to source relocation, updated local package identities and host
-  metadata, preserving permission and capability rows. They are accepted in
-  the isolated Linux-target review; resume is still running without a lock
-  publication verdict. The earlier engine subslice count rejection is cleared.
-  Complete review/resume and lock publication,
-  then native compilation and execution; checked packages are not native
-  acceptance. Run the harness on Linux x86-64: the actual `Main::main` and
-  filesystem/time realizations currently target Linux.
-  The macOS build declaration alone does not provide a macOS entry/provider.
+  samples/apps/squalr/squalr-tests --target linux_x86_64`, followed by exact
+  package review and `update --resume`, publishes the accepted lock for all
+  17 package occurrences. The subsequent `omega run --keep --target
+  linux_x86_64 samples/apps/squalr/squalr-tests/main.omg` exits 200 at
+  Terminal production: `ordered scalar control lost its exact source signature`.
+  Rejoin the ordered scalar body's source signature before native emission;
+  The active `MIXED-SIGNATURE-BORROWED-PARAMS` claim owns the related signature route.
+  Run the execution harness on Linux x86-64: the actual `Main::main` and
+  filesystem/time realizations currently target Linux. Cross-emission on
+  macOS is not execution, and a macOS build declaration supplies no entry/provider.
 
   Restore the full acceptance route in `squalr-tests/main.omg` and
   `squalr-tests/src/command_driver.omg`. The published entry skips expansion,
@@ -871,20 +869,19 @@ the complete product bar; focused successes below do not establish that baseline
   Executing the command helpers
   does not establish coverage of the privileged-command dispatcher.
 
-  The restored full route, checked with compiler `da93dcf45ae1` against
-  application `5fd89ec0a100`, rejects Terminal construction at
-  `scalar field store sequence: write frame agreement` in `Main::gate`.
-  Its retained frame includes reachable callees. Static checked calls now use
-  their exact signature's storage ceiling when recursive body inference is
-  incomplete, while retaining argument writes and refusing unmodeled service
-  authority. The extracted periodicity ProgramEntry reproduction advances to
-  `statement sequence: local data: structural value: root identity`; the
-  unchanged full restored route is still being checked. Follow that outer
-  result through construction, scan calls and native execution; a complete
-  frame alone does not establish an executable callee body. In particular,
-  declaration-qualified self-tail calls in the periodicity helper still need
-  exact-identity normalization to the existing constant-stack transition route,
-  preserving real non-tail rejection and authored termination obligations.
+  The restored full route against application `5fd89ec0a100`, checked with
+  compiler `ea7846053e` plus the published static-call signature ceiling fix,
+  clears the earlier `Main::gate` write-frame failure. It now rejects at
+  `CommandDriver::run` -> `CommandDriver::do_element_scan` ->
+  `call operation: structural arguments: source symbol`. Rejoin the actual
+  argument place in stage 04's `execution/terminal_unit/calls/structural_arguments.rs`;
+  The active `STRUCTURAL-ARGUMENTS-PARAMETER-PATH` claim owns that repair. Keep the
+  restored source unchanged through the next outer check and native acceptance.
+  The extracted periodicity ProgramEntry probe separately reaches
+  `call operation: result shape` at `ScanConstraint::new`: lifetime-only
+  applications and their bare nominal spelling currently retain different
+  runtime identity wrappers. Reconcile erased-region runtime identity while
+  preserving separate lifetime/loan validation; do not bypass result custody.
 
   Whole-graph checking remains expensive: the successful discovery above took
   roughly 42 minutes. **CHECK-CLOSURE-ONCE** owns repeated package/checked-stage

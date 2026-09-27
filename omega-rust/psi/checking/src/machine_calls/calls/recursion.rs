@@ -17,18 +17,12 @@ mod proof_machines;
 pub(crate) use proof_machines::proof_call_has_structural_descent;
 pub(crate) use proof_machines::validate_proof_machine_recursion;
 
-/// Measured recursion MR3 (2026-07-18 ruling): runtime recursion is
-/// TAIL-ONLY, and the only tail position is the transition ARM TARGET
-/// (`-> self.f(..)` on a measured machine, resolved onto the loop-back
-/// edge). This walk names every OTHER self-recursive call spelling with
-/// why it is not tail:
-/// - embedded in a larger expression (`3 * self.f(n - 1)`, an argument, a
-///   guard, an initializer): the frame must survive the call to finish the
-///   surrounding computation -- non-tail, CUT by the amendment (depth
-///   lives in explicit storage the author sizes);
-/// - a state's bare terminal expression (`{ self.sum(n - 1, acc) }`): tail
-///   in shape, but its loop-back rewrite is the MR2 rung -- refused with
-///   that pointer until the lowering lands.
+/// Runtime recursion must not leave a pending caller computation. Exact
+/// self calls in terminal expression/return positions normalize to state
+/// backedges during resolution, independently of a termination promise.
+/// Calls that remain embedded in arithmetic, guards or initializers are not
+/// tail. A remaining whole terminal call lacks the receiver or selection
+/// evidence required for that normalization and must not emit another frame.
 pub(crate) fn validate_self_recursive_call_positions(
     program: &TypedTrees,
     machine: &Machine,
@@ -79,19 +73,18 @@ pub(crate) fn validate_self_recursive_call_positions(
             );
         }
         StatementNode::Expression(expression) => {
-            // A bare terminal self-call is TAIL in shape; the whole-expression
-            // case gets the MR2 pointer, anything nested is non-tail.
-            // A terminal self-call surviving to validation means the machine
-            // is UNMEASURED: the parser rewrites measured machines' terminal
-            // tail calls onto the loop-back edge (MR2).
-            if let Some(call_display) = whole_expression_self_call(program, entry_name, *expression)
+            // Whole-call position alone does not prove a valid activation
+            // backedge: another receiver, unresolved overload or unsupported
+            // static/operational arguments can keep this as an ordinary call.
+            if let Some(call_display) =
+                whole_expression_self_call(program, machine, entry_name, *expression)
             {
                 diagnostics.push(Diagnostic::error(format!(
-                    "`{call_display}` in terminal position is TAIL self-recursion on an \
-                     UNMEASURED machine. Recursive call spellings are legal only when \
-                     measured: declare `terminates by ...;` and the terminal \
-                     call rewrites onto the loop-back edge; unmeasured repetition spells \
-                     as the bare loop `-> {entry_name}(..)` (constant stack, may diverge).",
+                    "`{call_display}` in terminal position is TAIL self-recursion, but its \
+                     exact receiver or call selection did not normalize to a constant-stack \
+                     state backedge. Use a supported state transition while preserving \
+                     the receiver and argument bindings; a termination measure alone \
+                     does not establish that transfer.",
                 )));
                 return;
             }
@@ -140,16 +133,34 @@ pub(crate) fn validate_self_recursive_call_positions(
 /// entry (the terminal-position tail shape); None otherwise.
 fn whole_expression_self_call(
     program: &TypedTrees,
+    machine: &Machine,
     entry_name: &str,
     expression: ExpressionHandle,
 ) -> Option<String> {
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return None;
     };
-    is_self_entry_call(program, entry_name, call)
+    is_current_entry_call(program, machine, call)
         .then(|| format!("{}(..)", receiver_place_label(entry_name)))
 }
 
+fn is_current_entry_call(
+    program: &TypedTrees,
+    machine: &Machine,
+    call: &TableCallExpression,
+) -> bool {
+    // Qualification and leaf spelling do not define recursion. The exact
+    // selected current entry does, including declaration-qualified calls.
+    call.target_symbol.is_valid()
+        && (call.target_symbol == machine.symbol
+            || program
+                .machine_states(machine)
+                .first()
+                .is_some_and(|entry| call.target_symbol == entry.symbol))
+}
+
+// The proof-machine subterm collector retains its existing authored-self
+// selection. Runtime position checks below use the exact resolved entry.
 fn is_self_entry_call(program: &TypedTrees, entry_name: &str, call: &TableCallExpression) -> bool {
     if call.target.as_str() != entry_name {
         return false;
@@ -158,10 +169,7 @@ fn is_self_entry_call(program: &TypedTrees, entry_name: &str, call: &TableCallEx
         || matches!(
             program.expression_table.expression(call.receiver),
             ExpressionNode::Name(path)
-                if matches!(
-                    program.expression_table.name_path_members(path.members),
-                    [only] if only.is_self_receiver()
-                )
+                if matches!(program.expression_table.name_path_members(path.members), [only] if only.is_self_receiver())
         )
 }
 
@@ -169,7 +177,7 @@ fn is_self_entry_call(program: &TypedTrees, entry_name: &str, call: &TableCallEx
 /// embedded in a larger computation, so the frame outlives the call.
 fn reject_embedded_self_calls(
     program: &TypedTrees,
-    _machine: &Machine,
+    machine: &Machine,
     entry_name: &str,
     expression: ExpressionHandle,
     diagnostics: &mut Vec<Diagnostic>,
@@ -178,7 +186,7 @@ fn reject_embedded_self_calls(
         return;
     }
     let recurse = |handle: ExpressionHandle, diagnostics: &mut Vec<Diagnostic>| {
-        reject_embedded_self_calls(program, _machine, entry_name, handle, diagnostics);
+        reject_embedded_self_calls(program, machine, entry_name, handle, diagnostics);
     };
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
@@ -192,7 +200,7 @@ fn reject_embedded_self_calls(
         }
         ExpressionNode::Atomic(atomic) => recurse(atomic.value, diagnostics),
         ExpressionNode::Call(call) => {
-            if is_self_entry_call(program, entry_name, call) {
+            if is_current_entry_call(program, machine, call) {
                 diagnostics.push(Diagnostic::error(format!(
                     "`self.{entry_name}(..)` here is NON-TAIL self-recursion: the \
                      result feeds the surrounding computation, so the frame must \
