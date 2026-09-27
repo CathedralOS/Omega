@@ -10,18 +10,18 @@ operations; `lib.rs` only exports the owner.
 
 Follow the subordinate protocols as needed:
 
-- [Container validation](src/executable_installation/container.rs) and its
-  [byte codec](src/executable_installation/container_bytes.rs) reconstruct candidates.
-- [Materialization](src/executable_installation/materializer.rs) resolves sealed
+- [Container validation](src/artifacts/container.rs) and its
+  [byte codec](src/artifacts/container_bytes.rs) reconstruct candidates.
+- [Materialization](src/placement/materializer.rs) resolves sealed
   sources without granting execution authority.
-- [Post-handoff writers](src/executable_installation/post_handoff_writer.rs) own
+- [Post-handoff writers](src/post_handoff_writer.rs) own
   destination custody, resolved contexts, writing, and consumer replay.
-- [Replacement](src/executable_installation/replacement.rs) patches the declared
+- [Replacement](src/retirement/replacement.rs) patches the declared
   sites of a live realization with admitted fragments, then drains the
   superseded custody.
-- [Replacement quarantine](src/executable_installation/replacement_quarantine.rs)
+- [Replacement quarantine](src/retirement/quarantine.rs)
   retains incompletely drained installed realizations.
-- [Owned-image provider](src/executable_installation/owned_image_provider.rs)
+- [Owned-image provider](src/owned_image_provider.rs)
   performs the contracted install, patch, entry-sealing, retirement, and
   quarantine operations over resident image buffers it owns — real byte
   writes, ordering fence, read-back, custody write-suspension,

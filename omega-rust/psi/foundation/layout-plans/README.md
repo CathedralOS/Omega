@@ -14,9 +14,8 @@ addresses or a byte-patching primitive.
 - [symbolic_values.rs](src/symbolic_values/mod.rs): entry stub and data symbol
   identities, relocation targets, symbolic field paths, interior layouts.
 - [placement.rs](src/placement/mod.rs): byte order, consumption instants, phases,
-  address ranges, regimes, scopes, and placement constraints.
-- [post_handoff_writer.rs](src/post_handoff_writer/mod.rs): the reusable writer
-  fragment ABI and the plans a provider replays after handoff.
+  address ranges, regimes, scopes, placement constraints, and the portable
+  materialization action vocabulary.
 - [materialization.rs](src/materialization/mod.rs): materialization plans, their
   application to bytes, scalar decoding, and the diagnostic type.
 - [symbolic_materialization.rs](src/symbolic_materialization.rs): derivation
@@ -25,5 +24,14 @@ addresses or a byte-patching primitive.
   stored-integer fit validation, and container reads and writes.
 - [materialization_field_identities.rs](src/materialization/field_identities.rs):
   field identity keys shared by report validation and materialization.
+
+Everything above is portable description and semantic validity. The
+post-handoff writer consumers live on the Omega side:
+`backend/plans/post-handoff-writer-plan` derives writer programs and reusable
+fragments from these actions, `backend/plans/program-entry-plan` lowers and
+validates them against ISA encoders, and
+`backend/runtime/executable-installation` executes them against a concrete
+destination. The interpreter consumes the same portable actions through its
+own materialization path, never through native fragment lowering.
 
 Run the crate's tests with `cargo nextest run -p layout-plans --no-fail-fast`.
