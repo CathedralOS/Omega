@@ -74,13 +74,9 @@ pub fn owned_receiver_claims(
         );
     }
     let data_definitions_by_symbol =
-        crate::program_scope::data_definitions::memoized_data_definition_positions(
-            program,
-        );
+        crate::program_scope::data_definitions::memoized_data_definition_positions(program);
     let parameters_by_symbol =
-        crate::program_scope::data_definitions::memoized_type_parameter_multiplicities(
-            program,
-        );
+        crate::program_scope::data_definitions::memoized_type_parameter_multiplicities(program);
     let mut claims = Vec::new();
     append_data_linear_claim_frontier(
         program,
