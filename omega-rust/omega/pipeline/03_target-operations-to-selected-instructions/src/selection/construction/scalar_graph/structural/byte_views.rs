@@ -46,7 +46,7 @@ pub(super) fn write(
     {
         return Err(invalid());
     }
-    let pointer = backing_pointer(builder, row, destination)?;
+    let pointer = backing_pointer(function, builder, row, destination)?;
     let address = transport_register(builder, destination, 0)?;
     builder.emit(
         SelectedInstructionKind::ByteViewAddress,
@@ -127,8 +127,22 @@ pub(in crate::selection) fn byte_observation(
     };
     // An addressable record is not a byte descriptor. Reconstruct the semantic
     // view type before interpreting any pointer home as backing and length.
-    if crate::selection::established_view_input::view_type(function, source).is_none() {
+    if crate::selection::established_view_input::readable_byte_type(function, source).is_none() {
         return Err(invalid());
+    }
+    if let LegalizedScalarInstructionKind::ByteSequenceLength {
+        length_byte_offset, ..
+    } = row.kind
+    {
+        let expected =
+            if crate::selection::byte_concatenation_input::owned_type(function, source).is_some() {
+                0
+            } else {
+                8
+            };
+        if length_byte_offset != expected {
+            return Err(invalid());
+        }
     }
     match row.kind {
         LegalizedScalarInstructionKind::ByteSequenceRead { .. } => {
@@ -168,7 +182,7 @@ fn byte_sequence_read(
     {
         return Err(invalid());
     }
-    let pointer = backing_pointer(builder, row, source)?;
+    let pointer = backing_pointer(function, builder, row, source)?;
     let view = builder
         .transport
         .views
@@ -233,7 +247,11 @@ fn byte_sequence_read(
             builder,
             row,
             source,
-            0,
+            if crate::selection::byte_concatenation_input::owned_type(function, source).is_some() {
+                8
+            } else {
+                0
+            },
             1,
             SelectedMemoryAccessRole::ReadByteSequence {
                 index,
@@ -262,6 +280,7 @@ fn byte_sequence_read(
 }
 
 pub(super) fn backing_pointer(
+    function: &LegalizedScalarFunction,
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
     source: PlaceId,
@@ -281,6 +300,20 @@ pub(super) fn backing_pointer(
         .find(|(place, _)| *place == source)
         .map(|(_, register)| *register)
         .ok_or_else(|| invalid())?;
+    if crate::selection::byte_concatenation_input::owned_type(function, source).is_some() {
+        let pointer = transport_register(builder, source, 8)?;
+        builder.emit(
+            SelectedInstructionKind::AddressOffset { byte_offset: 8 },
+            builder
+                .constraints
+                .keys
+                .address_offset
+                .ok_or_else(|| invalid())?,
+            &[descriptor, pointer],
+            provenance(row),
+        )?;
+        return Ok(pointer);
+    }
     let pointer = transport_register(builder, source, 0)?;
     memory(
         builder,
@@ -306,7 +339,7 @@ fn byte_sequence_length(
     length_byte_offset: u32,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let result = row.result.ok_or_else(|| invalid())?;
-    if length_byte_offset != 8
+    if !matches!(length_byte_offset, 0 | 8)
         || result.scalar_type
             != ScalarType::Integer(
                 IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,

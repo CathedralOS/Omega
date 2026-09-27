@@ -19,6 +19,7 @@ use semantic_vocabulary::{
 use std::collections::BTreeMap;
 
 mod byte_field_freshness;
+mod byte_concatenation;
 mod byte_views;
 pub(crate) use byte_views::byte_field_store_capacity;
 mod control_flow;
@@ -76,6 +77,7 @@ pub(crate) fn validate_function(
     )?;
     structural_roots::validate_structural_root_operations(function, structural_types)?;
     crate::unit_validation::references::validate_function_references(function, structural_types)?;
+    byte_concatenation::validate(function, structural_types, &control_flow.predecessors)?;
     byte_field_freshness::validate(function, structural_types, &control_flow.predecessors)?;
     mutable_views::validate(function, structural_types)?;
     provenance::validate_provenance_fuel_effects(function)?;

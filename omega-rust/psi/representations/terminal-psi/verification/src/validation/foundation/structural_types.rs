@@ -34,14 +34,10 @@ pub(super) fn register_structural_types(
             .filter_map(|machine| machine.attachment),
     );
     for declaration in &module.structural_types {
-        if matches!(
-            declaration.shape,
-            StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-            )
-        ) {
-            return Err(ModuleError::InvalidStructuralTypeIdentity(declaration.id));
-        } else if let StructuralTypeShape::Record { fields } = &declaration.shape {
+        // A bounded sequence may be a completed owned concatenation result.
+        // The establishing operation and every reader still validate custody;
+        // admitting its type does not turn it into a borrowed view.
+        if let StructuralTypeShape::Record { fields } = &declaration.shape {
             validate_structural_fields(
                 declaration.id,
                 fields,

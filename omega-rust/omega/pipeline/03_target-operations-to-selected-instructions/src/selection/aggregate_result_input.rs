@@ -190,6 +190,9 @@ pub(super) fn has_local_aggregates(source: &LegalizedScalarFunction) -> bool {
             LegalizedScalarInstructionKind::EstablishZeroedStructural { .. } => {
                 super::zeroed_structural_input::storage(source, row).is_some()
             }
+            LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation { .. } => {
+                super::byte_concatenation_input::capacity(source, row).is_some()
+            }
             LegalizedScalarInstructionKind::EstablishRecord { .. } => {
                 super::record_input::fields(source, row).is_some()
             }
@@ -703,6 +706,11 @@ pub(super) fn home(
         .filter_map(|row| {
             let result = match &row.kind {
                 LegalizedScalarInstructionKind::EstablishScalarArray { result, .. }
+                | LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
+                    result,
+                    ..
+                }
+                | LegalizedScalarInstructionKind::EstablishZeroedStructural { result, .. }
                 | LegalizedScalarInstructionKind::EstablishRecord { result, .. }
                 | LegalizedScalarInstructionKind::EstablishCase { result, .. } => result,
                 LegalizedScalarInstructionKind::Call(call) => call.structural_result.as_ref()?,
@@ -728,6 +736,9 @@ pub(super) fn home(
                         StructuralTypeShape::Record { .. }
                             | StructuralTypeShape::Sum { .. }
                             | StructuralTypeShape::FixedArray { .. }
+                            | StructuralTypeShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                            )
                     )
             })
     {

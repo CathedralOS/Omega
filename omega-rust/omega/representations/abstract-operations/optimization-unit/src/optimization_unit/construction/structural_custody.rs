@@ -6,6 +6,14 @@ use super::super::{
 pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSet<PlaceId>) {
     use AbstractOperation as O;
     match operation {
+        O::EstablishByteSequenceConcatenation {
+            result,
+            left,
+            right,
+            ..
+        } => {
+            places.extend([result.place, left.source(), right.source()]);
+        }
         O::EstablishCase { result, fields, .. } | O::EstablishRecord { result, fields, .. } => {
             places.insert(result.place);
             places.extend(
@@ -201,7 +209,8 @@ pub(super) fn collect_operation_structural_places(
     structural_places: &mut Vec<StructuralPlaceDeclaration>,
 ) {
     match operation {
-        AbstractOperation::EstablishPrimitiveLocal {
+        AbstractOperation::EstablishByteSequenceConcatenation { psi_operation, result, .. }
+            | AbstractOperation::EstablishPrimitiveLocal {
             psi_operation,
             result,
             ..

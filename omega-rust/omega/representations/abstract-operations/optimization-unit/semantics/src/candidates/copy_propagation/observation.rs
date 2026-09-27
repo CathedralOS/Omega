@@ -253,6 +253,7 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         }
         O::DynamicDescriptorParameter { .. }
         | O::StoreDynamicDescriptor { .. }
+        | O::EstablishByteSequenceConcatenation { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::CallUnitWithDynamicArguments { .. }

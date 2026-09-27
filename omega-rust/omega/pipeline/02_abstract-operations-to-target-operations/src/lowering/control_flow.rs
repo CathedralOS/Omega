@@ -20,6 +20,7 @@ mod aggregate_borrows;
 pub(super) mod aggregate_results;
 mod borrowed_calls;
 mod borrowed_windows;
+mod byte_concatenation;
 mod byte_write;
 mod dominance;
 mod installed_calls;
@@ -242,6 +243,7 @@ pub(super) fn lower(
         let established = match operation {
             AbstractOperation::EstablishPrimitiveLocal { result, .. }
             | AbstractOperation::EstablishScalarArray { result, .. }
+            | AbstractOperation::EstablishByteSequenceConcatenation { result, .. }
             | AbstractOperation::EstablishRecord { result, .. }
             | AbstractOperation::EstablishZeroedStructural { result, .. }
             | AbstractOperation::EstablishCase { result, .. }

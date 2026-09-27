@@ -424,6 +424,9 @@ pub(in crate::selection) fn validate_with_environment(
                     | LegalizedScalarInstructionKind::BoundarySettlement(_)
                     | LegalizedScalarInstructionKind::NormalizedForeignCall(_)
                     | LegalizedScalarInstructionKind::DynamicParameterCall(_)
+                    | LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
+                        ..
+                    }
                     | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
                     | LegalizedScalarInstructionKind::ByteSequenceSubslice { .. }
                     | LegalizedScalarInstructionKind::EstablishElementView { .. }

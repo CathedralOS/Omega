@@ -53,11 +53,7 @@ pub(super) fn index_structural_types(
             ) => {}
             terminal_psi::StructuralTypeShape::ByteSequence(
                 terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-            ) => {
-                return Err(
-                    OptimizationUnitValidationError::InvalidStructuralTypeIdentity(declaration.id),
-                );
-            }
+            ) => {}
             terminal_psi::StructuralTypeShape::FixedArray { .. } => {}
             terminal_psi::StructuralTypeShape::ElementView { .. } => {}
             terminal_psi::StructuralTypeShape::Record { fields } => {

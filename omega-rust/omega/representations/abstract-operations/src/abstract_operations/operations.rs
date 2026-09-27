@@ -296,6 +296,16 @@ pub enum AbstractOperation {
         result_case: StructuralCaseId,
         fields: Vec<terminal_psi::RecordFieldInitializer>,
     },
+    /// Materialize the two measured source spans in fresh owned storage.
+    /// Keeping their exact projections and capacity obligation lets receiving
+    /// optimizers reconstruct the same authority after any graph rewrite.
+    EstablishByteSequenceConcatenation {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        left: terminal_psi::control_flow::ByteSequenceOperand,
+        right: terminal_psi::control_flow::ByteSequenceOperand,
+        capacity_obligation: semantic_vocabulary::ObligationId,
+    },
     /// Establish one exact immutable byte payload in a verifier-declared
     /// borrowed-view place. The bytes remain semantic data until target
     /// realization chooses their physical code/data placement.
@@ -931,6 +941,7 @@ impl AbstractOperation {
             | Self::EstablishScalarArray { psi_operation, .. }
             | Self::EstablishCase { psi_operation, .. }
             | Self::EstablishByteSequenceLiteral { psi_operation, .. }
+            | Self::EstablishByteSequenceConcatenation { psi_operation, .. }
             | Self::EstablishTrivialAffineLocal { psi_operation, .. }
             | Self::EstablishZeroedStructural { psi_operation, .. }
             | Self::EstablishRecord { psi_operation, .. }

@@ -396,3 +396,29 @@ pub(super) fn validate_establish_primitive_local(
     }
     Ok(())
 }
+
+pub(super) fn validate_establish_byte_sequence_concatenation(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+) -> Result<(), CodecError> {
+    let Some(result) = operation.result.structural() else {
+        return malformed("byte concatenation requires an owned structural result");
+    };
+    if !matches!(machine.structural_places.iter().find(|row| row.id == result.place).map(|row| row.kind),
+        Some(StructuralPlaceKind::OperationResult { producer, structural_type })
+            if producer == operation.id && structural_type == result.structural_type)
+        || !module.structural_types.iter().any(|row| {
+            row.id == result.structural_type
+                && matches!(
+                    row.shape,
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    )
+                )
+        })
+    {
+        return malformed("byte concatenation result differs from its owned carrier declaration");
+    }
+    Ok(())
+}

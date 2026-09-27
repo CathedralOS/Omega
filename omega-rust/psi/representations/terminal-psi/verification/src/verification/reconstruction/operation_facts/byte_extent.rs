@@ -103,6 +103,12 @@ pub(super) fn length_equation(
     else {
         return Ok(None);
     };
+    if let Some(equation) =
+        terminal_semantics::byte_sequence_concatenation_length_equation(observation, operation)
+            .map_err(ModuleError::OperationSemanticSchema)?
+    {
+        return Ok(Some(equation));
+    }
     let Some(producer_observation) = structural_effect_leaf_observation(operation)
         .map_err(ModuleError::OperationSemanticSchema)?
     else {

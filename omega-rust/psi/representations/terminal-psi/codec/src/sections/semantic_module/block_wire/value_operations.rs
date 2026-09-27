@@ -279,3 +279,78 @@ pub(super) fn decode_ieee_float_constant(
         value: decode_ieee_float_value(reader)?,
     })
 }
+
+pub(super) fn encode_establish_byte_sequence_concatenation(
+    writer: &mut Writer,
+    left: terminal_psi::control_flow::ByteSequenceOperand,
+    right: terminal_psi::control_flow::ByteSequenceOperand,
+    capacity_obligation: semantic_vocabulary::ObligationId,
+) -> Result<(), CodecError> {
+    writer.u8(operation_tags::ESTABLISH_BYTE_SEQUENCE_CONCATENATION);
+    encode_byte_sequence_operand(writer, left)?;
+    encode_byte_sequence_operand(writer, right)?;
+    writer.id(capacity_obligation);
+    Ok(())
+}
+
+pub(super) fn decode_establish_byte_sequence_concatenation(
+    reader: &mut Reader<'_>,
+) -> Result<OperationKind, CodecError> {
+    Ok(OperationKind::EstablishByteSequenceConcatenation {
+        left: decode_byte_sequence_operand(reader)?,
+        right: decode_byte_sequence_operand(reader)?,
+        capacity_obligation: reader.id("ObligationId")?,
+    })
+}
+
+fn encode_byte_sequence_operand(
+    writer: &mut Writer,
+    operand: terminal_psi::control_flow::ByteSequenceOperand,
+) -> Result<(), CodecError> {
+    use terminal_psi::control_flow::ByteSequenceOperand;
+    match operand {
+        ByteSequenceOperand::Whole { source, length } => {
+            writer.u8(0);
+            writer.id(source);
+            writer.id(length);
+        }
+        ByteSequenceOperand::Field {
+            source,
+            field,
+            length,
+        } => {
+            writer.u8(1);
+            writer.id(source.place);
+            super::super::structural_signature_wire::encode_structural_access(
+                writer,
+                source.access,
+            );
+            encode_structural_path(writer, "byte sequence operand path", &source.path)?;
+            writer.id(field);
+            writer.id(length);
+        }
+    }
+    Ok(())
+}
+
+fn decode_byte_sequence_operand(
+    reader: &mut Reader<'_>,
+) -> Result<terminal_psi::control_flow::ByteSequenceOperand, CodecError> {
+    use terminal_psi::control_flow::ByteSequenceOperand;
+    match reader.u8()? {
+        0 => Ok(ByteSequenceOperand::Whole {
+            source: reader.id("PlaceId")?,
+            length: reader.id("ValueId")?,
+        }),
+        1 => Ok(ByteSequenceOperand::Field {
+            source: terminal_psi::StructuralArgument {
+                place: reader.id("PlaceId")?,
+                access: super::super::structural_signature_wire::decode_structural_access(reader)?,
+                path: decode_structural_path(reader)?,
+            },
+            field: reader.id("StructuralFieldId")?,
+            length: reader.id("ValueId")?,
+        }),
+        tag => Err(CodecError::InvalidTag("byte sequence operand", tag)),
+    }
+}

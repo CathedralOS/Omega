@@ -68,6 +68,15 @@ pub(super) fn validate_operation_operands(
         }
     }
     match &operation.kind {
+        OperationKind::EstablishByteSequenceConcatenation { left, right, .. } => {
+            storage_operands::validate_byte_sequence_concatenation(
+                operation,
+                left.length(),
+                right.length(),
+                value_types,
+                defined,
+            )
+        }
         OperationKind::EstablishScalarArray { .. } => {
             super::scalar::array::operands(module, machine, operation, value_types, defined)
         }

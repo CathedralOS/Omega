@@ -179,6 +179,62 @@ fn validate_structural_field_range_authority(
                     return Err(invalid);
                 }
             }
+            O::EstablishByteSequenceConcatenation {
+                psi_operation,
+                result,
+                left,
+                right,
+                capacity_obligation,
+            } => {
+                use semantic_vocabulary::{
+                    IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, Proposition,
+                };
+                let invalid = OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch;
+                let Some(terminal_psi::StructuralTypeDeclaration {
+                    shape:
+                        StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
+                        ),
+                    ..
+                }) = types.get(&result.structural_type).copied()
+                else {
+                    return Err(invalid);
+                };
+                let source_type =
+                    IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid.clone())?;
+                let proposition = terminal_codec::canonical_proposition_order_key(
+                    &Proposition::IntegerMathLessOrEqual(
+                        IntegerMathTerm::Add(
+                            Box::new(IntegerMathTerm::MathValue {
+                                source_type,
+                                value: left.length(),
+                            }),
+                            Box::new(IntegerMathTerm::MathValue {
+                                source_type,
+                                value: right.length(),
+                            }),
+                        ),
+                        IntegerMathTerm::literal(IntegerValue::Unsigned(u128::from(*capacity))),
+                    ),
+                )
+                .map_err(|_| invalid.clone())?;
+                if unit
+                    .accepted_obligation_facts
+                    .iter()
+                    .filter(|fact| {
+                        fact.machine == function.machine
+                            && fact.operation == *psi_operation
+                            && fact.obligation == *capacity_obligation
+                            && fact.proposition == proposition
+                            && fact.psi == unit.psi
+                            && fact.has_canonical_identity()
+                    })
+                    .count()
+                    != 1
+                {
+                    return Err(invalid);
+                }
+            }
             O::StructuralByteSequenceFieldStore {
                 psi_operation,
                 length,

@@ -220,6 +220,9 @@ pub(crate) fn expected_uses(
         O::ByteSequenceRead { index, length, .. }
         | O::StructuralByteSequenceFieldRead { index, length, .. } => vec![*index, *length],
         O::ElementViewRead { index, length, .. } => vec![*index, *length],
+        O::EstablishByteSequenceConcatenation { left, right, .. } => {
+            vec![left.length(), right.length()]
+        }
         O::StructuralByteSequenceFieldStore { length, .. } => vec![*length],
         O::ByteSequenceWrite {
             index,

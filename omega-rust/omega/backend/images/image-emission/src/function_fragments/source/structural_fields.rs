@@ -371,6 +371,7 @@ pub(super) fn replacement_retained(
 /// The runtime copy has two exact span rows; metadata publication follows it.
 /// These rows account for the effect, not a substitute for instruction replay.
 pub(super) fn replacement_footprints_retained(
+    function: &AbstractFunction,
     operation: &AbstractOperation,
     accesses: &[selected_instructions::SelectedMemoryAccess],
 ) -> bool {
@@ -412,9 +413,14 @@ pub(super) fn replacement_footprints_retained(
     else {
         return false;
     };
+    // Owned concatenations use the same inline layout as bounded fields;
+    // borrowed descriptor sources account for their backing from offset zero.
+    let source_byte_offset = if function.operations.iter().any(|operation| {
+        matches!(operation, AbstractOperation::EstablishByteSequenceConcatenation { result, .. } if result.place == *source)
+    }) { 8 } else { 0 };
     read.place == *source
         && read.byte_count == 0
-        && read.byte_offset == 0
+        && read.byte_offset == source_byte_offset
         && read_length == *length
         && read_obligation == *obligation
         && write.place == *destination

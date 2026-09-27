@@ -327,6 +327,7 @@ fn classify_operation(kind: &OperationKind) -> TerminalTraceV1OperationClassific
         | OperationKind::EstablishStructuralCase { .. }
         | OperationKind::EstablishScalarArray { .. }
         | OperationKind::EstablishZeroedStructural { .. }
+        | OperationKind::EstablishByteSequenceConcatenation { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }
         | OperationKind::ByteSequenceLength { .. }
         | OperationKind::ByteSequenceRead { .. }

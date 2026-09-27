@@ -62,7 +62,7 @@ pub(super) fn create(
     }
     // Rejoin the original descriptor load or the already replayed parent view.
     // No proposed operand can assert its own backing identity.
-    let backing = backing_pointer(replay, row, *source)?;
+    let backing = backing_pointer(function, replay, row, *source)?;
     let parent = replay
         .transport
         .views

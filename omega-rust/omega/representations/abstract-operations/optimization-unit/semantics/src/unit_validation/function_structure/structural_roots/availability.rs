@@ -21,7 +21,8 @@ pub(crate) fn validate_structural_place_availability(
         }
         for (node_index, node) in block.nodes.iter().enumerate() {
             let place = match &node.operation {
-                O::EstablishPrimitiveLocal { result, .. }
+                O::EstablishByteSequenceConcatenation { result, .. }
+                | O::EstablishPrimitiveLocal { result, .. }
                 | O::ByteSequenceSubslice { result, .. }
                 | O::EstablishScalarArray { result, .. }
                 | O::EstablishCase { result, .. }
@@ -86,6 +87,9 @@ pub(crate) fn validate_structural_place_availability(
 
 pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
     let mut inputs = match operation {
+        O::EstablishByteSequenceConcatenation { left, right, .. } => {
+            vec![left.source(), right.source()]
+        }
         O::EstablishCase { fields, .. } | O::EstablishRecord { fields, .. } => fields
             .iter()
             .filter_map(|initializer| match &initializer.value {

@@ -185,3 +185,6 @@ pub(super) const ATOMIC_ACCESS: u8 = 93;
 
 /// `OperationKind::EstablishZeroedStructural`.
 pub(super) const ESTABLISH_ZEROED_STRUCTURAL: u8 = 94;
+
+/// `OperationKind::EstablishByteSequenceConcatenation`.
+pub(super) const ESTABLISH_BYTE_SEQUENCE_CONCATENATION: u8 = 95;

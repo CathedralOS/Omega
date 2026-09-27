@@ -665,7 +665,7 @@ impl OperationFrame<'_, '_> {
         // Only a roster this body owns may gain the generated literal-view
         // carrier; the store below rejects a published roster without it.
         if let StructuralTypeRoster::Owned(types) = &mut self.structural_types {
-            crate::emission::structural_byte_sequence_store::literal_view_type(types)?;
+            crate::emission::structural_byte_sequence_store::prepare_types(store, types)?;
         }
         let kind = crate::emission::structural_byte_sequence_store::emit(
             store,

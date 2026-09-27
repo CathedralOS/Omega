@@ -379,3 +379,71 @@ fn mixed_math_guard_substitutes_only_cited_endpoints_and_representable_literals(
         assert_ne!(missing, Proposition::LessThan(field.clone(), literal(12)));
     }
 }
+
+#[test]
+fn concatenated_live_length_sum_uses_only_cited_integer_equations() {
+    use semantic_vocabulary::IntegerMathTerm;
+    let (context, _, _) = fixture();
+    let embedded = |identity| IntegerMathTerm::MathValue {
+        source_type: integer_type(),
+        value: ValueId::new(identity).unwrap(),
+    };
+    let goal = Proposition::IntegerMathLessOrEqual(
+        IntegerMathTerm::Add(Box::new(embedded(1)), Box::new(embedded(2))),
+        IntegerMathTerm::literal(IntegerValue::Signed(8)),
+    );
+    let equations = vec![
+        Proposition::Equal(value(1), literal(3)),
+        Proposition::Equal(value(2), literal(4)),
+    ];
+    let expected = Proposition::IntegerMathLessOrEqual(
+        IntegerMathTerm::Add(
+            Box::new(IntegerMathTerm::literal(IntegerValue::Signed(3))),
+            Box::new(IntegerMathTerm::literal(IntegerValue::Signed(4))),
+        ),
+        IntegerMathTerm::literal(IntegerValue::Signed(8)),
+    );
+    assert_eq!(
+        super::check_value_equality_denotation(&context, &goal, &equations).unwrap(),
+        expected
+    );
+    assert_ne!(
+        super::check_value_equality_denotation(&context, &goal, &equations[..1]).unwrap(),
+        expected
+    );
+    let nested = vec![
+        Proposition::Equal(
+            value(1),
+            ScalarTerm::exact_integer_add(integer_type(), value(3), literal(1)).unwrap(),
+        ),
+        Proposition::Equal(value(3), literal(2)),
+        equations[1].clone(),
+    ];
+    let transported = super::check_value_equality_denotation(&context, &goal, &nested).unwrap();
+    let expected_nested = Proposition::IntegerMathLessOrEqual(
+        IntegerMathTerm::Add(
+            Box::new(IntegerMathTerm::Add(
+                Box::new(IntegerMathTerm::literal(IntegerValue::Signed(2))),
+                Box::new(IntegerMathTerm::literal(IntegerValue::Signed(1))),
+            )),
+            Box::new(IntegerMathTerm::literal(IntegerValue::Signed(4))),
+        ),
+        IntegerMathTerm::literal(IntegerValue::Signed(8)),
+    );
+    assert_eq!(transported, expected_nested);
+    crate::decide_primitive(
+        &context,
+        &transported,
+        PrimitiveJudgment::ClosedIntegerRelation,
+    )
+    .unwrap();
+    let wrapped = vec![
+        Proposition::Equal(value(1), sum(value(3), literal(1))),
+        equations[1].clone(),
+    ];
+    let transported = super::check_value_equality_denotation(&context, &goal, &wrapped).unwrap();
+    let Proposition::IntegerMathLessOrEqual(IntegerMathTerm::Add(left, _), _) = transported else {
+        panic!("exact mathematical sum")
+    };
+    assert_eq!(*left, embedded(1));
+}

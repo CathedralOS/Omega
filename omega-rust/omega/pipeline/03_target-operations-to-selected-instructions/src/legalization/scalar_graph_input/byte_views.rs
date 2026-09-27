@@ -262,6 +262,26 @@ pub(super) fn validate(
             }
             return Err(LegalizationError::custody());
         }
+        if let Some((producer, structural_type)) = owned_concatenation(optimized, place.id) {
+            if place.kind
+                != (semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                    producer,
+                    structural_type,
+                })
+                || !plan.structural_types.iter().any(|declaration| {
+                    declaration.id == structural_type
+                        && matches!(
+                            declaration.shape,
+                            terminal_psi::StructuralTypeShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                            )
+                        )
+                })
+            {
+                return Err(LegalizationError::custody());
+            }
+            continue;
+        }
         if let Some((producer, result)) = super::structural_case::source_result(optimized, place.id)
             .ok()
             .filter(|(producer, _)| {
@@ -447,4 +467,31 @@ pub(super) fn contains_view(
         || function.blocks.iter().flat_map(|block| &block.nodes).any(|node|
             matches!(&node.operation, AbstractOperation::ByteSequenceSubslice { result, .. } | AbstractOperation::ElementViewSubslice { result, .. } if result.place == place)
             || matches!(&node.operation, AbstractOperation::EstablishElementView { destination, .. } if *destination == place))
+}
+
+pub(in crate::legalization) fn owned_concatenation(
+    function: &PsiOptimizationFunction,
+    place: semantic_vocabulary::PlaceId,
+) -> Option<(
+    semantic_vocabulary::OperationId,
+    semantic_vocabulary::StructuralTypeId,
+)> {
+    function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            AbstractOperation::EstablishByteSequenceConcatenation {
+                psi_operation,
+                result,
+                ..
+            } if result.place == place => Some((*psi_operation, result.structural_type)),
+            _ => None,
+        })
+}
+pub(super) fn contains_readable_bytes(
+    function: &PsiOptimizationFunction,
+    place: semantic_vocabulary::PlaceId,
+) -> bool {
+    contains_view(function, place) || owned_concatenation(function, place).is_some()
 }

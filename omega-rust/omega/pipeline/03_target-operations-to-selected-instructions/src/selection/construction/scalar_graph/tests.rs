@@ -10,6 +10,7 @@ use selected_instructions::{SelectedFixedInputConstraint, SelectedTerminator};
 mod boolean_equality;
 mod boolean_values;
 mod borrowed_calls;
+mod byte_concatenation;
 mod byte_input;
 mod byte_output;
 mod byte_views;

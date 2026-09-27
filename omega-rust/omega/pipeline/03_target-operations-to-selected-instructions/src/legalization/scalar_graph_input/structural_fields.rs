@@ -40,7 +40,8 @@ pub(in crate::legalization) fn replacement(
             .content_entry_claims
             .iter()
             .any(|claim| claim.input.root == *destination || Some(claim.input.root) == source)
-        || source.is_some_and(|source| !super::byte_views::contains_view(function, source))
+        || source
+            .is_some_and(|source| !super::byte_views::contains_readable_bytes(function, source))
     {
         return None;
     }

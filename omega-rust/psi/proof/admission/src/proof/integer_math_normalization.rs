@@ -136,7 +136,7 @@ pub(crate) fn lift_exact_integer_relation(
 /// let the kernel's open-term normalization decide their identities. Every
 /// other constructor keeps its existing carrier or opaque denotation: nothing
 /// wrapping, saturating, trapping, divided or shifted is reinterpreted here.
-fn lift_exact_integer_term(term: &ScalarTerm) -> Option<IntegerMathTerm> {
+pub(crate) fn lift_exact_integer_term(term: &ScalarTerm) -> Option<IntegerMathTerm> {
     match term {
         ScalarTerm::ExactIntegerAdd {
             scalar_type,

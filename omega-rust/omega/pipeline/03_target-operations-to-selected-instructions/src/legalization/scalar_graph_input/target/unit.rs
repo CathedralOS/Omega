@@ -317,6 +317,26 @@ pub(super) fn validate_operation(
             ));
         }
         (
+            TargetUnitOperation::EstablishByteSequenceConcatenation {
+                psi_operation,
+                result,
+                left,
+                right,
+                capacity_obligation,
+            },
+            AbstractOperation::EstablishByteSequenceConcatenation {
+                psi_operation: expected_operation,
+                result: expected_result,
+                left: expected_left,
+                right: expected_right,
+                capacity_obligation: expected_obligation,
+            },
+        ) if psi_operation == expected_operation
+            && result == expected_result
+            && left == expected_left
+            && right == expected_right
+            && capacity_obligation == expected_obligation => {}
+        (
             TargetUnitOperation::StructuralByteSequenceFieldStore {
                 psi_operation,
                 destination,

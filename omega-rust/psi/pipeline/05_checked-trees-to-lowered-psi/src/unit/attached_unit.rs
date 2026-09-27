@@ -305,19 +305,15 @@ pub(crate) fn lower_unit_closure(
     // Callable composed bodies borrow a complete shared catalog. Retain the
     // generated immutable carrier before cloning it into any callee emitter.
     for machine_symbol in &closure {
-        if UnitBody::find(plans, *machine_symbol)?
-            .operations()
-            .any(|operation| {
-                matches!(
-                    operation,
-                    CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
-                )
-            })
-        {
-            crate::emission::structural_byte_sequence_store::literal_view_type(
-                &mut structural_types,
-            )?;
-            break;
+        for operation in UnitBody::find(plans, *machine_symbol)?.operations() {
+            if let CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) =
+                operation
+            {
+                crate::emission::structural_byte_sequence_store::prepare_types(
+                    store,
+                    &mut structural_types,
+                )?;
+            }
         }
     }
     let wrapper_domains = scalar_callees::wrapper_domains(&checked_scalar_callees);

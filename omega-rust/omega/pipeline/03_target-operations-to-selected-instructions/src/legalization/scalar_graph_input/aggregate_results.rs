@@ -47,6 +47,7 @@ pub(super) fn uses(function: &PsiOptimizationFunction, plan: &AbstractOperationP
                         | AbstractOperation::StructuralByteSequenceFieldRead { .. }
                         | AbstractOperation::BooleanStructuralField { .. }
                         | AbstractOperation::EstablishScalarArray { .. }
+                        | AbstractOperation::EstablishByteSequenceConcatenation { .. }
                         | AbstractOperation::EstablishRecord { .. }
                         | AbstractOperation::EstablishReference { .. }
                         | AbstractOperation::ReleaseReference { .. }

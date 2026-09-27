@@ -160,6 +160,7 @@ fn admission_route(operation: &AbstractOperation) -> AdmissionRoute {
         | AbstractOperation::ElementViewLength { .. }
         | AbstractOperation::ElementViewRead { .. }
         | AbstractOperation::ElementViewSubslice { .. }
+        | AbstractOperation::EstablishByteSequenceConcatenation { .. }
         | AbstractOperation::EstablishByteSequenceLiteral { .. }
         | AbstractOperation::EstablishElementView { .. }
         | AbstractOperation::EstablishPrimitiveLocal { .. }

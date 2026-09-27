@@ -126,6 +126,19 @@ pub(super) fn register_custody_operation(
         }
         return Ok(true);
     }
+    if let OperationKind::EstablishByteSequenceConcatenation {
+        capacity_obligation,
+        ..
+    } = &operation.kind
+    {
+        super::super::byte_sequence::concatenation::validate(module, machine, operation)?;
+        insert_unique(
+            &mut registry.obligations,
+            *capacity_obligation,
+            ModuleError::DuplicateObligation,
+        )?;
+        return Ok(true);
+    }
     if let OperationKind::EstablishScalarCase { fields, .. } = &operation.kind {
         super::super::scalar::case::fields(module, machine, operation)?;
         for obligation in fields.iter().filter_map(|field| field.range_obligation) {

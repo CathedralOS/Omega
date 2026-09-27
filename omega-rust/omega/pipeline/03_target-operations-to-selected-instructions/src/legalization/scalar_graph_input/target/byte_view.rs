@@ -36,6 +36,16 @@ impl Checker<'_> {
         access: terminal_psi::StructuralAccess,
     ) -> bool {
         match view {
+            TargetByteView::Owned {
+                psi_operation,
+                place,
+                structural_type,
+            } => {
+                access == terminal_psi::StructuralAccess::SharedBorrow
+                    && *place == source
+                    && super::super::byte_views::owned_concatenation(self.optimized, source)
+                        == Some((*psi_operation, *structural_type))
+            }
             TargetByteView::Literal {
                 psi_operation,
                 place,

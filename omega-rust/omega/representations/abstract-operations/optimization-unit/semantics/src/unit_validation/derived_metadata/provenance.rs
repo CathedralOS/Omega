@@ -40,6 +40,7 @@ pub(crate) fn expected_provenance(
         | O::StoreDynamicDescriptor { psi_operation, .. }
         | O::EstablishScalarArray { psi_operation, .. }
         | O::EstablishCase { psi_operation, .. }
+        | O::EstablishByteSequenceConcatenation { psi_operation, .. }
         | O::EstablishByteSequenceLiteral { psi_operation, .. }
         | O::EstablishTrivialAffineLocal { psi_operation, .. }
         | O::EstablishZeroedStructural { psi_operation, .. }

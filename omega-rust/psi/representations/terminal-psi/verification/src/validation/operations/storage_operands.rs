@@ -315,3 +315,21 @@ pub(super) fn validate_structural_scalar_field_store(
     }
     Ok(())
 }
+
+pub(super) fn validate_byte_sequence_concatenation(
+    operation: &terminal_psi::Operation,
+    left: ValueId,
+    right: ValueId,
+    value_types: &BTreeMap<ValueId, ScalarType>,
+    defined: &BTreeSet<ValueId>,
+) -> Result<(), ModuleError> {
+    let expected =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"));
+    for operand in [left, right] {
+        require_defined(operand, value_types, defined)?;
+        if value_types[&operand] != expected {
+            return Err(ModuleError::InvalidByteSequenceConcatenation(operation.id));
+        }
+    }
+    Ok(())
+}

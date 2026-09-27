@@ -356,6 +356,7 @@ pub(super) fn lower(
         | OperationKind::EstablishScalarCase { .. }
         | OperationKind::EstablishStructuralCase { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }
+        | OperationKind::EstablishByteSequenceConcatenation { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }
         | OperationKind::EstablishZeroedStructural { .. }
         | OperationKind::EstablishRecord { .. } => structural_establishment::lower(

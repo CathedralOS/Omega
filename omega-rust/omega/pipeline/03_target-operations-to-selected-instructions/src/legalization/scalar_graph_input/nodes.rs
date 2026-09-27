@@ -41,6 +41,7 @@ pub(in crate::legalization) fn admit(
     if let AbstractOperation::ByteSequenceSubslice { psi_operation, .. }
     | AbstractOperation::ElementViewSubslice { psi_operation, .. }
     | AbstractOperation::EstablishElementView { psi_operation, .. }
+    | AbstractOperation::EstablishByteSequenceConcatenation { psi_operation, .. }
     | AbstractOperation::EstablishRecord { psi_operation, .. }
     | AbstractOperation::EstablishReference { psi_operation, .. }
     | AbstractOperation::ReleaseReference { psi_operation, .. }
@@ -504,6 +505,36 @@ pub(super) fn validate(
             }
             continue;
         }
+        if let AbstractOperation::EstablishByteSequenceConcatenation {
+            psi_operation,
+            result: output,
+            left,
+            right,
+            ..
+        } = &node.operation
+        {
+            if result.is_some()
+                || !node.definitions.is_empty()
+                || output.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+                || !output.claims.is_empty()
+                || !output.qualifications.is_empty()
+                || !output.projected_qualifications.is_empty()
+                || [left, right].iter().any(|operand| {
+                    value_type(optimized, operand.length()) != Some(ScalarType::Integer(u64_type()))
+                })
+                || !optimized.structural_places.iter().any(|place| {
+                    place.id == output.place
+                        && place.kind
+                            == (semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                                producer: *psi_operation,
+                                structural_type: output.structural_type,
+                            })
+                })
+            {
+                return Err(LegalizationError::custody());
+            }
+            continue;
+        }
         if let AbstractOperation::ByteSequenceSubslice {
             source,
             start,
@@ -788,7 +819,7 @@ pub(super) fn validate(
                 length,
                 ..
             } => {
-                if !super::byte_views::contains_view(optimized, *source)
+                if !super::byte_views::contains_readable_bytes(optimized, *source)
                     || value_type(optimized, *index) != Some(ScalarType::Integer(u64_type()))
                     || value_type(optimized, *length) != Some(ScalarType::Integer(u64_type()))
                 {
@@ -797,7 +828,7 @@ pub(super) fn validate(
                 ScalarType::Integer(u8_type())
             }
             AbstractOperation::ByteSequenceLength { source, .. } => {
-                if !super::byte_views::contains_view(optimized, *source) {
+                if !super::byte_views::contains_readable_bytes(optimized, *source) {
                     return Err(LegalizationError::custody());
                 }
                 ScalarType::Integer(u64_type())

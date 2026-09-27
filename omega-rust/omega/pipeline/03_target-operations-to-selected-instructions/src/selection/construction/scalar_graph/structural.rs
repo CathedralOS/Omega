@@ -22,6 +22,7 @@ mod block_views;
 mod entry;
 pub(super) use block_views::block_entry;
 pub(super) use entry::entry;
+mod byte_concatenation;
 mod byte_field_read;
 mod byte_field_store;
 mod byte_views;
@@ -194,6 +195,13 @@ pub(super) fn operation(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     builder: &mut Builder<'_>,
 ) -> Result<bool, SelectedInstructionError> {
+    if matches!(
+        row.kind,
+        LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation { .. }
+    ) {
+        byte_concatenation::establish(source, builder, row)?;
+        return Ok(true);
+    }
     if matches!(
         row.kind,
         LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore { .. }

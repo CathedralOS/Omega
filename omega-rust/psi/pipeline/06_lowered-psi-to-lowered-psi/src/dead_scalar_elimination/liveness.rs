@@ -208,6 +208,9 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
             values.extend([*index, *value, *length]);
         }
         O::StructuralByteSequenceFieldStore { length, .. } => values.push(*length),
+        O::EstablishByteSequenceConcatenation { left, right, .. } => {
+            values.extend([left.length(), right.length()]);
+        }
         O::ByteSequenceRead { index, length, .. }
         | O::StructuralByteSequenceFieldRead { index, length, .. } => {
             values.extend([*index, *length])

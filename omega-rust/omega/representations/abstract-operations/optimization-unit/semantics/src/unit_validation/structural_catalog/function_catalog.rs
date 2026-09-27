@@ -139,7 +139,8 @@ pub(crate) fn validate_function_structural_catalog(
                         .any(|node| {
                             matches!(
                                 &node.operation,
-                                O::EstablishPrimitiveLocal { psi_operation, result, .. }
+                                O::EstablishByteSequenceConcatenation { psi_operation, result, .. }
+                                | O::EstablishPrimitiveLocal { psi_operation, result, .. }
                                 | O::ByteSequenceSubslice { psi_operation, result, .. }
                                 | O::EstablishElementView {
                                     psi_operation,
@@ -246,7 +247,8 @@ pub(crate) fn validate_function_structural_catalog(
     }
     for node in function.blocks.iter().flat_map(|block| &block.nodes) {
         let structural_result = match &node.operation {
-            O::EstablishPrimitiveLocal { result, .. }
+            O::EstablishByteSequenceConcatenation { result, .. }
+            | O::EstablishPrimitiveLocal { result, .. }
             | O::ByteSequenceSubslice { result, .. }
             | O::EstablishScalarArray { result, .. }
             | O::EstablishCase { result, .. }
@@ -282,7 +284,12 @@ pub(crate) fn validate_function_structural_catalog(
             // tuple compressed into ReturnStructural. Their one-to-one
             // recognition is validated together below.
             O::EstablishTrivialAffineLocal { .. } => None,
-            O::EstablishPrimitiveLocal {
+            O::EstablishByteSequenceConcatenation {
+                psi_operation,
+                result,
+                ..
+            }
+            | O::EstablishPrimitiveLocal {
                 psi_operation,
                 result,
                 ..

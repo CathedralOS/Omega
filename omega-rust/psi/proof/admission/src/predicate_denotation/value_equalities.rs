@@ -66,8 +66,28 @@ impl<'input> ValueEqualities<'input> {
             Proposition::IntegerMathEqual(left, right)
             | Proposition::IntegerMathLessThan(left, right)
             | Proposition::IntegerMathLessOrEqual(left, right) => {
-                // MathValue embeds this exact typed scalar value. Rejoin only
-                // leaf endpoints; compound mathematical arithmetic stays intact.
+                // Mathematical constructors preserve exact integer denotation.
+                // Substitute only cited typed values beneath them, without
+                // reinterpreting wrapped or otherwise partial scalar images.
+                if matches!(
+                    left,
+                    IntegerMathTerm::Add(..)
+                        | IntegerMathTerm::Subtract(..)
+                        | IntegerMathTerm::Multiply(..)
+                        | IntegerMathTerm::ShiftLeft { .. }
+                ) || matches!(
+                    right,
+                    IntegerMathTerm::Add(..)
+                        | IntegerMathTerm::Subtract(..)
+                        | IntegerMathTerm::Multiply(..)
+                        | IntegerMathTerm::ShiftLeft { .. }
+                ) {
+                    *left = self.mathematical(left, budget, depth + 1)?;
+                    *right = self.mathematical(right, budget, depth + 1)?;
+                    return Ok(transported);
+                }
+                // Leaf comparisons can also rejoin scalar field observations.
+                // MathValue embeds this exact typed scalar value.
                 let carrier = [&*left, &*right].into_iter().find_map(|term| match term {
                     IntegerMathTerm::MathValue { source_type, .. } => Some(*source_type),
                     _ => None,
@@ -112,6 +132,50 @@ impl<'input> ValueEqualities<'input> {
             | Proposition::Atom(_) => {}
         }
         Ok(transported)
+    }
+
+    fn mathematical(
+        &self,
+        original: &IntegerMathTerm,
+        budget: &mut Budget,
+        depth: usize,
+    ) -> Result<IntegerMathTerm, PredicateDenotationError> {
+        budget.step(depth)?;
+        Ok(match original {
+            IntegerMathTerm::MathValue { source_type, value } => {
+                let scalar = self.scalar(
+                    &ScalarTerm::value(*value, ScalarType::Integer(*source_type)),
+                    budget,
+                    depth + 1,
+                    &mut Vec::new(),
+                )?;
+                // Reuse the kernel's exact fixed-carrier denotation. This
+                // includes nested exact sums, but never reinterprets wrapping,
+                // saturating, address, or other opaque scalar constructors.
+                if scalar.scalar_type() != ScalarType::Integer(*source_type) {
+                    return Err(PredicateDenotationError::InvalidValueEquality);
+                }
+                crate::proof::integer_math_normalization::lift_exact_integer_term(&scalar)
+                    .unwrap_or_else(|| original.clone())
+            }
+            IntegerMathTerm::IntegerLiteral(_) => original.clone(),
+            IntegerMathTerm::Add(left, right) => IntegerMathTerm::Add(
+                Box::new(self.mathematical(left, budget, depth + 1)?),
+                Box::new(self.mathematical(right, budget, depth + 1)?),
+            ),
+            IntegerMathTerm::Subtract(left, right) => IntegerMathTerm::Subtract(
+                Box::new(self.mathematical(left, budget, depth + 1)?),
+                Box::new(self.mathematical(right, budget, depth + 1)?),
+            ),
+            IntegerMathTerm::Multiply(left, right) => IntegerMathTerm::Multiply(
+                Box::new(self.mathematical(left, budget, depth + 1)?),
+                Box::new(self.mathematical(right, budget, depth + 1)?),
+            ),
+            IntegerMathTerm::ShiftLeft { value, count } => IntegerMathTerm::ShiftLeft {
+                value: Box::new(self.mathematical(value, budget, depth + 1)?),
+                count: Box::new(self.mathematical(count, budget, depth + 1)?),
+            },
+        })
     }
 
     fn scalar(

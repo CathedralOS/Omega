@@ -55,7 +55,7 @@ pub(super) fn create(
     if start_type != integer || end_type != integer || length_type != integer {
         return Err(invalid());
     }
-    let backing = backing_pointer(builder, row, *source)?;
+    let backing = backing_pointer(function, builder, row, *source)?;
     let parent = builder
         .transport
         .views

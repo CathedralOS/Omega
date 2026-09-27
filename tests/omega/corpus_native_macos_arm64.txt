@@ -941,8 +941,7 @@ pass/text/runtime_alias_string_write rejected 223ms
 	native-artifact Terminal production failed: Lowering(Unsupported("projected receiver has no exact parameter root"))
 pass/text/runtime_bounded_carrier_alias_concat_exit rejected 461ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: parameter path` (state 0, statement 2)
-pass/text/runtime_bounded_carrier_concat_exit rejected 487ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: byte sequence carrier` (state 0, statement 1)
+pass/text/runtime_bounded_carrier_concat_exit built 1302ms exit:70
 pass/text/runtime_bounded_carrier_length_exit rejected 274ms
 	selected ProgramEntry Binding field `Main::console` requires a selected Fused provider for boundary `Console`
 pass/text/runtime_bounded_carrier_write_read_exit built 638ms exit:70

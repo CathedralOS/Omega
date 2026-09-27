@@ -638,6 +638,12 @@ pub(super) fn validate(
             actual, node, optimized, plan, unit, operation,
         )?,
         (
+            LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation { .. },
+            AbstractOperation::EstablishByteSequenceConcatenation { .. },
+        ) => storage_instructions::validate_byte_sequence_concatenation(
+            actual, node, optimized, unit,
+        )?,
+        (
             LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { .. },
             AbstractOperation::StructuralByteSequenceFieldStore { .. },
         ) => storage_instructions::validate_structural_byte_sequence_field_store(
@@ -658,12 +664,20 @@ pub(super) fn validate(
         (
             LegalizedScalarInstructionKind::ByteSequenceLength {
                 source,
-                length_byte_offset: 8,
+                length_byte_offset,
             },
             AbstractOperation::ByteSequenceLength {
                 source: expected, ..
             },
-        ) if source == expected => {}
+        ) if source == expected
+            && *length_byte_offset
+                == if scalar_graph_input::byte_views::owned_concatenation(optimized, *source)
+                    .is_some()
+                {
+                    0
+                } else {
+                    8
+                } => {}
         (
             LegalizedScalarInstructionKind::BooleanNot { operand },
             AbstractOperation::BooleanNot {

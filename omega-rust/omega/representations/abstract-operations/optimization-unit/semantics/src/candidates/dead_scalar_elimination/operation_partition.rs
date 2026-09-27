@@ -52,6 +52,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::AtomicEvent { .. }
         | O::EstablishScalarArray { .. }
         | O::EstablishCase { .. }
+        | O::EstablishByteSequenceConcatenation { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishZeroedStructural { .. }

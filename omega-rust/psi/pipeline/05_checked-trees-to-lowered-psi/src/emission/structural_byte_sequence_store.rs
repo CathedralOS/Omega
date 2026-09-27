@@ -8,6 +8,9 @@ use super::{
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 
+use checked_trees::{CheckedByteSequenceValue as ByteValue, CheckedByteSequenceValuePlan};
+use terminal_psi::control_flow::ByteSequenceOperand;
+
 const LITERAL_VIEW_IDENTITY: &str = "compiler(byte-sequence-literal-view)";
 
 /// Shared callees must use the closure's existing carrier, not allocate one.
@@ -58,10 +61,146 @@ pub(crate) fn validate_assignment(
     if source.root != parameter.symbol || source.path != path {
         return unsupported("byte-field store destination differs from its authored place");
     }
-    if !matches!(checked.expression_table.expression(assignment.value),
-        checked_trees::expression::ExpressionNode::String(bytes) if bytes.as_ref() == store.bytes.as_slice())
-    {
-        return unsupported("byte-field store literal differs from its authored value");
+    validate_value(
+        checked,
+        machine,
+        state_symbol,
+        assignment.value,
+        &store.value,
+        store.value.root,
+        0,
+    )?;
+    Ok(())
+}
+
+fn validate_value(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state_symbol: symbols::SymbolHandle,
+    expression: checked_trees::expression::ExpressionHandle,
+    plan: &CheckedByteSequenceValuePlan,
+    node: arena::Handle<ByteValue>,
+    depth: usize,
+) -> Result<(), LoweringError> {
+    use checked_trees::expression::{BinaryOperator, ExpressionNode};
+    if depth > 128 || !plan.nodes.iter().any(|(identity, _)| identity == node) {
+        return unsupported("byte value plan has an invalid child");
+    }
+    match (
+        plan.nodes.get(node),
+        checked.expression_table.expression(expression),
+    ) {
+        (ByteValue::Literal(expected), ExpressionNode::String(actual))
+            if actual.as_ref() == expected.as_slice() =>
+        {
+            Ok(())
+        }
+        (ByteValue::Concatenation { left, right, .. }, ExpressionNode::Binary(binary))
+            if binary.operator == BinaryOperator::Add
+                && checked
+                    .facts
+                    .operators
+                    .expression_use(expression)
+                    .is_none_or(|selected| {
+                        selected.status
+                            == checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+                    }) =>
+        {
+            validate_value(
+                checked,
+                machine,
+                state_symbol,
+                binary.left,
+                plan,
+                *left,
+                depth + 1,
+            )?;
+            validate_value(
+                checked,
+                machine,
+                state_symbol,
+                binary.right,
+                plan,
+                *right,
+                depth + 1,
+            )
+        }
+        (
+            ByteValue::Field {
+                parameter_position,
+                carrier_path,
+                field_identity,
+                ..
+            },
+            _,
+        ) => {
+            let (_, state) = crate::expression_preparation::source_custody::authored_state(
+                checked,
+                state_symbol,
+            )?;
+            let source =
+                crate::emission::call_source_custody::projected_receivers::store_destination(
+                    checked,
+                    machine,
+                    state_symbol,
+                    None,
+                    expression,
+                )?;
+            let parameter = checked
+                .state_parameters(state)
+                .get(*parameter_position as usize)
+                .ok_or(LoweringError::Unsupported("byte value parameter is absent"))?;
+            let mut path = carrier_path.clone();
+            path.push(CheckedUnitStructuralPathSegment::Field(
+                field_identity.clone(),
+            ));
+            if source.root != parameter.symbol || source.path != path {
+                return unsupported("byte value field differs from its authored place");
+            }
+            Ok(())
+        }
+        _ => unsupported("byte value differs from its authored expression"),
+    }
+}
+
+/// Generated owned carriers are shared by capacity, independently of live extent.
+pub(crate) fn prepare_types(
+    store: &checked_trees::CheckedStructuralByteSequenceFieldStorePlan,
+    types: &mut Vec<StructuralTypeDeclaration>,
+) -> Result<(), LoweringError> {
+    literal_view_type(types)?;
+    for (_, node) in store.value.nodes.iter() {
+        if let ByteValue::Concatenation { capacity, .. } = node {
+            let identity = format!("compiler(byte-sequence-owned:{capacity})");
+            let shape = StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BoundedOwned {
+                    capacity: *capacity,
+                },
+            );
+            if let Some(existing) = types
+                .iter()
+                .find(|candidate| candidate.identity == identity)
+            {
+                if existing.shape != shape {
+                    return unsupported("generated owned byte carrier has a different shape");
+                }
+            } else {
+                let ordinal = types
+                    .iter()
+                    .map(|candidate| candidate.id.get())
+                    .max()
+                    .unwrap_or(0)
+                    .checked_add(1)
+                    .ok_or(LoweringError::Unsupported(
+                        "owned byte type identity overflow",
+                    ))?;
+                types.push(StructuralTypeDeclaration {
+                    id: structural_type_id(ordinal),
+                    identity,
+                    shape,
+                });
+            }
+        }
     }
     Ok(())
 }
@@ -134,52 +273,23 @@ pub(crate) fn emit(
     else {
         return unsupported("byte-field store destination is not bounded owned bytes");
     };
-    if u64::try_from(store.bytes.len())
-        .ok()
-        .is_none_or(|length| length > capacity)
-    {
-        return unsupported("byte-field store literal exceeds capacity");
-    }
     let field = field.id;
+    let (operand, _) = ValueEmitter {
+        plan: &store.value,
+        parameters,
+        structural_types,
+        places: literal_places,
+        next_place,
+        next_value,
+        next_obligation,
+        operations,
+    }
+    .emit(store.value.root, 0)?;
+    let ByteSequenceOperand::Whole { source, length } = operand else {
+        return unsupported("whole field replacement requires a materialized byte value");
+    };
+    let _ = capacity; // The field replacement's own obligation proves the receiving bound.
     operations.invalidate_field_lengths_under(parameter.place, &path);
-    let structural_type = existing_literal_view_type(structural_types)?;
-    let source = place_id(allocate_dense(next_place)?);
-    let declaration_ordinal = super::next_byte_sequence_literal_ordinal(literal_places)?;
-    literal_places.push(StructuralPlaceDeclaration {
-        id: source,
-        kind: StructuralPlaceKind::ByteSequenceLiteral {
-            declaration_ordinal,
-            structural_type,
-        },
-    });
-    let id = operations.allocate();
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id,
-        result: OperationResult::Unit,
-        kind: OperationKind::EstablishByteSequenceLiteral {
-            destination: source,
-            bytes: store.bytes.clone(),
-            // A stored literal is not a call argument, so no check-admitted
-            // domains replay onto it; qualification evidence belongs to
-            // literal argument occurrences only.
-            qualifications: Vec::new(),
-        },
-    });
-    let length = value_id(allocate_dense(next_value)?);
-    let id = operations.allocate();
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id,
-        result: OperationResult::Scalar(ValueDeclaration {
-            qualifications: Default::default(),
-            id: length,
-            scalar_type: terminal_scalar_type(PrimitiveType::U64)?,
-        }),
-        kind: OperationKind::ByteSequenceLength { source },
-    });
     Ok(OperationKind::StructuralByteSequenceFieldStore {
         destination: parameter.place,
         path,
@@ -188,6 +298,197 @@ pub(crate) fn emit(
         length,
         obligation: obligation_id(allocate_dense(next_obligation)?),
     })
+}
+
+struct ValueEmitter<'input> {
+    plan: &'input CheckedByteSequenceValuePlan,
+    parameters: &'input [StructuralParameterDeclaration],
+    structural_types: &'input [StructuralTypeDeclaration],
+    places: &'input mut Vec<StructuralPlaceDeclaration>,
+    next_place: &'input mut u64,
+    next_value: &'input mut u64,
+    next_obligation: &'input mut u64,
+    operations: &'input mut OperationBuffer,
+}
+
+impl ValueEmitter<'_> {
+    fn length(
+        &mut self,
+        kind: OperationKind,
+    ) -> Result<semantic_vocabulary::ValueId, LoweringError> {
+        let length = value_id(allocate_dense(self.next_value)?);
+        let id = self.operations.allocate();
+        self.operations.push(Operation {
+            id,
+            kind,
+            static_reach_binding: None,
+            suspension_crossing: None,
+            result: OperationResult::Scalar(ValueDeclaration {
+                id: length,
+                scalar_type: terminal_scalar_type(PrimitiveType::U64)?,
+                qualifications: Default::default(),
+            }),
+        });
+        Ok(length)
+    }
+
+    fn emit(
+        &mut self,
+        node: arena::Handle<ByteValue>,
+        depth: usize,
+    ) -> Result<(ByteSequenceOperand, u64), LoweringError> {
+        if depth > 128 || !self.plan.nodes.iter().any(|(identity, _)| identity == node) {
+            return unsupported("byte value plan has an invalid child");
+        }
+        match self.plan.nodes.get(node) {
+            ByteValue::Literal(bytes) => {
+                let structural_type = existing_literal_view_type(self.structural_types)?;
+                let source = place_id(allocate_dense(self.next_place)?);
+                let declaration_ordinal = super::next_byte_sequence_literal_ordinal(self.places)?;
+                self.places.push(StructuralPlaceDeclaration {
+                    id: source,
+                    kind: StructuralPlaceKind::ByteSequenceLiteral {
+                        declaration_ordinal,
+                        structural_type,
+                    },
+                });
+                let id = self.operations.allocate();
+                self.operations.push(Operation {
+                    id,
+                    static_reach_binding: None,
+                    suspension_crossing: None,
+                    result: OperationResult::Unit,
+                    kind: OperationKind::EstablishByteSequenceLiteral {
+                        destination: source,
+                        bytes: bytes.clone(),
+                        qualifications: Vec::new(),
+                    },
+                });
+                let capacity = u64::try_from(bytes.len())
+                    .map_err(|_| LoweringError::Unsupported("byte literal length overflow"))?;
+                let length = self.length(OperationKind::ByteSequenceLength { source })?;
+                Ok((ByteSequenceOperand::Whole { source, length }, capacity))
+            }
+            ByteValue::Field {
+                parameter_position,
+                carrier_path,
+                field_identity,
+                capacity,
+            } => {
+                let parameter = self
+                    .parameters
+                    .iter()
+                    .find(|parameter| parameter.position == *parameter_position)
+                    .ok_or(LoweringError::Unsupported("byte value parameter is absent"))?;
+                if !matches!(
+                    parameter.access,
+                    terminal_psi::StructuralAccess::SharedBorrow
+                        | terminal_psi::StructuralAccess::MutableBorrow
+                ) || !parameter.qualifications.is_empty()
+                    || !parameter.projected_qualifications.is_empty()
+                {
+                    return unsupported("byte value parameter has no ordinary read authority");
+                }
+                let (path, field) =
+                    crate::emission::structural_scalar_store::lower_structural_field_path(
+                        parameter.structural_type,
+                        carrier_path,
+                        field_identity,
+                        self.structural_types,
+                    )?;
+                if field.field_type
+                    != StructuralFieldType::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned {
+                            capacity: *capacity,
+                        },
+                    )
+                {
+                    return unsupported("byte value field has a different carrier");
+                }
+                let source = terminal_psi::StructuralArgument {
+                    place: parameter.place,
+                    path: path.clone(),
+                    access: terminal_psi::StructuralAccess::SharedBorrow,
+                };
+                let field = field.id;
+                // Observe at this operand's evaluation point. Later effects cannot
+                // retroactively supply this source's extent or content custody.
+                let length = self.length(OperationKind::StructuralByteSequenceFieldLength {
+                    source: source.place,
+                    path,
+                    field,
+                })?;
+                Ok((
+                    ByteSequenceOperand::Field {
+                        source,
+                        field,
+                        length,
+                    },
+                    *capacity,
+                ))
+            }
+            ByteValue::Concatenation {
+                left,
+                right,
+                capacity,
+            } => {
+                let (left, left_capacity) = self.emit(*left, depth + 1)?;
+                let (right, right_capacity) = self.emit(*right, depth + 1)?;
+                if left_capacity.checked_add(right_capacity) != Some(*capacity) {
+                    return unsupported(
+                        "byte concatenation capacity differs from operand carriers",
+                    );
+                }
+                let identity = format!("compiler(byte-sequence-owned:{capacity})");
+                let structural_type = self
+                    .structural_types
+                    .iter()
+                    .find(|candidate| {
+                        candidate.identity == identity
+                            && candidate.shape
+                                == StructuralTypeShape::ByteSequence(
+                                    terminal_psi::ByteSequenceCarrier::BoundedOwned {
+                                        capacity: *capacity,
+                                    },
+                                )
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "owned byte carrier absent from shared catalog",
+                    ))?
+                    .id;
+                let source = place_id(allocate_dense(self.next_place)?);
+                let id = self.operations.allocate();
+                self.places.push(StructuralPlaceDeclaration {
+                    id: source,
+                    kind: StructuralPlaceKind::OperationResult {
+                        producer: id,
+                        structural_type,
+                    },
+                });
+                self.operations.push(Operation {
+                    id,
+                    static_reach_binding: None,
+                    suspension_crossing: None,
+                    result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                        place: source,
+                        structural_type,
+                        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        qualification_establishments: Vec::new(),
+                        claims: Vec::new(),
+                    }),
+                    kind: OperationKind::EstablishByteSequenceConcatenation {
+                        left,
+                        right,
+                        capacity_obligation: obligation_id(allocate_dense(self.next_obligation)?),
+                    },
+                });
+                let length = self.length(OperationKind::ByteSequenceLength { source })?;
+                Ok((ByteSequenceOperand::Whole { source, length }, *capacity))
+            }
+        }
+    }
 }
 
 #[cfg(test)]

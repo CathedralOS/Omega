@@ -407,6 +407,9 @@ fn select_function(
                     | LegalizedScalarInstructionKind::BoundarySettlement(_)
                     | LegalizedScalarInstructionKind::NormalizedForeignCall(_)
                     | LegalizedScalarInstructionKind::DynamicParameterCall(_)
+                    | LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
+                        ..
+                    }
                     | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
                     | LegalizedScalarInstructionKind::ByteSequenceSubslice { .. }
                     | LegalizedScalarInstructionKind::EstablishElementView { .. }

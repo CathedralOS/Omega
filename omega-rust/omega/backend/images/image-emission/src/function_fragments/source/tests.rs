@@ -136,3 +136,71 @@ fn ieee_literal_publication_requires_unique_operation_value_type_and_bits() {
         }
     }
 }
+
+#[test]
+fn concatenation_publication_retains_ordered_sources_result_and_bound() {
+    use semantic_vocabulary::{ObligationId, PlaceId, StructuralTypeId};
+    use terminal_psi::control_flow::ByteSequenceOperand;
+    let operation = OperationId::new(1).unwrap();
+    let result = terminal_psi::StructuralOperationResult {
+        qualification_establishments: Vec::new(),
+        place: PlaceId::new(3).unwrap(),
+        structural_type: StructuralTypeId::new(1).unwrap(),
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        claims: Vec::new(),
+    };
+    let left = ByteSequenceOperand::Whole {
+        source: PlaceId::new(1).unwrap(),
+        length: ValueId::new(1).unwrap(),
+    };
+    let right = ByteSequenceOperand::Whole {
+        source: PlaceId::new(2).unwrap(),
+        length: ValueId::new(2).unwrap(),
+    };
+    let obligation = ObligationId::new(1).unwrap();
+    let abstracted = AbstractOperation::EstablishByteSequenceConcatenation {
+        psi_operation: operation,
+        result: result.clone(),
+        left: left.clone(),
+        right: right.clone(),
+        capacity_obligation: obligation,
+    };
+    let target = TargetUnitOperation::EstablishByteSequenceConcatenation {
+        psi_operation: operation,
+        result,
+        left,
+        right,
+        capacity_obligation: obligation,
+    };
+    assert!(requires_graph_storage_replay(std::slice::from_ref(
+        &abstracted
+    )));
+    assert!(super::byte_concatenation_retained(&abstracted, [&target]));
+    assert!(!super::byte_concatenation_retained(
+        &abstracted,
+        [&target, &target]
+    ));
+    let mut changed = target.clone();
+    if let TargetUnitOperation::EstablishByteSequenceConcatenation { left, right, .. } =
+        &mut changed
+    {
+        std::mem::swap(left, right);
+    }
+    assert!(!super::byte_concatenation_retained(&abstracted, [&changed]));
+    let mut changed = target.clone();
+    if let TargetUnitOperation::EstablishByteSequenceConcatenation {
+        capacity_obligation,
+        ..
+    } = &mut changed
+    {
+        *capacity_obligation = ObligationId::new(2).unwrap();
+    }
+    assert!(!super::byte_concatenation_retained(&abstracted, [&changed]));
+    let mut changed = target;
+    if let TargetUnitOperation::EstablishByteSequenceConcatenation { result, .. } = &mut changed {
+        result.place = PlaceId::new(4).unwrap();
+    }
+    assert!(!super::byte_concatenation_retained(&abstracted, [&changed]));
+}

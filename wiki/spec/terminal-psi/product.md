@@ -2,7 +2,8 @@
 
 This is the current portable-product contract, independent of the implementation
 language. The [documentation index](../../README.md) lists its vocabulary subjects.
-[Boundary calls](boundary_calls.md), [byte views](byte_views.md), and
+[Boundary calls](boundary_calls.md), [byte views](byte_views.md),
+[structural access and owned byte values](structural_access.md), and
 [observations](observations.md), [calls and outcomes](calls_and_outcomes.md), and
 [verification](verification.md) have their
 own references. [Mathematical proof values](mathematical_values.md) and

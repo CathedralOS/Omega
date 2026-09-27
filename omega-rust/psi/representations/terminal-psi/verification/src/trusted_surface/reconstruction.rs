@@ -386,7 +386,7 @@ static FACT_BYTE_EXTENT_LENGTH: TrustedSurfaceEntry = TrustedSurfaceEntry {
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
     premises: "a byte-sequence operation or structural byte-sequence field whose validated extent is known",
-    conclusion: "the length equation and, for a structural byte-sequence field store, the length-at-most-capacity obligation",
+    conclusion: "the exact length equation and the declaration-derived capacity obligation for owned concatenation or structural byte-field replacement",
     dependencies: &[
         "fact:structural-effect-observation",
         "formation:operation-validation",
@@ -396,6 +396,7 @@ static FACT_BYTE_EXTENT_LENGTH: TrustedSurfaceEntry = TrustedSurfaceEntry {
         OPERATION_FACTS,
         "omega-rust/psi/representations/terminal-psi/verification/src/validation/structural/byte_sequence_fields.rs",
         "omega-rust/psi/representations/terminal-psi/semantics/src/structural_effect/byte_extent.rs",
+        "omega-rust/psi/representations/terminal-psi/semantics/src/byte_sequence_concatenation.rs",
     ],
     soundness: TRUSTED,
 };
