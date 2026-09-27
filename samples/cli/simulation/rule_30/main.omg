@@ -39,7 +39,7 @@ machine Main::main(&mut self) reaches Console {
         transition self.i >= 0 && self.i < 31 { true -> render_cell() _ -> emit() }
     }
     state render_cell(&mut self) {
-        self.b = self.cells >> self.i;
+        self.b = (self.cells >> self.i) as u64;
         transition self.b % 2 == 1 { true -> mark() _ -> blank() }
     }
     // A host call kills carried facts: re-guard the index before incrementing.

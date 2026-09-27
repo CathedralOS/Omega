@@ -36,8 +36,8 @@ machine Main::main(&mut self) reaches Console {
         }
     }
     state proc(&mut self) {
-        self.d = self.digits[self.r];
-        self.par = self.r % 2;
+        self.d = self.digits[self.r] as i32 in Wrapping;
+        self.par = (self.r % 2) as i32 in Wrapping;
         transition self.par == 1 {
             true -> double_it()
             false -> accumulate()
