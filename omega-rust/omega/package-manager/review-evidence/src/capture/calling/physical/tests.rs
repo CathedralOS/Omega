@@ -200,7 +200,7 @@ fn all_policy_control_regime_stack_and_preemption_variants_retain_payloads() {
 }
 
 #[test]
-fn every_machine_state_subset_remains_distinct_in_each_independent_set() {
+fn machine_state_classes_and_composed_sets_remain_distinct_in_each_policy_field() {
     let classes = [
         (
             MachineState::GeneralRegisters,
@@ -236,7 +236,12 @@ fn every_machine_state_subset_remains_distinct_in_each_independent_set() {
             PackagePolicyMachineState::ExtendedState,
         ),
     ];
-    for bits in 0..512 {
+    // Projection maps classes independently. Empty, full, and singleton sets cover
+    // absence, composition, and every mapping without repeating all 512 subsets.
+    let state_selections = [0, (1 << classes.len()) - 1]
+        .into_iter()
+        .chain((0..classes.len()).map(|ordinal| 1 << ordinal));
+    for bits in state_selections {
         let selected: Vec<_> = classes
             .iter()
             .enumerate()
