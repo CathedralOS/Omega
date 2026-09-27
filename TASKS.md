@@ -666,275 +666,6 @@ evidence carriers without an exercising program. The
 [Rust compiler completion plan](wiki/drafts/reference/rust_compiler_completion.md) defines
 the complete product bar; focused successes below do not establish that baseline.
 
-- **CANONICALIZE-SCALAR-RANGE-CONTRACTS.** Complete the settled
-  [proposition-based scalar range contract](wiki/spec/language/domains.md#declaration-and-membership)
-  and [generic inference rule](wiki/spec/language/generics.md).
-  Common fields use data `where`, payloads use case `where`, machine/state
-  parameters use `requires`, results use `ensures`, and locals use facts
-  established by initializers, guards and calls. Remove integer and float
-  `T [lo..hi]` / `T [lo..=hi]` suffixes after their customers migrate.
-  Ordinary ranges, slices, arrays and bracketed multiplicity remain distinct.
-
-  Prioritize bundled-library, sample and Squalr customers that unblock complete
-  programs. Finish each customer's proposition transport and execution before
-  moving to the next group; parser deletion is the final migration step.
-  A domain retained by a migration must have an independently meaningful
-  nominal identity, semantic contribution or establishment route, explained in
-  the change. Endpoint-named or interval-only replacement domains are invalid
-  even when they compile and execute. Preserve independently used domain/proof
-  improvements; equal predicates do not merge domain identities.
-
-  Complete a history-derived declaration inventory using the
-  [migration recipe](wiki/drafts/designs/range_suffix_migration.md), including
-  follow-ups and unlisted edits made under the old blanket premise. Starting
-  revisions: `8f93c866a3`, `2c3c2aec00`, `b9b68383c9`, `cc36490282`,
-  `3531aaa098`, `e0a884138f`, `2ef59d385a`, `c4d2776b1f`, `c5621e66ac`,
-  `fc0fc2dcab`, `c5688363ec`, `f1d6e31013`, `9e3355b562`, `db4f9f9140`,
-  `2858366bdb`, plus sample migrations `24d91ed906` / `7917a536d4` and
-  library migration `c1303f89d4`. Record original/current spelling, owning
-  position (field, payload, parameter, result, local, generic shell or static
-  use), and restoration, contract correction or independent reason for
-  retention. Include bare fields whose bounds were removed because inferred
-  loop bounds happened to make native execution pass. A suffix grep or passing
-  replacement alone cannot establish preservation of the original contract.
-
-  Reuse current canonical controls: `collections/runtime_argmax_index_exit`,
-  `collections/runtime_nested_const_row_indexed_read_exit`,
-  `arithmetic/runtime_guard_narrowed_transition_arg_exit` and
-  `arithmetic/runtime_exact_guarded_shift_count_exit` use `where` /
-  `requires` and have recorded macOS native outcomes. Named-state
-  `rank_range_declared_step_copies` / `rank_range_call_declared_step_copy`
-  also use `requires`; their old missing-arrival diagnosis is not a current
-  assignment. `proven_predicates_grant_domain` in
-  `checks/contracts/calls.rs` already admits supported predicate-only
-  memberships from live statement-call/guard premises, with stale-write and
-  routed-domain controls. Do not rebuild that route or weaken its refusals.
-
-  Remaining migration and verification work, with capability repairs under
-  their existing owners:
-
-  - Carry field/case propositions through construction, nonliteral and indexed
-    writes, reads/index proofs, calls, state joins, mutable recasts and returns.
-    Preserve exact subjects, invalidation and invariant-window closure.
-    **NOMINAL-FIELD-FLOW**, **RECAST-SOURCE-POSITIONS** and
-    **STATE-LOCAL-VALUE-FRONTIER** own the respective transport/execution.
-    Re-drive the canonical forms of `core/zii_default_composite_exit`,
-    `collections/runtime_dutch_flag_partition_exit`,
-    `calls/runtime_mutable_call_before_transition_args_exit` and the
-    `recast/runtime_*_mutable_write_exit` family, plus the historical sample
-    field migrations. Recorded failures now include later lowering stops;
-    reproduce before attributing them to proposition checking.
-
-  - Carry guarded immutable-local, guarded-field, nested-call-result and
-    destructured-payload facts into ordinary `requires`; carry entry premises
-    into arithmetic formation of `ensures`, and state results into the
-    enclosing machine's postconditions. Customers include
-    `calls/runtime_dispatch_binary_call_argument_exit`,
-    `calls/nested_value_call_arg_compile`,
-    `arithmetic/anonymous_rational_arguments`,
-    `proofs/accumulator_guarantee_exit` and
-    `termination/ranked_callee_projected_receiver_compile`.
-    Some already use canonical clauses but still need end-to-end execution;
-    the projected-receiver fixture still has result/parameter suffixes.
-    **STATE-LOCAL-VALUE-FRONTIER** owns composed calls;
-    **TERMINATION-RANKING-CHECKS** owns ranked-cycle evidence.
-    A mutable parameter's `requires` constrains its arrival, whereas its old
-    suffix was store-enforced: re-prove every dependent read after a write,
-    using `termination/rank_range_mutable_bounded_endpoint` and negative
-    mutation controls. Update `include_str!` fixtures and string-rewrite
-    probes together in `tests/termination/rank_ranges/`; preserve their
-    intended proof obligation rather than leave a replacement silently inert.
-
-  - Finish the library leg: `source/library/core/numeric_conversion.omg`
-    still publishes suffixed widening results; `std/console.omg` retains
-    the `ByteRead::Byte` payload and state-parameter suffixes;
-    `std/time.omg` retains subsecond fields/locals and constant constructions.
-    Transport cast/postcondition, active-payload and constant-construction
-    facts through the canonical clauses. Preserve the
-    `host/runtime_console_bounded_line_exit` input/output/exit behavior.
-    Migrate `core/layout.omg` fuel/index contracts, `std/calling.omg`
-    indexed-field obligations and target-entry `field_range` parameters;
-    prove computed `fuel - 1` / `index + 1` arguments and numerically
-    equivalent guards such as `< 255` versus `<= 254`.
-    Re-probe these migrations against current checking, not old failure totals.
-
-  - Retain build-time admission and genuine negative behavior. The
-    `layouts/runtime_plan_laid_erased_field_exit` customer still needs its
-    cross-state index proof. Migrate `fail/wire/wire_policy_plan_disagrees`
-    while preserving its actual plan/schema disagreement rejection; its
-    recorded diagnostic already reaches that mismatch.
-    `comptime/runtime_const_measured_recursion_exit` needs an inductive
-    relational accumulator bound: `acc <= 5050` alone does not justify
-    `acc + n` at the recursive call. Moving that bound into `requires`
-    cannot repair the contract.
-
-  Owners: Rust `type_syntax/parse_type.rs`, syntax/resolved/typed constraint
-  representations, generic matching, checked contract/default-domain facts
-  and their Terminal consumers. The suffix parser and
-  `TypeConstraintNode::Range` remain implemented. Coordinate explicit
-  binders/equations with **STRUCTURAL-GENERIC-MATCHING** /
-  **RUNTIME-VALUE-GENERICS**; flow narrowing must never select specialization
-  or layout identity. Runtime endpoints stay runtime and grant no const value,
-  fixed extent or implicit maximum-sized allocation.
-
-  Acceptance: migrate spec/guide/compiler documentation, bundled libraries,
-  samples, product/compiler source (including `source/psi`), corpus and the
-  Epsilon-written Omega parser `bootstrap/5_omega/parser.epsilon` with its
-  `tests/bootstrap/omega-parser` fixtures. Preserve integer/float construction,
-  call, write, join, return and invalidation behavior through checked source,
-  retained Terminal and source-free replay, plus each customer's native oracle.
-  Use `tools/corpus_gate.py --filter` and its `--native` leg; the ordinary
-  gate may realize rooted fixtures but does not execute them. An explicit
-  matching-host run is required for a runtime claim. Reject invalid bounds,
-  unproved arguments, stale facts, incompatible carriers and runtime bounds
-  used as static layout values. After the inventory is accounted for, delete
-  suffix parsing, Range type representations, range-shell inference and
-  suffix-recommending diagnostics; require suffix rejection in every type
-  position, preserve the unrelated range constructs, and delete the recipe.
-
-- **SQUALR-HEADLESS.** Run the independently versioned
-  [Squalr application](samples/apps/README.md) through its ordinary nested
-  packages to native geometry, supplied-byte scanning and repeat filtering.
-  Its board owns the essentially 1:1 Rust port; this item owns compiler
-  integration and unchanged application acceptance.
-
-  Restore the acceptance route in `squalr-tests/main.omg` and
-  `squalr-tests/src/command_driver.omg`. The pinned entry skips expansion,
-  ordering and string parsing, leaves the six scalar `FixtureKit` scan/repeat
-  checks disconnected, and prints PASS after seeded snapshot/tombstone checks.
-  Connect those checks and production new-scan, element-scan, repeat, delete
-  and list execution before success. Direct executor helpers do not cover the
-  privileged-command dispatcher. Keep exact address/value and RLE-range oracles,
-  including no/all matches, tails, genuine empty input and overlapping candidates.
-  The current `verify_empty` supplies nonmatching bytes; `verify_overlap` scans
-  one-byte values at stride two. Neither establishes its named edge case.
-
-  True multi-byte overlap also needs production raw-byte storage:
-  `SnapshotRegion::read_current_elements` divides
-  `(base_delta + position * stride)` by element width, repeating decoded values
-  when stride is smaller than width. Preserve byte coverage separately from
-  candidate stride and growable output. The command fixture's eight-byte-spaced
-  oracle needs explicit `Alignment8`; retain production's `Alignment1` default.
-
-  Restore the real foreign-package `Optional<T>` APIs for `ScanFunctionScalar`
-  and `SnapshotRegionFilter`. Stage 04's `case_payload_transfer` in
-  `execution/terminal_unit/state_graph/mod.rs` still only forwards an existing
-  shared-reference payload to a shared successor; add the checked loan of a
-  selected owned affine payload subtree. Boolean-plus-payload or package-local
-  sum replacements do not close that customer. Ordinary marker-data namespaces
-  need no language decision. Reproduce the restored application on the current
-  compiler before assigning any further source-signature or structural-argument
-  failure: old diagnostics and expired claims are not current blockers.
-
-  Preserve Windows and Linux ARM64 geometry, `set_alignment`, parsing/refusal
-  and error-text parity, native clone/serialization of case-bearing alignment,
-  and token/named ordering agreement: order by base, equal-base order equivalence,
-  size-sensitive `equals`. Apply settled assertion/build contracts to Rust's
-  debug assertions. Windows byte output still needs an admitted native route:
-  `HostedWriteByteI32Realization` selects `HostedIntrinsicBundle`, whose current
-  profiles exclude Windows despite std's declared `write_byte` provider.
-
-  Run `python3 samples/apps/squalr/tools/verify.py native --target linux_x86_64
-  --timeout 600 --omega <binary>` with Python 3.11+ and ordinary package review
-  on Linux x86-64; the pinned entry and filesystem/time providers target Linux.
-  The harness checks the host and calls `omega run --keep` without a compiler
-  `--target` flag, since that flag only emits. Acceptance requires actual exit 0
-  with `Squalr geometry: PASS` after the restored checks, plus exact scan/repeat
-  addresses and ranges matching pinned Rust and independent expected cases.
-  Preserve the 17-package/37-edge layout and verification harness; record compiler,
-  std, application and upstream pins and host. Layout checks, source checking,
-  Terminal publication and cross-emission do not establish execution.
-
-  Connect **VEC-NATIVE-GROWTH** to partitioned scan output and repeat filtering;
-  **BUMP-ALLOCATOR-CANARY** and **PLAN-LAID-VIEWS** supply backing and placed access.
-  Follow the application's next missing operation without waiting for every
-  related task to close. Keep growable storage, shared snapshots and the full
-  port contract; no Rust FFI scanner, fixed-capacity substitute, pull-only
-  workaround or application-specific compiler behavior. Artifact production keeps
-  [conditional loading premises](wiki/spec/build/component_publication.md#products-and-authority),
-  without a fabricated runtime installation grant or mandatory Rust supervisor.
-  **CHECK-CLOSURE-ONCE** owns repeated checking: reuse only exact inputs and
-  authority receipts, keep live runs to a verdict, and record timeout separately
-  from source rejection.
-
-- **VEC-NATIVE-GROWTH.** (split-of:BUMP-ALLOCATOR-CANARY) Implement ordinary
-  library `Vec<T>` for Squalr's growable scan results under the
-  [allocation contract](wiki/spec/resources/allocation.md). Owners are
-  `source/library/core/vec.omg`, `source/library/alloc/vec.omg`, and the ordinary
-  compiler operations exercised by that source.
-
-  Core's generic storage/construction surface remains empty. The alloc package
-  now has a nongeneric `Vec` containing inline `u32` arrays of length 4, 8 and 16:
-  growth copies between those fixed fields, rejection returns zero without
-  requesting storage, and close clears tag/length without consuming custody.
-  This is a bounded copying witness, not allocator-backed growth or indirection.
-  `pass/collections/runtime_vec_u32_growth_exit` records macOS native exit 70,
-  but manually copies backing fields and accepts repeated close. Its weighted
-  failure exit also needs a verdict that cannot lose high bits at process exit.
-  The duplicate-cleanup and invalidated-loan fail fixtures use separate local
-  types; preserve their controls and exercise the actual library implementation.
-
-  Acceptance: native `Vec<u32>` takes explicit backing, appends through two
-  growths through allocation, verifies the preserved prefix and new elements, cleans up
-  exactly once and returns backing under the allocator contract. Cover empty
-  cleanup, real allocation failure preserving contents/custody, invalidated
-  loans and duplicate cleanup. Transfer exact element custody and explicitly
-  return or retain old backing; variable retained storage requires indirection,
-  not an infinitely recursive inline record or compiler-owned vector/Arena.
-
-  **BUMP-ALLOCATOR-CANARY** owns allocation/returned extents;
-  **PLAN-LAID-VIEWS** owns establishment/access/retirement;
-  **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS** owns content-preserving
-  transfer; **BORROWED-STORAGE-RESTORATION** owns move-out/replace when needed.
-  Keep the source program through checking, interpretation and native execution,
-  then use that same implementation in Squalr.
-
-- **MACOS-APPLICATION-PUBLICATION.** Finish the
-  [macOS publication contract](wiki/spec/build/macos_application.md) for
-  `window_app`, `window_demo` and `windowed_calculator`. The
-  `compilation-report/src/package.rs` assembler and checked bundle accessors
-  already exist; do not build another packager.
-
-  Start with [window_app's ordinary command/review flow](samples/gui/window_app/README.md).
-  Its four intrinsic service fields need exact selected providers for
-  `Console`, `Clock`, `Input` and `Gui`; its authored build currently supplies
-  no explicit provider selections. The historical macOS GUI wrapper is not
-  nominal satisfaction of the sample's traits merely because method names
-  match. Preserve signatures, receiver storage, rendering and effects under
-  [provider selection](wiki/spec/build/provider_selection.md).
-
-  Compiler dependencies: an attachment may now hold several provider fields
-  and scalar-result provider candidates install through Omega stage 00
-  (`runtime_adapter_dispatch_exit` and
-  `runtime_result_domain_requirement_overload_exit` run natively); the
-  remaining provider stop is stage 05's fence on write-only stores and atomic
-  events in opaque provider candidates (`attached_unit/call_catalog.rs`), which
-  needs a verifier-checked judgment that such stores reach only places the
-  requirement's `&mut` parameters expose
-  (`runtime_selected_provider_adapter_exit`). Retain one occurrence-owned concrete
-  provider receiver across calls, including nested services: a Fused receipt
-  establishes service authority, not receiver storage, and
-  `ProviderAttachment` is not an ordinary structural argument.
-  **ENTRY-CONTENT-ROOTS**, **TR3-TR8** and **STATE-LOCAL-VALUE-FRONTIER** own these
-  general repairs. No global provider state or weakened occurrence matching.
-  Unverified candidate: `swarm/macw5-macos-app-pub` contains scalar-result
-  provider selection and nested call-source custody work. Review it against
-  the multi-provider receiver requirement before reuse.
-
-  Acceptance: all three authored apps publish a validated `.app` and execute
-  on macOS ARM64 with observed window/render and completion behavior. Test-owned
-  package acceptance and brief process survival do not prove ordinary review,
-  rendering or Finder launch. Keep identifier requiredness, deterministic
-  bytes, cross-invocation publication, tamper/partial-output rejection and flat
-  outputs covered by `compilation-report` and
-  `compiler --test build_target_activation -E 'test(activation_identifiers_and_publication)'`.
-  Run `mbx nextest run -p compiler --test native_filesystem_canaries --no-fail-fast --no-tests fail -E 'test(gui_and_sample_apps::sample_window)'`;
-  unavailable macOS hardware leaves runtime acceptance open.
-  **PCC-PRODUCT-PUBLICATION** owns the native sidecar's
-  `Incomplete(UnsupportedEvidence)`; retain bundle placement coverage when it
-  closes. Resources and `image_viewer` bundle-relative lookup are outside v1;
-  do not silently change working directories.
-
 - **STATE-LOCAL-VALUE-FRONTIER.** Complete ordinary expression, call and
   storage composition through checked plans, source-free Terminal replay and
   native execution. Preserve the
@@ -1344,55 +1075,145 @@ the complete product bar; focused successes below do not establish that baseline
   Preserve coverage guards and valid accepted-language programs; attribution,
   repinned refusals and checked-only substitutions do not close execution work.
 
-- **TERMINATION-RANKING-CHECKS.** Finish exact rank-range transport under the
-  [termination contract](wiki/spec/language/termination.md). Owners:
-  `04_typed-trees-to-checked-trees/src/checks/termination/ranking/`,
-  validation's `proof_contracts/contract_entailment/ranking_range/`, and
-  `machine_calls/call_cycles/runtime_ranking/`.
+- **SQUALR-HEADLESS.** Run the independently versioned
+  [Squalr application](samples/apps/README.md) through its ordinary nested
+  packages to native geometry, supplied-byte scanning and repeat filtering.
+  Its board owns the essentially 1:1 Rust port; this item owns compiler
+  integration and unchanged application acceptance.
 
-  - Extend non-polynomial actual-argument substitution beyond supported
-    quotient/remainder endpoints. Integer-division terms now install on
-    actuals at every scalar call-actual consumer
-    (`prove_ranking_range_call`, `endpoint_pins::argument_sources`,
-    `requirements.rs::prove`, `saved_arguments::install`); saved let-locals
-    remain inadmissible as call-component actuals (a separate feature).
-    Reuse `OpaqueTerm::{ShiftLeft,ShiftRight,BitwiseAnd}` and
-    `install_nonpolynomial_terms`, preserving count-within-width obligations,
-    floor-division semantics for signed `>>`, and two's-complement `&` bounds.
-    Recheck constituent operations at each exact
-    arrival; cancellation, equal intervals and unoriented disequality do not
-    establish divisor validity, absence of overflow or subject identity.
-    The independent interval-only fallback still requires one state.
-    Reuse `rank_ranges/{field_endpoint_arithmetic,call_components}.rs` and
-    stored-reference arrival/reseating controls; mixed-component inputs need
-    actual correspondence and conservation evidence. Preserve formation, exact
-    arrival correspondence and complete write-frame checks.
-  - Replace residual rank-role discovery limits with explicit arrival
-    correspondence. Do not rebuild already-supported nested carriers, moved
-    scalar/slice/record copies or produced rank facts; an arbitrary decreasing
-    copy or shared nominal type is not the ranked value.
-    Publish/run the unchanged named-state `compiler/tests/rank_remainder_endpoints.rs`
-    and stored-exclusive `rank_endpoint_borrows.rs` customers natively.
-    Their checked-interpreter routes exist; native scalar plans/signatures and
-    loop headers distinct from entry remain dependencies on
-    **STATE-LOCAL-VALUE-FRONTIER**.
-  - Complete rank-preserving boundary/requirement call handling using selected
-    execution/write contracts. Signature-only callees (boundary/requirement/
-    admitted/external) now frame caller-visible writes from their selected
-    signature contract rather than an empty body summary, and rank-prefix bars
-    admit callees whose complete frame is disjoint from protected carriers.
-    Direct and composed checked-body call initializers already
-    preserve entry facts through `call_tree_initializer_preserves_entry`;
-    mutable writes to protected premise carriers must continue to reject.
+  Restore the acceptance route in `squalr-tests/main.omg` and
+  `squalr-tests/src/command_driver.omg`. The pinned entry skips expansion,
+  ordering and string parsing, leaves the six scalar `FixtureKit` scan/repeat
+  checks disconnected, and prints PASS after seeded snapshot/tombstone checks.
+  Connect those checks and production new-scan, element-scan, repeat, delete
+  and list execution before success. Direct executor helpers do not cover the
+  privileged-command dispatcher. Keep exact address/value and RLE-range oracles,
+  including no/all matches, tails, genuine empty input and overlapping candidates.
+  The current `verify_empty` supplies nonmatching bytes; `verify_overlap` scans
+  one-byte values at stride two. Neither establishes its named edge case.
 
-  Acceptance: named-state and mutually recursive call components check, lower
-  and execute with exact subject/view/range identity, including subordinate calls
-  needing the range and projected/borrowed ranks beside unrelated computation.
-  Changed endpoints, stale copies, direct/nested-call writes, overflowing
-  intermediates and nondecreasing cycles reject. Preserve the
-  private-witness/public-guarantee split and descent of every complete call
-  cycle. Start with `src/tests/termination/rank_ranges/` and matching
-  `tests/omega/{pass,fail}/termination/` controls.
+  True multi-byte overlap also needs production raw-byte storage:
+  `SnapshotRegion::read_current_elements` divides
+  `(base_delta + position * stride)` by element width, repeating decoded values
+  when stride is smaller than width. Preserve byte coverage separately from
+  candidate stride and growable output. The command fixture's eight-byte-spaced
+  oracle needs explicit `Alignment8`; retain production's `Alignment1` default.
+
+  Restore the real foreign-package `Optional<T>` APIs for `ScanFunctionScalar`
+  and `SnapshotRegionFilter`. Stage 04's `case_payload_transfer` in
+  `execution/terminal_unit/state_graph/mod.rs` still only forwards an existing
+  shared-reference payload to a shared successor; add the checked loan of a
+  selected owned affine payload subtree. Boolean-plus-payload or package-local
+  sum replacements do not close that customer. Ordinary marker-data namespaces
+  need no language decision. Reproduce the restored application on the current
+  compiler before assigning any further source-signature or structural-argument
+  failure: old diagnostics and expired claims are not current blockers.
+
+  Preserve Windows and Linux ARM64 geometry, `set_alignment`, parsing/refusal
+  and error-text parity, native clone/serialization of case-bearing alignment,
+  and token/named ordering agreement: order by base, equal-base order equivalence,
+  size-sensitive `equals`. Apply settled assertion/build contracts to Rust's
+  debug assertions. Windows byte output still needs an admitted native route:
+  `HostedWriteByteI32Realization` selects `HostedIntrinsicBundle`, whose current
+  profiles exclude Windows despite std's declared `write_byte` provider.
+
+  Run `python3 samples/apps/squalr/tools/verify.py native --target linux_x86_64
+  --timeout 600 --omega <binary>` with Python 3.11+ and ordinary package review
+  on Linux x86-64; the pinned entry and filesystem/time providers target Linux.
+  The harness checks the host and calls `omega run --keep` without a compiler
+  `--target` flag, since that flag only emits. Acceptance requires actual exit 0
+  with `Squalr geometry: PASS` after the restored checks, plus exact scan/repeat
+  addresses and ranges matching pinned Rust and independent expected cases.
+  Preserve the 17-package/37-edge layout and verification harness; record compiler,
+  std, application and upstream pins and host. Layout checks, source checking,
+  Terminal publication and cross-emission do not establish execution.
+
+  Connect **VEC-NATIVE-GROWTH** to partitioned scan output and repeat filtering;
+  **BUMP-ALLOCATOR-CANARY** and **PLAN-LAID-VIEWS** supply backing and placed access.
+  Follow the application's next missing operation without waiting for every
+  related task to close. Keep growable storage, shared snapshots and the full
+  port contract; no Rust FFI scanner, fixed-capacity substitute, pull-only
+  workaround or application-specific compiler behavior. Artifact production keeps
+  [conditional loading premises](wiki/spec/build/component_publication.md#products-and-authority),
+  without a fabricated runtime installation grant or mandatory Rust supervisor.
+  **CHECK-CLOSURE-ONCE** owns repeated checking: reuse only exact inputs and
+  authority receipts, keep live runs to a verdict, and record timeout separately
+  from source rejection.
+
+- **VEC-NATIVE-GROWTH.** (split-of:BUMP-ALLOCATOR-CANARY) Implement ordinary
+  library `Vec<T>` for Squalr's growable scan results under the
+  [allocation contract](wiki/spec/resources/allocation.md). Owners are
+  `source/library/core/vec.omg`, `source/library/alloc/vec.omg`, and the ordinary
+  compiler operations exercised by that source.
+
+  Core's generic storage/construction surface remains empty. The alloc package
+  now has a nongeneric `Vec` containing inline `u32` arrays of length 4, 8 and 16:
+  growth copies between those fixed fields, rejection returns zero without
+  requesting storage, and close clears tag/length without consuming custody.
+  This is a bounded copying witness, not allocator-backed growth or indirection.
+  `pass/collections/runtime_vec_u32_growth_exit` records macOS native exit 70,
+  but manually copies backing fields and accepts repeated close. Its weighted
+  failure exit also needs a verdict that cannot lose high bits at process exit.
+  The duplicate-cleanup and invalidated-loan fail fixtures use separate local
+  types; preserve their controls and exercise the actual library implementation.
+
+  Acceptance: native `Vec<u32>` takes explicit backing, appends through two
+  growths through allocation, verifies the preserved prefix and new elements, cleans up
+  exactly once and returns backing under the allocator contract. Cover empty
+  cleanup, real allocation failure preserving contents/custody, invalidated
+  loans and duplicate cleanup. Transfer exact element custody and explicitly
+  return or retain old backing; variable retained storage requires indirection,
+  not an infinitely recursive inline record or compiler-owned vector/Arena.
+
+  **BUMP-ALLOCATOR-CANARY** owns allocation/returned extents;
+  **PLAN-LAID-VIEWS** owns establishment/access/retirement;
+  **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS** owns content-preserving
+  transfer; **BORROWED-STORAGE-RESTORATION** owns move-out/replace when needed.
+  Keep the source program through checking, interpretation and native execution,
+  then use that same implementation in Squalr.
+
+- **MACOS-APPLICATION-PUBLICATION.** Publish and run `window_app`,
+  `window_demo` and `windowed_calculator` under the
+  [macOS application contract](wiki/spec/build/macos_application.md).
+  Reuse `compiler/src/report/{package,compile_report}.rs`: assembly, retained
+  signing identity and checked package/inner-executable accessors already exist.
+
+  The samples now declare nominal GUI/clock/input providers, macOS
+  `provider_defaults` selections and identifiers. Preserve those implementations,
+  signatures, rendering and effects; missing explicit selections in `build.omg`
+  are not evidence that these providers are absent. Complete any remaining
+  general lowering through **ENTRY-CONTENT-ROOTS**, **TR3-TR8** and
+  **STATE-LOCAL-VALUE-FRONTIER**, keeping one occurrence-owned provider receiver
+  across calls and nested services. Fused authority is not receiver storage;
+  do not substitute global state or weaken occurrence matching.
+
+  Stage 05's `attached_unit/call_catalog.rs` still fences write-only stores
+  and atomic events in opaque callable providers. Admit them only with a
+  verifier-checked judgment preserving non-observation and exact access to
+  places exposed by the requirement's mutable parameters. Existing scalar
+  adapter/result-overload native fixtures exercise stateless providers, not
+  these GUI receivers; reproduce each application's current first failure.
+
+  Use [window_app's ordinary command/review flow](samples/gui/window_app/README.md),
+  correcting its stale missing-provider diagnosis. `python3 tools/sample_gate.py
+  --filter gui/window_app,gui/window_demo,gui/windowed_calculator --cli <binary>`
+  supplies a focused check, not native acceptance. All three authored apps must
+  publish validated `.app` output and execute on macOS ARM64 with observed
+  windows/rendering, input/close behavior and completion (`window_demo`: 60
+  frames, exit 0). Exercise Finder launch separately. A two-second process
+  survival check or test-owned package acceptance does not prove these outcomes.
+
+  Preserve identifier requiredness and signature/plist/retained-identity agreement,
+  deterministic bytes, publication in a separate invocation without frontend
+  state, checked root/inner-path correspondence, tamper/extra/partial-output
+  rejection and unchanged flat outputs. The old `build_target_activation` and
+  `native_filesystem_canaries` targets were deleted; restore their relevant
+  customers through current gates, not commands for absent targets.
+  Requested native `.proof` placement already exists; its bounded
+  `Incomplete(UnsupportedEvidence)` ceiling belongs to **PCC-PRODUCT-PUBLICATION**
+  and does not postpone bundle-placement checks. Record unavailable macOS runtime
+  coverage. Resources and `image_viewer` bundle-relative lookup remain outside v1;
+  do not silently change working directories.
 
 - **CHECK-CLOSURE-ONCE.** (new-scope) Make a std-importing `omega --check`
   invocation check the library once across package discovery, binding and
@@ -1422,6 +1243,176 @@ the complete product bar; focused successes below do not establish that baseline
   and check timing counters; distinguish memo requests from executed checks.
   Changed sources or authority must still revalidate. Profile residual costs
   against that current route rather than treating historical timings as a gate.
+
+- **TERMINATION-RANKING-CHECKS.** Carry exact rank/endpoint evidence through
+  ordinary calls, named states and native execution under the
+  [termination contract](wiki/spec/language/termination.md). Owners: stage 04's
+  `checks/termination/ranking/`, validation's
+  `proof_contracts/contract_entailment/ranking_range/` and
+  `machine_calls/call_cycles/runtime_ranking/`.
+
+  Quotient/remainder, left/right shift and bitwise-AND actuals already use
+  `install_nonpolynomial_terms`; `rank_ranges/{call_components,field_endpoint_arithmetic}.rs`
+  checks exact substitution, nested operations, shift widths, signed floor-shift
+  and two's-complement mask bounds. Ordinary callee requirements accept stable
+  saved locals; recursive-component checks still reject local names in
+  `meanings::builtin`. Extend that route to
+  saved values with exact binding-time identity and write/exposure invalidation.
+
+  Replace residual unique-carrier discovery limits with explicit arrival
+  correspondence. Reuse existing nested carriers, moved scalar/slice/record
+  copies and produced rank facts; a same-typed or merely decreasing copy is not
+  the ranked value. Mixed ranged/unranged components need actual correspondence
+  and endpoint conservation. Recheck formation at every arrival: cancellation,
+  equal intervals or unoriented disequality do not prove divisor validity,
+  overflow freedom or identity. The independent interval-only fallback still
+  requires one state; it cannot bypass arrival proofs.
+
+  Recover executable customers from `rank_remainder_endpoints` and
+  `rank_endpoint_borrows` (deleted in `c60792d7bdd`) as ordinary corpus entries:
+  a named-state countdown with reordered, preserved `cap % divisor` endpoints,
+  and a countdown whose bound is reached through a stored exclusive reference.
+  Require checking, interpretation and native result 0, including loops whose
+  header differs from entry and projected/borrowed ranks beside other work.
+  Checked fixtures and the deleted direct-recursive native test do not establish
+  those outcomes. **STATE-LOCAL-VALUE-FRONTIER** owns general realization gaps.
+
+  Preserve selected-signature write frames for boundary/requirement/admitted/
+  external calls, and disjoint-frame checks for direct, nested and composed
+  initializers; `prefix_let_call_bindings_keep_the_call_frame_bar` already checks
+  requirement reads versus exclusive writes. Execute those cases through the
+  same provider contracts. Changed endpoints, stale copies, protected-carrier
+  writes, overflowing intermediates and nondecreasing cycles must reject.
+  Retain the private-witness/public-guarantee split, exact subject/view/range
+  identity, subordinate-call obligations and descent on every complete mutual
+  call cycle. Use `python3 tools/corpus_gate.py --filter termination/` and its interpreter
+  and matching-host native legs; checked-only records do not close this task.
+
+- **CANONICALIZE-SCALAR-RANGE-CONTRACTS.** Complete the settled
+  [proposition-based scalar range contract](wiki/spec/language/domains.md#declaration-and-membership)
+  and [generic inference rule](wiki/spec/language/generics.md).
+  Common fields use data `where`, payloads use case `where`, machine/state
+  parameters use `requires`, results use `ensures`, and locals use facts
+  established by initializers, guards and calls. Remove integer and float
+  `T [lo..hi]` / `T [lo..=hi]` suffixes after their customers migrate.
+  Ordinary ranges, slices, arrays and bracketed multiplicity remain distinct.
+
+  Prioritize bundled-library, sample and Squalr customers that unblock complete
+  programs. Finish each customer's proposition transport and execution before
+  moving to the next group; parser deletion is the final migration step.
+  A domain retained by a migration must have an independently meaningful
+  nominal identity, semantic contribution or establishment route, explained in
+  the change. Endpoint-named or interval-only replacement domains are invalid
+  even when they compile and execute. Preserve independently used domain/proof
+  improvements; equal predicates do not merge domain identities.
+
+  Complete a history-derived declaration inventory using the
+  [migration recipe](wiki/drafts/designs/range_suffix_migration.md), including
+  follow-ups and unlisted edits made under the old blanket premise. Starting
+  revisions: `8f93c866a3`, `2c3c2aec00`, `b9b68383c9`, `cc36490282`,
+  `3531aaa098`, `e0a884138f`, `2ef59d385a`, `c4d2776b1f`, `c5621e66ac`,
+  `fc0fc2dcab`, `c5688363ec`, `f1d6e31013`, `9e3355b562`, `db4f9f9140`,
+  `2858366bdb`, plus sample migrations `24d91ed906` / `7917a536d4` and
+  library migration `c1303f89d4`. Record original/current spelling, owning
+  position (field, payload, parameter, result, local, generic shell or static
+  use), and restoration, contract correction or independent reason for
+  retention. Include bare fields whose bounds were removed because inferred
+  loop bounds happened to make native execution pass. A suffix grep or passing
+  replacement alone cannot establish preservation of the original contract.
+
+  Reuse current canonical controls: `collections/runtime_argmax_index_exit`,
+  `collections/runtime_nested_const_row_indexed_read_exit`,
+  `arithmetic/runtime_guard_narrowed_transition_arg_exit` and
+  `arithmetic/runtime_exact_guarded_shift_count_exit` use `where` /
+  `requires` and have recorded macOS native outcomes. Named-state
+  `rank_range_declared_step_copies` / `rank_range_call_declared_step_copy`
+  also use `requires`; their old missing-arrival diagnosis is not a current
+  assignment. `proven_predicates_grant_domain` in
+  `checks/contracts/calls.rs` already admits supported predicate-only
+  memberships from live statement-call/guard premises, with stale-write and
+  routed-domain controls. Do not rebuild that route or weaken its refusals.
+
+  Remaining migration and verification work, with capability repairs under
+  their existing owners:
+
+  - Carry field/case propositions through construction, nonliteral and indexed
+    writes, reads/index proofs, calls, state joins, mutable recasts and returns.
+    Preserve exact subjects, invalidation and invariant-window closure.
+    **NOMINAL-FIELD-FLOW**, **RECAST-SOURCE-POSITIONS** and
+    **STATE-LOCAL-VALUE-FRONTIER** own the respective transport/execution.
+    Re-drive the canonical forms of `core/zii_default_composite_exit`,
+    `collections/runtime_dutch_flag_partition_exit`,
+    `calls/runtime_mutable_call_before_transition_args_exit` and the
+    `recast/runtime_*_mutable_write_exit` family, plus the historical sample
+    field migrations. Recorded failures now include later lowering stops;
+    reproduce before attributing them to proposition checking.
+
+  - Carry guarded immutable-local, guarded-field, nested-call-result and
+    destructured-payload facts into ordinary `requires`; carry entry premises
+    into arithmetic formation of `ensures`, and state results into the
+    enclosing machine's postconditions. Customers include
+    `calls/runtime_dispatch_binary_call_argument_exit`,
+    `calls/nested_value_call_arg_compile`,
+    `arithmetic/anonymous_rational_arguments`,
+    `proofs/accumulator_guarantee_exit` and
+    `termination/ranked_callee_projected_receiver_compile`.
+    Some already use canonical clauses but still need end-to-end execution;
+    the projected-receiver fixture still has result/parameter suffixes.
+    **STATE-LOCAL-VALUE-FRONTIER** owns composed calls;
+    **TERMINATION-RANKING-CHECKS** owns ranked-cycle evidence.
+    A mutable parameter's `requires` constrains its arrival, whereas its old
+    suffix was store-enforced: re-prove every dependent read after a write,
+    using `termination/rank_range_mutable_bounded_endpoint` and negative
+    mutation controls. Update `include_str!` fixtures and string-rewrite
+    probes together in `tests/termination/rank_ranges/`; preserve their
+    intended proof obligation rather than leave a replacement silently inert.
+
+  - Finish the library leg: `source/library/core/numeric_conversion.omg`
+    still publishes suffixed widening results; `std/console.omg` retains
+    the `ByteRead::Byte` payload and state-parameter suffixes;
+    `std/time.omg` retains subsecond fields/locals and constant constructions.
+    Transport cast/postcondition, active-payload and constant-construction
+    facts through the canonical clauses. Preserve the
+    `host/runtime_console_bounded_line_exit` input/output/exit behavior.
+    Migrate `core/layout.omg` fuel/index contracts, `std/calling.omg`
+    indexed-field obligations and target-entry `field_range` parameters;
+    prove computed `fuel - 1` / `index + 1` arguments and numerically
+    equivalent guards such as `< 255` versus `<= 254`.
+    Re-probe these migrations against current checking, not old failure totals.
+
+  - Retain build-time admission and genuine negative behavior. The
+    `layouts/runtime_plan_laid_erased_field_exit` customer still needs its
+    cross-state index proof. Migrate `fail/wire/wire_policy_plan_disagrees`
+    while preserving its actual plan/schema disagreement rejection; its
+    recorded diagnostic already reaches that mismatch.
+    `comptime/runtime_const_measured_recursion_exit` needs an inductive
+    relational accumulator bound: `acc <= 5050` alone does not justify
+    `acc + n` at the recursive call. Moving that bound into `requires`
+    cannot repair the contract.
+
+  Owners: Rust `type_syntax/parse_type.rs`, syntax/resolved/typed constraint
+  representations, generic matching, checked contract/default-domain facts
+  and their Terminal consumers. The suffix parser and
+  `TypeConstraintNode::Range` remain implemented. Coordinate explicit
+  binders/equations with **STRUCTURAL-GENERIC-MATCHING** /
+  **RUNTIME-VALUE-GENERICS**; flow narrowing must never select specialization
+  or layout identity. Runtime endpoints stay runtime and grant no const value,
+  fixed extent or implicit maximum-sized allocation.
+
+  Acceptance: migrate spec/guide/compiler documentation, bundled libraries,
+  samples, product/compiler source (including `source/psi`), corpus and the
+  Epsilon-written Omega parser `bootstrap/5_omega/parser.epsilon` with its
+  `tests/bootstrap/omega-parser` fixtures. Preserve integer/float construction,
+  call, write, join, return and invalidation behavior through checked source,
+  retained Terminal and source-free replay, plus each customer's native oracle.
+  Use `tools/corpus_gate.py --filter` and its `--native` leg; the ordinary
+  gate may realize rooted fixtures but does not execute them. An explicit
+  matching-host run is required for a runtime claim. Reject invalid bounds,
+  unproved arguments, stale facts, incompatible carriers and runtime bounds
+  used as static layout values. After the inventory is accounted for, delete
+  suffix parsing, Range type representations, range-shell inference and
+  suffix-recommending diagnostics; require suffix rejection in every type
+  position, preserve the unrelated range constructs, and delete the recipe.
 
 ## Automatic service reach
 
