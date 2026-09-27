@@ -65,7 +65,11 @@ TRANSPORT_LOW_SPEED_LIMIT = "100"  # bytes/sec; a live transfer exceeds it fast
 TRANSPORT_STALL_SECONDS = "20"
 SSH_TRANSPORT_BOUND = ("ssh -o BatchMode=yes -o ConnectTimeout=10 "
                        "-o ServerAliveInterval=5 -o ServerAliveCountMax=2")
-ITEM_MARKER = re.compile(r"\*\*([A-Za-z0-9][A-Za-z0-9_-]*)\.\*\*")
+# A header may name several items at once ("**A / B.**"); each is a real
+# board item and each must be claimable, so the marker admits the slash
+# form and `board_items` splits it.
+ITEM_MARKER = re.compile(
+    r"\*\*([A-Za-z0-9][A-Za-z0-9_-]*(?:\s*/\s*[A-Za-z0-9][A-Za-z0-9_-]*)*)\.\*\*")
 
 ClaimsError = coordination.CoordinationError
 object_id = coordination.object_id
@@ -137,7 +141,8 @@ def board_items(repository, board):
     path = Path(repository) / board
     if not path.is_file():
         raise ClaimsError(f"Board file {board} not found under {repository}.")
-    return ITEM_MARKER.findall(path.read_text(encoding="utf-8", errors="replace"))
+    markers = ITEM_MARKER.findall(path.read_text(encoding="utf-8", errors="replace"))
+    return [name.strip() for marker in markers for name in marker.split("/")]
 
 
 def expired_claims(record):
