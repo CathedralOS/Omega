@@ -1,0 +1,8 @@
+// The same declaration joins through both dependency scopes. One selected
+// representation must close Copy validation for both checked instances.
+use token;
+
+machine build(builder: &mut Build) {
+    builder.application("opaque_copy_selected");
+    builder.select_representation<Token, TokenRepresentation>();
+}

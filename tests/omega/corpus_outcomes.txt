@@ -294,6 +294,7 @@ pass/data/case_first_payload_zero_established checked 330ms
 pass/data/case_membership_union_guard_exit checked 1802ms
 pass/data/match_exhaustive_by_case_union_domain rejected 770ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: guarded jump successors: roster` (state 0)
+pass/data/opaque_copy_selected checked 170ms
 pass/data/payload_less_case_equality checked 304ms
 pass/data/property_carry_declared checked 299ms
 pass/data/record_pattern_let_exit checked 1828ms
@@ -1434,6 +1435,8 @@ fail/data/mixed_record_literal rejected 122ms expected
 	data `RoomEvent` is case-bearing; construct a case (`RoomEvent::Case { ... }`) instead of a record literal
 fail/data/nested_array_literal_inner_length_rejected rejected 133ms expected
 	machine `Main::main` state `main` assigns an array literal with 3 element(s) to a `[_; 2]` place; a fixed-array literal must supply exactly 2 element(s)
+fail/data/opaque_copy_unselected rejected 62ms expected
+	opaque boundary data `Token` cannot claim `[copy]` without an admitted property receipt
 fail/data/proof_only_runtime_property_rejected rejected 134ms expected
 	data `Nat` declares runtime properties, but `Nat` is proof-only: recursive data has no layout; properties speak about values in memory, which proof-only data never becomes
 fail/data/property_copy_violation rejected 117ms expected

@@ -185,6 +185,8 @@ admissions or physical evidence as another child's authority.
 Psi owns [source checking](../../../wiki/spec/language/state_contracts.md).
 Its checking stage also owns exact boundary-call and source-authority validation;
 the compiler does not issue a separate source-provider approval after checking.
+It forwards independently rederived opaque-representation property receipts;
+Psi rejoins their authored dependency-scope instances during input preparation.
 This coordinator closes build/target inputs around that phase; it does not add
 target policy to the portable Terminal module. Enter
 [phase_transitions.rs](src/checked/checking/phase_transitions.rs).

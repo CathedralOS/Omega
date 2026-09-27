@@ -56,6 +56,13 @@ only during preliminary checking while the evaluator retains their continuation.
 The stage owns their source-spanned diagnostics; the compiler does not repeat
 this source validation before invoking it.
 
+Opaque-property input preparation rejoins the same authored declaration imported
+in Build and Product scopes before specialization. Source path, package, bytes,
+declaration span, origin and activation stratum must agree; the dependency scope
+may differ. Supplied rows remain intact for property validation, including
+duplicates and stale handles. Omega still independently rederives the selected
+representation before supplying a receipt; source matching grants no new property.
+
 Before publishing checked trees, the stage validates exact boundary-call
 coordinates and source authority through
 [boundary call validation](../../checking/src/machine_calls/boundary_calls.rs).

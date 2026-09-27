@@ -8,6 +8,7 @@
 pub(crate) mod call_acknowledgements;
 mod deferred_constants;
 mod exact_input_memo;
+mod opaque_property_receipts;
 pub use exact_input_memo::{RepeatedCheckRetention, retain_repeated_checks};
 pub(crate) mod program_validation;
 
@@ -86,7 +87,9 @@ impl<'a> CheckingRequest<'a> {
         self
     }
 
-    /// Exact orchestration receipts that close opaque-property validation.
+    /// Independently rederived representation receipts. Input preparation
+    /// rejoins the same authored declaration's dependency-scope instances;
+    /// property validation still checks every exact resulting row.
     pub const fn with_opaque_property_receipts(
         mut self,
         receipts: &'a [validation::OpaqueDataPropertyReceipt],
@@ -109,6 +112,11 @@ pub fn lower_typed_trees(
     if request.mode != CheckingMode::Preliminary {
         deferred_constants::require_evaluated_constants(&program)?;
     }
+    // Rejoin authored source instances before specialization can introduce
+    // generated declarations with the same source provenance.
+    let opaque_property_receipts =
+        opaque_property_receipts::for_source_instances(&program, request.opaque_property_receipts);
+    let request = request.with_opaque_property_receipts(&opaque_property_receipts);
     let key = exact_input_memo::RequestKey {
         mode: request.mode,
         selected_generic_operator_providers: request.selected_generic_operator_providers.to_vec(),
@@ -116,7 +124,7 @@ pub fn lower_typed_trees(
         opaque_property_receipts: request.opaque_property_receipts.to_vec(),
     };
     exact_input_memo::checked(program, key, |program| {
-        lower_typed_trees_uncached(program, request)
+        lower_typed_trees_uncached(program, &request)
     })
 }
 
