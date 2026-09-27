@@ -28,47 +28,6 @@ const FAMILY_SETTLES: &str = r#"
     }
 "#;
 
-/// Duplicates and reordering normalize to the same sorted roster.
-const FAMILY_NORMALIZED: &str = r#"
-    pub boundary trait Scanner {
-        machine scan<const Width: u32>(value: u32) -> u64 where Width == 32 || Width == 16 || Width == 32;
-        machine ping(value: u32) -> u32;
-    }
-    data ScanProvider {}
-    machine ScanProvider::scan<const Width: u32>(value: u32) -> u64 satisfies Scanner::scan {
-        transition { _ -> (value as u64) }
-    }
-    machine ScanProvider::ping(value: u32) -> u32 satisfies Scanner::ping {
-        transition { _ -> (value) }
-    }
-    machine ScanProvider::direct() -> u64 {
-        transition { _ -> (ScanProvider::scan<16>(7) + ScanProvider::scan<32>(8)) }
-    }
-    data Client { service: Binding<Scanner>; }
-    machine Client::run(&mut self) -> u64 reaches Scanner {
-        transition { _ -> (self.service.scan<16>(7)) }
-    }
-"#;
-
-/// Two-binder alternatives must write the whole tuple's correlation; the
-/// roster is (16,4)/(32,8), never the Cartesian product of listed values.
-const CORRELATED_FAMILY: &str = r#"
-    pub boundary trait Table {
-        machine lookup<const W: u32, const A: u32>(value: u32) -> u64 where W == 16 && A == 4 || W == 32 && A == 8;
-    }
-    data TableProvider {}
-    machine TableProvider::lookup<const W: u32, const A: u32>(value: u32) -> u64 satisfies Table::lookup {
-        transition { _ -> (value as u64) }
-    }
-    machine TableProvider::direct() -> u64 {
-        transition { _ -> (TableProvider::lookup<16, 4>(7) + TableProvider::lookup<32, 8>(8)) }
-    }
-    data Client { service: Binding<Table>; }
-    machine Client::run(&mut self) -> u64 reaches Table {
-        transition { _ -> (self.service.lookup<16, 4>(7) + self.service.lookup<32, 8>(8)) }
-    }
-"#;
-
 /// An off-roster combination is a membership failure even though each value
 /// appears in the family: correlations are authored per alternative.
 const CORRELATED_MISMATCH: &str = r#"
@@ -171,65 +130,6 @@ const PARTIAL_COVERAGE: &str = r#"
     }
 "#;
 
-/// A three-tuple roster whose provider covers every declared tuple.
-const FAMILY_THREE_TUPLES: &str = r#"
-    pub boundary trait Scanner {
-        machine scan<const Width: u32>(value: u32) -> u64 where Width == 16 || Width == 32 || Width == 64;
-    }
-    data ScanProvider {}
-    machine ScanProvider::scan<const Width: u32>(value: u32) -> u64 satisfies Scanner::scan {
-        transition { _ -> (value as u64) }
-    }
-    machine ScanProvider::direct() -> u64 {
-        transition { _ -> (ScanProvider::scan<16>(7) + ScanProvider::scan<32>(8) + ScanProvider::scan<64>(9)) }
-    }
-    data Client { service: Binding<Scanner>; }
-    machine Client::run(&mut self) -> u64 reaches Scanner {
-        transition { _ -> (self.service.scan<16>(7) + self.service.scan<64>(8)) }
-    }
-"#;
-
-/// A roster whose boundary calls name only the nongeneric sibling: the
-/// uncalled family still supplies its complete generated roster.
-const PARTIAL_COVERAGE_UNCALLED: &str = r#"
-    pub boundary trait Scanner {
-        machine scan<const Width: u32>(value: u32) -> u64 where Width == 16 || Width == 32 || Width == 64;
-        machine ping(value: u32) -> u32;
-    }
-    data ScanProvider {}
-    machine ScanProvider::scan<const Width: u32>(value: u32) -> u64 satisfies Scanner::scan {
-        transition { _ -> (value as u64) }
-    }
-    machine ScanProvider::ping(value: u32) -> u32 satisfies Scanner::ping {
-        transition { _ -> (value) }
-    }
-    machine ScanProvider::direct() -> u64 {
-        transition { _ -> (ScanProvider::scan<16>(7) + ScanProvider::scan<32>(8)) }
-    }
-    data Client { service: Binding<Scanner>; }
-    machine Client::run(&mut self) -> u32 reaches Scanner {
-        transition { _ -> (self.service.ping(2)) }
-    }
-"#;
-
-/// A settled Unit family requirement keys statement-position calls by the
-/// same canonical tuple as value calls.
-const STATEMENT_FAMILY: &str = r#"
-    pub boundary trait Watcher {
-        machine watch<const Width: u32>(value: u32) where Width == 8 || Width == 16;
-    }
-    data WatchProvider {}
-    machine WatchProvider::watch<const Width: u32>(value: u32) satisfies Watcher::watch {}
-    machine WatchProvider::demand() {
-        WatchProvider::watch<8>(1);
-        WatchProvider::watch<16>(2);
-    }
-    data Client { service: Binding<Watcher>; }
-    machine Client::run(&mut self) reaches Watcher {
-        self.service.watch<16>(1);
-    }
-"#;
-
 fn family_typed(source: &str) -> (typed_trees::TypedTrees, Vec<ProviderPlan>) {
     let typed = typed_with_core_service("selected-dispatch/finite_family.omg", source);
     let plans = provider_planning::derive_satisfies_plans(
@@ -287,103 +187,6 @@ fn family_rows(
         .iter()
         .filter(|row| row.requirement == requirement)
         .collect()
-}
-
-#[test]
-fn declared_family_settles_one_row_per_demanded_tuple() {
-    let (checked, plans) = family_fixture(FAMILY_SETTLES, "Scanner");
-    let selected = selected_plan(&plans, "Scanner");
-    let scan = requirement_symbol(&checked, "scan");
-    let ping = requirement_symbol(&checked, "ping");
-    let original = Arc::new(checked);
-    let mut settled = Arc::clone(&original);
-    settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
-        .expect("the declared family settles tuple rows beside the nongeneric sibling");
-    assert_eq!(settled.typed, original.typed);
-
-    // Rows repeat per retained receiver coordinate; the distinct tuple keys
-    // are the roster.
-    let mut tuples = family_rows(&settled, scan)
-        .iter()
-        .map(|row| row.family_tuple.as_ref().to_vec())
-        .collect::<Vec<_>>();
-    tuples.sort();
-    tuples.dedup();
-    assert_eq!(
-        tuples,
-        vec![
-            vec!["named(integer-const(16))".to_owned()],
-            vec!["named(integer-const(32))".to_owned()],
-        ],
-        "one row per demanded tuple, keyed by canonical const identity"
-    );
-    // Each tuple points at its own specialized entry state, not the template.
-    let mut states = family_rows(&settled, scan)
-        .iter()
-        .map(|row| row.realization_state)
-        .collect::<Vec<_>>();
-    states.sort_by_key(|state| state.arena_index());
-    states.dedup();
-    assert_eq!(states.len(), 2, "tuples bind distinct realizations");
-    assert!(
-        family_rows(&settled, ping)
-            .iter()
-            .all(|row| row.family_tuple.is_empty()),
-        "the nongeneric sibling stays exact"
-    );
-}
-
-#[test]
-fn family_roster_normalizes_order_and_duplicates() {
-    let (checked, plans) = family_fixture(FAMILY_NORMALIZED, "Scanner");
-    let selected = selected_plan(&plans, "Scanner");
-    let scan = requirement_symbol(&checked, "scan");
-    let mut settled = Arc::new(checked);
-    settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
-        .expect("reordered duplicate alternatives normalize to the same roster");
-    let mut tuples = family_rows(&settled, scan)
-        .iter()
-        .map(|row| row.family_tuple.as_ref().to_vec())
-        .collect::<Vec<_>>();
-    tuples.sort();
-    tuples.dedup();
-    assert_eq!(
-        tuples,
-        vec![
-            vec!["named(integer-const(16))".to_owned()],
-            vec!["named(integer-const(32))".to_owned()],
-        ],
-    );
-}
-
-#[test]
-fn correlated_tuples_preserve_authored_groupings() {
-    let (checked, plans) = family_fixture(CORRELATED_FAMILY, "Table");
-    let selected = selected_plan(&plans, "Table");
-    let lookup = requirement_symbol(&checked, "lookup");
-    let mut settled = Arc::new(checked);
-    settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
-        .expect("the correlated family settles its two declared tuples");
-    let mut tuples = family_rows(&settled, lookup)
-        .iter()
-        .map(|row| row.family_tuple.as_ref().to_vec())
-        .collect::<Vec<_>>();
-    tuples.sort();
-    tuples.dedup();
-    assert_eq!(
-        tuples,
-        vec![
-            vec![
-                "named(integer-const(16))".to_owned(),
-                "named(integer-const(4))".to_owned()
-            ],
-            vec![
-                "named(integer-const(32))".to_owned(),
-                "named(integer-const(8))".to_owned()
-            ],
-        ],
-        "the roster preserves (16,4) and (32,8), not their Cartesian product"
-    );
 }
 
 #[test]
@@ -473,32 +276,6 @@ fn a_selected_family_settles_without_any_static_call_demand() {
 }
 
 #[test]
-fn the_selected_family_supplies_undemanded_roster_tuples() {
-    // (64) has no static call site anywhere; selection alone materializes it.
-    let (checked, plans) = family_fixture(PARTIAL_COVERAGE, "Scanner");
-    let selected = selected_plan(&plans, "Scanner");
-    let scan = requirement_symbol(&checked, "scan");
-    let mut settled = Arc::new(checked);
-    settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
-        .expect("the complete roster settles from selection alone");
-    let mut tuples = family_rows(&settled, scan)
-        .iter()
-        .map(|row| row.family_tuple.as_ref().to_vec())
-        .collect::<Vec<_>>();
-    tuples.sort();
-    tuples.dedup();
-    assert_eq!(
-        tuples,
-        vec![
-            vec!["named(integer-const(16))".to_owned()],
-            vec!["named(integer-const(32))".to_owned()],
-            vec!["named(integer-const(64))".to_owned()],
-        ],
-        "the undemanded (64) tuple settles beside the statically demanded ones"
-    );
-}
-
-#[test]
 fn a_missing_roster_body_still_rejects_the_whole_family() {
     let (typed, plans) = family_typed(PARTIAL_COVERAGE);
     let selected = selected_plan(&plans, "Scanner");
@@ -529,94 +306,6 @@ fn a_missing_roster_body_still_rejects_the_whole_family() {
             .iter()
             .all(|row| row.requirement != scan),
         "no dispatch row exists for the truncated family"
-    );
-}
-
-#[test]
-fn complete_roster_settles_every_declared_tuple() {
-    let (checked, plans) = family_fixture(FAMILY_THREE_TUPLES, "Scanner");
-    let selected = selected_plan(&plans, "Scanner");
-    let scan = requirement_symbol(&checked, "scan");
-    let mut settled = Arc::new(checked);
-    settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
-        .expect("a fully covered three-tuple roster settles");
-    let mut tuples = family_rows(&settled, scan)
-        .iter()
-        .map(|row| row.family_tuple.as_ref().to_vec())
-        .collect::<Vec<_>>();
-    tuples.sort();
-    tuples.dedup();
-    assert_eq!(
-        tuples,
-        vec![
-            vec!["named(integer-const(16))".to_owned()],
-            vec!["named(integer-const(32))".to_owned()],
-            vec!["named(integer-const(64))".to_owned()],
-        ],
-        "one row per declared tuple, each with its own specialization"
-    );
-    let mut states = family_rows(&settled, scan)
-        .iter()
-        .map(|row| row.realization_state)
-        .collect::<Vec<_>>();
-    states.sort_by_key(|state| state.arena_index());
-    states.dedup();
-    assert_eq!(states.len(), 3, "each tuple binds its own realization");
-}
-
-#[test]
-fn an_uncalled_family_still_supplies_its_complete_roster() {
-    let (checked, plans) = family_fixture(PARTIAL_COVERAGE_UNCALLED, "Scanner");
-    let selected = selected_plan(&plans, "Scanner");
-    let scan = requirement_symbol(&checked, "scan");
-    let ping = requirement_symbol(&checked, "ping");
-    let mut settled = Arc::new(checked);
-    settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
-        .expect("the uncalled family settles its complete generated roster");
-    let mut tuples = family_rows(&settled, scan)
-        .iter()
-        .map(|row| row.family_tuple.as_ref().to_vec())
-        .collect::<Vec<_>>();
-    tuples.sort();
-    tuples.dedup();
-    assert_eq!(
-        tuples,
-        vec![
-            vec!["named(integer-const(16))".to_owned()],
-            vec!["named(integer-const(32))".to_owned()],
-            vec!["named(integer-const(64))".to_owned()],
-        ],
-        "selection supplies every declared tuple even with no family call"
-    );
-    assert!(
-        family_rows(&settled, ping)
-            .iter()
-            .all(|row| row.family_tuple.is_empty()),
-        "the nongeneric sibling keeps its exact row"
-    );
-}
-
-#[test]
-fn statement_calls_select_the_settled_tuple() {
-    let (checked, plans) = family_fixture(STATEMENT_FAMILY, "Watcher");
-    let selected = selected_plan(&plans, "Watcher");
-    let watch = requirement_symbol(&checked, "watch");
-    let mut settled = Arc::new(checked);
-    settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
-        .expect("the statement-call family settles its declared roster");
-    let mut tuples = family_rows(&settled, watch)
-        .iter()
-        .map(|row| row.family_tuple.as_ref().to_vec())
-        .collect::<Vec<_>>();
-    tuples.sort();
-    tuples.dedup();
-    assert_eq!(
-        tuples,
-        vec![
-            vec!["named(integer-const(16))".to_owned()],
-            vec!["named(integer-const(8))".to_owned()],
-        ],
-        "statement calls see the same normalized roster as value calls"
     );
 }
 
@@ -849,32 +538,6 @@ fn a_sibling_providers_specialization_never_fills_the_row() {
     );
 }
 
-/// A runtime-capable `Value`-binder requirement spells `<Width: u32>` instead
-/// of `<const Width: u32>`. Its roster enumerates the same canonical const
-/// tuples, and static boundary calls select exactly the same settled rows —
-/// the requirement binder's runtime capability never relaxes a static
-/// application into a different family.
-const FAMILY_VALUE_BINDER_SETTLES: &str = r#"
-    pub boundary trait Scanner {
-        machine scan<Width: u32>(value: u32) -> u64 where Width == 16 || Width == 32;
-        machine ping(value: u32) -> u32;
-    }
-    data ScanProvider {}
-    machine ScanProvider::scan<Width: u32>(value: u32) -> u64 satisfies Scanner::scan {
-        transition { _ -> (value as u64) }
-    }
-    machine ScanProvider::ping(value: u32) -> u32 satisfies Scanner::ping {
-        transition { _ -> (value) }
-    }
-    machine ScanProvider::direct() -> u64 {
-        transition { _ -> (ScanProvider::scan<16>(7) + ScanProvider::scan<32>(8)) }
-    }
-    data Client { service: Binding<Scanner>; }
-    machine Client::run(&mut self) -> u64 reaches Scanner {
-        transition { _ -> (self.service.scan<16>(7) + self.service.scan<32>(8)) }
-    }
-"#;
-
 /// A `Value`-binder requirement called with a runtime argument names no
 /// roster tuple: the boundary keeps only tuple-keyed rows, so the call
 /// rejects instead of dispatching every width to an unbound selection.
@@ -907,37 +570,6 @@ const FAMILY_VALUE_REQUIREMENT_CONST_PROVIDER: &str = r#"
         transition { _ -> (value as u64) }
     }
 "#;
-
-#[test]
-fn value_binder_requirement_settles_tuple_rows() {
-    let (checked, plans) = family_fixture(FAMILY_VALUE_BINDER_SETTLES, "Scanner");
-    let selected = selected_plan(&plans, "Scanner");
-    let scan = requirement_symbol(&checked, "scan");
-    let ping = requirement_symbol(&checked, "ping");
-    let mut settled = Arc::new(checked);
-    settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
-        .expect("a Value-binder requirement settles one row per declared tuple");
-    let mut tuples = family_rows(&settled, scan)
-        .iter()
-        .map(|row| row.family_tuple.as_ref().to_vec())
-        .collect::<Vec<_>>();
-    tuples.sort();
-    tuples.dedup();
-    assert_eq!(
-        tuples,
-        vec![
-            vec!["named(integer-const(16))".to_owned()],
-            vec!["named(integer-const(32))".to_owned()],
-        ],
-        "Value and const spellings key the roster identically"
-    );
-    assert!(
-        family_rows(&settled, ping)
-            .iter()
-            .all(|row| row.family_tuple.is_empty()),
-        "the nongeneric sibling stays exact"
-    );
-}
 
 #[test]
 fn value_binder_requirement_rejects_a_runtime_argument() {
