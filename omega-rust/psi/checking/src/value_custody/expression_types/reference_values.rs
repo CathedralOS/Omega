@@ -70,6 +70,17 @@ pub(super) fn reference_type_matches(
                 *required_referee,
                 substitutions,
             ))
+        // The required referee's own constraints remain the callee's claim:
+        // an owned constrained array satisfies `&[u8] in D` only when its
+        // declared domains imply each constraint the view keeps. The access
+        // pair above already admits only same-access or mutable-to-shared
+        // loans, so a mutable view obligation lands on a mutable source.
+        || owned_array_satisfies_constrained_referee(
+            program,
+            *actual_referee,
+            *required_referee,
+            substitutions,
+        )
         // The same forget covers a constrained referee that is not an owned
         // array: `&[u8] in D` spells `Reference { Constrained { Slice } }`, so
         // unwrapping the qualification leaves the identical slice a shared
@@ -299,6 +310,12 @@ pub(super) fn projected_matches_reference(
     *required_access == ReferenceAccess::Shared
         && (actual_identity(actual) == program.normalized_type_identity(*required_referee)
             || owned_array_projects_to_slice(program, actual, *required_referee, &substitutions)
+            || owned_array_satisfies_constrained_referee(
+                program,
+                actual,
+                *required_referee,
+                &substitutions,
+            )
             || fixed_array_binds_open_length(program, actual, *required_referee, &substitutions))
 }
 
@@ -339,6 +356,170 @@ fn owned_array_projects_to_slice(
             substitutions,
             ..TypeIdentityRequest::ordinary(*actual_element)
         }) == program.normalized_type_identity(*required_element)
+}
+
+/// Constrained-referee correspondence: an owned `[u8; N] in D` carrier
+/// satisfies `&[u8] in D` only when the array's declared domains imply every
+/// constraint the required view keeps — the fixed-to-view implication the
+/// flow facts use for the same carriers. A required referee without
+/// constraints takes the plain shape correspondence; a required constraint
+/// that is not a domain, or one no actual domain implies, still rejects.
+fn owned_array_satisfies_constrained_referee(
+    program: &TypedTrees,
+    actual: TypeReferenceHandle,
+    required: TypeReferenceHandle,
+    substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    let mut required_carrier = required;
+    let mut required_constraints = Vec::new();
+    while let TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = program
+        .type_reference_table
+        .type_reference(required_carrier)
+    {
+        required_constraints.extend(
+            program
+                .type_reference_table
+                .constraints(*constraints)
+                .iter(),
+        );
+        required_carrier = *base_type;
+    }
+    if required_constraints.is_empty() {
+        return false;
+    }
+    let TypeReferenceNode::Slice {
+        element_type: required_element,
+    } = program
+        .type_reference_table
+        .type_reference(required_carrier)
+    else {
+        return false;
+    };
+    let mut actual_carrier = actual;
+    let mut actual_domains = Vec::new();
+    while let TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = program.type_reference_table.type_reference(actual_carrier)
+    {
+        actual_domains.extend(
+            program
+                .type_reference_table
+                .constraints(*constraints)
+                .iter()
+                .filter_map(|constraint| match constraint {
+                    TypeConstraintNode::Domain(domain) => Some(domain.symbol),
+                    _ => None,
+                }),
+        );
+        actual_carrier = *base_type;
+    }
+    let TypeReferenceNode::FixedArray {
+        element_type: actual_element,
+        ..
+    } = program.type_reference_table.type_reference(actual_carrier)
+    else {
+        return false;
+    };
+    if !program
+        .type_reference_table
+        .contains_type_reference(*actual_element)
+        || !program
+            .type_reference_table
+            .contains_type_reference(*required_element)
+        || program.type_identity(TypeIdentityRequest {
+            substitutions,
+            ..TypeIdentityRequest::ordinary(*actual_element)
+        }) != program.normalized_type_identity(*required_element)
+    {
+        return false;
+    }
+    required_constraints
+        .iter()
+        .all(|constraint| match constraint {
+            TypeConstraintNode::Domain(target) => actual_domains
+                .iter()
+                .any(|source| domain_membership_implies(program, *source, target.symbol)),
+            _ => false,
+        })
+}
+
+/// One implied membership between declared domains, mirroring the flow-side
+/// `facts::field_domain::domain_membership_implies`: declared implication
+/// (symbol, semantic identity, and proof membership) first, then the
+/// byte-carrier bridge that lets `[u8; N]::D` evidence satisfy `[u8]::D`
+/// only when both declarations name the same recognized byte predicate.
+fn domain_membership_implies(
+    program: &TypedTrees,
+    source_domain: symbols::SymbolHandle,
+    target_domain: symbols::SymbolHandle,
+) -> bool {
+    if !typed_trees::domain::supports_symbol_only_proof(program, source_domain)
+        || !typed_trees::domain::supports_symbol_only_proof(program, target_domain)
+    {
+        return false;
+    }
+    if typed_trees::domain::declared_domain_implies(program, source_domain, target_domain) {
+        return true;
+    }
+    let Some(source) = program
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.symbol == source_domain)
+    else {
+        return false;
+    };
+    let Some(target) = program
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.symbol == target_domain)
+    else {
+        return false;
+    };
+    if !is_fixed_byte_carrier(program, source.target_type)
+        || !is_byte_slice_carrier(program, target.target_type)
+        || source.name.as_str().rsplit("::").next() != target.name.as_str().rsplit("::").next()
+    {
+        return false;
+    }
+    matches!(
+        (
+            typed_trees::byte_predicates::domain_byte_predicate(program, source_domain),
+            typed_trees::byte_predicates::domain_byte_predicate(program, target_domain),
+        ),
+        (Some(source), Some(target)) if source == target
+    )
+}
+
+fn is_fixed_byte_carrier(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Constrained { base_type, .. }
+        | TypeReferenceNode::Reference {
+            referee: base_type, ..
+        } => is_fixed_byte_carrier(program, *base_type),
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            program.type_reference_table.primitive_type(*element_type)
+                == Some(typed_trees::types::PrimitiveType::U8)
+        }
+        _ => false,
+    }
+}
+
+fn is_byte_slice_carrier(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Constrained { base_type, .. }
+        | TypeReferenceNode::Reference {
+            referee: base_type, ..
+        } => is_byte_slice_carrier(program, *base_type),
+        TypeReferenceNode::Slice { element_type } => {
+            program.type_reference_table.primitive_type(*element_type)
+                == Some(typed_trees::types::PrimitiveType::U8)
+        }
+        _ => false,
+    }
 }
 
 /// The shared-view forget for a constrained referee that is not an owned
