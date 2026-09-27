@@ -15,10 +15,33 @@ pub(super) fn build_machine_activation_carry_facts(
     carry: &checked_trees::CarryFacts,
     semantic: &facts::FactPlan,
 ) -> Vec<checked_trees::MachineActivationCarryFact> {
+    // Each machine reads only its own evidenced carry facts. Grouping them
+    // once, in fact order, replaces a scan of every semantic fact per machine.
+    let mut carry_facts = symbols::SymbolKeyMap::<SymbolHandle, Vec<&facts::Fact>>::default();
+    for (_, fact) in semantic.facts.iter() {
+        if fact.evidence.origin == language_semantics::QualificationEvidenceOrigin::None
+            || !matches!(
+                fact.payload,
+                facts::FactPayload::CarryPermission { .. }
+                    | facts::FactPayload::ContractCarryPermission { .. }
+                    | facts::FactPayload::CarryOrigin { .. }
+            )
+        {
+            continue;
+        }
+        if let Some(machine) = fact_point_machine(fact.point) {
+            carry_facts.entry(machine).or_default().push(fact);
+        }
+    }
     let direct = program
         .machines()
         .iter()
-        .map(|machine| build_machine_activation_carry_fact(program, semantic, machine))
+        .map(|machine| {
+            let facts = carry_facts
+                .get(&machine.symbol)
+                .map_or(&[][..], Vec::as_slice);
+            build_machine_activation_carry_fact(program, semantic, machine, facts)
+        })
         .collect::<Vec<_>>();
 
     program
@@ -65,6 +88,7 @@ fn build_machine_activation_carry_fact(
     program: &typed_trees::TypedTrees,
     semantic: &facts::FactPlan,
     machine: &typed_trees::machine::Machine,
+    carry_facts: &[&facts::Fact],
 ) -> checked_trees::MachineActivationCarryFact {
     let mut accumulator = ActivationCarryAccumulator {
         program,
@@ -114,7 +138,7 @@ fn build_machine_activation_carry_fact(
             accumulator.visit_statement(statement);
         }
     }
-    if let Some(claim_policy) = established_claim_carry_policy(program, semantic, machine.symbol) {
+    if let Some(claim_policy) = established_claim_carry_policy(program, semantic, carry_facts) {
         accumulator.effective = accumulator.effective.intersect(claim_policy);
     }
 
@@ -127,19 +151,15 @@ fn build_machine_activation_carry_fact(
     }
 }
 
+/// `carry_facts` are the machine's evidenced carry facts in fact order.
 fn established_claim_carry_policy(
     program: &typed_trees::TypedTrees,
     semantic: &facts::FactPlan,
-    machine: SymbolHandle,
+    carry_facts: &[&facts::Fact],
 ) -> Option<CarryPolicy> {
     let mut claims = Vec::<(String, facts::QualificationEvidence, CarryPolicy)>::new();
 
-    for (_, fact) in semantic.facts.iter() {
-        if fact.evidence.origin == language_semantics::QualificationEvidenceOrigin::None
-            || fact_point_machine(fact.point) != Some(machine)
-        {
-            continue;
-        }
+    for fact in carry_facts {
         let permission = match fact.payload {
             facts::FactPayload::CarryPermission { permission, .. }
             | facts::FactPayload::ContractCarryPermission { permission, .. } => Some(permission),
