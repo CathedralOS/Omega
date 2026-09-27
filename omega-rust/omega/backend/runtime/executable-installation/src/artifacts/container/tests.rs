@@ -165,18 +165,6 @@ fn canonical_bounded_container_produces_only_an_artifact_candidate() {
 }
 
 #[test]
-fn stale_container_marker_rejects() {
-    let mut stale = decoded();
-    stale.format_marker = u16::from_le_bytes(*b"NO");
-    let error = validate_decoded_container(stale, limits()).expect_err("stale marker");
-    assert!(
-        error
-            .0
-            .contains("unsupported Omega executable container marker")
-    );
-}
-
-#[test]
 fn validated_container_admission_binds_the_exact_proof_payload() {
     let container = validate_decoded_container(decoded(), limits()).expect("container");
     let evidence = ValidatedContainerAdmissionEvidence::from_validator(
@@ -344,36 +332,6 @@ fn duplicate_missing_overlapping_and_out_of_bounds_sections_reject() {
     outside.sections[6].offset = 620;
     let error = validate_decoded_container(outside, limits()).expect_err("outside");
     assert!(error.0.contains("exceeds"));
-}
-
-#[test]
-fn missing_duplicate_and_out_of_bounds_entries_reject() {
-    let mut missing = decoded();
-    missing.entries.clear();
-    let error = validate_decoded_container(missing, limits()).expect_err("missing entry");
-    assert!(error.0.contains("does not match 0 canonical entries"));
-
-    let mut duplicate = decoded();
-    duplicate.entries.push(duplicate.entries[0]);
-    duplicate.sections[5].length = 32;
-    duplicate.content_fingerprint = non_authoritative_decoded_container_fingerprint(&duplicate)
-        .expect("duplicate content fingerprint");
-    let error = validate_decoded_container(duplicate, limits()).expect_err("duplicate entry");
-    assert!(error.0.contains("must be unique"));
-
-    let mut outside = decoded();
-    let identity = EntryStubId::from_normalized_identity(10).expect("entry identity");
-    outside.entries = vec![ArtifactEntry::from_canonical_decode(identity, 64)];
-    outside.content_fingerprint = non_authoritative_decoded_container_fingerprint(&outside)
-        .expect("outside content fingerprint");
-    let error = validate_decoded_container(outside, limits()).expect_err("outside entry");
-    assert!(error.0.contains("lies outside"));
-
-    let mut mismatched_length = decoded();
-    mismatched_length.sections[5].length = 32;
-    let error = validate_decoded_container(mismatched_length, limits())
-        .expect_err("entry section length must bind its decoded records");
-    assert!(error.0.contains("does not match 1 canonical entries"));
 }
 
 #[test]

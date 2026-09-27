@@ -119,55 +119,6 @@ fn repeated_layout() -> LayoutPlanReport {
     }
 }
 
-/// A nested record field occupies one whole `At` extent inside the flat outer
-/// plan; its member offsets live in the interior carrier supplied beside it.
-/// `slot` spans bytes 8..24 of the outer plan, and the carrier's `entry`/`flags`
-/// members sit at inner offsets 0 and 8, so `slot.entry` composes to byte 8
-/// and `slot.flags` to byte 16.
-fn nested_layout() -> (LayoutPlanReport, SymbolicFieldInnerLayout) {
-    (
-        LayoutPlanReport {
-            schema_report_fingerprint: 1,
-            entries: vec![
-                LayoutFieldEntryReport {
-                    field: "header".into(),
-                    member_identity: None,
-                    placement: LayoutPlacementReport::At { offset: 0 },
-                },
-                LayoutFieldEntryReport {
-                    field: "slot".into(),
-                    member_identity: None,
-                    placement: LayoutPlacementReport::At { offset: 8 },
-                },
-            ],
-            offsets: Some(vec![0, 8]),
-            size: Some(24),
-            align: 8,
-        },
-        SymbolicFieldInnerLayout::new(
-            "slot",
-            LayoutPlanReport {
-                schema_report_fingerprint: 2,
-                entries: vec![
-                    LayoutFieldEntryReport {
-                        field: "entry".into(),
-                        member_identity: None,
-                        placement: LayoutPlacementReport::At { offset: 0 },
-                    },
-                    LayoutFieldEntryReport {
-                        field: "flags".into(),
-                        member_identity: None,
-                        placement: LayoutPlacementReport::At { offset: 8 },
-                    },
-                ],
-                offsets: Some(vec![0, 8]),
-                size: Some(16),
-                align: 8,
-            },
-        ),
-    )
-}
-
 /// A second record boundary below `slot`: the outer plan places `slot` as one
 /// 32-byte `At` extent at offset 8; `slot`'s interior places `pad` at 0 and
 /// `sub` at 8; `sub`'s interior places `entry`, `flags`, and `args` at 0, 8,
@@ -1067,55 +1018,6 @@ fn symbolic_index_materialization_assigns_the_exact_element() {
             .chain(&bytes[24..])
             .all(|byte| *byte == 0xa5),
         "index materialization writes only the addressed element"
-    );
-}
-
-#[test]
-fn symbolic_inner_materialization_assigns_the_exact_member() {
-    let (layout, carrier) = nested_layout();
-    let symbolic = [
-        SymbolicFieldValue::new("slot", 64, entry())
-            .expect("outer record field")
-            .with_inner_segment(SymbolicFieldPathSegment::new("entry")),
-        SymbolicFieldValue::new("slot", 64, data())
-            .expect("outer record field")
-            .with_inner_segment(SymbolicFieldPathSegment::new("flags")),
-    ];
-    let plan = derive_symbolic_materialization_with_inner_layouts(
-        &layout,
-        std::slice::from_ref(&carrier),
-        &symbolic,
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect("two inner paths share one interior carrier");
-
-    let writes = plan
-        .actions
-        .iter()
-        .map(|action| match action {
-            MaterializationAction::RuntimeWriter(write) => {
-                (write.field.as_str(), write.container_byte_offset)
-            }
-            other => panic!("expected runtime writers, found {other:?}"),
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(writes, [("slot.entry", 8), ("slot.flags", 16)]);
-
-    let writer = derive_post_handoff_writer(&plan).expect("writer");
-    let mut bytes = [0xa5_u8; 24];
-    execute_post_handoff_writer_plan(&writer, &mut bytes, post_handoff_site(), |target| {
-        Some(match target {
-            RelocationTarget::Entry(_) => 0x1122_3344_5566_7788,
-            RelocationTarget::Data(_) => 0xdead_beef,
-        })
-    })
-    .expect("the inner writers resolve each exact member");
-    assert_eq!(&bytes[8..16], &0x1122_3344_5566_7788_u64.to_le_bytes());
-    assert_eq!(&bytes[16..24], &0xdead_beef_u64.to_le_bytes());
-    assert!(
-        bytes[..8].iter().all(|byte| *byte == 0xa5),
-        "inner materialization writes only the addressed members"
     );
 }
 

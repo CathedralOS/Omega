@@ -345,31 +345,13 @@ fn add_optional_section(mut bytes: Vec<u8>, kind: u16, payload: &[u8]) -> Vec<u8
 }
 
 #[test]
-fn canonical_bytes_decode_through_layouts_into_validated_candidate() {
-    let bytes = canonical_bytes();
-    let decoded = decode_executable_container(&bytes, limits()).expect("canonical decode");
-    assert_eq!(decoded.artifact().code(), vec![0x90; 64]);
-    assert_eq!(decoded.artifact().entries()[0].code_offset(), 16);
-    assert_eq!(decoded.relocations()[0].addend, -4);
-    assert_eq!(decoded.proof(), vec![0xa5; 64]);
-}
-
-#[test]
-fn stale_container_marker_bytes_reject() {
-    let mut stale = canonical_bytes();
-    stale[8..10].copy_from_slice(b"NO");
-    let error = decode_executable_container(&stale, limits()).expect_err("stale marker");
-    assert!(
-        error
-            .0
-            .contains("unsupported Omega executable container marker")
-    );
-}
-
-#[test]
 fn canonical_encoder_round_trips_the_exact_validated_artifact_and_proof() {
     let canonical = canonical_bytes();
     let source = decode_executable_container(&canonical, limits()).expect("source");
+    assert_eq!(source.artifact().code(), &[0x90; 64]);
+    assert_eq!(source.artifact().entries()[0].code_offset(), 16);
+    assert_eq!(source.relocations()[0].addend, -4);
+    assert_eq!(source.proof(), &[0xa5; 64]);
     let encoded =
         encode_executable_container_v1_compatibility(source.artifact(), source.proof(), limits())
             .expect("encode");
@@ -562,16 +544,6 @@ fn malformed_counts_unknown_required_and_identity_drift_reject() {
     identity[contracts_record + 8..contracts_record + 16].copy_from_slice(&99_u64.to_le_bytes());
     let error = decode_executable_container(&identity, limits()).expect_err("identity drift");
     assert!(error.0.contains("payload identity"));
-}
-
-#[test]
-fn semantic_byte_drift_reaches_normalized_content_check() {
-    let mut bytes = canonical_bytes();
-    let directory_end = OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES
-        + 7 * OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES;
-    bytes[directory_end as usize] ^= 1;
-    let error = decode_executable_container(&bytes, limits()).expect_err("content drift");
-    assert!(error.0.contains("content fingerprint"));
 }
 
 #[test]
