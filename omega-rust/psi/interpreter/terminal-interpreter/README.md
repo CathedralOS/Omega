@@ -8,8 +8,11 @@ The domain entrance owns artifact admission and startup: every entry decodes,
 verifies, constructs and runs. [execution.rs](src/execution.rs) is the engine —
 the live state and the resumable dispatch loop. [Call frames](src/calls/frames.rs)
 bind invocations and save live caller state; [custody](src/custody.rs) checks and
-transfers structural ownership and claims. Storage-specific operations remain
-under their named reference, record, array, primitive, and byte-storage owners
+transfers structural ownership and claims.
+[structural_identities.rs](src/structural_identities.rs) owns execution-wide local
+identity allocation and host reservations; record copies and block transitions
+stage its allocation cursor until their payloads commit. Storage-specific
+operations remain under their named reference, record, array, primitive, and byte-storage owners
 ([byte_sequences.rs](src/byte_sequences.rs) and its subordinates).
 
 Admission moves decoded, verified machine code into one immutable program owner.

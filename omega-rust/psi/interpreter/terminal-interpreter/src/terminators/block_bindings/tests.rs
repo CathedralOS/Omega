@@ -2,6 +2,7 @@ use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::execution::ExecutableMachine;
 use crate::results::TerminalExecutionStatus;
+use crate::structural_identities::LocalStructuralIdentities;
 use crate::terminators::block_bindings::{
     BTreeMap, BlockId, PlaceId, StructuralArgument, StructuralPlaceKind, TerminalExecution,
     TerminalInterpretError, TerminalScalarValue, TerminalStructuralValue, ValueId,
@@ -150,10 +151,9 @@ fn execution(terminator: Terminator) -> TerminalExecution {
         structural_primitive_storage: BTreeMap::new(),
         reference_referents: BTreeMap::new(),
         structural_primitive_entry_places: BTreeMap::new(),
-        local_structural_identities:
-            crate::primitive_storage::LocalStructuralIdentities::with_reserved_identities([
-                1, 2, 101, 102,
-            ]),
+        local_structural_identities: LocalStructuralIdentities::with_reserved_identities([
+            1, 2, 101, 102,
+        ]),
         structural_scalar_fields: BTreeMap::new(),
         structural_byte_sequence_fields: BTreeMap::new(),
         structural_byte_arrays: BTreeMap::new(),
