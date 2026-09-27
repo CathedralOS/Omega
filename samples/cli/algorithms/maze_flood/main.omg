@@ -173,11 +173,11 @@ machine Main::main(&mut self) reaches Console {
         self.val = self.dist[self.cell];
         self.tens = self.val / 10;
         self.ones = self.val % 10;
-        self.oc = narrow_i32_to_u8_trapping(self.ones + 48);
+        self.oc = narrow_i32_to_u8_trapping((self.ones + 48) as i32);
         transition self.tens > 0 { true -> num_tens() _ -> num_space() }
     }
     state num_tens(&mut self) {
-        self.tc = narrow_i32_to_u8_trapping(self.tens + 48);
+        self.tc = narrow_i32_to_u8_trapping((self.tens + 48) as i32);
         transition { _ -> num_write() }
     }
     state num_space(&mut self) {
