@@ -1,0 +1,11 @@
+// PENDING build root. This one needs no program entry — the refusal it pins
+// is a checking diagnostic, not a Unit-plan omission — but the bindings are
+// retained so promotion to `pass/expressions/` needs no new wiring.
+machine build(builder: &mut Build) {
+    builder.application("mixed_integer_comparison_places");
+    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+}

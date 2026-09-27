@@ -1,0 +1,62 @@
+// PENDING: the first row of the truth table in
+// `wiki/spec/language/numeric_values.md` — `-1` of type `i32` compared with
+// `10` of type `u64` is LESS — does not compile. It is refused at checking
+// with a message the same spec now contradicts:
+//
+//   applies `Less` to a `i32` value and a `u64` value -- the operands have
+//   different integer types and the operation would silently truncate the
+//   wider one to the narrower width; convert one with an `as` cast so both
+//   are the same type
+//
+// The spec says builtin fixed-integer comparisons "may differ in width,
+// signedness, or both", "require no common operand carrier, implicit cast,
+// or representability of either value in the other operand's carrier", and
+// that realization "may not substitute an unsigned promotion or reject
+// source operands merely because their integer carriers differ". An `as`
+// cast is precisely the conversion it says is not required — and for this
+// row it is not even available, since neither `-1i32` nor `10u64` is
+// representable in the other's carrier.
+//
+// THE SAME UNIMPLEMENTED RULE HAS TWO DIFFERENT BEHAVIOURS, which is why
+// this fixture sits beside `mixed_integer_guard_comparison`. The rejection
+// above lives in
+// `omega-rust/psi/checking/src/proof_contracts/arithmetic_domains/operand_reports.rs`
+// and keys on both operands being DECLARED PLACES with primitive types. A
+// length projection has no such type, so `self.i < self.text.len` escapes
+// it, is accepted by checking, and is then refused a second time and
+// silently in the lowering — `construct_integer_comparison` in
+// `values/scalar/boolean_lowering.rs` requires equal carriers — where it
+// becomes a Unit-plan omission instead of a diagnostic.
+//
+// Three orders of work, and the third is the one to be careful about.
+// Delete the comparison half of the `operand_reports` rule (it stays
+// correct for bitwise, which IS carrier-bound). Let the lowering keep two
+// carriers; the checked representation already does, since
+// `CheckedBooleanExpression::IntegerComparison` holds two independent
+// scalar expressions. Then make Terminal and native compare by
+// mathematical value: relaxing only the first two is what would make this
+// program compile and answer 71.
+//
+// Promote to `pass/expressions/` with `expected_native_exit.txt` of 70.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    signed: i32;
+    unsigned: u64;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.signed = 0 - 1;
+    self.unsigned = 10;
+    transition self.signed < self.unsigned {
+        true -> correct()
+        _ -> promoted()
+    }
+
+    // 70 when the compiler keeps `-1` negative, 71 when it promotes the
+    // signed value into the unsigned carrier instead.
+    state correct(&mut self) { self.console.exit_process(70); }
+    state promoted(&mut self) { self.console.exit_process(71); }
+}
