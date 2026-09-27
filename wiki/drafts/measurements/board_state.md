@@ -103,3 +103,40 @@ omits a machine's Unit plan when a structural local's initializer is not a
 `Call`. The corpus census in
 [compiler progress](compiler_progress.md) breaks the family down by omission
 site; the largest is 21 fixtures at `local data: structural call binding`.
+
+## Spot-checks that ran the OTHER way: rows citing red tests that are green
+
+Measured 2026-09-27. The spot-checks above found rows optimistic. These two
+are the opposite — rows that name a specific failing test and hold it as
+remaining work, when the test passes. Both were found by grepping `TASKS.md`
+for "is red", "red since", "still fails", which is a cheap sweep worth
+repeating.
+
+- **MATCH-SELECTIVE-LOWERING** says
+  `value_dispatch::owned_results::folded_index_projection::folded_index_faces_the_literal_lowering_boundary`
+  "is red since `c37c3dbd91`". It passes in 0.008s
+  (`cargo nextest run -p checked-trees-to-lowered-psi --test suite`), and the
+  test file's own module doc already records the resolution. The bullet's
+  stated goal — the folded index getting the same checked plan so the pair
+  meets one boundary — is MET.
+  What that bullet is ACTUALLY waiting on is worth carrying forward: both
+  its sources build `Pack { items: [Cell { tag: 41 }, Cell { tag: 42 }] }`
+  and stop at `Unsupported("fixed array literal has no Terminal
+  establishment")` — a record literal supplying an array field, which is
+  **RECORD-LITERAL-ARRAY-FIELD**. Clearing that moves both, and its element
+  there is a RECORD rather than a scalar.
+
+- **CHECK-CLOSURE-ONCE**'s block says
+  `omega_cases_declare_a_standard_library_edge_exactly_when_they_use_it`
+  "still fails" because
+  `tests/omega/pass/providers/boundary_scalar_field_store` declares a
+  standard-library edge it never uses. It passes in 0.276s
+  (`cargo nextest run -p package-manager --test suite`), and that fixture
+  does use the edge — its `main.omg` opens with
+  `use omega_language_std::console;`.
+
+Neither row was edited, because `TASKS.md` was held by MAIN-BOARD-AUDIT when
+this was measured; both corrections are also in claim notes against their
+items. A row asserting a red test is cheap to verify and expensive to
+believe: it tells a worker the item is blocked on someone else's repair when
+it is not.
