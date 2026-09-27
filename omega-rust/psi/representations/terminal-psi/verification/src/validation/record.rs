@@ -323,6 +323,7 @@ pub(super) fn completed_source<'a>(
                 operation.kind,
                 OperationKind::EstablishRecord { .. }
                     | OperationKind::EstablishZeroedStructural { .. }
+                    | OperationKind::EstablishStructuralCase { .. }
                     | OperationKind::CallStructural { .. }
                     | OperationKind::CallStructuralWithScalarArguments { .. }
                     | OperationKind::StructuralLeafCopy { .. }

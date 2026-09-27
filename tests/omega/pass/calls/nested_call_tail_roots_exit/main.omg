@@ -14,10 +14,13 @@
 //     abstract-operations InitialValidation (see
 //     nested_call_runtime_index_arg_exit)
 //   * case-payload parameters used as receivers — past "Unit graph
-//     case-payload subject type drifted"; the arm-bound payload dispatch now
-//     reaches terminal emission, declining InvalidTerminalModule(
-//     UnknownStructuralArgument) — the Named-target payload argument has no
-//     registered structural-argument entry (this fixture's current wall)
+//     case-payload subject type drifted"; arm-bound payload dispatch
+//     (`Has { list } -> at(list)`) verifies — see named_target_payload_dispatch
+//   * `let w = Wrap::Has { .. }` — the whole-sum establishment now admits as
+//     a completed-source argument (the prior UnknownStructuralArgument wall
+//     is dead), and this fixture's current wall is instead
+//     UnsupportedStructuralCase: EstablishStructuralCase has no abstract-
+//     operations variant (contract-slot lane)
 // Landed as evidence for the census family; revisit as each wall opens.
 
 use omega_language_std::console;
