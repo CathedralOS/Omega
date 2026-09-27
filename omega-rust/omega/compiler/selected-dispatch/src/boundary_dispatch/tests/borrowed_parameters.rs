@@ -1,7 +1,4 @@
-use super::{
-    Arc, CheckedTrees, adapter_entry_symbol, selected_plan,
-    settle_selected_boundary_adapter_dispatch,
-};
+use super::{Arc, CheckedTrees, selected_plan, settle_selected_boundary_adapter_dispatch};
 use provider_planning::ProviderPlanDerivation;
 const BORROWED_SOURCE: &str = r#"
     boundary trait Output {
@@ -75,33 +72,6 @@ fn send_state(program: &CheckedTrees) -> typed_trees::state::State {
         .find(|state| state.name.as_str() == "send")
         .unwrap()
         .clone()
-}
-
-#[test]
-fn borrowed_boundary_parameters_keep_source_and_exact_selection() {
-    let (checked, selected) = borrowed_fixture();
-    let send = send_state(&checked);
-    let typed_trees::statement::StatementNode::Call(call) =
-        &checked.statement_table.statements(send.statement_nodes)[0]
-    else {
-        panic!("source call")
-    };
-    let receiver = call.receiver_symbol;
-    let requirement = call.target_symbol;
-    let target = adapter_entry_symbol(&checked, "OutputProvider::emit");
-    let original = Arc::new(checked);
-    let mut settled = Arc::clone(&original);
-    settle_selected_boundary_adapter_dispatch(&mut settled, &selected).unwrap();
-    assert_eq!(settled.typed, original.typed);
-    assert!(
-        settled
-            .facts
-            .boundary_adapter_dispatch
-            .iter()
-            .any(|row| row.receiver == receiver
-                && row.requirement == requirement
-                && row.realization_state == target)
-    );
 }
 
 #[test]

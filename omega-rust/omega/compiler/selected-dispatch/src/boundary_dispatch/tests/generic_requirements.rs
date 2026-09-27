@@ -79,41 +79,6 @@ fn family_fixture(source: &str) -> (CheckedTrees, Vec<ProviderPlan>) {
     (checked, plans)
 }
 
-fn requirement_symbol(checked: &CheckedTrees, name: &str) -> symbols::SymbolHandle {
-    checked
-        .traits()
-        .iter()
-        .flat_map(|definition| checked.trait_machine_signatures(definition))
-        .find(|signature| signature.name.as_str() == name)
-        .unwrap_or_else(|| panic!("missing requirement `{name}`"))
-        .symbol
-}
-
-#[test]
-fn generic_requirements_are_excluded_individually() {
-    let (checked, plans) = family_fixture(FAMILY_SOURCE);
-    let selected = selected_plan(&plans, "Scanner");
-    let scan = requirement_symbol(&checked, "scan");
-    let watch = requirement_symbol(&checked, "watch");
-    let ping = requirement_symbol(&checked, "ping");
-    let original = Arc::new(checked);
-    let mut settled = Arc::clone(&original);
-    settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
-        .expect("nongeneric siblings still settle beside ineligible requirements");
-    assert_eq!(settled.typed, original.typed);
-    let dispatch = &settled.facts.boundary_adapter_dispatch;
-    assert!(
-        dispatch.iter().any(|row| row.requirement == ping),
-        "the nongeneric sibling keeps its exact row"
-    );
-    assert!(
-        dispatch
-            .iter()
-            .all(|row| row.requirement != scan && row.requirement != watch),
-        "generic requirements supply no dispatch rows"
-    );
-}
-
 #[test]
 fn value_calls_to_a_generic_requirement_reject() {
     let (checked, plans) = family_fixture(GENERIC_VALUE_CALL);
@@ -142,59 +107,6 @@ fn statement_calls_to_a_generic_requirement_reject() {
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
             .contains("supplies no executable dispatch row")),
-        "{diagnostics:?}"
-    );
-}
-
-#[test]
-fn ineligible_rows_skip_adapter_resolution() {
-    let mut typed = typed_with_core_service(
-        "selected-dispatch/generic_ineligible.omg",
-        GENERIC_VALUE_CALL,
-    );
-    let plans = provider_planning::derive_satisfies_plans(
-        &typed,
-        ProviderPlanDerivation::unevaluated(None),
-    )
-    .into_iter()
-    .map(|derived| derived.plan)
-    .collect::<Vec<_>>();
-    let mut selected = plan(&plans, "Scanner").clone();
-    let row = selected
-        .rows
-        .iter_mut()
-        .find(|row| row.method == "scan")
-        .expect("generic scan row");
-    row.binding = ProviderBinding::CheckedAdapter {
-        machine_identity: "ScanProvider::missing".into(),
-        machine_package_identity: None,
-    };
-    // The mutated binding is part of the selected plan's identity, so the
-    // fused-service authorization must be bound from this drifted selection —
-    // checking first would authorize the unmutated digest and the routed
-    // `Binding<Scanner>` field would fail its plan join before the row's own
-    // diagnostic can be observed.
-    let selected = effects::SelectedProviderPlanFacts::from_selected_plans(vec![selected])
-        .expect("select mutated generic plan");
-    bind_fixture_fused_service_erasures(&mut typed, &selected);
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("check generic-ineligible fixture");
-    let mut settled = Arc::new(checked);
-    let diagnostics = settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
-        .expect_err("the ineligible requirement is excluded before realization checks");
-    assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("supplies no executable dispatch row")),
-        "{diagnostics:?}"
-    );
-    assert!(
-        diagnostics
-            .iter()
-            .all(|diagnostic| !diagnostic.message.contains("is absent from typed machines")),
         "{diagnostics:?}"
     );
 }

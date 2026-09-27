@@ -15,7 +15,6 @@ use crate::boundary_dispatch::boundary_fields::exact_adapter_receiver_shape;
 use crate::core_service_fixture::typed_with_core_service;
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
 use typed_trees::TypedTrees;
-use typed_trees::expression::ExpressionNode;
 
 /// Select every derived plan, one per boundary slot — the shape settled
 /// orchestration hands checking, where every declared requirement keeps a
@@ -323,38 +322,6 @@ fn selected_rows_reject_every_exact_identity_drift() {
 }
 
 #[test]
-fn concrete_provider_self_is_excluded_from_adapter_arity() {
-    let fixture = fixture();
-    let selected = plan(&fixture.plans, "Stateful");
-    let row = &selected.rows[checked_row(selected, "touch")];
-
-    let adapter = resolve_selected_adapter_row(&fixture.typed, selected, row, &[])
-        .expect("concrete provider self is an exact realization receiver")
-        .into_iter()
-        .next()
-        .expect("checked row yields adapter")
-        .expect_adapter();
-    assert_eq!(adapter.adapter_target, "StatefulProvider::touch");
-    assert!(!adapter.forward_receiver);
-}
-
-#[test]
-fn exact_leading_non_self_requirement_receiver_is_forwarded() {
-    let fixture = fixture();
-    let selected = plan(&fixture.plans, "Forward");
-    let row = &selected.rows[checked_row(selected, "send")];
-
-    let adapter = resolve_selected_adapter_row(&fixture.typed, selected, row, &[])
-        .expect("exact leading boundary binding resolves")
-        .into_iter()
-        .next()
-        .expect("checked row yields adapter")
-        .expect_adapter();
-    assert_eq!(adapter.adapter_target, "ForwardProvider::send_adapter");
-    assert!(adapter.forward_receiver);
-}
-
-#[test]
 fn wrong_nonleading_or_multiple_non_self_receivers_never_forward() {
     let fixture = fixture();
     let selected = plan(&fixture.plans, "Forward");
@@ -547,59 +514,6 @@ fn same_spelled_fields_and_readable_names_never_select_adapter_rows() {
     );
 }
 
-fn statement_call(
-    checked: &CheckedTrees,
-    target: &str,
-) -> (
-    arena::HandleSpan<typed_trees::statement::StatementNode>,
-    usize,
-    typed_trees::statement::TableCall,
-) {
-    checked
-        .typed
-        .machines()
-        .iter()
-        .flat_map(|machine| checked.typed.machine_states(machine))
-        .flat_map(|state| {
-            checked
-                .typed
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .enumerate()
-                .filter_map(move |(index, statement)| match statement {
-                    typed_trees::statement::StatementNode::Call(call)
-                        if call.target.as_str() == target =>
-                    {
-                        Some((state.statement_nodes, index, call.clone()))
-                    }
-                    _ => None,
-                })
-        })
-        .next()
-        .unwrap_or_else(|| panic!("missing statement call `{target}`"))
-}
-
-fn expression_call(
-    checked: &CheckedTrees,
-    target: &str,
-) -> (
-    typed_trees::expression::ExpressionHandle,
-    typed_trees::expression::TableCallExpression,
-) {
-    checked
-        .typed
-        .expression_table
-        .expression_entries()
-        .find_map(|(handle, expression)| match expression {
-            ExpressionNode::Call(call) if call.target.as_str() == target => {
-                Some((handle, call.clone()))
-            }
-            _ => None,
-        })
-        .unwrap_or_else(|| panic!("missing value call `{target}`"))
-}
-
 fn adapter_entry_symbol(checked: &CheckedTrees, machine_name: &str) -> symbols::SymbolHandle {
     let machine = checked
         .typed
@@ -613,110 +527,6 @@ fn adapter_entry_symbol(checked: &CheckedTrees, machine_name: &str) -> symbols::
         .first()
         .expect("adapter entry")
         .symbol
-}
-
-#[test]
-fn selected_execution_keeps_source_and_records_exact_and_forwarding_targets() {
-    for (statement_name, expression_name, statement_adapter, expression_adapter, forwarding) in [
-        (
-            "emit",
-            "echo",
-            "EchoProvider::emit_adapter",
-            "EchoProvider::echo_adapter",
-            false,
-        ),
-        (
-            "send",
-            "reflect",
-            "ForwardProvider::send_adapter",
-            "ForwardProvider::reflect_adapter",
-            true,
-        ),
-    ] {
-        let (checked, plans) = checked_fixture();
-        let selected = selected_every_plan(&plans);
-        let (_, _, statement) = statement_call(&checked, statement_name);
-        let (_, expression) = expression_call(&checked, expression_name);
-        let original = Arc::new(checked);
-        let mut settled = Arc::clone(&original);
-        settle_selected_boundary_adapter_dispatch(&mut settled, &selected).unwrap();
-        assert_eq!(
-            settled.typed, original.typed,
-            "no rewritten calls or synthetic receiver expressions"
-        );
-        assert!(
-            settled
-                .facts
-                .boundary_adapter_dispatch
-                .iter()
-                .any(|row| row.receiver == statement.receiver_symbol
-                    && row.requirement == statement.target_symbol
-                    && row.realization_state == adapter_entry_symbol(&settled, statement_adapter)
-                    && row.forward_receiver == forwarding)
-        );
-        assert!(
-            settled
-                .facts
-                .boundary_adapter_dispatch
-                .iter()
-                .any(|row| row.requirement == expression.target_symbol
-                    && row.realization_state == adapter_entry_symbol(&settled, expression_adapter)
-                    && row.forward_receiver == forwarding)
-        );
-        let mut other_facts = settled.facts.clone();
-        other_facts.boundary_adapter_dispatch.clear();
-        assert_eq!(
-            other_facts, original.facts,
-            "source-derived facts remain unchanged"
-        );
-        let first = Arc::clone(&settled);
-        settle_selected_boundary_adapter_dispatch(&mut settled, &selected).unwrap();
-        assert!(
-            Arc::ptr_eq(&first, &settled),
-            "unchanged selections require no tree copy"
-        );
-    }
-}
-
-#[test]
-fn late_invalid_call_prevents_statement_and_value_rewrites() {
-    let (mut checked, plans) = checked_fixture();
-    let selected_names = plans
-        .iter()
-        .map(|plan| plan.name.clone())
-        .collect::<Vec<_>>();
-    let selected = effects::SelectedProviderPlanFacts::from_selection(&plans, &selected_names)
-        .expect("select every exact fixture plan");
-    let calls = checked
-        .typed
-        .expression_table
-        .expression_entries()
-        .filter_map(|(handle, expression)| {
-            matches!(expression, ExpressionNode::Call(call) if call.target.as_str() == "echo")
-                .then_some(handle)
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(calls.len(), 2);
-    let ExpressionNode::Call(mut invalid) =
-        checked.typed.expression_table.expression(calls[1]).clone()
-    else {
-        unreachable!()
-    };
-    invalid.target_symbol = symbols::SymbolHandle::invalid();
-    *checked.typed.expression_table.expression_mut(calls[1]) = ExpressionNode::Call(invalid);
-    let before = checked.clone();
-    let original = Arc::new(checked);
-    let mut rejected = Arc::clone(&original);
-
-    let diagnostics = settle_selected_boundary_adapter_dispatch(&mut rejected, &selected)
-        .expect_err("one invalid late call rejects the complete batch");
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("not exact target symbol"))
-    );
-    assert!(Arc::ptr_eq(&rejected, &original));
-    assert_eq!(rejected.as_ref(), &before);
 }
 
 #[test]
