@@ -32,6 +32,7 @@ pub(super) fn validate_control_flow(
     let dominators = crate::control_graph::dominators(machine);
 
     let mutable_views = super::block_views::mutable_availability(module, machine);
+    let mutable_records = super::block_views::mutable_records::aliases(module, machine);
     for block_id in order {
         block_checks::validate_block(
             module,
@@ -43,6 +44,7 @@ pub(super) fn validate_control_flow(
             &sites,
             &dominators,
             &mutable_views,
+            mutable_records.as_ref(),
             block_id,
         )?;
     }

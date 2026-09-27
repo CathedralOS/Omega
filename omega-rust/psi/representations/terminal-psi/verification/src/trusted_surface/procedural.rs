@@ -36,12 +36,18 @@ macro_rules! pa {
 }
 macro_rules! ts {
     ($file:literal) => {
-        concat!("omega-rust/psi/representations/terminal-psi/semantics/src/", $file)
+        concat!(
+            "omega-rust/psi/representations/terminal-psi/semantics/src/",
+            $file
+        )
     };
 }
 macro_rules! tv {
     ($file:literal) => {
-        concat!("omega-rust/psi/representations/terminal-psi/verification/src/", $file)
+        concat!(
+            "omega-rust/psi/representations/terminal-psi/verification/src/",
+            $file
+        )
     };
 }
 macro_rules! tp {
@@ -374,10 +380,10 @@ rows! {
     FORM_MACHINE => (
         "formation:machine-validation",
         SharedFormation,
-        "one machine's signature, blocks, parameters (including shared-borrow record and primitive-scalar views joined at block parameters), contract, and declared invariants",
+        "one machine's signature, blocks, parameters (including shared-borrow record and primitive-scalar views and exclusive whole plain-record state transfers joined at block parameters), contract, and declared invariants",
         "the machine validates as a whole before its obligations are reconstructed",
         &["formation:module-structure"],
-        &[tv!( "validation/machine.rs"), tv!( "validation/machine/blocks.rs"), tv!( "validation/machine/contract_clauses.rs"), tv!( "validation/machine/custody_operations.rs"), tv!( "validation/machine/scalar_result_operations.rs"), tv!( "validation/machine/structural_places.rs"), tv!( "validation/block_views.rs")]
+        &[tv!( "validation/machine.rs"), tv!( "validation/machine/blocks.rs"), tv!( "validation/machine/contract_clauses.rs"), tv!( "validation/machine/custody_operations.rs"), tv!( "validation/machine/scalar_result_operations.rs"), tv!( "validation/machine/structural_places.rs"), tv!( "validation/block_views.rs"), tv!( "validation/block_views/mutable_records.rs")]
     );
     FORM_PROPOSITION_CONTEXT => (
         "formation:proposition-context",

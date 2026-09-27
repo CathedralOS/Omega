@@ -623,7 +623,7 @@ pub(super) fn validate_operation(
                 destination,
                 path,
                 field,
-                destination_placement,
+                destination_storage,
                 field_byte_offset,
                 source,
                 indices,
@@ -637,10 +637,30 @@ pub(super) fn validate_operation(
                 ..
             },
         ) => {
-            let parameter = parameters
-                .iter()
-                .find(|parameter| parameter.place == destination.place)
-                .ok_or(LegalizationError::custody())?;
+            let storage_matches = match destination_storage {
+                target_operations::TargetStructuralArgumentSource::Placement(placement) => {
+                    optimized.structural_parameters.contains(destination)
+                        && parameters.iter().any(|parameter| {
+                            parameter.place == destination.place
+                                && &parameter.placement == placement
+                        })
+                }
+                target_operations::TargetStructuralArgumentSource::BlockParameter {
+                    block,
+                    place,
+                } => {
+                    *place == destination.place
+                        && destination.access == terminal_psi::StructuralAccess::MutableBorrow
+                        && optimized.blocks.iter().any(|entry| {
+                            entry.id == *block && entry.structural_parameters.contains(destination)
+                        })
+                        && abstract_operations::control_flow::address_joins::is_address_join_in(
+                            destination,
+                            &unit.structural_types,
+                        )
+                }
+                _ => false,
+            };
             let (offset, _, elements) =
                 crate::structural_inputs::structural_reference_input::store(
                     expected_destination.structural_type,
@@ -654,7 +674,7 @@ pub(super) fn validate_operation(
                 || destination != expected_destination
                 || path != expected_path
                 || field != expected_field
-                || destination_placement != &parameter.placement
+                || !storage_matches
                 || *field_byte_offset != offset
                 || !runtime_indices_rejoin(indices, &elements, sources)
                 || !sources

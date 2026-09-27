@@ -1,7 +1,7 @@
-//! Independent replay of shared address joins against the optimized unit.
+//! Independent replay of borrowed address joins against the optimized unit.
 //!
 //! An address join (`abstract_operations::control_flow::address_joins`) is a
-//! shared block parameter whose carrier is its referent's address. Target
+//! borrowed block parameter whose carrier is its referent's address. Target
 //! lowering classified each edge source and call argument; this replay
 //! reconstructs both from the optimized function alone, without reading the
 //! target's classification:
@@ -53,7 +53,7 @@ pub(in crate::legalization) fn parameter<'a>(
     .then_some((block, parameter))
 }
 
-/// Rejoin a whole shared argument lent by an address join.
+/// Rejoin a whole shared or mutable argument lent by an address join.
 pub(in crate::legalization) fn call_argument(
     semantic: &terminal_psi::StructuralArgument,
     destination: &StructuralParameterDeclaration,
@@ -78,8 +78,13 @@ pub(in crate::legalization) fn call_argument(
         .get(parameter_ordinal)
         .ok_or(LegalizationError::custody())?;
     if !semantic.path.is_empty()
-        || semantic.access != StructuralAccess::SharedBorrow
-        || destination.access != StructuralAccess::SharedBorrow
+        || !matches!(
+            semantic.access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        )
+        || destination.access != semantic.access
+        || semantic.access == StructuralAccess::MutableBorrow
+            && parameter.access != StructuralAccess::MutableBorrow
         || destination.multiplicity != StructuralMultiplicity::Unrestricted
         || !destination.qualifications.is_empty()
         || !destination.projected_qualifications.is_empty()
@@ -131,19 +136,27 @@ pub(in crate::legalization) fn edge_bindings(
                     return true;
                 }
                 binding.parameter == declaration.place
-                    && binding.argument.access == StructuralAccess::SharedBorrow
+                    && binding.argument.access == declaration.access
+                    && (declaration.access != StructuralAccess::MutableBorrow
+                        || binding.argument.path.is_empty())
                     && abstract_operations::control_flow::address_joins::is_static_projection(
                         &binding.argument.path,
                     )
-                    && root_type(function, source_block, binding.argument.place, plan)
-                        .and_then(|root| {
-                            crate::structural_inputs::structural_reference_input::project(
-                                root,
-                                &binding.argument.path,
-                                &plan.structural_types,
-                            )
-                        })
-                        .is_some_and(|(referent, _)| referent == declaration.structural_type)
+                    && root_type(
+                        function,
+                        source_block,
+                        binding.argument.place,
+                        declaration.access,
+                        plan,
+                    )
+                    .and_then(|root| {
+                        crate::structural_inputs::structural_reference_input::project(
+                            root,
+                            &binding.argument.path,
+                            &plan.structural_types,
+                        )
+                    })
+                    .is_some_and(|(referent, _)| referent == declaration.structural_type)
             })
 }
 
@@ -153,6 +166,7 @@ fn root_type(
     function: &PsiOptimizationFunction,
     block: BlockId,
     place: PlaceId,
+    access: StructuralAccess,
     plan: &AbstractOperationPlan,
 ) -> Option<semantic_vocabulary::StructuralTypeId> {
     let plain = |multiplicity, qualifications: &[_], projected: &[_]| {
@@ -166,7 +180,11 @@ fn root_type(
         .find(|source| source.place == place)
     {
         return (!source.is_self
-            && source.access != StructuralAccess::WriteOnlyBorrow
+            && (if access == StructuralAccess::MutableBorrow {
+                source.access == StructuralAccess::MutableBorrow
+            } else {
+                source.access != StructuralAccess::WriteOnlyBorrow
+            })
             && plain(
                 source.multiplicity,
                 &source.qualifications,
@@ -175,8 +193,13 @@ fn root_type(
         .then_some(source.structural_type);
     }
     if let Some((owner, joined)) = parameter(function, place, plan) {
-        return (owner == block || dominates(function, owner, block))
+        return ((owner == block || dominates(function, owner, block))
+            && (access != StructuralAccess::MutableBorrow
+                || joined.access == StructuralAccess::MutableBorrow))
             .then_some(joined.structural_type);
+    }
+    if access == StructuralAccess::MutableBorrow {
+        return None;
     }
     let (operation, result) = if let Some((operation, result, _)) =
         super::primitive_locals::producer(function, place)

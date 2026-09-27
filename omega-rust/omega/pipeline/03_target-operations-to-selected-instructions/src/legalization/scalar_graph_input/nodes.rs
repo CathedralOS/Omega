@@ -620,7 +620,15 @@ pub(super) fn validate(
         {
             if result.is_some()
                 || !node.definitions.is_empty()
-                || !optimized.structural_parameters.contains(destination)
+                || !(optimized.structural_parameters.contains(destination)
+                    || matches!(
+                        node.operation,
+                        AbstractOperation::StructuralScalarFieldStore { .. }
+                    ) && destination.access == terminal_psi::StructuralAccess::MutableBorrow
+                        && optimized
+                            .blocks
+                            .iter()
+                            .any(|block| block.structural_parameters.contains(destination)))
                 || !matches!(
                     destination.access,
                     terminal_psi::StructuralAccess::MutableBorrow

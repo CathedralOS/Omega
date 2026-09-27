@@ -1,4 +1,4 @@
-//! Current-graph exclusive bindings and fresh mutable view observations.
+//! Current-graph exclusive record/view bindings and fresh view observations.
 use crate::OptimizationUnitValidationError;
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::PsiOptimizationFunction;
@@ -29,7 +29,18 @@ pub(super) fn validate(
                             StructuralTypeShape::ByteSequence(
                                 ByteSequenceCarrier::BorrowedView { .. }
                             )
-                        )
+                        ) || {
+                            // A mutable record join carries the same exclusive
+                            // permission as an incoming mutable record. Its
+                            // source name expires on transfer, even though the
+                            // physical pointer still names the same referent.
+                            let mut joined = (**parameter).clone();
+                            joined.is_self = false;
+                            abstract_operations::control_flow::address_joins::is_address_join(
+                                &joined,
+                                |identity| types.get(&identity).copied(),
+                            )
+                        }
                     })
         })
         .map(|parameter| parameter.place)
@@ -37,6 +48,34 @@ pub(super) fn validate(
     if mutable.is_empty() {
         return Ok(());
     }
+    // Keep the existing descriptor-specific duplicate and handoff rules.
+    // Record arguments instead retain their per-occurrence access: several
+    // shared observations are legal, and a shared reborrow does not transfer
+    // the parent's exclusive permission to a new mutable name.
+    let descriptor_views = function
+        .structural_parameters
+        .iter()
+        .chain(
+            function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .filter(|parameter| {
+            mutable.contains(&parameter.place)
+                && types
+                    .get(&parameter.structural_type)
+                    .is_some_and(|declaration| {
+                        matches!(
+                            declaration.shape,
+                            StructuralTypeShape::ByteSequence(
+                                ByteSequenceCarrier::BorrowedView { .. }
+                            )
+                        )
+                    })
+        })
+        .map(|parameter| parameter.place)
+        .collect::<BTreeSet<_>>();
     let entry = function
         .structural_parameters
         .iter()
@@ -78,7 +117,10 @@ pub(super) fn validate(
                     reached = true;
                     let mut carried = previous[&predecessor.id].clone();
                     for binding in &edge.structural_bindings {
-                        if mutable.contains(&binding.argument.place) {
+                        if mutable.contains(&binding.argument.place)
+                            && (descriptor_views.contains(&binding.argument.place)
+                                || binding.argument.access == StructuralAccess::MutableBorrow)
+                        {
                             carried.remove(&binding.argument.place);
                         }
                     }
@@ -115,17 +157,27 @@ pub(super) fn validate(
             for place in super::structural_roots::operation_place_inputs(&node.operation) {
                 if mutable.contains(&place)
                     && (!available.contains(&place)
-                        || (node.successors.is_empty() && !seen.insert(place)))
+                        || (node.successors.is_empty()
+                            && descriptor_views.contains(&place)
+                            && !seen.insert(place)))
                 {
                     return Err(invalid(place));
                 }
             }
             for edge in &node.successors {
-                let mut seen = BTreeSet::new();
+                let mut seen = BTreeMap::new();
                 for binding in &edge.structural_bindings {
                     let place = binding.argument.place;
-                    if mutable.contains(&place) && !seen.insert(place) {
-                        return Err(invalid(place));
+                    if !mutable.contains(&place) {
+                        continue;
+                    }
+                    if let Some(prior) = seen.insert(place, binding.argument.access) {
+                        if descriptor_views.contains(&place)
+                            || prior != StructuralAccess::SharedBorrow
+                            || binding.argument.access != StructuralAccess::SharedBorrow
+                        {
+                            return Err(invalid(place));
+                        }
                     }
                 }
             }

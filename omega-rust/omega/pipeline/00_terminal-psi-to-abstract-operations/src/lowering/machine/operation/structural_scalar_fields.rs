@@ -61,7 +61,39 @@ fn lower_store(
     range_obligation: Option<semantic_vocabulary::ObligationId>,
 ) -> Result<AbstractOperation, LoweringError> {
     let invalid = || LoweringError::InvalidStructuralScalarFieldStore(operation.id);
-    let destination = exact_parameter(machine, destination).ok_or_else(invalid)?;
+    // A state arrival is a declared loan of the same backing storage, not an
+    // entry ABI parameter. Preserve its own declaration for downstream pointer
+    // transport; Terminal verification has already checked edge exclusivity.
+    let destination = exact_parameter(machine, destination)
+        .or_else(|| {
+            let mut matches = machine.blocks.iter().flat_map(|block| {
+                block
+                    .structural_parameters
+                    .iter()
+                    .filter(move |parameter| parameter.place == destination)
+                    .map(move |parameter| (block.id, parameter))
+            });
+            let (owner, parameter) = matches.next()?;
+            let expected_kind = StructuralPlaceKind::BlockParameter {
+                block: owner,
+                position: parameter.position,
+            };
+            if matches.next().is_some()
+                || parameter.access != StructuralAccess::MutableBorrow
+                || !abstract_operations::control_flow::address_joins::is_address_join_in(
+                    parameter,
+                    structural_types,
+                )
+                || !machine
+                    .structural_places
+                    .iter()
+                    .any(|place| place.id == destination && place.kind == expected_kind)
+            {
+                return None;
+            }
+            Some(parameter.clone())
+        })
+        .ok_or_else(invalid)?;
     let scalar_type =
         dominating_scalar_type(machine, block, operation.id, value).ok_or_else(invalid)?;
     if operation.result != OperationResult::Unit
@@ -275,6 +307,12 @@ pub(super) fn has_empty_structural_custody(machine: &TerminalMachine, place: Pla
     machine
         .structural_parameters
         .iter()
+        .chain(
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
         .find(|parameter| parameter.place == place)
         .is_some_and(|parameter| {
             parameter.qualifications.is_empty() && parameter.projected_qualifications.is_empty()

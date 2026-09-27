@@ -1,0 +1,9 @@
+data Cell { value: u64; }
+data Worker {}
+machine Worker::write(cell: &mut Cell) -> u64 {
+    transition { _ -> finish(&mut cell, &mut cell) }
+    state finish(first: &mut Cell, second: &mut Cell) -> u64 {
+        first.value = 70;
+        second.value
+    }
+}

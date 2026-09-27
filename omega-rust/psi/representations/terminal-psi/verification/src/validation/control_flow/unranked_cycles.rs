@@ -58,6 +58,7 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
                     || !parameter.qualifications.is_empty()
                     || !parameter.projected_qualifications.is_empty()
                     || !(persistent_receiver(module, parameter)
+                        || block_views::mutable_records::parameter_type(module, parameter)
                         || ((parameter.access == StructuralAccess::SharedBorrow
                             || (parameter.access == StructuralAccess::MutableBorrow
                                 && (machine.result == TerminalMachineResult::Unit

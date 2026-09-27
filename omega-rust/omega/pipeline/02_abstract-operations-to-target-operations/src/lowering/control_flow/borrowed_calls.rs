@@ -440,8 +440,11 @@ pub(super) fn address_join_argument(
 ) -> Result<TargetStructuralArgument, LoweringError> {
     if !live.address_joins.contains(&argument.place)
         || !argument.path.is_empty()
-        || argument.access != StructuralAccess::SharedBorrow
-        || declaration.access != StructuralAccess::SharedBorrow
+        || !matches!(
+            argument.access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        )
+        || declaration.access != argument.access
         || declaration.multiplicity != StructuralMultiplicity::Unrestricted
         || !declaration.qualifications.is_empty()
         || !declaration.projected_qualifications.is_empty()
@@ -466,11 +469,13 @@ pub(super) fn address_join_argument(
         &mut BTreeSet::new(),
     )?;
     if !super::transfers::is_address_join(parameter, types)
+        || argument.access == StructuralAccess::MutableBorrow
+            && parameter.access != StructuralAccess::MutableBorrow
         || parameter.structural_type != declaration.structural_type
         || destination.shape
             != crate::lowering::structural_layout::structural_parameter_shape(
                 referent,
-                StructuralAccess::SharedBorrow,
+                declaration.access,
             )
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));

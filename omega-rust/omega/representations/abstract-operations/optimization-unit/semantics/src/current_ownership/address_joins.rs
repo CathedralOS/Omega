@@ -40,10 +40,11 @@ impl AddressJoinPins {
                     .structural_parameters
                     .iter()
                     .filter(|parameter| {
-                        abstract_operations::control_flow::address_joins::is_address_join(
-                            parameter,
-                            |identity| structural_types.get(&identity).copied(),
-                        )
+                        parameter.access == StructuralAccess::SharedBorrow
+                            && abstract_operations::control_flow::address_joins::is_address_join(
+                                parameter,
+                                |identity| structural_types.get(&identity).copied(),
+                            )
                     })
                     .map(move |parameter| (parameter.place, block.id))
             })
@@ -60,6 +61,37 @@ impl AddressJoinPins {
         {
             for binding in &edge.structural_bindings {
                 if joins.contains_key(&binding.parameter) {
+                    origins
+                        .entry(binding.parameter)
+                        .or_default()
+                        .insert(binding.argument.place);
+                }
+            }
+        }
+        // Mutable arrivals transfer one exclusive permission; their exact
+        // name availability is reconstructed by function_structure::mutable_views.
+        // Shared reborrows must still freeze every intermediate mutable name,
+        // not merely the entrance pointer it ultimately carries.
+        let address_joins = function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.structural_parameters)
+            .filter(|parameter| {
+                abstract_operations::control_flow::address_joins::is_address_join(
+                    parameter,
+                    |identity| structural_types.get(&identity).copied(),
+                )
+            })
+            .map(|parameter| parameter.place)
+            .collect::<BTreeSet<_>>();
+        for edge in function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .flat_map(|node| &node.successors)
+        {
+            for binding in &edge.structural_bindings {
+                if address_joins.contains(&binding.parameter) {
                     origins
                         .entry(binding.parameter)
                         .or_default()
