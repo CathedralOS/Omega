@@ -11,6 +11,7 @@
 pub mod frontend;
 pub mod source;
 mod source_assembly;
+pub mod toolchain_library;
 
 pub use source_assembly::{
     AssembledSyntax, ImmutableSourceParseCheckpoint, RetainedGeneratedSyntaxExtension,

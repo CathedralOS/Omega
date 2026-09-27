@@ -1,0 +1,10 @@
+use omega::language::core::nat;
+
+machine accept(value: i32)
+requires value > 0
+{
+}
+
+machine main() {
+    accept(5);
+}
