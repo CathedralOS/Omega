@@ -139,6 +139,7 @@ pub(super) fn candidates(
             let mut cursor = 0;
             while cursor < imported.len() {
                 let Some(next) = remaining.checked_sub(1) else {
+                    crate::proofs::proof_timing::count_budget_exhaustion();
                     return candidates;
                 };
                 *remaining = next;
@@ -188,6 +189,7 @@ pub(super) fn candidates(
                 })
             {
                 let Some(next) = remaining.checked_sub(1) else {
+                    crate::proofs::proof_timing::count_budget_exhaustion();
                     return candidates;
                 };
                 *remaining = next;

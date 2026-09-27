@@ -35,11 +35,18 @@ fn finalize_operation_proofs_inner(
     lowered: &mut LoweredPsi,
     #[cfg(test)] prepared_machine: &(impl Fn(MachineId) + Sync),
 ) -> Result<(), LoweringError> {
+    let _retain_scope =
+        crate::proofs::proof_timing::Scope::enter("finalize_operation_proofs:retain_provable");
     crate::proofs::scalar_block_invariants::retain_provable(lowered)?;
+    drop(_retain_scope);
+    let started = std::time::Instant::now();
     let validated = terminal_verifier::validate_module(&lowered.semantic_module)
         .map_err(LoweringError::InvalidTerminalModule)?;
+    crate::proofs::proof_timing::count_validate(started.elapsed());
+    let started = std::time::Instant::now();
     let obligations = terminal_verifier::reconstruct_execution_terminal_obligations(validated)
         .map_err(LoweringError::InvalidTerminalModule)?;
+    crate::proofs::proof_timing::count_reconstruct(started.elapsed());
     let existing = lowered
         .proof_bundle
         .evidence
@@ -65,6 +72,9 @@ fn finalize_operation_proofs_inner(
         .map(|machine| (machine.id, (machine, OnceLock::new())))
         .collect::<BTreeMap<_, _>>();
     let produce = |site: &terminal_verifier::ReconstructedTerminalObligation| {
+        let _counted = crate::proofs::proof_timing::Counted::enter(
+            crate::proofs::proof_timing::count_producer,
+        );
         let owner = owners.get(&site.owner.machine());
         let assumptions = site.requirements.as_slice();
         let proof = if let Some((machine, preparation)) = owner
@@ -80,7 +90,9 @@ fn finalize_operation_proofs_inner(
             let preparation = preparation.get_or_init(|| {
                 #[cfg(test)]
                 prepared_machine(machine.id);
+                let started = std::time::Instant::now();
                 let context = validated.value_context(machine)?;
+                crate::proofs::proof_timing::count_value_context(started.elapsed());
                 let machine_parameter_values = machine
                     .parameters
                     .iter()
@@ -191,6 +203,7 @@ fn finalize_operation_proofs_inner(
         .evidence
         .sort_by_key(|evidence| evidence.obligation);
     crate::proofs::control_cycle_proofs::finalize(lowered)?;
+    crate::proofs::proof_timing::report("finalize_operation_proofs done");
     Ok(())
 }
 

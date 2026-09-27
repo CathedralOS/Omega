@@ -40,6 +40,7 @@ pub(super) fn strengthen(
     lowered: &mut LoweredPsi,
     retained: Option<&ReconstructedTerminalObligationSet>,
 ) -> Result<(), LoweringError> {
+    let _scope = crate::proofs::proof_timing::Scope::enter("cyclic_guarantees::strengthen");
     // The roster owner hands over its own reconstruction when it left the
     // module exactly as it reconstructed it; otherwise this pass takes one.
     let reconstructed;
@@ -241,6 +242,7 @@ fn header_candidates(
         let mut pending = machine.contract.requires.iter().collect::<Vec<_>>();
         while let Some(requirement) = pending.pop() {
             let Some(next) = remaining.checked_sub(1) else {
+                crate::proofs::proof_timing::count_budget_exhaustion();
                 return candidates;
             };
             *remaining = next;
@@ -306,6 +308,7 @@ fn header_candidates(
         )
     }) {
         let Some(next) = remaining.checked_sub(1) else {
+            crate::proofs::proof_timing::count_budget_exhaustion();
             return candidates;
         };
         *remaining = next;

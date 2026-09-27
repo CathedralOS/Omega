@@ -64,6 +64,7 @@ pub(super) fn candidates(
             )
         }) {
             let Some(next) = remaining.checked_sub(1) else {
+                crate::proofs::proof_timing::count_budget_exhaustion();
                 return candidates;
             };
             *remaining = next;
@@ -146,6 +147,7 @@ pub(super) fn candidates(
                         continue;
                     }
                     let Some(next) = remaining.checked_sub(1) else {
+                        crate::proofs::proof_timing::count_budget_exhaustion();
                         return candidates;
                     };
                     *remaining = next;
