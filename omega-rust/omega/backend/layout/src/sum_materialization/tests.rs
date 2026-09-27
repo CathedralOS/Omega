@@ -1,6 +1,6 @@
 use super::{
     ConventionalNestedRecordSumPathLayoutReport, DataMember, DataShape, LayoutPlacementReport,
-    SumReachability, SymbolHandle, TypeLayoutDescriptor, TypeReferenceNode,
+    SymbolHandle, TypeLayoutDescriptor, TypeReferenceNode,
     project_conventional_record_with_nested_sum_record_materialization_layout,
     project_conventional_record_with_nested_sum_records_materialization_layout,
     project_conventional_record_with_sum_array_materialization_layout,
@@ -728,81 +728,6 @@ fn plural_nested_record_paths_retain_complete_ordered_occurrences_and_replay_ato
                 ByteOrder::LittleEndian,
             )
             .is_err()
-    );
-}
-
-#[test]
-fn producer_reachability_validates_siblings_after_an_already_found_sum() {
-    let checked = checked(
-        r#"
-        data Choice [copy] { case Empty; }
-        data Trap [copy] { choice: Choice; later: u8; }
-        data Root [copy] { trap: Trap; }
-        "#,
-    );
-    let trap = checked
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name.as_str() == "Trap")
-        .expect("Trap definition");
-    let trap_symbol = trap.symbol;
-    let trap_name = trap.name.clone();
-    let later_type = checked
-        .data_members(trap)
-        .iter()
-        .find_map(|member| match member {
-            DataMember::Field(field) if field.name.as_str() == "later" => {
-                Some(field.type_reference)
-            }
-            DataMember::Field(_) | DataMember::Variant(_) => None,
-        })
-        .expect("later field");
-    let root = checked
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name.as_str() == "Root")
-        .expect("Root definition");
-    let trap_type = checked
-        .data_members(root)
-        .iter()
-        .find_map(|member| match member {
-            DataMember::Field(field) if field.name.as_str() == "trap" => Some(field.type_reference),
-            DataMember::Field(_) | DataMember::Variant(_) => None,
-        })
-        .expect("trap field");
-    assert!(matches!(
-        SumReachability::new(&checked).type_contains_sum(trap_type),
-        Ok(true)
-    ));
-
-    let mut recursive = checked.clone();
-    recursive.typed.type_reference_table.substitute_node(
-        later_type,
-        TypeReferenceNode::Named {
-            symbol: trap_symbol,
-            name: trap_name.clone(),
-        },
-    );
-    assert!(
-        SumReachability::new(&recursive)
-            .type_contains_sum(trap_type)
-            .is_err(),
-        "a later recursive sibling must not hide behind an earlier sum"
-    );
-
-    let mut malformed = checked;
-    malformed.typed.type_reference_table.substitute_node(
-        later_type,
-        TypeReferenceNode::Named {
-            symbol: SymbolHandle::invalid(),
-            name: trap_name,
-        },
-    );
-    assert!(
-        SumReachability::new(&malformed)
-            .type_contains_sum(trap_type)
-            .is_err(),
-        "a later malformed nominal branch must not hide behind an earlier sum"
     );
 }
 

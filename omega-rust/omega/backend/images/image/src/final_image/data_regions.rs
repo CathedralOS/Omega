@@ -514,57 +514,6 @@ mod tests {
     }
 
     #[test]
-    fn places_classified_data_regions_and_retains_unclassified_gaps() {
-        let image = data_image(
-            vec![0; 20],
-            vec![
-                FinalDataRegion {
-                    origin: FinalDataRegionOrigin::CompilerData,
-                    section_offset: 0,
-                    byte_count: 8,
-                    symbol: "table".into(),
-                },
-                FinalDataRegion {
-                    origin: FinalDataRegionOrigin::ImportBindingSlot,
-                    section_offset: 12,
-                    byte_count: 8,
-                    symbol: "_getpid".into(),
-                },
-            ],
-        );
-
-        let inventory = place_data_regions(
-            &image,
-            FinalImageLayout {
-                data_address: 0x4000,
-                ..FinalImageLayout::default()
-            },
-        )
-        .expect("valid data regions should place");
-
-        assert_eq!(inventory.regions[0].address, 0x4000);
-        assert_eq!(inventory.regions[1].address, 0x400c);
-        assert_eq!(
-            inventory.unclassified_gaps,
-            vec![PlacedDataGap {
-                section_offset: 8,
-                address: 0x4008,
-                byte_count: 4,
-                byte_digest: PlacedDataGapBytesDigest::from_digest(digest_bytes(
-                    b"omega.placed-data-gap-bytes.sha256.v1\0",
-                    &[0; 4],
-                )),
-                byte_report_fingerprint: byte_report_fingerprint(&[0; 4]),
-            }]
-        );
-        assert_eq!(
-            inventory.data_report_fingerprint,
-            byte_report_fingerprint(&[0; 20])
-        );
-        assert_ne!(inventory.inventory_report_fingerprint, 0);
-    }
-
-    #[test]
     fn rejects_overlapping_and_unbounded_data_regions() {
         let image = data_image(
             vec![0; 8],

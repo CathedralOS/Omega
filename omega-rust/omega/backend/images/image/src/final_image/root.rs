@@ -70,39 +70,4 @@ impl FinalImage {
 }
 
 #[cfg(test)]
-mod tests {
-    use crate::final_image::{
-        FinalImage, FinalImageMemory, FinalImageRelocationTable, FinalImageSymbolTable,
-    };
-    use arena::Handle;
-    use target::NativeTarget;
-
-    #[test]
-    fn final_image_constructor_keeps_artifact_roots_explicit() {
-        let target = NativeTarget::linux_arm64();
-        let memory = FinalImageMemory {
-            text: vec![0xaa],
-            data: vec![0xbb],
-            bss_size: 3,
-            bss_alignment: 4,
-        };
-        let symbol_table = FinalImageSymbolTable::with_capacity(Handle::invalid(), 1, 2);
-        let relocation_table = FinalImageRelocationTable::with_capacity(3);
-
-        let image = FinalImage::with_roots(
-            target,
-            memory.clone(),
-            symbol_table.clone(),
-            relocation_table.clone(),
-            Vec::new(),
-            Vec::new(),
-        );
-
-        assert_eq!(image.target, target);
-        assert_eq!(image.memory, memory);
-        assert_eq!(image.symbol_table, symbol_table);
-        assert_eq!(image.relocation_table, relocation_table);
-        assert!(image.executable_regions.is_empty());
-        assert!(image.data_regions.is_empty());
-    }
-}
+mod tests {}

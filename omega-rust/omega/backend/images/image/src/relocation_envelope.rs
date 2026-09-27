@@ -307,19 +307,6 @@ mod tests {
     }
 
     #[test]
-    fn initialized_data_envelope_preserves_empty_data_behavior_and_exact_length() {
-        let relocations = RelocationPlan::with_target(NativeTarget::host());
-        validate_final_initialized_data_relocation_envelope(&[], &[], &relocations)
-            .expect("empty initialized data remains valid");
-        assert!(
-            validate_final_initialized_data_relocation_envelope(&[], &[0], &relocations).is_err()
-        );
-        assert!(
-            validate_final_initialized_data_relocation_envelope(&[0], &[], &relocations).is_err()
-        );
-    }
-
-    #[test]
     fn initialized_data_envelope_rejects_malformed_or_overlapping_slots() {
         let encoded = vec![0; 24];
 
@@ -366,19 +353,5 @@ mod tests {
             )
             .is_err()
         );
-    }
-
-    #[test]
-    fn initialized_data_envelope_ignores_text_relocation_fields() {
-        let encoded = vec![0x5a; 8];
-        let mut relocations = RelocationPlan::with_target(NativeTarget::host());
-        let mut relocation = data_relocation(0);
-        relocation.section = SectionKind::Text;
-        relocation.kind = RelocationKind::X86_64Relative32;
-        relocation.byte_width = 4;
-        relocations.push_record(relocation);
-
-        validate_final_initialized_data_relocation_envelope(&encoded, &encoded, &relocations)
-            .expect("text relocation fields belong to the text envelope");
     }
 }

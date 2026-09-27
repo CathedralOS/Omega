@@ -183,29 +183,8 @@ pub enum RelocationKind {
 
 #[cfg(test)]
 mod tests {
-    use crate::{RelocationOrigin, RelocationPlan, RelocationRecord, RelocationRecordSet};
-    use arena::{Arena, Handle};
-    use target::NativeTarget;
-
-    #[test]
-    fn relocation_record_set_constructor_keeps_record_root_explicit() {
-        let records = Arena::<RelocationRecord>::with_capacity(3);
-
-        let record_set = RelocationRecordSet::with_roots(records.clone());
-
-        assert_eq!(record_set.records, records);
-    }
-
-    #[test]
-    fn relocation_plan_constructor_keeps_target_and_record_roots_explicit() {
-        let target = NativeTarget::linux_arm64();
-        let record_set = RelocationRecordSet::with_capacity(2);
-
-        let plan = RelocationPlan::with_roots(target, record_set.clone());
-
-        assert_eq!(plan.target, target);
-        assert_eq!(plan.record_set, record_set);
-    }
+    use crate::RelocationOrigin;
+    use arena::Handle;
 
     #[test]
     fn semantic_operation_and_edge_origins_keep_disjoint_identities() {

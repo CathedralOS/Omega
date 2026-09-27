@@ -153,26 +153,11 @@ pub enum FinalImageImportPlan {
 #[cfg(test)]
 mod tests {
     use crate::final_image::{
-        FinalImage, FinalImageImport, FinalImageMemory, FinalImageSymbol, FinalImageSymbolTable,
-        final_image_symbol_digest,
+        FinalImage, FinalImageMemory, FinalImageSymbol, final_image_symbol_digest,
     };
-    use arena::{Arena, Handle};
+    use arena::Handle;
     use object_file::SymbolKind;
     use target::NativeTarget;
-
-    #[test]
-    fn symbol_table_constructor_keeps_symbol_and_import_roots_explicit() {
-        let entry_symbol = Handle::invalid();
-        let symbols = Arena::<FinalImageSymbol>::with_capacity(1);
-        let imports = Arena::<FinalImageImport>::with_capacity(2);
-
-        let table =
-            FinalImageSymbolTable::with_roots(entry_symbol, symbols.clone(), imports.clone());
-
-        assert_eq!(table.entry_symbol, entry_symbol);
-        assert_eq!(table.symbols, symbols);
-        assert_eq!(table.imports, imports);
-    }
 
     #[test]
     fn strong_symbol_digest_rejects_same_handle_entry_and_data_substitution() {

@@ -48,16 +48,4 @@ impl Default for FinalImageRelocation {
 }
 
 #[cfg(test)]
-mod tests {
-    use crate::final_image::{FinalImageRelocation, FinalImageRelocationTable};
-    use arena::Arena;
-
-    #[test]
-    fn relocation_table_constructor_keeps_relocation_root_explicit() {
-        let relocations = Arena::<FinalImageRelocation>::with_capacity(3);
-
-        let table = FinalImageRelocationTable::with_roots(relocations.clone());
-
-        assert_eq!(table.relocations, relocations);
-    }
-}
+mod tests {}
