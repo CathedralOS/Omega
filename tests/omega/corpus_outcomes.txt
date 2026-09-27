@@ -736,8 +736,8 @@ fail/providers/checked_boundary_operator_const_application_unselected rejected 1
 	const-generic application evaluation failed: constant call lost its exact authored target selection
 fail/providers/checked_boundary_operator_missing_contract rejected 1ms expected
 	checked operator provider `CheckedMathProvider::identity_impl` proves no ensures matching operator requirement `operator::CheckedMath::identity(named(name(i32)))->named(name(i32))` contract `result == value`
-fail/providers/provider_type_slot_ambiguous rejected 0ms expected
-	slot `Pick` has two covering provider plans for the selected target: `macos_arm64::FirstProvider::satisfies::Pick` [d547576f82b8ce68], `macos_arm64::SecondProvider::satisfies::Pick` [635e4690ac8f23ee] -- choose one in build.omg with `b.select_provider<Pick, ProviderType>();`
+fail/providers/provider_type_slot_ambiguous rejected 400ms expected
+	slot `Pick` has two covering provider plans for the selected target: `<selected target>::FirstProvider::satisfies::Pick` [<fingerprint>], `<selected target>::SecondProvider::satisfies::Pick` [<fingerprint>] -- choose one in build.omg with `b.select_provider<Pick, ProviderType>();`
 fail/providers/provider_type_slot_unknown rejected 2ms expected
 	build selects provider `MissingProvider` for slot `Pick`, but no candidate exists in the loaded dependency closure
 fail/providers/provider_type_target_default_conflict rejected 1ms expected
@@ -1413,8 +1413,7 @@ pass/ownership/move_keyword_field_assignment checked 1ms
 pass/parameters/shared_and_mut_borrow_params_compile checked 1ms
 pass/parser/deep_nesting_within_limit checked 1ms
 pass/parser/invariant_is_an_identifier checked 1ms
-pass/progress/provider_receiver_progress_installation rejected 9ms
-	build selects provider `SchedulerProvider` for slot `Scheduler`, but candidate `macos_arm64::SchedulerProvider::satisfies::Scheduler` is partial (1/2) and cannot be selected
+pass/progress/provider_receiver_progress_installation checked 2314ms
 pass/proofs/accepted_axiom_cited_exit checked 454ms
 pass/proofs/accumulator_guarantee_exit checked 167ms
 pass/proofs/case_call_premises checked 5ms

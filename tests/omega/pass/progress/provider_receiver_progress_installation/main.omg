@@ -16,13 +16,31 @@ pub boundary trait Scheduler {
     machine grant(handle: SchedulerHandle) -> SchedulerHandle in WeakFair;
 }
 
-data SchedulerProvider { grant: addr; }
+data SchedulerProvider { grant: addr; notify: addr; }
 
 // Notification returns normally. Provider selection does not turn this Unit
 // requirement into canonical ProcessExit or establish its progress premise.
+// The provider covers every catalogued host: a fixture compiled under the
+// corpus's host-selected target finds a complete candidate wherever it runs.
 linux_x86_64 machine SchedulerProvider::notify(&self, value: i32)
 satisfies Scheduler::notify
 via ForeignBinding::Syscall(1);
+
+linux_arm64 machine SchedulerProvider::notify(&self, value: i32)
+satisfies Scheduler::notify
+via ForeignBinding::VtableField(notify);
+
+macos_arm64 machine SchedulerProvider::notify(&self, value: i32)
+satisfies Scheduler::notify
+via ForeignBinding::VtableField(notify);
+
+macos_x86_64 machine SchedulerProvider::notify(&self, value: i32)
+satisfies Scheduler::notify
+via ForeignBinding::VtableField(notify);
+
+windows_x86_64 machine SchedulerProvider::notify(&self, value: i32)
+satisfies Scheduler::notify
+via ForeignBinding::VtableField(notify);
 
 machine SchedulerProvider::grant(handle: SchedulerHandle) -> SchedulerHandle in WeakFair
 satisfies Scheduler::grant
