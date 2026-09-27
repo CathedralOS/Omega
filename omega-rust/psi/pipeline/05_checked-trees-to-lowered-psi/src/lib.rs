@@ -62,7 +62,7 @@ mod producer_result;
 mod terminal_identities;
 
 // The entrance, and the failure vocabulary its callers match on.
-pub use lowering_error::LoweringError;
+pub use lowering_error::{LoweringError, ProofSearchCapacity};
 pub use machine_lowering::machine_dispatch::{TerminalMachineSelection, select_terminal_machine};
 pub use machine_lowering::{callback_lowering_receipt, lower_machine};
 

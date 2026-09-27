@@ -1,6 +1,7 @@
 use checked_trees::CheckedTrees;
 use checked_trees_to_lowered_psi::{
-    LoweringError, TerminalMachineSelection, lower_machine, select_terminal_machine,
+    LoweringError, ProofSearchCapacity, TerminalMachineSelection, lower_machine,
+    select_terminal_machine,
 };
 use lowered_psi::{
     LoweredPsi, LoweredSelectedIeeeFloatComparisonOccurrence,
@@ -12,6 +13,7 @@ use lowered_psi_to_lowered_psi::{
 use lowered_psi_to_terminal_psi::{
     CheckedBoundaryOperatorApplicationScope, finalize_terminal_artifact,
 };
+use semantic_vocabulary::ObligationId;
 use terminal_psi::CheckedProgramEntryTerminalReceipt;
 
 use crate::stage_timings::{TerminalProductionStage, TerminalProductionTimings};
@@ -379,6 +381,16 @@ impl TerminalArtifactProductionError {
             _ => None,
         }
     }
+
+    /// The named capacity and unproved obligation when the refusal is a
+    /// proof-search capacity exhaustion — the publication contract's
+    /// `Incomplete` outcome rather than a defect of the program.
+    pub fn incomplete_capacity(&self) -> Option<(ProofSearchCapacity, ObligationId)> {
+        match self {
+            Self::Lowering(error) => error.incomplete_capacity(),
+            _ => None,
+        }
+    }
 }
 
 impl std::fmt::Display for TerminalArtifactProductionError {
@@ -447,6 +459,38 @@ mod tests {
         assert!(produced.receipt().is_some());
         let module = terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
         assert!(module.quotient_correspondences.is_empty());
+    }
+
+    /// A proof-search capacity refusal reports the `Incomplete` outcome
+    /// class — the named capacity and unproved obligation — while an
+    /// ordinary unavailable-proof rejection reports neither.
+    #[test]
+    fn a_capacity_refusal_reports_incomplete_and_a_rejection_does_not() {
+        use checked_trees_to_lowered_psi::{LoweringError, ProofSearchCapacity};
+        use semantic_vocabulary::ObligationId;
+
+        let obligation = ObligationId::new(41).unwrap();
+        let refusal = crate::terminal_production::TerminalArtifactProductionError::Lowering(
+            LoweringError::ProofSearchCapacityExhausted {
+                capacity: ProofSearchCapacity::ScalarInvariantRosterRounds,
+                obligation,
+            },
+        );
+        assert_eq!(
+            refusal.incomplete_capacity(),
+            Some((ProofSearchCapacity::ScalarInvariantRosterRounds, obligation)),
+        );
+        assert!(refusal.unimplemented_report().is_none());
+        assert_eq!(
+            ProofSearchCapacity::ScalarInvariantRosterRounds.resource_name(),
+            "proof_search_roster_rounds",
+        );
+
+        let rejection = crate::terminal_production::TerminalArtifactProductionError::Lowering(
+            LoweringError::OperationProofUnavailable(obligation),
+        );
+        assert!(rejection.incomplete_capacity().is_none());
+        assert!(rejection.unimplemented_report().is_none());
     }
 
     /// Every product shares the instrumented body: without an entry identity
