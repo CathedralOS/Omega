@@ -1,11 +1,9 @@
-//! Request-sized joins for callback custody. Scan source and Terminal inputs
+//! Request-sized source joins for callback custody. Scan the retained source calls
 //! once, retaining exact match counts so callers report errors in authored order.
 
 use checked_trees::NominalMachineUseSite;
 use lowered_psi::LoweredSourceCallOccurrence;
-use semantic_vocabulary::OperationId;
 use symbols::SymbolHandle;
-use terminal_psi::Operation;
 
 #[derive(Clone, Copy)]
 struct OccurrenceMatches<T> {
@@ -98,39 +96,6 @@ impl<'source> CallbackSourceCalls<'source> {
         let key = SourceCallKey::new(site, target);
         self.requested
             .binary_search_by(|entry| entry.0.cmp(&key))
-            .map_err(|_| 0usize)
-            .and_then(|position| self.requested[position].1.unique())
-    }
-}
-
-pub(super) struct CallbackTerminalOperations<'terminal> {
-    requested: Vec<(OperationId, OccurrenceMatches<&'terminal Operation>)>,
-}
-
-impl<'terminal> CallbackTerminalOperations<'terminal> {
-    pub(super) fn new(
-        operation_ids: impl Iterator<Item = OperationId>,
-        operations: impl Iterator<Item = &'terminal Operation>,
-    ) -> Self {
-        let mut requested = operation_ids
-            .map(|operation| (operation, OccurrenceMatches::empty()))
-            .collect::<Vec<_>>();
-        requested.sort_unstable_by_key(|entry| entry.0);
-        requested.dedup_by_key(|entry| entry.0);
-        if !requested.is_empty() {
-            for operation in operations {
-                if let Ok(position) = requested.binary_search_by_key(&operation.id, |entry| entry.0)
-                {
-                    requested[position].1.record(operation);
-                }
-            }
-        }
-        Self { requested }
-    }
-
-    pub(super) fn find(&self, operation: OperationId) -> Result<&'terminal Operation, usize> {
-        self.requested
-            .binary_search_by_key(&operation, |entry| entry.0)
             .map_err(|_| 0usize)
             .and_then(|position| self.requested[position].1.unique())
     }

@@ -26,7 +26,10 @@ pub use artifact_admission::{
     AdmittedNativeArtifact, AdmittedOptimizationArtifact, ArtifactLoweringError, ArtifactSections,
     TerminalPlacedViewEstablishment, VerifiedNativeArtifactInput, lower_artifact,
 };
-pub use callback_settlement::validate_callback_thunk_settlement;
+pub use callback_settlement::{
+    CallbackRegistrarOccurrence, settle_callback_registrar_imports,
+    validate_callback_thunk_settlement,
+};
 pub use entry_settlement::{
     NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
     ValidatedNativeProgramEntrySettlement, validate_fused_program_entry_establishments,

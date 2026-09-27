@@ -80,12 +80,20 @@ pub(super) fn realize(
         &callback_placements,
         &callback_occurrences,
     )?;
-    let external_binding_rows = crate::terminal::callback_closed_external_binding_rows(
-        checked,
-        &terminal_module,
-        &callback_placements,
-        &callback_occurrences,
-    )?;
+    let external_binding_rows =
+        terminal_psi_to_abstract_operations::settle_callback_registrar_imports(
+            &terminal_module,
+            &callback_placements,
+            callback_occurrences.iter().map(|occurrence| {
+                terminal_psi_to_abstract_operations::CallbackRegistrarOccurrence {
+                    placement_index: occurrence.placement_index(),
+                    terminal_operation: occurrence.terminal_operation(),
+                }
+            }),
+            checked.boundary_calling_plan_realizations(),
+            checked.external_binding_rows(),
+        )
+        .map_err(|message| vec![Diagnostic::error(message)])?;
     let demanded_intrinsics =
         provider_planning::compiler_intrinsics::demanded_boundary_identities(&terminal_module)?;
     let intrinsic_proposals =
