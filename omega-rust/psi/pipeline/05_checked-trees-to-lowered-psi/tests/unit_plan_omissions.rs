@@ -133,10 +133,8 @@ fn a_root_whose_callee_lacks_a_body_names_the_callee_chain() {
 // retained specialization row — `T`/`Arguments` derive `Token` and `Target`
 // selects `Worker::run`'s entry — so `TaskRuntime::start` carries a
 // substituted boundary plan and `probe` clears the boundary target check.
-// An owned `self` on `[linear]` attached data then establishes its Unit entry
-// claim directly — the checker owns the consumption judgment and records no
-// `StateEntry` event for it, so `entry_claims` mints the established identity
-// — and both `settle` bodies plus `probe` carry full Unit plans. In
+// An owned `self` on `[linear]` attached data carries ordinary entry custody.
+// The concrete `settle` specialization and `probe` carry full Unit plans. In
 // emission the `start` boundary mints `task`'s caller claim binding
 // from the `Establish` event its binding statement recorded — the minted
 // `ClaimId` is that claim's only binding — and the completed result carries
@@ -147,11 +145,10 @@ fn a_root_whose_callee_lacks_a_body_names_the_callee_chain() {
 // records the consume as a transfer of that exact claim. Module validation
 // admits the claim-carrying result place as a structural argument —
 // `Main::probe` verifies completely, transfer and all — and inside the
-// specialized `Task::settle` the minted linear `self` entry claim is retired
-// by the body's normal completion: an owned `self` receiver is the
-// language's terminal-consumer input, so the Unit return discharges the
-// claims rooted at its place while claims rooted anywhere else still stop
-// the exit. `lower_machine("Main::probe")` now produces a verified module.
+// specialized `Task::settle`, `Task::retire` explicitly consumes the linear
+// receiver through a boundary completion receipt. A normal Unit return is
+// not a disposition. `lower_machine("Main::probe")` produces a verified
+// module only with that actual transfer retained.
 
 const ROUTED_TASK_START_DECLS: &str = r#"
     data Task<T> [linear] {
@@ -187,7 +184,8 @@ const ROUTED_TASK_START_DECLS: &str = r#"
         token
     }
 
-    machine Task::settle<T>(self) { }
+    boundary requirement Task::retire<T>(self);
+    machine Task::settle<T>(self) { Task::retire(self); }
 "#;
 
 #[test]
@@ -331,12 +329,10 @@ fn a_routed_task_start_call_plans_and_owned_settle_reaches_module_production() {
         }
         result => panic!("unexpected start result plan: {result:?}"),
     }
-    // An owned `self` on `[linear]` attached data IS the custody the unit
-    // consumes: `entry_claims` now mints the receiver's `StateEntry` claim
-    // itself rather than declining the body. Both `settle` bodies — the
-    // generic and the `Task<Token>` receiver specialization — carry one
-    // whole-value claim on parameter 0, and `probe` retains a full plan
-    // because its specialized `settle` callee is no longer unavailable.
+    // The concrete receiver specialization carries one whole-value entry
+    // claim on parameter 0. The generic template's boundary call needs its
+    // type arguments substituted before it can have an executable Unit plan;
+    // the demanded product contains the `Task<Token>` specialization.
     let settle_machine = checked
         .typed
         .machines()
@@ -358,7 +354,9 @@ fn a_routed_task_start_call_plans_and_owned_settle_reaches_module_production() {
             .expect("settle has a state")
             .symbol
     };
-    for machine in [settle_machine, specialized_symbol] {
+    assert_ne!(settle_machine, specialized_symbol);
+    {
+        let machine = specialized_symbol;
         let plan = checked
             .facts
             .flow
@@ -371,15 +369,23 @@ fn a_routed_task_start_call_plans_and_owned_settle_reaches_module_production() {
         assert_eq!(claim.parameter_index, 0);
         assert!(claim.path.is_empty());
         assert_eq!(claim.carry, language_semantics::CarryPolicy::STRICT);
-        assert_eq!(
-            claim.claim_identity,
-            language_semantics::PermissionClaimIdentity::Established {
-                machine_symbol: machine,
-                state_symbol: settle_state(machine),
-                source: language_semantics::PermissionEventSource::StateEntry,
-                ordinal: 0,
-            }
-        );
+        let entry = checked
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .iter()
+            .map(|(_, event)| event)
+            .find(|event| {
+                event.machine_symbol == machine
+                    && event.state_symbol == settle_state(machine)
+                    && event.source == language_semantics::PermissionEventSource::StateEntry
+                    && event.kind == language_semantics::PermissionEventKind::Establish
+                    && event.root == facts::PlaceRoot::Symbol(machine)
+                    && event.segments.is_empty()
+            })
+            .expect("owned self has an ordinary checker-established entry claim");
+        assert_eq!(claim.claim_identity, entry.claim_identity);
     }
     assert!(
         checked
@@ -398,14 +404,13 @@ fn a_routed_task_start_call_plans_and_owned_settle_reaches_module_production() {
     // caller binding. The ordinary-call source policy classifies that
     // claim-carrying completed result place as a valid structural argument,
     // so `Main::probe` verifies completely. Inside the specialized
-    // `Task::settle`, the body's normal completion retires the minted linear
-    // `self` entry claim — an owned receiver is the terminal-consumer input
-    // — and the whole routed program produces a verified module.
+    // `Task::settle`, the boundary call must explicitly retire the receiver's
+    // entry claim before the Unit return.
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Main::probe"),
     )
-    .expect("the settle body retires its linear self claim at Unit return");
+    .expect("the settle body explicitly transfers its linear self claim");
     let settle = lowered
         .semantic_module
         .machines
@@ -431,6 +436,34 @@ fn a_routed_task_start_call_plans_and_owned_settle_reaches_module_production() {
     };
     assert_eq!(claim.input, parameter.place);
     assert!(claim.path.is_empty());
+    let completions = settle
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match &operation.kind {
+            terminal_psi::OperationKind::BoundaryCall {
+                structural_arguments,
+                completion_receipts,
+                ..
+            } => Some((structural_arguments, completion_receipts)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [(arguments, receipts)] = completions.as_slice() else {
+        panic!("settle explicitly completes one boundary disposition")
+    };
+    assert_eq!(arguments.len(), 1);
+    assert_eq!(arguments[0].place, parameter.place);
+    assert!(arguments[0].path.is_empty());
+    assert_eq!(arguments[0].access, terminal_psi::StructuralAccess::Owned);
+    assert_eq!(
+        receipts.as_slice(),
+        &[terminal_psi::CompletionReceipt {
+            claim: claim.claim,
+            argument_index: 0,
+        }],
+        "the boundary completion retires exactly the receiver claim"
+    );
     assert_eq!(settle.result, terminal_psi::TerminalMachineResult::Unit);
     assert!(
         settle.blocks.iter().all(|block| matches!(

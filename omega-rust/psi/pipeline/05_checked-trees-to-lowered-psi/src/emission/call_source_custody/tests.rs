@@ -18,6 +18,53 @@ use crate::TerminalMachineSelection;
 use crate::lower_machine;
 use terminal_psi::{OperationKind, OperationResult, StructuralPathSegment, TerminalModule};
 
+#[test]
+fn explicit_owned_self_call_rejoins_only_its_authored_receiver() {
+    let mut checked = crate::front_end::checked_program(
+        "data Token [linear] { code: i32; }
+         boundary requirement Token::finish(self);
+         machine Token::settle(self, other: Token) {
+             Token::finish(self);
+             Token::finish(other);
+         }",
+    );
+    lower_machine(&checked, TerminalMachineSelection::Name("Token::settle"))
+        .expect("both owned parameters explicitly complete their boundary disposition");
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Token::settle")
+        .expect("settle machine")
+        .symbol;
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter_mut()
+        .find(|plan| plan.machine == machine)
+        .expect("owned-self body has a Unit plan");
+    let argument = plan
+        .operations
+        .iter_mut()
+        .find_map(|operation| match operation {
+            checked_trees::CheckedUnitEffectOperationPlan::BoundaryCall {
+                structural_arguments,
+                ..
+            } => structural_arguments.first_mut(),
+            _ => None,
+        })
+        .expect("first boundary call consumes self");
+    assert_eq!(argument.source_parameter_index(), Some(0));
+    argument.source =
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 1 };
+    assert_eq!(
+        lower_machine(&checked, TerminalMachineSelection::Name("Token::settle"))
+            .expect_err("a same-typed parameter cannot replace the authored receiver"),
+        crate::LoweringError::Unsupported("owned call argument changed its authored parameter")
+    );
+}
+
 /// The carrier path of the one field store that reads the one emitted call's
 /// scalar result. Stores of other values, such as the preceding literal
 /// assignment, are not this consumer.

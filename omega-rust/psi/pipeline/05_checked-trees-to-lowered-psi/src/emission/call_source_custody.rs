@@ -628,10 +628,16 @@ fn validate_owned_parameter_arguments(
         if expression.is_none() && target.parameters[position as usize].is_self {
             continue;
         }
+        // Explicit `self` is rooted at the enclosing machine, while the
+        // signature keeps a distinct parameter symbol. Rejoin only that
+        // receiver alias, as for projected receivers; another same-typed
+        // parameter still cannot stand in for the authored argument.
         if !expression.is_some_and(|expression| {
             matches!(checked.expression_table.expression(expression),
             checked_trees::expression::ExpressionNode::Name(name)
-                if name.symbol == parameter.symbol && name.head_symbol == parameter.symbol
+                if (name.symbol == parameter.symbol
+                    || (parameter.is_self && name.symbol == machine.symbol))
+                    && name.head_symbol == name.symbol
                     && checked.expression_table.name_path_members(name.members).len() == 1)
         }) {
             return unsupported("owned call argument changed its authored parameter");

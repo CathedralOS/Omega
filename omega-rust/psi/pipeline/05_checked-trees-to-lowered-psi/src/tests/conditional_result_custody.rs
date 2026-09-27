@@ -3,7 +3,8 @@ use crate::TerminalMachineSelection;
 
 const SOURCE: &str = r#"
     data Receipt [linear] { code: i32; }
-    machine Receipt::ack(self) {}
+    boundary requirement Receipt::settle(self);
+    machine Receipt::ack(self) { Receipt::settle(self); }
 
     machine choose(flag: bool, left: Receipt, right: Receipt) -> Receipt {
         transition flag {
