@@ -154,12 +154,19 @@ and INTERPRETED-ASSEMBLY says "the existing `canary_suite/inline_asm.rs` x86
 fence, interrupt, flags, MSR and control-register byte-emission customers".
 `omega-rust/omega/compiler/tests/` now holds five entries.
 
-**13 of the 14 are recoverable**: their content survives in abandoned
-`.codex/worktrees/` copies from before the crate restructuring. Those are
-stale agent worktrees, not authority -- most are not registered worktrees at
-all -- but they are where the deleted behavior can be read back, which is
-what RC-RELEASE-RECORD-AND-CLOSURE means by "deleted test targets are leads
-to recover behavior, not passing evidence".
+These files were not lost to restructuring: `c60792d7bdd`, "repo: the
+compiler is tested through the corpus gate alone", deleted 185,937 lines of
+Rust tests across 114 targets on the owner's direction, because they pinned
+internals as often as behavior and every compiler change paid their build.
+The deletion was policy. What the rows get wrong is only their tense --
+asserting as present evidence something deliberately removed.
+
+**13 of the 14 are recoverable** two ways: from `c60792d7bdd^` in history,
+and from abandoned `.codex/worktrees/` copies predating it. Prefer history.
+Either is a lead to RE-EXPRESS the behavior as an ordinary corpus entry --
+which is what the owner's direction asks for, and what
+TERMINATION-RANKING-CHECKS already spells out for two of them -- not a
+reason to restore a Rust test target.
 
 | cited path | recoverable from a worktree |
 | --- | --- |
