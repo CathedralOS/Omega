@@ -23,9 +23,10 @@ fn resolve(source: &str) -> SymbolResolvedTrees {
 
 #[test]
 fn boundary_let_resolves_as_a_named_assumption() {
-    let program = resolve("boundary let choose(inhabited: u64): u64;");
+    let program = resolve("pub boundary let choose(inhabited: u64): u64;");
 
     let definition = program.mathematical_definitions.first().unwrap();
+    assert!(definition.is_public);
     assert!(definition.symbol.is_valid());
     assert_eq!(definition.body, MathematicalBody::Assumption);
 
@@ -41,9 +42,11 @@ fn boundary_let_resolves_as_a_named_assumption() {
 
 #[test]
 fn dependent_arrows_and_type_applications_survive_resolution() {
-    let program = resolve("let apply<A>(f: A -> A, value: A): F(value) = f;");
+    let program = resolve("pub let apply<A>(f: A -> A, value: A): F(value) = f;");
 
     let definition = program.mathematical_definitions.first().unwrap();
+    assert!(definition.is_public);
+    assert!(definition.symbol.is_valid());
     let [f, value] = program.mathematical_parameters(definition.parameters) else {
         panic!("two telescope parameters")
     };
@@ -106,14 +109,6 @@ fn dependent_arrows_and_type_applications_survive_resolution() {
         panic!("argument name")
     };
     assert_eq!(path.symbol, value.symbol);
-}
-
-#[test]
-fn public_let_marks_the_declaration_public() {
-    let program = resolve("pub let answer(): u64 = 42;");
-    let definition = program.mathematical_definitions.first().unwrap();
-    assert!(definition.is_public);
-    assert!(definition.symbol.is_valid());
 }
 
 #[test]
