@@ -20,7 +20,8 @@ pub mod terminal;
 pub use crate::checked::{
     CheckedAdmission, CheckedCompilation, CheckedCompileRequest, IndependentComponentDiscovery,
     IndependentComponentSelection, OptimizationRollback, OptimizationRollbackInputError,
-    PreparedCheckedSource, RestrictedBuildGrants, admit_checked_compilation, compile_to_checked,
+    PreparedCheckedSource, RestrictedBuildGrants, admit_checked_compilation,
+    checked_compilation_call_count, compile_to_checked,
 };
 pub use crate::native::{
     RetainedNativeRealizationRequest, SourceEvaluatedImportSettlement,

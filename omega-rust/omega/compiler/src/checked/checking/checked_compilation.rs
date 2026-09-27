@@ -404,6 +404,24 @@ impl CheckedCompilation {
         self.execution.selected_program_entry.as_ref()
     }
 
+    /// Whether this compile's selected program entry tolerated a `Binding`
+    /// field whose Fused provider was never selected. Only a discovery pass
+    /// may carry such a result: a strict recompile must reject the same
+    /// program, so a compile answering `true` is not interchangeable with the
+    /// result a pass without the tolerance would produce.
+    pub fn tolerated_unsettled_service_fields(&self) -> bool {
+        let Some(entry) = &self.execution.selected_program_entry else {
+            return false;
+        };
+        let program = &self.execution.settled.program;
+        selected_dispatch::program_entry_service_requirements(
+            program,
+            entry.source_signature().machine_symbol(),
+        )
+        .iter()
+        .any(|requirement| program.fused_service_erasure(*requirement).is_none())
+    }
+
     /// Exact symbol of the uniquely selected build machine. No build machine
     /// is represented by `None`; callers must not rediscover one by name.
     pub const fn selected_build_machine_symbol(&self) -> Option<symbols::SymbolHandle> {

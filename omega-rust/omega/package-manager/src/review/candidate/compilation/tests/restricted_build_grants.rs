@@ -70,6 +70,7 @@ fn supplied_host_scope_requires_exact_retained_request_and_occurrence() {
         // requests for review material and never consults retained consent.
         None,
         super::TargetEntryDiscovery::Disabled,
+        None,
         &mut preparation,
     )
     .expect("compile an honestly supplied host scope")
@@ -183,6 +184,7 @@ fn supplied_host_scope_requires_exact_retained_request_and_occurrence() {
         None,
         None,
         super::TargetEntryDiscovery::Disabled,
+        None,
         &mut preparation,
     )
     .expect("compile a wider supplied host allowance")
@@ -291,6 +293,7 @@ fn armed_checkpoint_gates_restricted_requests_inside_the_pass() {
         None,
         None,
         super::TargetEntryDiscovery::Disabled,
+        None,
         &mut preparation,
     )
     .expect("audit-only compile projects the request without consent")
@@ -320,6 +323,7 @@ fn armed_checkpoint_gates_restricted_requests_inside_the_pass() {
         None,
         Some(&checkpoint),
         super::TargetEntryDiscovery::Disabled,
+        None,
         &mut preparation,
     )
     .expect("granted restricted request compiles under the checkpoint");
@@ -368,6 +372,7 @@ fn armed_checkpoint_gates_restricted_requests_inside_the_pass() {
         None,
         Some(&missing),
         super::TargetEntryDiscovery::Disabled,
+        None,
         &mut preparation,
     )
     .map(|_| ())
@@ -417,6 +422,7 @@ fn armed_checkpoint_gates_restricted_requests_inside_the_pass() {
         None,
         Some(&checkpoint),
         super::TargetEntryDiscovery::Disabled,
+        None,
         &mut preparation,
     )
     .map(|_| ())

@@ -41,7 +41,9 @@ use crate::review::restricted_build_grants::RestrictedBuildCheckpoint;
 use checked_interpreter::{BuildEvaluationSponsor, FilesystemSponsor};
 use compiler::compile_to_checked;
 use diagnostics::Diagnostic;
-use package_compilation::{AcceptedSemanticBinding, PackageCompilationInputError};
+use package_compilation::{
+    AcceptedSemanticBinding, PackageCompilationInputError, PackageCompilationInputs,
+};
 use package_evidence::ledger::{ReconstructedPackageReview, reconstruct_package_review};
 use package_evidence::record::{PackagePolicyRepresentationProducerInstance, PackagePolicyRowKind};
 use std::collections::BTreeMap;
@@ -52,6 +54,42 @@ use super::{CandidateSourcePreparation, PreparedPackageSource};
 pub(super) struct CompiledPackageReviews {
     pub(super) reviews: CompilerIssuedPackageReviewSet,
     pub(super) checked_root: Option<Box<compiler::CheckedCompilation>>,
+    /// Every occurrence's compile under the exact inputs it consumed, in
+    /// occurrence order. A following pass over the same closure and roster
+    /// carries an occurrence forward — check, build evaluation, and review —
+    /// only when it arrives at these same inputs under the same entry.
+    pub(super) occurrences: Vec<RetainedOccurrenceCompile>,
+}
+
+/// One package occurrence's compile, retained with the complete inputs that
+/// produced it. The inputs and entry path are the reuse key: they carry the
+/// bindings, dependency generated-source handoffs, purpose and source custody
+/// a later pass could alter, while target, build snapshot and grant consent
+/// are parameters the reviewing caller supplies identically to every pass.
+#[derive(Debug, Clone)]
+pub(super) struct RetainedOccurrenceCompile {
+    /// Position in the dependency-first occurrence order.
+    pub(super) position: usize,
+    pub(super) purpose: DependencyPurpose,
+    /// The checked entry path this occurrence's compile consumed.
+    pub(super) entry: std::path::PathBuf,
+    /// The complete inputs this occurrence's compile consumed, after resolved
+    /// semantic bindings and dependency generated-source handoffs joined.
+    pub(super) inputs: PackageCompilationInputs,
+    /// The source inventory and output roster this occurrence's build
+    /// evaluation captured — a compile input `inputs` does not carry.
+    pub(super) build_snapshot: build_evaluation::BuildSnapshotRequest,
+    /// Canonical-policy bytes this occurrence's review added to the running
+    /// retained-policy total.
+    pub(super) policy_canonical_bytes: usize,
+    /// Retained-obligation bytes this occurrence's review added to the
+    /// running ledger total.
+    pub(super) obligation_ledger_bytes: usize,
+    /// Index of this occurrence's review inside the pass's review vector.
+    pub(super) review: usize,
+    /// The checked compilation itself, shared storage with the component
+    /// candidate or checked root this pass retained.
+    pub(super) checked: compiler::CheckedCompilation,
 }
 
 /// Only the preliminary Discover pass may propose an already-checked
@@ -93,6 +131,11 @@ pub(super) fn compile_dependency_closure(
     // material and the pass issues no grants.
     restricted_build_checkpoint: Option<&RestrictedBuildCheckpoint>,
     discovery: TargetEntryDiscovery,
+    // A pass already run over this same closure and roster — the discovery
+    // pass to the bound pass that follows it. Every occurrence it retained is
+    // a reuse candidate for an occurrence that now arrives at exactly its
+    // inputs; anything else compiles fresh.
+    prior: Option<&CompiledPackageReviews>,
     preparation: &mut CandidateSourcePreparation,
 ) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
     let closure = target_closure.source_closure();
@@ -137,6 +180,13 @@ pub(super) fn compile_dependency_closure(
     // component-closure fence rejected: real session consumption no retained
     // review reports, reconciled beside the reviews at the session's end.
     let mut discarded_build_usages = Vec::<build_evaluation::BuildEvaluationUsage>::new();
+    // Usage reported into this session's sponsor: only evaluations this pass
+    // actually ran. A carried occurrence's evaluation was consumed and
+    // reconciled by the pass that ran it, so it reports nothing here and an
+    // entirely carried pass's sponsor accounting reads as the empty session
+    // it was.
+    let mut session_usages = Vec::<Option<build_evaluation::BuildEvaluationUsage>>::new();
+    let mut occurrences = Vec::<RetainedOccurrenceCompile>::new();
     let mut retained_policy_canonical_total = 0usize;
     let mut target_entry_candidates =
         Vec::<(DependencyPurpose, SemanticBindingReviewCandidate)>::new();
@@ -354,6 +404,91 @@ pub(super) fn compile_dependency_closure(
             // request's graph so the retried compile can attach the published
             // descriptions without rebuilding it.
             let unanswered_inputs = inputs.clone();
+            // A pass that arrives at exactly these inputs for this occurrence
+            // compiles the same program deterministically, so the prior
+            // pass's compile carries its check, build evaluation, and review
+            // forward untouched. The carried compile must not have exercised
+            // the discovery-only tolerance this pass withholds: a result
+            // settled under it is not the result this pass would produce.
+            // Consumed evaluation usage stays on the carried review but was
+            // reconciled by the pass that ran it, so none of it enters this
+            // session's accounting.
+            let reused = prior.and_then(|prior| {
+                prior
+                    .occurrences
+                    .iter()
+                    .find(|occurrence| {
+                        occurrence.position == position
+                            && occurrence.purpose == purpose
+                            && occurrence.entry == *entry
+                            && occurrence.inputs == unanswered_inputs
+                            && occurrence.build_snapshot == build_snapshot
+                            && !occurrence.checked.tolerated_unsettled_service_fields()
+                    })
+                    .and_then(|occurrence| {
+                        prior
+                            .reviews
+                            .reviews()
+                            .get(occurrence.review)
+                            .map(|review| (occurrence, review.clone()))
+                    })
+            });
+            if let Some((occurrence, review)) = reused {
+                let checked = occurrence.checked.clone();
+                checked
+                    .verify_current_source_consumption()
+                    .map_err(|diagnostics| {
+                        CompileResolvedPackageReviewsError::SourceConsumptionDrift {
+                            package: key.clone(),
+                            diagnostics,
+                        }
+                    })?;
+                retained_policy_canonical_total = super::policy::reserve(
+                    retained_policy_canonical_total,
+                    occurrence.policy_canonical_bytes,
+                )
+                .ok_or_else(|| {
+                    CompileResolvedPackageReviewsError::RetainedPolicyCanonicalBudget {
+                        package: key.clone(),
+                        maximum_bytes: super::policy::MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
+                    }
+                })?;
+                retained_obligation_ledger_total = reserve_retained_obligation_ledger_bytes(
+                    retained_obligation_ledger_total,
+                    occurrence.obligation_ledger_bytes,
+                )
+                .ok_or_else(|| {
+                    CompileResolvedPackageReviewsError::RetainedObligationLedgerBudget {
+                        package: key.clone(),
+                        maximum_bytes: MAXIMUM_RETAINED_ORDINARY_LEDGER_BYTES,
+                    }
+                })?;
+                reject_ungranted_restricted_requests(
+                    restricted_build_checkpoint,
+                    closure,
+                    &key,
+                    &review,
+                )?;
+                let review_position = reviews.len();
+                review_positions[position][purpose_slot(purpose)] = Some(review_position);
+                reviews.push(review);
+                let mut carried = occurrence.clone();
+                carried.review = review_position;
+                if key == *closure.graph().root() {
+                    if retained_root_entry.is_some() {
+                        checked_root = Some(Box::new(checked));
+                    }
+                } else {
+                    component_candidates
+                        .insert((key.identity(), purpose), (entry.to_path_buf(), checked));
+                }
+                occurrences.push(carried);
+                verify_selected_source_custody(
+                    &scope,
+                    PackageSourceVerificationPhase::AfterCompilation,
+                )?;
+                continue;
+            }
             let request = CheckedCompileRequest {
                 build_execution_profile: execution_profile,
                 build_dir: Some(package_build_root(
@@ -408,8 +543,8 @@ pub(super) fn compile_dependency_closure(
                     }
                 }
             };
-            let checked = match checked {
-                Ok(checked) => checked,
+            let (checked, occurrence_inputs) = match checked {
+                Ok(checked) => (checked, unanswered_inputs),
                 Err(diagnostics) => {
                     // The rejected attempt still consumed its sponsored build
                     // evaluation; the session accounting counts that consumption
@@ -443,10 +578,10 @@ pub(super) fn compile_dependency_closure(
                             custody.resolution(),
                             purpose,
                         )),
-                        package_inputs: Some(inputs),
+                        package_inputs: Some(inputs.clone()),
                         filesystem_sponsor: Some(filesystem_sponsor.clone()),
                         evaluation_sponsor: Some(evaluation_sponsor.clone()),
-                        build_snapshot: Some(build_snapshot),
+                        build_snapshot: Some(build_snapshot.clone()),
                         // The retried activation is the same checked
                         // occurrence: consent re-arms identically.
                         restricted_build_grants: restricted_build_checkpoint.map(|checkpoint| {
@@ -470,12 +605,13 @@ pub(super) fn compile_dependency_closure(
                     };
                     request.prepared_source_output = Some(&mut retained);
                     preparation.fresh_preparations += 1;
-                    compile_to_checked(request).map_err(|diagnostics| {
+                    let checked = compile_to_checked(request).map_err(|diagnostics| {
                         CompileResolvedPackageReviewsError::Compilation {
                             package: key.clone(),
                             diagnostics,
                         }
-                    })?
+                    })?;
+                    (checked, inputs)
                 }
             };
             preparation.slots[position] = retained.map(|prepared| PreparedPackageSource {
@@ -512,6 +648,7 @@ pub(super) fn compile_dependency_closure(
             let build_observation_summary = checked.build_observation_summary().cloned();
             let restricted_build_requests = checked.restricted_build_requests().to_vec();
             let build_evaluation_usage = checked.build_evaluation_usage();
+            session_usages.push(build_evaluation_usage);
             let semantic_bindings = checked.resolved_semantic_bindings().cloned().collect();
             let generated_source_bundle =
                 checked.package_generated_source_bundle().map_err(|error| {
@@ -573,6 +710,7 @@ pub(super) fn compile_dependency_closure(
                         error,
                     },
                 )?;
+            let policy_canonical_bytes = policy_total - retained_policy_canonical_total;
             retained_policy_canonical_total = policy_total;
             let mut semantic_binding_candidates =
                 candidate_service_bindings(&checked, &projection, &key)?;
@@ -624,41 +762,26 @@ pub(super) fn compile_dependency_closure(
                 obligations,
                 obligation_results,
             };
-            // A consuming compile joins each occurrence's projected restricted
-            // requests against its retained consent here — before the review is
-            // retained and before the generated-source bundle can hand off to a
-            // dependent activation — rather than at the consuming operation's
-            // boundary after the whole closure compiled. An ungranted
-            // occurrence rejects with its pending request meanings attached.
-            if let Some(checkpoint) = restricted_build_checkpoint {
-                let projected =
-                    PackagePolicyAcceptance::from_policy(review.policy()).map_err(|error| {
-                        CompileResolvedPackageReviewsError::Projection {
-                            package: key.clone(),
-                            diagnostics: vec![Diagnostic::error(error.to_string())],
-                        }
-                    })?;
-                let ungranted = checkpoint.ungranted_requests(
-                    review.key().identity(),
-                    review.checked_context(),
-                    closure.dependency_path(review.key()),
-                    projected
-                        .rows()
-                        .iter()
-                        .filter(|row| row.kind() == PackagePolicyRowKind::RestrictedBuildRequest)
-                        .map(PackageAcceptanceRow::canonical_text),
-                );
-                if !ungranted.is_empty() {
-                    return Err(
-                        CompileResolvedPackageReviewsError::UngrantedRestrictedBuildRequests {
-                            package: key,
-                            ungranted,
-                        },
-                    );
-                }
-            }
-            review_positions[position][purpose_slot(purpose)] = Some(reviews.len());
+            reject_ungranted_restricted_requests(
+                restricted_build_checkpoint,
+                closure,
+                &key,
+                &review,
+            )?;
+            let review_position = reviews.len();
+            review_positions[position][purpose_slot(purpose)] = Some(review_position);
             reviews.push(review);
+            occurrences.push(RetainedOccurrenceCompile {
+                position,
+                purpose,
+                entry: entry.to_path_buf(),
+                inputs: occurrence_inputs,
+                build_snapshot,
+                policy_canonical_bytes,
+                obligation_ledger_bytes: obligations_bytes,
+                review: review_position,
+                checked: checked.clone(),
+            });
             if &key == closure.graph().root() {
                 if retained_root_entry.is_some() {
                     checked_root = Some(Box::new(checked));
@@ -669,11 +792,57 @@ pub(super) fn compile_dependency_closure(
             }
         }
     }
-    verify_build_session_accounting(&reviews, &discarded_build_usages, evaluation_sponsor)?;
+    verify_build_session_accounting(&session_usages, &discarded_build_usages, evaluation_sponsor)?;
     Ok(CompiledPackageReviews {
         reviews: CompilerIssuedPackageReviewSet { reviews },
         checked_root,
+        occurrences,
     })
+}
+
+/// Join one retained review's projected restricted build requests against an
+/// armed checkpoint, rejecting any request no grant covered. A consuming
+/// compile joins each occurrence's projected restricted requests against its
+/// retained consent here — before the review is retained and before the
+/// generated-source bundle can hand off to a dependent activation — rather
+/// than at the consuming operation's boundary after the whole closure
+/// compiled. An ungranted occurrence rejects with its pending request
+/// meanings attached, whether the review was compiled this pass or carried
+/// forward under equal inputs.
+fn reject_ungranted_restricted_requests(
+    restricted_build_checkpoint: Option<&RestrictedBuildCheckpoint>,
+    closure: &crate::resolution::graph::ResolvedPackageSourceClosure,
+    key: &PackageKey,
+    review: &CompilerIssuedPackageReview,
+) -> Result<(), CompileResolvedPackageReviewsError> {
+    let Some(checkpoint) = restricted_build_checkpoint else {
+        return Ok(());
+    };
+    let projected = PackagePolicyAcceptance::from_policy(review.policy()).map_err(|error| {
+        CompileResolvedPackageReviewsError::Projection {
+            package: key.clone(),
+            diagnostics: vec![Diagnostic::error(error.to_string())],
+        }
+    })?;
+    let ungranted = checkpoint.ungranted_requests(
+        review.key().identity(),
+        review.checked_context(),
+        closure.dependency_path(review.key()),
+        projected
+            .rows()
+            .iter()
+            .filter(|row| row.kind() == PackagePolicyRowKind::RestrictedBuildRequest)
+            .map(PackageAcceptanceRow::canonical_text),
+    );
+    if !ungranted.is_empty() {
+        return Err(
+            CompileResolvedPackageReviewsError::UngrantedRestrictedBuildRequests {
+                package: key.clone(),
+                ungranted,
+            },
+        );
+    }
+    Ok(())
 }
 
 /// Publish the verified component descriptions a rejected compile's

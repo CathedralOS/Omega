@@ -358,6 +358,7 @@ fn compile_candidate_for_check(
     let CompiledPackageReviews {
         reviews,
         checked_root,
+        occurrences: _,
     } = compiled;
     checked_root
         .map(|checked| (*checked, reviews))
@@ -407,6 +408,7 @@ fn compile_candidate(
             root_build_snapshot,
             restricted_build_checkpoint,
             TargetEntryDiscovery::Disabled,
+            None,
             preparation,
         );
     }
@@ -430,6 +432,7 @@ fn compile_candidate(
             root_build_snapshot,
             restricted_build_checkpoint,
             TargetEntryDiscovery::Dependencies,
+            None,
             preparation,
         )?
     };
@@ -440,9 +443,11 @@ fn compile_candidate(
     if discovered.is_empty() {
         return Ok(preliminary);
     }
-    // Discovery cannot survive as a checked product when it proposed bindings.
-    // Only source preparation is reused; custody, builds and checking run again.
-    drop(preliminary);
+    // Discovery cannot survive as a checked product when it proposed bindings,
+    // but an occurrence whose inputs the discovered bindings leave untouched
+    // is the same checked product under the same inputs: this pass carries
+    // those compiles forward and only compiles what the bindings changed.
+    // Custody verification and grant-consistency checks still run per pass.
     let _pass = timings::subject_stage(|| {
         format!(
             "review_pass bound root={} discovered_bindings={}",
@@ -463,6 +468,7 @@ fn compile_candidate(
         root_build_snapshot,
         restricted_build_checkpoint,
         TargetEntryDiscovery::Disabled,
+        Some(&preliminary),
         preparation,
     )
 }
@@ -475,6 +481,7 @@ fn compile_pass(
     root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     restricted_build_checkpoint: Option<&RestrictedBuildCheckpoint>,
     discovery: TargetEntryDiscovery,
+    prior: Option<&CompiledPackageReviews>,
     preparation: &mut CandidateSourcePreparation,
 ) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
     let closure = target_closure.source_closure();
@@ -508,6 +515,7 @@ fn compile_pass(
         root_build_snapshot,
         restricted_build_checkpoint,
         discovery,
+        prior,
         preparation,
     );
     let compiled = session.dispose(result)?;
