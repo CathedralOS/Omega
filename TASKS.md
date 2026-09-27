@@ -804,7 +804,23 @@ the complete product bar; focused successes below do not establish that baseline
     that declined, and the gate now ranks them. Ordered:
     - 6 `state graph: terminator: conditional successors: guard expression`
       -- `cli/{arithmetic/dual_float, basics/unit_converter,
-      simulation/particle_sim, text/{parse_int,roman_numeral,string_hash}}`
+      simulation/particle_sim, text/{parse_int,roman_numeral,string_hash}}`,
+      and this is TWO causes three-and-three, both already owned:
+      the three FLOAT samples guard on a float comparison, and no float
+      COMPUTATION routes anywhere -- a float copy checks, float arithmetic
+      and float comparison omit in every position (guard, bare guard arm,
+      local, field store), each reporting a different phase and none naming
+      a float. Import `core::float_operations` and the same comparison omits
+      at `a missing boundary target (\`Float::equal\`)`, which names
+      OPERATOR-BOUNDARY-CALLS as the owner -- it already records that
+      compiler-known float realizations are absent. Reproduction pinned at
+      `tests/omega/pending/arithmetic/float_computation_no_route`; no new
+      item, the repair belongs to that one. The three TEXT samples guard on
+      `self.i < self.text.len` with `i: i32` against a `u64` length, which is
+      exactly
+      `tests/omega/pending/expressions/mixed_integer_guard_comparison`,
+      already pinned. So this cluster needs no new diagnosis -- it needs
+      those two repairs.
     - 5 `structural field store: pure source: scalar expression row` --
       `cli/{collections/entity_list, rendering/bouncing_particles,
       simulation/grid_walk, systems/file_permissions, text/text_padding}`.
