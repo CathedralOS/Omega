@@ -232,15 +232,37 @@ pub(super) fn checked_provider_attachment_requirements(
             return None;
         }
     }
+    // Canonical roster order is the attachment's field declaration order,
+    // then boundary identity — the same key the lowering consumer validates.
+    // Sorting by the field's name instead would emit e.g. `beeper` before
+    // `console` for `data Main { console, beeper, .. }` and trip the
+    // canonical-order check downstream.
     requirements.sort_by_key(|requirement| {
         (
-            requirement.field_identity.clone(),
+            fields
+                .iter()
+                .position(|field| field.identity == requirement.field_identity),
             requirement.boundary.arena_index(),
             requirement.boundary.generation(),
         )
     });
     requirements.dedup();
     Some(requirements)
+}
+
+/// The attachment's record fields in declaration order, so composed rosters
+/// sort by the same canonical key as per-state rosters.
+fn attachment_record_fields<'a>(
+    shapes: &'a ShapeCollector<'_>,
+    attachment_type_identity: &str,
+) -> &'a [CheckedUnitStructuralFieldPlan] {
+    let Some(plan) = shapes.types.get(attachment_type_identity) else {
+        return &[];
+    };
+    match &plan.shape {
+        CheckedUnitStructuralTypeShape::Record { fields } => fields.as_slice(),
+        _ => &[],
+    }
 }
 
 /// Whether one ordinary argument is itself a provider surface. A fused
@@ -337,9 +359,12 @@ pub(super) fn checked_composed_provider_attachment_requirements(
             operations,
         )?);
     }
+    let fields = attachment_record_fields(shapes, attachment_type_identity);
     requirements.sort_by_key(|requirement| {
         (
-            requirement.field_identity.clone(),
+            fields
+                .iter()
+                .position(|field| field.identity == requirement.field_identity),
             requirement.boundary.arena_index(),
             requirement.boundary.generation(),
         )
