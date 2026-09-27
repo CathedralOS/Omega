@@ -12,6 +12,7 @@
     "SAMPLE-CORPUS",
     "NOMINAL-FIELD-FLOW",
     "CANONICALIZE-SCALAR-RANGE-CONTRACTS",
+    "C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT",
     "ALPHA-WINDOWS-DIV-TRAP"
   ],
   "sessions": [
@@ -29,15 +30,15 @@
       "probe_only": false
     },
     {
-      "name": "c2l-blowup",
+      "name": "post-handoff-writer",
       "board": "TASKS.md",
-      "item": "C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT",
+      "item": "POST-HANDOFF-WRITER-OWNERSHIP",
       "host": "local",
       "owning_paths": [
-        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi",
-        "omega-rust/psi/proof"
+        "omega-rust/psi/foundation/layout-plans",
+        "omega-rust/omega/backend/plans/post-handoff-writer-plan"
       ],
-      "suggested_first_slice": "reproduce the computed-selector customer with its guard lifted and add explicit aggregate proof-work accounting before bounding anything",
+      "suggested_first_slice": "separate the portable materialization description in layout-plans from the consumer-side writer derivation per the ownership rule",
       "host_gates": ["which mbx || which cargo"],
       "probe_only": false
     },
@@ -61,7 +62,8 @@
       "host": "local",
       "owning_paths": [
         "tools/release",
-        "wiki/drafts/reference"
+        "wiki/drafts/reference",
+        "wiki/drafts/measurements"
       ],
       "suggested_first_slice": "run the recorder procedure in tools/release/README.md on this host and capture where the matrix first diverges",
       "host_gates": ["which mbx || which cargo"],
