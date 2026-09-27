@@ -568,7 +568,7 @@ fn resolve_foreign(
                     code_section_offset: function_section_offset
                         .checked_add(callback.code_function_offset)
                         .ok_or(TextPlacementError::OffsetOverflow)?,
-                    code_byte_count: u64::from(callback.code_byte_count),
+                    code_byte_count: callback.code_byte_count,
                     encoding: match callback.encoding {
                         machine_code::FunctionFragmentCallbackMaterializationEncoding::X86_64Relative32 {
                             patch_function_offset,

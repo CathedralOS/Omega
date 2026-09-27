@@ -247,14 +247,13 @@ impl CheckedComposedUnitControlStatePlan {
                 return_arm: CheckedConditionalReturnArm::Structural(operation),
                 ..
             } => vec![operation],
-            CheckedComposedUnitControlTerminatorPlan::GuardedJumps { fallback, .. } => {
-                match fallback {
-                    CheckedGuardedJumpFallbackPlan::Return(
-                        CheckedConditionalReturnArm::Structural(operation),
-                    ) => vec![operation],
-                    _ => Vec::new(),
-                }
-            }
+            CheckedComposedUnitControlTerminatorPlan::GuardedJumps {
+                fallback:
+                    CheckedGuardedJumpFallbackPlan::Return(CheckedConditionalReturnArm::Structural(
+                        operation,
+                    )),
+                ..
+            } => vec![operation],
             CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } => cases
                 .iter()
                 .filter_map(|case| match &case.outcome {

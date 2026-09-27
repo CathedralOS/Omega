@@ -55,7 +55,7 @@ pub(super) fn resolve(
                 instruction,
                 instruction_offset,
                 bytes,
-                fixup.clone(),
+                *fixup,
             )?),
             None,
         )),
