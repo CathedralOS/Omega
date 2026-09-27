@@ -374,28 +374,61 @@ pub(super) fn validate(
     }
     let mut previous_case_order = None;
     for (offset, case) in cases.iter().enumerate() {
-        if case.successor.transfers.iter().any(|transfer| {
-            match (&subject.source, &transfer.source) {
-                (
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                        parameter_index,
-                    },
-                    checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index },
-                ) => parameter_index == index,
-                (
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                        binding_ordinal: subject,
-                    },
-                    checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult {
-                        binding_ordinal,
-                    },
-                ) => subject == binding_ordinal,
-                _ => false,
+        let successor_plan = match &case.outcome {
+            checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(successor) => Some(successor),
+            checked_trees::CheckedClosedSumCaseOutcomePlan::Return(arm) => {
+                if !case.payloads.is_empty() {
+                    return unsupported("Unit case return arm holds a payload binding");
+                }
+                match arm {
+                    checked_trees::CheckedConditionalReturnArm::Structural(operation) => {
+                        if !matches!(
+                            operation,
+                            CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
+                                | CheckedUnitEffectOperationPlan::EstablishReference { .. }
+                                | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
+                        ) {
+                            return unsupported("Unit case return arm lost its producer");
+                        }
+                    }
+                    checked_trees::CheckedConditionalReturnArm::Scalar {
+                        primitive_type, ..
+                    } => {
+                        let expected = checked_trees::CheckedControlResultPlan::Scalar {
+                            primitive_type: *primitive_type,
+                        };
+                        if expected != plan.result {
+                            return unsupported("Unit case return arm changed the result type");
+                        }
+                    }
+                }
+                None
             }
+        };
+        if successor_plan.is_some_and(|successor| {
+            successor.transfers.iter().any(|transfer| {
+                match (&subject.source, &transfer.source) {
+                    (
+                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                            parameter_index,
+                        },
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index },
+                    ) => parameter_index == index,
+                    (
+                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                            binding_ordinal: subject,
+                        },
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult {
+                            binding_ordinal,
+                        },
+                    ) => subject == binding_ordinal,
+                    _ => false,
+                }
+            })
         }) {
             return unsupported("Unit case transfers its consumed subject");
         }
-        let source_offset = (case.successor.statement_ordinal as usize)
+        let source_offset = (case.statement_ordinal() as usize)
             .checked_sub(ordinal)
             .ok_or(LoweringError::Unsupported(
                 "Unit case source ordinal precedes dispatch",
@@ -471,16 +504,30 @@ pub(super) fn validate(
         {
             return unsupported("Unit case source or declaration roster drifted");
         }
+        let (
+            Some(successor),
+            checked_trees::statement::TransitionTargetNode::Named { arguments, .. },
+        ) = (
+            successor_plan,
+            checked.statement_table.transition_target(transition.target),
+        )
+        else {
+            if successor_plan.is_none()
+                && matches!(
+                    checked.statement_table.transition_target(transition.target),
+                    checked_trees::statement::TransitionTargetNode::Value(_)
+                )
+            {
+                super::result_custody::local_discards(checked, plan.machine, source, state, None)?;
+                continue;
+            }
+            return unsupported("Unit case outcome and authored arm disagree");
+        };
         let target = plan
             .states
             .iter()
-            .find(|target| target.state == case.successor.target_state)
+            .find(|target| target.state == successor.target_state)
             .ok_or(LoweringError::Unsupported("Unit case target missing"))?;
-        let checked_trees::statement::TransitionTargetNode::Named { arguments, .. } =
-            checked.statement_table.transition_target(transition.target)
-        else {
-            return unsupported("Unit case target is not named");
-        };
         let arguments = checked.statement_table.expression_handles(*arguments);
         for (payload_ordinal, payload) in case.payloads.iter().enumerate() {
             let parameter = target
@@ -560,8 +607,8 @@ pub(super) fn validate(
             source,
             state,
             transition,
-            &case.successor,
-            case.successor.statement_ordinal as usize,
+            successor,
+            successor.statement_ordinal as usize,
             &case.payloads,
         )?;
         super::result_custody::local_discards(
@@ -569,13 +616,13 @@ pub(super) fn validate(
             plan.machine,
             source,
             state,
-            Some(&case.successor),
+            Some(successor),
         )?;
     }
     if tail.iter().enumerate().any(|(offset, _)| {
         !cases
             .iter()
-            .any(|case| case.successor.statement_ordinal as usize == ordinal + offset)
+            .any(|case| case.statement_ordinal() as usize == ordinal + offset)
     }) {
         return unsupported("Unit case omitted an authored arm");
     }

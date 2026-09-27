@@ -137,7 +137,7 @@ pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
     proof_terms: &checked_trees::CheckedProofTerms,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> CheckedScalarGraphPlans {
-    let (guarded_exits, guarded_tails) = guarded_exits::build(program, expressions);
+    let (guarded_exits, guarded_tails) = guarded_exits::build(program, expressions, computations);
     let mut parameter_storage = arena::Arena::default();
     let mut structural_types = std::collections::BTreeMap::new();
     let mut declined = Vec::new();

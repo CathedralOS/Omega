@@ -552,12 +552,15 @@ impl Context<'_> {
                 for arm in arms {
                     self.composed_successor_subslice_views(&arm.successor, views);
                 }
-                self.composed_successor_subslice_views(fallback, views);
+                if let checked_trees::CheckedGuardedJumpFallbackPlan::Successor(fallback) = fallback
+                {
+                    self.composed_successor_subslice_views(fallback, views);
+                }
             }
             Plan::ClosedSum { subject, cases } => {
                 if !cases
                     .iter()
-                    .any(|case| case.successor.statement_ordinal == self.statement)
+                    .any(|case| case.statement_ordinal() == self.statement)
                 {
                     return;
                 }
@@ -569,7 +572,11 @@ impl Context<'_> {
                     views.push(*expression);
                 }
                 for case in cases {
-                    self.composed_successor_subslice_views(&case.successor, views);
+                    if let checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(successor) =
+                        &case.outcome
+                    {
+                        self.composed_successor_subslice_views(successor, views);
+                    }
                 }
             }
             _ => {}

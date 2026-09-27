@@ -55,9 +55,13 @@ pub(super) fn build(
     let terminator = if let Some(terminator) = closed_sum::build(
         program,
         facts,
+        scalar_callees,
+        shapes,
         machine,
         state_index,
         signatures,
+        entry_claims,
+        &result,
         operations,
         terminator_index,
         trace,
@@ -197,7 +201,8 @@ pub(super) fn build(
                         &facts.values.scalar_expressions,
                         state,
                         ordinal,
-                    )) =>
+                    )
+                    || covering_pair(facts, state.symbol, ordinal).is_some()) =>
             {
                 trace.phase("state graph: terminator: conditional successors: guard expression");
                 let guard = retained_guard(facts, machine.symbol, state.symbol, ordinal)?;
@@ -341,9 +346,17 @@ pub(super) fn build(
                         if matches!(transition.guard, TransitionGuardNode::When(_)))
                 })
                 && matches!(tail.last(), Some(StatementNode::Transition(transition))
-                    if transition.guard == TransitionGuardNode::Always) =>
+                if matches!(
+                    transition.guard,
+                    TransitionGuardNode::Always | TransitionGuardNode::When(_)
+                )) =>
             {
                 trace.phase("state graph: terminator: guarded jump successors: roster");
+                let last_guarded = matches!(
+                    tail.last(),
+                    Some(StatementNode::Transition(transition))
+                        if matches!(transition.guard, TransitionGuardNode::When(_))
+                );
                 let retained = facts
                     .flow
                     .terminal_scalar_graphs
@@ -361,8 +374,12 @@ pub(super) fn build(
                     .span(retained.arms)?;
                 // The shared scalar roster owns this tail's guard order,
                 // coverage and selected destinations; the composed edges
-                // must agree with it exactly.
-                if exits.len() != tail.len() - 1 {
+                // must agree with it exactly. A guarded final arm is the
+                // roster's proven else: coverage keeps it, so no authored
+                // fallback is recorded for it.
+                if exits.len() != tail.len() - usize::from(!last_guarded)
+                    || last_guarded != retained.fallback.is_none()
+                {
                     return None;
                 }
                 let mut arms = Vec::with_capacity(exits.len());
@@ -405,24 +422,105 @@ pub(super) fn build(
                 let Some(StatementNode::Transition(fallback_transition)) = tail.last() else {
                     return None;
                 };
-                let fallback_ordinal = ordinal.checked_add(u32::try_from(exits.len()).ok()?)?;
-                let Some(checked_trees::CheckedScalarBranchDestination::Jump(selected)) =
-                    &retained.fallback
-                else {
-                    return None;
+                let fallback_ordinal = ordinal.checked_add(u32::try_from(tail.len() - 1).ok()?)?;
+                let fallback_destination = if last_guarded {
+                    exits.last().map(|exit| &exit.destination)
+                } else {
+                    retained.fallback.as_ref()
                 };
-                if selected.statement_ordinal != fallback_ordinal {
+                if last_guarded
+                    && exits
+                        .last()
+                        .is_none_or(|exit| exit.guard_statement_ordinal != fallback_ordinal)
+                {
                     return None;
                 }
-                let fallback = edge(
-                    operations,
-                    fallback_transition,
-                    fallback_ordinal,
-                    SuccessorEdge::GuardedJump,
-                )?;
-                if fallback.target_state != selected.target {
-                    return None;
-                }
+                // The roster's proven else may be a named-state edge or the
+                // authored `(expression)` arm that returns its value — the
+                // same outcome split a `ConditionalReturn` arm carries.
+                let fallback = match fallback_destination {
+                    Some(checked_trees::CheckedScalarBranchDestination::Jump(selected)) => {
+                        if selected.statement_ordinal != fallback_ordinal {
+                            return None;
+                        }
+                        let fallback = edge(
+                            operations,
+                            fallback_transition,
+                            fallback_ordinal,
+                            SuccessorEdge::GuardedJump,
+                        )?;
+                        if fallback.target_state != selected.target {
+                            return None;
+                        }
+                        checked_trees::CheckedGuardedJumpFallbackPlan::Successor(fallback)
+                    }
+                    Some(checked_trees::CheckedScalarBranchDestination::Return {
+                        statement_ordinal,
+                        is_continuation,
+                    }) => {
+                        if *statement_ordinal != fallback_ordinal || *is_continuation {
+                            return None;
+                        }
+                        let TransitionTargetNode::Value(expression) = program
+                            .statement_table
+                            .transition_target(fallback_transition.target)
+                        else {
+                            return None;
+                        };
+                        if fallback_transition.exit != TransitionExit::Ordinary
+                            || fallback_transition.continuation.is_valid()
+                        {
+                            return None;
+                        }
+                        trace.phase(
+                            "state graph: terminator: guarded jump successors: return arm value",
+                        );
+                        trace.statement(Some(fallback_ordinal));
+                        let arm = if let checked_trees::CheckedControlResultPlan::Scalar {
+                            primitive_type,
+                        } = result
+                        {
+                            let role = CheckedScalarExpressionRole::Return;
+                            let retained = facts
+                                .values
+                                .scalar_expressions
+                                .expression_at(state.symbol, fallback_ordinal, role)
+                                .is_some()
+                                || facts
+                                    .values
+                                    .scalar_computations
+                                    .root_at(state.symbol, fallback_ordinal, role)
+                                    .is_some_and(|root| root.machine == machine.symbol);
+                            if !retained {
+                                return None;
+                            }
+                            checked_trees::CheckedConditionalReturnArm::Scalar {
+                                statement_ordinal: fallback_ordinal,
+                                primitive_type,
+                            }
+                        } else {
+                            let mut return_count = returns::next_result_ordinal(operations)?;
+                            let (operation, operand_calls) = returns::return_value_operation(
+                                program,
+                                facts,
+                                scalar_callees,
+                                shapes,
+                                machine,
+                                state,
+                                structural,
+                                entry_claims,
+                                &mut return_count,
+                                fallback_ordinal,
+                                *expression,
+                                trace,
+                            )?;
+                            operations.extend(operand_calls);
+                            checked_trees::CheckedConditionalReturnArm::Structural(operation)
+                        };
+                        checked_trees::CheckedGuardedJumpFallbackPlan::Return(arm)
+                    }
+                    _ => return None,
+                };
                 CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback }
             }
             _ => {
@@ -475,4 +573,31 @@ pub(super) fn build(
         }
     };
     Some(terminator)
+}
+
+/// The shared scalar roster's coverage evidence for a two-statement guarded
+/// tail at `ordinal`: a retained pair records only when its guards provably
+/// close the dispatch (an exact complement or complete case coverage of one
+/// subject), so the second guard is the vacuous else the terminator admits.
+fn covering_pair(facts: &CheckFacts, state: symbols::SymbolHandle, ordinal: u32) -> Option<()> {
+    let retained = facts
+        .flow
+        .terminal_scalar_graphs
+        .guarded_tails
+        .iter()
+        .filter(|tail| tail.state == state)
+        .collect::<Vec<_>>();
+    let [retained] = retained.as_slice() else {
+        return None;
+    };
+    let exits = facts
+        .flow
+        .terminal_scalar_graphs
+        .guarded_exits
+        .span(retained.arms)?;
+    (retained.fallback.is_none()
+        && exits.len() == 2
+        && exits[0].guard_statement_ordinal == ordinal
+        && exits[1].guard_statement_ordinal == ordinal + 1)
+        .then_some(())
 }

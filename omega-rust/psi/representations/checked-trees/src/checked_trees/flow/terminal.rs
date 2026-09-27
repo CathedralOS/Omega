@@ -46,12 +46,12 @@ pub use boundary_machine_plans::{
     CheckedProviderAttachmentRequirementPlan,
 };
 pub use composed_unit_control_plans::{
-    CheckedClosedSumCaseSuccessorPlan, CheckedClosedSumPayloadTransferPlan,
+    CheckedClosedSumCaseOutcomePlan, CheckedClosedSumCasePlan, CheckedClosedSumPayloadTransferPlan,
     CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
     CheckedComposedUnitControlTerminatorPlan, CheckedConditionalReturnArm,
-    CheckedControlResultPlan, CheckedGuardedJumpPlan, CheckedNaturalRankMeasure,
-    CheckedScalarCaseFieldPlan, CheckedScalarReturnPlan, CheckedStateNaturalRank,
-    CheckedStructuralCaseReturnPlan,
+    CheckedControlResultPlan, CheckedGuardedJumpFallbackPlan, CheckedGuardedJumpPlan,
+    CheckedNaturalRankMeasure, CheckedScalarCaseFieldPlan, CheckedScalarReturnPlan,
+    CheckedStateNaturalRank, CheckedStructuralCaseReturnPlan,
 };
 pub use result_binding_plans::{
     CheckedByteSequenceStoreValue, CheckedByteSequenceWritePlan, CheckedPrimitiveStoreDestination,

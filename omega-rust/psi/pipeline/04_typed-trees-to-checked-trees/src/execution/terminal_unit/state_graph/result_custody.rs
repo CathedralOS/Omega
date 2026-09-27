@@ -25,9 +25,15 @@ pub(super) fn account(
     let statements = program.statement_table.statements(state.statement_nodes);
     trace.phase("state graph: result custody accounting");
     let case_successors = match terminator {
-        CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } => {
-            cases.iter().map(|case| &case.successor).collect::<Vec<_>>()
-        }
+        CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } => cases
+            .iter()
+            .filter_map(|case| match &case.outcome {
+                checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(successor) => {
+                    Some(successor)
+                }
+                checked_trees::CheckedClosedSumCaseOutcomePlan::Return(_) => None,
+            })
+            .collect::<Vec<_>>(),
         _ => Vec::new(),
     };
     let construction_uses = construction_local_uses(facts, state.symbol, operations)?;
@@ -140,9 +146,23 @@ pub(super) fn account(
                 let successors = arms
                     .iter()
                     .map(|arm| &arm.successor)
-                    .chain(std::iter::once(fallback))
+                    .chain(match fallback {
+                        checked_trees::CheckedGuardedJumpFallbackPlan::Successor(successor) => {
+                            Some(successor)
+                        }
+                        checked_trees::CheckedGuardedJumpFallbackPlan::Return(_) => None,
+                    })
                     .collect::<Vec<_>>();
+                // A `(expression)` fallback arm consumes its producers through
+                // the establishment operands it carries, exactly like a
+                // `ConditionalReturn`'s arm.
                 successors.iter().all(|edge| transferred(edge))
+                    || matches!(fallback,
+                    checked_trees::CheckedGuardedJumpFallbackPlan::Return(
+                        checked_trees::CheckedConditionalReturnArm::Structural(operation),
+                    ) if operation.with_value_calls().skip(1).any(|operation| {
+                        terminator_call_consumes_result(operation, result.binding_ordinal)
+                    }))
                     || local_results::permits_disposal(
                         program,
                         state,
@@ -151,12 +171,25 @@ pub(super) fn account(
                         disposable_locals,
                     )
             }
-            CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, .. } => {
+            CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, cases, .. } => {
                 if matches!(subject.source, CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal)
                 {
                     case_successors.iter().all(|edge| !transferred(edge))
                 } else {
+                    // Like a ConditionalReturn's arm: a `(expression)` case
+                    // edge consumes its producers through the establishment
+                    // operands the arm carries.
                     case_successors.iter().all(|edge| transferred(edge))
+                        || cases.iter().any(|case| {
+                            matches!(
+                                &case.outcome,
+                                checked_trees::CheckedClosedSumCaseOutcomePlan::Return(
+                                    checked_trees::CheckedConditionalReturnArm::Structural(operation),
+                                ) if operation.with_value_calls().skip(1).any(|operation| {
+                                    terminator_call_consumes_result(operation, result.binding_ordinal)
+                                })
+                            )
+                        })
                         || local_results::permits_disposal(
                             program,
                             state,

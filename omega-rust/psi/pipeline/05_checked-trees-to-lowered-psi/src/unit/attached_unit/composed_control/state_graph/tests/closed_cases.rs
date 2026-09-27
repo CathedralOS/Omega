@@ -64,7 +64,12 @@ fn closed_case_graph_rejoins_source_and_rejects_drift() {
             0 => cases.reverse(),
             1 => cases[0].case_identity.push_str("-forged"),
             2 => cases[0].payloads[0].field_identity.push_str("-forged"),
-            3 => cases[0].successor.transfers.clear(),
+            3 => match &mut cases[0].outcome {
+                checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(successor) => {
+                    successor.transfers.clear()
+                }
+                _ => unreachable!(),
+            },
             4 => {
                 subject.source =
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
@@ -73,11 +78,18 @@ fn closed_case_graph_rejoins_source_and_rejects_drift() {
             }
             5 => state.operations.clear(),
             6 => cases[0].payloads[0].target_scalar_parameter_index += 1,
-            7 => cases[0].successor.statement_ordinal += 1,
-            8 => cases[0]
-                .successor
-                .trivial_affine_discard_parameter_positions
-                .push(0),
+            7 => match &mut cases[0].outcome {
+                checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(successor) => {
+                    successor.statement_ordinal += 1
+                }
+                _ => unreachable!(),
+            },
+            8 => match &mut cases[0].outcome {
+                checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(successor) => {
+                    successor.trivial_affine_discard_parameter_positions.push(0)
+                }
+                _ => unreachable!(),
+            },
             9 => {
                 let payload = cases[0].payloads[0].clone();
                 cases[0].payloads.push(payload);
