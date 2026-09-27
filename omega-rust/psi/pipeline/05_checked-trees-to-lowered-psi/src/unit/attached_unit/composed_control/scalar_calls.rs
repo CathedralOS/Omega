@@ -71,8 +71,8 @@ fn selected_roots(
                 ..
             } => pending.push(*root),
             CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, .. } => {
-                pending.extend(arms.iter().filter_map(|arm| match arm.guard {
-                    CheckedCallScalarArgument::Computation(root) => Some(root),
+                pending.extend(arms.iter().filter_map(|arm| match arm.guard() {
+                    CheckedCallScalarArgument::Computation(root) => Some(*root),
                     CheckedCallScalarArgument::Pure(_) => None,
                 }));
             }

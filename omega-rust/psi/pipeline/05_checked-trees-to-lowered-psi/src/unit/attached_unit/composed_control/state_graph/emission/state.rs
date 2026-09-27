@@ -209,7 +209,7 @@ impl StateGraphEmission<'_, '_> {
             } => successor_may_read_payloads(jump),
             CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, .. } => arms
                 .first()
-                .is_some_and(|arm| successor_may_read_payloads(&arm.successor)),
+                .is_some_and(|arm| arm.successor().is_some_and(successor_may_read_payloads)),
             _ => false,
         };
         let condition = if let Some(true_ordinal) = conditional_true_ordinal {
@@ -257,7 +257,7 @@ impl StateGraphEmission<'_, '_> {
                 checked,
                 plan.machine,
                 state.state,
-                first.successor.statement_ordinal,
+                first.statement_ordinal(),
                 &values,
                 first_successor_reads_payloads,
             )?;
@@ -269,7 +269,7 @@ impl StateGraphEmission<'_, '_> {
                     checked,
                     plan.machine,
                     state.state,
-                    first.successor.statement_ordinal,
+                    first.statement_ordinal(),
                     &mut values,
                     &mut next_value,
                     &mut next_block,
@@ -466,6 +466,43 @@ impl StateGraphEmission<'_, '_> {
         } else {
             Vec::new()
         };
+        // A mid-chain `(expression)` arm of a guarded-jump tail returns under
+        // its own guard the same way the fallback does: mint each such arm's
+        // private return block now, before the successor-edge closure
+        // borrows this state's emission slots — seeded with the namespace
+        // that arm's guard evaluation left.
+        let mut guarded_arm_return_edges: Vec<Option<SuccessorEdge>> =
+            if let CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, .. } =
+                &state.terminator
+            {
+                let mut staged = Vec::with_capacity(arms.len());
+                for (index, arm) in arms.iter().enumerate() {
+                    match arm {
+                        checked_trees::CheckedGuardedJumpArmPlan::Jump(_) => staged.push(None),
+                        checked_trees::CheckedGuardedJumpArmPlan::Return(plan) => {
+                            let namespace = if index == 0 {
+                                guarded_first_namespace.clone()
+                            } else {
+                                guarded_drafts[index - 1].5.clone()
+                            };
+                            staged.push(Some(self.conditional_return_arm(
+                                position,
+                                &state_parameters,
+                                namespace,
+                                &plan.return_arm,
+                                &mut evaluation,
+                                &mut next_value,
+                                &mut next_block,
+                                &mut next_edge,
+                                &mut operations,
+                            )?));
+                        }
+                    }
+                }
+                staged
+            } else {
+                Vec::new()
+            };
         // A guarded-jump tail whose `_` arm is an authored `(expression)`
         // returns it: mint its private return block exactly like a
         // conditional return arm's, before the successor-edge closure
@@ -739,12 +776,25 @@ impl StateGraphEmission<'_, '_> {
                 }
             }
             CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback } => {
-                // Every arm's successor edge is staged exactly like a
-                // conditional edge; each decision namespace is the one left
-                // by that arm's guard evaluation, or the one its planned
-                // short-circuit decision established.
+                // Every arm's true edge is staged exactly like a conditional
+                // edge — a jump arm's successor custody edge, or the private
+                // return block a `(expression)` arm minted above; each
+                // decision namespace is the one left by that arm's guard
+                // evaluation, or the one its planned short-circuit decision
+                // established.
                 let mut selected = Vec::with_capacity(arms.len());
                 for (index, arm) in arms.iter().enumerate() {
+                    let plan = match arm {
+                        checked_trees::CheckedGuardedJumpArmPlan::Jump(plan) => plan,
+                        checked_trees::CheckedGuardedJumpArmPlan::Return(_) => {
+                            selected.push(guarded_arm_return_edges[index].take().ok_or(
+                                LoweringError::Unsupported(
+                                    "guarded jump arm lost its staged return edge",
+                                ),
+                            )?);
+                            continue;
+                        }
+                    };
                     let planned = if index == 0 {
                         planned_guard.as_ref()
                     } else {
@@ -755,7 +805,7 @@ impl StateGraphEmission<'_, '_> {
                     };
                     selected.push(match planned {
                         Some((planned, namespace)) => {
-                            successor(&arm.successor, &[], false, namespace, &planned.established)?
+                            successor(&plan.successor, &[], false, namespace, &planned.established)?
                         }
                         None => {
                             let namespace = if index == 0 {
@@ -763,7 +813,7 @@ impl StateGraphEmission<'_, '_> {
                             } else {
                                 guarded_drafts[index - 1].5.as_slice()
                             };
-                            successor(&arm.successor, &[], false, namespace, &[])?
+                            successor(&plan.successor, &[], false, namespace, &[])?
                         }
                     });
                 }
@@ -1052,10 +1102,10 @@ fn case_subject_consumptions(
             let mut consumed = arms
                 .iter()
                 .filter_map(|arm| {
-                    subject(&arm.guard).map(|position| (arm.successor.statement_ordinal, position))
+                    subject(arm.guard()).map(|position| (arm.statement_ordinal(), position))
                 })
                 .collect::<Vec<_>>();
-            if let Some(position) = arms.last().and_then(|arm| subject(&arm.guard)) {
+            if let Some(position) = arms.last().and_then(|arm| subject(arm.guard())) {
                 consumed.push((fallback.statement_ordinal(), position));
             }
             consumed

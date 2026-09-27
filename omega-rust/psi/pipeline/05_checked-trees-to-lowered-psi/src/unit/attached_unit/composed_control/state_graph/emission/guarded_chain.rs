@@ -28,7 +28,7 @@ impl StateGraphEmission<'_, '_> {
     pub(super) fn stage_guarded_chain(
         &mut self,
         position: usize,
-        arms: &[checked_trees::CheckedGuardedJumpPlan],
+        arms: &[checked_trees::CheckedGuardedJumpArmPlan],
         values: &mut Vec<ValueDeclaration>,
         evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
         next_value: &mut u64,
@@ -58,13 +58,14 @@ impl StateGraphEmission<'_, '_> {
             evaluation.parameters = Vec::new();
             evaluation.block_structural_parameters = Vec::new();
             // A short-circuit guard stages the same planned decision a
-            // two-arm conditional uses; any other guard is one value.
-            let reads_payloads = successor_may_read_payloads(&arm.successor);
+            // two-arm conditional uses; any other guard is one value. A
+            // return arm has no successor edge payloads to read.
+            let reads_payloads = arm.successor().is_some_and(successor_may_read_payloads);
             let guard = if let Some(expression) = evaluation.branch_guard(
                 checked,
                 plan.machine,
                 state.state,
-                arm.successor.statement_ordinal,
+                arm.statement_ordinal(),
                 values,
                 reads_payloads,
             )? {
@@ -82,7 +83,7 @@ impl StateGraphEmission<'_, '_> {
                     checked,
                     plan.machine,
                     state.state,
-                    arm.successor.statement_ordinal,
+                    arm.statement_ordinal(),
                     values,
                     next_value,
                     next_block,

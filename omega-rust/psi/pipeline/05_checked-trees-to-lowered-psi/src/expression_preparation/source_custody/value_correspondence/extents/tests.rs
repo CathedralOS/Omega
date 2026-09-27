@@ -377,7 +377,7 @@ fn retained_subslice(
                     ..
                 } => successors.extend([when_true, when_false]),
                 Terminator::GuardedJumps { arms, fallback } => {
-                    successors.extend(arms.iter().map(|arm| &arm.successor));
+                    successors.extend(arms.iter().filter_map(|arm| arm.successor()));
                     if let checked_trees::CheckedGuardedJumpFallbackPlan::Successor(fallback) =
                         fallback
                     {
@@ -471,7 +471,12 @@ fn drop_subslice_sources(checked: &mut CheckedTrees) {
                 ..
             } => successors.extend([when_true, when_false]),
             Terminator::GuardedJumps { arms, fallback } => {
-                successors.extend(arms.iter_mut().map(|arm| &mut arm.successor));
+                successors.extend(arms.iter_mut().filter_map(|arm| match arm {
+                    checked_trees::CheckedGuardedJumpArmPlan::Jump(plan) => {
+                        Some(&mut plan.successor)
+                    }
+                    checked_trees::CheckedGuardedJumpArmPlan::Return(_) => None,
+                }));
                 if let checked_trees::CheckedGuardedJumpFallbackPlan::Successor(fallback) = fallback
                 {
                     successors.push(fallback);

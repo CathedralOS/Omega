@@ -49,9 +49,10 @@ pub use composed_unit_control_plans::{
     CheckedClosedSumCaseOutcomePlan, CheckedClosedSumCasePlan, CheckedClosedSumPayloadTransferPlan,
     CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
     CheckedComposedUnitControlTerminatorPlan, CheckedConditionalReturnArm,
-    CheckedControlResultPlan, CheckedGuardedJumpFallbackPlan, CheckedGuardedJumpPlan,
-    CheckedNaturalRankMeasure, CheckedScalarCaseFieldPlan, CheckedScalarReturnPlan,
-    CheckedStateNaturalRank, CheckedStructuralCaseReturnPlan,
+    CheckedControlResultPlan, CheckedGuardedJumpArmPlan, CheckedGuardedJumpFallbackPlan,
+    CheckedGuardedJumpPlan, CheckedGuardedJumpReturnPlan, CheckedNaturalRankMeasure,
+    CheckedScalarCaseFieldPlan, CheckedScalarReturnPlan, CheckedStateNaturalRank,
+    CheckedStructuralCaseReturnPlan,
 };
 pub use result_binding_plans::{
     CheckedByteSequenceStoreValue, CheckedByteSequenceWritePlan, CheckedPrimitiveStoreDestination,
