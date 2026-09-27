@@ -68,7 +68,16 @@ pub(in crate::validation) fn validate(
     {
         return Err(invalid());
     }
-    field_path(module, machine, root, path, field, writing).ok_or_else(invalid)?;
+    field_path(
+        module,
+        machine,
+        root,
+        path,
+        field,
+        writing,
+        !writing && !element_result,
+    )
+    .ok_or_else(invalid)?;
     if writing {
         if operation.result != OperationResult::Unit
             || !freshness::exact_length_is_current(module, machine, operation)
@@ -105,6 +114,9 @@ fn element_type() -> ScalarType {
 }
 
 /// Resolve the field identity before comparing a call's projected write path.
+/// `extent_observation` names the length operation's read-only extent view: a
+/// shared element-view field admits an extent observation (its descriptor's
+/// stored element count) but never a byte-content access through this family.
 fn field_path(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -112,6 +124,7 @@ fn field_path(
     path: &[StructuralPathSegment],
     field: StructuralFieldId,
     writing: bool,
+    extent_observation: bool,
 ) -> Option<Vec<StructuralPathSegment>> {
     let parameter = machine
         .structural_parameters
@@ -148,6 +161,12 @@ fn field_path(
                             | terminal_psi::StructuralAccess::WriteOnlyBorrow
                     )
                 )
+        }
+        StructuralFieldType::Structural(view) if extent_observation => {
+            module.structural_types.iter().any(|declaration| {
+                declaration.id == view
+                    && matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
+            })
         }
         _ => false,
     };

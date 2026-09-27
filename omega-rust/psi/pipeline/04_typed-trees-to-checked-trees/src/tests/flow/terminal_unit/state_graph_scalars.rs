@@ -201,3 +201,115 @@ fn state_graph_guard_names_the_selected_comparison_computation_root() {
     }
     assert_eq!(selected, 1, "one selected comparison feeds the guard");
 }
+
+#[test]
+fn conditional_guard_retains_a_call_computation_with_byte_view_actuals() {
+    // A call inside a conditional guard lives as a scalar computation, so its
+    // `&[u8]` actuals need their own structural planning: the literal mints a
+    // `ByteSequenceLiteral` source and the view parameter a `Parameter` source.
+    let checked = checked(
+        r#"
+        machine ascii_eq(text: &[u8], spelled: &[u8]) -> bool {
+            transition text.len == spelled.len {
+                true -> (spelled.len > 0)
+                false -> (false)
+            }
+        }
+        machine pick(text: &[u8]) {
+            transition ascii_eq(text, ("auto")) {
+                true -> yes()
+                false -> no()
+            }
+            state yes() {}
+            state no() {}
+        }
+        "#,
+    );
+    let machine = machine_named(&checked, "pick");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine)
+        .unwrap_or_else(|| {
+            panic!(
+                "the call guard composes: {:?}",
+                checked.facts.flow.terminal_unit_effects.omissions
+            )
+        });
+    let entry = &plan.states[0];
+    let CheckedComposedUnitControlTerminatorPlan::Conditional {
+        guard: checked_trees::CheckedCallScalarArgument::Computation(guard),
+        when_true,
+        ..
+    } = &entry.terminator
+    else {
+        panic!(
+            "the call guard is a computed conditional: {:?}",
+            entry.terminator
+        )
+    };
+    let computations = &checked.facts.values.scalar_computations;
+    let root = computations
+        .root_at(
+            entry.state,
+            when_true.statement_ordinal,
+            CheckedScalarExpressionRole::Guard,
+        )
+        .expect("the call guard owns one computation root");
+    assert_eq!(root.root, *guard);
+    let mut pending = vec![*guard];
+    let mut calls = 0;
+    while let Some(node) = pending.pop() {
+        match &computations.nodes.get(node).kind {
+            checked_trees::CheckedScalarComputationKind::Call {
+                structural_arguments,
+                arguments,
+                ..
+            } => {
+                calls += 1;
+                pending.extend(
+                    computations
+                        .operands
+                        .span_or_empty(*arguments)
+                        .iter()
+                        .copied(),
+                );
+                let arguments = computations
+                    .structural_arguments
+                    .span_or_empty(*structural_arguments);
+                assert_eq!(arguments.len(), 2);
+                let sources = arguments
+                    .iter()
+                    .map(|argument| match argument {
+                        checked_trees::CheckedScalarComputationStructuralArgument::Place(
+                            argument,
+                        ) => &argument.source,
+                        _ => panic!("the byte-view actuals are place arguments"),
+                    })
+                    .collect::<Vec<_>>();
+                assert!(matches!(
+                    sources[0],
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
+                ));
+                assert!(matches!(
+                    sources[1],
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral {
+                        bytes
+                    } if bytes.as_slice() == b"auto"
+                ));
+            }
+            checked_trees::CheckedScalarComputationKind::Apply { operands, .. } => {
+                pending.extend(
+                    computations
+                        .operands
+                        .span_or_empty(*operands)
+                        .iter()
+                        .copied(),
+                );
+            }
+            _ => {}
+        }
+    }
+    assert_eq!(calls, 1, "one call computation feeds the guard");
+}

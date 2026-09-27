@@ -444,6 +444,7 @@ pub(crate) fn lower_scalar_call_closure(
             identity_base,
             &machine_ids,
             &requirement_counts,
+            &machine.literal_places,
             machine.loop_plan.as_ref(),
         )?;
         if lowered.semantic_module.scalar_qualifications.domains != scalar_qualifications.domains

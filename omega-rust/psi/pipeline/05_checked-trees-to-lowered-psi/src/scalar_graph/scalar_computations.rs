@@ -30,6 +30,7 @@ pub(crate) mod cases;
 pub(crate) mod comparisons;
 mod dispatch;
 pub(crate) mod fields;
+pub(crate) mod literals;
 mod selection;
 mod source_custody;
 mod structural_arguments;
@@ -63,6 +64,7 @@ pub(crate) struct Expansion<'a> {
     calls: Vec<SourceCallCoordinate>,
     arrays: Vec<arrays::Slot>,
     subslices: Vec<subslices::Slot>,
+    literals: Vec<literals::Slot>,
     cases: Vec<cases::Slot>,
     fields: &'a [fields::Binding],
     /// Selection-local computations already carried in the current input prefix.
@@ -86,6 +88,7 @@ impl<'a> Expansion<'a> {
             calls: Vec::new(),
             arrays: Vec::new(),
             subslices: Vec::new(),
+            literals: Vec::new(),
             cases: Vec::new(),
             fields: &[],
             completed: Vec::new(),
@@ -129,6 +132,11 @@ impl<'a> Expansion<'a> {
 
     pub(crate) fn with_subslices(mut self, subslices: &[subslices::Slot]) -> Self {
         self.subslices = subslices.to_vec();
+        self
+    }
+
+    pub(crate) fn with_literals(mut self, literals: &[literals::Slot]) -> Self {
+        self.literals = literals.to_vec();
         self
     }
 

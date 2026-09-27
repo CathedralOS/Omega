@@ -577,15 +577,25 @@ pub(crate) fn resolve_byte_length(
         &binding.declarations,
     )?;
     // Raw fixed arrays have static capacity, not live metadata; a borrowed
-    // view leaf carries its extent on the view descriptor instead.
-    if !matches!(
-        field.field_type,
+    // view leaf carries its extent on the view descriptor instead. The
+    // element view behind a shared-borrow slice field keeps its element count
+    // on the same descriptor slot a byte carrier keeps its byte count.
+    let leaf_is_view = match field.field_type {
         StructuralFieldType::ByteSequence(
             terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                | terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-        )
-    ) {
-        return unsupported("byte field length requires a bounded-owned byte carrier");
+            | terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+        ) => true,
+        StructuralFieldType::Structural(view) => binding.declarations.iter().any(|declaration| {
+            declaration.id == view
+                && matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::ElementView { .. }
+                )
+        }),
+        _ => false,
+    };
+    if !leaf_is_view {
+        return unsupported("field view length requires a view-carried field leaf");
     }
     Ok((binding.source, path, field.id))
 }

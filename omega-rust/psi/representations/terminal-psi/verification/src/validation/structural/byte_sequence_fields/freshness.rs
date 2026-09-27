@@ -1,8 +1,9 @@
 //! All-path operation-point custody, including length-changing backedges.
 
 use super::{
-    ModuleError, OperationKind, PlaceId, StructuralAccess, StructuralPathSegment, TerminalMachine,
-    TerminalModule, byte_count_type, field_path,
+    ModuleError, OperationKind, PlaceId, StructuralAccess, StructuralFieldId,
+    StructuralPathSegment, StructuralTypeShape, TerminalMachine, TerminalModule, byte_count_type,
+    field_path, resolve_structural_path,
 };
 use crate::validation::{BTreeSet, OperationId, Proposition, ScalarTerm};
 fn operation_position(machine: &TerminalMachine, identity: OperationId) -> Option<(usize, usize)> {
@@ -94,8 +95,40 @@ fn changes_length(
             ..
         } => {
             *destination == root
-                && field_path(module, machine, *destination, written, *field, true)
+                && field_path(module, machine, *destination, written, *field, true, false)
                     .is_none_or(|written| overlaps(path, &written))
+        }
+        // A whole-field move or reseat replaces the stored view descriptor an
+        // element-view extent observation measured, so the observation is not
+        // current across it.
+        OperationKind::MoveStructuralField {
+            source,
+            path: moved,
+            field,
+        } => {
+            *source == root
+                && stored_field_identity(module, machine, root, moved, field).is_some_and(
+                    |identity| {
+                        let mut moved = moved.clone();
+                        moved.push(StructuralPathSegment::Field(identity));
+                        overlaps(path, &moved)
+                    },
+                )
+        }
+        OperationKind::StoreStructuralField {
+            destination,
+            path: stored,
+            field,
+            ..
+        } => {
+            *destination == root
+                && stored_field_identity(module, machine, root, stored, field).is_some_and(
+                    |identity| {
+                        let mut stored = stored.clone();
+                        stored.push(StructuralPathSegment::Field(identity));
+                        overlaps(path, &stored)
+                    },
+                )
         }
         OperationKind::WriteOnlyPrimitiveStore { destination, .. } => *destination == root,
         OperationKind::AtomicAccess { place, event, .. } => {
@@ -141,6 +174,33 @@ fn changes_length(
     }
 }
 
+/// Resolve the name of a stored record field so a whole-field move or store
+/// can be compared against an observation's exact path.
+fn stored_field_identity(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    root: PlaceId,
+    path: &[StructuralPathSegment],
+    field: &StructuralFieldId,
+) -> Option<String> {
+    let parameter = machine
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == root)?;
+    let carrier = resolve_structural_path(module, parameter.structural_type, path)?;
+    let declaration = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == carrier)?;
+    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        return None;
+    };
+    fields
+        .iter()
+        .find(|candidate| candidate.id == *field)
+        .map(|candidate| candidate.identity.clone())
+}
+
 pub(in crate::validation) fn exact_length_is_current(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -163,7 +223,7 @@ pub(in crate::validation) fn exact_length_is_current(
         } => (*source, path, *field, *length, false),
         _ => return false,
     };
-    let Some(exact_path) = field_path(module, machine, root, path, field, writing) else {
+    let Some(exact_path) = field_path(module, machine, root, path, field, writing, false) else {
         return false;
     };
     let Some(producer) = machine.blocks.iter().flat_map(|block| &block.operations).find(|candidate| {
@@ -189,7 +249,7 @@ pub(crate) fn replacement_length_equation(
     else {
         return Ok(None);
     };
-    let Some(exact_path) = field_path(module, machine, *root, path, *field, false) else {
+    let Some(exact_path) = field_path(module, machine, *root, path, *field, false, true) else {
         return Ok(None);
     };
     let result = operation.result.expect_scalar().id;

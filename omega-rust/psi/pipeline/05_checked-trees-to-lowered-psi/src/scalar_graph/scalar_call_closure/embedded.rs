@@ -86,6 +86,7 @@ impl EmbeddedScalarCalls {
                 identity_base,
                 &self.machine_ids,
                 &self.requirement_counts,
+                &machine.literal_places,
                 machine.loop_plan.as_ref(),
             )?;
             // This assembler has no common qualified namespace with its root.
