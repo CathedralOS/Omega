@@ -5134,6 +5134,39 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   failure histogram. Preserve record-pattern and fresh record/case operand
   support rather than recreating it.
 
+  **A mixed-carrier integer guard retains no Guard fact, and the spec says
+  it must.** `construct_integer_comparison`
+  (`omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/values/scalar/boolean_lowering.rs`)
+  ends with
+
+      if !is_integer(left_type) || scalar_expression_type(&right)? != left_type {
+          return None;
+      }
+
+  so `self.i < self.text.len` with an `i32` index and a `u64` length lowers
+  to nothing, no `Guard` fact is recorded, and the terminator omits the plan
+  at `conditional successors: guard expression`. Isolated in 27 lines at
+  `tests/omega/pending/expressions/mixed_integer_guard_comparison`: the same
+  program with `i: u64` checks.
+
+  [numeric values](wiki/spec/language/numeric_values.md) settles the question
+  against the gate -- builtin fixed-integer comparisons "require no common
+  operand carrier, implicit cast, or representability", and "Terminal
+  normalization and target realization implement it; neither may substitute
+  an unsigned promotion or reject source operands merely because their
+  integer carriers differ". `af32a85a4e4` closed that owner question as a
+  documentation checkpoint carrying "No compiler behavior changes", so the
+  implementation is owed, not the design.
+
+  The checked representation is not the obstacle:
+  `CheckedBooleanExpression::IntegerComparison` holds two independent scalar
+  expressions and never required them to agree. But the same spec paragraph
+  says source-independent verification "retains the exact operand subjects,
+  carriers, relation and polarity", so rewriting a mixed comparison into a
+  sign test over same-carrier compares is NOT the shape -- it must survive
+  as itself through 05, Terminal verification and selection. Three samples
+  wait on it: `cli/text/{parse_int,roman_numeral,string_hash}`.
+
   A second traced omission with its route mapped. `samples/cli/systems/
   vending_machine` omits at `state graph: terminator: conditional successors:
   parameter transfer` because `handoff` passes a structural call inline as a

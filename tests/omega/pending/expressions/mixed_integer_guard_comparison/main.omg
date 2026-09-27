@@ -1,0 +1,73 @@
+// PENDING: a transition guard whose operands are integers of DIFFERENT
+// carriers retains no Guard fact, so the entry's Unit plan is omitted at
+// `state graph: terminator: conditional successors: guard expression`.
+//
+// The only load-bearing token is `i`'s type. With `i: u64` — the same
+// carrier the length has — this program checks. With `i: i32` it is refused
+// with the downstream symptom, "selected ProgramEntry establishment rejoins
+// 0 Terminal attachment identities".
+//
+// The spec settled this. `wiki/spec/language/numeric_values.md` says builtin
+// fixed-integer comparisons "require no common operand carrier, implicit
+// cast, or representability of either value in the other operand's carrier",
+// and that "Terminal normalization and target realization implement it;
+// neither may substitute an unsigned promotion or reject source operands
+// merely because their integer carriers differ". `af32a85a4e4` closed that
+// owner question as a documentation checkpoint carrying "No compiler
+// behavior changes", so the implementation is owed.
+//
+// The site is `construct_integer_comparison` in
+// `omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/values/scalar/boolean_lowering.rs`:
+//
+//     if !is_integer(left_type) || scalar_expression_type(&right)? != left_type {
+//         return None;
+//     }
+//
+// The checked representation is not what blocks it —
+// `CheckedBooleanExpression::IntegerComparison` holds two independent scalar
+// expressions and never required them to agree. Note the spec's other
+// sentence when repairing it: "Source-independent verification retains the
+// exact operand subjects, carriers, relation and polarity", so rewriting the
+// comparison into a sign test over same-carrier compares is not the shape;
+// the mixed comparison should survive as itself.
+//
+// Three samples wait on this: `cli/text/{parse_int,roman_numeral,string_hash}`
+// all walk a text carrier with an `i32` index against its `u64` length.
+// Promote this to `pass/expressions/` with an exit when it lands.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    text: [u8; 8];
+    i: i32;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.i = 0;
+    transition { _ -> step() }
+
+    state step(&mut self) {
+        transition self.i < self.text.len {
+            true -> guarded()
+            _ -> done()
+        }
+    }
+
+    // The re-guard keeps the increment's own overflow obligation out of the
+    // way, exactly as `cli/text/parse_int` does, so the guard comparison is
+    // the only thing this fixture pins.
+    state guarded(&mut self) {
+        transition self.i >= 0 && self.i < 8 {
+            true -> bump()
+            _ -> done()
+        }
+    }
+
+    state bump(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> step() }
+    }
+
+    state done(&mut self) { self.console.exit_process(0); }
+}
