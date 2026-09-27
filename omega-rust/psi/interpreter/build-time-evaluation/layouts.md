@@ -109,14 +109,20 @@ allocator contract.
 
 Reports retain distinct normalized `Encode` and `StrictDecode` requirements,
 the normalized plan and dynamic obligations, and generated origin independently
-of compiler-admitted trust. Validated plans and differential canaries are not
-that verification; `checked_interpreter::verify_wire_schema_codec` is -- it
-byte-compares canonical emissions against an independently written reference
-framing, round-trips the strict decoder, and requires malformed frames to be
-rejected. Schemas whose whole requirement is exercised report `Derived` trust;
-a field kind with no decode-side realization (borrowed scalar slices, owned
-text) is named as a coverage gap and the row stays generator-admitted; a proven
-divergence is a compile diagnostic. The current strict decoder cannot satisfy a
-preservation demand; preserving realization remains separate work.
+of compiler-admitted trust. `checked_interpreter::verify_wire_schema_codec`
+independently checks the generated bodies -- it byte-compares canonical
+emissions against a reference framing written from the contract alone,
+round-trips the strict decoder, and requires malformed frames to be rejected.
+That suite is differential evidence over selected members and malformed frames:
+the codec spec calls such probes regression checks, not a general agreement
+argument, so a fully exercised suite still does not earn `Derived` -- every
+outcome keeps `Admitted` trust naming the compiler, with the exercised checks
+recorded as the evidence they are. A field kind with no decode-side realization
+(borrowed scalar slices, owned text) is named as a coverage gap, and a proven
+divergence is a compile diagnostic. `Derived` needs agreement evidence
+establishing the public requirement for every input, tied to the exact
+realization and schema; that machinery remains separate work. The current
+strict decoder cannot satisfy a preservation demand; preserving realization
+remains separate work.
 The [codec specification](../../../../wiki/spec/layouts/codecs.md) owns byte
 grammar, destination establishment, and failure behavior.
