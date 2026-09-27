@@ -1,19 +1,20 @@
 //! Optional invariant inference must preserve already supplied source evidence.
 
 use proof_admission::{AdmissionProfile, verify_obligation_with_machine_parameters};
-use terminal_psi::{ProofBundle, TerminalModule};
-use terminal_verifier::ReconstructedTerminalObligationSet;
+use terminal_psi::ProofBundle;
+use terminal_verifier::{ReconstructedTerminalObligationSet, ValidatedTerminalModule};
 
 use crate::lowering_error::LoweringError;
 
+/// `validated` covers the same module state `proposed` was reconstructed
+/// from; both callers already hold it, so this check does not repeat
+/// whole-module validation.
 pub(super) fn replays(
-    module: &TerminalModule,
+    validated: ValidatedTerminalModule<'_>,
     original: &ReconstructedTerminalObligationSet,
     proposed: &ReconstructedTerminalObligationSet,
     proofs: &ProofBundle,
 ) -> Result<bool, LoweringError> {
-    let validated =
-        terminal_verifier::validate_module(module).map_err(LoweringError::InvalidTerminalModule)?;
     for proof in &proofs.evidence {
         let Some(after) = proposed
             .obligations()

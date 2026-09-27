@@ -466,5 +466,5 @@ fn proves(
             return Ok(false);
         }
     }
-    retained_evidence::replays(module, original, &questions, &lowered.proof_bundle)
+    retained_evidence::replays(validated, original, &questions, &lowered.proof_bundle)
 }
