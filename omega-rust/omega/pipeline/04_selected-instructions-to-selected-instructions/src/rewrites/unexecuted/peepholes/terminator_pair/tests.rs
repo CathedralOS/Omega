@@ -331,6 +331,8 @@ fn catalog(
 ) -> ValidatedMachineEffectCatalog {
     validated_machine_effect_catalog(source.transformed().target, environment.constraints())
         .unwrap()
+        .as_ref()
+        .clone()
 }
 
 /// Edit the single fixture function, then refresh the receipt identities so
