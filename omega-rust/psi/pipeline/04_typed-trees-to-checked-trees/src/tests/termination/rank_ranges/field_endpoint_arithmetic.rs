@@ -116,9 +116,6 @@ fn symbolic_shift_endpoint_preserves_value_and_count_at_named_arrivals() {
     // nested non-polynomial endpoint transports innermost-first.
     accepts_named(&source.replace("(cap << divisor)", "(cap << 0)"));
     accepts_named(&source.replace("(cap << divisor)", "((cap % divisor) << divisor)"));
-    // An anonymous shifted value selects no width, so only a typed
-    // carrier's shift mints an endpoint term.
-    rejects_named(&source.replace("(cap << divisor)", "(20 << divisor)"));
     // Cancellation cannot hide the count: `x << k - x << k` still owes
     // `k < width` at every constituent operation.
     let canceled = source.replace(
@@ -176,9 +173,6 @@ fn symbolic_shift_right_endpoint_preserves_value_and_count_at_named_arrivals() {
     accepts_named(&source.replace("(cap >> divisor)", "(cap >> 0)"));
     accepts_named(&source.replace("(cap >> divisor)", "((cap % divisor) >> divisor)"));
     accepts_named(&source.replace("(cap >> divisor)", "((cap << divisor) >> divisor)"));
-    // An anonymous shifted value selects no width, so only a typed
-    // carrier's shift mints an endpoint term.
-    rejects_named(&source.replace("(cap >> divisor)", "(20 >> divisor)"));
     // Cancellation cannot hide the count: `x >> k - x >> k` still owes
     // `k < width` at every constituent operation.
     let canceled = source.replace(
@@ -207,6 +201,27 @@ fn symbolic_shift_right_endpoint_preserves_value_and_count_at_named_arrivals() {
             ("width <= 5", "width <= 70"),
         ],
     ));
+}
+
+#[test]
+fn symbolic_shift_endpoint_requires_a_typed_value_even_with_a_typed_count() {
+    for operator in ["<<", ">>"] {
+        let endpoint = format!("(20 {operator} divisor)");
+        let source = rewrite_fixture(SYMBOLIC_QUOTIENT, &[("cap / divisor", &endpoint)]);
+        let diagnostics = lower_typed_trees(typed_program(&source), &CheckingRequest::settled())
+            .expect_err(&source);
+        // Missing carrier width is diagnosed before rank-range checking.
+        let expected = format!(
+            "builtin `{operator}` takes its width from the value it shifts, so that value needs an integer type"
+        );
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(&expected)),
+            "{source}\n{diagnostics:#?}"
+        );
+        accepts_named(&rewrite_fixture(&source, &[("(20 ", "(20u64 ")]));
+    }
 }
 
 #[test]
