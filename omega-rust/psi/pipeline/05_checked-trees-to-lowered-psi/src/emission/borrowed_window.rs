@@ -531,6 +531,30 @@ fn spell_place(
             CheckedUnitStructuralPathSegment::RuntimeIndex(
                 checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
             ) => spelling.push_str(&format!("[index#{depth}]")),
+            CheckedUnitStructuralPathSegment::RuntimeIndex(
+                checked_trees::CheckedRuntimeIndex::StructuralField(field),
+            ) => {
+                spelling.push_str(&format!(
+                    "[field#{}:{}]",
+                    field.parameter_position,
+                    field
+                        .path
+                        .iter()
+                        .map(|segment| match segment {
+                            checked_trees::CheckedStructuralPredicatePathSegment::Field(
+                                identity,
+                            ) => identity.clone(),
+                            checked_trees::CheckedStructuralPredicatePathSegment::Case(case) => {
+                                format!("as {case}")
+                            }
+                            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(
+                                index,
+                            ) => index.to_string(),
+                        })
+                        .collect::<Vec<_>>()
+                        .join(".")
+                ));
+            }
         }
     }
     spelling

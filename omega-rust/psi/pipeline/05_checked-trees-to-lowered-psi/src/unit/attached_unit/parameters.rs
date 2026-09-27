@@ -14,8 +14,14 @@ use super::{
     ValueDeclaration, allocate_dense, lookup_claim_id, lookup_domain_id, lookup_service_id,
     lookup_type_id, place_id, require_valid_service_row, terminal_scalar_type, unsupported,
 };
+use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
+use crate::emission::operation_emission::expressions::{
+    LoweredDirectExpression, emit_direct_expression,
+};
+use crate::expression_preparation::bindings::StructuralScalarFieldBinding;
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
+use semantic_vocabulary::ValueId;
 mod service_forward;
 mod source_path;
 pub(crate) use source_path::{expression_producer, source_path, source_place_path};
@@ -1074,16 +1080,67 @@ pub(crate) fn literal_argument_places(
     Ok(places)
 }
 
+/// Emit one `IntegerStructuralField` read for every `StructuralField`
+/// runtime-index selector in argument order, before the call they select
+/// into. The call's `RuntimeIndex` segment then carries the read's value as
+/// its operand — the same operand position a `Parameter` selector carries —
+/// so the reads land on the operation buffer ahead of the call, which is why
+/// they mint here rather than inside `lower_structural_arguments` (its
+/// earlier-results slice holds the buffer by shared borrow).
+pub(crate) fn mint_runtime_index_selectors(
+    arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
+    fields: &[StructuralScalarFieldBinding],
+    caller_scalar_values: &[ValueDeclaration],
+    next_value: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<Vec<ValueId>, LoweringError> {
+    let mut values = Vec::new();
+    for argument in arguments {
+        for segment in &argument.path {
+            let CheckedUnitStructuralPathSegment::RuntimeIndex(
+                checked_trees::CheckedRuntimeIndex::StructuralField(field),
+            ) = segment
+            else {
+                continue;
+            };
+            let (source, path, leaf, scalar_type) =
+                crate::expression_preparation::bindings::structural_fields::resolve_typed(
+                    fields,
+                    field.parameter_position,
+                    &field.path,
+                )?;
+            if !matches!(scalar_type, ScalarType::Integer(integer) if !integer.is_address()) {
+                return unsupported("runtime index field selector is not an integer read");
+            }
+            values.push(emit_direct_expression(
+                &LoweredDirectExpression::StructuralField {
+                    source,
+                    path,
+                    field: leaf,
+                    scalar_type,
+                },
+                caller_scalar_values,
+                next_value,
+                operations,
+            ));
+        }
+    }
+    Ok(values)
+}
+
 /// A checked argument path can carry a runtime selector only when the
-/// operand lowering owns the index's evaluation and obligation: here the
-/// selector is a dense scalar parameter of the calling state, already in the
-/// caller's operand frame, and the call allocates its bound obligation from
-/// the emission context (the same counter `allocate_requirement` serves).
-/// An `AssignmentIndex` segment belongs to a store destination, not a call
-/// argument, so it is refused here.
+/// operand lowering owns the index's evaluation and obligation: a dense
+/// scalar parameter of the calling state is already in the caller's operand
+/// frame, and a `StructuralField` selector consumes the field read
+/// `mint_runtime_index_selectors` emitted in argument order ahead of this
+/// lowering. Either way the call allocates the selector's bound obligation
+/// from the emission context (the same counter `allocate_requirement`
+/// serves). An `AssignmentIndex` segment belongs to a store destination, not
+/// a call argument, so it is refused here.
 fn lower_argument_path(
     path: &[CheckedUnitStructuralPathSegment],
     caller_scalar_values: Option<&[ValueDeclaration]>,
+    selector_values: &mut dyn Iterator<Item = ValueId>,
     calls: Option<&mut CallEmissionContext<'_>>,
 ) -> Result<Vec<terminal_psi::StructuralPathSegment>, LoweringError> {
     if !path
@@ -1126,6 +1183,24 @@ fn lower_argument_path(
                     }
                 })
             }
+            CheckedUnitStructuralPathSegment::RuntimeIndex(
+                checked_trees::CheckedRuntimeIndex::StructuralField(_),
+            ) => {
+                let Some(calls) = calls.as_deref_mut() else {
+                    return Err(LoweringError::Unsupported(
+                        "runtime index argument path has no caller scalar frame",
+                    ));
+                };
+                let index = selector_values.next().ok_or(LoweringError::Unsupported(
+                    "field-selector runtime index has no evaluated operand",
+                ))?;
+                calls.allocate_requirement().map(|obligation| {
+                    terminal_psi::StructuralPathSegment::RuntimeIndex {
+                        index,
+                        obligation,
+                    }
+                })
+            }
             CheckedUnitStructuralPathSegment::RuntimeIndex(_) => Err(LoweringError::Unsupported(
                 "an assignment-index selector is owned by its store destination",
             )),
@@ -1143,6 +1218,7 @@ pub(crate) fn lower_structural_arguments(
     byte_argument_places: &[PlaceId],
     primitive_locals: &[super::primitive_locals::PrimitiveLocal],
     caller_scalar_values: Option<&[ValueDeclaration]>,
+    selector_values: &mut dyn Iterator<Item = ValueId>,
     mut calls: Option<&mut CallEmissionContext<'_>>,
 ) -> Result<Vec<StructuralArgument>, LoweringError> {
     let mut next_byte_argument = 0usize;
@@ -1216,7 +1292,7 @@ pub(crate) fn lower_structural_arguments(
                 let source = structural_result_source(structural_results, binding_ordinal, argument)?;
                 return Ok(StructuralArgument {
                     place: source.id,
-                    path: lower_argument_path(&argument.path, caller_scalar_values, calls.as_deref_mut())?,
+                    path: lower_argument_path(&argument.path, caller_scalar_values, &mut *selector_values, calls.as_deref_mut())?,
                     access: match argument.access {
                         checked_trees::CheckedStructuralAccess::Owned => StructuralAccess::Owned,
                         checked_trees::CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
@@ -1240,7 +1316,7 @@ pub(crate) fn lower_structural_arguments(
                 ))?;
             Ok(StructuralArgument {
                 place: parameter.place,
-                path: lower_argument_path(&argument.path, caller_scalar_values, calls.as_deref_mut())?,
+                path: lower_argument_path(&argument.path, caller_scalar_values, &mut *selector_values, calls.as_deref_mut())?,
                 access: match argument.access {
                     checked_trees::CheckedStructuralAccess::Owned => StructuralAccess::Owned,
                     checked_trees::CheckedStructuralAccess::SharedBorrow => {

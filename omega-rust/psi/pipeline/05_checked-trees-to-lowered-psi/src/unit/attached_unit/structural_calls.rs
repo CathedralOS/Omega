@@ -9,8 +9,8 @@ use super::{
     Multiplicity, Operation, OperationKind, OperationResult, ScalarType, StructuralMultiplicity,
     StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
     ValueDeclaration, allocate_dense, argument_evaluation, lookup_machine_id, lookup_type_id,
-    lower_structural_arguments, place_id, retain_exact_flow_call, terminal_scalar_type,
-    unsupported, validate_transfer_shape,
+    lower_structural_arguments, mint_runtime_index_selectors, place_id, retain_exact_flow_call,
+    terminal_scalar_type, unsupported, validate_transfer_shape,
 };
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
@@ -293,6 +293,8 @@ pub(super) fn emit(
     next_place: &mut u64,
     operations: &mut OperationBuffer,
     caller_scalar_values: Option<&[ValueDeclaration]>,
+    selector_fields: &[crate::expression_preparation::bindings::StructuralScalarFieldBinding],
+    next_value: &mut u64,
     calls: Option<&mut CallEmissionContext<'_>>,
 ) -> Result<(StructuralPlaceDeclaration, bool), LoweringError> {
     let CheckedUnitEffectOperationPlan::StructuralCall {
@@ -344,6 +346,14 @@ pub(super) fn emit(
         &crate::unit::effective_crash_routes(checked, *target_machine)?,
         &scalar_values,
     )?;
+    let mut selector_values = mint_runtime_index_selectors(
+        structural_arguments,
+        selector_fields,
+        caller_scalar_values.unwrap_or(&[]),
+        next_value,
+        operations,
+    )?
+    .into_iter();
     let structural_arguments = lower_structural_arguments(
         structural_arguments,
         parameters,
@@ -352,6 +362,7 @@ pub(super) fn emit(
         &[],
         &[],
         caller_scalar_values,
+        &mut selector_values,
         calls,
     )?;
     let id = operations.allocate();

@@ -553,6 +553,7 @@ pub(super) fn result(
                 &[],
                 &[],
                 None,
+                &mut std::iter::empty(),
                 None,
             )?;
             Ok(terminal_psi::StructuralReferenceResultSource {

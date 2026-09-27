@@ -631,12 +631,14 @@ pub(crate) fn structural_call_arguments(
                     &target_identity,
                 )?
             }
-            // A runtime index in a shared-borrow path loans one element of a
+            // A runtime index in a borrow path loans one element of a
             // borrowed subtree without transferring ownership, the same
             // subloan the receiver lane admits. `projected_borrowed_receiver_path`
             // retains the selector only when the caller's published integer
             // range proves it inside the enclosing fixed array's extent;
-            // terminal verification replays that bound.
+            // terminal verification replays that bound. A mutable target
+            // requires mutable or owned caller custody — a shared source
+            // cannot lend mutation.
             segments
                 if segments
                     .iter()
@@ -650,18 +652,26 @@ pub(crate) fn structural_call_arguments(
                         )
                     })
                     && target_machine.supply_mode == MachineSupplyMode::CheckedBody
-                    && matches!(
-                        structural_access_for_type_reference(program, target.type_reference)?,
-                        CheckedStructuralAccess::SharedBorrow
-                    )
-                    && (matches!(
-                        caller_parameters[source_index].access,
-                        CheckedStructuralAccess::SharedBorrow
-                            | CheckedStructuralAccess::MutableBorrow
-                    ) || (caller_parameters[source_index].access
-                        == CheckedStructuralAccess::Owned
-                        && caller_parameters[source_index].multiplicity
-                            == Multiplicity::Affine))
+                    && (match structural_access_for_type_reference(
+                        program,
+                        target.type_reference,
+                    )? {
+                        CheckedStructuralAccess::SharedBorrow => {
+                            matches!(
+                                caller_parameters[source_index].access,
+                                CheckedStructuralAccess::SharedBorrow
+                                    | CheckedStructuralAccess::MutableBorrow
+                            ) || (caller_parameters[source_index].access
+                                == CheckedStructuralAccess::Owned
+                                && caller_parameters[source_index].multiplicity
+                                    == Multiplicity::Affine)
+                        }
+                        CheckedStructuralAccess::MutableBorrow => {
+                            caller_parameters[source_index].access
+                                == CheckedStructuralAccess::MutableBorrow
+                        }
+                        _ => false,
+                    })
                     && caller_parameters
                         .get(source_index)?
                         .qualifications

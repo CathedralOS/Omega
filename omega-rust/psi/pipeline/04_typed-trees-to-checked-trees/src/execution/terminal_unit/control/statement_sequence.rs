@@ -917,6 +917,7 @@ pub(in crate::execution::terminal_unit) fn build(
         .count();
     let mut structural_count = 0_usize;
     let mut structural_local_symbols = Vec::new();
+    let statements = program.statement_table.statements(state.statement_nodes);
     let mut windows = super::super::borrowed_windows::OpenWindows::default();
     let mut array_bindings = Vec::<(SymbolHandle, CheckedUnitStructuralResultBindingPlan)>::new();
     let mut returned_call = None;
@@ -943,9 +944,7 @@ pub(in crate::execution::terminal_unit) fn build(
         )?
         .into_iter()
         .peekable();
-    for (index, statement) in program
-        .statement_table
-        .statements(state.statement_nodes)
+    for (index, statement) in statements
         .iter()
         .enumerate()
         .skip(construction_statement_count)
@@ -964,8 +963,17 @@ pub(in crate::execution::terminal_unit) fn build(
         trace.phase(statement_phase(statement));
         trace.statement(Some(statement_index));
         append_reference_releases(facts, machine.symbol, state.symbol, statement_index, &mut operations)?;
-        let completes_machine = matches!(statement, StatementNode::Expression(_))
-            && !is_unit(program, state.return_type);
+        // A value-returning body's completing expression is its final
+        // statement: scalar tails carry a Return-rooted computation the scan
+        // above already stops on, while a structural tail call reaches this
+        // loop only in last position. A call statement in any earlier slot is
+        // a discarded invocation classified by `unit_statement_call`, not the
+        // machine's result producer — treating it as completing would bind
+        // the machine's return type against the callee's own result shape.
+        let completes_machine = matches!(statement, StatementNode::Expression(expression)
+            if !is_unit(program, state.return_type)
+                && (!matches!(program.expression_table.expression(*expression), ExpressionNode::Call(_))
+                    || index.checked_add(1) == Some(statements.len())));
         let mut structural_result = None;
         // A store whose source is this statement's own call is appended after
         // that call operation, in ordinary evaluation order.

@@ -322,10 +322,10 @@ pub(crate) fn is_admitted_unit_call_argument_path(
                     if backing.iter().all(|segment| matches!(segment, StructuralPathSegment::Field(identity) if !identity.is_empty()))))
         || (matches!(argument.access, StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow)
             && is_static_borrow_path(&argument.path))
-        // A runtime-indexed shared borrow keeps the owning root and replays
-        // the selector's published bounds; the dynamic element is borrowed,
-        // not moved, and its access stays `SharedBorrow`.
-        || (argument.access == StructuralAccess::SharedBorrow
+        // A runtime-indexed borrow keeps the owning root and replays the
+        // selector's bounds; the dynamic element is borrowed, not moved, and
+        // a mutable loan is exclusive on the same single element.
+        || (matches!(argument.access, StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow)
             && is_runtime_indexed_borrow_path(&argument.path))
         // Structural paths already retain only fields and literal indexes;
         // write-only subloans may interleave them. Resolution checks each hop.
@@ -559,7 +559,19 @@ pub(crate) fn is_unrestricted_mutable_subloan(
     {
         return true;
     }
-    is_static_borrow_path(&argument.path)
+    // An exact-subtree check for a runtime-indexed path resolves through the
+    // runtime projection resolver — the static resolver refuses its
+    // `RuntimeIndex` hop.
+    let exact_subtree = if is_runtime_indexed_borrow_path(&argument.path) {
+        crate::validation::foundation::resolve_runtime_projection(
+            module,
+            actual.structural_type,
+            &argument.path,
+        )
+    } else {
+        resolve_structural_path(module, actual.structural_type, &argument.path)
+    };
+    (is_static_borrow_path(&argument.path) || is_runtime_indexed_borrow_path(&argument.path))
         && argument.access == StructuralAccess::MutableBorrow
         && expected.access == StructuralAccess::MutableBorrow
         && expected.multiplicity == StructuralMultiplicity::Unrestricted
@@ -568,7 +580,6 @@ pub(crate) fn is_unrestricted_mutable_subloan(
         // standalone type, and this predicate also gates the view adapter.
         && (actual.access == StructuralAccess::MutableBorrow
             || (actual.access == StructuralAccess::Owned
-                && resolve_structural_path(module, actual.structural_type, &argument.path)
-                    == Some(expected.structural_type)))
+                && exact_subtree == Some(expected.structural_type)))
         && actual.multiplicity == StructuralMultiplicity::Unrestricted
 }

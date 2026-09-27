@@ -669,6 +669,7 @@ pub(super) fn emit(
                                 &[],
                                 &[],
                                 None,
+                                &mut std::iter::empty(),
                                 None,
                             )?;
                             Ok(terminal_psi::StructuralReferenceResultSource {

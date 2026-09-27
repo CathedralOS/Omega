@@ -89,7 +89,7 @@ use crate::unit::attached_unit::{
     collect_installation_machine_contract_services, collect_published_contract_services,
     collect_service_summary, lower_installation_machine_service_ceiling,
     lower_published_service_ceiling, lower_root_service_reach, lower_structural_arguments,
-    lower_unit_parameters, validate_transfer_shape,
+    lower_unit_parameters, mint_runtime_index_selectors, validate_transfer_shape,
 };
 use crate::unit::unit_cleanup::lower_nominal_affine_unit_cleanup_machine;
 

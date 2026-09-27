@@ -5,7 +5,9 @@ use super::super::{
     claim_id, structural_crash_route_argument_prefix, substitute_structural_crash_route_roots,
 };
 use super::bodies::UnitPlans;
-use super::parameters::{StructuralResultCustody, emitted_claim_transfers};
+use super::parameters::{
+    StructuralResultCustody, emitted_claim_transfers, mint_runtime_index_selectors,
+};
 use super::{
     CheckedTrees, CheckedUnitEffectOperationPlan, ClaimTransfer, LoweringError, Multiplicity,
     Operation, OperationKind, OperationResult, PlaceId, SemanticDomainId, StructuralDomainId,
@@ -63,10 +65,12 @@ pub(super) fn prepare(
     type_ids: &[(String, StructuralTypeId)],
     structural_types: &[StructuralTypeDeclaration],
     call_byte_places: &[PlaceId],
-    completed_results: &[(u32, StructuralOperationResult)],
     domain_ids: &[(SemanticDomainId, StructuralDomainId)],
     claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
     calls: &mut CallEmissionContext<'_>,
+    selector_fields: &[crate::expression_preparation::bindings::StructuralScalarFieldBinding],
+    next_value: &mut u64,
+    operations: &mut OperationBuffer,
 ) -> Result<PreparedCall, LoweringError> {
     let (
         target_machine,
@@ -162,6 +166,17 @@ pub(super) fn prepare(
         .iter()
         .map(|value| value.id)
         .collect();
+    // Runtime-index field selectors read storage at this call's point; their
+    // reads land ahead of the call operation they select into.
+    let mut selector_values = mint_runtime_index_selectors(
+        structural_arguments,
+        selector_fields,
+        caller_scalar_values,
+        next_value,
+        operations,
+    )?
+    .into_iter();
+    let completed_results = &operations.structural_values;
     validate_transfer_shape(
         structural_arguments,
         claim_transfers,
@@ -216,6 +231,7 @@ pub(super) fn prepare(
         call_byte_places,
         primitive_local_places,
         Some(caller_scalar_values),
+        &mut selector_values,
         Some(calls),
     )?;
 

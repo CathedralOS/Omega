@@ -10,7 +10,7 @@
 //! composed catalog and operation-buffer registry).
 
 use super::super::parameters::{
-    StructuralResultCustody, emitted_claim_transfers, lower_structural_arguments,
+    self, StructuralResultCustody, emitted_claim_transfers, lower_structural_arguments,
     validate_transfer_shape,
 };
 use super::super::{
@@ -231,10 +231,12 @@ impl OperationFrame<'_, '_> {
             self.type_ids,
             self.structural_types.declarations(),
             inputs.byte_places,
-            &self.operations.structural_values,
             self.callees.domain_ids,
             self.caller.claims.bindings(),
             self.calls,
+            &self.evaluation.structural_fields,
+            self.next_value,
+            self.operations,
         )?;
         drop(earlier);
         let callee = lookup_machine_id(self.calls.machine_ids, *target_machine)?;
@@ -324,6 +326,8 @@ impl OperationFrame<'_, '_> {
             self.next_place,
             self.operations,
             Some(self.values),
+            &self.evaluation.structural_fields,
+            self.next_value,
             Some(&mut *self.calls),
         )?;
         drop(earlier);
@@ -375,6 +379,8 @@ impl OperationFrame<'_, '_> {
         let operand_values = values.clone();
         let mut emit_member_call = |operand: &CheckedUnitEffectOperationPlan,
                                     evaluated: Option<&[ValueDeclaration]>,
+                                    selector_fields: &[crate::expression_preparation::bindings::StructuralScalarFieldBinding],
+                                    selector_next_value: &mut u64,
                                     call_context: &mut CallEmissionContext<'_>,
                                     output: &mut OperationBuffer,
                                     place_counter: &mut u64| {
@@ -405,10 +411,12 @@ impl OperationFrame<'_, '_> {
                 type_ids,
                 structural_types,
                 &[],
-                &output.structural_values,
                 callees.domain_ids,
                 claims,
                 call_context,
+                selector_fields,
+                selector_next_value,
+                output,
             )?;
             drop(earlier);
             let declaration = ordinary_calls::emit_structural(
@@ -621,6 +629,14 @@ impl OperationFrame<'_, '_> {
             if target.structural_parameters().is_empty() && !structural_arguments.is_empty() {
                 return unsupported("structural scalar call has no structural checked body");
             }
+            let mut selector_values = parameters::mint_runtime_index_selectors(
+                structural_arguments,
+                &self.evaluation.structural_fields,
+                self.values,
+                self.next_value,
+                self.operations,
+            )?
+            .into_iter();
             let earlier = self
                 .results
                 .earlier(structural_arguments, self.operations)?;
@@ -674,6 +690,7 @@ impl OperationFrame<'_, '_> {
                     inputs.byte_places,
                     self.primitive_locals,
                     Some(self.values),
+                    &mut selector_values,
                     Some(&mut *self.calls),
                 )?,
                 claim_transfers: emitted_claim_transfers(

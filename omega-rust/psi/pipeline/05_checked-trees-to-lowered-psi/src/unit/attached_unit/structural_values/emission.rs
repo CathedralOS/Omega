@@ -21,6 +21,8 @@ mod dispatch;
 pub(super) type StructuralCallEmitter<'a> = dyn FnMut(
         &CheckedUnitEffectOperationPlan,
         Option<&[ValueDeclaration]>,
+        &[crate::expression_preparation::bindings::StructuralScalarFieldBinding],
+        &mut u64,
         &mut CallEmissionContext<'_>,
         &mut OperationBuffer,
         &mut u64,
@@ -778,6 +780,8 @@ impl Emission<'_, '_, '_> {
                 let declaration = (self.call_emitter)(
                     call.operation(),
                     evaluated.as_deref(),
+                    &self.evaluation.structural_fields,
+                    self.next_value,
                     self.calls,
                     self.operations,
                     self.next_place,
@@ -1577,6 +1581,8 @@ impl Emission<'_, '_, '_> {
                 let declaration = (self.call_emitter)(
                     call.operation(),
                     evaluated.as_deref(),
+                    &self.evaluation.structural_fields,
+                    self.next_value,
                     self.calls,
                     self.operations,
                     self.next_place,

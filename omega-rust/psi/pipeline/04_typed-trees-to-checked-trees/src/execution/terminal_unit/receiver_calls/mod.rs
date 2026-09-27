@@ -656,13 +656,16 @@ fn receiver_argument(
                         target.access,
                         SharedBorrow | MutableBorrow | WriteOnlyBorrow
                     ) && matches!(segment, facts::PlaceSegment::FixedIndex { .. }))
-                    // A runtime index may borrow one shared element: the
-                    // checked `RuntimeIndex` segment retains the scalar
-                    // selector and the inclusive bounds its retained integer
-                    // entry range publishes, and terminal verification
-                    // replays both rather than trusting this admission.
-                    || (target.access == SharedBorrow
-                        && matches!(segment, facts::PlaceSegment::Index { .. }))
+                    // A runtime index may borrow one shared or mutable
+                    // element: the checked `RuntimeIndex` segment retains the
+                    // scalar selector and terminal verification replays its
+                    // bound rather than trusting this admission. A mutable
+                    // receiver keeps the same operand shape — the loan is
+                    // exclusive, not static, and still names one element.
+                    || (matches!(
+                        target.access,
+                        SharedBorrow | MutableBorrow
+                    ) && matches!(segment, facts::PlaceSegment::Index { .. }))
             })
         {
             return None;
