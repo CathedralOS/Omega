@@ -29,18 +29,20 @@ impl RangeFacts<'_> {
             program,
             &mut owned_frames,
         );
-        let writes = (!self.expression_dependencies.is_empty() || self.has_descriptor_facts())
-            .then(|| {
-                crate::flow::statement_storage_writes(
-                    program,
-                    machine.symbol,
-                    state.symbol,
-                    self.statement_index,
-                    statement,
-                    shared_frames,
-                )
-            })
-            .flatten();
+        let writes = (!self.expression_dependencies.is_empty()
+            || !self.scalar_binding_dependencies.is_empty()
+            || self.has_descriptor_facts())
+        .then(|| {
+            crate::flow::statement_storage_writes(
+                program,
+                machine.symbol,
+                state.symbol,
+                self.statement_index,
+                statement,
+                shared_frames,
+            )
+        })
+        .flatten();
         let preserved =
             self.preserved_expression_labels(program, machine, state, writes.as_deref());
         let affected = self.affected_expression_labels(program, machine, state, writes.as_deref());
@@ -130,8 +132,9 @@ impl RangeFacts<'_> {
     }
 
     /// A complete call frame includes both caller storage and overlapping live
-    /// alias spellings. Unknown effects retire all value-dependent premises;
-    /// declared fixed-array extents remain true regardless of element writes.
+    /// alias spellings. Opaque frames retain the checked signature's write
+    /// ceiling; an unrepresentable ceiling retires value-dependent premises.
+    /// Declared fixed-array extents remain true regardless of element writes.
     pub(in crate::checks::ranges) fn invalidate_call_writes(
         &mut self,
         program: &TypedTrees,
@@ -151,18 +154,23 @@ impl RangeFacts<'_> {
         // write reaches the collection place itself, so they consult the
         // structured set even when no typed read set exists.
         let call_writes = site
-            .filter(|_| !self.expression_dependencies.is_empty() || self.has_descriptor_facts())
+            .filter(|_| {
+                !self.expression_dependencies.is_empty()
+                    || !self.scalar_binding_dependencies.is_empty()
+                    || self.has_descriptor_facts()
+            })
             .and_then(|site| self.structured_call_writes(program, machine, state, site));
-        let structured = paths
-            .filter(|_| !self.expression_dependencies.is_empty())
-            .and_then(|_| call_writes.clone());
         let mut owned_frames = None;
         let shared_frames = crate::flow::shared_call_frames_or(
             self.checked_calls.and_then(|context| context.call_frames()),
             program,
             &mut owned_frames,
         );
-        let writes = structured.or_else(|| {
+        // The mutation owner can bound an opaque body by its checked
+        // signature and borrow ledger. That complete storage ceiling is
+        // sufficient for disjoint typed reads even without textual paths.
+        // Missing call identity or unrepresentable origins still supply None.
+        let writes = call_writes.clone().or_else(|| {
             paths
                 .filter(|_| !self.expression_dependencies.is_empty())
                 .and_then(|paths| {

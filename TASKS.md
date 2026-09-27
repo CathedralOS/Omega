@@ -676,11 +676,15 @@ the complete product bar; focused successes below do not establish that baseline
 
   The full macOS package run after explicit owned receiver origin recovery
   reaches one remaining engine `supplied_module_count` subslice failure, down
-  from two. The validation path constructs a cyclic borrowed result view;
-  a later read-only call retires the captured count bound. Continue repairing
-  that path through the real session/API dependency probe, then rerun the
-  unchanged `omega update --project <application>/squalr-tests --target
-  macos_arm64`, ordinary review, and the matching-host application harness.
+  from two. The remaining validation path constructs a cyclic borrowed result
+  view. Captured integer locals now retain their exact storage identity, so
+  the checked signature write ceiling preserves their bounds through later
+  disjoint calls even when body-origin analysis is opaque. The unchanged
+  15-package session/API probe now passes that subslice check and reaches the
+  unresolved session proof below. Reassignment and exclusive scalar argument
+  writes still retire bounds. The full unchanged `omega update --project
+  <application>/squalr-tests --target macos_arm64` rerun is pending; follow it
+  with ordinary review and the matching-host application harness.
 
   A native probe importing the actual `squalr_engine_api::NormalizedRegion`
   now completes three-package review and exits 70 on macOS ARM64. It checks

@@ -29,6 +29,7 @@ pub(in crate::checks::ranges) fn seed_local_alias_facts(
     if target_label.is_empty() {
         return;
     }
+    facts.record_scalar_binding_dependency(program, machine, state, value, symbol, &target_label);
     facts.alias_integer_place_value(program, machine, state, value, symbol, &target_label);
     seed_ensured_call_result_bounds(program, facts, &target_label, value);
     remainder_bounds::seed(program, machine, state, facts, value, &target_label);

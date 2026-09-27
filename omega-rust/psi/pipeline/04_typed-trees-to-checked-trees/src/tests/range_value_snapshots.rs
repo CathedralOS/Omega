@@ -186,3 +186,93 @@ fn explicit_owned_receiver_results_keep_backing_storage_writes() {
         }
     }
 }
+
+fn cyclic_view_result_source() -> &'static str {
+    r#"
+data Storage { bytes: [u8; 8]; }
+data Engine { storage: Storage; }
+data Arenas<'scope> { bytes: &'scope mut [u8]; }
+machine Storage::borrow_arenas<'scope>(&mut self) -> Arenas<'scope> {
+ transition { _ -> walk(0) }
+ state walk(&mut self, position: u64) -> Arenas<'scope> {
+  transition position < 8 {
+   true -> advance(position)
+   false -> (Arenas { bytes: &mut self.bytes })
+   _ -> (Arenas { bytes: &mut self.bytes })
+  }
+ }
+ state advance(&mut self, position: u64) -> Arenas<'scope>
+ requires position < 8;
+ {
+  self.bytes[position] = 0;
+  transition { _ -> walk(position + 1) }
+ }
+}
+machine noop() -> u64 { 0 }
+data Producer { value: u64; }
+machine Producer::copy_modules(&mut self, output: &mut [u8; 8]) -> u64
+ensures 0 <= result && result < 9;
+{
+    transition { _ -> copy(output, 0) }
+    state copy(&mut self, output: &mut [u8; 8], position: u64) -> u64
+    requires 0 <= position && position < 9;
+    {
+        transition position < self.value && position < 8 {
+            true -> store(output, position)
+            false -> (position)
+            _ -> (position)
+        }
+    }
+    state store(&mut self, output: &mut [u8; 8], position: u64) -> u64
+    requires 0 <= position && position < 8;
+    {
+        output[position] = 1;
+        transition { _ -> copy(output, position + 1) }
+    }
+}
+machine consume(values: &[u8]) -> u64 { values.len }
+machine demonstrate(producer: &mut Producer, engine: &mut Engine) -> u64 {
+    let mut output: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
+    let count: u64 = producer.copy_modules(&mut output);
+    let arenas: Arenas = (&mut engine.storage).borrow_arenas();
+    let ignored: u64 = noop();
+    consume(&output[0..count])
+}
+"#
+}
+
+#[test]
+fn signature_write_ceiling_preserves_count_after_cyclic_view_result() {
+    check(cyclic_view_result_source(), None);
+}
+
+#[test]
+fn signature_write_ceiling_does_not_restore_reassigned_scalar() {
+    let source = cyclic_view_result_source()
+        .replace("let count: u64", "let mut count: u64")
+        .replace(
+            "let ignored: u64 = noop();",
+            "count = 9; let ignored: u64 = noop();",
+        );
+    check(&source, Some("end bound"));
+}
+
+#[test]
+fn signature_write_ceiling_tracks_exclusive_scalar_arguments() {
+    for (parameter, body, argument, rejection) in [
+        ("&u64", "0", "&count", None),
+        ("&mut u64", "value = 9; 0", "&mut count", Some("end bound")),
+    ] {
+        let source = cyclic_view_result_source()
+            .replace("let count: u64", "let mut count: u64")
+            .replace(
+                "machine noop() -> u64 { 0 }",
+                &format!("machine noop() -> u64 {{ 0 }}\nmachine touch(value: {parameter}) -> u64 {{ {body} }}"),
+            )
+            .replace(
+                "let ignored: u64 = noop();",
+                &format!("let changed: u64 = touch({argument}); let ignored: u64 = noop();"),
+            );
+        check(&source, rejection);
+    }
+}

@@ -31,6 +31,16 @@ pub(super) struct ExpressionDependencies {
     reads: Option<Vec<CanonicalPlace>>,
 }
 
+/// A captured scalar reads its own storage, independently of its initializer.
+/// This is declaration identity for existing facts, not a replayable value.
+#[derive(Clone)]
+pub(super) struct ScalarBindingDependency {
+    label: String,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    place: CanonicalPlace,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::checks::ranges) struct ReceiverLength {
     expression: ExpressionHandle,
@@ -273,6 +283,65 @@ impl<'field> RangeFacts<'field> {
         }
     }
 
+    pub(in crate::checks::ranges) fn record_scalar_binding_dependency(
+        &mut self,
+        program: &TypedTrees,
+        machine: &Machine,
+        state: &State,
+        source: ExpressionHandle,
+        symbol: SymbolHandle,
+        label: &str,
+    ) {
+        use typed_trees::{statement::StatementNode, types::PrimitiveType};
+        let Some(StatementNode::LocalData(local)) = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .get(self.statement_index)
+        else {
+            return;
+        };
+        if !symbol.is_valid()
+            || local.symbol != symbol
+            || local.initial_value != source
+            || local.name.as_str() != label
+            || program.symbols.get(symbol).kind != symbols::SymbolKind::Local
+            || program.symbols.get(symbol).parent != state.symbol
+            || !matches!(
+                program.primitive_type_reference(local.type_reference),
+                Some(
+                    PrimitiveType::I8
+                        | PrimitiveType::I16
+                        | PrimitiveType::I32
+                        | PrimitiveType::I64
+                        | PrimitiveType::U8
+                        | PrimitiveType::U16
+                        | PrimitiveType::U32
+                        | PrimitiveType::U64
+                )
+            )
+        {
+            return;
+        }
+        let Some(place) = crate::flow::canonical_place_from_symbol(symbol) else {
+            return;
+        };
+        if self.scalar_binding_dependencies.iter().any(|row| {
+            row.machine == machine.symbol
+                && row.state == state.symbol
+                && row.label == label
+                && row.place == place
+        }) {
+            return;
+        }
+        self.scalar_binding_dependencies
+            .push(ScalarBindingDependency {
+                label: label.to_owned(),
+                machine: machine.symbol,
+                state: state.symbol,
+                place,
+            });
+    }
+
     pub(in crate::checks::ranges) fn record_expression_dependencies(
         &mut self,
         program: &TypedTrees,
@@ -396,6 +465,47 @@ impl<'field> RangeFacts<'field> {
             }) {
                 continue;
             }
+            if self.scalar_binding_dependencies.iter().any(|binding| {
+                binding.label == row.label
+                    && (binding.machine != row.machine
+                        || binding.state != row.state
+                        || !same_reads(
+                            program,
+                            row.reads.as_deref(),
+                            Some(std::slice::from_ref(&binding.place)),
+                        ))
+            }) {
+                continue;
+            }
+            if !preserved.contains(&row.label) {
+                preserved.push(row.label.clone());
+            }
+        }
+        for row in &self.scalar_binding_dependencies {
+            if row.machine != machine.symbol
+                || row.state != state.symbol
+                || writes
+                    .iter()
+                    .any(|write| places_overlap(program, &row.place, write))
+                || self.scalar_binding_dependencies.iter().any(|other| {
+                    other.label == row.label
+                        && (other.machine != row.machine
+                            || other.state != row.state
+                            || other.place != row.place)
+                })
+                || self.expression_dependencies.iter().any(|other| {
+                    other.label == row.label
+                        && (other.machine != row.machine
+                            || other.state != row.state
+                            || !same_reads(
+                                program,
+                                other.reads.as_deref(),
+                                Some(std::slice::from_ref(&row.place)),
+                            ))
+                })
+            {
+                continue;
+            }
             if !preserved.contains(&row.label) {
                 preserved.push(row.label.clone());
             }
@@ -419,6 +529,16 @@ impl<'field> RangeFacts<'field> {
                     && !preserved.contains(&row.label)
             })
             .map(|row| row.label.clone())
+            .chain(
+                self.scalar_binding_dependencies
+                    .iter()
+                    .filter(|row| {
+                        row.machine == machine.symbol
+                            && row.state == state.symbol
+                            && !preserved.contains(&row.label)
+                    })
+                    .map(|row| row.label.clone()),
+            )
             .collect()
     }
 
