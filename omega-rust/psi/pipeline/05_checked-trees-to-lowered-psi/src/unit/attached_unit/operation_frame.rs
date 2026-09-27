@@ -785,21 +785,74 @@ impl OperationFrame<'_, '_> {
         &mut self,
         store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
     ) -> Result<(), LoweringError> {
-        let destination = self
-            .parameters
-            .iter()
-            .find(|parameter| Some(parameter.position) == store.destination.parameter_position())
-            .ok_or(LoweringError::Unsupported(
-                "structural scalar store names an unknown parameter",
-            ))?;
-        let lowered =
-            crate::emission::structural_scalar_store::lower_structural_scalar_store_place(
-                store,
-                store.statement_index,
-                destination,
-                self.structural_types.declarations(),
-                crate::emission::structural_scalar_store::StoreAccessPolicy::Exclusive,
-            )?;
+        // A parameter destination roots the store at its borrowed place; an
+        // owned structural local roots it at the local's live home place,
+        // resolved through the structural-local roster.
+        let (destination_place, lowered) = match store.destination {
+            checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter { .. } => {
+                let destination = self
+                    .parameters
+                    .iter()
+                    .find(|parameter| {
+                        Some(parameter.position) == store.destination.parameter_position()
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "structural scalar store names an unknown parameter",
+                    ))?;
+                let lowered =
+                    crate::emission::structural_scalar_store::lower_structural_scalar_store_place(
+                        store,
+                        store.statement_index,
+                        destination,
+                        self.structural_types.declarations(),
+                        crate::emission::structural_scalar_store::StoreAccessPolicy::Exclusive,
+                    )?;
+                (destination.place, lowered)
+            }
+            checked_trees::CheckedStructuralScalarFieldStoreDestination::Local { symbol } => {
+                let (_, argument) = self
+                    .evaluation
+                    .structural_locals
+                    .iter()
+                    .find(|(candidate, _)| *candidate == symbol)
+                    .ok_or(LoweringError::Unsupported(
+                        "structural scalar store names an unknown structural local",
+                    ))?;
+                if argument.access != StructuralAccess::Owned || !argument.path.is_empty() {
+                    return unsupported(
+                        "structural scalar store local root is not a whole owned home",
+                    );
+                }
+                let produced = self
+                    .operations
+                    .operations
+                    .iter()
+                    .filter_map(|operation| operation.result.structural())
+                    .find(|result| result.place == argument.place)
+                    .ok_or(LoweringError::Unsupported(
+                        "structural scalar store local root has no produced place",
+                    ))?;
+                if !matches!(
+                    produced.multiplicity,
+                    terminal_psi::StructuralMultiplicity::Unrestricted
+                        | terminal_psi::StructuralMultiplicity::Affine
+                ) || !produced.qualifications.is_empty()
+                    || !produced.projected_qualifications.is_empty()
+                    || !produced.claims.is_empty()
+                {
+                    return unsupported(
+                        "structural scalar store local root lost exclusive custody",
+                    );
+                }
+                let lowered =
+                    crate::emission::structural_scalar_store::lower_structural_scalar_store_local(
+                        store,
+                        produced.structural_type,
+                        self.structural_types.declarations(),
+                    )?;
+                (argument.place, lowered)
+            }
+        };
         // The carrier's runtime elements are evaluated before the value.
         let indexes = crate::emission::runtime_elements::evaluate_selectors(
             &lowered.steps,
@@ -831,7 +884,7 @@ impl OperationFrame<'_, '_> {
         if value.scalar_type != lowered.scalar_type {
             return unsupported("structural scalar store RHS differs from its field type");
         }
-        let kind = lowered.into_operation(destination.place, indexes, value.id, self.calls)?;
+        let kind = lowered.into_operation(destination_place, indexes, value.id, self.calls)?;
         self.push_unit(kind);
         Ok(())
     }
@@ -1553,9 +1606,7 @@ impl OperationFrame<'_, '_> {
                     .iter()
                     .find(|parameter| parameter.position == parameter_index);
                 let Some(parameter) = parameter else {
-                    return unsupported(
-                        "borrowed-window repair value's parameter is not declared",
-                    );
+                    return unsupported("borrowed-window repair value's parameter is not declared");
                 };
                 if parameter.access != terminal_psi::StructuralAccess::Owned {
                     return unsupported("borrowed-window repair value is not an owned parameter");
@@ -1573,9 +1624,7 @@ impl OperationFrame<'_, '_> {
                     .iter()
                     .find(|(candidate, _)| *candidate == symbol);
                 let Some((_, argument)) = local else {
-                    return unsupported(
-                        "borrowed-window repair value's local is not established",
-                    );
+                    return unsupported("borrowed-window repair value's local is not established");
                 };
                 BorrowedWindowRepairValue {
                     place: argument.place,

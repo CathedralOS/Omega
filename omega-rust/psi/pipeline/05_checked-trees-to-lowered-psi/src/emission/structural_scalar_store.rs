@@ -125,6 +125,36 @@ pub(crate) fn lower_structural_scalar_store_place(
     })
 }
 
+/// The owned-local counterpart of `lower_structural_scalar_store_place`: the
+/// root's custody was already established by its producing operation — the
+/// caller checks the produced result's multiplicity, qualifications, and
+/// claims — so only the carrier geometry and field type compose here.
+pub(crate) fn lower_structural_scalar_store_local(
+    store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
+    root_type: StructuralTypeId,
+    structural_types: &[StructuralTypeDeclaration],
+) -> Result<LoweredStructuralScalarStore, LoweringError> {
+    let scalar_type = terminal_scalar_type(store.primitive_type)?;
+    let (steps, field) = lower_structural_field_steps(
+        root_type,
+        &store.carrier_path,
+        &store.field_identity,
+        structural_types,
+    )?;
+    if field.field_type.scalar_type() != Some(scalar_type) {
+        return unsupported("structural scalar store field has a different type");
+    }
+    Ok(LoweredStructuralScalarStore {
+        steps,
+        field: field.id,
+        scalar_type,
+        requires_range_obligation: matches!(
+            field.field_type,
+            StructuralFieldType::BoundedInteger(_)
+        ),
+    })
+}
+
 /// Reconstruct the exact carrier and relevant field independently of payload
 /// type, for routes whose carrier names no runtime element.
 #[allow(clippy::too_many_arguments)]
