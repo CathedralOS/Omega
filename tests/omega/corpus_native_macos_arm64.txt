@@ -162,8 +162,8 @@ pass/capabilities/sysv_small_aggregate_import_compile rejected 235ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `completion`
 pass/capabilities/transitive_effect_inference checked 185ms
 pass/capabilities/uses_caller_folder checked 198ms
-pass/capabilities/win64_large_aggregate_result_import_compile rejected 203ms
-	native-artifact Terminal production failed: Lowering(Unsupported("structural call result disagrees with its assigned field"))
+pass/capabilities/win64_large_aggregate_result_import_compile rejected 186ms
+	receiving terminal-authority policy version 7 does not classify normalized foreign mechanism NormalizedForeign(NormalizedForeignTerminalMechanismIdentity { target: WindowsX64, locator_identity: ForeignLocatorIdentityDigest([190, 55, 202, 207, 94, 143, 176, 106, 162, 141, 135, 241, 188, 122, 242, 107, 153, 254, 19, 121, 232, 15, 84, 136, 215, 121, 136, 179, 65, 113, 247, 106]), implementation_contract: BoundaryCallingPlanCommitment([163, 248, 159, 3, 208, 205, 4, 15, 56, 70, 174, 14, 254, 188, 150, 78, 156, 135, 252, 229, 193, 63, 7, 82, 187, 95, 11, 43, 222, 10, 221, 34]), argument_contract: AdmittedPlan }) required by `named-callable(path(LargeAggregateResultImport::receive),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(u64\\)\\)\\)),result-dispatch())`
 pass/capabilities/win64_pointer_length_vs_descriptor_compile rejected 226ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `call operation: boundary claim transfers`
 pass/capabilities/windows_provides_import_exit rejected 882ms
@@ -718,7 +718,7 @@ pass/proofs/ring_law_conformance built 518ms
 pass/proofs/runtime_decreases_u64_measure_exit built 680ms exit:70
 pass/proofs/runtime_nat_structural_recursion_exit built 573ms exit:70
 pass/proofs/runtime_ranked_accumulator_guarantee_exit built 821ms exit:70
-pass/providers/boundary_scalar_field_store built 365ms
+pass/providers/boundary_scalar_field_store built 591ms exit:70
 pass/providers/checked_boundary_operator_const_application_alternate_exit rejected 453ms
 	const-generic application: const evaluation failed: machine `limit` is not build-time admissible: build-time binary operator requires exact authored selection before evaluation; the evaluator cannot execute it as a builtin operator; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
 pass/providers/checked_boundary_operator_physical_custody rejected 490ms

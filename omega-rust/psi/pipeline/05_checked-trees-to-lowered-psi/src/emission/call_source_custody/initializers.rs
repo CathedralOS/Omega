@@ -162,6 +162,9 @@ pub(crate) fn validate_structural(
     // `place = call(..)`: the whole result replaces a structural field. The
     // caller's body rejoins the destination window and the displaced value's
     // disposal; here the call's own result identity must match its callee.
+    // Boundary calls use the same destination contract. Their exact boundary
+    // identity and authority remain checked by validate_operation; requiring
+    // an ordinary callee here would reject an otherwise checked import result.
     if let Some(StatementNode::Assignment(assignment)) =
         statements.get(result.statement_index as usize)
     {
@@ -171,7 +174,6 @@ pub(crate) fn validate_structural(
         if machine.symbol != caller_machine
             || result.statement_index != coordinate.statement_index
             || coordinate.call_ordinal != 0
-            || authored.boundary
             || checked
                 .normalized_type_identity(crate::unit::attached_unit::structural_carrier_type(
                     checked,
