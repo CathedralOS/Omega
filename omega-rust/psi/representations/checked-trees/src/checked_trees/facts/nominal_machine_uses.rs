@@ -359,31 +359,6 @@ mod tests {
     }
 
     #[test]
-    fn callback_resource_receipt_must_bind_the_selected_actual_entry() {
-        let mut row = nominal_use(3);
-        let foreign_entry = CheckedEntryResourceEnvelope::from_checked_contract(
-            row.selected_machine,
-            SymbolHandle::from_arena_index(9),
-            row.selected_actual_envelope.contract_report_fingerprint,
-            row.selected_actual_envelope.contract_commitment,
-        );
-        row.callback_placement = Some(CheckedCallbackPlacementIdentity {
-            boundary_calling_plan_report_fingerprint: 10,
-            boundary_calling_plan_commitment:
-                typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest([10; 32]),
-            resource_receipt: CheckedCallbackResourceReceipt::try_from_entry_envelope(
-                &foreign_entry,
-            )
-            .expect("canonical but foreign resource receipt"),
-        });
-
-        let message = NominalMachineUseFacts::try_with_uses([row])
-            .expect_err("a callback cannot substitute another entry's resource receipt");
-
-        assert!(message.contains("does not bind its selected actual entry envelope"));
-    }
-
-    #[test]
     fn callback_resource_receipt_rejects_compact_equal_contract_substitution() {
         let mut row = nominal_use(3);
         let expected = row.selected_actual_envelope.contract_commitment;

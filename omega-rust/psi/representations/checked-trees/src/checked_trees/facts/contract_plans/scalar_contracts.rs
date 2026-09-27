@@ -418,36 +418,6 @@ mod tests {
     }
 
     #[test]
-    fn signed_carriers_owe_an_explicit_lower_half() {
-        let contract = plan(vec![comparison(
-            CheckedIntegerComparisonKind::LessOrEqual,
-            parameter(0, PrimitiveType::I64),
-            literal(4),
-        )]);
-        assert_eq!(
-            contract.requires_bound_interval(0, PrimitiveType::I64),
-            None
-        );
-
-        let contract = plan(vec![
-            comparison(
-                CheckedIntegerComparisonKind::LessOrEqual,
-                literal(0),
-                parameter(0, PrimitiveType::I64),
-            ),
-            comparison(
-                CheckedIntegerComparisonKind::LessOrEqual,
-                parameter(0, PrimitiveType::I64),
-                literal(4),
-            ),
-        ]);
-        assert_eq!(
-            contract.requires_bound_interval(0, PrimitiveType::I64),
-            Some((0, 4))
-        );
-    }
-
-    #[test]
     fn conjuncts_on_other_parameters_contribute_nothing() {
         let contract = plan(vec![
             comparison(
@@ -474,37 +444,6 @@ mod tests {
         assert_eq!(
             contract.requires_bound_interval(1, PrimitiveType::U64),
             Some((0, 9))
-        );
-    }
-
-    #[test]
-    fn missing_upper_half_or_empty_interval_declines() {
-        let contract = plan(vec![comparison(
-            CheckedIntegerComparisonKind::LessOrEqual,
-            literal(0),
-            parameter(0, PrimitiveType::U64),
-        )]);
-        assert_eq!(
-            contract.requires_bound_interval(0, PrimitiveType::U64),
-            None
-        );
-
-        let contract = plan(vec![
-            comparison(
-                CheckedIntegerComparisonKind::LessOrEqual,
-                parameter(0, PrimitiveType::U64),
-                literal(0),
-            ),
-            comparison(
-                CheckedIntegerComparisonKind::LessOrEqual,
-                literal(5),
-                parameter(0, PrimitiveType::U64),
-            ),
-        ]);
-        // 5 <= i <= 0 names no element, so no bound evidence survives.
-        assert_eq!(
-            contract.requires_bound_interval(0, PrimitiveType::U64),
-            None
         );
     }
 

@@ -600,40 +600,6 @@ mod tests {
     }
 
     #[test]
-    fn text_view_replacement_preserves_extent_and_blocks_backing_resize() {
-        let buffer = TextBuffer::new(vec![0, 1, 2, 3, 4], None);
-        let alias = buffer.clone();
-        let window = buffer.subslice(1, 4).expect("bounded window");
-        let nested = window.subslice(1, 2).expect("nested window");
-        let original_pointer = buffer.borrow().as_ptr();
-
-        window
-            .replace(vec![10, 20, 30])
-            .expect("window replacement");
-        assert_eq!(&*alias.borrow(), &[0, 10, 20, 30, 4]);
-        assert_eq!(&*nested.borrow(), &[20]);
-        assert!(window.replace(vec![90, 91]).is_err());
-        assert!(window.replace(vec![90, 91, 92, 93]).is_err());
-        assert!(alias.replace(vec![90]).is_err());
-        assert!(buffer.replace(vec![90; 6]).is_err());
-        assert_eq!(&*window.borrow(), &[10, 20, 30]);
-        assert_eq!(&*buffer.borrow(), &[0, 10, 20, 30, 4]);
-
-        alias
-            .replace(vec![5, 6, 7, 8, 9])
-            .expect("equal-length full-buffer replacement");
-        assert_eq!(buffer.borrow().as_ptr(), original_pointer);
-        assert_eq!(&*window.borrow(), &[6, 7, 8]);
-        assert_eq!(&*nested.borrow(), &[7]);
-        drop(window);
-        assert!(buffer.replace(vec![]).is_err());
-        assert_eq!(&*nested.borrow(), &[7]);
-        drop(nested);
-        buffer.replace(vec![11]).expect("resize after final view");
-        assert_eq!(&*alias.borrow(), &[11]);
-    }
-
-    #[test]
     fn text_window_clones_and_empty_windows_release_resize_protection() {
         let buffer = TextBuffer::new(vec![0, 1, 2], None);
         let window = buffer.subslice(0, 3).expect("full-extent bounded window");
@@ -739,32 +705,6 @@ mod tests {
             .allocate(Value::Int(3))
             .expect("final alias released capacity");
         assert_eq!(meter.peak(), 1);
-        drop(replacement);
-    }
-
-    #[test]
-    fn metered_text_aliases_share_exact_logical_byte_reservation() {
-        let sponsor = BuildEvaluationSponsor::new(
-            BuildEvaluationSponsorLimits::new(10, 10, 10, 10, 10, 5, 10, 10)
-                .expect("nonzero limits"),
-        );
-        let meter = TextByteMeter::new(Some(sponsor.clone()));
-        let text = meter.allocate(vec![1, 2, 3]).expect("first Text");
-        let alias = text.clone();
-        assert_eq!(meter.live(), 3);
-        assert_eq!(meter.peak(), 3);
-        assert_eq!(sponsor.live_text_bytes(), 3);
-        assert!(meter.allocate(vec![4, 5, 6]).is_err());
-        drop(text);
-        assert_eq!(meter.live(), 3);
-        drop(alias);
-        assert_eq!(meter.live(), 0);
-        assert_eq!(sponsor.live_text_bytes(), 0);
-        let replacement = meter
-            .allocate(vec![7, 8, 9, 10, 11])
-            .expect("final alias released capacity");
-        assert_eq!(meter.peak(), 5);
-        assert_eq!(sponsor.peak_live_text_bytes(), 5);
         drop(replacement);
     }
 

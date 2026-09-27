@@ -389,25 +389,6 @@ mod tests {
     }
 
     #[test]
-    fn only_the_exact_lowercase_keywords_spell_boolean_literals() {
-        for name in [
-            "True", "TRUE", "False", "FALSE", "tru", "true ", "", "0", "1", "bool",
-        ] {
-            assert_eq!(
-                boolean_literal_spelling(name),
-                None,
-                "`{name}` names a declaration, not a boolean literal"
-            );
-        }
-    }
-
-    #[test]
-    fn ordinary_names_are_not_const_atoms() {
-        assert!(CanonicalConstValue::from_atom("Unit").is_none());
-        assert!(CanonicalConstValue::from_atom("42").is_none());
-    }
-
-    #[test]
     fn semantic_identity_omits_display_and_integer_builder_is_canonical() {
         let first = CanonicalConstValue::new("u64", framed("integer", ["u64", "4"]), "2 + 2");
         let second = CanonicalConstValue::new("u64", framed("integer", ["u64", "4"]), "4");

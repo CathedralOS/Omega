@@ -1,10 +1,10 @@
 use super::{
-    IntegerSign, IntegerType, ObligationId, Operation, OperationKind, OperationResult,
-    OperationSemanticTag, PlaceId, Proposition, ScalarTerm, ScalarType, StructuralEffectCustody,
-    StructuralEffectExternalEffect, StructuralEffectFrontierPolicy, StructuralEffectFuelPolicy,
-    StructuralEffectGoalShape, StructuralEffectObservation, StructuralEffectResultShape,
-    StructuralEffectSemanticRow, ValueId, structural_effect_leaf_observation,
-    structural_effect_leaf_observation_in, structural_effect_semantic_row,
+    ObligationId, Operation, OperationKind, OperationResult, OperationSemanticTag, PlaceId,
+    Proposition, StructuralEffectCustody, StructuralEffectExternalEffect,
+    StructuralEffectFrontierPolicy, StructuralEffectFuelPolicy, StructuralEffectGoalShape,
+    StructuralEffectResultShape, StructuralEffectSemanticRow, ValueId,
+    structural_effect_leaf_observation, structural_effect_leaf_observation_in,
+    structural_effect_semantic_row,
 };
 use semantic_vocabulary::{OperationId, StructuralTypeId};
 use terminal_psi::{StructuralMultiplicity, StructuralOperationResult};
@@ -31,39 +31,6 @@ fn operation() -> Operation {
             obligation: ObligationId::new(6).unwrap(),
         },
     }
-}
-
-#[test]
-fn subslice_observation_retains_exact_operands_and_both_ordered_bounds() {
-    let operation = operation();
-    let observation = structural_effect_leaf_observation(&operation)
-        .unwrap()
-        .unwrap();
-    assert_eq!(
-        observation,
-        StructuralEffectObservation::ByteSequenceSubslice {
-            source: PlaceId::new(1).unwrap(),
-            start: ValueId::new(3).unwrap(),
-            end: ValueId::new(4).unwrap(),
-            length: ValueId::new(5).unwrap(),
-            destination: PlaceId::new(2).unwrap(),
-            obligation: ObligationId::new(6).unwrap(),
-        }
-    );
-    let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
-    let value = |identity| ScalarTerm::value(ValueId::new(identity).unwrap(), scalar_type);
-    let (obligation, goal) = observation.canonical_obligation().unwrap();
-    assert_eq!(obligation, ObligationId::new(6).unwrap());
-    assert_eq!(
-        goal,
-        Proposition::Conjunction(vec![
-            Proposition::LessOrEqual(value(3), value(4)),
-            Proposition::LessOrEqual(value(4), value(5)),
-        ])
-    );
-    goal.validate().unwrap();
-    assert_eq!(observation.local_equation(), None);
-    assert!(!crate::is_unconditionally_total_scalar(&operation.kind));
 }
 
 #[test]

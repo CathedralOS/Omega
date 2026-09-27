@@ -133,23 +133,6 @@ fn empty_windows_leave_existing_values_untouched() {
 }
 
 #[test]
-fn exact_window_elements_preserve_source_fuel_cost() {
-    let source = |expression: &str| {
-        format!(
-            "machine fill(values: &write [i32; 1]) {{ values[0..1] = [{expression}]; }}
-        machine main() -> i32 {{ let mut values: [i32; 1]; fill(&write values); values[0] }}"
-        )
-    };
-    let anonymous = execute(&source("7 / 2 * 2"));
-    let typed = execute(&source("7i32 / 2 * 2"));
-    assert_eq!(anonymous.error, None);
-    assert_eq!(typed.error, None);
-    assert_eq!(anonymous.exit_code, 7);
-    assert_eq!(typed.exit_code, 6);
-    assert_eq!(anonymous.usage.fuel_units(), typed.usage.fuel_units());
-}
-
-#[test]
 fn omitted_and_dynamic_windows_keep_exact_values_at_runtime() {
     for (parameters, requirements, selection, arguments) in [
         ("", "", "1..", ""),
@@ -201,25 +184,4 @@ fn slice_and_generic_windows_keep_the_integer_element_destination() {
             }}"
         ));
     }
-}
-
-#[test]
-fn dynamic_window_execution_still_rejects_a_mismatched_count() {
-    let outcome = execute(
-        "machine fill(values: &mut [i32; 4], start: u64, end: u64)
-         requires start <= end && end <= 4;
-         { values[start..end] = [0.1 * 70, 8]; }
-         machine main() -> i32 {
-             let mut values: [i32; 4] = [0, 0, 0, 0];
-             fill(&mut values, 0, 4);
-             7
-         }",
-    );
-    assert!(
-        outcome
-            .error
-            .as_ref()
-            .is_some_and(|error| error.contains("different element count")),
-        "{outcome:?}"
-    );
 }

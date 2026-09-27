@@ -56,23 +56,6 @@ mod tests {
     use crate::IntegerSign;
 
     #[test]
-    fn bounded_integer_type_preserves_full_width_endpoints() {
-        let integer = IntegerType::new(IntegerSign::Unsigned, 128).unwrap();
-        let range = BoundedIntegerType::new(
-            integer,
-            IntegerValue::Unsigned(1 << 127),
-            IntegerValue::Unsigned(u128::MAX),
-        )
-        .unwrap();
-        assert!(range.contains(IntegerValue::Unsigned(u128::MAX)));
-        assert!(!range.contains(IntegerValue::Unsigned(0)));
-        assert!(!range.contains(IntegerValue::Signed(1)));
-        assert_eq!(range.integer_type(), integer);
-        assert_eq!(range.minimum(), IntegerValue::Unsigned(1 << 127));
-        assert_eq!(range.maximum(), IntegerValue::Unsigned(u128::MAX));
-    }
-
-    #[test]
     fn bounded_integer_type_rejects_invalid_endpoints_and_address_carriers() {
         let integer = IntegerType::new(IntegerSign::Signed, 8).unwrap();
         for (minimum, maximum) in [

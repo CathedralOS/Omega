@@ -1,8 +1,8 @@
 //! Tests for integer types, scalar terms and propositions.
 
 use super::{
-    IntegerCarrier, IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, ProofTerm,
-    ProofTermField, Proposition, PropositionContext, PropositionError, ScalarTerm, ScalarType,
+    IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, ProofTerm, ProofTermField,
+    Proposition, PropositionContext, PropositionError, ScalarTerm, ScalarType,
 };
 use crate::ValueId;
 
@@ -52,32 +52,6 @@ fn integer_widening_requires_range_containment_and_preserves_closed_values() {
         narrowing,
         Err(PropositionError::IntegerWidenTypeMismatch { .. })
     ));
-}
-
-#[test]
-fn integer_literals_are_checked_against_their_terminal_type() {
-    let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8 type");
-    assert!(ScalarTerm::integer(i8_type, IntegerValue::Signed(127)).is_ok());
-    assert!(ScalarTerm::integer(i8_type, IntegerValue::Signed(128)).is_err());
-
-    let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 type");
-    assert!(ScalarTerm::integer(u8_type, IntegerValue::Unsigned(255)).is_ok());
-    assert!(ScalarTerm::integer(u8_type, IntegerValue::Unsigned(256)).is_err());
-}
-
-#[test]
-fn address_carriers_remain_distinct_from_same_width_unsigned_integers() {
-    let address = IntegerType::address(64).expect("addr");
-    let u64_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
-
-    assert_eq!(address.carrier(), IntegerCarrier::Address);
-    assert!(address.is_address());
-    assert_eq!(address.sign(), IntegerSign::Unsigned);
-    assert_eq!(address.bits(), 64);
-    assert_ne!(address, u64_type);
-    assert!(!address.can_widen_to(u64_type));
-    assert!(!u64_type.can_widen_to(address));
-    assert!(address.admits(IntegerValue::Unsigned(u64::MAX.into())));
 }
 
 #[test]

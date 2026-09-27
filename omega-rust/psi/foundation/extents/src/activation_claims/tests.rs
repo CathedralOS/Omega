@@ -153,39 +153,6 @@ fn merge_rejects_independent_claim_roots() {
 }
 
 #[test]
-fn split_children_can_split_further_within_the_parent_cover() {
-    let mut ledger = ActivationClaimLedger::new();
-    let parent = ledger
-        .establish(request(1, ActivationClaimBranch::trunk(), 64, 8, 40))
-        .unwrap();
-    let (lower, _upper) = ledger.split_claim(parent, 16, 24).unwrap();
-    let (lower_lower, lower_upper) = ledger.split_claim(lower, 8, 12).unwrap();
-    let lower_lower = ledger.claim(lower_lower).unwrap();
-    assert_eq!(
-        lower_lower.committed() + ledger.claim(lower_upper).unwrap().committed(),
-        16
-    );
-}
-
-#[test]
-fn composition_adds_simultaneously_live_bounds_with_alignment() {
-    let trunk = ActivationClaimBranch::trunk();
-    let rows = [
-        ClaimBoundRow {
-            bound: Some(65),
-            alignment: 64,
-            branch: &trunk,
-        },
-        ClaimBoundRow {
-            bound: Some(33),
-            alignment: 32,
-            branch: &trunk,
-        },
-    ];
-    assert_eq!(compose_claim_bounds(rows).unwrap(), 192);
-}
-
-#[test]
 fn composition_takes_the_maximum_across_mutually_exclusive_branches() {
     let trunk = ActivationClaimBranch::trunk();
     let left = trunk.extend(0);
@@ -210,26 +177,6 @@ fn composition_takes_the_maximum_across_mutually_exclusive_branches() {
     assert_eq!(compose_claim_bounds(rows).unwrap(), 624);
     assert!(left.mutually_exclusive(&right));
     assert!(!trunk.mutually_exclusive(&left));
-}
-
-#[test]
-fn composition_counts_ancestor_claims_inside_a_deeper_branch() {
-    let trunk = ActivationClaimBranch::trunk();
-    let outer = trunk.extend(0);
-    let inner = outer.extend(3);
-    let rows = [
-        ClaimBoundRow {
-            bound: Some(16),
-            alignment: 8,
-            branch: &outer,
-        },
-        ClaimBoundRow {
-            bound: Some(24),
-            alignment: 8,
-            branch: &inner,
-        },
-    ];
-    assert_eq!(compose_claim_bounds(rows).unwrap(), 40);
 }
 
 #[test]

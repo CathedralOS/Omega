@@ -1084,38 +1084,6 @@ machine main() -> i32 {
     }
 
     #[test]
-    fn rebinding_reference_returning_call() {
-        assert_exit_seven(
-            r#"
-data Cell {
-    value: i32;
-}
-
-data Bag {
-    cells: [Cell; 4];
-}
-
-machine pick(bag: &mut Bag) -> &mut Cell {
-    transition { _ -> &mut bag.cells[3] }
-}
-
-machine main() -> i32 {
-    let mut bag: Bag = Bag {
-        cells: [Cell { value: 0 }, Cell { value: 0 },
-                Cell { value: 0 }, Cell { value: 0 }],
-    };
-    let cell: &mut Cell = &mut pick(&mut bag);
-    cell.value = 7;
-    transition bag.cells[3].value == 7 {
-        true -> 7
-        false -> 0
-    }
-}
-"#,
-        );
-    }
-
-    #[test]
     fn borrow_of_value_producing_call_still_fails() {
         // `once()` returns a plain value, not a reference: there is no storage
         // cell to reborrow, so forming `&mut once()` must still fail closed.

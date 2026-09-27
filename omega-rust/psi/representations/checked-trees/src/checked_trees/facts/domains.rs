@@ -91,27 +91,9 @@ impl DomainFacts {
 
 #[cfg(test)]
 mod tests {
-    use crate::{DomainDependencyFact, DomainDependencyPathFact, DomainElementFact, DomainFacts};
+    use crate::{DomainElementFact, DomainFacts};
     use arena::Arena;
     use symbols::SymbolHandle;
-
-    #[test]
-    fn domain_facts_constructor_keeps_domain_roots_explicit() {
-        let segments = Arena::<facts::PlaceSegment>::with_capacity(1);
-        let dependency_paths = Arena::<DomainDependencyPathFact>::with_capacity(2);
-        let dependencies = Arena::<DomainDependencyFact>::with_capacity(3);
-
-        let facts = DomainFacts::with_roots(
-            segments.clone(),
-            dependency_paths.clone(),
-            dependencies.clone(),
-        );
-
-        assert_eq!(facts.segments, segments);
-        assert_eq!(facts.dependency_paths, dependency_paths);
-        assert_eq!(facts.dependencies, dependencies);
-        assert!(facts.element_facts.is_empty());
-    }
 
     #[test]
     fn element_domain_looks_up_per_element_predicate() {

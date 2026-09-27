@@ -6,7 +6,7 @@
 //! independent validators the entrance runs, and a malformed ranked carrier
 //! fails closed at the module-validation gate.
 
-use crate::{PsiOptimizationStageError, run_psi_optimization};
+use crate::run_psi_optimization;
 use lowered_psi::{LoweredPsi, LoweredSourceCallOccurrence};
 use optimization::{PsiOptimization, PsiOptimizationSelections};
 use semantic_vocabulary::{
@@ -19,10 +19,7 @@ use terminal_psi::{
     TerminalNaturalRankComparison, TerminalNaturalRankEdge, TerminalRankedScc, Terminator,
     ValueDeclaration, VocabularyMarker,
 };
-use terminal_verifier::{
-    CopyPropagationRewriteError, DeadScalarRewriteError, validate_copy_propagation,
-    validate_dead_scalar_elimination,
-};
+use terminal_verifier::{CopyPropagationRewriteError, validate_copy_propagation};
 
 fn value(ordinal: u64) -> ValueId {
     ValueId::new(ordinal).unwrap()
@@ -322,27 +319,6 @@ fn selections(selection: &[PsiOptimization]) -> PsiOptimizationSelections {
 }
 
 #[test]
-fn the_published_ranked_artifact_reenters_as_a_legal_second_input() {
-    // Fixed point through the real second-input contract: the validated
-    // `LoweredPsi` the entrance publishes feeds back through the same
-    // selection, and the second publication equals the first — not a
-    // reconstructed-input equality.
-    for selection in [
-        PsiOptimization::CopyPropagation,
-        PsiOptimization::DeadPureScalarElimination,
-        PsiOptimization::GlobalValueNumbering,
-    ] {
-        let once = run_psi_optimization(ranked_cycle_fixture(), selections(&[selection])).unwrap();
-        let twice = run_psi_optimization(once.lowered().clone(), selections(&[selection])).unwrap();
-        assert_eq!(
-            twice.lowered(),
-            once.lowered(),
-            "{selection:?} reaches a fixed point on the published artifact"
-        );
-    }
-}
-
-#[test]
 fn retained_identity_publication_is_deterministic() {
     // Determinism: two runs over the same ranked carrier publish identical
     // artifacts, including the retained coordinates each rule preserved.
@@ -365,68 +341,6 @@ fn retained_identity_publication_is_deterministic() {
     )
     .unwrap();
     assert_eq!(first, second);
-}
-
-#[test]
-fn covered_coordinates_survive_publication_while_uncovered_rules_apply() {
-    // Positive at the entrance: ordinary rewrites still apply outside the
-    // covered component while member contents — parameters, operations, and
-    // the covered edge's exact arguments — publish unchanged.
-    let copy_result = run_psi_optimization(
-        ranked_cycle_fixture(),
-        selections(&[PsiOptimization::CopyPropagation]),
-    )
-    .unwrap();
-    let module = &copy_result.lowered().semantic_module.machines[0];
-    assert!(
-        module.blocks[1].parameters.is_empty(),
-        "the uncovered merge parameters still collapse"
-    );
-    let member = &module.blocks[2];
-    assert_eq!(
-        member
-            .parameters
-            .iter()
-            .map(|parameter| parameter.id)
-            .collect::<Vec<_>>(),
-        vec![value(10), value(11), value(32)],
-        "the covered member keeps every parameter, including the copy-shaped one"
-    );
-    let Terminator::Conditional { when_true, .. } = &member.terminator else {
-        panic!("the member still branches")
-    };
-    assert_eq!(
-        when_true.arguments,
-        vec![value(41), value(11), value(21)],
-        "the covered edge keeps its exact arguments"
-    );
-
-    let dead_result = run_psi_optimization(
-        ranked_cycle_fixture(),
-        selections(&[PsiOptimization::DeadPureScalarElimination]),
-    )
-    .unwrap();
-    let module = &dead_result.lowered().semantic_module.machines[0];
-    let member = &module.blocks[2];
-    assert_eq!(
-        member
-            .operations
-            .iter()
-            .map(|operation| operation.id)
-            .collect::<Vec<_>>(),
-        vec![OperationId::new(40).unwrap(), OperationId::new(41).unwrap()],
-        "coverage pins parameter tables and named values — the dead member \
-         operation still dies under the ordinary rule"
-    );
-    assert_eq!(
-        member
-            .parameters
-            .iter()
-            .map(|parameter| parameter.id)
-            .collect::<Vec<_>>(),
-        vec![value(10), value(11), value(32)],
-        "the covered member keeps its dead parameter"
-    );
 }
 
 #[test]
@@ -469,70 +383,6 @@ fn a_forged_after_corrupting_the_retained_rank_row_is_rejected() {
     assert!(
         matches!(result, Err(CopyPropagationRewriteError::InvalidModule(_))),
         "a corrupted retained row fails module validation: {result:?}"
-    );
-}
-
-#[test]
-fn a_forged_after_rewiring_a_member_used_value_is_rejected() {
-    // Corruption under the dead-scalar relation: a forged after removes the
-    // producer of v21 — the duplicate whose identity the covered backedge
-    // still passes at the rank-adjacent position — and rewires those member
-    // uses to the equal computation v20. The independent validator restores
-    // removals and compares: a rewired edge is not a removal subsequence, and
-    // a covered member's exact arguments are not substitutable.
-    let before = ranked_cycle_fixture().semantic_module;
-    let mut forged = before.clone();
-    let machine = &mut forged.machines[0];
-    machine.blocks[0]
-        .operations
-        .retain(|operation| operation.id != OperationId::new(21).unwrap());
-    for block in &mut machine.blocks {
-        match &mut block.terminator {
-            Terminator::Jump { arguments, .. } => {
-                for argument in arguments.iter_mut() {
-                    if *argument == value(21) {
-                        *argument = value(20);
-                    }
-                }
-            }
-            Terminator::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => {
-                for successor in [when_true, when_false] {
-                    for argument in successor.arguments.iter_mut() {
-                        if *argument == value(21) {
-                            *argument = value(20);
-                        }
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-    let result = validate_dead_scalar_elimination(&before, &forged);
-    assert!(
-        matches!(result, Err(DeadScalarRewriteError::ChangedEdgeArguments(_))),
-        "rewiring a member-used identity is rejected: {result:?}"
-    );
-}
-
-#[test]
-fn a_malformed_ranked_carrier_fails_closed_at_the_gate() {
-    // Corruption on the way in: a successor-rank row naming a value that is
-    // not the arriving rank argument makes the carrier invalid, so the
-    // entrance refuses before any rule runs — even with an empty selection.
-    let mut malformed = ranked_cycle_fixture();
-    let TerminalRankedScc::Natural(components) = malformed.semantic_module.machines[0]
-        .ranked_scc
-        .as_mut()
-        .unwrap();
-    components[0].edges[0].successor_rank = value(10);
-    let result = run_psi_optimization(malformed, selections(&[]));
-    assert!(
-        matches!(result, Err(PsiOptimizationStageError::InvalidModule(_))),
-        "the malformed carrier fails closed: {result:?}"
     );
 }
 

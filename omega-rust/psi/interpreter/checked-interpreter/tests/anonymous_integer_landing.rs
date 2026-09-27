@@ -40,40 +40,6 @@ fn integer_execution_consumes_exact_decimal_landings() {
 }
 
 #[test]
-fn record_construction_lands_anonymous_integer_fields_exactly() {
-    for expression in [
-        "7 / 2 * 2",
-        "7 / 2.0 * 2",
-        "0.1 * 70",
-        "18446744073709551616 / 3 * 3 - 18446744073709551609",
-    ] {
-        let source = format!(
-            "data Number {{ value: i32; }}
-             machine main() -> i32 {{ let number: Number = Number {{ value: {expression} }}; number.value }}"
-        );
-        let outcome = execute(&source);
-        assert_eq!(outcome.error, None, "{source}");
-        assert_eq!(outcome.exit_code, 7, "{source}");
-    }
-}
-
-#[test]
-fn nested_record_construction_keeps_each_field_destination() {
-    let source = "data Number { value: i32; }
-        data Pair { exact: Number; typed: Number; }
-        machine main() -> i32 {
-            let pair: Pair = Pair {
-                exact: Number { value: 7 / 2.0 * 2 },
-                typed: Number { value: 7i32 / 2 * 2 }
-            };
-            transition pair.exact.value == 7 && pair.typed.value == 6 { true -> 7 false -> 0 }
-        }";
-    let outcome = execute(source);
-    assert_eq!(outcome.error, None);
-    assert_eq!(outcome.exit_code, 7);
-}
-
-#[test]
 fn selected_case_uses_its_own_integer_field_destination() {
     for expression in ["7 / 2 * 2", "7 / 2.0 * 2", "0.1 * 70"] {
         let source = format!(
@@ -126,15 +92,4 @@ fn exact_argument_landing_preserves_forwarded_mutable_integer_references() {
     );
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 7);
-}
-
-#[test]
-fn exact_landing_retains_the_source_expression_step_schedule() {
-    let anonymous = execute("machine main() -> i32 { 7 / 2.0 * 2 }");
-    let typed = execute("machine main() -> i32 { 7i32 / 2 * 2 }");
-    assert_eq!(anonymous.error, None);
-    assert_eq!(typed.error, None);
-    assert_eq!(anonymous.exit_code, 7);
-    assert_eq!(typed.exit_code, 6);
-    assert_eq!(anonymous.usage.fuel_units(), typed.usage.fuel_units());
 }

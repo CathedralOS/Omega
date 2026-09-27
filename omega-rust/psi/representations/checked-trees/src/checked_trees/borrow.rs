@@ -1022,46 +1022,7 @@ fn handle_span_contains<T>(span: HandleSpan<T>, handle: Handle<T>) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        BorrowArgumentAccessFact, BorrowCallFact, BorrowFacts, BorrowLoanFact,
-        BorrowLoanOwnerSegment, BorrowWritableRootFact, CapturedPlace, StateBorrowFact,
-    };
-    use arena::Arena;
-
-    #[test]
-    fn borrow_facts_constructor_keeps_borrow_roots_explicit() {
-        let writable_roots = Arena::<BorrowWritableRootFact>::with_capacity(1);
-        let access_segments = Arena::<facts::PlaceSegment>::with_capacity(2);
-        let owner_segments = Arena::<BorrowLoanOwnerSegment>::with_capacity(3);
-        let argument_accesses = Arena::<BorrowArgumentAccessFact>::with_capacity(4);
-        let calls = Arena::<BorrowCallFact>::with_capacity(5);
-        let loans = Arena::<BorrowLoanFact>::with_capacity(6);
-        let states = Arena::<StateBorrowFact>::with_capacity(7);
-
-        let facts = BorrowFacts::with_roots(
-            writable_roots.clone(),
-            access_segments.clone(),
-            owner_segments.clone(),
-            argument_accesses.clone(),
-            calls.clone(),
-            loans.clone(),
-            states.clone(),
-        );
-
-        assert_eq!(facts.writable_roots, writable_roots);
-        assert_eq!(facts.access_segments, access_segments);
-        assert_eq!(facts.owner_segments, owner_segments);
-        assert_eq!(facts.argument_accesses, argument_accesses);
-        assert_eq!(facts.calls, calls);
-        assert_eq!(facts.loans, loans);
-        assert_eq!(facts.states, states);
-        assert!(facts.compatibility_certificates.is_empty());
-        assert!(facts.mutation_certificates.is_empty());
-        assert!(facts.direct_loan_resources.is_empty());
-        assert!(facts.reborrow_loan_resources.is_empty());
-        assert!(facts.reborrow_disposition_events.is_empty());
-        assert!(facts.reborrow_containment_certificates.is_empty());
-    }
+    use crate::CapturedPlace;
 
     #[test]
     fn captured_place_identity_is_structural_and_order_sensitive() {

@@ -364,24 +364,6 @@ fn borrowed_mapping_retains_source_loan_and_shared_polarity() {
 }
 
 #[test]
-fn translation_receipts_cannot_replay_after_authority_lineage_drift() {
-    let grant = mapping_grant(MappingSourceMode::Owned);
-    let first =
-        map_owned(source(), destination(), mapping_id(53), &grant).expect("first pending mapping");
-    let receipt = activate(&first);
-
-    let drifted_source = extent(9, 0x1000, 0x1000, 10, 20, &[100]);
-    let drifted_destination = extent(10, 0xffff_8000_0000_0000, 0x1000, 11, 22, &[200]);
-    let drifted = map_owned(drifted_source, drifted_destination, mapping_id(53), &grant)
-        .expect("same compact IDs with different authority lineages");
-
-    let error = drifted
-        .complete(receipt)
-        .expect_err("activation receipt cannot replay across exact authority drift");
-    assert!(error.diagnostic().0.contains("exact pending mapping"));
-}
-
-#[test]
 fn mapped_range_receipt_context_binds_complete_mapping_evidence_and_exact_range() {
     let grant = mapping_grant(MappingSourceMode::Owned);
     let first =

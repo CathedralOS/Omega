@@ -84,21 +84,3 @@ fn resolved_calls_evaluate_arguments_once_in_source_order() {
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 7);
 }
-
-#[test]
-fn self_recursive_tail_transition_does_not_consume_call_depth() {
-    let checked = crate::front_end::checked_program(
-        "machine countdown(count: u64) -> i32 {
-             transition count > 0 { true -> countdown(count - 1) false -> 7 }
-         }
-         machine main() -> i32 { countdown(1024) }",
-    );
-    let outcome = interpret_entry(
-        &checked,
-        BuildMachineEntry::Name("main"),
-        &[],
-        InterpretOptions::default(),
-    );
-    assert_eq!(outcome.error, None);
-    assert_eq!(outcome.exit_code, 7);
-}

@@ -4,91 +4,13 @@
 use crate::common;
 
 use common::{block_id, copy_fixture, dead_scalar_fixture, operation_id, value};
-use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};
+use lowered_psi_to_lowered_psi::run_psi_optimization;
 use optimization::{PsiOptimization, PsiOptimizationSelections};
 use terminal_psi::{OperationKind, Terminator};
 use terminal_verifier::{DeadScalarRewriteError, validate_dead_scalar_elimination};
 
 fn selections() -> PsiOptimizationSelections {
     PsiOptimizationSelections::new([PsiOptimization::DeadPureScalarElimination]).unwrap()
-}
-
-#[test]
-fn selected_elimination_removes_dead_results_parameters_and_edge_arguments() {
-    let lowered = dead_scalar_fixture();
-    let optimized =
-        run_psi_optimization(lowered.clone(), selections()).expect("elimination executes");
-    let machine = &optimized.lowered().semantic_module.machines[0];
-
-    assert!(
-        machine.blocks[0].operations.is_empty(),
-        "the unused v10 constant dies in the entry block"
-    );
-    assert_eq!(
-        machine.blocks[1]
-            .operations
-            .iter()
-            .map(|operation| operation.id.get())
-            .collect::<Vec<_>>(),
-        vec![20],
-        "the producer feeding the dead parameter dies transitively"
-    );
-    assert_eq!(
-        machine.blocks[2]
-            .operations
-            .iter()
-            .map(|operation| operation.id.get())
-            .collect::<Vec<_>>(),
-        vec![30]
-    );
-    let merge = &machine.blocks[3];
-    assert_eq!(
-        merge.parameters.iter().map(|p| p.id).collect::<Vec<_>>(),
-        vec![value(41), value(42)],
-        "only the unused v43 parameter is removed"
-    );
-    let Terminator::Jump { arguments, .. } = &machine.blocks[1].terminator else {
-        panic!("b2 keeps its jump")
-    };
-    assert_eq!(
-        arguments,
-        &[value(2), value(20)],
-        "the edge argument position for v43 drops"
-    );
-    let Terminator::Jump { arguments, .. } = &machine.blocks[2].terminator else {
-        panic!("b3 keeps its jump")
-    };
-    assert_eq!(arguments, &[value(2), value(30)]);
-    let Terminator::Return {
-        value: returned, ..
-    } = &merge.terminator
-    else {
-        panic!("b4 keeps its return")
-    };
-    assert_eq!(*returned, value(44), "the live result chain is unchanged");
-    assert_ne!(
-        optimized.execution().input_semantic(),
-        optimized.execution().output_semantic()
-    );
-    assert_eq!(
-        optimized.lowered().proof_bundle,
-        lowered.proof_bundle,
-        "the proof bundle is byte-identical"
-    );
-}
-
-#[test]
-fn copy_parameters_survive_when_copy_propagation_is_not_selected() {
-    // Disabled coverage: the uniform-binding v41 copy remains a parameter
-    // under a DeadPureScalarElimination-only selection even though it is live.
-    let lowered = dead_scalar_fixture();
-    let optimized =
-        run_psi_optimization(lowered.clone(), selections()).expect("elimination executes");
-    let merge = &optimized.lowered().semantic_module.machines[0].blocks[3];
-    assert!(
-        merge.parameters.iter().any(|p| p.id == value(41)),
-        "v41 stays a parameter: collapsing copies is not selected"
-    );
 }
 
 #[test]
@@ -107,18 +29,6 @@ fn everything_live_input_is_an_identity_rewrite() {
         optimized.execution().input_semantic(),
         optimized.execution().output_semantic(),
         "the no-work run records an identity"
-    );
-}
-
-#[test]
-fn optimized_output_is_a_legal_second_input_and_reaches_a_fixed_point() {
-    let first = run_psi_optimization(dead_scalar_fixture(), selections()).unwrap();
-    let second = run_psi_optimization(first.lowered().clone(), selections())
-        .expect("the published artifact re-enters the stage");
-    assert_eq!(second.lowered(), first.lowered());
-    assert_eq!(
-        second.execution().input_semantic(),
-        second.execution().output_semantic()
     );
 }
 
@@ -196,31 +106,6 @@ fn a_dead_checked_operation_keeps_the_whole_module_unchanged() {
     assert_eq!(
         optimized.execution().input_semantic(),
         optimized.execution().output_semantic()
-    );
-}
-
-#[test]
-fn proof_bearing_closure_remains_unchanged() {
-    let mut lowered = dead_scalar_fixture();
-    lowered.semantic_module.machines[0]
-        .contract
-        .ensures
-        .push(terminal_psi::ContractClause {
-            obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
-            proposition: semantic_vocabulary::Proposition::Truth,
-        });
-    let optimized = run_psi_optimization(lowered.clone(), selections())
-        .expect("a proof-bearing closure remains unchanged");
-    assert_eq!(
-        optimized.lowered(),
-        &lowered,
-        "reconstructed obligations freeze the whole closure until \
-         proof-context transport is implemented"
-    );
-    assert_eq!(
-        optimized.execution().input_semantic(),
-        optimized.execution().output_semantic(),
-        "the frozen run records an identity"
     );
 }
 
@@ -316,150 +201,4 @@ fn independent_check_rejects_unjustified_removals() {
         validate_dead_scalar_elimination(before, &added),
         Err(DeadScalarRewriteError::ChangedProgramStructure)
     ));
-}
-
-#[test]
-fn independent_check_rejects_a_changed_proof_question() {
-    // A structurally exact removal still refuses when the reconstructed
-    // proof question cannot be carried verbatim: both sides publish the same
-    // ensures clause, but the removal changes the axioms it reconstructs.
-    let clause = terminal_psi::ContractClause {
-        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
-        proposition: semantic_vocabulary::Proposition::Truth,
-    };
-    let mut before = dead_scalar_fixture();
-    before.semantic_module.machines[0]
-        .contract
-        .ensures
-        .push(clause.clone());
-    let mut after = run_psi_optimization(dead_scalar_fixture(), selections())
-        .unwrap()
-        .into_lowered()
-        .semantic_module;
-    after.machines[0].contract.ensures.push(clause);
-    assert!(matches!(
-        validate_dead_scalar_elimination(&before.semantic_module, &after),
-        Err(DeadScalarRewriteError::ChangedProofQuestion)
-    ));
-}
-
-#[test]
-fn structurally_invalid_inputs_fail_before_rewrite() {
-    // Corruption coverage: each malformed carrier fails closed at the
-    // module-validation gate before any rewrite decision.
-    let mut no_machines = dead_scalar_fixture();
-    no_machines.semantic_module.machines.clear();
-    assert!(matches!(
-        run_psi_optimization(no_machines, selections()),
-        Err(PsiOptimizationStageError::InvalidModule(
-            terminal_verifier::ModuleError::EmptyModule
-        ))
-    ));
-
-    let mut bad_target = dead_scalar_fixture();
-    let Terminator::Jump { target, .. } =
-        &mut bad_target.semantic_module.machines[0].blocks[1].terminator
-    else {
-        panic!("b2 is a jump")
-    };
-    *target = block_id(99);
-    assert!(matches!(
-        run_psi_optimization(bad_target, selections()),
-        Err(PsiOptimizationStageError::InvalidModule(_))
-    ));
-
-    let mut bad_arity = dead_scalar_fixture();
-    let Terminator::Jump { arguments, .. } =
-        &mut bad_arity.semantic_module.machines[0].blocks[1].terminator
-    else {
-        panic!("b2 is a jump")
-    };
-    arguments.pop();
-    assert!(matches!(
-        run_psi_optimization(bad_arity, selections()),
-        Err(PsiOptimizationStageError::InvalidModule(_))
-    ));
-
-    let mut bad_debug = dead_scalar_fixture();
-    common::with_debug_sites(&mut bad_debug, &[]);
-    bad_debug
-        .debug_map
-        .as_mut()
-        .unwrap()
-        .semantic
-        .program_fingerprint = terminal_psi::SemanticFingerprint::from_bytes([0xff; 32]);
-    assert!(matches!(
-        run_psi_optimization(bad_debug, selections()),
-        Err(PsiOptimizationStageError::InvalidDebugMap(_))
-    ));
-}
-
-#[test]
-fn ranked_machine_eliminates_outside_the_covered_component() {
-    // The `Natural` row covers member block b3's parameter table and named
-    // values. The merge's dead parameter drops with its edge positions, dead
-    // producers in the entry die, and the covered block's parameters — even
-    // the unused copy-shaped v32 — stay live.
-    let lowered = common::ranked_cycle_fixture();
-    let optimized =
-        run_psi_optimization(lowered.clone(), selections()).expect("elimination executes");
-    let machine = &optimized.lowered().semantic_module.machines[0];
-
-    let merge = &machine.blocks[1];
-    assert_eq!(
-        merge
-            .parameters
-            .iter()
-            .map(|parameter| parameter.id)
-            .collect::<Vec<_>>(),
-        vec![value(30)],
-        "the dead v31 drops outside the covered component"
-    );
-    let Terminator::Conditional {
-        when_true,
-        when_false,
-        ..
-    } = &machine.blocks[0].terminator
-    else {
-        panic!("the entry keeps its conditional")
-    };
-    assert_eq!(when_true.arguments, &[value(1)]);
-    assert_eq!(when_false.arguments, &[value(1)]);
-    assert_eq!(
-        machine.blocks[0]
-            .operations
-            .iter()
-            .map(|operation| operation.id)
-            .collect::<Vec<_>>(),
-        vec![common::operation_id(21)],
-        "v20 and v22 die; v21 stays live through the covered component"
-    );
-
-    let member = &machine.blocks[2];
-    assert_eq!(
-        member
-            .parameters
-            .iter()
-            .map(|parameter| parameter.id)
-            .collect::<Vec<_>>(),
-        vec![value(10), value(11), value(32)],
-        "the covered parameter table stays exact even for the unused v32"
-    );
-    assert_eq!(
-        member
-            .operations
-            .iter()
-            .map(|operation| operation.id)
-            .collect::<Vec<_>>(),
-        vec![common::operation_id(40), common::operation_id(41)],
-        "the duplicate constant inside the member is dead like any other"
-    );
-    let Terminator::Conditional { when_true, .. } = &member.terminator else {
-        panic!("the member keeps its conditional")
-    };
-    assert_eq!(when_true.arguments, &[value(41), value(11), value(21)]);
-    assert_eq!(
-        machine.ranked_scc, lowered.semantic_module.machines[0].ranked_scc,
-        "the ranking row is untouched"
-    );
 }

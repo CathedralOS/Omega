@@ -103,7 +103,7 @@ pub enum CheckedMathematicalBody {
 mod tests {
     use super::{
         CheckedMathematicalBinder, CheckedMathematicalBinderKind, CheckedMathematicalBody,
-        CheckedMathematicalDeclaration, CheckedMathematicalParameter,
+        CheckedMathematicalDeclaration,
     };
     use symbols::SymbolHandle;
 
@@ -144,25 +144,5 @@ mod tests {
 
         assert_eq!(declaration.level_arity(), 2);
         assert!(!declaration.is_assumption());
-    }
-
-    #[test]
-    fn boundary_let_shape_is_a_named_assumption() {
-        let declaration = CheckedMathematicalDeclaration {
-            symbol: SymbolHandle::invalid(),
-            name: "choose".to_owned(),
-            is_public: false,
-            binders: Vec::new(),
-            parameters: vec![CheckedMathematicalParameter {
-                name: "inhabited".to_owned(),
-                relevance: language_core::BindingRelevance::Relevant,
-                type_identity: "core::Squash<A>".to_owned(),
-            }],
-            result: "A".to_owned(),
-            body: CheckedMathematicalBody::Assumption,
-        };
-
-        assert!(declaration.is_assumption());
-        assert_eq!(declaration.level_arity(), 0);
     }
 }

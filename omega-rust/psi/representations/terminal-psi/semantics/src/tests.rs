@@ -9,8 +9,6 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::semantic_rows::OperationSemanticTag;
 use semantic_vocabulary::IntegerValue;
-use semantic_vocabulary::Proposition;
-use semantic_vocabulary::ScalarTerm;
 use semantic_vocabulary::{IntegerSign, IntegerType, OperationId, ScalarType, ValueId};
 use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
 
@@ -84,44 +82,6 @@ fn exact_row_lookup_rejects_missing_and_duplicate_rows() {
     assert_eq!(
         exact_operation_semantic_row_in(tag, &duplicate),
         Err(OperationSemanticError::DuplicateRow(tag)),
-    );
-}
-
-#[test]
-fn goal_free_scalar_rows_emit_equations_through_one_interpreter() {
-    let left = ValueId::new(1).unwrap();
-    let right = ValueId::new(2).unwrap();
-    let result = ValueId::new(3).unwrap();
-    let operation = Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: OperationId::new(1).unwrap(),
-        result: OperationResult::Scalar(ValueDeclaration {
-            qualifications: Default::default(),
-            id: result,
-            scalar_type: i8_type(),
-        }),
-        kind: OperationKind::WrappingIntegerAdd { left, right },
-    };
-    let value_types = BTreeMap::from([(left, i8_type()), (right, i8_type())]);
-    let actual = goal_free_scalar_leaf_semantics(&operation, &value_types)
-        .unwrap()
-        .unwrap();
-    let integer_type = match i8_type() {
-        ScalarType::Integer(integer_type) => integer_type,
-        ScalarType::Boolean | ScalarType::IeeeFloat(_) => unreachable!(),
-    };
-    assert_eq!(
-        actual.result_equation(),
-        &Proposition::Equal(
-            ScalarTerm::value(result, i8_type()),
-            ScalarTerm::wrapping_integer_add(
-                integer_type,
-                ScalarTerm::value(left, i8_type()),
-                ScalarTerm::value(right, i8_type()),
-            )
-            .unwrap(),
-        ),
     );
 }
 

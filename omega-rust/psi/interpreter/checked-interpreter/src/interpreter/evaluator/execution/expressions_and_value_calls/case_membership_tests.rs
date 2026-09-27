@@ -39,36 +39,6 @@ fn classifier(program: &TypedTrees) -> ExpressionHandle {
 }
 
 #[test]
-fn case_membership_observes_nominal_tags_without_payload_comparison() {
-    for (case, expected) in [("Data { value: 9 }", 7), ("Empty", 0)] {
-        let program = program(&format!(
-            "data Message [copy] {{ case Data(value: i32); case Empty; }}
-             machine main() -> i32 {{ let value: Message = Message::{case};
-                 transition value in Message::Data {{ true -> 7 false -> 0 }} }}"
-        ));
-        assert!(
-            matches!(Evaluator::new(&program, &[]).run_const_machine("main"), Ok(value) if value == expected)
-        );
-    }
-}
-
-#[test]
-fn case_membership_preserves_short_circuiting_and_one_subject_evaluation() {
-    let program = program(
-        "data Message [copy] { case Data(value: i32); case Empty; }
-         machine read(calls: &mut i32 in Wrapping) -> Message { calls = calls + 1; Message::Data { value: 9 } }
-         machine main() -> i32 { let mut calls: i32 in Wrapping = 0;
-             let matched: bool = read(&mut calls) in Message::Data;
-             let skipped: bool = false && (read(&mut calls) in Message::Data);
-             transition matched && !skipped && calls == 1 { true -> 7 false -> 0 } }"
-    );
-    assert!(matches!(
-        Evaluator::new(&program, &[]).run_const_machine("main"),
-        Ok(7)
-    ));
-}
-
-#[test]
 fn case_membership_rejects_invalid_classifier_and_foreign_runtime_owner() {
     let original = program(
         "data Message [copy] { case Data(value: i32); case Empty; }

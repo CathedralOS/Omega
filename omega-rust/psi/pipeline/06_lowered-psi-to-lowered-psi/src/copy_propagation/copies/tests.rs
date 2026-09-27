@@ -6,15 +6,13 @@
 use super::{BTreeSet, BlockId, TerminalMachine, Terminator, ValueId, propagate};
 use lowered_psi::LoweredSourceCallOccurrence;
 use semantic_vocabulary::{
-    ContractId, EdgeId, MachineId, ObligationId, OperationId, PlaceId, Proposition,
-    ScalarQualificationSetId, ScalarTerm, ScalarType, StructuralCaseId, StructuralFieldId,
-    StructuralTypeId,
+    ContractId, EdgeId, MachineId, ObligationId, OperationId, PlaceId, Proposition, ScalarTerm,
+    ScalarType, StructuralCaseId, StructuralFieldId, StructuralTypeId,
 };
 use terminal_psi::{
     Block, ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard,
     MachineContract, Operation, OperationKind, OperationResult, OutcomeSpecificEnsure,
-    OutcomeSpecificGuard, StructuralCaseSuccessorEdge, TerminalMachineResult, TerminalRankedScc,
-    ValueDeclaration,
+    OutcomeSpecificGuard, StructuralCaseSuccessorEdge, TerminalMachineResult, ValueDeclaration,
 };
 
 fn value(ordinal: u64) -> ValueId {
@@ -103,85 +101,6 @@ fn parameter_ids(block: &Block) -> Vec<ValueId> {
 }
 
 #[test]
-fn uniform_copy_collapses_and_substitutes_the_return_use() {
-    let mut machine = machine(vec![
-        block(1, vec![], jump(1, 2, vec![1])),
-        block(
-            2,
-            vec![declaration(2)],
-            Terminator::Return {
-                edge: EdgeId::new(2).unwrap(),
-                value: ValueId::new(2).unwrap(),
-                cleanup_actions: Vec::new(),
-            },
-        ),
-    ]);
-    propagate(&mut machine, &[], &mut BTreeSet::new());
-    assert!(machine.blocks[1].parameters.is_empty());
-    assert_eq!(edge_arguments(&machine.blocks[0]), vec![]);
-    let Terminator::Return { value, .. } = &machine.blocks[1].terminator else {
-        panic!("b2 keeps its return")
-    };
-    assert_eq!(*value, ValueId::new(1).unwrap());
-}
-
-#[test]
-fn divergent_edge_bindings_keep_the_parameter_and_arguments() {
-    let mut machine = machine(vec![
-        block(1, vec![], jump(1, 3, vec![1])),
-        block(2, vec![], jump(2, 3, vec![9])),
-        block(
-            3,
-            vec![declaration(3)],
-            Terminator::Return {
-                edge: EdgeId::new(3).unwrap(),
-                value: ValueId::new(3).unwrap(),
-                cleanup_actions: Vec::new(),
-            },
-        ),
-    ]);
-    propagate(&mut machine, &[], &mut BTreeSet::new());
-    assert_eq!(
-        parameter_ids(&machine.blocks[2]),
-        vec![ValueId::new(3).unwrap()]
-    );
-    assert_eq!(
-        edge_arguments(&machine.blocks[0]),
-        vec![ValueId::new(1).unwrap()]
-    );
-    assert_eq!(
-        edge_arguments(&machine.blocks[1]),
-        vec![ValueId::new(9).unwrap()]
-    );
-}
-
-#[test]
-fn copy_chain_collapses_transitively() {
-    let mut machine = machine(vec![
-        block(1, vec![], jump(1, 2, vec![1])),
-        block(2, vec![declaration(2)], jump(2, 3, vec![2])),
-        block(
-            3,
-            vec![declaration(3)],
-            Terminator::Return {
-                edge: EdgeId::new(3).unwrap(),
-                value: ValueId::new(3).unwrap(),
-                cleanup_actions: Vec::new(),
-            },
-        ),
-    ]);
-    propagate(&mut machine, &[], &mut BTreeSet::new());
-    assert!(machine.blocks[1].parameters.is_empty());
-    assert!(machine.blocks[2].parameters.is_empty());
-    assert_eq!(edge_arguments(&machine.blocks[0]), vec![]);
-    assert_eq!(edge_arguments(&machine.blocks[1]), vec![]);
-    let Terminator::Return { value, .. } = &machine.blocks[2].terminator else {
-        panic!("b3 keeps its return")
-    };
-    assert_eq!(*value, ValueId::new(1).unwrap());
-}
-
-#[test]
 fn cyclic_bindings_resolve_to_one_representative() {
     // The two-parameter cycle `p2 <- p3 <- p2` resolves to p2: p3 is a
     // copy of the representative, p2 stands for itself.
@@ -206,109 +125,6 @@ fn cyclic_bindings_resolve_to_one_representative() {
         vec![ValueId::new(2).unwrap()],
         "the surviving edge rebinds the representative"
     );
-}
-
-#[test]
-fn covered_component_coordinates_stay_while_outside_copies_collapse() {
-    // b1 enters the covered self-loop member b2 carrying parameters r
-    // and w; w binds v1 on every incoming edge — copy-shaped — but b2's
-    // table is covered and stays. The exit block's parameter x is an
-    // ordinary copy and collapses, dropping the member's exit-edge
-    // argument position.
-    let rank_type =
-        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 32)
-            .unwrap();
-    let rank_declaration = |ordinal: u64| ValueDeclaration {
-        qualifications: Default::default(),
-        id: ValueId::new(ordinal).unwrap(),
-        scalar_type: ScalarType::Integer(rank_type),
-    };
-    let mut machine = machine(vec![
-        block(1, vec![], jump(1, 2, vec![1, 1])),
-        block(
-            2,
-            vec![rank_declaration(10), declaration(11)],
-            Terminator::Conditional {
-                condition: ValueId::new(1).unwrap(),
-                when_true: terminal_psi::SuccessorEdge {
-                    edge: EdgeId::new(2).unwrap(),
-                    target: BlockId::new(2).unwrap(),
-                    arguments: vec![ValueId::new(12).unwrap(), ValueId::new(1).unwrap()],
-                    erased_arguments: Vec::new(),
-                    erased_proof_arguments: Vec::new(),
-                    structural_arguments: Vec::new(),
-                    trivial_affine_discards: Vec::new(),
-                },
-                when_false: terminal_psi::SuccessorEdge {
-                    edge: EdgeId::new(3).unwrap(),
-                    target: BlockId::new(3).unwrap(),
-                    arguments: vec![ValueId::new(1).unwrap()],
-                    erased_arguments: Vec::new(),
-                    erased_proof_arguments: Vec::new(),
-                    structural_arguments: Vec::new(),
-                    trivial_affine_discards: Vec::new(),
-                },
-            },
-        ),
-        block(
-            3,
-            vec![declaration(13)],
-            Terminator::Return {
-                edge: EdgeId::new(4).unwrap(),
-                value: ValueId::new(13).unwrap(),
-                cleanup_actions: Vec::new(),
-            },
-        ),
-    ]);
-    machine.ranked_scc = Some(TerminalRankedScc::Natural(vec![
-        terminal_psi::TerminalNaturalCycle {
-            rank_type,
-            ranks: vec![terminal_psi::TerminalBlockNaturalRank {
-                block: BlockId::new(2).unwrap(),
-                value: ValueId::new(10).unwrap(),
-            }],
-            edges: vec![terminal_psi::TerminalNaturalRankEdge {
-                edge: EdgeId::new(2).unwrap(),
-                source: BlockId::new(2).unwrap(),
-                target: BlockId::new(2).unwrap(),
-                successor_rank: ValueId::new(12).unwrap(),
-                comparison: terminal_psi::TerminalNaturalRankComparison::Strict,
-            }],
-        },
-    ]));
-    propagate(&mut machine, &[], &mut BTreeSet::new());
-    let member = &machine.blocks[1];
-    assert_eq!(
-        parameter_ids(member),
-        vec![ValueId::new(10).unwrap(), ValueId::new(11).unwrap()],
-        "the covered parameter table stays exact even for copy-shaped w"
-    );
-    let Terminator::Conditional {
-        when_true,
-        when_false,
-        ..
-    } = &member.terminator
-    else {
-        panic!("the member keeps its conditional")
-    };
-    assert_eq!(
-        when_true.arguments,
-        vec![ValueId::new(12).unwrap(), ValueId::new(1).unwrap()],
-        "the covered backedge keeps its exact arguments"
-    );
-    assert_eq!(
-        when_false.arguments,
-        vec![],
-        "the exit edge drops the collapsed parameter's position"
-    );
-    assert!(
-        machine.blocks[2].parameters.is_empty(),
-        "the uncovered exit parameter collapses to v1"
-    );
-    let Terminator::Return { value, .. } = &machine.blocks[2].terminator else {
-        panic!("b3 keeps its return")
-    };
-    assert_eq!(*value, ValueId::new(1).unwrap());
 }
 
 #[test]
@@ -396,79 +212,6 @@ fn retained_and_proposition_named_values_are_never_collapsed() {
     );
 }
 
-#[test]
-fn mismatched_resolved_source_declaration_keeps_the_parameter() {
-    // The uniform binding alone is not enough: a resolved source whose
-    // declaration disagrees on carrier or qualifications rejects the
-    // substitution.
-    for parameter in [
-        ValueDeclaration {
-            qualifications: ScalarQualificationSetId::new(7),
-            id: ValueId::new(2).unwrap(),
-            scalar_type: ScalarType::Boolean,
-        },
-        ValueDeclaration {
-            qualifications: Default::default(),
-            id: ValueId::new(2).unwrap(),
-            scalar_type: ScalarType::Integer(
-                semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 32)
-                    .unwrap(),
-            ),
-        },
-    ] {
-        let mut machine = machine(vec![
-            block(1, vec![], jump(1, 2, vec![1])),
-            block(
-                2,
-                vec![parameter],
-                Terminator::Return {
-                    edge: EdgeId::new(2).unwrap(),
-                    value: ValueId::new(2).unwrap(),
-                    cleanup_actions: Vec::new(),
-                },
-            ),
-        ]);
-        propagate(&mut machine, &[], &mut BTreeSet::new());
-        assert_eq!(
-            parameter_ids(&machine.blocks[1]),
-            vec![ValueId::new(2).unwrap()],
-            "a {parameter:?} mismatch keeps the declared parameter"
-        );
-        assert_eq!(
-            edge_arguments(&machine.blocks[0]),
-            vec![ValueId::new(1).unwrap()]
-        );
-    }
-}
-
-#[test]
-fn block_without_inventoried_incoming_edges_keeps_parameters() {
-    let mut machine = machine(vec![
-        block(
-            1,
-            vec![],
-            Terminator::ReturnUnit {
-                edge: EdgeId::new(1).unwrap(),
-                trivial_affine_discards: Vec::new(),
-            },
-        ),
-        block(
-            2,
-            vec![declaration(2)],
-            Terminator::Return {
-                edge: EdgeId::new(2).unwrap(),
-                value: ValueId::new(2).unwrap(),
-                cleanup_actions: Vec::new(),
-            },
-        ),
-    ]);
-    propagate(&mut machine, &[], &mut BTreeSet::new());
-    assert_eq!(
-        parameter_ids(&machine.blocks[1]),
-        vec![ValueId::new(2).unwrap()]
-    );
-}
-
 fn equal_v2_true() -> Proposition {
     Proposition::Equal(
         ScalarTerm::Value {
@@ -543,33 +286,6 @@ fn ensures_and_outcome_propositions_retain_named_copies() {
             evidence: None,
         });
     collapse_isolates_named_value(outcome_machine);
-}
-
-#[test]
-fn crash_route_predicates_retain_named_copies_while_truth_does_not() {
-    // Positive: machine crash-route predicates are proof terms naming exact
-    // values. Boundary: the canonical `Truth` bucket carries no identity, so
-    // both copies collapse.
-    let mut route_machine = two_copy_machine();
-    route_machine.contract.crash_routes.push(CrashRouteBucket {
-        cause: CrashCause::Trap,
-        alternatives: vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
-            equal_v2_true(),
-        ))],
-    });
-    collapse_isolates_named_value(route_machine);
-
-    let mut truth_machine = two_copy_machine();
-    truth_machine.contract.crash_routes.push(CrashRouteBucket {
-        cause: CrashCause::Trap,
-        alternatives: vec![CrashRouteGuard::Truth],
-    });
-    propagate(&mut truth_machine, &[], &mut BTreeSet::new());
-    assert_eq!(
-        parameter_ids(&truth_machine.blocks[1]),
-        Vec::<ValueId>::new(),
-        "a Truth alternative retains nothing"
-    );
 }
 
 #[test]

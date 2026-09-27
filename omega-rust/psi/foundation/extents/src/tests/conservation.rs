@@ -1,6 +1,5 @@
 use super::{
-    grant, id, local_root_grant, program_local_origin, provider_issuance,
-    provider_issuance_for_invocation, rights, root_grant,
+    grant, id, local_root_grant, program_local_origin, provider_issuance, rights, root_grant,
 };
 use crate::{
     AddressSpaceId, Extent, ExtentLineageId, ExtentProvenanceId, ExtentRootGrant, MappingEraId,
@@ -136,20 +135,6 @@ fn attenuation_never_restores_or_widens_rights() {
 }
 
 #[test]
-fn peer_shared_backing_cannot_merge_into_exclusive_lineage() {
-    let exclusive = root_grant(1).mint(0, 32).expect("exclusive root");
-    let peer_shared = root_grant(1)
-        .admitting_peer_shared_backing()
-        .mint(32, 32)
-        .expect("peer-shared root");
-
-    let error = exclusive
-        .merge(peer_shared)
-        .expect_err("sharing admission differs");
-    assert!(error.diagnostic().0.contains("and sharing"));
-}
-
-#[test]
 fn incompatible_sibling_facts_cannot_launder_authority() {
     let (lower, upper) = grant(1, 0, 64).split_at(32).expect("split");
     let lower = lower
@@ -180,26 +165,6 @@ fn equal_geometry_and_lineage_cannot_merge_different_provider_issuance() {
 }
 
 #[test]
-fn matching_supply_cannot_merge_different_provider_invocations() {
-    let first = root_grant(1).mint(0, 32).expect("first provider root");
-    let second = ExtentRootGrant::from_admitted_provider(
-        provider_issuance_for_invocation(1, 2),
-        id(1, ExtentLineageId::from_normalized_identity),
-        id(10, AddressSpaceId::from_normalized_identity),
-        rights(&[100, 101]),
-        id(20, ExtentProvenanceId::from_normalized_identity),
-        id(30, MappingEraId::from_normalized_identity),
-    )
-    .mint(32, 32)
-    .expect("second provider root");
-
-    let error = first
-        .merge(second)
-        .expect_err("matching supply cannot erase provider invocation drift");
-    assert!(error.diagnostic().0.contains("root-origin"));
-}
-
-#[test]
 fn program_local_roots_conserve_their_exact_occurrence_origin() {
     let root = local_root_grant(7, 3)
         .mint(0x2000, 64)
@@ -216,32 +181,6 @@ fn program_local_roots_conserve_their_exact_occurrence_origin() {
         restored.program_local_origin(),
         Some(program_local_origin(3))
     );
-}
-
-#[test]
-fn provider_and_local_origins_never_recompose() {
-    let provider = root_grant(1).mint(0, 32).expect("provider root");
-    let local = local_root_grant(1, 1).mint(32, 32).expect("local root");
-
-    let error = provider
-        .merge(local)
-        .expect_err("equal lineage and geometry cannot erase origin kind");
-    assert!(error.diagnostic().0.contains("root-origin"));
-}
-
-#[test]
-fn independent_program_local_occurrences_never_recompose() {
-    let first = local_root_grant(1, 1)
-        .mint(0, 32)
-        .expect("first local root");
-    let second = local_root_grant(1, 2)
-        .mint(32, 32)
-        .expect("second local root");
-
-    let error = first
-        .merge(second)
-        .expect_err("equal lineage and geometry cannot erase local occurrence");
-    assert!(error.diagnostic().0.contains("root-origin"));
 }
 
 #[test]

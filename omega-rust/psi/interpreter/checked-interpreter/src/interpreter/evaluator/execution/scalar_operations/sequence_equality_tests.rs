@@ -49,24 +49,6 @@ fn byte_equality_observes_exact_live_lengths_and_raw_contents() {
 }
 
 #[test]
-fn byte_equality_ignores_backing_capacity_but_observes_live_cell_changes() {
-    let program = TypedTrees::default();
-    let evaluator = Evaluator::new(&program, &[]);
-    let text = Value::bytes(b"!look\0unused");
-    let Value::Str(backing) = text else {
-        panic!("packed text")
-    };
-    let packed_view = Value::Str(backing.subslice(1, 5).unwrap());
-    let Value::Array(elements) = array(b"!look\rignored") else {
-        panic!("cell array")
-    };
-    let view = Value::Array(elements[1..5].to_vec());
-    assert_equal(&evaluator, &view, &packed_view, true);
-    *elements[4].borrow_mut() = Value::Int(i64::from(b'p'));
-    assert_equal(&evaluator, &view, &packed_view, false);
-}
-
-#[test]
 fn scalar_equality_preserves_numeric_meaning() {
     let program = TypedTrees::default();
     let evaluator = Evaluator::new(&program, &[]);

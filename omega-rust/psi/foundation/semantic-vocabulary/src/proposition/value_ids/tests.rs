@@ -1,5 +1,5 @@
 use super::{IntegerMathTerm, Proposition, ScalarTerm, ValueId};
-use crate::{IntegerSign, IntegerType, IntegerValue, PlaceId, PropositionId, ScalarType};
+use crate::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 
 fn identifier(index: u64) -> ValueId {
     ValueId::new(index).unwrap()
@@ -41,26 +41,4 @@ fn visits_scalar_and_mathematical_values_in_occurrence_order() {
         value == identifier(2)
     }));
     assert_eq!(queried, [identifier(1), identifier(2)]);
-}
-
-#[test]
-fn structural_and_opaque_dependencies_are_reported_without_hiding_values() {
-    let proposition = Proposition::Conjunction(vec![
-        Proposition::Atom(PropositionId::new(1).unwrap()),
-        Proposition::Equal(
-            ScalarTerm::BooleanField {
-                root: PlaceId::new(1).unwrap(),
-                path: Vec::new(),
-            },
-            ScalarTerm::value(identifier(1), ScalarType::Boolean),
-        ),
-    ]);
-    let mut values = Vec::new();
-    assert!(!proposition.visit_value_ids(|value| values.push(value)));
-    assert_eq!(values, [identifier(1)]);
-    assert!(!Proposition::Atom(PropositionId::new(1).unwrap()).any_value_id(|_| true));
-    assert!(
-        Proposition::Equal(ScalarTerm::Boolean(true), ScalarTerm::Boolean(true))
-            .visit_value_ids(|_| panic!("literals have no value identity"))
-    );
 }

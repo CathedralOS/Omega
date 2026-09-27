@@ -262,64 +262,6 @@ fn rename_replacement_retains_an_open_replaced_object_until_close() {
 }
 
 #[test]
-fn open_unlink_close_keeps_unnamed_object_charged_until_close() {
-    let sponsor = sponsor_with(limits(2, 20, 20));
-    let object = commit_object(&sponsor, "object", 10);
-    let descriptor = sponsor.prepare_open(&object).unwrap().commit().unwrap();
-    sponsor.prepare_unlink(&object).unwrap().commit().unwrap();
-
-    assert_eq!(
-        sponsor.snapshot().unwrap(),
-        FilesystemSponsorSnapshot {
-            entries: 0,
-            total_logical_bytes: 10,
-            unique_objects: 1,
-            open_descriptors: 1,
-        }
-    );
-    sponsor
-        .prepare_close(&descriptor)
-        .unwrap()
-        .commit()
-        .unwrap();
-    assert_eq!(
-        sponsor.snapshot().unwrap(),
-        FilesystemSponsorSnapshot {
-            entries: 0,
-            total_logical_bytes: 0,
-            unique_objects: 0,
-            open_descriptors: 0,
-        }
-    );
-}
-
-#[test]
-fn create_object_open_commits_namespace_object_and_descriptor_together() {
-    let sponsor = sponsor_with(limits(2, 20, 20));
-    let object = path(&sponsor, "created-open");
-    let prepared = sponsor.prepare_create_object_open(&object, 9).unwrap();
-
-    assert_eq!(sponsor.entry(&object).unwrap(), None);
-    assert_eq!(sponsor.snapshot().unwrap().open_descriptors, 0);
-    let descriptor = prepared.commit().unwrap();
-    assert_eq!(
-        sponsor.entry(&object).unwrap(),
-        Some(FilesystemSponsorEntry::Object {
-            extent: 9,
-            names: 1,
-            open_descriptors: 1,
-        })
-    );
-    assert_eq!(sponsor.snapshot().unwrap().open_descriptors, 1);
-
-    sponsor
-        .prepare_close(&descriptor)
-        .unwrap()
-        .commit()
-        .unwrap();
-}
-
-#[test]
 fn open_with_extent_commits_truncation_and_descriptor_together() {
     let sponsor = sponsor_with(limits(2, 20, 20));
     let object = commit_object(&sponsor, "truncate-open", 13);

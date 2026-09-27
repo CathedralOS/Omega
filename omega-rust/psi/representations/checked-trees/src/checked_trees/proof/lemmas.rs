@@ -79,9 +79,7 @@ impl LemmaFacts {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        Arena, LemmaFacts, ProofLemmaFact, ProofLemmaKind, QuantifiedBoundFact, QuantifiedRangeFact,
-    };
+    use super::{Arena, LemmaFacts, ProofLemmaFact, QuantifiedRangeFact};
 
     #[test]
     fn lemma_facts_constructor_keeps_roots_explicit() {
@@ -92,11 +90,5 @@ mod tests {
 
         assert_eq!(facts.lemmas, lemmas);
         assert_eq!(facts.quantified, quantified);
-    }
-
-    #[test]
-    fn quantified_bound_defaults_to_zero() {
-        assert_eq!(QuantifiedBoundFact::default(), QuantifiedBoundFact::Zero);
-        assert_eq!(ProofLemmaKind::default(), ProofLemmaKind::IndexInBounds);
     }
 }

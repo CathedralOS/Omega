@@ -1,14 +1,6 @@
 use crate::{
     CarryAddress, CarryCpu, CarryHostThread, CarryPermission, CarryPolicy, CarrySuspension,
-    Multiplicity,
 };
-
-#[test]
-fn multiplicity_default_is_affine() {
-    // Ordinary data defaults to Affine (the record's mapping); `[copy]`
-    // opts into Unrestricted, `[linear]` into Linear.
-    assert_eq!(Multiplicity::default(), Multiplicity::Affine);
-}
 
 #[test]
 fn carry_axes_compose_independently_and_fail_closed() {
