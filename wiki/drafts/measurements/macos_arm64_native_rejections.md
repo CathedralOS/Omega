@@ -70,6 +70,36 @@ Phases with NO filed owner, ranked — these are where new diagnosis pays:
 - `state graph: terminator: guarded jump successors: roster` (4)
 - `statement sequence: call: flow call` (4)
 
+## One repair attempted, and where it is NOT
+
+`DEFERRED-LOCAL-INITIALIZATION`, reduced from
+`pass/wire/runtime_wire_utf8_edge_verdicts_exit`, was attempted and not
+landed. The negative result is recorded because it is what saves the next
+attempt.
+
+The DECLARATION is fine. `let mut x: i32;` alone, and followed by unrelated
+work, both plan; only the later `x = 1` has no route.
+
+The RECORD half already works, through an explicit `declared_zeroed` branch
+in `structural_scalar_store/destination.rs::owned_local_root` — a declaration
+establishes the affine root, as its comment says — gated on
+`Named | Generic`. The same function rejects any `primitive_type_reference`
+outright, and should: a bare scalar local assignment is not a structural
+field store. So widening that branch is the wrong repair, and it is exactly
+where reading alone leads.
+
+Instrumented rather than argued: all 44 `return None` exits across
+`structural_scalar_store/{mod,destination}.rs` were marked, then the failing
+program and the WORKING one (`let mut x: i32 = 0; x = 1;`) were run and their
+traces diffed. Same marks at nearly the same counts. **The working case does
+not succeed anywhere in that subtree**, so it is not the repair site — the
+structural store is merely the last route the trace entered, which is also
+why the phase names a `destination parameter` for a local that is neither a
+field nor a parameter.
+
+Next step: find what plans `x = 1` for an INITIALIZED `mut` scalar local.
+That route is the one missing the declared-zeroed case.
+
 ## Method notes for whoever re-runs this
 
 - The phase string names the last phase ENTERED, not the operation that
