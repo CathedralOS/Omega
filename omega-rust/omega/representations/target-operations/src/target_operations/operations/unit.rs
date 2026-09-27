@@ -226,7 +226,7 @@ pub enum TargetUnitOperation {
         destination: StructuralParameterDeclaration,
         path: Vec<StructuralPathSegment>,
         destination_type: StructuralTypeDeclaration,
-        destination_placement: ValuePlacement,
+        destination_storage: crate::TargetStructuralArgumentSource,
         source: TargetUnitWriteOnlyPrimitiveStoreSource,
         indices: Vec<TargetStructuralRuntimeIndex>,
     },

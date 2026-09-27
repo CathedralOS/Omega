@@ -131,6 +131,17 @@ pub(super) fn validate(
                     let parameter = function
                         .structural_parameters
                         .iter()
+                        .chain(
+                            function
+                                .blocks
+                                .iter()
+                                .flat_map(|block| &block.structural_parameters)
+                                .filter(|parameter| {
+                                    abstract_operations::control_flow::address_joins::is_address_join_in(
+                                        parameter, types,
+                                    )
+                                }),
+                        )
                         .find(|parameter| parameter.place == *source)
                         .ok_or(LegalizationError::custody())?;
                     if !matches!(

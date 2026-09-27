@@ -50,10 +50,15 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
         machine: function.machine,
         operation: *psi_operation,
     };
-    if !function
-        .structural_parameters
-        .iter()
-        .any(|parameter| parameter == destination)
+    let joined = function.block_entries.iter().find(|entry| {
+        entry.structural_parameters.contains(destination)
+            && destination.access == StructuralAccess::MutableBorrow
+            && abstract_operations::control_flow::address_joins::is_address_join(
+                destination,
+                |identity| structural_types.get(&identity).copied(),
+            )
+    });
+    if !(function.structural_parameters.contains(destination) || joined.is_some())
         || destination.multiplicity == StructuralMultiplicity::Linear
         || (path.is_empty() && destination.multiplicity != StructuralMultiplicity::Unrestricted)
         || !matches!(
@@ -239,24 +244,36 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
         &mut BTreeSet::new(),
     )?;
     let expected_shape = ValueShape::borrowed_reference(root_shape.byte_size, root_shape.alignment);
-    let target_parameter = parameters_by_place
-        .get(&destination.place)
-        .copied()
-        .filter(|parameter| {
-            parameter.structural_type == destination.structural_type
-                && parameter.multiplicity == destination.multiplicity
-                && parameter.access == destination.access
-                && parameter.projected_qualifications == destination.projected_qualifications
-                && parameter.shape == expected_shape
-                && parameter.placement.shape == expected_shape
-        })
-        .ok_or_else(invalid)?;
+    // The destination is either an incoming ABI pointer or an exact state
+    // pointer slot. Both retain the original array storage and index proofs.
+    let destination_storage = if let Some(entry) = joined {
+        target_operations::TargetStructuralArgumentSource::BlockParameter {
+            block: entry.block,
+            place: destination.place,
+        }
+    } else {
+        let target_parameter = parameters_by_place
+            .get(&destination.place)
+            .copied()
+            .filter(|parameter| {
+                parameter.structural_type == destination.structural_type
+                    && parameter.multiplicity == destination.multiplicity
+                    && parameter.access == destination.access
+                    && parameter.projected_qualifications == destination.projected_qualifications
+                    && parameter.shape == expected_shape
+                    && parameter.placement.shape == expected_shape
+            })
+            .ok_or_else(invalid)?;
+        target_operations::TargetStructuralArgumentSource::Placement(
+            target_parameter.placement.clone(),
+        )
+    };
     operations.push(TargetUnitOperation::WriteOnlyPrimitiveStore {
         psi_operation: *psi_operation,
         destination: destination.clone(),
         path: path.clone(),
         destination_type: destination_type.clone(),
-        destination_placement: target_parameter.placement.clone(),
+        destination_storage,
         source,
         indices,
     });

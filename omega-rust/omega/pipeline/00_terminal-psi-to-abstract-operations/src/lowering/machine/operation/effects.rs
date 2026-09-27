@@ -42,11 +42,9 @@ pub(super) fn lower(
                 });
             }
             let invalid = || LoweringError::InvalidWriteOnlyPrimitiveStore(operation.id);
-            let Some(destination) = machine
-                .structural_parameters
-                .iter()
-                .find(|parameter| parameter.place == destination)
-                .cloned()
+            let Some(destination) =
+                super::primitive_storage::parameter(machine, structural_types, destination)
+                    .cloned()
             else {
                 return Err(invalid());
             };

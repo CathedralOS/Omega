@@ -42,6 +42,47 @@ pub(crate) fn validate_structural_root_operations(
         .iter()
         .map(|place| (place.id, place.kind))
         .collect::<BTreeMap<_, _>>();
+    // Stores through an entry loan and a state loan must retain the exact
+    // declaration of their own storage root. Availability and exclusive name
+    // transfer are independently replayed by the control-flow ownership walk.
+    let exact_store_destination =
+        |destination: &terminal_psi::StructuralParameterDeclaration| match place_kinds
+            .get(&destination.place)
+        {
+            Some(StructuralPlaceKind::Parameter { position, is_self }) => {
+                *position == destination.position
+                    && *is_self == destination.is_self
+                    && function
+                        .structural_parameters
+                        .iter()
+                        .find(|parameter| parameter.place == destination.place)
+                        == Some(destination)
+            }
+            Some(StructuralPlaceKind::BlockParameter {
+                block: owner,
+                position,
+            }) => {
+                *position == destination.position
+                    && destination.access == terminal_psi::StructuralAccess::MutableBorrow
+                    && abstract_operations::control_flow::address_joins::is_address_join(
+                        destination,
+                        |identity| structural_types.get(&identity).copied(),
+                    )
+                    && function
+                        .blocks
+                        .iter()
+                        .find(|block| block.id == *owner)
+                        .is_some_and(|block| {
+                            block.id != function.entry
+                                && block
+                                    .structural_parameters
+                                    .iter()
+                                    .find(|parameter| parameter.place == destination.place)
+                                    == Some(destination)
+                        })
+            }
+            _ => false,
+        };
     for block in &function.blocks {
         for (node_index, node) in block.nodes.iter().enumerate() {
             let node_index = u32::try_from(node_index).expect("unit node index fits u32");
@@ -198,11 +239,7 @@ pub(crate) fn validate_structural_root_operations(
                     value,
                     ..
                 } => {
-                    let valid = function
-                        .structural_parameters
-                        .iter()
-                        .find(|parameter| parameter.place == destination.place)
-                        == Some(destination)
+                    let valid = exact_store_destination(destination)
                         && matches!(
                             destination.access,
                             terminal_psi::StructuralAccess::MutableBorrow
@@ -223,12 +260,6 @@ pub(crate) fn validate_structural_root_operations(
                             .content_entry_claims
                             .iter()
                             .all(|claim| claim.input.root != destination.place)
-                        && matches!(
-                            place_kinds.get(&destination.place),
-                            Some(StructuralPlaceKind::Parameter { position, is_self })
-                                if *position == destination.position
-                                    && *is_self == destination.is_self
-                        )
                         && terminal_semantics::primitive_projection_type(
                             structural_types.values().copied(),
                             destination.structural_type,
@@ -262,41 +293,7 @@ pub(crate) fn validate_structural_root_operations(
                     // supplies its incoming permission, never an entry ABI slot.
                     // Availability above and exclusive-transfer replay below
                     // independently establish dominance and live custody.
-                    let exact_destination = match place_kinds.get(&destination.place) {
-                        Some(StructuralPlaceKind::Parameter { position, is_self }) => {
-                            *position == destination.position
-                                && *is_self == destination.is_self
-                                && function
-                                    .structural_parameters
-                                    .iter()
-                                    .find(|parameter| parameter.place == destination.place)
-                                    == Some(destination)
-                        }
-                        Some(StructuralPlaceKind::BlockParameter {
-                            block: owner,
-                            position,
-                        }) => {
-                            *position == destination.position
-                                && destination.access
-                                    == terminal_psi::StructuralAccess::MutableBorrow
-                                && abstract_operations::control_flow::address_joins::is_address_join(
-                                    destination,
-                                    |identity| structural_types.get(&identity).copied(),
-                                )
-                                && function
-                                    .blocks
-                                    .iter()
-                                    .find(|block| block.id == *owner)
-                                    .is_some_and(|block| {
-                                        block.id != function.entry
-                                            && block.structural_parameters.iter().find(
-                                                |parameter| parameter.place == destination.place,
-                                            ) == Some(destination)
-                                    })
-                        }
-                        _ => false,
-                    };
-                    let valid = exact_destination
+                    let valid = exact_store_destination(destination)
                         && matches!(
                             destination.multiplicity,
                             terminal_psi::StructuralMultiplicity::Unrestricted

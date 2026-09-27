@@ -10,6 +10,40 @@ use terminal_psi::{
 
 use crate::lowering::LoweringError;
 
+/// A borrowed state name retains its declared pointer carrier, never an entry
+/// parameter's position. Terminal replay has already established availability;
+/// retain the exact block/place correspondence for each downstream consumer.
+pub(super) fn parameter<'a>(
+    machine: &'a TerminalMachine,
+    types: &[StructuralTypeDeclaration],
+    place: PlaceId,
+) -> Option<&'a terminal_psi::StructuralParameterDeclaration> {
+    if let Some(parameter) = machine
+        .structural_parameters
+        .iter()
+        .find(|row| row.place == place)
+    {
+        return Some(parameter);
+    }
+    let declaration = machine
+        .structural_places
+        .iter()
+        .find(|row| row.id == place)?;
+    let StructuralPlaceKind::BlockParameter { block, position } = declaration.kind else {
+        return None;
+    };
+    let parameter = machine
+        .blocks
+        .iter()
+        .find(|row| row.id == block)?
+        .structural_parameters
+        .get(position as usize)?;
+    (parameter.place == place
+        && parameter.position == position
+        && abstract_operations::control_flow::address_joins::is_address_join_in(parameter, types))
+    .then_some(parameter)
+}
+
 pub(super) fn local(
     machine: &TerminalMachine,
     place: PlaceId,
@@ -95,20 +129,14 @@ pub(super) fn lower(
             let identity = local(machine, source)
                 .map(|local| local.structural_type)
                 .or_else(|| {
-                    machine
-                        .structural_parameters
-                        .iter()
-                        .find(|parameter| {
-                            parameter.place == source
-                                && matches!(
-                                    parameter.access,
-                                    StructuralAccess::SharedBorrow
-                                        | StructuralAccess::MutableBorrow
-                                )
-                                && (parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                                    || (!path.is_empty()
-                                        && parameter.multiplicity
-                                            == StructuralMultiplicity::Affine))
+                    parameter(machine, types, source)
+                        .filter(|parameter| {
+                            matches!(
+                                parameter.access,
+                                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                            ) && (parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                                || (!path.is_empty()
+                                    && parameter.multiplicity == StructuralMultiplicity::Affine))
                                 && parameter.qualifications.is_empty()
                                 && parameter.projected_qualifications.is_empty()
                         })

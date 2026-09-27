@@ -50,54 +50,68 @@ pub(super) fn validate(
                 _ => None,
             })
     };
-    let valid = match operation {
-        O::EstablishPrimitiveLocal {
-            psi_operation,
-            result,
-            value,
-        } => {
-            local_matches(result, value.scalar_type)
-                && function.structural_places.iter().any(|place| {
-                    place.id == result.place
-                        && place.kind
-                            == StructuralPlaceKind::OperationResult {
-                                producer: *psi_operation,
-                                structural_type: result.structural_type,
-                            }
-                })
-        }
-        O::PrimitiveLocalStore {
-            destination, value, ..
-        } => local(*destination).is_some_and(|result| local_matches(result, value.scalar_type)),
-        O::PrimitiveScalarRead {
-            source,
-            path,
-            result,
-            ..
-        } => {
-            (path.is_empty()
+    let valid =
+        match operation {
+            O::EstablishPrimitiveLocal {
+                psi_operation,
+                result,
+                value,
+            } => {
+                local_matches(result, value.scalar_type)
+                    && function.structural_places.iter().any(|place| {
+                        place.id == result.place
+                            && place.kind
+                                == StructuralPlaceKind::OperationResult {
+                                    producer: *psi_operation,
+                                    structural_type: result.structural_type,
+                                }
+                    })
+            }
+            O::PrimitiveLocalStore {
+                destination, value, ..
+            } => local(*destination).is_some_and(|result| local_matches(result, value.scalar_type)),
+            O::PrimitiveScalarRead {
+                source,
+                path,
+                result,
+                ..
+            } => (path.is_empty()
                 && local(*source).is_some_and(|local| local_matches(local, result.scalar_type)))
-                || function.structural_parameters.iter().any(|parameter| {
-                    parameter.place == *source
-                        && matches!(
-                            parameter.access,
-                            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                        )
-                        && (parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                            || (!path.is_empty()
-                                && parameter.multiplicity == StructuralMultiplicity::Affine))
-                        && parameter.qualifications.is_empty()
-                        && parameter.projected_qualifications.is_empty()
-                        && claim_free(*source)
-                        && terminal_semantics::primitive_projection_type(
-                            types.values().copied(),
-                            parameter.structural_type,
-                            path,
-                        ) == Some(result.scalar_type)
-                })
-        }
-        _ => true,
-    };
+                || function
+                    .structural_parameters
+                    .iter()
+                    .chain(
+                        function
+                            .blocks
+                            .iter()
+                            .flat_map(|block| &block.structural_parameters)
+                            .filter(|parameter| {
+                                abstract_operations::control_flow::address_joins::is_address_join(
+                                    parameter,
+                                    |identity| types.get(&identity).copied(),
+                                )
+                            }),
+                    )
+                    .any(|parameter| {
+                        parameter.place == *source
+                            && matches!(
+                                parameter.access,
+                                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                            )
+                            && (parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                                || (!path.is_empty()
+                                    && parameter.multiplicity == StructuralMultiplicity::Affine))
+                            && parameter.qualifications.is_empty()
+                            && parameter.projected_qualifications.is_empty()
+                            && claim_free(*source)
+                            && terminal_semantics::primitive_projection_type(
+                                types.values().copied(),
+                                parameter.structural_type,
+                                path,
+                            ) == Some(result.scalar_type)
+                    }),
+            _ => true,
+        };
     if valid {
         Ok(())
     } else {

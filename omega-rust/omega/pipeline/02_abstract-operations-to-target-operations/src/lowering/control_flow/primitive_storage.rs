@@ -457,6 +457,20 @@ pub(super) fn lower(
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 home.structural_type()
+            } else if live.address_joins.contains(source) {
+                function
+                    .block_entries
+                    .iter()
+                    .flat_map(|entry| &entry.structural_parameters)
+                    .find(|parameter| {
+                        parameter.place == *source
+                            && abstract_operations::control_flow::address_joins::is_address_join(
+                                parameter,
+                                |identity| types.get(&identity).copied(),
+                            )
+                    })
+                    .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
+                    .structural_type
             } else {
                 prepared
                     .parameters

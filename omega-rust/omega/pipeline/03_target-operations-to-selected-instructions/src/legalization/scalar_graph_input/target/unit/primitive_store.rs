@@ -21,7 +21,7 @@ pub(super) fn validate(
         destination,
         path,
         destination_type,
-        destination_placement,
+        destination_storage,
         source,
         indices,
     } = target
@@ -37,10 +37,26 @@ pub(super) fn validate(
     else {
         return Err(LegalizationError::custody());
     };
-    let parameter = parameters
-        .iter()
-        .find(|parameter| parameter.place == expected_destination.place)
-        .ok_or(LegalizationError::custody())?;
+    let storage_matches = match destination_storage {
+        target_operations::TargetStructuralArgumentSource::Placement(placement) => {
+            optimized.structural_parameters.contains(destination)
+                && parameters.iter().any(|parameter| {
+                    parameter.place == destination.place && &parameter.placement == placement
+                })
+        }
+        target_operations::TargetStructuralArgumentSource::BlockParameter { block, place } => {
+            *place == destination.place
+                && destination.access == terminal_psi::StructuralAccess::MutableBorrow
+                && optimized.blocks.iter().any(|entry| {
+                    entry.id == *block && entry.structural_parameters.contains(destination)
+                })
+                && abstract_operations::control_flow::address_joins::is_address_join_in(
+                    destination,
+                    &unit.structural_types,
+                )
+        }
+        _ => false,
+    };
     let declared_type = unit
         .structural_types
         .iter()
@@ -57,7 +73,7 @@ pub(super) fn validate(
         || destination != expected_destination
         || path != expected_path
         || destination_type != declared_type
-        || destination_placement != &parameter.placement
+        || !storage_matches
         || !super::runtime_indices_rejoin(indices, &elements, sources)
         || source.source_value() != value.value
         || source.scalar_type() != value.scalar_type
