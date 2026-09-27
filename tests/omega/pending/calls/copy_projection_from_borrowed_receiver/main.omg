@@ -7,10 +7,15 @@
 // by-value parameter. The entry's unit plan is omitted at
 // `call operation: projected operand support`, and the program is refused
 // with the downstream symptom -- "selected ProgramEntry establishment
-// rejoins 0 Terminal attachment identities". The product root fails on the
-// identical shape at `Main::parse`:
+// rejoins 0 Terminal attachment identities". BOTH of the Omega-written
+// compiler's roots fail on the identical shape and on nothing else:
+// `source/omega/main.omg` at `Main::parse` (state 5, statement 0) and
+// `source/psi/gates/parser/main.omg` at `Main::prepare_parse` (state 5,
+// statement 0), each on
 // `self.parser.initialize(self.lexer.source.id, ...)`, where `SourceId` is
-// also `[copy]`.
+// also `[copy]`. One arm unblocks both, and until it lands
+// `source/psi/test-parser.sh` cannot run at all -- its first step is a
+// build of that gate root.
 //
 // Measured at the raise site. The single structural argument is
 // `Parameter { parameter_index: 0 }` with path
