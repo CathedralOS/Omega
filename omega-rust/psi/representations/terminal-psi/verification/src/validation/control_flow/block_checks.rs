@@ -25,6 +25,9 @@ pub(super) fn validate_block(
     sites: &DefinitionSites,
     dominators: &crate::control_graph::DominatorTree,
     mutable_views: &BTreeMap<BlockId, BTreeSet<PlaceId>>,
+    mutable_records: Option<
+        &crate::validation::block_views::mutable_records::BorrowedRecordOrigins,
+    >,
     block_id: BlockId,
 ) -> Result<(), ModuleError> {
     let DefinitionSites {
@@ -67,6 +70,15 @@ pub(super) fn validate_block(
         available_structural.extend(mutable.iter().copied());
     }
     for operation in &block.operations {
+        if let Some(aliases) = mutable_records {
+            crate::validation::block_views::mutable_records::validate_operation(
+                module,
+                machine,
+                aliases,
+                &available_structural,
+                operation,
+            )?;
+        }
         crate::validation::structural::case_membership::validate_available(
             machine,
             operation,
@@ -162,6 +174,15 @@ pub(super) fn validate_block(
         {
             available_structural.insert(result.place);
         }
+    }
+    if let Some(aliases) = mutable_records {
+        crate::validation::block_views::mutable_records::validate_terminator(
+            module,
+            machine,
+            aliases,
+            &available_structural,
+            block,
+        )?;
     }
     match &block.terminator {
         Terminator::Jump {

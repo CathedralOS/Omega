@@ -1,4 +1,4 @@
-//! Shared address joins in legalized input, rejoined for selection.
+//! Borrowed address joins in legalized input, rejoined for selection.
 //!
 //! An address join (`abstract_operations::control_flow::address_joins`) owns
 //! one 8-byte block slot holding its referent's address. Its block entry
@@ -82,14 +82,15 @@ pub(crate) fn transport(
     local_slots: &[SelectedLocalStorageSlot],
 ) -> Option<SelectedStructuralTransport> {
     let signature = source.structural.as_ref()?;
-    if argument.access != StructuralAccess::SharedBorrow
+    if argument.access != parameter.access
+        || parameter.access == StructuralAccess::MutableBorrow && !argument.path.is_empty()
         || !abstract_operations::control_flow::address_joins::is_static_projection(&argument.path)
         || join(source, parameter.place)?.0 != target
     {
         return None;
     }
     let (referent, byte_offset) = crate::structural_inputs::structural_reference_input::project(
-        root_type(source, argument.place)?,
+        root_type(source, argument.place, argument.access)?,
         &argument.path,
         &signature.structural_types,
     )?;
@@ -132,7 +133,28 @@ pub(crate) fn transport(
 /// The structural type of a root that may lend an address: a local home, an
 /// owned block arrival, an entrance parameter or an earlier address join.
 /// Legalization already replayed each root's owner, access and dominance.
-fn root_type(source: &LegalizedScalarFunction, place: PlaceId) -> Option<StructuralTypeId> {
+fn root_type(
+    source: &LegalizedScalarFunction,
+    place: PlaceId,
+    access: StructuralAccess,
+) -> Option<StructuralTypeId> {
+    if access == StructuralAccess::MutableBorrow {
+        if let Some((_, parameter)) = join(source, place) {
+            return (parameter.access == StructuralAccess::MutableBorrow)
+                .then_some(parameter.structural_type);
+        }
+        return source
+            .structural
+            .as_ref()?
+            .parameters
+            .iter()
+            .find(|parameter| parameter.semantic.place == place)
+            .filter(|parameter| {
+                !parameter.semantic.is_self
+                    && parameter.semantic.access == StructuralAccess::MutableBorrow
+            })
+            .map(|parameter| parameter.semantic.structural_type);
+    }
     if let Some((_, result)) = crate::selection::aggregate_result_input::home(source, place) {
         return Some(result.structural_type);
     }

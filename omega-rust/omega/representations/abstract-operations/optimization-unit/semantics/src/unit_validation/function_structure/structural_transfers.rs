@@ -95,8 +95,12 @@ pub(super) fn validate(
                     abstract_operations::control_flow::address_joins::is_static_projection(
                         &binding.argument.path,
                     ) && source.is_some_and(|(root_type, access, multiplicity)| {
-                        access != StructuralAccess::WriteOnlyBorrow
-                            && multiplicity != StructuralMultiplicity::Linear
+                        (if parameter.access == StructuralAccess::MutableBorrow {
+                            binding.argument.path.is_empty()
+                                && access == StructuralAccess::MutableBorrow
+                        } else {
+                            access != StructuralAccess::WriteOnlyBorrow
+                        }) && multiplicity != StructuralMultiplicity::Linear
                             && abstract_operations::control_flow::address_joins::referent_type(
                                 types.values().copied(),
                                 root_type,

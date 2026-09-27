@@ -231,9 +231,9 @@ pub enum TargetUnitOperation {
         indices: Vec<TargetStructuralRuntimeIndex>,
     },
     /// One verifier-approved fixed-width integer write into an exact field of
-    /// a staged attached-Unit structural parameter (receiver or ordinary
-    /// parameter). Semantic location and
-    /// physical offset remain together so assignment and emission can replay
+    /// a borrowed structural parameter. Entry parameters retain their ABI
+    /// placement; state parameters retain their exact block pointer slot.
+    /// Semantic location and physical offset stay together so emission can replay
     /// the join independently. `field_byte_offset` is the static part of the
     /// carrier path plus the field; `indices` resolves each runtime element
     /// of the carrier, in path order, as for a primitive store.
@@ -242,7 +242,7 @@ pub enum TargetUnitOperation {
         destination: StructuralParameterDeclaration,
         path: Vec<StructuralPathSegment>,
         field: StructuralFieldId,
-        destination_placement: ValuePlacement,
+        destination_storage: crate::TargetStructuralArgumentSource,
         field_byte_offset: u32,
         source: TargetUnitScalarArgumentSource,
         indices: Vec<TargetStructuralRuntimeIndex>,

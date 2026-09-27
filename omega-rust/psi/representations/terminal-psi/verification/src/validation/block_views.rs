@@ -6,6 +6,8 @@ use super::{
     StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, TerminalMachine, TerminalModule,
     Terminator,
 };
+pub(super) mod mutable_records;
+
 pub(super) fn parameter(
     machine: &TerminalMachine,
     place: PlaceId,
@@ -74,6 +76,7 @@ pub(super) fn validate_declarations(
                                     terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                                 ) | StructuralTypeShape::ElementView { .. }
                             )
+                            || mutable_records::parameter_type(module, declaration)
                             || (declaration.access == StructuralAccess::SharedBorrow
                                 && (matches!(row.shape, StructuralTypeShape::PrimitiveScalar(_))
                                     || super::record::plain_type(module, row.id))))
@@ -367,24 +370,25 @@ fn shared_loan_root(
     None
 }
 
-/// Mutable view names transfer at an edge; ordinary calls only reborrow them.
+/// Mutable view and plain-record names transfer at an edge; ordinary calls only reborrow them.
 /// Intersect all actual arrivals, including backedges, so an old source name
 /// cannot supply a second exclusive alias after a differently named transfer.
 pub(super) fn mutable_availability(
     module: &TerminalModule,
     machine: &TerminalMachine,
 ) -> BTreeMap<BlockId, BTreeSet<PlaceId>> {
-    let mutable_view = |parameter: &StructuralParameterDeclaration| {
-        parameter.access == StructuralAccess::MutableBorrow
-            && module.structural_types.iter().any(|declaration| {
-                declaration.id == parameter.structural_type
-                    && matches!(
-                        declaration.shape,
-                        StructuralTypeShape::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-                        ) | StructuralTypeShape::ElementView { .. }
-                    )
-            })
+    let mutable_parameter = |parameter: &StructuralParameterDeclaration| {
+        mutable_records::parameter_type(module, parameter)
+            || (parameter.access == StructuralAccess::MutableBorrow
+                && module.structural_types.iter().any(|declaration| {
+                    declaration.id == parameter.structural_type
+                        && matches!(
+                            declaration.shape,
+                            StructuralTypeShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+                            ) | StructuralTypeShape::ElementView { .. }
+                        )
+                }))
     };
     let universe = machine
         .structural_parameters
@@ -395,7 +399,7 @@ pub(super) fn mutable_availability(
                 .iter()
                 .flat_map(|block| &block.structural_parameters),
         )
-        .filter(|parameter| mutable_view(parameter))
+        .filter(|parameter| mutable_parameter(parameter))
         .map(|parameter| parameter.place)
         .collect::<BTreeSet<_>>();
     if universe.is_empty() {

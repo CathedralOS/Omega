@@ -48,32 +48,58 @@ pub(in crate::lowering) fn lower_field_store(
     else {
         unreachable!("projected field-store lowering receives only field stores")
     };
-    if !function
-        .structural_parameters
-        .iter()
-        .any(|parameter| parameter == destination)
-        || !matches!(
-            destination.access,
-            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-        )
-        || !terminal_psi::is_structural_scalar_store_path(path)
+    if !matches!(
+        destination.access,
+        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+    ) || !terminal_psi::is_structural_scalar_store_path(path)
     {
         return Err(LoweringError::UnsupportedOperationInUnitFunction(
             function.machine,
         ));
     }
-    let target_parameter = parameters_by_place
-        .get(&destination.place)
-        .copied()
-        .filter(|parameter| {
-            parameter.structural_type == destination.structural_type
-                && parameter.multiplicity == destination.multiplicity
-                && parameter.access == destination.access
-                && parameter.projected_qualifications == destination.projected_qualifications
-        })
-        .ok_or(LoweringError::UnsupportedOperationInUnitFunction(
-            function.machine,
-        ))?;
+    // Entry loans arrive in an ABI placement; state loans arrive in their
+    // own pointer slot. Preserve that origin instead of inventing an entry
+    // parameter placement for a block-local reference.
+    let destination_storage = if function.structural_parameters.contains(destination) {
+        let parameter = parameters_by_place
+            .get(&destination.place)
+            .copied()
+            .filter(|parameter| {
+                parameter.structural_type == destination.structural_type
+                    && parameter.multiplicity == destination.multiplicity
+                    && parameter.access == destination.access
+                    && parameter.projected_qualifications == destination.projected_qualifications
+            })
+            .ok_or(LoweringError::UnsupportedOperationInUnitFunction(
+                function.machine,
+            ))?;
+        target_operations::TargetStructuralArgumentSource::Placement(parameter.placement.clone())
+    } else {
+        let block = function
+            .block_entries
+            .iter()
+            .find(|block| {
+                block.structural_parameters.contains(destination)
+                    && destination.access == StructuralAccess::MutableBorrow
+                    && abstract_operations::control_flow::address_joins::is_address_join(
+                        destination,
+                        |identity| structural_types.get(&identity).copied(),
+                    )
+            })
+            .ok_or(LoweringError::UnsupportedOperationInUnitFunction(
+                function.machine,
+            ))?;
+        target_operations::TargetStructuralArgumentSource::BlockParameter {
+            block: block.block,
+            place: destination.place,
+        }
+    };
+    let destination_shape = super::super::structural_layout::structural_shape(
+        destination.structural_type,
+        structural_types,
+        shape_cache,
+        active,
+    )?;
     // The retained destination and its exact parameter placement select the
     // write. Additional borrowed inputs do not change that storage authority.
     // A field consumes the same dominating scalar source as a call or edge:
@@ -149,7 +175,7 @@ pub(in crate::lowering) fn lower_field_store(
         .filter(|offset| {
             offset
                 .checked_add(u32::from(field_byte_size))
-                .is_some_and(|end| end <= u32::from(target_parameter.shape.byte_size))
+                .is_some_and(|end| end <= u32::from(destination_shape.byte_size))
         })
         .ok_or(LoweringError::StructuralTypeTooLarge(
             destination.structural_type,
@@ -159,7 +185,7 @@ pub(in crate::lowering) fn lower_field_store(
         destination: destination.clone(),
         path: path.clone(),
         field: *field,
-        destination_placement: target_parameter.placement.clone(),
+        destination_storage,
         field_byte_offset,
         source,
         indices,

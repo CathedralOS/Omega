@@ -165,7 +165,11 @@ pub(super) fn validate_borrowed_argument(
     // its block entry loaded; it is neither a home nor a descriptor view.
     let address_join = crate::selection::address_join_input::join(source, semantic.place);
     let shape = if let Some((_, joined)) = address_join {
-        if semantic.access != StructuralAccess::SharedBorrow
+        if !matches!(
+            semantic.access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        ) || semantic.access == StructuralAccess::MutableBorrow
+            && joined.access != StructuralAccess::MutableBorrow
             || !semantic.path.is_empty()
             || target.structural_type != joined.structural_type
             || target.root_structural_type != joined.structural_type

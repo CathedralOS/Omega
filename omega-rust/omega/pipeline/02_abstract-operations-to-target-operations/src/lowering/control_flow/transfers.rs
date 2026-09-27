@@ -85,14 +85,17 @@ fn address_join_argument(
     parameter: &terminal_psi::StructuralParameterDeclaration,
 ) -> bool {
     let argument = &binding.argument;
-    if argument.access != terminal_psi::StructuralAccess::SharedBorrow
+    if argument.access != parameter.access
+        || parameter.access == terminal_psi::StructuralAccess::MutableBorrow
+            && !argument.path.is_empty()
         || !abstract_operations::control_flow::address_joins::is_static_projection(&argument.path)
         || references::is_suspended_root(live, argument.place)
     {
         return false;
     }
     let root_type = if let Some(home) = live.structural_homes.get(&argument.place) {
-        (!home.has_claims()
+        (parameter.access == terminal_psi::StructuralAccess::SharedBorrow
+            && !home.has_claims()
             && home.multiplicity() != terminal_psi::StructuralMultiplicity::Linear
             && home.qualifications().is_empty()
             && home.projected_qualifications().is_empty())
@@ -103,7 +106,11 @@ fn address_join_argument(
         .find(|source| source.place == argument.place)
     {
         (!source.is_self
-            && source.access != terminal_psi::StructuralAccess::WriteOnlyBorrow
+            && (if parameter.access == terminal_psi::StructuralAccess::MutableBorrow {
+                source.access == terminal_psi::StructuralAccess::MutableBorrow
+            } else {
+                source.access != terminal_psi::StructuralAccess::WriteOnlyBorrow
+            })
             && source.multiplicity != terminal_psi::StructuralMultiplicity::Linear
             && source.qualifications.is_empty()
             && source.projected_qualifications.is_empty())
@@ -114,6 +121,10 @@ fn address_join_argument(
             .iter()
             .flat_map(|entry| &entry.structural_parameters)
             .find(|source| source.place == argument.place)
+            .filter(|source| {
+                parameter.access != terminal_psi::StructuralAccess::MutableBorrow
+                    || source.access == terminal_psi::StructuralAccess::MutableBorrow
+            })
             .map(|source| source.structural_type)
     } else {
         None

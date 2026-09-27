@@ -804,7 +804,12 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/representations/terminal-psi/verification/src/validation/block_views.rs",
-        sha256: Some("6a9830abaa92bd7218e04ae697f52a5bc4f58cfd04a01c6fb4a43204d734bcd1"),
+        sha256: Some("7d0ea6b096650578bd2f4908c23b69a5c6045a4dbe1803cd8d1fffdaee4cff40"),
+        inventory_machinery: false,
+    },
+    ImplementationSite {
+        path: "omega-rust/psi/representations/terminal-psi/verification/src/validation/block_views/mutable_records.rs",
+        sha256: Some("2415f9ae6bc22afa7882451521ea4b37a1b611c7fffccc1121b00354d4677ea1"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -874,12 +879,12 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/representations/terminal-psi/verification/src/validation/control_flow.rs",
-        sha256: Some("65a6a36014322820fc2f1a5df11ce12ad0848c4a5a093257dc7c6c12dbf977f3"),
+        sha256: Some("0c03a27ac81dadff8fd4716c3551a7160bd8b0d213e62d02b83b17876dd5731f"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/representations/terminal-psi/verification/src/validation/control_flow/block_checks.rs",
-        sha256: Some("d0face2262134cb032229c59d250828e1ae15a66860ccb32d4b0a2e0b713964b"),
+        sha256: Some("0fc1bdbf3dc7096fd0f74e33f1011995b085bd209fc35db357791d4ae5929aa9"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -894,7 +899,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/representations/terminal-psi/verification/src/validation/control_flow/unranked_cycles.rs",
-        sha256: Some("976bef87728de7953e0c064de3d2b17226a86909368418966f6c4aafadd96d71"),
+        sha256: Some("bb87f7feb34e923f28bd62a6e0896839e07930a816efdd9901103039ab7b632e"),
         inventory_machinery: false,
     },
     ImplementationSite {

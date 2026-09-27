@@ -1,17 +1,14 @@
-//! Shared-borrow joins whose runtime carrier is the referent's address.
+//! Borrowed joins whose runtime carrier is the referent's address.
 //!
-//! A `SharedBorrow` block parameter over a primitive scalar or a plain record
-//! is a thin reference: each incoming edge lends the address of one readable
-//! root, or of a static field/index projection beneath it, and the joined
-//! place owns no storage, copies no payload and moves no custody. Byte and
-//! element views keep their `{base, extent}` descriptor carriers instead.
+//! Shared joins admit primitive scalars and plain records through static
+//! projections. Mutable joins admit whole plain records while transferring the
+//! exact incoming mutable permission. Neither carrier copies the referent.
+//! Byte and element views keep their `{base, extent}` descriptor carriers.
 //!
-//! This predicate is the shared type rule every Omega stage applies to the
-//! declaration it is handed; it is not producer evidence. Each stage still
-//! replays the edge sources, exact referent types, access and origin custody
-//! against its own representation. Exclusive joins and referents that carry
-//! loans or descriptors stay closed: their edge custody needs more than an
-//! address.
+//! This is a type rule, not producer evidence. Each stage independently replays
+//! the sources, type, access and origin custody. Exclusive name availability
+//! and shared-loan origin pinning remain separate receiving checks. Write-only
+//! joins and referents containing loans or descriptors remain unsupported.
 
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
@@ -25,7 +22,11 @@ pub fn is_address_join<'a>(
     parameter: &StructuralParameterDeclaration,
     lookup: impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration> + Copy,
 ) -> bool {
-    parameter.access == StructuralAccess::SharedBorrow
+    (parameter.access == StructuralAccess::SharedBorrow
+        || parameter.access == StructuralAccess::MutableBorrow
+            && lookup(parameter.structural_type).is_some_and(|declaration| {
+                matches!(declaration.shape, StructuralTypeShape::Record { .. })
+            }))
         && parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && !parameter.is_self
         && parameter.qualifications.is_empty()

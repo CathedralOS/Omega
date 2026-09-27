@@ -70,10 +70,16 @@ pub(super) fn emit(
     };
     let signature = source.structural.as_ref().ok_or_else(|| invalid())?;
     if row.result.is_some()
-        || !signature
+        || !(signature
             .parameters
             .iter()
             .any(|parameter| parameter.semantic == *destination)
+            || matches!(
+                row.kind,
+                LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. }
+            ) && destination.access == StructuralAccess::MutableBorrow
+                && crate::selection::address_join_input::join(source, destination.place)
+                    .is_some_and(|(_, parameter)| parameter == destination))
         || !matches!(
             destination.access,
             StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow

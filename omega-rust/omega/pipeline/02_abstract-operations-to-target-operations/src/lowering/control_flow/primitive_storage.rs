@@ -280,6 +280,13 @@ pub(super) fn lower(
                 let source = function
                     .structural_parameters
                     .iter()
+                    .chain(
+                        function
+                            .block_entries
+                            .iter()
+                            .flat_map(|entry| &entry.structural_parameters)
+                            .filter(|parameter| live.address_joins.contains(&parameter.place)),
+                    )
                     .find(|parameter| parameter.place == place)
                     .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
                 if !matches!(

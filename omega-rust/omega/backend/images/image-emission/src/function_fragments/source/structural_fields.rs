@@ -690,8 +690,15 @@ fn read_access(
             .iter()
             .filter(|parameter| parameter.place == place)
         {
+            // A block loan observes the original pointer retained by its
+            // exact graph declaration, just as an owned arrival observes its
+            // own home. Source/selection replay checks that pointer transport.
             if observes_byte_length
-                || parameter.access != StructuralAccess::Owned
+                || !(parameter.access == StructuralAccess::Owned
+                    || abstract_operations::control_flow::address_joins::is_address_join_in(
+                        parameter,
+                        &target.graph.structural_types,
+                    ))
                 || parameter.multiplicity == StructuralMultiplicity::Linear
                 || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
