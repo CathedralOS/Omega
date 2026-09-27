@@ -1,0 +1,49 @@
+// A record literal written DIRECTLY as a call argument has no route. Binding
+// the identical record to a local first and passing that checks. Reduced from
+// `samples/cli/systems/note_vault`.
+//
+//   _ = self.take(Handle { fd: self.fd });          OMITTED (this fixture)
+//   _ = self.take(Handle { fd: 3 });                OMITTED
+//   let h: Handle = Handle { fd: self.fd };
+//   _ = self.take(h);                               checks
+//
+// So it is the literal being in ARGUMENT position, not the record, not the
+// field's value, and not the callee -- the same callee plans and is called
+// successfully in the control.
+//
+// The two call kinds decline at different places, which is worth knowing
+// before repairing either:
+//
+//   ordinary machine call  -> "omitted at an unavailable scalar target
+//                             (`Main::take`)" -- the CALLEE is reported
+//                             unavailable, so the argument shape propagates
+//                             into callee availability rather than being
+//                             refused at the call
+//   boundary call          -> `call operation: structural arguments: source
+//                             symbol`, which is `note_vault`'s own spelling,
+//                             `self.fs.write(File { fd: self.file_fd }, ...)`
+//
+// This fixture pins the ordinary-call half; `note_vault` itself is the
+// boundary half.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Handle [copy] {
+    fd: i32;
+}
+
+data Main {
+    console: Binding<Console>;
+    fd: i32;
+}
+
+machine Main::take(&self, handle: Handle) -> i32 {
+    transition { _ -> ret() }
+    state ret() -> i32 { 0 }
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.fd = 3;
+    _ = self.take(Handle { fd: self.fd });
+    self.console.exit_process(0);
+}

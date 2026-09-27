@@ -50,8 +50,26 @@
 //   let binding, uncast                             OMITTED (initializer phase)
 //   arithmetic, uncast (`16 - self.message.len`)    OMITTED
 //   host-call argument, even CAST                   OMITTED (boundary claim
-//                                                   transfers -- a different
-//                                                   gap, not this one)
+//                                                   transfers -- a DIFFERENT
+//                                                   gap, measured separately
+//                                                   below)
+//
+// The host-call row really is a different gap, and its discriminator is not
+// this one's. There, a length off a PLAIN `[u8; 32]` passes fine and only a
+// SHELLED carrier omits -- the reverse of this store, where plain and shelled
+// omit alike. Casting through a `u64` local turns it into an ordinary
+// `Exact integer cast from u64 to i32` diagnostic, and casting to
+// `i32 in Saturating` into an ordinary implicit-conversion diagnostic, so only
+// the direct shelled read lacks a route:
+//
+//   exit_process(self.plain.len as i32)              checks
+//   exit_process(self.message.len as i32)            OMITTED
+//   exit_process(self.message.len)                   OMITTED
+//   exit_process(<other shell>.len as i32)           OMITTED
+//   let n: u64 = self.message.len;
+//   exit_process(n as i32)                           DIAGNOSTIC (cast)
+//   exit_process(self.message.len as i32 in Saturating)
+//                                                    DIAGNOSTIC (conversion)
 //
 // Casting at the read (`self.message.len as i32 in Saturating`) or binding it
 // to a `u64` local first both check, which is `text_padding`'s own repair.

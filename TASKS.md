@@ -85,6 +85,61 @@ deletes the side doors it replaces. Validate with `tools/corpus_gate.py
 --filter` over the affected groups plus `--native --filter` for anything
 backend-visible; full corpus runs only at the end of an item.
 
+- **MEMBER-POLICY-REMOVES-COMPOSITE-ROWS.** (new-scope) A non-Exact arithmetic
+  policy on a composite's MEMBER removes a Terminal row that the same policy on
+  the COMPOSITE does not. Two samples, one shape, measured separately and
+  pinned separately before the family was visible:
+  `samples/cli/simulation/grid_walk` -- a policy on a record's FIELD removes the
+  field-read row for a LOCAL of that record, for every field including plain
+  siblings (`tests/omega/pending/structs/policy_field_record_local_read`);
+  `samples/cli/collections/matrix_multiply` -- a policy on an array's ELEMENT
+  removes the whole-array store row
+  (`tests/omega/pending/collections/element_policy_array_literal_store`).
+  The controls that make it one shape: `[i32; 3] in Wrapping` takes a whole
+  literal but `[i32 in Wrapping; 3]` does not, and a self-held record with a
+  policy field reads fine while a local of it does not. Nesting, `[copy]`,
+  which policy, which member is touched, and the destination's own policy are
+  all ruled out on both sides. Storing ONE element or reading a self-held field
+  checks, so it is whole-composite and local-carrier rows that are missing, not
+  member access as such. Acceptance: both pending fixtures check, and both
+  samples leave the omission cluster. Expect one Terminal answer to serve both;
+  a repair that fixes only one has probably found the wrong layer.
+
+- **RECORD-LITERAL-ARRAY-FIELD.** (new-scope) Constructing a record literal
+  that supplies a value for an ARRAY-typed field has no route.
+  `samples/cli/systems/wire_protocol` spells it
+  `FixedVec { items: [150, 0 - 2, 0, 0], length: 2 }` inside a nested literal,
+  and the nesting is a red herring: a flat record omits, and a record literal
+  whose one field is a nested RECORD checks. Pinned at
+  `tests/omega/pending/structs/record_literal_array_field`. Filling the array
+  field from a VARIABLE omits too, and a bare array literal bound to an array
+  local checks, so it is the record literal having to supply an array-typed
+  field rather than the array literal expression. Ruled out with paired
+  controls: `FixedVec`/generics/const generics, nesting, the `0 - n` negative
+  spelling, array length and element type, passing the local by reference and
+  using it after, and merely HAVING an array field (one never
+  literal-constructed checks, as does one written by element assignment). The
+  label follows the construction site rather than the cause -- a `let` local
+  says `statement sequence: local data: structural call binding`, the same
+  literal stored into a self field says `structural field store: record literal
+  source` -- so pin no repair on either string. Acceptance: the pending fixture
+  checks and `wire_protocol` leaves the omission cluster.
+
+- **RECORD-LITERAL-CALL-ARGUMENT.** (new-scope) A record literal written
+  directly as a call argument has no route; binding it to a local first and
+  passing that checks, with the same callee.
+  `samples/cli/systems/note_vault` spells it
+  `self.fs.write(File { fd: self.file_fd }, "vault v1\n")`. Pinned for the
+  ordinary-call half at `tests/omega/pending/calls/record_literal_call_argument`.
+  The two call kinds decline in different places and a repair should confirm
+  both: an ordinary machine call reports the CALLEE unavailable ("omitted at an
+  unavailable scalar target"), so the argument shape propagates into callee
+  availability rather than being refused at the call, while a boundary call
+  declines at `call operation: structural arguments: source symbol`, one line
+  after the trace mark, where the argument's place has no `PlaceRoot::Symbol`
+  because it is a literal. Acceptance: the pending fixture checks and
+  `note_vault` leaves the omission cluster.
+
 - **CARRIER-LENGTH-STORE-CARRIER.** (new-scope) A carrier `.len` reaches the
   arithmetic walk with no carrier of its own, so a store into anything but
   `u64` escapes the store-conversion check and surfaces as a unit-plan
@@ -747,6 +802,9 @@ the complete product bar; focused successes below do not establish that baseline
       carries the whole matrix in its header.
     - 3 `statement sequence: local data: structural call binding` --
       `cli/{algorithms/dutch_flag, systems/{descriptor_walk,wire_protocol}}`,
+      of which `wire_protocol` is now pinned as RECORD-LITERAL-ARRAY-FIELD
+      below -- and it is a THIRD label for a cause the label does not name,
+      after `dutch_flag`'s,
       and this is the phase label to DISTRUST. `dutch_flag` carries no
       `let` at all: its statement is
       `transition self.items[self.w] { Color::Red -> ... }`, a case

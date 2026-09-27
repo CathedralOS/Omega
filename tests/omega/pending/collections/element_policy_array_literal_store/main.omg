@@ -1,0 +1,44 @@
+// An arithmetic policy on an array's ELEMENT type removes the whole-array
+// store row. The same policy on the ARRAY does not. Reduced from
+// `samples/cli/collections/matrix_multiply`.
+//
+//   [i32; 3]               <- [1, 2, 3]   checks
+//   [u8; 3]                <- [1, 2, 3]   checks
+//   [i32; 3] in Wrapping   <- [1, 2, 3]   checks    <- policy on the ARRAY
+//   [i32 in Wrapping; 3]   <- [1, 2, 3]   OMITTED   <- policy on the ELEMENT
+//   [i32 in Saturating; 3] <- [1, 2, 3]   OMITTED
+//
+// Nesting is NOT what carries it, which is the reading the sample's shape
+// invites: `matrix_multiply` stores `[[1,2,3],[4,5,6],[7,8,9]]` into a
+// `[[i32 in Wrapping; 3]; 3]`, but a FLAT `[i32 in Wrapping; 3]` omits just the
+// same, and a nested `[[i32; 3]; 3]` takes the identical nested literal. Only
+// the element policy moves the outcome.
+//
+// Storing ONE element (`self.grid[0][0] = 1`) checks. Storing one ROW
+// (`self.grid[0] = [1, 2, 3]`) omits at a neighbouring phase,
+// `structural field store: scalar field type: indexed element destination`,
+// so the gap is whole-composite stores rather than element stores.
+//
+// The phase names a scalar field, and the field is an array. The trace mark is
+// set on entry to the structural field store and the route then leaves through
+// a later `?` without re-marking, so the label reports where it ENTERED, not
+// what declined -- read it as "the structural field store declined", nothing
+// finer.
+//
+// SAME FAMILY as `tests/omega/pending/structs/policy_field_record_local_read`:
+// there, an arithmetic policy on a record's FIELD removes the field-read row
+// for a local of that record; here, a policy on an array's ELEMENT removes the
+// whole-array store row. In both, the policy on the COMPOSITE is fine and the
+// policy on the MEMBER is not. Worth one Terminal answer rather than two.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    row: [i32 in Wrapping; 3];
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.row = [1, 2, 3];
+    self.console.exit_process(0);
+}
