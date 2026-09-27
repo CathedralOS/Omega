@@ -10,7 +10,6 @@
     "OWNED-SELF-RECEIVER-AFFINE-DISCARD",
     "CANARY-CORPUS",
     "SAMPLE-CORPUS",
-    "NOMINAL-FIELD-FLOW",
     "CANONICALIZE-SCALAR-RANGE-CONTRACTS",
     "C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT",
     "ALPHA-WINDOWS-DIV-TRAP"
@@ -66,6 +65,177 @@
         "wiki/drafts/measurements"
       ],
       "suggested_first_slice": "run the recorder procedure in tools/release/README.md on this host and capture where the matrix first diverges",
+      "host_gates": ["which mbx || which cargo"],
+      "probe_only": false
+    },
+    {
+      "name": "wrapper-aarch64",
+      "board": "TASKS.md",
+      "item": "NATIVE-WRAPPER-ENCODING-AARCH64",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/omega/backend/plans/program-entry-plan",
+        "omega-rust/omega/backend/runtime/executable-installation"
+      ],
+      "suggested_first_slice": "verify the shipped Linux and macOS AArch64 profiles through their hosted bridges; pin recipe/plan rejection only if no authored profile needs a separate wrapper",
+      "host_gates": ["which mbx || which cargo"],
+      "probe_only": false
+    },
+    {
+      "name": "nominal-field-flow",
+      "board": "TASKS.md",
+      "item": "NOMINAL-FIELD-FLOW",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/semantic",
+        "omega-rust/psi/checking/src/proof_contracts/default_domains",
+        "omega-rust/psi/checking/src/value_custody",
+        "tests/omega/fail/domains"
+      ],
+      "suggested_first_slice": "remove the receiver-specific default-domain exception so &mut self is an ordinary &mut T argument; the item's own text says this is implementation cleanup",
+      "host_gates": ["which mbx || which cargo"],
+      "probe_only": false
+    },
+    {
+      "name": "translation-validation",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "TRANSLATION-VALIDATION",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/07_lowered-psi-to-terminal-psi",
+        "omega-rust/omega/backend/artifacts/native-artifact/src/physical"
+      ],
+      "suggested_first_slice": "extend derive_operator_physical_span past its Ok(None) arm for the intrinsic families that can actually be produced from source; the linw4 leg parked probes on swarm/linw4-translation-validation",
+      "host_gates": ["which mbx || which cargo"],
+      "probe_only": false
+    },
+    {
+      "name": "custody-mutation",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "CUSTODY-MUTATION-COVERAGE",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/psi/foundation/mutation-matrix",
+        "omega-rust/omega/backend/artifacts/component-description",
+        "omega-rust/omega/compiler/build-output"
+      ],
+      "suggested_first_slice": "migrate one remaining hand-written one-field-substitution family onto custody_field_inventory! and run_one_field_substitution_matrix; image-emission and native-artifact/physical are claimed by other lanes this wave",
+      "host_gates": ["which mbx || which cargo"],
+      "probe_only": false
+    },
+    {
+      "name": "per-rule-coverage",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "PER-RULE-COVERAGE",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations",
+        "omega-rust/omega/foundation/optimization-core"
+      ],
+      "suggested_first_slice": "close exact-selection and disabled/empty-identity coverage for rules already wired to the public stage entrance",
+      "host_gates": ["which mbx || which cargo"],
+      "probe_only": false
+    },
+    {
+      "name": "typed-indexes",
+      "board": "TASKS.md",
+      "item": "TYPED-TREES-OWNED-INDEXES",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/lookup",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/facts",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/flow",
+        "omega-rust/psi/pipeline/03_symbol-resolved-trees-to-typed-trees",
+        "omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees",
+        "omega-rust/psi/representations/typed-trees",
+        "omega-rust/psi/checking/src/machine_calls",
+        "omega-rust/psi/checking/src/effect_inference"
+      ],
+      "suggested_first_slice": "make TypedTrees own the symbol-to-declaration index its mutating methods invalidate; seven caches already key on TypedTrees::identity — delete the remaining address-keyed ones",
+      "host_gates": ["which mbx || which cargo"],
+      "probe_only": false
+    },
+    {
+      "name": "codec-verify",
+      "board": "TASKS.md",
+      "item": "GENERATED-CODEC-INDEPENDENT-VERIFICATION",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/psi/interpreter/checked-interpreter/src/interpreter/evaluator",
+        "omega-rust/omega/compiler/build-evaluation/src/admission"
+      ],
+      "suggested_first_slice": "correct the probe-only gap classifications from Derived to honest compiler-admitted trust in wire_protocol.rs; finite probes cannot license Derived",
+      "host_gates": ["which mbx || which cargo"],
+      "probe_only": false
+    },
+    {
+      "name": "repo-closure",
+      "board": "TASKS.md",
+      "item": "RC-REPOSITORY-CLOSURE",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/psi/representations/terminal-psi/verification",
+        "tools/fmt.py"
+      ],
+      "suggested_first_slice": "the macOS matrix measured fmt drift on 48 sites/31 files, 2 terminal-verifier clippy lints, and a trusted-surface digest miss (zeroed_structural.rs unregistered) — repair what claims cleanly, claim files ad hoc, skip claimed paths with a note",
+      "host_gates": ["which mbx || which cargo"],
+      "probe_only": false
+    },
+    {
+      "name": "pcc-replay",
+      "board": "TASKS.md",
+      "item": "RC-PCC-REPLAY",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/psi/representations/terminal-psi/codec/src",
+        "omega-rust/psi/interpreter/terminal-interpreter/src",
+        "omega-rust/omega/package-manager/src"
+      ],
+      "suggested_first_slice": "attribute the measured block's remaining reds (the killed proof-search case belongs to the C2L lane — skip it); repair attributed failures in verification/interpreter/package-manager paths",
+      "host_gates": ["which mbx || which cargo"],
+      "probe_only": false
+    },
+    {
+      "name": "build-packages",
+      "board": "TASKS.md",
+      "item": "RC-BUILD-AND-PACKAGES",
+      "host": "local",
+      "layer": 1,
+      "owning_paths": [
+        "omega-rust/omega/compiler/build-evaluation",
+        "omega-rust/omega/package-manager/src",
+        "omega-rust/omega/package-manager/resolver-execution",
+        "omega-rust/omega/package-manager/tests"
+      ],
+      "suggested_first_slice": "reproduce a named remaining package-evidence failure on the selected base before repairing — 18 review-projection fails measured on this host; review-evidence/tests is claimed by another lane",
+      "host_gates": ["which mbx || which cargo"],
+      "probe_only": false
+    },
+    {
+      "name": "callback-private",
+      "board": "TASKS.md",
+      "item": "CALLBACK-PRIVATE-MATERIALIZATION",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/omega/compiler/src/terminal/native_proposal",
+        "omega-rust/omega/compiler/src/terminal/terminal_artifact"
+      ],
+      "suggested_first_slice": "reproduce `direct_callback_relocation_resolves_to_its_private_function`'s `fragment import lacks selected call custody` failure; native_realization and image crates are claimed by other lanes — repair the proposal-side custody first",
+      "host_gates": ["which mbx || which cargo"],
+      "probe_only": false
+    },
+    {
+      "name": "psi-target-families",
+      "board": "TASKS.md",
+      "item": "PSI-TARGET-FAMILIES",
+      "host": "local",
+      "layer": 1,
+      "owning_paths": [
+        "omega-rust/psi/pipeline/03_symbol-resolved-trees-to-typed-trees",
+        "omega-rust/psi/representations/typed-trees",
+        "omega-rust/psi/terminal-production"
+      ],
+      "suggested_first_slice": "the item's remaining work is the family record (one path, bodies keyed by target) carried through lowering and Terminal Psi — land it with the selection move; terminal-production may be claimed by another lane",
       "host_gates": ["which mbx || which cargo"],
       "probe_only": false
     }

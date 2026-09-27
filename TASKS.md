@@ -2151,51 +2151,6 @@ accepted contracts, not claims of implementation. Existing
 extend that route, not a second build language or plugin executor. Any semantic
 or trust amendment found here or later goes through [owner questions](OWNER_QUESTIONS.md).
 
-- **TYPED-TREES-OWNED-INDEXES.** (new-scope) The checked stage and
-  validation look declarations up by symbol through thread-local caches keyed
-  by a `TypedTrees` address. Each guesses freshness from arena lengths and a
-  few sampled handles or name pointers, and keeps one program per thread:
-  `values/scalar/structural_fields.rs` (`STRUCTURAL_ROSTERS`),
-  `lookup/symbols.rs` (`MACHINE_INDEX`), and the caches in
-  `facts/field_domain.rs`, `flow/transfers/scalar_values/calls.rs`,
-  `authored_selections/contexts.rs`, stage 03's `domain_constraints.rs` and
-  `generic_origins.rs`, typed-trees' `declarations/domain.rs`, stage 02's
-  `projected_receivers.rs`, and validation's `service_reach.rs` and
-  `write_frames/isolation.rs`. They exist because `TypedTrees` publishes its
-  declaration arenas as `pub` fields and owns no symbol index, so no mutation
-  point can invalidate one. `SymbolTable` (`root_names`) and
-  `ImmutableBoundLookup` now own theirs. Acceptance: `TypedTrees` mutates
-  declarations only through methods, owns the symbol-to-declaration indexes
-  those methods invalidate, and the address-keyed caches are deleted with no
-  loss on the CHECK-CLOSURE-ONCE timings.
-
-  Seven of those caches now key on `TypedTrees::identity` instead of the
-  program's address: `write_frames/isolation.rs`, the four in
-  `lookup/symbols.rs`, `values/scalar/structural_fields.rs`, validation's
-  `service_reach.rs` and `facts/field_domain.rs`'s `DOMAIN_SYMBOL_INDEX`. The
-  address was never an identity -- it is reused as soon as a program is
-  dropped -- and a cached MISS is returned without the validation a cached hit
-  gets, so a replacement program was told a machine or a definition it owns is
-  absent. `OWNED_FIELD_DOMAIN_SLOT` in that same file needs nothing: its outer
-  `None` means no checked build is open and the program is borrowed for the
-  whole scope, so its address cannot be recycled under it. The remaining
-  thread-local caches key on other programs, not on `TypedTrees`.
-
-  `-p typed-trees-to-checked-trees --lib` failed intermittently under nextest's
-  default threading and never single-threaded: 2 of 4 runs at base f5561114db
-  with 2 failures each, 1 of 6 after the first six caches, and 10 of 10 clean
-  once the domain index followed. The failures moved between
-  `tests::contracts::assigned_values`,
-  `tests::contracts::scalar_storage_results` and `range_*` run to run, which is
-  what a cache serving another program's verdict looks like.
-
-  Keep the discriminating samples when re-keying one of these. Trimming
-  `DOMAIN_SYMBOL_INDEX`'s slice and name-text terms to lengths while adding the
-  identity took the crate from 1 of 6 runs failing to 10 of 10, because a clone
-  shares its source's tag and only the fingerprint separates two states of it.
-  With the owner an identity those terms can no longer produce a false hit, so
-  there is no reason to drop them.
-
 - **BUILD-PRODUCT-REFERENCES.** Finish executable follow-through for
   [non-executing product selection](wiki/spec/build/scoped_execution.md#selecting-product-declarations-without-executing-them).
   Product descriptions, visibility checks, and exact-symbol admission exist.
@@ -2903,36 +2858,6 @@ syntax and other terminal services are not prerequisites.
   rejection and shared/disjoint admission. Run matching supported hosts or
   explicitly retain unavailable runtime legs.
 
-- **POST-HANDOFF-WRITER-OWNERSHIP.** (new-scope) Separate portable materialization
-  description from consumer implementation under the
-  [existing ownership rule](omega-rust/pipeline.md#portable-materialization-and-consumer-ownership).
-  `psi/foundation/layout-plans/src/materialization/mod.rs::derive_post_handoff_writer`
-  and `src/post_handoff_writer/` currently mix portable input with generated
-  writer plans, private context ABI, fragment lowering, and execution. This is
-  implementation cleanup, not an owner question or a reason to weaken the firewall.
-
-  Move native writer derivation, plan/invocation carriers, `lower_reusable_fragment`,
-  `execute`, and `apply_post_handoff_writes_atomically` to cohesive Omega owners.
-  Update `program-entry-plan`, `isa-x86_64`, `isa-aarch64`,
-  `executable-installation`, `external-roots`, and `provider-planning` consumers.
-  Keep only genuine portable description and semantic validity in Psi; the
-  interpreter consumes portable operations through its own execution path, not
-  through native fragment lowering. Classify stored-integer write/fit helpers by
-  responsibility and share small semantic predicates without sharing the producer
-  derivation with its independent checker. Remove obsolete Psi exports, forwarding
-  wrappers, and duplicate orchestration; renaming directories alone is not closure.
-
-  Acceptance: a reader can follow portable input to the separate consumer
-  derivation, validation, and execution owners, with no Psi-to-Omega dependency.
-  Preserve nested field/index writes, exact source/placement/fit custody,
-  reusable-fragment identity, guard bytes, and atomic rejection before writes.
-  Move and run the relevant `layout-plans` writer/fragment controls with their
-  owners, `compiler --test layout_plans`'s `writer_lowering` cases, affected-crate
-  checks/Clippy. Verify bytes and execution on available
-  matching hosts; keep **SYMBOLIC-MATERIALIZATION**'s missing Linux AArch64 runtime
-  evidence open until that host runs. Do not add a new IR or interpreter subsystem
-  merely to relocate the existing machinery.
-
 - **SYMBOLIC-MATERIALIZATION.** Obtain the missing matching-host Linux AArch64
   execution evidence for the existing recursive
   [derived consumer](wiki/spec/layouts/plans.md#derived-consumers).
@@ -3187,31 +3112,6 @@ syntax and other terminal services are not prerequisites.
   and codec-substitution, invalid-input and loan-conflict controls reject.
   Preserve unique historical-migration selection; generated-codec verification
   and trust remain with their existing owner.
-
-- **GENERATED-CODEC-INDEPENDENT-VERIFICATION.** Establish sufficient
-  independently checked evidence for generated codecs' `Derived` trust under
-  [public codec agreement](wiki/spec/layouts/codecs.md#agreement-and-trust).
-  The no-authored-policy route now exists, but
-  `omega-rust/psi/interpreter/checked-interpreter/src/interpreter/evaluator/execution/wire_verification.rs`
-  compares Floor/Ceiling members and malformed-input probes.
-  `omega-rust/omega/compiler/build-evaluation/src/admission/wire_protocol.rs` reports `Derived` when
-  that probe's gaps are empty. Finite examples do not establish the general
-  agreement law; comparing placements or a shared field classifier is not
-  independent checking of the codec body. Correct probe-only classifications
-  to `Admitted`, naming compiler trust, without waiting for the general proof
-  machinery. Exercise artifact reports and consumer rejection of refused
-  compiler trust; a finite-scope disclaimer cannot license `Derived`.
-
-  Connect general agreement evidence to the exact realization and public
-  schema, or retain explicit compiler-admitted trust where it is unavailable.
-  Check the authored-policy fallback against the same obligation rather than
-  treating policy agreement as proof of every codec behavior.
-  Acceptance: a no-policy generated realization earns `Derived` only from
-  independently established requirements; witnessed divergences reject and
-  unsupported obligations remain honestly admitted. Preserve the useful probe
-  controls without presenting more probes as the missing proof. This is an
-  evidence-adequacy gap, not an observed incorrect encoding; preserving codecs
-  remain with their separate owner.
 
 ## P3 - Terminal Psi, PCC, and observation
 

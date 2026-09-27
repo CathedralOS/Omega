@@ -139,9 +139,9 @@ prerequisite to every lower-rung milestone.
 
   More native backing, not a new composition rule, is the selected admission
   route. The [encoder candidate continuation condition](bootstrap/proofs/beta_encoding/ENCODER_CANDIDATE.md#continuation-condition)
-  still governs that separate experiment. The macOS seed repair is owned by
-  ALPHA-SEED-MEMSIZE-NATIVE-VALIDATION; it does not prevent work on another
-  supported seed.
+  still governs that separate experiment. The corrected macOS arm64 seed is
+  landed (`1a70b42afe`, 128 GiB extent, 34/34 conformance + 78/78 bounds
+  native); work on another supported seed is unaffected.
 
   Acceptance: full evidence checks under the exact
   [result/resource profile](bootstrap/proofs/checker/FORMAT.md), with measured
@@ -225,8 +225,7 @@ prerequisite to every lower-rung milestone.
   - Complete the chain beyond interpreted D once OMEGA-D, OMEGA-C and their
     required proof edges close, then reconstruct/check it on a blank supported
     host without unavailable-host success or an undisclosed authority substitute.
-    Apply ALPHA-SEED-MEMSIZE-NATIVE-VALIDATION before claiming the corrected
-    macOS extent.
+    The corrected macOS extent is already applied (`1a70b42afe`).
   - Complete [Delta's cumulative pair containment](bootstrap/3_delta/implementation/boundary/execution_storage.md#remaining-obligation)
     for the selected Gamma profile. Scaled allocation projections and individual
     full-extent runs do not cover every admitted composition. Derive the complete
