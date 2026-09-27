@@ -35,49 +35,42 @@ rewrites and promotion are not prerequisites for the first useful compiler.
 ## Validation, translation, and publication
 
 - **TRANSLATION-VALIDATION.** Complete source-to-physical occurrence coverage
-  for admitted operations/transfers on the common graph under
+  on the common native route under
   [closed application and physical occurrence](wiki/spec/terminal-psi/boundary_calls.md#closed-application-and-physical-occurrence).
-  Owners: `07_lowered-psi-to-terminal-psi/src/boundary_operator_custody.rs`
-  and `native-artifact/src/physical/{operator_applications.rs,derivation/}`.
+  Owners: stage 07's `boundary_operator_custody/` for checked-to-Terminal
+  occurrence replay, and `native-artifact/src/physical/` for emitted spans.
 
-  For remaining intrinsic families, retain checked demand and exact Terminal
-  occurrences before adding physical span arms. Current operator replay covers
-  local initializers/FMA, structural returns and float/integer comparisons.
-  Rebound scalar/unit calls now replay into `CheckedDynamicCallOccurrence`
-  rows beside the D29 roster (descriptor-table lane); register-indirect forms
-  remain. `derive_operator_physical_span` still returns `Ok(None)` — and the
-  occurrence names `UnsupportedOperatorSpan` — for non-FMA/non-comparison
-  `ExactCompilerIntrinsic` realizations and non-static-callee operations under
-  checked-body realizations. The linw4 leg enumerated the fall-through and
-  attributed every remaining family to an upstream wall rather than a
-  witnessed physical-evidence gap: an installed-provider `BoundaryCall`
-  reached native realization with `physical_evidence_gap() == None` and one
-  evidence child, while float intrinsic families
-  (`PrimitiveFloatBinary`, `NamedFloatNegation`, `NamedFloatConversion`,
-  `BuiltinFunction`) cannot be produced from source — f64 literals/fields
-  fail record-literal and pure-initializer admission, f64 operators record
-  computation roots with no checked scalar expression, `Float::add` value
-  calls do not resolve, and `sqrt()` hits a flow-call unit-plan omission —
-  and register-indirect `CallDynamicParameter*` needs `&dyn` locals or
-  arguments, both rejected in entry closures (`unsupported statement kind`,
-  `call: call operation`). Parked probe: branch
-  `swarm/linw4-translation-validation` commit `b9566d3148`
-  (`tests/linw4_translation_probe.rs` compiles a self-authored boundary
-  trait/provider through package-input helpers and inspects
-  `physical_evidence_gap()`; branch `swarm/linw3-translation-validation`
-  retains the earlier directed-float probe). Dynamic occurrence families and
-  multi-window relocation custody already exist; use their current tests and
-  `physical_child_replay`, not the retired single-window model. Reproduce
-  source customers and attribute any earlier refusal to its actual stage.
+  Follow the missing producer/consumer join, not the physical match table
+  alone. `checked_boundary_operator_occurrences` currently reconstructs float
+  and integer comparisons. Stage 05's maintained
+  `tests/boundary_operator_frontier.rs` pins named operator initializers at
+  flow-call planning and spelled operator initializers at pure-initializer
+  admission. Reproduce each source customer at current main; repair earlier
+  admission with its source owner, retain exact checked demand and Terminal
+  occurrences, then extend physical replay. A `BoundaryCall` belongs to the
+  boundary-settlement lane, not the operator-call lane.
 
-  Acceptance: each surviving occurrence binds exactly one physical child with
-  nonempty machine/object/final-image spans. Missing, duplicate, stale,
-  substituted, padded and role-swapped children reject; unsupported coverage
-  names the exact occurrence rather than erasing all evidence. Preserve
-  verified-elimination exemptions and exact port-effect settlement ownership.
-  General calls do not depend on runtime-sized activation claims under
-  FRAME-LAYOUT. Do not restore retired scalar/Unit/structural whole-function
-  planners to recover coverage; extend ordinary operations and receiving checks.
+  `derive_operator_physical_span` handles checked static calls, comparison
+  spans and FMA; other intrinsic families still fall through to a named
+  `UnsupportedOperatorSpan`. Preserve their full scope, including float
+  arithmetic, negation, conversion and builtins, without claiming their old
+  source refusals are current evidence. Dynamic coverage has a different join:
+  stage 07 reconstructs local rebound scalar/unit descriptor-table calls,
+  while forwarded/register-indirect occurrence production remains open.
+  `derive_dynamic_call_span` already consumes rebound, stored, parameter and
+  forwarded emission records with multiple relocation windows; do not rebuild
+  those mechanisms as the missing upstream occurrence route.
+
+  Acceptance: source-produced surviving occurrences each bind exactly one
+  physical child with nonempty machine/object/final-image spans, independently
+  replayed through publication. Preserve verified-elimination exemptions and
+  port-effect settlement ownership. Missing, duplicate, stale, substituted,
+  padded and role-swapped children reject; unsupported coverage identifies its
+  exact occurrence. `physical/derivation/tests.rs` covers coordinate bijection,
+  dispatch roles and gap identities with constructed fixtures; it does not
+  replace compiler-produced publication evidence. General calls do not wait
+  for FRAME-LAYOUT claims. Extend ordinary operations and receiving checks,
+  without restoring retired whole-function planners.
 
 - **CUSTODY-MUTATION-COVERAGE.** Migrate the remaining hand-written custody
   substitution matrices to `psi/foundation/mutation-matrix`, preserving each
@@ -472,54 +465,57 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   Producer admission and independent replay must each establish aliasing,
   byte extents, register transport and write multiplicity on the admitted path.
 
-- **REPRESENTATION-SPECIALIZATION.** Extend field/variant relevance beyond
-  existing proven membership and scalar-constant observation folds in
-  `01_abstract-operations-to-abstract-operations/src/{representation_specialization,field_value_specialization}/`.
-  `92856482da` (macw8b) descended field-value proofs through stored-whole
-  structural children (`Field` path segments, child carrier/type equality,
-  owned empty-path access), and `ca85e84578` (macw8b) reseats producer-less
-  places through uniform `bound_place` block-parameter bindings (all incoming
-  edges binding the same whole empty-path argument, transitive with cycle
-  guards, mirrored replay in `candidates/structural_bindings.rs`). A real
-  completeness gap was also closed: `CallDynamicScalar`/`CallDynamicUnit`/
-  `CallStoredDynamicScalar`/`StoreDynamicDescriptor` selection sources are
-  now scanned for rewrites. `4c307fc9ed` (macw9) resolved the array-element
-  frontier to coverage: `admission.rs`'s `descended_type` already resolves
-  `FixedIndex`/`RuntimeIndex`/`Referent`/`Field` chains (`t[1]`, `r.inner[0]`,
-  `self.arr[1]`, `m.arr[0].tag` all fold), and the commit pins the regression
-  matrix plus decline/forged-evidence controls. Reachability bound discovered:
-  an `EstablishRecord` child must be `Record`-shaped (or scalar/reference)
-  transitively — no sum/array children — which bounds how far establishment
-  proofs can descend through stored children, and `EstablishScalarArray`
-  elements are scalar leaves (`establishment_scalar`'s `FixedIndex` bound is
-  exact). Remaining bounds are upstream: `RuntimeIndex` memberships wait on a
-  lowering scalar-control-plan (in-flight on `leaf/transition-arm-runtime-
-  index-reads`), `IntegerStructuralField` under `FixedIndex` is unreachable
-  from source today, and `EstablishStructuralCase` is still rejected at
-  terminal-psi-to-abstract-operations.
+- **REPRESENTATION-SPECIALIZATION.** Extend field/variant relevance under
+  `01_abstract-operations-to-abstract-operations/src/{representation_specialization,field_value_specialization}/`,
+  with independent candidate replay in `optimization-unit-semantics`.
+  Proven membership, constant fields, nonconstant initializer forwarding,
+  stored-whole child descent and uniform block bindings already have source
+  controls; the pass matrix publishes forwarding and retires the read.
 
-  Invariant-window specialization depends on an upstream operation/evidence
-  contract retained into this stage; no such operation reaches it yet. Do not
-  invent that input locally. Preserve the authenticated cyclic freeze unless a
-  checked transformation reconstructs the affected evidence.
+  Extend the evidence basis beyond those cases. Type-path descent through
+  fields, indexes and referents is not a proof of stored contents:
+  establishment descent crosses exact owned children, while scalar-array
+  elements are not separately placed children. A call-produced child's contents
+  remain unproven (`nested_unestablished_child_stays_unproven`);
+  INTERPROCEDURAL-SUMMARIES owns callee result evidence. Reprobe runtime-index
+  membership and integer field reads beneath fixed indexes from source before
+  assigning a blocker. Record admission now includes sum/mixed children and
+  scalar arrays; the old record-only restriction is obsolete.
+  `EstablishStructuralCase` still rejects in stage 00's operation routing,
+  so that customer needs ordinary operation admission before specialization.
 
-  Acceptance: exact-selected source-produced specialization publishes and
-  independently replays. Stale/forged field/path/value evidence rejects,
-  disabled selection is identity, and unsupported paths, custody and cyclic
-  changes remain rejected under
+  Borrowed restoration windows already reach abstract operations as
+  `MoveStructuralField`/`StoreStructuralField`; uniform-binding proofs reject
+  rewritten or mutably re-lent places. Window specialization must reconstruct
+  the exact open/restore custody and affected observations. Any additional
+  window family needs its upstream operation/evidence contract; do not invent
+  that input in the optimizer. Preserve authenticated cyclic freeze until the
+  affected custody and ranking can be reconstructed.
+
+  Acceptance: exact-selected source-produced specialization commits, publishes
+  and independently replays; carry PER-RULE-COVERAGE through native execution.
+  Stale/forged field/path/value evidence rejects, disabled selection is identity,
+  and unsupported paths, custody and cyclic changes remain rejected under
   [stage-extension validation](omega-rust/optimization.md#validation-when-extending-a-stage).
-- **INTERPROCEDURAL-SUMMARIES.** Add proof-bound inlining and the summaries/
-  substitution it needs in `abstract-operations-to-abstract-operations`.
-  Existing `analyses/` computes transitive effects and a direct call graph,
-  not exact callee place reads/writes or an inlining transformation.
-  Extend summaries with argument/result and place-access relationships; a
-  coarse structural-state effect is not non-aliasing evidence.
 
-  Acceptance: an exact-selected source-produced call rewrite independently
-  reconstructs substitution, ownership, effects, cleanup, proof/provenance and
-  resource correspondence through publication. Stale summaries and incompatible
-  aliases reject; disabled selection preserves ordinary execution. Keep
-  elaboration/proposal separate from the independent validator.
+- **INTERPROCEDURAL-SUMMARIES.** Add proof-bound inlining and exact
+  argument/result/place-access summaries in abstract-operations stage 01.
+  Reuse `analyses/semantic/effect_summaries.rs`'s revision-bound transitive
+  effects and `analyses/control_flow/call_graph.rs`'s call components. The graph
+  already includes known dynamic realizations and nominal cleanup calls;
+  neither product gives precise callee reads/writes or an inlining transform.
+  A coarse structural-state effect is not non-aliasing evidence.
+
+  Bind summaries to callee revisions, projected storage and aliases. Integrate
+  inlining through an exact selection, analysis invalidation and independent
+  candidate replay under [optimization semantics](wiki/spec/build/optimizations.md).
+  Constructed analysis fixtures do not establish a source-produced call rewrite.
+
+  Acceptance: the rewrite independently reconstructs substitution, ownership,
+  effects, cleanup, proof/provenance, fuel and resource correspondence through
+  publication. Stale summaries and incompatible aliases reject; disabled
+  selection preserves ordinary execution. Keep proposal and validation separate,
+  and carry the rewritten source customer through PER-RULE-COVERAGE.
 
 ## Pipeline cleanup follow-ups
 
@@ -529,26 +525,31 @@ governs these tasks: replace obstructive implementations, preserve semantics and
 independent validation, and keep empty/nonempty optimization selections on one
 physical route. Unsupported cases reject rather than restoring a fallback.
 
-- **PIPELINE-OWNER-CONSOLIDATION.** Finish ownership and executable consumption
-  under the [connected pipeline contract](omega-rust/pipeline.md). Selected
-  rewrites need the stage catalog routes owned by EXACT-MACHINE-SIMPLIFICATIONS,
-  ALIAS-AWARE-MEMORY, and DECLARATIVE-PEEPHOLES, or deletion when superseded.
-  SPILL-REALIZATION owns executable recovery, final-frame provisioning and
-  retiring superseded unsequenced spill boundaries with their consumers.
+- **PIPELINE-OWNER-CONSOLIDATION.** Finish the public-entrance and consumer
+  audit under the [connected pipeline contract](omega-rust/pipeline.md).
+  Trace qualified identities through repository-wide consumers, then remove
+  competing entrances or orphan outputs and make retained plans constrain the
+  physical operations they describe. A common name such as `encode`, an
+  isolated validator, or a retained-but-unused plan does not establish a join.
 
-  The semantic-wrapper object's records, composition, validation and codec
-  live in `native-artifact/src/semantic_wrapper_object`, and
-  the plan's x86-64 template selection and replay live beside its recipe in
-  `omega-rust/omega/backend/plans/program-entry-plan/src/optimized_semantic_wrapper/encoding.rs`;
-  native-realization keeps only the object stage's
-  settlement/source/encoding custody join and replay. UEFI/provider/ABI gaps
-  remain with their native owners, not another wrapper implementation.
+  The common physical route already runs through
+  `native_pipeline/physical_pipeline` and machine-emission's fixed-frame
+  realization. Native-artifact owns receiver admission and
+  `publish_fragment_object`'s wrapper/entry/evidence joins; machine-emission
+  owns private callback materialization. Preserve these owners and independent
+  representations while keeping compiler coordination limited to typed products.
 
-  Audit surviving public entrances using qualified identities and repository-wide
-  consumers; a common name such as `encode` does not identify a caller. Acceptance: the connected route has no
-  competing entrances or orphan outputs, coordinators sequence typed stages,
-  and retained plans constrain the physical operations they describe.
-  An isolated validator or retained-but-unused plan does not close the join.
+  Selected catalog execution remains with EXACT-MACHINE-SIMPLIFICATIONS,
+  ALIAS-AWARE-MEMORY and DECLARATIVE-PEEPHOLES. SPILL-REALIZATION owns recovery,
+  final-frame provisioning and retirement of superseded spill boundaries with
+  their consumers. UEFI/provider/ABI and callback capability gaps remain with
+  their native owners; source/Build orchestration is TASKS.md's pipeline route.
+
+  Acceptance: no competing entrances or orphan products; empty/nonempty
+  selections share physical execution and independent publication. Preserve
+  image-emission's source-produced fragment fixture and native-artifact's
+  detached-plan/object rejections. Exercise affected routes through publication;
+  prefix consumers may use the same stage functions without another driver.
 
 ## Verification and rollout
 
