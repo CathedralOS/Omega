@@ -11,11 +11,11 @@ use super::super::super::borrowed_windows::{FieldReplacement, OpenWindows};
 use super::{
     CheckFacts, CheckedStructuralAccess, CheckedStructuralScalarParameterPlan,
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralResultBindingPlan, LocalConstructionTrace, Multiplicity,
-    ScalarCalleePlans, ShapeCollector, SymbolHandle, TypedTrees,
-    checked_structural_result_type, consume_results, consume_value_places, is_unit,
+    CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan,
+    LocalConstructionTrace, Multiplicity, ScalarCalleePlans, ShapeCollector, SymbolHandle,
+    TypedTrees, checked_structural_result_type, consume_results, consume_value_places, is_unit,
     retain_selected_sources, statement_call_target, store_statement_index, structural_operands,
 };
 

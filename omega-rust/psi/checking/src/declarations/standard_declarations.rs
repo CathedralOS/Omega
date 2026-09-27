@@ -33,8 +33,7 @@ fn has_calling_vocabulary_source(program: &TypedTrees, symbol: SymbolHandle) -> 
     // dependency rather than a toolchain source. Recognize that exact vocabulary,
     // not a package's filename or a similarly named pair of empty traits. The
     // selected policy body still runs and its complete result is checked.
-    const CALLING_VOCABULARY: &str =
-        include_str!("../../../../../source/library/std/calling.omg");
+    const CALLING_VOCABULARY: &str = include_str!("../../../../../source/library/std/calling.omg");
     program
         .symbols
         .symbol_source_span(symbol)

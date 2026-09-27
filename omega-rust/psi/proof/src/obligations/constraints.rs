@@ -2,7 +2,6 @@
 //! binary operators, builtin, extrema and range calls, and named facts.
 
 use crate::obligations::plan::ConstraintBuffer;
-use crate::typed_expressions::{call_expression_return_type, expression_type_reference};
 use crate::obligations::ranges::{
     arithmetic_domain_from_constraints, constraints_prove_finite, float_binary_range,
     float_range_from_constraints, has_named_constraint, integer_binary_range,
@@ -10,6 +9,7 @@ use crate::obligations::ranges::{
     integer_range_from_constraints,
 };
 use crate::obligations::{IntegerRange, ProofConstraint};
+use crate::typed_expressions::{call_expression_return_type, expression_type_reference};
 use numerics::bignum::BigInt;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, FloatLiteral};

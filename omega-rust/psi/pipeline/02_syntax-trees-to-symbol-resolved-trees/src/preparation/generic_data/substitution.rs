@@ -1,8 +1,8 @@
 //! Member and type-reference substitution.
+use crate::preparation::declaration_selection;
 use crate::preparation::generic_data::ClosedArgumentIdentity;
 use crate::preparation::generic_data::ConstScalarValue;
 use crate::preparation::generic_data::EvaluatedConst;
-use crate::preparation::declaration_selection;
 use crate::preparation::generic_data::evaluate_const_argument_expression;
 use crate::preparation::generic_data::generic_const_integer_types;
 use crate::preparation::generic_data::selected_data_item;

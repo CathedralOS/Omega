@@ -53,11 +53,13 @@ pub(in crate::preparation::generic_data) fn desugar_generic_data_instances(
         .root_items()
         .any(|item| matches!(item, Item::Module(_)))
     {
-        Some(crate::preparation::declaration_selection::ConstantSelection::new(
-            syntax,
-            None,
-            Vec::new(),
-        )?)
+        Some(
+            crate::preparation::declaration_selection::ConstantSelection::new(
+                syntax,
+                None,
+                Vec::new(),
+            )?,
+        )
     } else {
         None
     };

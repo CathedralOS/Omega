@@ -16,13 +16,13 @@ use super::super::{
     TypeReferenceHandle, TypeReferenceNode,
 };
 
+use crate::preparation::declaration_selection::{
+    ConstantSelection, GenericApplicationSubstitution, resolved_generic_argument,
+};
 use crate::preparation::generic_data::ClosedArgumentIdentity;
 use crate::preparation::generic_data::ConstFactValue;
 use crate::preparation::generic_data::arguments::{
     closed_argument_identity, monomorphizable_argument_slugs,
-};
-use crate::preparation::declaration_selection::{
-    ConstantSelection, GenericApplicationSubstitution, resolved_generic_argument,
 };
 use crate::preparation::generic_data::integer_literal_value;
 use crate::preparation::generic_data::qualified_const_name;

@@ -6,15 +6,15 @@ use crate::obligations::constraints::{
     collect_constraints, derived_binary_constraints, expression_constraints,
 };
 use crate::obligations::plan::ConstraintBuffer;
-use crate::typed_expressions::{
-    dehoisted_operand, expression_contains_call_node, expression_type_reference,
-};
 use crate::obligations::ranges::{constrained_type_reference, integer_range_from_constraints};
 use crate::obligations::{
     BinaryValueOperands, BoundedAssignmentObligation, BoundedCallArgumentObligation,
     BoundedInitializerObligation, BoundedStateReturnObligation,
     BoundedTransitionArgumentObligation, BoundedValueObligation, GuardedTransitionObligation,
     IntegerRange, ProofConstraint, ProofObligation, ProofObligationOwner, ProofPlan,
+};
+use crate::typed_expressions::{
+    dehoisted_operand, expression_contains_call_node, expression_type_reference,
 };
 use arena::HandleSpan;
 use symbols::SymbolHandle;

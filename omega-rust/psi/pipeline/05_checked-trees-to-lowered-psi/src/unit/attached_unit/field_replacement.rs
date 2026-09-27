@@ -97,10 +97,7 @@ pub(super) fn continues_bound_value(
             destination,
             value,
         }),
-    ) = (
-        operations.get(move_index),
-        operations.get(move_index + 1),
-    )
+    ) = (operations.get(move_index), operations.get(move_index + 1))
     else {
         return false;
     };
@@ -146,8 +143,7 @@ pub(super) fn continues_with_cleanup(
     else {
         return false;
     };
-    (continues(operations, store_index)
-        || continues_bound_value(operations, store_index))
+    (continues(operations, store_index) || continues_bound_value(operations, store_index))
         && coordinate.statement_index == *statement_index
         && coordinate.call_ordinal == 0
         && moved.multiplicity == Multiplicity::Affine

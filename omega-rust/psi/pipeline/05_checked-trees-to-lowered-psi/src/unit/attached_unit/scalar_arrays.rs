@@ -31,11 +31,10 @@ pub(super) fn validate(
         return unsupported("array constructor result differs from its declared type");
     }
     validate_shape(checked, reference)?;
-    let array =
-        validation::scalar_array_elements(&checked.typed, machine, expression, reference)
-            .ok_or(LoweringError::Unsupported(
-            "array constructor source is not an exact primitive array",
-        ))?;
+    let array = validation::scalar_array_elements(&checked.typed, machine, expression, reference)
+        .ok_or(LoweringError::Unsupported(
+        "array constructor source is not an exact primitive array",
+    ))?;
     for projection in array.projections {
         if let Some(selected) = checked.facts.operators.expression_use(projection)
             && (selected.spelling != language_core::OperatorSpelling::Index
