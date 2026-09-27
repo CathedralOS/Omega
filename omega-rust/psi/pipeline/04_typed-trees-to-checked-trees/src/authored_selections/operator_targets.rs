@@ -1,6 +1,7 @@
 //! Checked operator targets and authored operator selection candidates.
 
-use std::collections::HashMap;
+/// Handle-keyed maps take the integer hasher; none is iterated for output order.
+type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
 
 use crate::authored_selections::CheckedResolutionTarget;
 use crate::authored_selections::call_targets::{declaration_target, exact_named_operator_call};
@@ -50,7 +51,8 @@ pub(crate) struct GenericOperatorValueOrigins {
 
 impl GenericOperatorValueOrigins {
     pub(crate) fn index(program: &TypedTrees, facts: &CheckFacts) -> Self {
-        let mut by_expression: HashMap<_, Vec<checked_trees::CheckedValueOrigin>> = HashMap::new();
+        let mut by_expression: HashMap<_, Vec<checked_trees::CheckedValueOrigin>> =
+            HashMap::default();
         for (_, value) in facts.values.values.iter() {
             for reached in reachable_expressions(program, value.expression) {
                 let origins = by_expression.entry(reached).or_default();

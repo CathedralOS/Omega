@@ -394,7 +394,7 @@ pub(super) fn binding_is_exclusively_exposed(
     symbol: SymbolHandle,
 ) -> bool {
     let mut nodes = Vec::new();
-    let mut seen = std::collections::HashSet::new();
+    let mut seen = std::collections::HashSet::with_hasher(symbols::BuildSymbolHasher);
     for root in statement_expression_roots(program, state) {
         crate::expression_traversal::collect_expression_nodes(program, root, &mut nodes, &mut seen);
     }
@@ -443,7 +443,7 @@ pub(super) fn binding_is_written(
         }
     }
     let mut nodes = Vec::new();
-    let mut seen = std::collections::HashSet::new();
+    let mut seen = std::collections::HashSet::with_hasher(symbols::BuildSymbolHasher);
     for root in statement_expression_roots(program, state) {
         crate::expression_traversal::collect_expression_nodes(program, root, &mut nodes, &mut seen);
     }

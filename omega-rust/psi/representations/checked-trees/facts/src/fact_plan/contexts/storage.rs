@@ -1,4 +1,5 @@
-use std::collections::HashMap;
+/// Handle-keyed maps take the integer hasher; none is iterated for output order.
+type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
 use std::fmt;
 
 use arena::{Arena, Handle};
@@ -86,7 +87,7 @@ impl FactContexts {
         Self {
             contexts: Arena::with_capacity(capacity),
             links: Arena::with_capacity(capacity),
-            groups: HashMap::new(),
+            groups: HashMap::default(),
         }
     }
 

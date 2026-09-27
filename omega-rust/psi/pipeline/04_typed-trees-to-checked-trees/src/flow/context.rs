@@ -8,7 +8,8 @@ use checked_trees::{
     FlowFacts, FlowInvalidationFacts, FlowOwnershipFacts, ProofFacts,
 };
 use facts::FactPlan;
-use std::collections::HashMap;
+/// Handle-keyed maps take the integer hasher; none is iterated for output order.
+type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
 use std::rc::Rc;
 use symbols::SymbolHandle;
 
@@ -27,10 +28,10 @@ struct SymbolIndex {
 impl SymbolIndex {
     fn build(program: &typed_trees::TypedTrees) -> Self {
         let mut index = Self {
-            machine_index: HashMap::new(),
-            state_index_in_machine: HashMap::new(),
-            state_location: HashMap::new(),
-            signature_location: HashMap::new(),
+            machine_index: HashMap::default(),
+            state_index_in_machine: HashMap::default(),
+            state_location: HashMap::default(),
+            signature_location: HashMap::default(),
         };
         for (machine_index, machine) in program.machines().iter().enumerate() {
             index.machine_index.insert(machine.symbol, machine_index);
@@ -238,14 +239,14 @@ impl<'plans> FlowBuildContext<'plans> {
         call_frames: Option<&'plans validation::CallFrameResolver<'plans>>,
         state_mutation_summary_cache: &'plans StateMutationSummaryCache,
     ) -> Self {
-        let mut scalar_bindings_by_site = HashMap::new();
+        let mut scalar_bindings_by_site = HashMap::default();
         for (handle, binding) in scalar_expressions.source_bindings.iter() {
             scalar_bindings_by_site
                 .entry((binding.state, binding.statement_ordinal))
                 .or_insert_with(Vec::new)
                 .push(handle);
         }
-        let mut scalar_expressions_by_site = HashMap::new();
+        let mut scalar_expressions_by_site = HashMap::default();
         for (row, expression) in scalar_expressions.expressions.iter().enumerate() {
             scalar_expressions_by_site
                 .entry((expression.state, expression.statement_ordinal))
@@ -265,27 +266,27 @@ impl<'plans> FlowBuildContext<'plans> {
             state_value_inputs_changed_after_build: false,
             new_state_field_input_height: 0,
             element_store_potentials: Vec::new(),
-            call_sites: HashMap::new(),
-            call_target_parameters: HashMap::new(),
-            call_target_returns: HashMap::new(),
-            call_result_identities: HashMap::new(),
-            result_identity_domain_rows: HashMap::new(),
-            call_parameter_identities: HashMap::new(),
-            referent_type_paths: HashMap::new(),
-            machine_field_rows: HashMap::new(),
+            call_sites: HashMap::default(),
+            call_target_parameters: HashMap::default(),
+            call_target_returns: HashMap::default(),
+            call_result_identities: HashMap::default(),
+            result_identity_domain_rows: HashMap::default(),
+            call_parameter_identities: HashMap::default(),
+            referent_type_paths: HashMap::default(),
+            machine_field_rows: HashMap::default(),
             symbol_index: None,
             scalar_bindings_by_site,
             scalar_expressions_by_site,
-            canonical_places: HashMap::new(),
-            expression_result_types: HashMap::new(),
-            transition_call_targets: HashMap::new(),
-            entry_origin_chains: HashMap::new(),
-            machine_parameter_origins: HashMap::new(),
-            reference_candidate_places: HashMap::new(),
-            statement_storage_writes: HashMap::new(),
-            correspondence_root_types: HashMap::new(),
-            expression_occurrences: HashMap::new(),
-            proof_fact_occurrences: HashMap::new(),
+            canonical_places: HashMap::default(),
+            expression_result_types: HashMap::default(),
+            transition_call_targets: HashMap::default(),
+            entry_origin_chains: HashMap::default(),
+            machine_parameter_origins: HashMap::default(),
+            reference_candidate_places: HashMap::default(),
+            statement_storage_writes: HashMap::default(),
+            correspondence_root_types: HashMap::default(),
+            expression_occurrences: HashMap::default(),
+            proof_fact_occurrences: HashMap::default(),
             integer_literal_thresholds: None,
             state_mutation_summary_cache,
             contexts: FlowContextFacts::with_roots(
