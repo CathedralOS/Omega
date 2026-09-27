@@ -12,7 +12,7 @@ mod replay;
 
 use optimization_core::OptimizationRuleContract;
 use optimization_core::{ExternalCandidateFeatures, ExternalDecisionSchemaError};
-use optimization_unit::PsiRewriteCandidate;
+use optimization_unit::PsiCandidateDeclaration;
 
 pub(super) use context::expected_context;
 pub(super) use recording::external_points_from_manifest_decisions;
@@ -23,7 +23,7 @@ pub(super) use replay::ExternalDecisionReplayCursor;
 /// policy-input entrance. Leaves own projection and replay; this boundary owns
 /// which evidence may leave the pass manager.
 pub(super) fn validated_candidate_features(
-    candidate: &PsiRewriteCandidate,
+    candidate: &PsiCandidateDeclaration,
     contract: OptimizationRuleContract,
 ) -> Result<ExternalCandidateFeatures, ExternalDecisionSchemaError> {
     candidate_features::derive(candidate, contract)

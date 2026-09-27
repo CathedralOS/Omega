@@ -11,18 +11,17 @@
 //! publishes the validated plan through `publication`.
 //!
 //! Only that entry, its [`ValidatedOptimizedAbstractPlan`], the three error
-//! types and [`validation`] are public. The ranked rewrites (loop-invariant
-//! scalar motion and countdown constant relocation) and the countdown loop
-//! analyses they read compile only for tests and the `test-support` feature:
-//! no Psi optimization selection reaches them from
-//! [`optimize_abstract_operations`]. `test_support` names what the
+//! types and [`validation`] are public. The ranked rewrites run in every
+//! build: loop-invariant scalar motion is a scheduled pass step the selected
+//! pipeline can reach, while the countdown constant relocation boundary and
+//! the loop analyses it consumes stay available to scheduled steps and to
+//! harnesses through `test_support`, which names what the
 //! `psi_optimization_allocations` example drives directly.
 mod abstract_optimization;
 mod analyses;
 mod field_value_specialization;
 mod pass_manager;
 mod publication;
-#[cfg(any(test, feature = "test-support"))]
 mod ranked_rewrites;
 mod representation_specialization;
 mod rules;
@@ -42,31 +41,36 @@ pub(crate) use analyses::{
     OwnershipFrontierAnalysis, ScalarConstantAnalysis, StronglyConnectedComponentAnalysis,
     UseDefinitionAnalysis, ValueRangeAnalysis,
 };
-#[cfg(any(test, feature = "test-support"))]
 pub(crate) use analyses::{
-    CountdownInvariantConstantAnalysisError, CountdownInvariantConstantAnalysisSnapshot,
-    CountdownInvariantConstantPlacementAnalysisError,
-    CountdownInvariantConstantPlacementAnalysisSnapshot, CountdownInvariantConstantRole,
-    CountdownInvariantIntegerConstant, CountedLoopAnalysisError, CountedLoopAnalysisSnapshot,
-    UnsignedCountdownInvariantConstantPlacements, ValidatedCountdownInvariantConstantAnalysis,
+    CountdownInvariantConstantAnalysisError, CountdownInvariantConstantPlacementAnalysisError,
+    CountedLoopAnalysisError, ValidatedCountdownInvariantConstantAnalysis,
     ValidatedCountdownInvariantConstantPlacementAnalysis, ValidatedCountedLoopAnalysis,
     analyze_countdown_invariant_constant_placement, analyze_countdown_invariant_constants,
-    analyze_counted_loops, validate_countdown_invariant_constant_analysis,
+    analyze_counted_loops,
+};
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) use analyses::{
+    CountdownInvariantConstantAnalysisSnapshot,
+    CountdownInvariantConstantPlacementAnalysisSnapshot, CountdownInvariantConstantRole,
+    CountdownInvariantIntegerConstant, CountedLoopAnalysisSnapshot,
+    UnsignedCountdownInvariantConstantPlacements, validate_countdown_invariant_constant_analysis,
     validate_countdown_invariant_constant_placement_analysis, validate_counted_loop_analysis,
 };
 pub use pass_manager::OptimizationRunError;
 pub(crate) use pass_manager::PsiValidatedCandidateDeclaration;
-#[cfg(any(test, feature = "test-support"))]
 pub(crate) use pass_manager::VerifiedPsiOptimizationSession;
 pub(crate) use pass_manager::{
     OptimizationRun, OptimizationRunUsage, PsiOptimizationCommit, baseline_psi_cost_model_identity,
 };
+pub use ranked_rewrites::LoopInvariantScalarMotionError;
+#[cfg(test)]
+pub(crate) use ranked_rewrites::propose_countdown_invariant_constant_relocations;
 #[cfg(test)]
 pub(crate) use ranked_rewrites::{
-    LoopInvariantScalarMotionError, apply_loop_invariant_scalar_motion,
-    propose_countdown_invariant_constant_relocations, propose_loop_invariant_scalar_motion,
+    apply_loop_invariant_scalar_motion, propose_loop_invariant_scalar_motion,
     validate_loop_invariant_scalar_motion,
 };
+pub(crate) use rules::PsiPassStep;
 pub(crate) use rules::registry::{
     OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
     RuleRegistryError,

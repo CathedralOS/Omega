@@ -13,15 +13,15 @@ pub(super) fn validated(
     session: VerifiedPsiOptimizationSession,
     validated: ValidatedLoopInvariantScalarMotion,
 ) -> Result<AppliedLoopInvariantScalarMotion, LoopInvariantScalarMotionError> {
-    if validated.candidate.input != session.unit().identity {
+    if validated.candidate.input() != session.unit().identity {
         return Err(LoopInvariantScalarMotionError::StaleCandidateRevision {
-            candidate: validated.candidate.input,
+            candidate: validated.candidate.input(),
             current: session.unit().identity,
         });
     }
-    if validated.output.identity != validated.candidate.output {
+    if validated.output.identity != validated.candidate.output() {
         return Err(LoopInvariantScalarMotionError::OutputIdentityMismatch {
-            candidate: validated.candidate.output,
+            candidate: validated.candidate.output(),
             reconstructed: validated.output.identity,
         });
     }
@@ -34,7 +34,7 @@ pub(super) fn validated(
     reconstruct_custody(&next)?;
     let record = PsiTransformationRecord {
         rule: rule_identity(),
-        candidate: validated.candidate.identity,
+        candidate: validated.candidate.identity(),
         validator: validator_identity(),
         input,
         output: next.unit().identity,

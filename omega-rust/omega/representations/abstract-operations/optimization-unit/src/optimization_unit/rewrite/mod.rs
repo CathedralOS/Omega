@@ -30,7 +30,9 @@ mod canonical_encoding;
 mod cfg_rewrite_plans;
 mod codec;
 mod contracts;
+mod declarations;
 mod foundations;
+mod loop_invariant_scalar_motion;
 mod scalar_evaluation;
 mod scalar_rewrite_plans;
 mod sccp;
@@ -48,8 +50,13 @@ use contracts::PsiRewriteWitness;
 pub use contracts::{
     PsiRewriteCandidate, PsiRewriteCandidateError, PsiRewriteDecisionPoint, PsiRewritePatch,
 };
+pub use declarations::PsiCandidateDeclaration;
 pub use foundations::{
     NodeLocation, ProvenanceDisposition, ProvenanceRewrite, PsiRealizationSite, ScalarSubstitution,
+};
+pub use loop_invariant_scalar_motion::{
+    LoopInvariantNodeResult, LoopInvariantScalarMotionCandidate, LoopInvariantScalarNode,
+    LoopInvariantScalarRelocation,
 };
 pub use scalar_evaluation::{
     IntegerEvaluationWitness, ScalarConstantValue, ScalarEvaluationWitness,

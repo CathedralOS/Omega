@@ -558,7 +558,12 @@ fn nonconstant_initializer_forwards_to_uses() {
     }
     // The candidate declares exactly the one `result → initializer`
     // substitution the forwarded row implies.
-    let [substitution] = commit.declaration.substitutions() else {
+    let [substitution] = commit
+        .declaration
+        .rewrite()
+        .expect("rewrite declaration")
+        .substitutions()
+    else {
         panic!("one scalar substitution")
     };
     assert_eq!(substitution.from, forward_row.result);
@@ -698,43 +703,55 @@ fn replay_rejects_forged_forward_rows() {
     // scalar rather than trusting the claimed substitution.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            let result = patch.reads[forward_index].result;
-            let FieldValueResolution::Forward(forwarded) =
-                &mut patch.reads[forward_index].resolution
-            else {
-                unreachable!()
-            };
-            forwarded.initializer = result;
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                let result = patch.reads[forward_index].result;
+                let FieldValueResolution::Forward(forwarded) =
+                    &mut patch.reads[forward_index].resolution
+                else {
+                    unreachable!()
+                };
+                forwarded.initializer = result;
+            },
+        ),
     );
 
     // A forged use roster — replay recomputes the complete covered set.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            let FieldValueResolution::Forward(forwarded) =
-                &mut patch.reads[forward_index].resolution
-            else {
-                unreachable!()
-            };
-            forwarded.uses.pop();
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                let FieldValueResolution::Forward(forwarded) =
+                    &mut patch.reads[forward_index].resolution
+                else {
+                    unreachable!()
+                };
+                forwarded.uses.pop();
+            },
+        ),
     );
 
     // A forged constant claim on the forwarded read.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.reads[forward_index].resolution = FieldValueResolution::Constant(
-                FoldedFieldValue::Integer(semantic_vocabulary::IntegerValue::Unsigned(7)),
-            );
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.reads[forward_index].resolution = FieldValueResolution::Constant(
+                    FoldedFieldValue::Integer(semantic_vocabulary::IntegerValue::Unsigned(7)),
+                );
+            },
+        ),
     );
 
     // The untampered declaration still validates to the committed output.
-    let validated = validate_field_value_specialization_candidate(&input, &commit.declaration)
-        .expect("the exact candidate still validates");
+    let validated = validate_field_value_specialization_candidate(
+        &input,
+        commit.declaration.rewrite().expect("rewrite declaration"),
+    )
+    .expect("the exact candidate still validates");
     assert_eq!(validated.unit().identity, commit.output);
 }
 
@@ -860,7 +877,12 @@ fn nested_nonconstant_initializer_forwards_at_depth() {
     assert_eq!(forwarded.scalar_type, definition.scalar_type);
     assert_ne!(forwarded.initializer, row.result);
     assert!(!forwarded.uses.is_empty(), "the read has covered uses");
-    let [substitution] = commit.declaration.substitutions() else {
+    let [substitution] = commit
+        .declaration
+        .rewrite()
+        .expect("rewrite declaration")
+        .substitutions()
+    else {
         panic!("one scalar substitution")
     };
     assert_eq!(substitution.from, row.result);
@@ -1192,9 +1214,12 @@ fn replay_rejects_forged_bound_rows() {
     // binding rather than trusting it.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.reads[0].producer = patch.producer;
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.reads[0].producer = patch.producer;
+            },
+        ),
     );
 
     // A forged patch-level producer: the parameter holds no producer of
@@ -1202,24 +1227,33 @@ fn replay_rejects_forged_bound_rows() {
     // plan.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.producer = Some(establishment);
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.producer = Some(establishment);
+            },
+        ),
     );
 
     // A forged folded value on the bound read.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.reads[0].resolution = FieldValueResolution::Constant(FoldedFieldValue::Integer(
-                semantic_vocabulary::IntegerValue::Unsigned(41),
-            ));
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.reads[0].resolution = FieldValueResolution::Constant(
+                    FoldedFieldValue::Integer(semantic_vocabulary::IntegerValue::Unsigned(41)),
+                );
+            },
+        ),
     );
 
     // The untampered declaration still validates to the committed output.
-    let validated = validate_field_value_specialization_candidate(&input, &commit.declaration)
-        .expect("the exact candidate still validates");
+    let validated = validate_field_value_specialization_candidate(
+        &input,
+        commit.declaration.rewrite().expect("rewrite declaration"),
+    )
+    .expect("the exact candidate still validates");
     assert_eq!(validated.unit().identity, commit.output);
 }
 
@@ -1239,32 +1273,44 @@ fn replay_rejects_forged_nested_row_witness() {
     // re-derives the row from the descent chain rather than trusting it.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.reads[0].producer = patch.producer;
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.reads[0].producer = patch.producer;
+            },
+        ),
     );
 
     // A forged folded value on the nested read.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.reads[0].resolution = FieldValueResolution::Constant(FoldedFieldValue::Integer(
-                semantic_vocabulary::IntegerValue::Unsigned(41),
-            ));
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.reads[0].resolution = FieldValueResolution::Constant(
+                    FoldedFieldValue::Integer(semantic_vocabulary::IntegerValue::Unsigned(41)),
+                );
+            },
+        ),
     );
 
     // A forged path that skips the descent.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.reads[0].path.clear();
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.reads[0].path.clear();
+            },
+        ),
     );
 
     // The untampered declaration still validates to the committed output.
-    let validated = validate_field_value_specialization_candidate(&input, &commit.declaration)
-        .expect("the exact candidate still validates");
+    let validated = validate_field_value_specialization_candidate(
+        &input,
+        commit.declaration.rewrite().expect("rewrite declaration"),
+    )
+    .expect("the exact candidate still validates");
     assert_eq!(validated.unit().identity, commit.output);
 }
 
@@ -1311,51 +1357,69 @@ fn replay_rejects_forged_field_rows() {
     // A forged folded value.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.reads[0].resolution = FieldValueResolution::Constant(FoldedFieldValue::Integer(
-                semantic_vocabulary::IntegerValue::Unsigned(41),
-            ));
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.reads[0].resolution = FieldValueResolution::Constant(
+                    FoldedFieldValue::Integer(semantic_vocabulary::IntegerValue::Unsigned(41)),
+                );
+            },
+        ),
     );
 
     // A forged field identity — a field no source operation carries.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.reads[0].field =
-                semantic_vocabulary::StructuralFieldId::new(patch.reads[0].field.get() + 7)
-                    .expect("forged field identity");
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.reads[0].field =
+                    semantic_vocabulary::StructuralFieldId::new(patch.reads[0].field.get() + 7)
+                        .expect("forged field identity");
+            },
+        ),
     );
 
     // A forged path segment.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.reads[0].path =
-                vec![semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(0)];
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.reads[0].path =
+                    vec![semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(0)];
+            },
+        ),
     );
 
     // A forged site coordinate.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.reads[0].site.node += 1;
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.reads[0].site.node += 1;
+            },
+        ),
     );
 
     // A forged producer identity.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.producer = Some(patch.reads[0].psi_operation);
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.producer = Some(patch.reads[0].psi_operation);
+            },
+        ),
     );
 
     // The untampered declaration still validates to the committed output.
-    let validated = validate_field_value_specialization_candidate(&input, &commit.declaration)
-        .expect("the exact candidate still validates");
+    let validated = validate_field_value_specialization_candidate(
+        &input,
+        commit.declaration.rewrite().expect("rewrite declaration"),
+    )
+    .expect("the exact candidate still validates");
     assert_eq!(validated.unit().identity, commit.output);
 }
 
@@ -1372,7 +1436,7 @@ fn replay_rejects_stale_candidate_revision() {
 
     // A candidate pinned to a revision that is not the input.
     let stale = rebuild(
-        &commit.declaration,
+        commit.declaration.rewrite().expect("rewrite declaration"),
         OptimizationUnitIdentity::from_canonical_bytes(b"stale-input"),
         |_| {},
     )
@@ -1385,8 +1449,11 @@ fn replay_rejects_stale_candidate_revision() {
     // Committing moves the revision; the original declaration is stale
     // against the transformed unit afterward.
     assert_eq!(
-        validate_field_value_specialization_candidate(run.session().unit(), &commit.declaration)
-            .err(),
+        validate_field_value_specialization_candidate(
+            run.session().unit(),
+            commit.declaration.rewrite().expect("rewrite declaration")
+        )
+        .err(),
         Some(OptimizationUnitValidationError::CandidateInputMismatch)
     );
 }
@@ -1475,7 +1542,12 @@ fn single_commit(
         commit.rule,
         FieldValueSpecializationRule::contract().identity()
     );
-    let PsiRewritePatch::SpecializeFieldValue(patch) = commit.declaration.patch() else {
+    let PsiRewritePatch::SpecializeFieldValue(patch) = commit
+        .declaration
+        .rewrite()
+        .expect("rewrite declaration")
+        .patch()
+    else {
         panic!("a field-value patch")
     };
     (commit, patch)

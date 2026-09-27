@@ -27,6 +27,7 @@ pub(crate) fn analyze_counted_loops(
     validate::accept(unit, custody, &candidate)
 }
 
+#[cfg(any(test, feature = "test-support"))]
 pub(crate) fn validate_counted_loop_analysis(
     unit: &PsiOptimizationUnit,
     custody: &ValidatedOptimizerCycleComponents,

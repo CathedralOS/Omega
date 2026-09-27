@@ -1,15 +1,15 @@
 //! Exact retained-declaration to pass-manifest custody.
 
-use crate::{OptimizationRun, OrderedRuleRegistry};
+use crate::{OptimizationRun, PsiPassStep};
 
 use crate::OptimizedAbstractProjectionError;
 use crate::publication::error::{AppliedDecisionCustodyAxis, custody_error};
 
 pub(super) fn validate(
     run: &OptimizationRun,
-    registries: &[OrderedRuleRegistry],
+    steps: &[PsiPassStep],
 ) -> Result<(), OptimizedAbstractProjectionError> {
-    validate_schedule(run, registries)?;
+    validate_schedule(run, steps)?;
     let manifested = run
         .pass_manifests()
         .iter()
@@ -41,7 +41,7 @@ pub(super) fn validate(
             Some(AppliedDecisionCustodyAxis::Validator)
         } else if decision.consumed_analyses() != declaration.required_analyses() {
             Some(AppliedDecisionCustodyAxis::ConsumedAnalyses)
-        } else if decision.consumed_facts() != declaration.consumed_facts() {
+        } else if decision.consumed_facts() != declaration.consumed_facts().as_slice() {
             Some(AppliedDecisionCustodyAxis::ConsumedFacts)
         } else {
             None
@@ -55,24 +55,21 @@ pub(super) fn validate(
 
 fn validate_schedule(
     run: &OptimizationRun,
-    registries: &[OrderedRuleRegistry],
+    steps: &[PsiPassStep],
 ) -> Result<(), OptimizedAbstractProjectionError> {
-    if run.pass_manifests().len() != registries.len() {
+    if run.pass_manifests().len() != steps.len() {
         return Err(custody_error(
             None,
             AppliedDecisionCustodyAxis::ManifestRoster,
         ));
     }
-    for (manifest, registry) in run.pass_manifests().iter().zip(registries) {
-        let expected_rules = registry
-            .contracts()
-            .map(|contract| contract.identity())
-            .collect::<Vec<_>>();
-        let axis = if Some(manifest.pass()) != registry.pass() {
+    for (manifest, step) in run.pass_manifests().iter().zip(steps) {
+        let expected_rules = step.ordered_rules();
+        let axis = if Some(manifest.pass()) != step.pass() {
             Some(AppliedDecisionCustodyAxis::ManifestPass)
         } else if manifest.ordered_rules() != expected_rules {
             Some(AppliedDecisionCustodyAxis::ManifestRuleOrder)
-        } else if manifest.ordered_rule_set() != registry.identity() {
+        } else if manifest.ordered_rule_set() != step.rule_set_identity() {
             Some(AppliedDecisionCustodyAxis::ManifestRuleSet)
         } else {
             None

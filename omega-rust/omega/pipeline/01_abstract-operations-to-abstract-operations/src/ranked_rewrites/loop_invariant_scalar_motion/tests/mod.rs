@@ -9,6 +9,7 @@ mod byte_sequences;
 mod calls;
 mod computations;
 mod place_observations;
+mod scheduled_step;
 mod structural_establishments;
 
 use crate::VerifiedPsiOptimizationSession;
@@ -18,6 +19,7 @@ use optimization_unit::{
     PsiOptimizationUnit, PsiProvenance, recompute_psi_optimization_unit_identity,
 };
 use semantic_vocabulary::ValueId;
+use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit;
 
 /// Two-state unranked cycle: the entry state forwards `scale` to `step`, which
 /// carries it back unchanged, and every traversal that leaves the component
@@ -265,12 +267,28 @@ pub(super) fn lowered_session_entry(
     lowered_session_entry_with_module_edit(source, label, entry, |_| {})
 }
 
+pub(super) fn lowered_unit(source: &str, label: &str) -> VerifiedPsiOptimizationUnit {
+    lowered_unit_entry_with_module_edit(source, label, "Root::scan", |_| {})
+}
+
 pub(super) fn lowered_session_entry_with_module_edit(
     source: &str,
     label: &str,
     entry: &str,
     edit: impl FnOnce(&mut terminal_psi::TerminalModule),
 ) -> VerifiedPsiOptimizationSession {
+    VerifiedPsiOptimizationSession::new(lowered_unit_entry_with_module_edit(
+        source, label, entry, edit,
+    ))
+    .unwrap_or_else(|error| panic!("verified {label} session: {error:?}"))
+}
+
+fn lowered_unit_entry_with_module_edit(
+    source: &str,
+    label: &str,
+    entry: &str,
+    edit: impl FnOnce(&mut terminal_psi::TerminalModule),
+) -> VerifiedPsiOptimizationUnit {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
         .unwrap_or_else(|error| panic!("tokenize {label}: {error:?}"));
@@ -312,13 +330,11 @@ pub(super) fn lowered_session_entry_with_module_edit(
             .into_optimization_input()
     })
     .unwrap_or_else(|error| panic!("optimizer-only {label} admission: {error:?}"));
-    let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+    terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         input,
         terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
     )
-    .unwrap_or_else(|error| panic!("build {label} optimizer unit: {error:?}"));
-    VerifiedPsiOptimizationSession::new(verified)
-        .unwrap_or_else(|error| panic!("verified {label} session: {error:?}"))
+    .unwrap_or_else(|error| panic!("build {label} optimizer unit: {error:?}"))
 }
 
 /// The `Root::bump`/`Root::spin` scalar call inside a member block and its

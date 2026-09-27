@@ -1,6 +1,7 @@
 //! Typed rejection vocabulary for the projection boundary.
 
 use crate::RuleRegistryError;
+use crate::ranked_rewrites::LoopInvariantScalarMotionError;
 use crate::validation::{
     OptimizedAbstractPlanProjectionError, PrePhysicalOptimizationManifestError,
 };
@@ -54,6 +55,9 @@ pub enum OptimizedAbstractProjectionError {
     OperationOffsetOverflow(MachineId),
     InitialUnitProjection,
     CandidateReplay(OptimizationUnitValidationError),
+    /// Independent replay of a retained relocation declaration or commit
+    /// rejected the roster the run published.
+    LoopInvariantScalarMotionReplay(LoopInvariantScalarMotionError),
     CommitReplayMismatch,
     FinalUnitReplayMismatch,
     AppliedDecisionCustody {

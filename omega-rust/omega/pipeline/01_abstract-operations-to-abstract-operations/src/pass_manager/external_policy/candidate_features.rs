@@ -2,13 +2,13 @@ use optimization_core::OptimizationRuleContract;
 use optimization_core::{
     ExternalCandidateFeatures, ExternalDecisionSchemaError, ValidatedCandidateSummary,
 };
-use optimization_unit::PsiRewriteCandidate;
+use optimization_unit::PsiCandidateDeclaration;
 
 /// Project the exact policy-visible row only after the ordinary candidate
 /// validator has admitted the candidate. Analysis features come from the
 /// scheduled contract; facts come from the immutable candidate declaration.
 pub(super) fn derive(
-    candidate: &PsiRewriteCandidate,
+    candidate: &PsiCandidateDeclaration,
     contract: OptimizationRuleContract,
 ) -> Result<ExternalCandidateFeatures, ExternalDecisionSchemaError> {
     ExternalCandidateFeatures::new(

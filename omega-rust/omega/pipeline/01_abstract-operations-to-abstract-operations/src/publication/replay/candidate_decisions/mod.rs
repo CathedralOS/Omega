@@ -5,17 +5,17 @@ mod baseline;
 mod declarations;
 mod manifests;
 
-use crate::{OptimizationRun, OrderedRuleRegistry};
+use crate::{OptimizationRun, PsiPassStep};
 
 use super::commits::ReplayedCommits;
 use crate::OptimizedAbstractProjectionError;
 
 pub(super) fn validate(
     run: &OptimizationRun,
-    registries: &[OrderedRuleRegistry],
+    steps: &[PsiPassStep],
     commits: &ReplayedCommits,
 ) -> Result<(), OptimizedAbstractProjectionError> {
-    manifests::validate(run, registries)?;
-    declarations::validate(run, registries, commits)?;
+    manifests::validate(run, steps)?;
+    declarations::validate(run, steps, commits)?;
     baseline::validate(run)
 }

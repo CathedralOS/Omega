@@ -59,12 +59,75 @@ use support::node_elision_accounting;
 pub(crate) mod tests;
 
 use optimization::PsiOptimizationSelections;
+#[cfg(any(test, feature = "test-support"))]
 use optimization_core::OptimizationSelections;
+use optimization_core::{
+    OptimizationPassIdentity, OptimizationRuleContract, OptimizationRuleIdentity,
+    OptimizationRuleSetIdentity,
+};
 
 use crate::{OrderedRuleRegistry, RuleRegistryError};
 
+#[cfg(any(test, feature = "test-support"))]
 pub use catalog::PSI_PASS_CATALOG;
-#[cfg(test)]
+
+/// One scheduled Psi pass: either a fixed-point rewrite registry over
+/// `PsiRewriteCandidate`s under analysis-manager custody, or a session-level
+/// ranked-rewrite boundary whose candidates relocate authenticated cyclic
+/// components through `VerifiedPsiOptimizationSession::from_transformed`.
+/// Both steps publish the same decision, commit, manifest, and policy rows —
+/// only the candidate declaration shape differs.
+pub(crate) enum PsiPassStep {
+    /// An ordered catalog rule registry iterating to a unit-local fixed point.
+    RewriteRegistry(OrderedRuleRegistry),
+    /// The unique-preheader loop-invariant scalar relocation boundary.
+    LoopInvariantScalarMotion,
+}
+
+impl PsiPassStep {
+    /// The named pass group this step publishes in the run manifest. An
+    /// empty rewrite registry carries no pass row.
+    pub(crate) fn pass(&self) -> Option<OptimizationPassIdentity> {
+        match self {
+            Self::RewriteRegistry(registry) => registry.pass(),
+            Self::LoopInvariantScalarMotion => Some(
+                OptimizationPassIdentity::from_canonical_bytes(
+                    crate::ranked_rewrites::loop_invariant_scalar_motion::LOOP_INVARIANT_SCALAR_MOTION_PASS_NAME,
+                ),
+            ),
+        }
+    }
+
+    /// The ordered contract roster this step admits: the registry's rules, or
+    /// the relocation boundary's single contract.
+    pub(crate) fn contracts(&self) -> Vec<OptimizationRuleContract> {
+        match self {
+            Self::RewriteRegistry(registry) => registry.contracts().collect(),
+            Self::LoopInvariantScalarMotion => {
+                vec![crate::ranked_rewrites::loop_invariant_scalar_motion::contract()]
+            }
+        }
+    }
+
+    /// The step's ordered rule identities in manifest order.
+    pub(crate) fn ordered_rules(&self) -> Vec<OptimizationRuleIdentity> {
+        self.contracts()
+            .iter()
+            .map(|contract| contract.identity())
+            .collect()
+    }
+
+    /// Canonical identity over the step's ordered rule identities.
+    pub(crate) fn rule_set_identity(&self) -> OptimizationRuleSetIdentity {
+        match self {
+            Self::RewriteRegistry(registry) => registry.identity(),
+            Self::LoopInvariantScalarMotion => OptimizationRuleSetIdentity::from_ordered_rules(&[
+                crate::ranked_rewrites::loop_invariant_scalar_motion::rule_identity(),
+            ])
+            .expect("a single-rule schedule cannot duplicate"),
+        }
+    }
+}
 #[cfg(test)]
 pub(crate) use control_flow_cleanup::{
     AdjacentBlockMergeRule, ConstantConditionalFoldRule, LinearEmptyBlockThreadRule,
@@ -157,7 +220,10 @@ pub(crate) fn built_in_psi_registry_for_selections(
         .unwrap_or_else(|| OrderedRuleRegistry::new(Vec::new()).expect("empty registry is valid")))
 }
 
-/// Resolve exact selections in canonical catalog order.
+/// Resolve exact selections in canonical catalog order. Registry-only shape:
+/// session-level steps are not expressible here, so the relocation selection
+/// rejects; the scheduled-step resolver is `built_in_psi_steps_for_selections`.
+#[cfg(test)]
 pub(crate) fn built_in_psi_registries(
     selections: &OptimizationSelections,
 ) -> Result<Vec<OrderedRuleRegistry>, RuleRegistryError> {
@@ -166,6 +232,7 @@ pub(crate) fn built_in_psi_registries(
 }
 
 /// Resolve exact Psi-owned selections in canonical catalog order.
+#[cfg(any(test, feature = "test-support"))]
 pub(crate) fn built_in_psi_registries_for_selections(
     selections: &PsiOptimizationSelections,
 ) -> Result<Vec<OrderedRuleRegistry>, RuleRegistryError> {
@@ -182,5 +249,25 @@ pub(crate) fn built_in_psi_registries_for_selections(
         .copied()
         .filter(|entry| selections.contains(entry.optimization()))
         .map(|entry| catalog::registry_for_optimization(entry.optimization()))
+        .collect()
+}
+
+/// Resolve exact Psi-owned selections to the ordered pass schedule: catalog
+/// rewrite registries plus session-level ranked-rewrite steps.
+pub(crate) fn built_in_psi_steps_for_selections(
+    selections: &PsiOptimizationSelections,
+) -> Result<Vec<PsiPassStep>, RuleRegistryError> {
+    if let Some(unsupported) = selections.as_slice().iter().find(|optimization| {
+        !catalog::PSI_PASS_CATALOG
+            .iter()
+            .any(|entry| entry.optimization() == **optimization)
+    }) {
+        return Err(RuleRegistryError::UnsupportedOptimization(*unsupported));
+    }
+    catalog::PSI_PASS_CATALOG
+        .iter()
+        .copied()
+        .filter(|entry| selections.contains(entry.optimization()))
+        .map(catalog::PsiPassCatalogEntry::step)
         .collect()
 }

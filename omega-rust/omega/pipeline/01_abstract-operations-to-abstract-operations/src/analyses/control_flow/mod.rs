@@ -2,11 +2,8 @@
 use semantic_vocabulary::{BlockId, MachineId};
 mod call_graph;
 mod components;
-#[cfg(any(test, feature = "test-support"))]
 mod countdown_induction;
-#[cfg(any(test, feature = "test-support"))]
 mod countdown_invariant_constant_placement;
-#[cfg(any(test, feature = "test-support"))]
 mod countdown_invariant_constants;
 mod dominance;
 mod graph;
@@ -15,35 +12,35 @@ pub(super) use call_graph::call_graph;
 pub(super) use components::block_components;
 
 #[cfg(any(test, feature = "test-support"))]
+pub use countdown_induction::CountedLoopAnalysisSnapshot;
+pub(crate) use countdown_induction::analyze_counted_loops;
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) use countdown_induction::validate_counted_loop_analysis;
 pub use countdown_induction::{
-    CountedLoopAnalysisError, CountedLoopAnalysisSnapshot, UnsignedCountdownLoopSummary,
-    ValidatedCountedLoopAnalysis,
+    CountedLoopAnalysisError, UnsignedCountdownLoopSummary, ValidatedCountedLoopAnalysis,
 };
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) use countdown_induction::{analyze_counted_loops, validate_counted_loop_analysis};
 
+pub(crate) use countdown_invariant_constant_placement::analyze_countdown_invariant_constant_placement;
 #[cfg(any(test, feature = "test-support"))]
+pub(crate) use countdown_invariant_constant_placement::validate_countdown_invariant_constant_placement_analysis;
 pub use countdown_invariant_constant_placement::{
     CountdownInvariantConstantPlacementAnalysisError,
-    CountdownInvariantConstantPlacementAnalysisSnapshot,
-    UnsignedCountdownInvariantConstantPlacements,
     ValidatedCountdownInvariantConstantPlacementAnalysis,
 };
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) use countdown_invariant_constant_placement::{
-    analyze_countdown_invariant_constant_placement,
-    validate_countdown_invariant_constant_placement_analysis,
+pub use countdown_invariant_constant_placement::{
+    CountdownInvariantConstantPlacementAnalysisSnapshot,
+    UnsignedCountdownInvariantConstantPlacements,
 };
 
 #[cfg(any(test, feature = "test-support"))]
-pub use countdown_invariant_constants::{
-    CountdownInvariantConstantAnalysisError, CountdownInvariantConstantAnalysisSnapshot,
-    CountdownInvariantConstantRole, CountdownInvariantIntegerConstant,
-    ValidatedCountdownInvariantConstantAnalysis,
-};
+pub use countdown_invariant_constants::CountdownInvariantConstantAnalysisSnapshot;
+pub(crate) use countdown_invariant_constants::analyze_countdown_invariant_constants;
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) use countdown_invariant_constants::{
-    analyze_countdown_invariant_constants, validate_countdown_invariant_constant_analysis,
+pub(crate) use countdown_invariant_constants::validate_countdown_invariant_constant_analysis;
+pub use countdown_invariant_constants::{
+    CountdownInvariantConstantAnalysisError, CountdownInvariantConstantRole,
+    CountdownInvariantIntegerConstant, ValidatedCountdownInvariantConstantAnalysis,
 };
 pub(super) use dominance::dominators;
 pub(super) use graph::control_flow;

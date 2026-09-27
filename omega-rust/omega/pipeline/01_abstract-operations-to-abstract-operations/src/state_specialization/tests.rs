@@ -795,39 +795,54 @@ fn replay_rejects_forged_conditional_arm_rows() {
     // that does not enter the dispatch at all.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.edges[0].incoming_edge = sibling.psi_edge;
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.edges[0].incoming_edge = sibling.psi_edge;
+            },
+        ),
     );
 
     // A forged predecessor coordinate.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.edges[0].predecessor.node += 1;
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.edges[0].predecessor.node += 1;
+            },
+        ),
     );
 
     // A forged resolved arm edge.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.edges[0].taken_edge = patch.edges[0].rejected_edge;
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.edges[0].taken_edge = patch.edges[0].rejected_edge;
+            },
+        ),
     );
 
     // A duplicated row — the same arm claimed twice — cannot validate: the
     // replayed plan carries each admissible edge exactly once.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.edges.push(row);
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.edges.push(row);
+            },
+        ),
     );
 
     // The untampered declaration still validates to the committed output.
-    let validated = validate_state_argument_specialization_candidate(&input, &commit.declaration)
-        .expect("the exact candidate still validates");
+    let validated = validate_state_argument_specialization_candidate(
+        &input,
+        commit.declaration.rewrite().expect("rewrite declaration"),
+    )
+    .expect("the exact candidate still validates");
     assert_eq!(validated.unit().identity, commit.output);
 }
 
@@ -908,38 +923,53 @@ fn replay_rejects_forged_specialization_rows() {
     // A forged resolved arm edge.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.edges[0].taken_edge = patch.edges[0].rejected_edge;
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.edges[0].taken_edge = patch.edges[0].rejected_edge;
+            },
+        ),
     );
 
     // A forged constant verdict.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.edges[0].constant = !patch.edges[0].constant;
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.edges[0].constant = !patch.edges[0].constant;
+            },
+        ),
     );
 
     // A forged supplying edge.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.edges[0].incoming_edge = patch.edges[0].rejected_edge;
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.edges[0].incoming_edge = patch.edges[0].rejected_edge;
+            },
+        ),
     );
 
     // A forged predecessor coordinate.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.edges[0].predecessor.node += 1;
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.edges[0].predecessor.node += 1;
+            },
+        ),
     );
 
     // The untampered declaration still validates to the committed output.
-    let validated = validate_state_argument_specialization_candidate(&input, &commit.declaration)
-        .expect("the exact candidate still validates");
+    let validated = validate_state_argument_specialization_candidate(
+        &input,
+        commit.declaration.rewrite().expect("rewrite declaration"),
+    )
+    .expect("the exact candidate still validates");
     assert_eq!(validated.unit().identity, commit.output);
 }
 
@@ -952,7 +982,7 @@ fn replay_rejects_stale_candidate_revision() {
 
     // A candidate pinned to a revision that is not the input.
     let stale = rebuild(
-        &commit.declaration,
+        commit.declaration.rewrite().expect("rewrite declaration"),
         OptimizationUnitIdentity::from_canonical_bytes(b"stale-input"),
         |_| {},
     )
@@ -965,8 +995,11 @@ fn replay_rejects_stale_candidate_revision() {
     // Committing moves the revision; the original declaration is stale
     // against the transformed unit afterward.
     assert_eq!(
-        validate_state_argument_specialization_candidate(run.session().unit(), &commit.declaration)
-            .err(),
+        validate_state_argument_specialization_candidate(
+            run.session().unit(),
+            commit.declaration.rewrite().expect("rewrite declaration")
+        )
+        .err(),
         Some(OptimizationUnitValidationError::CandidateInputMismatch)
     );
 }
@@ -1465,30 +1498,42 @@ fn replay_rejects_forged_integer_arm_rows() {
     // flipping the resolved arm cannot replay.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.edges[0].constant = !patch.edges[0].constant;
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.edges[0].constant = !patch.edges[0].constant;
+            },
+        ),
     );
 
     // A forged resolved arm edge.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.edges[0].taken_edge = patch.edges[0].rejected_edge;
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.edges[0].taken_edge = patch.edges[0].rejected_edge;
+            },
+        ),
     );
 
     // A forged supplying edge.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.edges[0].incoming_edge = patch.edges[0].rejected_edge;
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.edges[0].incoming_edge = patch.edges[0].rejected_edge;
+            },
+        ),
     );
 
     // The untampered declaration still validates to the committed output.
-    let validated = validate_state_argument_specialization_candidate(&input, &commit.declaration)
-        .expect("the exact candidate still validates");
+    let validated = validate_state_argument_specialization_candidate(
+        &input,
+        commit.declaration.rewrite().expect("rewrite declaration"),
+    )
+    .expect("the exact candidate still validates");
     assert_eq!(validated.unit().identity, commit.output);
 }
 
@@ -1880,47 +1925,65 @@ fn replay_rejects_forged_call_result_rows() {
     // `flag`, so flipping the resolved arm cannot replay.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.edges[0].constant = !patch.edges[0].constant;
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.edges[0].constant = !patch.edges[0].constant;
+            },
+        ),
     );
 
     // A forged bound argument — the replayed plan re-derives the call
     // result's own value identity, so a drifted argument cannot match.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.edges[0].argument = patch.edges[0].parameter;
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.edges[0].argument = patch.edges[0].parameter;
+            },
+        ),
     );
 
     // A forged resolved arm edge.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.edges[0].taken_edge = patch.edges[0].rejected_edge;
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.edges[0].taken_edge = patch.edges[0].rejected_edge;
+            },
+        ),
     );
 
     // A forged supplying edge.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.edges[0].incoming_edge = patch.edges[0].rejected_edge;
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.edges[0].incoming_edge = patch.edges[0].rejected_edge;
+            },
+        ),
     );
 
     // A forged predecessor coordinate.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.edges[0].predecessor.node += 1;
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.edges[0].predecessor.node += 1;
+            },
+        ),
     );
 
     // The untampered declaration still validates to the committed output.
-    let validated = validate_state_argument_specialization_candidate(&input, &commit.declaration)
-        .expect("the exact candidate still validates");
+    let validated = validate_state_argument_specialization_candidate(
+        &input,
+        commit.declaration.rewrite().expect("rewrite declaration"),
+    )
+    .expect("the exact candidate still validates");
     assert_eq!(validated.unit().identity, commit.output);
 }
 
@@ -1979,7 +2042,12 @@ fn single_commit(
         commit.rule,
         StateArgumentSpecializationRule::contract().identity()
     );
-    let PsiRewritePatch::SpecializeStateArgument(patch) = commit.declaration.patch() else {
+    let PsiRewritePatch::SpecializeStateArgument(patch) = commit
+        .declaration
+        .rewrite()
+        .expect("rewrite declaration")
+        .patch()
+    else {
         panic!("a state-argument patch")
     };
     (commit, patch)

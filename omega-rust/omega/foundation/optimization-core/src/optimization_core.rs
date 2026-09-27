@@ -125,7 +125,7 @@ macro_rules! optimization_vocabulary {
 // phases, and canonical order. Build preludes are exhaustively checked against
 // the generated `ALL`, `build_case_name`, and `build_counter_field` views.
 optimization_vocabulary! {
-    52;
+    53;
     ControlFlowCleanup = 1 => {
         case: "ControlFlowCleanup",
         counter: "control_flow_cleanup",
@@ -386,6 +386,11 @@ optimization_vocabulary! {
         counter: "selected_equivalent_compare_removal_v1",
         phase: PreAllocation
     },
+    LoopInvariantScalarMotion = 53 => {
+        case: "LoopInvariantScalarMotion",
+        counter: "loop_invariant_scalar_motion",
+        phase: Psi
+    },
 }
 
 impl Optimization {
@@ -408,6 +413,7 @@ impl Optimization {
             Self::RepresentationSpecialization => {
                 Some(PsiOptimization::RepresentationSpecialization)
             }
+            Self::LoopInvariantScalarMotion => Some(PsiOptimization::LoopInvariantScalarMotion),
             Self::SelectedIncomingU12ExactAddImmediate
             | Self::X86RelaxConditionalBranchesToRel8V1
             | Self::SelectedIncomingU12ExactSubtractImmediate
@@ -471,6 +477,7 @@ impl From<optimization::PsiOptimization> for Optimization {
             PsiOptimization::ProofCheckElision => Self::ProofCheckElision,
             PsiOptimization::StateSpecialization => Self::StateSpecialization,
             PsiOptimization::RepresentationSpecialization => Self::RepresentationSpecialization,
+            PsiOptimization::LoopInvariantScalarMotion => Self::LoopInvariantScalarMotion,
         }
     }
 }

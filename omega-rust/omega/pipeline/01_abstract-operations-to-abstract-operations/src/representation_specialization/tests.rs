@@ -437,41 +437,56 @@ fn replay_rejects_forged_membership_rows() {
     // A forged verdict.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.memberships[0].outcome = !patch.memberships[0].outcome;
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.memberships[0].outcome = !patch.memberships[0].outcome;
+            },
+        ),
     );
 
     // A forged observed case — a case identity no source operation carries.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.memberships[0].observed_case = semantic_vocabulary::StructuralCaseId::new(
-                patch.memberships[0].observed_case.get() + 7,
-            )
-            .expect("forged case identity");
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.memberships[0].observed_case = semantic_vocabulary::StructuralCaseId::new(
+                    patch.memberships[0].observed_case.get() + 7,
+                )
+                .expect("forged case identity");
+            },
+        ),
     );
 
     // A forged site coordinate.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.memberships[0].site.node += 1;
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.memberships[0].site.node += 1;
+            },
+        ),
     );
 
     // A forged producer identity.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.producer = Some(patch.memberships[0].psi_operation);
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.producer = Some(patch.memberships[0].psi_operation);
+            },
+        ),
     );
 
     // The untampered declaration still validates to the committed output.
-    let validated = validate_case_membership_specialization_candidate(&input, &commit.declaration)
-        .expect("the exact candidate still validates");
+    let validated = validate_case_membership_specialization_candidate(
+        &input,
+        commit.declaration.rewrite().expect("rewrite declaration"),
+    )
+    .expect("the exact candidate still validates");
     assert_eq!(validated.unit().identity, commit.output);
 }
 
@@ -484,7 +499,7 @@ fn replay_rejects_stale_candidate_revision() {
 
     // A candidate pinned to a revision that is not the input.
     let stale = rebuild(
-        &commit.declaration,
+        commit.declaration.rewrite().expect("rewrite declaration"),
         OptimizationUnitIdentity::from_canonical_bytes(b"stale-input"),
         |_| {},
     )
@@ -499,7 +514,7 @@ fn replay_rejects_stale_candidate_revision() {
     assert_eq!(
         validate_case_membership_specialization_candidate(
             run.session().unit(),
-            &commit.declaration
+            commit.declaration.rewrite().expect("rewrite declaration")
         )
         .err(),
         Some(OptimizationUnitValidationError::CandidateInputMismatch)
@@ -621,32 +636,44 @@ fn replay_rejects_forged_roster_rows() {
     // Claiming a producer on a roster-proven row mismatches the replayed plan.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.producer = Some(patch.memberships[0].psi_operation);
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.producer = Some(patch.memberships[0].psi_operation);
+            },
+        ),
     );
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.memberships[0].producer = Some(patch.memberships[0].psi_operation);
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.memberships[0].producer = Some(patch.memberships[0].psi_operation);
+            },
+        ),
     );
 
     // A forged proven case on the roster basis mismatches too.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.memberships[0].proven_case = semantic_vocabulary::StructuralCaseId::new(
-                patch.memberships[0].proven_case.get() + 7,
-            )
-            .expect("forged case identity");
-            patch.memberships[0].outcome =
-                patch.memberships[0].proven_case == patch.memberships[0].observed_case;
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.memberships[0].proven_case = semantic_vocabulary::StructuralCaseId::new(
+                    patch.memberships[0].proven_case.get() + 7,
+                )
+                .expect("forged case identity");
+                patch.memberships[0].outcome =
+                    patch.memberships[0].proven_case == patch.memberships[0].observed_case;
+            },
+        ),
     );
 
-    let validated = validate_case_membership_specialization_candidate(&input, &commit.declaration)
-        .expect("the exact roster candidate still validates");
+    let validated = validate_case_membership_specialization_candidate(
+        &input,
+        commit.declaration.rewrite().expect("rewrite declaration"),
+    )
+    .expect("the exact roster candidate still validates");
     assert_eq!(validated.unit().identity, commit.output);
 }
 
@@ -784,27 +811,36 @@ fn replay_rejects_forged_path_rows() {
     // that cannot prove a nested position.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.memberships[0].producer = Some(patch.memberships[0].psi_operation);
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.memberships[0].producer = Some(patch.memberships[0].psi_operation);
+            },
+        ),
     );
 
     // A forged proven case at the resolved position mismatches the replayed
     // roster.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.memberships[0].proven_case = semantic_vocabulary::StructuralCaseId::new(
-                patch.memberships[0].proven_case.get() + 7,
-            )
-            .expect("forged case identity");
-            patch.memberships[0].outcome =
-                patch.memberships[0].proven_case == patch.memberships[0].observed_case;
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.memberships[0].proven_case = semantic_vocabulary::StructuralCaseId::new(
+                    patch.memberships[0].proven_case.get() + 7,
+                )
+                .expect("forged case identity");
+                patch.memberships[0].outcome =
+                    patch.memberships[0].proven_case == patch.memberships[0].observed_case;
+            },
+        ),
     );
 
-    let validated = validate_case_membership_specialization_candidate(&input, &commit.declaration)
-        .expect("the exact path candidate still validates");
+    let validated = validate_case_membership_specialization_candidate(
+        &input,
+        commit.declaration.rewrite().expect("rewrite declaration"),
+    )
+    .expect("the exact path candidate still validates");
     assert_eq!(validated.unit().identity, commit.output);
 }
 
@@ -1018,35 +1054,47 @@ fn replay_rejects_forged_array_rows() {
     // roster: the element's declared sole case is the basis, not the row.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.memberships[0].proven_case = semantic_vocabulary::StructuralCaseId::new(
-                patch.memberships[0].proven_case.get() + 7,
-            )
-            .expect("forged case identity");
-            patch.memberships[0].outcome =
-                patch.memberships[0].proven_case == patch.memberships[0].observed_case;
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.memberships[0].proven_case = semantic_vocabulary::StructuralCaseId::new(
+                    patch.memberships[0].proven_case.get() + 7,
+                )
+                .expect("forged case identity");
+                patch.memberships[0].outcome =
+                    patch.memberships[0].proven_case == patch.memberships[0].observed_case;
+            },
+        ),
     );
 
     // A forged producer claims an establishment basis on a roster-proven
     // indexed read.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.memberships[0].producer = Some(patch.memberships[0].psi_operation);
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.memberships[0].producer = Some(patch.memberships[0].psi_operation);
+            },
+        ),
     );
 
     // A forged site coordinate relocates the fold off the membership.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.memberships[0].site.node += 1;
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.memberships[0].site.node += 1;
+            },
+        ),
     );
 
-    let validated = validate_case_membership_specialization_candidate(&input, &commit.declaration)
-        .expect("the exact array candidate still validates");
+    let validated = validate_case_membership_specialization_candidate(
+        &input,
+        commit.declaration.rewrite().expect("rewrite declaration"),
+    )
+    .expect("the exact array candidate still validates");
     assert_eq!(validated.unit().identity, commit.output);
 }
 
@@ -1078,7 +1126,12 @@ fn single_commit(
         commit.rule,
         CaseMembershipSpecializationRule::contract().identity()
     );
-    let PsiRewritePatch::SpecializeCaseMembership(patch) = commit.declaration.patch() else {
+    let PsiRewritePatch::SpecializeCaseMembership(patch) = commit
+        .declaration
+        .rewrite()
+        .expect("rewrite declaration")
+        .patch()
+    else {
         panic!("a case-membership patch")
     };
     (commit, patch)
@@ -1532,36 +1585,48 @@ fn replay_rejects_forged_bound_rows() {
     // trusting it.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.memberships[0].producer = None;
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.memberships[0].producer = None;
+            },
+        ),
     );
 
     // A forged patch-level producer — claiming the observation's own
     // custody identity rather than the forwarded establishment.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.producer = Some(patch.memberships[0].psi_operation);
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.producer = Some(patch.memberships[0].psi_operation);
+            },
+        ),
     );
 
     // A forged proven case on the bound read.
     assert_rejects_rows(
         &input,
-        forged(&commit.declaration, |patch| {
-            patch.memberships[0].proven_case = semantic_vocabulary::StructuralCaseId::new(
-                patch.memberships[0].proven_case.get() + 7,
-            )
-            .expect("forged case identity");
-            patch.memberships[0].outcome =
-                patch.memberships[0].proven_case == patch.memberships[0].observed_case;
-        }),
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.memberships[0].proven_case = semantic_vocabulary::StructuralCaseId::new(
+                    patch.memberships[0].proven_case.get() + 7,
+                )
+                .expect("forged case identity");
+                patch.memberships[0].outcome =
+                    patch.memberships[0].proven_case == patch.memberships[0].observed_case;
+            },
+        ),
     );
 
     // The untampered declaration still validates to the committed output.
-    let validated = validate_case_membership_specialization_candidate(&input, &commit.declaration)
-        .expect("the exact candidate still validates");
+    let validated = validate_case_membership_specialization_candidate(
+        &input,
+        commit.declaration.rewrite().expect("rewrite declaration"),
+    )
+    .expect("the exact candidate still validates");
     assert_eq!(validated.unit().identity, commit.output);
 }
 

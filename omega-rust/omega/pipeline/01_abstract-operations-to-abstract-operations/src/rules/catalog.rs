@@ -17,11 +17,16 @@ use crate::{OrderedRuleRegistry, PsiOptimizationRule, RuleRegistryError};
 type RuleCatalog = fn() -> Vec<BuiltInRuleRegistration>;
 
 #[derive(Clone, Copy)]
-struct PsiPassCatalogPayload {
-    rule_catalog: RuleCatalog,
+enum PsiPassCatalogPayload {
+    /// An ordered leaf-rule registry iterated to a unit-local fixed point.
+    RuleCatalog(RuleCatalog),
+    /// The session-level unique-preheader relocation boundary: it owns no
+    /// leaf-rule registry — the pass manager drives its
+    /// propose/validate/apply loop directly.
+    LoopInvariantScalarMotion,
 }
 
-/// One visible route from an exact Psi selection to its ordered rule leaf.
+/// One visible route from an exact Psi selection to its scheduled pass step.
 #[derive(Clone, Copy)]
 pub struct PsiPassCatalogEntry {
     optimization: PsiOptimization,
@@ -32,7 +37,14 @@ impl PsiPassCatalogEntry {
     const fn new(optimization: PsiOptimization, rule_catalog: RuleCatalog) -> Self {
         Self {
             optimization,
-            payload: PsiPassCatalogPayload { rule_catalog },
+            payload: PsiPassCatalogPayload::RuleCatalog(rule_catalog),
+        }
+    }
+
+    const fn session_step(optimization: PsiOptimization) -> Self {
+        Self {
+            optimization,
+            payload: PsiPassCatalogPayload::LoopInvariantScalarMotion,
         }
     }
 
@@ -40,13 +52,33 @@ impl PsiPassCatalogEntry {
         self.optimization
     }
 
+    /// Resolve this catalog row to its scheduled pass step.
+    pub(crate) fn step(self) -> Result<crate::rules::PsiPassStep, RuleRegistryError> {
+        match self.payload {
+            PsiPassCatalogPayload::RuleCatalog(rule_catalog) => {
+                Ok(crate::rules::PsiPassStep::RewriteRegistry(
+                    assemble_built_in_registry(rule_catalog())?,
+                ))
+            }
+            PsiPassCatalogPayload::LoopInvariantScalarMotion => {
+                Ok(crate::rules::PsiPassStep::LoopInvariantScalarMotion)
+            }
+        }
+    }
+
+    #[cfg(test)]
     fn registrations(self) -> Vec<BuiltInRuleRegistration> {
-        (self.payload.rule_catalog)()
+        match self.payload {
+            PsiPassCatalogPayload::RuleCatalog(rule_catalog) => rule_catalog(),
+            PsiPassCatalogPayload::LoopInvariantScalarMotion => Vec::new(),
+        }
     }
 }
 
-/// The single built-in Psi enable/disable and ordering table.
-pub const PSI_PASS_CATALOG: [PsiPassCatalogEntry; 8] = [
+/// The single built-in Psi enable/disable and ordering table. The relocation
+/// boundary schedules last: it relocates the invariants the rewrite passes
+/// leave behind into each component's unique preheader.
+pub const PSI_PASS_CATALOG: [PsiPassCatalogEntry; 9] = [
     PsiPassCatalogEntry::new(
         PsiOptimization::SparseConditionalConstantPropagation,
         sparse_conditional_constant_propagation::built_in_registrations,
@@ -79,8 +111,13 @@ pub const PSI_PASS_CATALOG: [PsiPassCatalogEntry; 8] = [
         PsiOptimization::RepresentationSpecialization,
         representation_specialization_rule_registrations,
     ),
+    PsiPassCatalogEntry::session_step(PsiOptimization::LoopInvariantScalarMotion),
 ];
 
+/// Resolve a selection to its leaf-rule registry. Session-level steps own no
+/// registry, so the relocation boundary reports `UnsupportedOptimization`
+/// here — the scheduled-step resolver admits it.
+#[cfg(any(test, feature = "test-support"))]
 pub(crate) fn registry_for_optimization(
     optimization: PsiOptimization,
 ) -> Result<OrderedRuleRegistry, RuleRegistryError> {
@@ -89,7 +126,14 @@ pub(crate) fn registry_for_optimization(
         .copied()
         .find(|descriptor| descriptor.optimization() == optimization)
         .ok_or(RuleRegistryError::UnsupportedOptimization(optimization))?;
-    assemble_built_in_registry(descriptor.registrations())
+    match descriptor.payload {
+        PsiPassCatalogPayload::RuleCatalog(rule_catalog) => {
+            assemble_built_in_registry(rule_catalog())
+        }
+        PsiPassCatalogPayload::LoopInvariantScalarMotion => {
+            Err(RuleRegistryError::UnsupportedOptimization(optimization))
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

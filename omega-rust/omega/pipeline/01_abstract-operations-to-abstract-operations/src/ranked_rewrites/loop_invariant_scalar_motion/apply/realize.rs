@@ -30,7 +30,7 @@ pub(crate) fn realize(
     // not shift later coordinates, then reassemble the run in plan order.
     let mut requests = nodes
         .iter()
-        .map(|node| (node.location, node.psi_operation))
+        .map(|node| (node.location(), node.psi_operation()))
         .collect::<Vec<_>>();
     requests.sort_by_key(|(location, _)| (location.block, std::cmp::Reverse(location.node)));
     let mut removed = BTreeMap::new();
@@ -75,10 +75,10 @@ pub(crate) fn realize(
         .iter()
         .map(|planned| {
             let mut node = removed
-                .remove(&planned.psi_operation)
+                .remove(&planned.psi_operation())
                 .ok_or(LoopInvariantScalarMotionError::CandidateMismatch)?;
             let substitution = planned
-                .operand_rewrites
+                .operand_rewrites()
                 .iter()
                 .copied()
                 .collect::<BTreeMap<_, _>>();
@@ -173,7 +173,7 @@ pub(crate) fn realize(
                 }
                 .ok_or(LoopInvariantScalarMotionError::CandidateMismatch)?;
             }
-            if let Some((parameter, representative)) = planned.root_rewrite
+            if let Some((parameter, representative)) = planned.root_rewrite()
                 && !crate::validation::relocation_rewrites::substitute_invariant_place_root(
                     &mut node.operation,
                     parameter,
@@ -182,9 +182,9 @@ pub(crate) fn realize(
             {
                 return Err(LoopInvariantScalarMotionError::CandidateMismatch);
             }
-            if !planned.argument_rewrites.is_empty() {
+            if !planned.argument_rewrites().is_empty() {
                 let rewrites = planned
-                    .argument_rewrites
+                    .argument_rewrites()
                     .iter()
                     .copied()
                     .collect::<BTreeMap<_, _>>();

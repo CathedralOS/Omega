@@ -1,7 +1,9 @@
 use crate::PsiOptimization;
 
 /// Canonical execution order for every target-neutral Psi optimization pass.
-pub const PRETERMINAL_PSI_PASS_CATALOG: [PsiOptimization; 8] = [
+/// The post-Terminal-only passes still order here so selection identities
+/// stay canonical across phases.
+pub const PRETERMINAL_PSI_PASS_CATALOG: [PsiOptimization; 9] = [
     PsiOptimization::ControlFlowCleanup,
     PsiOptimization::SparseConditionalConstantPropagation,
     PsiOptimization::CopyPropagation,
@@ -10,4 +12,5 @@ pub const PRETERMINAL_PSI_PASS_CATALOG: [PsiOptimization; 8] = [
     PsiOptimization::ProofCheckElision,
     PsiOptimization::StateSpecialization,
     PsiOptimization::RepresentationSpecialization,
+    PsiOptimization::LoopInvariantScalarMotion,
 ];

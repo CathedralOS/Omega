@@ -36,6 +36,7 @@ pub(crate) fn analyze_countdown_invariant_constant_placement(
     validate::accept(unit, custody, counted, invariants, &candidate)
 }
 
+#[cfg(any(test, feature = "test-support"))]
 pub(crate) fn validate_countdown_invariant_constant_placement_analysis(
     unit: &PsiOptimizationUnit,
     custody: &ValidatedOptimizerCycleComponents,
@@ -98,10 +99,12 @@ impl ValidatedCountdownInvariantConstantPlacementAnalysis {
         Self { snapshot }
     }
 
+    #[cfg(any(test, feature = "test-support"))]
     pub fn loops(&self) -> &[UnsignedCountdownInvariantConstantPlacements] {
         &self.snapshot.loops
     }
 
+    #[cfg(any(test, feature = "test-support"))]
     pub const fn snapshot(&self) -> &CountdownInvariantConstantPlacementAnalysisSnapshot {
         &self.snapshot
     }
