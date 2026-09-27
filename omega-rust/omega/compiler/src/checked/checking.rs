@@ -207,6 +207,13 @@ pub struct PreparedCheckedSource {
     root_path: std::path::PathBuf,
     source_checkpoint: ImmutableSourceParseCheckpoint,
     shared_timings: CompileTimings,
+    /// Typed frontiers this checkpoint's children produced, keyed by the exact
+    /// frontier inputs each child supplied. Clones share the map, so a child
+    /// that arrives at frontier inputs an earlier child already lowered reuses
+    /// that typed program instead of re-assembling and re-lowering identical
+    /// source; per-activation custody admission and every post-frontier gate
+    /// still run for the reusing child.
+    frontier_memo: std::sync::Arc<build_continuation::TypedFrontierMemo>,
 }
 
 pub(crate) struct CheckedChildExecution<'a> {
@@ -377,6 +384,7 @@ impl PreparedCheckedSource {
             root_path: root_path.to_owned(),
             source_checkpoint,
             shared_timings,
+            frontier_memo: std::sync::Arc::new(std::sync::Mutex::new(Vec::new())),
         })
     }
 
@@ -386,8 +394,57 @@ impl PreparedCheckedSource {
     ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
         let root_path = self.root_path.clone();
         self.admit_child(&child)?;
-        let assembled = self.assemble(child.package_inputs)?;
-        compile_assembled_checked_child(&root_path, child, assembled)
+        let key = build_continuation::TypedFrontierKey::for_child(&child)?;
+        let frontier_memo = self.frontier_memo.clone();
+        let retained = frontier_memo
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .iter()
+            .find(|(stored_key, _)| *stored_key == key)
+            .map(|(_, frontier)| frontier.clone());
+        match retained {
+            // A retained frontier is the deterministic product of this same
+            // checkpoint's assembly and typed frontend under identical
+            // frontier inputs; the child still answers its own per-activation
+            // custody admission, and declaration authority, build execution,
+            // and provider settlement all run against its live request.
+            Some(frontier) => {
+                if let Some(inputs) = child.package_inputs {
+                    inputs.validate_for_compilation(
+                        &root_path,
+                        &build_evaluation::sources::frontend::bundled_core_root(),
+                    )?;
+                }
+                TYPED_FRONTIER_REUSES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                compile_frontier_checked_child(
+                    &root_path,
+                    child,
+                    build_continuation::CheckedFrontierInput::Retained(frontier),
+                    self.shared_timings.clone(),
+                    None,
+                )
+            }
+            None => {
+                let AssembledSource {
+                    source_file_count,
+                    syntax,
+                    timings,
+                } = self.assemble(child.package_inputs)?;
+                compile_frontier_checked_child(
+                    &root_path,
+                    child,
+                    build_continuation::CheckedFrontierInput::Assembled {
+                        source_file_count,
+                        syntax,
+                    },
+                    timings,
+                    Some(build_continuation::TypedFrontierMemoSlot {
+                        memo: frontier_memo,
+                        key,
+                    }),
+                )
+            }
+        }
     }
 
     /// Admit one child's package inputs against this source frontier. Parsing
@@ -481,6 +538,17 @@ pub fn checked_compilation_call_count() -> u64 {
     CHECKED_COMPILATION_CALLS.load(std::sync::atomic::Ordering::Relaxed)
 }
 
+static TYPED_FRONTIER_REUSES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Monotonic count of typed frontiers a checked child reused from an earlier
+/// child of its prepared source checkpoint, so a test can witness that a
+/// review pass whose bindings joined after the frontier sealed did not
+/// re-assemble and re-lower identical source.
+#[doc(hidden)]
+pub fn typed_frontier_reuse_count() -> u64 {
+    TYPED_FRONTIER_REUSES.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 fn compile_checked_request(
     request: CheckedCompileRequest<'_>,
     prepared: Option<PreparedCheckedSource>,
@@ -554,27 +622,24 @@ pub(crate) struct AssembledSource {
     pub(crate) timings: CompileTimings,
 }
 
-fn compile_assembled_checked_child(
+fn compile_frontier_checked_child(
     root_path: &Path,
     mut child: CheckedChildExecution<'_>,
-    assembled: AssembledSource,
+    frontier: build_continuation::CheckedFrontierInput,
+    mut timings: CompileTimings,
+    memo_slot: Option<build_continuation::TypedFrontierMemoSlot>,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-    let AssembledSource {
-        source_file_count,
-        syntax,
-        mut timings,
-    } = assembled;
     let selected_target_profile = child.selected_target_profile;
     let package_inputs = child.package_inputs;
     let optimization_rollback = child.optimization_rollback.clone();
     let independent_component_discovery = child.independent_component_discovery.take();
     let permit_unsettled_fused_service_fields = child.permit_unsettled_fused_service_fields;
     let build_started = std::time::Instant::now();
-    let (built, sources) = build_continuation::evaluate_build_and_continue(
+    let (built, sources) = build_continuation::evaluate_frontier_and_continue(
         root_path,
         child,
-        source_file_count,
-        syntax,
+        frontier,
+        memo_slot,
         &mut timings,
     )?;
     timings.add_completed(

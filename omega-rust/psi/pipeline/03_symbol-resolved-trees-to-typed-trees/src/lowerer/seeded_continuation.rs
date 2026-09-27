@@ -26,8 +26,10 @@ pub enum SeededContinuationError {
 
 /// Opaque ownership of one exact resolved/typed base pair. Capturing fails
 /// when typing has minted symbols or lost the resolved selection prefix; those
-/// bases require a future, broader continuation cohort.
-#[derive(Debug, PartialEq, Eq)]
+/// bases require a future, broader continuation cohort. `Clone` copies the
+/// owned pair for a caller retaining one frontier while the original
+/// continues into generated-source extension and checking.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SeededTypingBase {
     resolved: Box<SymbolResolvedTrees>,
     typed: TypedTrees,

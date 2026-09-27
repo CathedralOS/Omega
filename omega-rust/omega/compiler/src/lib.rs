@@ -21,7 +21,7 @@ pub use crate::checked::{
     CheckedAdmission, CheckedCompilation, CheckedCompileRequest, IndependentComponentDiscovery,
     IndependentComponentSelection, OptimizationRollback, OptimizationRollbackInputError,
     PreparedCheckedSource, RestrictedBuildGrants, admit_checked_compilation,
-    checked_compilation_call_count, compile_to_checked,
+    checked_compilation_call_count, compile_to_checked, typed_frontier_reuse_count,
 };
 pub use crate::native::{
     RetainedNativeRealizationRequest, SourceEvaluatedImportSettlement,

@@ -27,7 +27,7 @@ pub(crate) use checking::{AssembledSource, CheckedChildExecution};
 pub use checking::{
     CheckedCompilation, CheckedCompileRequest, IndependentComponentDiscovery,
     IndependentComponentSelection, PreparedCheckedSource, RestrictedBuildGrants,
-    checked_compilation_call_count, compile_to_checked,
+    checked_compilation_call_count, compile_to_checked, typed_frontier_reuse_count,
 };
 pub use optimization::rollback::{
     OptimizationRollback, OptimizationRollbackInputError, OptimizationRollbackSettlement,

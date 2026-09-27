@@ -797,6 +797,7 @@ fn bound_pass_compiles_only_the_occurrences_its_bindings_changed() {
         "the fixture's discovery proposes root bindings"
     );
     let compilations_before = compiler::checked_compilation_call_count();
+    let frontiers_before = compiler::typed_frontier_reuse_count();
     let bound = compile_pass(
         &exact,
         &fixture.0.join("bound"),
@@ -813,6 +814,13 @@ fn bound_pass_compiles_only_the_occurrences_its_bindings_changed() {
     assert_eq!(
         bound_compilations, 2,
         "the bound pass recompiled the two binding-consuming occurrences only"
+    );
+    let bound_frontier_reuses = compiler::typed_frontier_reuse_count() - frontiers_before;
+    assert_eq!(
+        bound_frontier_reuses, 2,
+        "each recompiled occurrence still re-lowered no source: the discovered \
+         bindings are all post-frontier service roles, so both typed frontiers \
+         carried over from the discovery pass unchanged"
     );
     let plain = closure
         .graph()
