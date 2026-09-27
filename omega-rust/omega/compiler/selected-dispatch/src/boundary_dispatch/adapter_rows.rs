@@ -218,6 +218,7 @@ pub(crate) fn resolve_selected_adapter_row(
     typed: &TypedTrees,
     plan: &effects::provider_plan::ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
+    specialization_rows: &[effects::SelectedRequirementSpecialization],
 ) -> Result<Vec<ResolvedAdapterRow>, Diagnostic> {
     use effects::provider_plan::ProviderBinding;
 
@@ -240,6 +241,7 @@ pub(crate) fn resolve_selected_adapter_row(
                     method,
                     requirement,
                     machine_identity,
+                    specialization_rows,
                 );
             }
             Some(SelectedAdapterTarget::TraitRequirement {
@@ -375,13 +377,16 @@ pub(crate) fn resolve_selected_adapter_row(
     })])
 }
 
-/// Resolve the one exact checked adapter realizing a top-level `boundary
-/// requirement`. Two rungs are deliberately closed: a public requirement
-/// carrying no static generic binders (`pub boundary requirement
-/// Owner::name(...);`, optionally with an erased lifetime telescope
-/// `Owner::name<'a>(...)`) and a checked-body adapter with no static generic
-/// binders whose sole `satisfies` edge rejoins that exact requirement symbol
-/// with the same non-self arity. The requirement's lifetime telescope is the
+/// Resolve the exact checked adapter realizing a top-level `boundary
+/// requirement`. A public requirement carrying no static generic binders
+/// (`pub boundary requirement Owner::name(...);`, optionally with an erased
+/// lifetime telescope `Owner::name<'a>(...)`) settles through a checked-body
+/// adapter with no static generic binders whose sole `satisfies` edge rejoins
+/// that exact requirement symbol with the same non-self arity. A generic
+/// token-machine requirement instead settles through its selected
+/// specialization roster: the plan row stays keyed by the authored template
+/// and every demanded closed requirement instance emits one row naming the
+/// exact specialized provider instance the roster joins to it. The requirement's lifetime telescope is the
 /// adapter's own telescope by the identity application conformance checked,
 /// so an erased telescope needs no row argument of its own. A receiver-free
 /// requirement admits only an exact-arity adapter and the row keys on the
@@ -410,6 +415,7 @@ fn resolve_top_level_requirement_adapter_row(
     method: &effects::provider_plan::ServiceMethod,
     requirement: &typed_trees::machine::Machine,
     machine_identity: &str,
+    specialization_rows: &[effects::SelectedRequirementSpecialization],
 ) -> Result<Vec<ResolvedAdapterRow>, Diagnostic> {
     let requirement_name = requirement.name.as_str();
     if !requirement.symbol.is_valid() || !requirement.attached_data_symbol.is_valid() {
@@ -483,6 +489,20 @@ fn resolve_top_level_requirement_adapter_row(
         return Err(Diagnostic::error(format!(
             "selected checked adapter `{machine_identity}` is not a checked body",
         )));
+    }
+    if !typed.machine_type_parameters(requirement).is_empty() {
+        return resolve_specialized_top_level_requirement_adapter_rows(
+            typed,
+            plan,
+            row,
+            method,
+            requirement,
+            adapter,
+            receiver_access,
+            self_receiver.is_some(),
+            machine_identity,
+            specialization_rows,
+        );
     }
     if !typed.machine_type_parameters(adapter).is_empty() {
         return Err(Diagnostic::error(format!(
@@ -558,6 +578,222 @@ fn resolve_top_level_requirement_adapter_row(
         family_tuple_display: Box::default(),
         top_level_owner: Some(requirement.attached_data_symbol),
     })])
+}
+
+/// Realize a generic top-level `boundary requirement` as one exact dispatch
+/// row per demanded closed requirement instance. The selected plan row stays
+/// keyed by the authored template; the selected-requirement specialization
+/// roster is the only authority joining that row to the closed requirement
+/// and provider identities checking minted, so settlement replays roster
+/// rows and re-verifies each cited machine against the retained
+/// specialization receipts rather than reconstructing the join by name or
+/// signature. Every closed instance is nongeneric, so the emitted rows carry
+/// no family tuple: they key the closed requirement's own entry state, which
+/// is exactly the target a specialized direct call retains. The template's
+/// receiver shape is invariant under specialization and was computed once by
+/// the caller; each row re-verifies it against the closed requirement's own
+/// entry.
+#[allow(clippy::too_many_arguments)]
+fn resolve_specialized_top_level_requirement_adapter_rows(
+    typed: &TypedTrees,
+    plan: &effects::provider_plan::ProviderPlan,
+    row: &effects::provider_plan::ProviderPlanRow,
+    method: &effects::provider_plan::ServiceMethod,
+    requirement: &typed_trees::machine::Machine,
+    adapter: &typed_trees::machine::Machine,
+    receiver_access: Option<language_core::ReferenceAccess>,
+    requirement_self_receiver: bool,
+    machine_identity: &str,
+    specialization_rows: &[effects::SelectedRequirementSpecialization],
+) -> Result<Vec<ResolvedAdapterRow>, Diagnostic> {
+    // The template's `satisfies` edge is checked once: specialization
+    // instantiates the conformance on every closed instance, so the roster
+    // already carries each instance's join and only the authored edge needs
+    // the exact count here.
+    let conformances = typed
+        .machine_trait_conformances(adapter)
+        .iter()
+        .filter(|conformance| {
+            conformance.external_binding.is_none()
+                && conformance.symbol == requirement.symbol
+                && conformance.requirement_symbol == requirement.symbol
+        })
+        .count();
+    if conformances != 1 {
+        return Err(Diagnostic::error(format!(
+            "selected checked adapter `{machine_identity}` binds top-level boundary requirement template `{}` through {conformances} checked conformances",
+            method.requirement_identity,
+        )));
+    }
+    let mut resolved = Vec::new();
+    for specialization in specialization_rows.iter().filter(|specialization| {
+        specialization.provider_plan_report_identity == plan.report_fingerprint()
+            && specialization.selected_requirement_identity == row.requirement_identity
+            && specialization.selected_machine_identity == *machine_identity
+    }) {
+        let Some(closed) =
+            typed.machine_by_normalized_overload_identity(&specialization.requirement_identity)
+        else {
+            return Err(Diagnostic::error(format!(
+                "selected provider plan `{}` specialization roster names closed requirement `{}` with no exact typed machine",
+                plan.name, specialization.requirement_identity,
+            )));
+        };
+        let closed_receipts = typed
+            .machine_specializations
+            .iter()
+            .filter(|receipt| {
+                receipt.template == requirement.symbol && receipt.instance == closed.symbol
+            })
+            .count();
+        if closed_receipts != 1
+            || closed.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement
+            || !typed.machine_type_parameters(closed).is_empty()
+            || !closed.attached_data_symbol.is_valid()
+        {
+            return Err(Diagnostic::error(format!(
+                "selected specialization row `{}` does not name one retained closed instance of requirement template `{machine_identity}`",
+                specialization.requirement_identity,
+            )));
+        }
+        let [closed_entry] = typed.machine_states(closed) else {
+            return Err(Diagnostic::error(format!(
+                "closed requirement instance `{}` does not declare exactly one entry signature",
+                closed.name,
+            )));
+        };
+        if !closed_entry.symbol.is_valid() {
+            return Err(Diagnostic::error(format!(
+                "closed requirement instance `{}` has no exact entry-state symbol",
+                closed.name,
+            )));
+        }
+        let closed_self_receiver = typed
+            .state_parameters(closed_entry)
+            .iter()
+            .any(|parameter| parameter.is_self);
+        if closed_self_receiver != requirement_self_receiver {
+            return Err(Diagnostic::error(format!(
+                "closed requirement instance `{}` drifts from the receiver shape its requirement template declares",
+                closed.name,
+            )));
+        }
+        let Some(instance) =
+            typed.machine_by_normalized_overload_identity(&specialization.machine_identity)
+        else {
+            return Err(Diagnostic::error(format!(
+                "selected provider plan `{}` specialization roster names provider instance `{}` with no exact typed machine",
+                plan.name, specialization.machine_identity,
+            )));
+        };
+        let instance_receipts = typed
+            .machine_specializations
+            .iter()
+            .filter(|receipt| {
+                receipt.template == adapter.symbol && receipt.instance == instance.symbol
+            })
+            .count();
+        if instance_receipts != 1 || !typed.machine_type_parameters(instance).is_empty() {
+            return Err(Diagnostic::error(format!(
+                "selected specialization row `{}` does not name one retained specialization instance of checked adapter `{machine_identity}`",
+                specialization.machine_identity,
+            )));
+        }
+        if typed.attached_data_path(instance).as_deref() != Some(plan.provider_type.as_str()) {
+            return Err(Diagnostic::error(format!(
+                "selected provider instance `{}` does not belong to nominal provider `{}`",
+                specialization.machine_identity, plan.provider_type,
+            )));
+        }
+        if !instance.supply_mode.is_checked_body() {
+            return Err(Diagnostic::error(format!(
+                "selected provider instance `{}` is not a checked body",
+                specialization.machine_identity,
+            )));
+        }
+        let Some(instance_entry) = typed.machine_states(instance).first() else {
+            return Err(Diagnostic::error(format!(
+                "selected provider instance `{}` has no executable entry state",
+                specialization.machine_identity,
+            )));
+        };
+        if !instance_entry.symbol.is_valid() {
+            return Err(Diagnostic::error(format!(
+                "selected provider instance `{}` has no exact entry-state symbol",
+                specialization.machine_identity,
+            )));
+        }
+        let actual_parameters = typed
+            .state_parameters(instance_entry)
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .collect::<Vec<_>>();
+        let forward_receiver = match exact_adapter_receiver_shape(
+            typed,
+            &actual_parameters,
+            method.parameter_count,
+            closed.attached_data_symbol,
+            receiver_access,
+        ) {
+            Some(forward_receiver) => forward_receiver,
+            None => {
+                let count = actual_parameters.len();
+                return Err(Diagnostic::error(format!(
+                    "selected provider instance `{}` has {count} non-self entry parameters; closed requirement `{}` requires {} or one leading owner receiver",
+                    specialization.machine_identity,
+                    specialization.requirement_identity,
+                    method.parameter_count,
+                )));
+            }
+        };
+        if closed_self_receiver != forward_receiver {
+            return Err(Diagnostic::error(format!(
+                "selected provider instance `{}` receiver shape does not match closed requirement `{}`: a `self`/`&self`/`&mut self` requirement forwards the receiver place to a leading owner parameter of the same access, a receiver-free requirement takes the exact declared arity",
+                specialization.machine_identity, specialization.requirement_identity,
+            )));
+        }
+        resolved.push(ResolvedAdapterRow::Adapter(AdapterRow {
+            receiver_trait: closed.symbol,
+            provider_plan_digest: *plan.identity_digest().as_bytes(),
+            receiver_trait_name: closed.name.as_str().to_owned(),
+            requirement: method.name.clone(),
+            requirement_identity: specialization.requirement_identity.clone(),
+            requirement_symbol: closed_entry.symbol,
+            adapter_target: instance.name.as_str().to_owned(),
+            symbol: instance_entry.symbol,
+            forward_receiver,
+            family_tuple: Box::default(),
+            family_tuple_display: Box::default(),
+            top_level_owner: Some(closed.attached_data_symbol),
+        }));
+    }
+    // Coverage is per selected row, not per roster: every retained closed
+    // requirement instance of this template exists because checked demand
+    // applied it, so a demanded instance the roster does not rebind to this
+    // plan's provider would silently reach the unbound template.
+    let retained = typed
+        .machine_specializations
+        .iter()
+        .filter(|receipt| receipt.template == requirement.symbol)
+        .filter_map(|receipt| {
+            typed
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == receipt.instance)
+        })
+        .filter(|instance| {
+            instance.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+        })
+        .count();
+    if resolved.len() != retained {
+        return Err(Diagnostic::error(format!(
+            "selected provider plan `{}` settles {} specialization rows for requirement template `{}` but checking retained {retained} closed requirement instances",
+            plan.name,
+            resolved.len(),
+            method.requirement_identity,
+        )));
+    }
+    Ok(resolved)
 }
 
 /// Realize one requirement's authored finite family as one dispatch row per

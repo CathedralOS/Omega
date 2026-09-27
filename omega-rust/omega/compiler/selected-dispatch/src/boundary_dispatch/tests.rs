@@ -290,7 +290,7 @@ fn selected_rows_reject_every_exact_identity_drift() {
         }
 
         let result =
-            resolve_selected_adapter_row(&fixture.typed, &selected, &selected.rows[row_index]);
+            resolve_selected_adapter_row(&fixture.typed, &selected, &selected.rows[row_index], &[]);
         match expected_error {
             Some(expected) => {
                 let diagnostic = result.expect_err("identity drift must fail closed");
@@ -328,7 +328,7 @@ fn concrete_provider_self_is_excluded_from_adapter_arity() {
     let selected = plan(&fixture.plans, "Stateful");
     let row = &selected.rows[checked_row(selected, "touch")];
 
-    let adapter = resolve_selected_adapter_row(&fixture.typed, selected, row)
+    let adapter = resolve_selected_adapter_row(&fixture.typed, selected, row, &[])
         .expect("concrete provider self is an exact realization receiver")
         .into_iter()
         .next()
@@ -344,7 +344,7 @@ fn exact_leading_non_self_requirement_receiver_is_forwarded() {
     let selected = plan(&fixture.plans, "Forward");
     let row = &selected.rows[checked_row(selected, "send")];
 
-    let adapter = resolve_selected_adapter_row(&fixture.typed, selected, row)
+    let adapter = resolve_selected_adapter_row(&fixture.typed, selected, row, &[])
         .expect("exact leading boundary binding resolves")
         .into_iter()
         .next()
