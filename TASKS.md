@@ -4102,43 +4102,41 @@ syntax and other terminal services are not prerequisites.
   Static tuple selection, correlated multi-binder rosters, boundary family
   coverage and Terminal tuple identities already exist.
 
-  Remaining work:
+  First execute a source customer selecting widths 16/32/64 from a runtime
+  value through one named conformance, with observable distinct tuple results
+  and the actual instance through rebinding and forwarding.
+  `traits/dyn_finite_family_dispatch`
+  has no native entry and discards results; `dynamic_composed_unit/finite_family.rs`
+  checks serialized tuple joins, while its rebound provider ignores Width.
+  Extend these into interpreter/native execution without handwritten suffix
+  methods. Begin with one scalar binder, a common result and dispatch around
+  a region-sized operation.
 
-  - In `execution/terminal_unit/dynamic_scalar_calls/`, replace the static-only
-    `dynamic_family_tuple` path for runtime-capable calls with checked roster
-    membership and generated selection among the closed bodies. Begin with
-    one scalar binder, one common concrete result and dispatch around a
-    region-sized operation. Reuse **RUNTIME-VALUE-GENERICS**' existing scalar
-    argument/guard machinery; its unfinished general value-indexed data support
-    is not a blanket prerequisite. Unproved membership rejects; no JIT or
-    invented fallback.
-  - Carry a source-produced family through native tables and independent image
-    replay, using **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY**'s ordinary
-    indirect-call mechanism. The rebound `CallDynamicScalar` route still lacks
-    common-graph legalization. Parameter descriptor calls have legalization
-    and replay but still lack selected instruction construction; do not conflate
-    those stages. Resume from `dynamic_composed_unit/finite_family.rs` and
-    `REBOUND_FAMILY_DYNAMIC_INTEGER_SOURCE`, replacing its ignored-width,
-    discarded-result probe with observed distinct tuple results and the actual
-    rebound selected instance. Test-constructed tuple rows do not close this.
-    Unverified candidates: `swarm/macw5-finite-dispatch` and
-    `swarm/macw6-finite-dispatch` (`54a1609a64 (revision absent from the repository)`) contain roster-membership and
-    forwarded-call work. Reconcile both with the existing checked dynamic plan's
-    binding kind and result shape before adopting either.
+  - Admit proved runtime roster membership in checking's
+    `validate_dynamic_family_call_tuple` and checked planning's
+    `dynamic_family_tuple`; both currently require closed static tuples.
+    Reuse **RUNTIME-VALUE-GENERICS**' scalar argument/guard machinery without
+    waiting for general value-indexed data. Extend the current self-only,
+    Unit/i32/bool callable and restricted-body subset to scanner inputs/results.
+    Unproved membership rejects; no JIT or invented fallback.
+  - Complete native dispatch through
+    **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY**'s ordinary indirect-call
+    mechanism. Rebound `CallDynamicScalar` reaches target operations but lacks
+    common-graph legalization; parameter-descriptor calls legalize and replay,
+    but selected construction still rejects `DynamicParameterCall`.
+    Carry complete source-produced tuple tables through independent artifact
+    and image replay; test-built rows alone are insufficient.
 
-  Acceptance: source pass/fail/run cases dispatch widths 16/32/64 from a runtime
-  value through one selected conformance and execute natively without
-  handwritten suffix methods. Alternative order and duplicates normalize
-  deterministically; short explicit tuple sets retain correlations rather than
-  enumerating ranges or cross-products. Missing/wrong-width/mixed-provider/
-  shape-substituted rows, unproved membership, target-ineligible bodies and
-  const-only dynamic inputs without a checked bridge reject. Preserve effects,
-  index identity and once-only moves/cleanup through selection, forwarding,
-  storage and independent artifact/image replay. Escaping variable-shaped
-  results require an authored sum or eligible descriptor, not implicit boxing.
-  Record compile/code-size and scan-loop dispatch placement before claiming an
-  improvement over explicit branches. No general generic virtual-method or
-  reflection extension belongs here.
+  Acceptance: source pass/fail/run cases preserve effects, index identity and
+  once-only moves/cleanup through selection, forwarding and storage. Normalize
+  alternative order/duplicates deterministically; retain complete correlated
+  tuples without range enumeration or cross-products. Reject missing, wrong-width,
+  mixed-provider or shape-substituted rows, unproved membership, target-ineligible
+  bodies and const-only dynamic inputs without a checked bridge. Escaping
+  variable-shaped results need an authored sum or eligible descriptor with
+  explicit ownership. Record compile/code-size and scan-loop dispatch placement
+  before claiming improvement over explicit branches. No implicit boxing,
+  general generic virtual-method or reflection extension.
 
 - **DOMAIN-ISSUER-ROUTES.** Finish source-driven, independently replayed
   qualification establishment for
