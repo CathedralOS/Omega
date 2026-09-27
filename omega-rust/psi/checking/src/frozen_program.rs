@@ -14,7 +14,7 @@ use crate::proof_contracts::contract_entailment::structural_judgment::{
 };
 use crate::value_custody::content_conservation::ContentConservationSourcePlan;
 use std::cell::RefCell;
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 use typed_trees::TypedTrees;
 use typed_trees::proof_only::ProofOnlyClassification;
 
@@ -37,6 +37,11 @@ pub(crate) struct FrozenProgramMemos {
     pub(crate) caller_sites: OnceLock<Arc<CallerSiteCaches>>,
     pub(crate) content_conservation: OnceLock<Arc<Vec<ContentConservationSourcePlan>>>,
     pub(crate) data_definitions: OnceLock<Arc<DataDefinitionIndex>>,
+    /// Builtin meaning of one binary node, by the position of its machine in
+    /// the program, its state within that machine, and the node.
+    pub(crate) binary_meanings: Mutex<
+        std::collections::HashMap<(u32, u32, typed_trees::expression::ExpressionHandle), bool>,
+    >,
     pub(crate) data_fields: OnceLock<Arc<DataFieldIndex>>,
 }
 

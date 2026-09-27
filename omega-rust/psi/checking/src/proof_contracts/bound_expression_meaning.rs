@@ -76,6 +76,69 @@ pub fn has_builtin_binary_expression_meaning(
     state: Option<&State>,
     expression: ExpressionHandle,
 ) -> bool {
+    // Guard narrowing, bound checks and build-time admission re-ask the same
+    // nodes; a frozen program answers each once. Only a machine and state
+    // stored in the program itself key the memo.
+    let Some(memos) = crate::frozen_program::frozen_program_memos(program) else {
+        return binary_expression_meaning(program, machine, state, expression);
+    };
+    let Some(key) = meaning_key(program, machine, state, expression) else {
+        return binary_expression_meaning(program, machine, state, expression);
+    };
+    if let Ok(meanings) = memos.binary_meanings.lock()
+        && let Some(&meaning) = meanings.get(&key)
+    {
+        return meaning;
+    }
+    let meaning = binary_expression_meaning(program, machine, state, expression);
+    if let Ok(mut meanings) = memos.binary_meanings.lock() {
+        meanings.insert(key, meaning);
+    }
+    meaning
+}
+
+/// The memo key for a machine and state that live in `program`'s own
+/// tables: their positions there, with `u32::MAX` for a stateless query.
+fn meaning_key(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+) -> Option<(u32, u32, ExpressionHandle)> {
+    let position = |slice_start: *const u8, size: usize, length: usize, item: *const u8| {
+        let offset = (item as usize).checked_sub(slice_start as usize)?;
+        (offset % size == 0 && offset / size < length)
+            .then(|| u32::try_from(offset / size).ok())
+            .flatten()
+    };
+    let machines = program.machines();
+    let machine_position = position(
+        machines.as_ptr().cast(),
+        std::mem::size_of::<Machine>(),
+        machines.len(),
+        std::ptr::from_ref(machine).cast(),
+    )?;
+    let state_position = match state {
+        None => u32::MAX,
+        Some(state) => {
+            let states = program.machine_states(machine);
+            position(
+                states.as_ptr().cast(),
+                std::mem::size_of::<State>(),
+                states.len(),
+                std::ptr::from_ref(state).cast(),
+            )?
+        }
+    };
+    Some((machine_position, state_position, expression))
+}
+
+fn binary_expression_meaning(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+) -> bool {
     if !program.expression_table.expression_is_valid(expression) {
         return false;
     }
