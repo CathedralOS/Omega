@@ -4,7 +4,12 @@
 Two layers, matching what each can actually decide:
 
 - path-mention claims are checked mechanically — a cited `dir/file.rs` that
-  no longer exists is drift, no judgment needed.
+  no longer exists is drift, no judgment needed, EXCEPT where the sentence
+  citing it says it should not exist. An architecture contract names the
+  umbrella it refuses to grow and a convention names the spelling to avoid;
+  there the absence is the claim holding. Those are reported separately with
+  their sentence rather than dropped, and every finding prints its sentence
+  so the reader can judge without opening the file.
 - semantic claims (behavior, invariants, numbers) get a Jev verdict against
   the evidence a cheap gatherer can surface: existence results, grep hits
   for cited symbols, and the claim's own wording. Claims whose evidence the
@@ -74,10 +79,41 @@ def resolve_repo_path(root, token):
     return next((c for c in candidates if (root / c).exists()), None)
 
 
+# A path can be cited precisely BECAUSE it must not exist: an architecture
+# contract naming the umbrella it refuses to grow, or a convention naming the
+# spelling to avoid. Its absence is the claim holding, not drift. These
+# markers say the sentence is about non-existence or prohibition, so a plain
+# "does not depend on" keeps its citation auditable.
+ABSENCE_MARKERS = (
+    "there is no", "there are no", "no longer", "does not exist",
+    "do not exist", "is gone", "was deleted", "was removed", "retired",
+    "do not invent", "do not use", "do not add", "never", "avoid",
+    "rather than", "instead of", "obscures", "must not", "no second",
+)
+
+
+def sentences_of(text):
+    """The document as sentences, rewrapped: a doc's sentence spans lines."""
+    flat = re.sub(r"\s+", " ", text)
+    return re.split(r"(?<=[.:;])\s+", flat)
+
+
+def cited_as_absent(sentence):
+    lowered = sentence.lower()
+    return any(marker in lowered for marker in ABSENCE_MARKERS)
+
+
 def path_findings(root, document):
-    """Mechanical: cited repo-relative paths that no longer exist."""
-    findings = []
+    """Mechanical: cited repo-relative paths that no longer exist.
+
+    Returns (missing, deliberate) — the second list holds citations whose own
+    sentence says the path should not exist, which are reported apart from
+    drift rather than dropped.
+    """
+    missing = []
+    deliberate = []
     text = document.read_text(encoding="utf-8")
+    sentences = sentences_of(text)
     seen = set()
     for raw in PATH_TOKEN.findall(text):
         token = raw.strip("/")
@@ -88,9 +124,13 @@ def path_findings(root, document):
             continue
         repoish = token.startswith(PATH_PREFIXES) or \
             token.startswith(CRATE_PREFIXES)
-        if repoish and resolve_repo_path(root, token) is None:
-            findings.append(token)
-    return sorted(findings)
+        if not repoish or resolve_repo_path(root, token) is not None:
+            continue
+        context = next((sentence for sentence in sentences
+                        if f"`{raw}`" in sentence), "")
+        (deliberate if cited_as_absent(context) else missing).append(
+            (token, context.strip()))
+    return sorted(missing), sorted(deliberate)
 
 
 def evidence_for(root, claim):
@@ -173,13 +213,21 @@ def main():
               file=sys.stderr)
         return 2
     root = repository_root()
-    missing = path_findings(root, arguments.document)
+    missing, deliberate = path_findings(root, arguments.document)
     if missing:
         print(f"stale path citations ({len(missing)}):")
-        for path in missing:
+        for path, context in missing:
             print(f"  ~ {path} — cited but does not exist")
+            if context:
+                print(f"      {context[:160]}")
     else:
         print("stale path citations: none")
+    if deliberate:
+        print(f"\ncited as deliberately absent ({len(deliberate)}) — the "
+              f"sentence claims the path should NOT exist, so its absence is "
+              f"the claim holding:")
+        for path, context in deliberate:
+            print(f"  = {path}\n      {context[:160]}")
     if os.environ.get("OMEGA_JEV_OFFLINE", "").strip() == "1":
         return 0
     key = jev_key()
