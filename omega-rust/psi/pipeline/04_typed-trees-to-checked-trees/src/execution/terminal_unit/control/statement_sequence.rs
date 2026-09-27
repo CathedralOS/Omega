@@ -707,7 +707,7 @@ pub(super) fn first_unsupported_statement(
                             facts
                                 .values
                                 .structural_values
-                                .root_at(state.symbol, ordinal)
+                                .root_for_expression(state.symbol, ordinal, *expression)
                                 .is_some()
                         }) || validation::is_scalar_case_value(
                             program,

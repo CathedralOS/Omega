@@ -83,6 +83,10 @@ pub(crate) fn validate(
         return unsupported("structural construction has a stale value root");
     }
     let retained_expression = plans.nodes.get(*value).expression;
+    let is_call_argument = matches!(
+        operand_position,
+        Some(checked_trees::CheckedArrayConstructionSource::CallArgument { .. })
+    );
     // The operand coordinate owns an argument regardless of whether the
     // surrounding call is a statement, initializer, return or assignment.
     // Reconstruct its exact authored call and formal instead of treating the
@@ -196,12 +200,19 @@ pub(crate) fn validate(
         .ok_or(LoweringError::Unsupported(
             "structural construction has no unique source root",
         ))?;
-    let selection = checked
-        .facts
-        .flow
-        .ownership
-        .owned_selection_at(state, result.statement_index)
-        .map(|(_, receipt)| receipt);
+    // A selection receipt belongs to the statement's destination, not to a
+    // construction used as one of its call operands. The operand has already
+    // rejoined its own authored expression and formal above.
+    let selection = if is_call_argument {
+        None
+    } else {
+        checked
+            .facts
+            .flow
+            .ownership
+            .owned_selection_at(state, result.statement_index)
+            .map(|(_, receipt)| receipt)
+    };
     // A `&T` establishment keeps the authored reference type on its root but
     // joins the referent's structural carrier: the planned identity names the
     // record or the borrowed view's slice, not the borrow shell.
@@ -244,10 +255,14 @@ pub(crate) fn validate(
             receipt,
         )?;
     }
-    if let Some(StatementNode::LocalData(local)) = checked
-        .statement_table
-        .statements(source.statement_nodes)
-        .get(result.statement_index as usize)
+    // Only the initializer establishes the declared local's loans and owned
+    // provenance. A call argument in that initializer owns a separate value;
+    // its consumer validates the transfer into the exact call formal.
+    if !is_call_argument
+        && let Some(StatementNode::LocalData(local)) = checked
+            .statement_table
+            .statements(source.statement_nodes)
+            .get(result.statement_index as usize)
     {
         if validation::reference_result_custody::local_owes_record_loans(
             &checked.typed,
@@ -1077,6 +1092,26 @@ fn local_value_provenance(
             .structural_values
             .root_at(state, ordinal)
             .is_some_and(|root| root.expression == local.initial_value)
+    {
+        return Ok(PermissionProvenance::Established {
+            machine_symbol: machine,
+            state_symbol: state,
+            source: PermissionEventSource::Statement {
+                statement_index: statement,
+            },
+        });
+    }
+    // An ordinary machine returns freshly established custody. Its operand
+    // origins belong to the call's input transfers; propagating them through
+    // the result would disagree with the checker's claim-provenance owner.
+    // Whole local moves and aggregate construction below still preserve their
+    // source value's provenance.
+    if let ExpressionNode::Call(call) = checked.expression_table.expression(local.initial_value)
+        && crate::expression_preparation::source_custody::authored_state(
+            checked,
+            call.target_symbol,
+        )
+        .is_ok()
     {
         return Ok(PermissionProvenance::Established {
             machine_symbol: machine,

@@ -607,12 +607,20 @@ fn receiver_argument(
         .iter()
         .enumerate()
         .find(|(_, parameter)| usize::try_from(parameter.position).ok() == Some(position))?;
+    use CheckedStructuralAccess::{MutableBorrow, Owned, SharedBorrow, WriteOnlyBorrow};
+    // A whole shared view is unrestricted while its source remains affine.
+    // Retain the original parameter as the owner; this agrees with Terminal's
+    // shared-affine-loan check and grants no move or projected custody.
+    let shared_affine_loan = place.segments.is_empty()
+        && parameter.access == Owned
+        && parameter.multiplicity == Multiplicity::Affine
+        && target.access == SharedBorrow
+        && target.multiplicity == Multiplicity::Unrestricted;
     if parameter.qualifications != target.qualifications
-        || parameter.multiplicity != target.multiplicity
+        || (parameter.multiplicity != target.multiplicity && !shared_affine_loan)
     {
         return None;
     }
-    use CheckedStructuralAccess::{MutableBorrow, Owned, SharedBorrow, WriteOnlyBorrow};
     if !matches!(
         (parameter.access, target.access),
         (
