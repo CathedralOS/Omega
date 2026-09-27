@@ -471,10 +471,21 @@ pub fn compile_to_checked(
     compile_checked_request(request, None)
 }
 
+static CHECKED_COMPILATION_CALLS: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
+
+/// Monotonic count of checked-compilation requests entered, so a test can
+/// witness that a review pass compiled each package occurrence once.
+#[doc(hidden)]
+pub fn checked_compilation_call_count() -> u64 {
+    CHECKED_COMPILATION_CALLS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 fn compile_checked_request(
     request: CheckedCompileRequest<'_>,
     prepared: Option<PreparedCheckedSource>,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
+    CHECKED_COMPILATION_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let (request, mut source_output, mut discovery_output) = request.into_worker_request();
     if let Some(output) = source_output.as_deref_mut() {
         *output = None;

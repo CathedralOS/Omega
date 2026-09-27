@@ -10,7 +10,7 @@ use target::TargetProfile;
 // capacities or allocator overhead. The component writer separately bounds
 // each policy's encoding and recursive structure. Temporary sizing buffers
 // are discarded; only the typed policies survive the disposable session.
-const MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES: usize = 64 * 1024 * 1024;
+pub(super) const MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES: usize = 64 * 1024 * 1024;
 
 pub(super) fn project(
     checked: &CheckedCompilation,
@@ -46,7 +46,7 @@ pub(super) fn project(
     Ok((policy, total))
 }
 
-fn reserve(current: usize, additional: usize) -> Option<usize> {
+pub(super) fn reserve(current: usize, additional: usize) -> Option<usize> {
     current
         .checked_add(additional)
         .filter(|total| *total <= MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES)

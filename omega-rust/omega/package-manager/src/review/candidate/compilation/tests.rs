@@ -191,9 +191,9 @@ fn retained_source_review_matches_independent_and_no_binding_candidates() {
         None,
         None,
         TargetEntryDiscovery::Dependencies,
+        None,
         &mut preparation,
     )
-    .map(|compiled| compiled.reviews)
     .expect("discovery retains immutable preparation");
     assert!(preparation.slots.iter().all(Option::is_some));
     assert_eq!(
@@ -201,10 +201,13 @@ fn retained_source_review_matches_independent_and_no_binding_candidates() {
         closure.graph().packages().len()
     );
     assert!(
-        candidate_semantic_binding_inputs(&discovery, closure.graph().root())
+        candidate_semantic_binding_inputs(&discovery.reviews, closure.graph().root())
             .unwrap()
             .is_empty()
     );
+    // Identical bindings leave every occurrence's inputs untouched, so the
+    // final pass carries the discovery compiles forward instead of paying a
+    // second front end, build evaluation, and check for each package.
     let consumed = compile_pass(
         &exact,
         &fixture.0.join("consumed"),
@@ -213,10 +216,11 @@ fn retained_source_review_matches_independent_and_no_binding_candidates() {
         None,
         None,
         TargetEntryDiscovery::Disabled,
+        Some(&discovery),
         &mut preparation,
     )
-    .map(|compiled| compiled.reviews)
     .expect("final pass reuses preparation under fresh sponsors");
+    let consumed = consumed.reviews;
     assert!(preparation.slots.iter().all(Option::is_some));
     assert_eq!(
         preparation.fresh_preparation_count(),
@@ -243,7 +247,7 @@ fn retained_source_review_matches_independent_and_no_binding_candidates() {
         "an unchanged repeated candidate prepared no source again"
     );
     let reference = independent.review(closure.graph().root()).unwrap();
-    for reviews in [&discovery, &consumed, &candidate] {
+    for reviews in [&discovery.reviews, &consumed, &candidate] {
         let review = reviews.review(closure.graph().root()).unwrap();
         assert_eq!(
             review.source_consumption_commitment(),
@@ -280,6 +284,7 @@ fn retained_source_review_rejects_source_drift_before_consuming_checkpoint() {
         None,
         None,
         TargetEntryDiscovery::Dependencies,
+        None,
         &mut preparation,
     )
     .map(|compiled| compiled.reviews)
@@ -306,6 +311,7 @@ fn retained_source_review_rejects_source_drift_before_consuming_checkpoint() {
         None,
         None,
         TargetEntryDiscovery::Disabled,
+        None,
         &mut preparation,
     )
     .map(|compiled| compiled.reviews);
@@ -630,6 +636,7 @@ fn assert_root_console_permissions(
         Some(&snapshot),
         None,
         TargetEntryDiscovery::Dependencies,
+        None,
         &mut preparation,
     )
     .map(|compiled| compiled.reviews)
@@ -735,6 +742,103 @@ fn assert_root_console_permissions(
             .iter()
             .all(|conflict| conflict.is_blocking())
     );
+}
+
+/// The bound pass compiles only the occurrences whose inputs its discovered
+/// bindings changed: a dependency whose consumer-scoped inputs stay identical
+/// carries its discovery compile — whole-program check, build evaluation, and
+/// review — forward under its exact package and inputs identity rather than
+/// checking the same library again. The Console package is itself a binding
+/// consumer, so the binding-free `plain_marks` package is the carried
+/// occurrence.
+#[test]
+fn bound_pass_compiles_only_the_occurrences_its_bindings_changed() {
+    use crate::declarations::DependencyPurpose;
+
+    let fixture = ConsoleApplicationFixture::new(EXIT_ONLY_CONSOLE);
+    fs::create_dir_all(fixture.0.join("plain")).unwrap();
+    fs::write(
+        fixture.0.join("plain/build.omg"),
+        "machine build(builder: &mut Build) { builder.package(\"plain_marks\"); }\n",
+    )
+    .unwrap();
+    fs::write(
+        fixture.0.join("plain/main.omg"),
+        "pub const MARKER: i32 = 41;\n",
+    )
+    .unwrap();
+    let build_path = fixture.0.join("application/build.omg");
+    let build = fs::read_to_string(&build_path).unwrap().replace(
+        "\n}\n",
+        "    builder.depend_as(\"plain_marks\", Source::Path { location: \"../plain\" });\n}\n",
+    );
+    fs::write(build_path, build).unwrap();
+    let closure = fixture.closure();
+    let root = closure.graph().root().clone();
+    let exact = closure.for_exact_target(target::TargetProfile::LinuxX64);
+    let mut preparation = CandidateSourcePreparation::for_closure(&closure);
+    let discovery = compile_pass(
+        &exact,
+        &fixture.0.join("discovery"),
+        &[],
+        None,
+        None,
+        None,
+        TargetEntryDiscovery::Dependencies,
+        None,
+        &mut preparation,
+    )
+    .expect("discovery pass");
+    let occurrences = discovery.reviews.reviews().len();
+    assert_eq!(occurrences, 3, "console, plain_marks, and the root");
+    let discovered = candidate_semantic_binding_inputs(&discovery.reviews, &root).unwrap();
+    assert!(
+        !discovered.is_empty(),
+        "the fixture's discovery proposes root bindings"
+    );
+    let compilations_before = compiler::checked_compilation_call_count();
+    let bound = compile_pass(
+        &exact,
+        &fixture.0.join("bound"),
+        &discovered,
+        None,
+        None,
+        None,
+        TargetEntryDiscovery::Disabled,
+        Some(&discovery),
+        &mut preparation,
+    )
+    .expect("bound pass");
+    let bound_compilations = compiler::checked_compilation_call_count() - compilations_before;
+    assert_eq!(
+        bound_compilations, 2,
+        "the bound pass recompiled the two binding-consuming occurrences only"
+    );
+    let plain = closure
+        .graph()
+        .packages()
+        .iter()
+        .map(|node| node.source().key())
+        .find(|key| key.name().as_str() == "plain_marks")
+        .expect("the closure holds the plain dependency");
+    let discovered_review = discovery
+        .reviews
+        .review_occurrence(plain, DependencyPurpose::Product)
+        .expect("the dependency's discovery review");
+    let bound_review = bound
+        .reviews
+        .review_occurrence(plain, DependencyPurpose::Product)
+        .expect("the dependency's bound review");
+    assert_eq!(
+        bound_review.canonical_review_bytes(),
+        discovered_review.canonical_review_bytes(),
+        "the carried review is the discovery pass's exact review"
+    );
+    assert_eq!(
+        bound_review.source_consumption_commitment(),
+        discovered_review.source_consumption_commitment()
+    );
+    assert_eq!(bound.reviews.reviews().len(), occurrences);
 }
 
 /// A dependency package compiled as its own component: its build seals the
@@ -967,6 +1071,7 @@ fn discovery_proposes_the_root_filesystem_cohort_permissions_per_declared_leaf()
         None,
         None,
         TargetEntryDiscovery::Dependencies,
+        None,
         &mut preparation,
     )
     .map(|compiled| compiled.reviews)

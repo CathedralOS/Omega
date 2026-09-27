@@ -1,36 +1,44 @@
 //! Aggregate reconciliation between retained review usage and its sponsor.
 
-use super::super::{CompileResolvedPackageReviewsError, CompilerIssuedPackageReview};
+use super::super::CompileResolvedPackageReviewsError;
 use checked_interpreter::BuildEvaluationSponsor;
 
+/// `usages` carries the evaluation usage of every compile this session's
+/// sponsor actually ran — one entry per freshly compiled occurrence, `None`
+/// where the compile ran no build machine. An occurrence carried forward from
+/// a prior pass contributes nothing: its evaluation was consumed and
+/// reconciled by the session that ran it, so a pass that reuses every
+/// occurrence reconciles as the empty session it was.
+///
 /// `discarded` carries sponsored evaluations that ran inside a compile whose
 /// verdict no retained review reports — for example a component-closure
 /// rejection the caller answered and compiled again. Their consumption is
-/// real session accounting and reconciles beside the retained reviews.
+/// real session accounting and reconciles beside the retained usages.
 pub(super) fn verify_build_session_accounting(
-    reviews: &[CompilerIssuedPackageReview],
+    usages: &[Option<build_evaluation::BuildEvaluationUsage>],
     discarded: &[build_evaluation::BuildEvaluationUsage],
     sponsor: &BuildEvaluationSponsor,
 ) -> Result<(), CompileResolvedPackageReviewsError> {
-    verify_fuel(reviews, discarded, sponsor)?;
-    verify_build_log(reviews, discarded, sponsor)?;
-    verify_filesystem_attempts(reviews, discarded, sponsor)?;
-    verify_live_filesystem_handles(reviews, discarded, sponsor)?;
-    verify_live_cells(reviews, discarded, sponsor)?;
-    verify_live_text_bytes(reviews, discarded, sponsor)?;
-    verify_results(reviews, discarded, sponsor)
+    verify_fuel(usages, discarded, sponsor)?;
+    verify_build_log(usages, discarded, sponsor)?;
+    verify_filesystem_attempts(usages, discarded, sponsor)?;
+    verify_live_filesystem_handles(usages, discarded, sponsor)?;
+    verify_live_cells(usages, discarded, sponsor)?;
+    verify_live_text_bytes(usages, discarded, sponsor)?;
+    verify_results(usages, discarded, sponsor)
 }
 
-/// Reported usage of every evaluation the sponsor consumed: retained reviews
-/// plus discarded attempts. `None` when any review carries no usage at all,
-/// which the verifiers surface as a mismatch rather than silently dropping.
+/// Reported usage of every evaluation the sponsor consumed: retained usages
+/// plus discarded attempts. `None` when any fresh compile carried no usage at
+/// all, which the verifiers surface as a mismatch rather than silently
+/// dropping.
 fn reported_usages<'a>(
-    reviews: &'a [CompilerIssuedPackageReview],
+    usages: &'a [Option<build_evaluation::BuildEvaluationUsage>],
     discarded: &'a [build_evaluation::BuildEvaluationUsage],
 ) -> Option<Vec<build_evaluation::BuildEvaluationUsage>> {
-    reviews
+    usages
         .iter()
-        .map(|review| review.build_evaluation_usage())
+        .copied()
         .collect::<Option<Vec<_>>>()
         .map(|usages| {
             usages
@@ -40,25 +48,25 @@ fn reported_usages<'a>(
         })
 }
 
-/// Session-observed peaks of every evaluation the sponsor consumed. Retained
-/// reviews that carry no usage contribute nothing here because the sponsor's
-/// peaks are the session's, not the review's.
+/// Session-observed peaks of every evaluation the sponsor consumed. Compiles
+/// that reported no usage contribute nothing here because the sponsor's
+/// peaks are the session's, not the compile's.
 fn observed_usages<'a>(
-    reviews: &'a [CompilerIssuedPackageReview],
+    usages: &'a [Option<build_evaluation::BuildEvaluationUsage>],
     discarded: &'a [build_evaluation::BuildEvaluationUsage],
 ) -> impl Iterator<Item = build_evaluation::BuildEvaluationUsage> + 'a {
-    reviews
+    usages
         .iter()
-        .filter_map(|review| review.build_evaluation_usage())
+        .filter_map(|usage| *usage)
         .chain(discarded.iter().copied())
 }
 
 fn verify_fuel(
-    reviews: &[CompilerIssuedPackageReview],
+    usages: &[Option<build_evaluation::BuildEvaluationUsage>],
     discarded: &[build_evaluation::BuildEvaluationUsage],
     sponsor: &BuildEvaluationSponsor,
 ) -> Result<(), CompileResolvedPackageReviewsError> {
-    let reported = reported_usages(reviews, discarded).and_then(|usages| {
+    let reported = reported_usages(usages, discarded).and_then(|usages| {
         usages
             .iter()
             .try_fold(0_u64, |total, usage| total.checked_add(usage.fuel_units))
@@ -76,11 +84,11 @@ fn verify_fuel(
 }
 
 fn verify_build_log(
-    reviews: &[CompilerIssuedPackageReview],
+    usages: &[Option<build_evaluation::BuildEvaluationUsage>],
     discarded: &[build_evaluation::BuildEvaluationUsage],
     sponsor: &BuildEvaluationSponsor,
 ) -> Result<(), CompileResolvedPackageReviewsError> {
-    let reported = reported_usages(reviews, discarded).and_then(|usages| {
+    let reported = reported_usages(usages, discarded).and_then(|usages| {
         usages.iter().try_fold(0_u64, |total, usage| {
             total.checked_add(usage.build_log_bytes)
         })
@@ -98,11 +106,11 @@ fn verify_build_log(
 }
 
 fn verify_filesystem_attempts(
-    reviews: &[CompilerIssuedPackageReview],
+    usages: &[Option<build_evaluation::BuildEvaluationUsage>],
     discarded: &[build_evaluation::BuildEvaluationUsage],
     sponsor: &BuildEvaluationSponsor,
 ) -> Result<(), CompileResolvedPackageReviewsError> {
-    let reported = reported_usages(reviews, discarded).and_then(|usages| {
+    let reported = reported_usages(usages, discarded).and_then(|usages| {
         usages.iter().try_fold(0_u64, |total, usage| {
             total.checked_add(usage.filesystem_operation_attempts)
         })
@@ -120,12 +128,12 @@ fn verify_filesystem_attempts(
 }
 
 fn verify_live_filesystem_handles(
-    reviews: &[CompilerIssuedPackageReview],
+    usages: &[Option<build_evaluation::BuildEvaluationUsage>],
     discarded: &[build_evaluation::BuildEvaluationUsage],
     sponsor: &BuildEvaluationSponsor,
 ) -> Result<(), CompileResolvedPackageReviewsError> {
     let reported_peak = Some(
-        observed_usages(reviews, discarded)
+        observed_usages(usages, discarded)
             .map(|usage| usage.session_peak_live_filesystem_handles)
             .max()
             .unwrap_or(0),
@@ -145,19 +153,24 @@ fn verify_live_filesystem_handles(
 }
 
 fn verify_live_cells(
-    reviews: &[CompilerIssuedPackageReview],
+    usages: &[Option<build_evaluation::BuildEvaluationUsage>],
     discarded: &[build_evaluation::BuildEvaluationUsage],
     sponsor: &BuildEvaluationSponsor,
 ) -> Result<(), CompileResolvedPackageReviewsError> {
     let reported_invocation_peak = Some(
-        observed_usages(reviews, discarded)
+        observed_usages(usages, discarded)
             .map(|usage| usage.peak_live_cells)
             .max()
             .unwrap_or(0),
     );
-    let reported_session_peak = observed_usages(reviews, discarded)
-        .map(|usage| usage.session_peak_live_cells)
-        .max();
+    // An entirely carried session ran nothing: its reported peak is the empty
+    // session's zero, matching the sponsor's untouched peak.
+    let reported_session_peak = Some(
+        observed_usages(usages, discarded)
+            .map(|usage| usage.session_peak_live_cells)
+            .max()
+            .unwrap_or(0),
+    );
     let sponsored_live = sponsor.live_cells();
     let sponsored_peak = sponsor.peak_live_cells();
     if reported_invocation_peak != Some(sponsored_peak)
@@ -177,19 +190,22 @@ fn verify_live_cells(
 }
 
 fn verify_live_text_bytes(
-    reviews: &[CompilerIssuedPackageReview],
+    usages: &[Option<build_evaluation::BuildEvaluationUsage>],
     discarded: &[build_evaluation::BuildEvaluationUsage],
     sponsor: &BuildEvaluationSponsor,
 ) -> Result<(), CompileResolvedPackageReviewsError> {
     let reported_invocation_peak = Some(
-        observed_usages(reviews, discarded)
+        observed_usages(usages, discarded)
             .map(|usage| usage.peak_live_text_bytes)
             .max()
             .unwrap_or(0),
     );
-    let reported_session_peak = observed_usages(reviews, discarded)
-        .map(|usage| usage.session_peak_live_text_bytes)
-        .max();
+    let reported_session_peak = Some(
+        observed_usages(usages, discarded)
+            .map(|usage| usage.session_peak_live_text_bytes)
+            .max()
+            .unwrap_or(0),
+    );
     let sponsored_live = sponsor.live_text_bytes();
     let sponsored_peak = sponsor.peak_live_text_bytes();
     if reported_invocation_peak != Some(sponsored_peak)
@@ -209,16 +225,16 @@ fn verify_live_text_bytes(
 }
 
 fn verify_results(
-    reviews: &[CompilerIssuedPackageReview],
+    usages: &[Option<build_evaluation::BuildEvaluationUsage>],
     discarded: &[build_evaluation::BuildEvaluationUsage],
     sponsor: &BuildEvaluationSponsor,
 ) -> Result<(), CompileResolvedPackageReviewsError> {
-    let reported_cells = reported_usages(reviews, discarded).and_then(|usages| {
+    let reported_cells = reported_usages(usages, discarded).and_then(|usages| {
         usages
             .iter()
             .try_fold(0_u64, |total, usage| total.checked_add(usage.result_cells))
     });
-    let reported_text_bytes = reported_usages(reviews, discarded).and_then(|usages| {
+    let reported_text_bytes = reported_usages(usages, discarded).and_then(|usages| {
         usages.iter().try_fold(0_u64, |total, usage| {
             total.checked_add(usage.result_text_bytes)
         })
