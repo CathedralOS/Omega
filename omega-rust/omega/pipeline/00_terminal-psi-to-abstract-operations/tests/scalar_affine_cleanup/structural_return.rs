@@ -391,6 +391,8 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
     for target in [
         target::NativeTarget::linux_x64(),
         target::NativeTarget::linux_arm64(),
+        target::NativeTarget::macos_arm64(),
+        target::NativeTarget::windows_x64(),
     ] {
         let physical = abstract_operations_to_target_operations::lower_to_target_operations(
             &lowered,
@@ -402,6 +404,36 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
             [semantic_vocabulary::OperationId::new(2).unwrap()]
         );
         assert_eq!(physical.functions[0].provenance.edges, [edge]);
+        for mutation in [
+            "unknown discard",
+            "duplicate discard",
+            "missing establishment",
+        ] {
+            let mut invalid = lowered.clone();
+            let AbstractOperation::ReturnStructural {
+                trivial_affine_discards,
+                ..
+            } = &mut invalid.functions[0].operations[1]
+            else {
+                unreachable!()
+            };
+            match mutation {
+                "unknown discard" => trivial_affine_discards[0] = place_id(99),
+                "duplicate discard" => trivial_affine_discards.push(local.id),
+                "missing establishment" => {
+                    invalid.functions[0].operations.remove(0);
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                abstract_operations_to_target_operations::lower_to_target_operations(
+                    &invalid,
+                    abstract_operations_to_target_operations::TargetLoweringRequest::new(target),
+                )
+                .is_err(),
+                "{mutation} must not acquire local cleanup authority"
+            );
+        }
     }
 
     let extra = place_id(3);

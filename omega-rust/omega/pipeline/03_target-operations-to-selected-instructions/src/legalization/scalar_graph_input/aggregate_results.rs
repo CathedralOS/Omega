@@ -224,6 +224,12 @@ pub(super) fn cleanup(
     let mut discarded = std::collections::BTreeSet::new();
     let mut residuals = std::collections::BTreeSet::new();
     let eligible_owner = |place: semantic_vocabulary::PlaceId| {
+        // A storage-free affine local still has one exact establishment. Use
+        // the same source reconstruction as owned calls; no target home is
+        // invented merely to justify its no-code discard.
+        if owned_arguments::trivial_affine_local(function, place).is_some() {
+            return true;
+        }
         if let Some(parameter) = function
             .structural_parameters
             .iter()

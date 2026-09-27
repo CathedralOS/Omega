@@ -1,6 +1,6 @@
 //! An empty-record affine local passed whole to an owned parameter: the
-//! establishment realizes no storage, and the call names it as the zero-byte
-//! argument's producer.
+//! establishment realizes no storage, and calls and exit cleanup retain its
+//! exact ownership disposition.
 use crate::{
     legalize_target_operations, select_instructions, selection_constraints,
     validate_selected_instructions,
@@ -207,5 +207,124 @@ fn empty_local_transfers_as_a_zero_byte_owned_argument() {
             selected.plan().functions[0].local_storage_slots.is_empty(),
             "an empty local owns no activation storage"
         );
+    }
+}
+
+#[test]
+fn empty_local_cleanup_replays_on_unit_and_structural_returns() {
+    for structural_return in [false, true] {
+        let mut source = source();
+        let parameter = source.functions[1].structural_parameters[0].clone();
+        source.functions.truncate(1);
+        let function = &mut source.functions[0];
+        function.operations.remove(1);
+        function.operations[1] = AbstractOperation::ReturnUnit {
+            psi_edge: EdgeId::new(1).unwrap(),
+            cleanup_actions: vec![TerminalAffineCleanupAction::DiscardRoot(local().id)],
+        };
+        if structural_return {
+            function.result =
+                AbstractFunctionResult::Structural(terminal_psi::StructuralResultDeclaration {
+                    place: PlaceId::new(6).unwrap(),
+                    structural_type: empty().id,
+                    multiplicity: StructuralMultiplicity::Affine,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    reference_sources: Vec::new(),
+                });
+            function.operations[1] = AbstractOperation::ReturnStructural {
+                psi_edge: EdgeId::new(1).unwrap(),
+                source: parameter.place,
+                returned_claims: Vec::new(),
+                trivial_affine_locals: Vec::new(),
+                trivial_affine_discards: vec![local().id],
+            };
+            function.structural_parameters.push(parameter);
+        }
+        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        optimization_unit_semantics::validate_psi_optimization_unit(&unit)
+            .expect("the established empty local is discarded exactly once");
+        let mut missing_cleanup = source.clone();
+        match &mut missing_cleanup.functions[0].operations[1] {
+            AbstractOperation::ReturnUnit {
+                cleanup_actions, ..
+            } => cleanup_actions.clear(),
+            AbstractOperation::ReturnStructural {
+                trivial_affine_discards,
+                ..
+            } => trivial_affine_discards.clear(),
+            _ => unreachable!(),
+        }
+        let missing_cleanup = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &missing_cleanup,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        assert!(
+            optimization_unit_semantics::validate_psi_optimization_unit(&missing_cleanup).is_err(),
+            "an explicit local cannot disappear from the return frontier"
+        );
+        for native in [
+            NativeTarget::linux_x64(),
+            NativeTarget::linux_arm64(),
+            NativeTarget::macos_arm64(),
+            NativeTarget::windows_x64(),
+        ] {
+            let target = abstract_operations_to_target_operations::lower_to_target_operations(
+                &source,
+                TargetLoweringRequest::new(native),
+            )
+            .expect("a no-storage local still has cleanup custody");
+            let legal = legalize_target_operations(&target, &source, &unit)
+                .expect("cleanup rejoins the exact empty-local establishment");
+            let environment =
+                register_environment::baseline_target_register_environment(native).unwrap();
+            let constraints = selection_constraints(&legal, &environment);
+            let selected = select_instructions(
+                &legal,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+            .unwrap();
+            validate_selected_instructions(
+                &legal,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+                selected.plan().clone(),
+            )
+            .expect("the no-code discard survives independent selection replay");
+            for mutation in ["lost", "unknown", "duplicate"] {
+                let mut hostile = target.clone();
+                let cleanup = match &mut hostile.functions[0].graph.blocks[0].terminator {
+                    target_operations::TargetControlTerminator::Return {
+                        cleanup_actions, ..
+                    }
+                    | target_operations::TargetControlTerminator::ReturnStructural {
+                        cleanup_actions,
+                        ..
+                    } => cleanup_actions,
+                    _ => unreachable!(),
+                };
+                match mutation {
+                    "lost" => cleanup.clear(),
+                    "unknown" => {
+                        cleanup[0] =
+                            TerminalAffineCleanupAction::DiscardRoot(PlaceId::new(99).unwrap());
+                    }
+                    "duplicate" => cleanup.push(cleanup[0].clone()),
+                    _ => unreachable!(),
+                }
+                assert!(
+                    legalize_target_operations(&hostile, &source, &unit).is_err(),
+                    "{mutation} cleanup must not replay"
+                );
+            }
+        }
     }
 }
