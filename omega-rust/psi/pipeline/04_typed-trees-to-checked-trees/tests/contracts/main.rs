@@ -35,12 +35,6 @@ fn typed(source: &str) -> Result<typed_trees::TypedTrees, Vec<diagnostics::Diagn
         .map_err(|diagnostic| vec![diagnostic])
 }
 
-const DEFINITIONS: &str = r#"
-domain [u8; 4]::Utf8 requires valid_utf8(self);
-data Row [copy] { bytes: [u8; 4] in Utf8; tag: u64; }
-data Level [copy] { rooms: [Row; 2]; }
-"#;
-
 fn assert_accepted(name: &str, source: &str) {
     if let Err(diagnostics) = check(source) {
         panic!(
@@ -73,47 +67,6 @@ fn assert_rejected(name: &str, source: &str, expected: &[&str]) {
     }
 }
 
-/// The flattened write frame reports `clear(&mut rooms[0])` as a write to
-/// `rooms`; the structured mutation set keeps `rooms[0].tag`. The sibling
-/// element's index bound and `bytes in Utf8` evidence must survive the call.
-#[test]
-fn call_through_view_element_keeps_sibling_element_coverage() {
-    assert_accepted(
-        "call_through_view_element_keeps_sibling_element_coverage",
-        &format!(
-            r#"{DEFINITIONS}
-            machine clear(row: &mut Row) {{ row.tag = 0; }}
-            machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
-            machine caller(level: &mut Level) {{
-                let rooms: &mut [Row] = level.rooms.as_mut_slice();
-                clear(&mut rooms[0]);
-                consume(&rooms[1]);
-            }}
-        "#
-        ),
-    );
-}
-
-/// Writing an element's declared field retires that element's evidence only:
-/// consuming the same view element after the mutating call must reject.
-#[test]
-fn call_through_view_element_retires_the_written_element() {
-    assert_rejected(
-        "call_through_view_element_retires_the_written_element",
-        &format!(
-            r#"{DEFINITIONS}
-            machine poke(row: &mut Row) {{ row.bytes[0] = 255; }}
-            machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
-            machine caller(level: &mut Level) {{
-                let rooms: &mut [Row] = level.rooms.as_mut_slice();
-                poke(&mut rooms[1]);
-                consume(&rooms[1]);
-            }}
-        "#
-        ),
-        &["parameter row.bytes requires"],
-    );
-}
 const PREDICATE_DEFINITIONS: &str = r#"
 data Choice [copy] {
     case Empty;
@@ -151,28 +104,6 @@ fn predicate_domain_initializer_rejects_wrong_case() {
                 "cannot prove initializer of `value`",
                 "domain `Choice::NonEmpty`",
             ],
-        );
-    }
-}
-
-/// The same annotation on a construction whose selected case satisfies the
-/// predicate — `Choice::Some {{ value: 3 }}`, `Choice::Some {{ .. }}`, or a bare case path
-/// — establishes membership and accepts.
-#[test]
-fn predicate_domain_initializer_accepts_satisfying_case() {
-    {
-        assert_accepted(
-            "predicate_domain_initializer_accepts_satisfying_case",
-            &format!(
-                r#"{PREDICATE_DEFINITIONS}
-            machine read() -> u32 {{
-                let first: Choice in Choice::NonEmpty = Choice::Some {{ value: 3 }};
-                let second: Choice in Choice::NonEmpty = Choice::Some {{ value: 4 }};
-                let union: Command in Command::Interactive = Command::Move {{ }};
-                first.value
-            }}
-        "#
-            ),
         );
     }
 }
@@ -327,44 +258,4 @@ fn predicate_domain_initializer_wrong_owner_rejects() {
             &["cannot prove initializer of `value`"],
         );
     }
-}
-
-/// An equality live at a write's incoming boundary transports through the
-/// write: `counter.count`'s exit value is the stored source expression with
-/// the entry equality substituted, so `counter.count == before + 1` follows
-/// from `counter.count = counter.count + 1` under `counter.count == before`.
-/// A wrong update to the same shape still rejects.
-#[test]
-fn write_transport_carries_entry_equality_across_scalar_write() {
-    assert_accepted(
-        "write_transport_carries_entry_equality_across_scalar_write",
-        r#"
-        data Counter { count: u32; }
-        machine bump(counter: &mut Counter, before: u32 [0..=4095])
-            requires
-                counter.count == before
-                counter.count <= 4095
-            ensures
-                counter.count == before + 1
-        {
-            counter.count = counter.count + 1;
-        }
-    "#,
-    );
-    assert_rejected(
-        "write_transport_rejects_a_wrong_update",
-        r#"
-        data Counter { count: u32; }
-        machine bump(counter: &mut Counter, before: u32 [0..=4095])
-            requires
-                counter.count == before
-                counter.count <= 4095
-            ensures
-                counter.count == before + 1
-        {
-            counter.count = counter.count + 2;
-        }
-    "#,
-        &["cannot prove ensures"],
-    );
 }

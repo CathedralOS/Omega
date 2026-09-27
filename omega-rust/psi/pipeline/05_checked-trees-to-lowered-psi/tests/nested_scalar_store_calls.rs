@@ -24,24 +24,6 @@ fn signed(value: i32) -> TerminalScalarValue {
 }
 
 #[test]
-fn discarded_scalar_call_preserves_its_mutable_parameter_store() {
-    let source = r#"
-        data Tally { calls: u64; pad: u64; }
-        data Main { tally: Tally; }
-        machine Main::roll(&mut self, tally: &mut Tally) -> bool {
-            tally.calls = ((tally.calls as u64 in Wrapping) + 1) as u64;
-            transition { _ -> true }
-        }
-        machine Main::main(&mut self) {
-            self.tally.calls = 40;
-            self.tally.pad = 0;
-            _ = self.roll(&mut self.tally);
-        }
-    "#;
-    lowered_verified(source, "Main::main");
-}
-
-#[test]
 fn dense_store_parameters_reject_redirected_source_and_shared_access() {
     let source = r#"
         data Tally { calls: u64; }

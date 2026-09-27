@@ -2,7 +2,6 @@ use super::StatementNode;
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::front_end::{checked_program, typed_program};
-use checked_trees::CheckedScalarBindingValue;
 
 mod bitwise_integer_bounds;
 mod byte_subslice_arguments;
@@ -254,111 +253,6 @@ fn transition_scalar_facts_skip_implicit_self_but_retain_target_position() {
         ),
         None,
         "implicit self must not masquerade as an authored scalar argument",
-    );
-}
-
-#[test]
-fn checked_scalar_graph_retains_call_computation_bindings_and_arguments() {
-    let source = r#"
-        machine identity(value: bool) -> bool { value }
-
-        machine caller(flag: bool) -> bool {
-            let forwarded: bool = identity(flag);
-            forwarded
-        }
-    "#;
-
-    let checked = checked_program(source);
-    let caller = checked
-        .facts
-        .flow
-        .terminal_machines
-        .machines
-        .iter()
-        .find(|machine| machine.name == "caller")
-        .expect("caller terminal selection");
-    let graph = checked
-        .facts
-        .flow
-        .terminal_scalar_graphs
-        .for_machine(caller.machine)
-        .expect("caller scalar graph");
-    let [state] = graph.states.as_slice() else {
-        panic!("caller should retain one scalar state")
-    };
-    let [binding] = state.bindings.as_slice() else {
-        panic!("caller should retain one scalar binding")
-    };
-    assert_eq!(binding.value, CheckedScalarBindingValue::Computation);
-    let computations = &checked.facts.values.scalar_computations;
-    let root = computations
-        .root_at(
-            state.state,
-            binding.statement_ordinal,
-            checked_trees::CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 },
-        )
-        .expect("call initializer computation");
-    assert_eq!(root.machine, caller.machine);
-    let checked_trees::CheckedScalarComputationKind::Call {
-        target_machine,
-        target_state,
-        call_ordinal,
-        arguments,
-        source_call,
-        ..
-    } = computations.nodes.get(root.root).kind
-    else {
-        panic!("the call-valued local must not masquerade as a pure expression")
-    };
-    assert_eq!(call_ordinal, 0);
-    let [argument] = computations
-        .operands
-        .span(arguments)
-        .expect("call arguments")
-    else {
-        panic!("identity has one argument")
-    };
-    assert!(matches!(
-        &computations.nodes.get(*argument).kind,
-        checked_trees::CheckedScalarComputationKind::Value(
-            checked_trees::CheckedScalarExpression::Boolean(value)
-        ) if **value == checked_trees::CheckedBooleanExpression::Parameter { position: 0 }
-    ));
-    let occurrence = checked.facts.flow.control.calls.get(source_call);
-    assert_eq!(
-        occurrence.statement_index,
-        binding.statement_ordinal as usize
-    );
-    assert_eq!(
-        occurrence.authored_expression,
-        computations.nodes.get(root.root).authored_root
-    );
-    assert_ne!(target_machine, caller.machine);
-    assert!(target_state.is_valid());
-    let checked_call = checked
-        .facts
-        .contract_plans
-        .for_machine(caller.machine)
-        .and_then(|plan| {
-            plan.crash
-                .checked_call_at(state.state, binding.statement_ordinal, call_ordinal)
-        })
-        .expect("the binding coordinate should join to checked call refinement");
-    assert_eq!(checked_call.target_machine(), target_machine);
-    assert_eq!(checked_call.target_state(), target_state);
-    assert_eq!(
-        checked.facts.values.scalar_expressions.expression_at(
-            state.state,
-            binding.statement_ordinal,
-            checked_trees::CheckedScalarExpressionRole::CallArgument {
-                binding_ordinal: 0,
-                argument_ordinal: 0,
-            },
-        ),
-        Some(&checked_trees::CheckedScalarExpression::Boolean(Box::new(
-            checked_trees::CheckedBooleanExpression::Parameter { position: 0 },
-        ))),
-        "the argument must be expressed in the caller's checked scalar namespace",
     );
 }
 

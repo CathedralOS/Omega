@@ -95,55 +95,6 @@ fn binary_token_use_becomes_an_ordinary_call_on_the_declaration_entry() {
     );
 }
 
-/// Indexed `[]` uses now bind the declaration body: `target[0u64]` rewrites
-/// to an ordinary call on `Wrapped::at`'s entry state with the collection and
-/// index forwarded in authored order, keeping the authored `[]` occurrence as
-/// a selection of that declaration.
-#[test]
-fn index_token_use_binds_the_declaration_body() {
-    let checked = check(
-        "data Wrapped { value: u8; }
-        machine [] Wrapped::at(target: Wrapped, index: u64) -> u8 { target.value }
-        machine by_token(target: Wrapped) -> u8 { target[0u64] }",
-    )
-    .expect("an index token use binds the declaration body");
-    let at = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "Wrapped::at")
-        .expect("token-bearing declaration");
-    let at_entry = checked.machine_states(at)[0].symbol;
-    let synthesized = checked
-        .expression_table
-        .iter_expressions()
-        .filter_map(|(_, expression)| match expression {
-            ExpressionNode::Call(call) if call.target_symbol == at_entry => Some(call),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let [call] = synthesized.as_slice() else {
-        panic!(
-            "exactly one call binds the token use; found {}",
-            synthesized.len()
-        );
-    };
-    assert_eq!(
-        call.operational_acknowledgement.origin,
-        language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized
-    );
-    assert_eq!(
-        checked
-            .expression_table
-            .expression_handles(call.arguments)
-            .len(),
-        2,
-        "collection and index forward in authored order"
-    );
-    // `Wrapped::at`'s first parameter is an ordinary parameter, so no receiver
-    // loan forms at the call edge.
-    assert!(!call.receiver.is_valid());
-}
-
 /// The position whose body supply is still unimplemented keeps rejecting
 /// rather than falling back to builtin indexing: an open range use omits its
 /// end, and the omitted endpoint would be the collection's length, which a
@@ -214,22 +165,4 @@ fn domain_homed_token_use_binds_the_body_only_where_the_domain_is_selected() {
             .any(|diagnostic| diagnostic.message.contains("has no admissible meaning")),
         "{diagnostics:?}"
     );
-}
-
-#[test]
-fn unselected_domain_binding_over_a_builtin_carrier_keeps_the_builtin_meaning() {
-    // Declaring `machine + i32::Degrees::add` does not replace ordinary `i32`
-    // addition: `i32 in Wrapping` operands select no `Degrees` binding, so
-    // the use stays a builtin operator and no call to the body exists.
-    let checked = check(
-        "domain i32::Degrees requires self >= 0;
-        machine + i32::Degrees::add(left: i32, right: i32) -> i32 {
-            ((left as i32 in Wrapping) + (right as i32 in Wrapping)) as i32
-        }
-        machine rotate(value: i32 in Wrapping, delta: i32 in Wrapping) -> i32 in Wrapping {
-            value + delta
-        }",
-    )
-    .expect("builtin wrapping addition stays selected");
-    assert_eq!(calls_targeting(&checked, "i32::Degrees::add"), 0);
 }

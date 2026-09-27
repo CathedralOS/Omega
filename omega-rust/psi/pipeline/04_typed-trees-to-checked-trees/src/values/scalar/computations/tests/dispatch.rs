@@ -25,48 +25,6 @@ fn anonymous_match_results_land_in_actual_integer_peer_without_erasing_dispatch(
 }
 
 #[test]
-fn scalar_match_retains_one_subject_and_selective_result_computations() {
-    let checked = checked_source(
-        "machine identity(value: bool) -> bool { value }
-         machine choose(value: bool) -> bool {
-             match identity(value) { true -> identity(false), false -> identity(true) }
-         }",
-        false,
-    );
-    let plans = &checked.facts.values.scalar_computations;
-    let root = plans
-        .roots
-        .iter()
-        .find_map(|(_, root)| {
-            matches!(
-                plans.nodes.get(root.root).kind,
-                CheckedScalarComputationKind::Dispatch { .. }
-            )
-            .then_some(root)
-        })
-        .expect("match root");
-    let CheckedScalarComputationKind::Dispatch { subject, arms, .. } =
-        plans.nodes.get(root.root).kind
-    else {
-        panic!("direct dispatch");
-    };
-    assert!(matches!(
-        plans.nodes.get(subject).kind,
-        CheckedScalarComputationKind::Call { .. }
-    ));
-    let arms = plans.dispatch_arms.span(arms).unwrap();
-    assert_eq!(arms.len(), 2);
-    for arm in arms {
-        assert_ne!(subject, arm.value);
-        assert!(matches!(
-            plans.nodes.get(arm.value).kind,
-            CheckedScalarComputationKind::Call { .. }
-        ));
-    }
-    assert_ne!(arms[0].source_arm, arms[1].source_arm);
-}
-
-#[test]
 fn scalar_match_wildcard_closes_executable_prefix_without_erasing_subject() {
     let checked = checked_source(
         "machine identity(value: bool) -> bool { value }

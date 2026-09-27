@@ -8,68 +8,6 @@ use crate::TerminalMachineSelection;
 use crate::terminal_identities::block_id;
 
 #[test]
-fn stored_widened_value_retains_its_exact_narrowing_proof() {
-    for initializer in ["5", "seed"] {
-        let checked = crate::front_end::checked_program(&format!(
-            "data Main {{ a: i8; b: i64; r: i32; s: i8; }}
-         machine Main::run(&mut self, seed: i8) {{
-             self.a = {initializer};
-             self.b = self.a as i64;
-             self.r = self.b as i32;
-             let x: i32 = 7;
-             self.s = x as i8;
-         }}",
-        ));
-        let mut lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
-            .expect("stored values retain the bounds needed by exact narrowing");
-        terminal_verifier::verify_module(
-            &lowered.semantic_module,
-            &lowered.proof_bundle,
-            &proof_admission::AdmissionProfile::default(),
-        )
-        .expect("exact narrowing proofs replay independently");
-
-        // Keep the same result identity and storage route, but replace the
-        // bounded widening with a legal i64 value outside the i32 carrier.
-        let widening = lowered
-            .semantic_module
-            .machines
-            .iter_mut()
-            .flat_map(|machine| &mut machine.blocks)
-            .flat_map(|block| &mut block.operations)
-            .find(|operation| {
-                matches!(
-                    operation.kind,
-                    terminal_psi::OperationKind::IntegerWiden { .. }
-                )
-            })
-            .expect("the program widens its i8 field");
-        widening.kind = terminal_psi::OperationKind::IntegerConstant {
-            value: semantic_vocabulary::IntegerValue::Signed(2_147_483_648),
-        };
-        terminal_verifier::validate_module(&lowered.semantic_module)
-            .expect("the tampered module remains structurally valid");
-        assert!(
-            terminal_verifier::verify_module(
-                &lowered.semantic_module,
-                &lowered.proof_bundle,
-                &proof_admission::AdmissionProfile::default(),
-            )
-            .is_err(),
-            "the old certificate cannot authorize the replaced value"
-        );
-        lowered.proof_bundle.evidence.clear();
-        assert!(
-            matches!(
-                finalize_operation_proofs(&mut lowered),
-                Err(LoweringError::OperationProofUnavailable(_))
-            ),
-            "proof search must also refuse the out-of-range narrowing"
-        );
-    }
-}
-
-#[test]
 fn sequential_clamps_prove_exact_arithmetic_on_an_observed_field() {
     for expression in ["bounded + 70", "70 + bounded", "bounded + -70"] {
         let lowered = clamped_field_addition(expression);

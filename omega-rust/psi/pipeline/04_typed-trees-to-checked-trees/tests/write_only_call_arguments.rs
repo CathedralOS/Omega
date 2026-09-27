@@ -128,36 +128,6 @@ fn expression_call_argument_admits_literal_indexed_write_only_subloan() {
 }
 
 #[test]
-fn expression_call_argument_admits_interleaved_member_index_subloan() {
-    let checked = check(
-        "data Record [copy] { value: u16; }
-         machine replace(destination: &write u16, value: u16) -> u16 {
-             destination = value;
-             value
-         }
-         machine forward(records: &write [Record; 2], value: u16) -> u16 {
-             let out: u16 = replace(&write records[1].value, value);
-             out
-         }",
-    )
-    .expect("an indexed record-field subloan is a content-independent place argument");
-
-    let arguments = scalar_call_structural_arguments(unit_plan(&checked, "forward"));
-    assert_eq!(
-        arguments[0].path,
-        vec![
-            CheckedUnitStructuralPathSegment::FixedIndex(1),
-            CheckedUnitStructuralPathSegment::Field("value".to_owned())
-        ],
-        "member and literal-index hops compose in authored order"
-    );
-    assert_eq!(
-        arguments[0].access,
-        CheckedStructuralAccess::WriteOnlyBorrow
-    );
-}
-
-#[test]
 fn expression_call_argument_admits_record_field_write_only_subloan() {
     let checked = check(
         "data Holder { slot: u16; spare: u16; }

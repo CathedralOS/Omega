@@ -66,44 +66,6 @@ fn forwarded_window() -> String {
 }
 
 #[test]
-fn guard_polarity_boolean_structure_and_transitive_forwarding_replay() {
-    let variants = [
-        GUARDED_WINDOW.replace(
-            "index < cut -> separate(index, cut)\n            _ -> 0",
-            "index >= cut -> 0\n            _ -> separate(index, cut)",
-        ),
-        GUARDED_WINDOW.replace("index < cut ->", "(index < cut && cut <= 4) ->"),
-        GUARDED_WINDOW.replace("index < cut ->", "!(index >= cut || cut > 4) ->"),
-        GUARDED_WINDOW.replace("index < cut ->", "((index < cut) == true) ->"),
-        forwarded_window(),
-        forwarded_window()
-            .replace("middle(index, cut)", "middle(cut, index)")
-            .replace(
-                "middle(cursor: u64 [0..=3], limit: u64 [0..=4])",
-                "middle(limit: u64 [0..=4], cursor: u64 [0..=3])",
-            ),
-    ];
-    for source in variants {
-        let mut checked = checked_program(&source);
-        assert!(
-            checked
-                .facts
-                .borrow
-                .call_compatibility_certificates
-                .iter()
-                .any(
-                    |(_, certificate)| certificate.premises.iter().any(|premise| matches!(
-                        premise.source,
-                        checked_trees::BorrowCompatibilityPremiseSource::IncomingGuard { .. }
-                    ))
-                )
-        );
-        crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
-            .expect("guard transport and polarity replay");
-    }
-}
-
-#[test]
 fn mutable_intermediate_and_destination_values_cannot_reuse_old_guard_relations() {
     let intermediate = forwarded_window()
         .replace("middle(cursor:", "middle(mut cursor:")

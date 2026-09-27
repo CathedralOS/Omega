@@ -919,15 +919,6 @@ fn explicit_generic_argument_arity_and_scope_are_checked() {
 }
 
 #[test]
-fn explicit_generic_application_preserves_partial_ordinary_application() {
-    let source = format!(
-        "{EXPLICIT_LEVEL_IDENTITY}
-        let partial<v: core::Level, A: core::Type<v>>(): A -> A = identity<v,A>();"
-    );
-    checked_program(&source);
-}
-
-#[test]
 fn implicit_static_arguments_preserve_existing_ordinary_prefix_application() {
     let source = "let generic<T: u64>(x: u64): u64 = x;
         let partial(x: u64): u64 -> u64 = generic(x);

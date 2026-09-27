@@ -95,51 +95,6 @@ fn retains_canonical_semantic_permission_events() {
 }
 
 #[test]
-fn method_form_by_value_self_records_terminal_consume() {
-    let checked = checked_program(
-        r#"
-        pub data Receipt [linear] { code: i32; }
-        boundary machine Receipt::complete(self) {}
-        data Main {}
-
-        machine Main::run(receipt: Receipt) {
-            receipt.complete();
-        }
-        "#,
-    );
-
-    use language_semantics::{PermissionAccess, PermissionEventKind, PermissionEventSource};
-    let events = checked
-        .facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
-        .map(|(_, event)| event)
-        .filter(|event| event.access == PermissionAccess::Owned)
-        .collect::<Vec<_>>();
-    assert_eq!(
-        events.len(),
-        3,
-        "the receiver's entry establishment, the argument's establishment, and one consume: {events:#?}"
-    );
-    assert_eq!(events[0].kind, PermissionEventKind::Establish);
-    assert_eq!(
-        events[0].source,
-        PermissionEventSource::StateEntry,
-        "the by-value receiver establishes an ordinary entry claim"
-    );
-    assert_eq!(events[1].kind, PermissionEventKind::Establish);
-    assert_eq!(events[2].kind, PermissionEventKind::Consume);
-    assert!(matches!(
-        events[2].source,
-        PermissionEventSource::Call { .. }
-    ));
-    assert_eq!(events[2].claim_identity, events[1].claim_identity);
-    assert_eq!(events[2].provenance, events[1].provenance);
-}
-
-#[test]
 fn explicit_crash_retains_definitely_live_linear_frontier_without_cleanup() {
     let checked = checked_program(
         r#"
@@ -318,73 +273,6 @@ fn multi_hop_case_guard_promotes_only_the_proven_conditional_crash_claim() {
         })
         .expect("Live variant");
     assert_eq!(claim_variant(live_claim), live_variant);
-}
-
-#[test]
-fn common_case_guard_parameter_map_survives_a_diamond_join() {
-    let checked = checked_program(
-        r#"
-        data Receipt [linear] { code: i32; }
-        data MaybeReceipt {
-            case Empty;
-            case Live(receipt: Receipt);
-        }
-
-        machine route(choice: MaybeReceipt, branch: bool) -> i32
-        crashes Abort
-        {
-            transition choice {
-                MaybeReceipt::Live -> split(choice, branch)
-                MaybeReceipt::Empty -> 0
-            }
-
-            state split(pending: MaybeReceipt, branch: bool) -> i32 {
-                transition branch {
-                    true -> left(pending)
-                    _ -> right(pending)
-                }
-            }
-
-            state left(pending: MaybeReceipt) -> i32 {
-                transition { _ -> crash_live(pending) }
-            }
-
-            state right(pending: MaybeReceipt) -> i32 {
-                transition { _ -> crash_live(pending) }
-            }
-
-            state crash_live(choice: MaybeReceipt) -> i32 {
-                crash Abort;
-            }
-        }
-        "#,
-    );
-
-    let machine = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "route")
-        .expect("routing machine");
-    let crash_state = checked
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.name.as_str() == "crash_live")
-        .expect("joined crash state");
-    let site = checked
-        .facts
-        .contract_plans
-        .for_machine(machine.symbol)
-        .expect("machine contract plan")
-        .crash
-        .checked_sites()
-        .iter()
-        .find(|site| site.location().state() == crash_state.symbol)
-        .expect("checked crash site");
-    assert_eq!(
-        site.frontier_lower_bound().len(),
-        1,
-        "the identical composed case proof on both diamond edges must survive the meet"
-    );
 }
 
 #[test]

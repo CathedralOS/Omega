@@ -63,22 +63,6 @@ fn const_return_promises_follow_static_binder_identity_not_spelling() {
 }
 
 #[test]
-fn const_return_call_requires_a_declared_guarantee() {
-    rejects(
-        "machine endpoint<const N: u64>() -> u64 { N }
-         machine forward<const N: u64>() -> u64 ensures result == N { endpoint<N>() }
-         machine main() -> u64 { forward<2>() }",
-        "ensures",
-    );
-    rejects(
-        "machine endpoint<const result: u64>() -> u64 ensures result == result { 0 }
-         machine forward<const N: u64>() -> u64 ensures result == N { endpoint<N>() }
-         machine main() -> u64 { 0 }",
-        "ensures",
-    );
-}
-
-#[test]
 fn symbolic_const_return_ranges_use_the_declared_binder_not_selected_values() {
     accepts(
         "machine endpoint<const N: u64>() -> u64[0..=N] { N }

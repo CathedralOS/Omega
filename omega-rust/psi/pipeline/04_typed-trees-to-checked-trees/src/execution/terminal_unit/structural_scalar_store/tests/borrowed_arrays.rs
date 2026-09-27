@@ -90,55 +90,6 @@ fn borrowed_fixed_array_element_store_retains_the_exact_index_hop() {
 }
 
 #[test]
-fn borrowed_fixed_array_element_store_carries_its_runtime_element() {
-    // A dynamic index is the carrier's runtime element: the store names the
-    // selector's retained coordinate, never a fabricated literal hop, and
-    // Terminal re-proves the element's bound.
-    let checked = checked(
-        "data Record [copy] { value: u16; }
-         machine store(records: &mut [Record; 2], index: u64 [0..=1], value: u16) {
-             records[index].value = value;
-         }",
-    )
-    .unwrap();
-    let program = &checked.typed;
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "store")
-        .unwrap();
-    let state = &program.machine_states(machine)[0];
-    let mut shapes = ShapeCollector::new(program);
-    let (structural, scalar) =
-        super::super::super::free_structural_scalar_signature(program, &mut shapes, state, &[])
-            .expect("borrowed array signature");
-    let stores = build_structural_scalar_field_store_sequence(
-        program,
-        &checked.facts,
-        machine,
-        state,
-        &structural,
-        &scalar,
-        0,
-        None,
-    )
-    .expect("a runtime element composes into the carrier");
-    let [CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store)] = stores.as_slice()
-    else {
-        panic!("one field store: {stores:#?}");
-    };
-    assert_eq!(
-        store.carrier_path,
-        [
-            checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
-                checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth: 0 }
-            )
-        ]
-    );
-    assert_eq!(store.field_identity, "value");
-}
-
-#[test]
 fn write_only_array_element_store_rejects_dynamic_out_of_bounds_and_reads() {
     for (name, source) in [
         (

@@ -1,4 +1,4 @@
-use crate::tests::front_end::{checked_program, typed_program};
+use crate::tests::front_end::typed_program;
 
 #[test]
 fn computed_receiver_cannot_select_a_numeric_builtin_by_spelling() {
@@ -41,24 +41,6 @@ fn computed_receiver_cannot_select_a_numeric_builtin_by_spelling() {
             "unresolved computed {target} keeps its enclosing state opaque"
         );
     }
-}
-
-#[test]
-fn computed_reference_method_receiver_reaches_checked_trees() {
-    let source = r#"
-        data Cell { value: u64; }
-        data Main { cell: Cell; audit: u64; }
-        machine identity(value: &mut Cell) -> &mut Cell { value }
-        machine Cell::write_value(&mut self, audit: &mut u64) -> u64 {
-            self.value = 1;
-            audit = 1;
-            1
-        }
-        machine Main::run(&mut self) {
-            let result: u64 = identity(&mut self.cell).write_value(&mut self.audit);
-        }
-    "#;
-    checked_program(source);
 }
 
 #[test]

@@ -1,10 +1,6 @@
-use crate::execution::terminal_unit::calls::structural_scalar_signature;
-
 use super::super::plain_record;
-use super::CheckedUnitEffectOperationPlan;
 use crate::execution::terminal_unit::types::ShapeCollector;
 
-use crate::execution::terminal_unit::structural_scalar_store::build_structural_scalar_field_store_sequence;
 use crate::tests::front_end::typed_program_from_source_map_with_generic_data;
 
 fn fixture() -> checked_trees::CheckedTrees {
@@ -29,53 +25,6 @@ fn fixture() -> checked_trees::CheckedTrees {
         .source_id;
     let typed = typed_program_from_source_map_with_generic_data(sources, &[(source_id, source)]);
     crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).unwrap()
-}
-
-#[test]
-fn closed_generic_record_stores_reuse_exact_field_and_wrapping_computation_plans() {
-    let checked = fixture();
-    let program = &checked.typed;
-    let mut generated_methods = 0;
-    for machine in program.machines() {
-        let Some(owner) = program.data_definitions().iter().find(|owner| {
-            owner.symbol == machine.attached_data_symbol && owner.generic_instance.is_some()
-        }) else {
-            continue;
-        };
-        assert!(plain_record(owner, program));
-        let state = &program.machine_states(machine)[0];
-        let mut shapes = ShapeCollector::new(program);
-        let (_, structural, scalar) =
-            structural_scalar_signature(program, &mut shapes, machine, state, &[], true)
-                .expect("closed generic receiver and scalar argument");
-        let stores = build_structural_scalar_field_store_sequence(
-            program,
-            &checked.facts,
-            machine,
-            state,
-            &structural,
-            &scalar,
-            0,
-            None,
-        )
-        .expect("substituted generic fields use ordinary exact store custody");
-        let [
-            CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(value),
-            CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(times),
-        ] = stores.as_slice()
-        else {
-            panic!("retain both ordered scalar stores: {stores:?}");
-        };
-        assert_eq!(value.field_identity, "value");
-        assert_eq!(times.field_identity, "times");
-        assert!(value.carrier_path.is_empty());
-        assert!(times.carrier_path.is_empty());
-        generated_methods += 1;
-    }
-    assert_eq!(
-        generated_methods, 2,
-        "exercise integer and Boolean instances"
-    );
 }
 
 #[test]

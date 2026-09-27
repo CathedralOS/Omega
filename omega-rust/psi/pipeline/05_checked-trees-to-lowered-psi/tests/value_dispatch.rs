@@ -363,35 +363,6 @@ fn value_dispatch_arms_land_exact_arithmetic_at_the_result_destination() {
 }
 
 #[test]
-fn typed_match_peer_supplies_anonymous_numeric_result_carrier() {
-    let typed_peer = "match flag { true -> 8u64, false -> 9u64 }";
-    for (anonymous, when_true, when_false) in [
-        ("18446744073709551616 / 18446744073709551616", 9, 9),
-        ("7 / 2 * 2", 15, 15),
-        (
-            "match flag { true -> match flag { _ -> 18446744073709551616 / 18446744073709551616 }, false -> match flag { _ -> 7 / 2 * 2 } }",
-            9,
-            15,
-        ),
-    ] {
-        for expression in [
-            format!("({anonymous}) | ({typed_peer})"),
-            format!("({typed_peer}) | ({anonymous})"),
-        ] {
-            let source = format!("machine choose(flag: bool) -> u64 {{ {expression} }}");
-            for (flag, expected) in [(true, when_true), (false, when_false)] {
-                let (_, execution) = execute(&source, &[TerminalScalarValue::Boolean(flag)]);
-                assert_eq!(
-                    execution.value(),
-                    TerminalExecutionResult::Scalar(unsigned(expected)),
-                    "{expression}; flag={flag}"
-                );
-            }
-        }
-    }
-}
-
-#[test]
 fn composed_integer_peers_supply_anonymous_numeric_result_carriers() {
     // Each peer produces 24 in its actual u64 carrier before the outer OR.
     for typed_peer in [

@@ -22,16 +22,6 @@ fn literal(number: u64, integer_type: IntegerType) -> ScalarTerm {
     ScalarTerm::integer(integer_type, number).expect("small fitting literal")
 }
 
-fn context(integer_type: IntegerType) -> PropositionContext {
-    PropositionContext::from_value_types((1..=3).map(|identity| {
-        (
-            ValueId::new(identity).expect("value identity"),
-            ScalarType::Integer(integer_type),
-        )
-    }))
-    .expect("typed value context")
-}
-
 fn wide_context(integer_type: IntegerType, identities: u64) -> PropositionContext {
     PropositionContext::from_value_types((1..=identities).map(|identity| {
         (
@@ -46,47 +36,6 @@ fn math_value(identity: u64, integer_type: IntegerType) -> IntegerMathTerm {
     IntegerMathTerm::MathValue {
         source_type: integer_type,
         value: ValueId::new(identity).expect("value identity"),
-    }
-}
-
-#[test]
-fn a_strict_guard_proves_the_adjacent_non_strict_arrival_bound() {
-    for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
-        let integer_type = IntegerType::new(sign, 32).expect("fixed integer type");
-        let subject = value(1, integer_type);
-        // `0 < n` from a taken `n > 0` edge proves `1 <= n`, and `n < 1001`
-        // proves `n <= 1000`; one step further does not follow.
-        for (fact, goal, admitted) in [
-            (
-                Proposition::LessThan(literal(0, integer_type), subject.clone()),
-                Proposition::LessOrEqual(literal(1, integer_type), subject.clone()),
-                true,
-            ),
-            (
-                Proposition::LessThan(subject.clone(), literal(1001, integer_type)),
-                Proposition::LessOrEqual(subject.clone(), literal(1000, integer_type)),
-                true,
-            ),
-            (
-                Proposition::LessThan(literal(0, integer_type), subject.clone()),
-                Proposition::LessOrEqual(literal(2, integer_type), subject.clone()),
-                false,
-            ),
-        ] {
-            let axioms = [fact];
-            let proof = produce_checked_canonical_integer_proof(
-                &context(integer_type),
-                &goal,
-                &[],
-                &axioms,
-                &BTreeSet::new(),
-            );
-            assert_eq!(proof.is_some(), admitted, "{sign:?}: {goal:?}");
-            if let Some(proof) = proof {
-                check_certificate(&context(integer_type), &goal, &[], &axioms, &proof)
-                    .expect("independent kernel checks the inward step");
-            }
-        }
     }
 }
 

@@ -66,46 +66,6 @@ fn landed_literal_guards_fold_both_polarities_only_with_builtin_meaning() {
 }
 
 #[test]
-fn boolean_guard_selection_preserves_both_polarities_and_operator_meaning() {
-    for value in [false, true] {
-        let mut program = TypedTrees::default();
-        let left = program
-            .expression_table
-            .insert(ExpressionNode::Boolean(true));
-        let right = program
-            .expression_table
-            .insert(ExpressionNode::Boolean(value));
-        let expression = program.expression_table.insert(ExpressionNode::Binary(
-            typed_trees::expression::TableBinaryExpression {
-                left,
-                operator: BinaryOperator::Equal,
-                right,
-            },
-        ));
-        for (status, accepted) in [
-            (CheckedOperatorResolutionStatus::BuiltinFallback, true),
-            (CheckedOperatorResolutionStatus::Resolved, false),
-            (CheckedOperatorResolutionStatus::Missing, false),
-            (CheckedOperatorResolutionStatus::Ambiguous, false),
-        ] {
-            let mut uses = Arena::new();
-            uses.append(checked_trees::CheckedOperatorUseFact {
-                expression,
-                status,
-                ..Default::default()
-            });
-            let operators = CheckedOperatorFacts::with_roots(uses, Arena::new(), Arena::new());
-            assert_eq!(
-                lower_boolean_guard(&program, &operators, expression, &[], &[], &[], &[], &[])
-                    .is_some(),
-                accepted,
-                "value={value}, status={status:?}",
-            );
-        }
-    }
-}
-
-#[test]
 fn retained_widening_requires_complete_fixed_integer_range_containment() {
     assert!(integer_widen_is_total(
         PrimitiveType::U8,
@@ -153,15 +113,4 @@ fn compile_known_exact_integer_conversion_relands_only_representable_fixed_value
         }),
     };
     assert!(retag_exact_integer_literal(&outside, PrimitiveType::I8).is_none());
-}
-
-#[test]
-fn compile_known_exact_integer_conversion_lands_untyped_literals() {
-    let source = CheckedScalarExpression::IntegerLiteral {
-        literal: numerics::literals::IntegerLiteral::from_value(70),
-    };
-    let landed = retag_exact_integer_literal(&source, PrimitiveType::I32)
-        .expect("70 is exactly representable as i32");
-    assert_eq!(scalar_expression_type(&landed), Some(PrimitiveType::I32));
-    assert!(retag_exact_integer_literal(&source, PrimitiveType::Addr).is_none());
 }

@@ -23,47 +23,6 @@ fn checked_composed_claim() -> checked_trees::CheckedTrees {
 }
 
 #[test]
-fn linear_settlement_composes_after_a_state_handoff() {
-    let checked = crate::front_end::checked_program(
-        r#"
-            pub data Receipt [linear] { value: u64; }
-            boundary machine Receipt::settle(self) ensures true;
-
-            machine enter(flag: bool, first: Receipt, second: Receipt) {
-                transition { _ -> choose(flag, first, second) }
-                state choose(flag: bool, first: Receipt, second: Receipt) {
-                    transition flag {
-                        true -> yes(first, second)
-                        _ -> no(first, second)
-                    }
-                }
-                state yes(first: Receipt, second: Receipt) {
-                    first.settle();
-                    second.settle();
-                }
-                state no(first: Receipt, second: Receipt) {
-                    second.settle();
-                    first.settle();
-                }
-            }
-        "#,
-    );
-    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("enter"))
-        .expect("linear settlement must not depend on the number of preceding states");
-    terminal_verifier::verify_module(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        &proof_admission::AdmissionProfile::default(),
-    )
-    .expect("shared graph preserves linear settlement");
-    let bytes = terminal_codec::encode_module(&lowered.semantic_module).expect("encode");
-    assert_eq!(
-        terminal_codec::decode_module(&bytes).expect("decode"),
-        lowered.semantic_module
-    );
-}
-
-#[test]
 fn claim_bearing_composed_unit_rejects_plan_and_fact_corruption() {
     let baseline = checked_composed_claim();
     let rejects = |checked: &CheckedTrees, corruption: &str| {

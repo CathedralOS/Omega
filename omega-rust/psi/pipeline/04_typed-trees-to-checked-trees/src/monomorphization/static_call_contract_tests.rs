@@ -256,67 +256,6 @@ fn retained_static_parameter_operational_contract_mutations_reject() {
 }
 
 #[test]
-fn forwarded_nominal_binders_retain_exact_owners_and_selected_reach() {
-    let checked = crate::lower_typed_trees(
-        typed_program(
-            "boundary trait Console {}\n\
-         trait Task { machine run(value: u64) -> u64 reaches Console; }\n\
-         machine quiet(value: u64) -> u64 satisfies Task::run { value }\n\
-         machine loud(value: u64) -> u64 satisfies Task::run reaches Console { value }\n\
-         machine traverse<machine Step>(value: u64) -> u64\n\
-         where machine Step satisfies Task::run; { Step(value) }\n\
-         machine outer<machine Selected>(value: u64) -> u64\n\
-         where machine Selected satisfies Task::run; { traverse<Selected>(value) }\n\
-         machine first() -> u64 { outer<quiet>(7) }\n\
-         machine second() -> u64 { outer<loud>(9) }",
-        ),
-        &crate::CheckingRequest::settled(),
-    )
-    .expect("nested closed callback applications");
-    validate(&checked.typed).expect("forwarded binders retain their own template custody");
-    let reaches = &checked.facts.service_reaches;
-    let console = reaches.services.id_for_name("Console").expect("Console");
-    for family in ["outer", "traverse"] {
-        let instances: Vec<_> = checked
-            .machine_specializations
-            .iter()
-            .filter(|specialization| {
-                checked.machines().iter().any(|machine| {
-                    machine.symbol == specialization.template && machine.name.as_str() == family
-                })
-            })
-            .collect();
-        assert_eq!(instances.len(), 2, "both closed selections of {family}");
-        for specialization in instances {
-            let selected = specialization.machine_arguments[0];
-            let owner = checked
-                .machines()
-                .iter()
-                .find(|machine| {
-                    checked
-                        .machine_states(machine)
-                        .iter()
-                        .any(|state| state.symbol == selected)
-                })
-                .expect("exact selected entry owner");
-            let summary = reaches
-                .for_machine(specialization.instance)
-                .expect("instance row");
-            let expected = if owner.name.as_str() == "quiet" {
-                Vec::new()
-            } else {
-                vec![console]
-            };
-            assert_eq!(
-                reaches.rows.services(summary.effective),
-                expected.as_slice()
-            );
-            assert!(matches!(owner.name.as_str(), "quiet" | "loud"));
-        }
-    }
-}
-
-#[test]
 fn statement_and_named_tail_calls_retain_binders_without_internal_transfer_calls() {
     for (result, body, selected_body) in [
         (

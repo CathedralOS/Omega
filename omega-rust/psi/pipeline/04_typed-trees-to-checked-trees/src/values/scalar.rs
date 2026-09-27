@@ -47,8 +47,6 @@ pub(crate) use call_arguments::{
     nested_structural_call_return_type, retain_nested_structural_call_arguments,
 };
 #[cfg(test)]
-pub(crate) use call_lowering::scalar_qualified_call_expression;
-#[cfg(test)]
 pub(crate) use computations::build_checked_scalar_computation_plans;
 pub(crate) use computations::build_checked_value_computation_plans;
 pub(crate) use contract_entry::{

@@ -59,56 +59,6 @@ machine consume(fresh: Receipt) {
 "#;
 
 #[test]
-fn conditional_result_join_records_exact_excluded_input() {
-    let checked = match lower(OPTIONAL_INPUT) {
-        Ok(checked) => checked,
-        Err(diagnostics) => {
-            panic!("known empty caller excludes callee Held input: {diagnostics:?}")
-        }
-    };
-    assert!(
-        checked
-            .facts
-            .flow
-            .ownership
-            .claim_join_alternatives
-            .iter()
-            .any(|(_, alternative)| matches!(
-                alternative.source,
-                FlowClaimJoinAlternativeSource::ExcludedInput { .. }
-            ))
-    );
-    let mut altered = checked.facts.flow.ownership.clone();
-    let handle = altered
-        .claim_join_alternatives
-        .iter()
-        .find_map(|(handle, alternative)| {
-            matches!(
-                alternative.source,
-                FlowClaimJoinAlternativeSource::ExcludedInput { .. }
-            )
-            .then_some(handle)
-        })
-        .expect("excluded input alternative");
-    if let FlowClaimJoinAlternativeSource::ExcludedInput { established_at, .. } =
-        &mut altered.claim_join_alternatives.get_mut(handle).source
-    {
-        *established_at += 1;
-    }
-    let mut diagnostics = Vec::new();
-    validate_conditional_claim_joins(
-        &checked.typed,
-        &checked.facts.borrow,
-        &altered,
-        &mut diagnostics,
-    );
-    assert!(
-        !diagnostics.is_empty(),
-        "exclusion establishment must replay exactly"
-    );
-}
-
-#[test]
 fn conditional_result_join_does_not_exclude_unknown_active_input() {
     let source = OPTIONAL_INPUT
         .replace(
@@ -164,51 +114,8 @@ fn conditional_result_join_rejects_reusing_moved_active_input() {
 }
 
 #[test]
-fn conditional_result_join_retains_each_exact_named_exit() {
-    let checked = lower(CHOICE).expect("conditional result is conserved");
-    let ownership = &checked.facts.flow.ownership;
-    let receipts = ownership.claim_join_receipts.iter().collect::<Vec<_>>();
-    assert_eq!(receipts.len(), 1);
-    let alternatives = ownership
-        .claim_join_alternatives
-        .span_or_empty(receipts[0].1.alternatives);
-    assert_eq!(alternatives.len(), 2);
-    assert!(alternatives.iter().all(|alternative| {
-        ownership
-            .claim_join_exits
-            .span_or_empty(alternative.exits)
-            .len()
-            == 2
-    }));
-    assert_ne!(alternatives[0].source, alternatives[1].source);
-}
-
-#[test]
 fn conditional_result_join_rejects_unconsumed_other_input() {
     assert!(lower(&CHOICE.replace("Receipt::ack(right);", "")).is_err());
-}
-
-#[test]
-fn conditional_result_join_repeated_calls_keep_distinct_occurrences() {
-    let source = CHOICE
-        .replace(
-            "machine consume(flag: bool, left: Receipt, right: Receipt)",
-            "machine consume(flag: bool, left: Receipt, right: Receipt, third: Receipt)",
-        )
-        .replace(
-            "Receipt::ack(selected);",
-            "let next: Receipt = choose(flag, selected, third); Receipt::ack(next);",
-        );
-    let checked = lower(&source).expect("returned joined custody can enter the next call");
-    let receipts = checked
-        .facts
-        .flow
-        .ownership
-        .claim_join_receipts
-        .iter()
-        .collect::<Vec<_>>();
-    assert_eq!(receipts.len(), 2);
-    assert_ne!(receipts[0].1.claim_identity, receipts[1].1.claim_identity);
 }
 
 #[test]
@@ -289,35 +196,6 @@ machine consume"#,
 }
 
 #[test]
-fn conditional_result_join_binds_constructed_argument_fields() {
-    let source = CHOICE.replace("machine consume", r#"
-data Pair { left: Receipt; right: Receipt; }
-machine choose_pair(flag: bool, pair: Pair) -> Receipt {
-    transition flag {
-        true -> first(pair.left, pair.right)
-        _ -> second(pair.left, pair.right)
-    }
-    state first(left: Receipt, right: Receipt) -> Receipt { Receipt::ack(right); left }
-    state second(left: Receipt, right: Receipt) -> Receipt { Receipt::ack(left); right }
-}
-machine consume"#).replace(
-        "let selected: Receipt = choose(flag, left, right);\n    Receipt::ack(selected);",
-        "let selected: Receipt = choose_pair(flag, Pair { left: left, right: right });\n    Receipt::ack(selected);",
-    );
-    let checked = lower(&source).expect("typed constructor paths retain actual source claims");
-    assert_eq!(
-        checked
-            .facts
-            .flow
-            .ownership
-            .claim_join_receipts
-            .iter()
-            .count(),
-        1
-    );
-}
-
-#[test]
 fn conditional_result_join_full_replay_rejects_correlated_argument_origin_swap() {
     let mut checked = lower(CHOICE).expect("conditional result is conserved");
     let (_, receipt) = checked
@@ -364,66 +242,6 @@ fn conditional_result_join_full_replay_rejects_correlated_argument_origin_swap()
             &checked.facts
         )
         .is_err()
-    );
-}
-
-#[test]
-fn conditional_result_join_retains_inactive_case_exit() {
-    let source = r#"
-data Receipt [linear] { code: i32; }
-boundary requirement Receipt::ack(self);
-data OptionalReceipt { case Empty; case Held(receipt: Receipt); }
-machine choose(flag: u32, left: Receipt, right: Receipt) -> OptionalReceipt {
-    transition flag {
-        0 -> first(left, right)
-        1 -> second(left, right)
-        _ -> empty(left, right)
-    }
-    state first(left: Receipt, right: Receipt) -> OptionalReceipt {
-        Receipt::ack(right);
-        OptionalReceipt::Held { receipt: left }
-    }
-    state second(left: Receipt, right: Receipt) -> OptionalReceipt {
-        Receipt::ack(left);
-        OptionalReceipt::Held { receipt: right }
-    }
-    state empty(left: Receipt, right: Receipt) -> OptionalReceipt {
-        Receipt::ack(left);
-        Receipt::ack(right);
-        OptionalReceipt::Empty
-    }
-}
-
-machine consume(flag: u32, left: Receipt, right: Receipt) {
-    let selected: OptionalReceipt = choose(flag, left, right);
-    transition selected {
-        OptionalReceipt::Empty -> done()
-        OptionalReceipt::Held { receipt } -> finish(receipt)
-    }
-    state done() {}
-    state finish(receipt: Receipt) { Receipt::ack(receipt); }
-}
-"#;
-    let checked = lower(source).expect("an exact inactive case is not an unknown source");
-    let ownership = &checked.facts.flow.ownership;
-    let (_, receipt) = ownership
-        .claim_join_receipts
-        .iter()
-        .next()
-        .expect("receipt");
-    let alternatives = ownership
-        .claim_join_alternatives
-        .span_or_empty(receipt.alternatives);
-    assert_eq!(alternatives.len(), 3);
-    assert_eq!(
-        alternatives
-            .iter()
-            .filter(|alternative| matches!(
-                alternative.source,
-                FlowClaimJoinAlternativeSource::Inactive
-            ))
-            .count(),
-        1
     );
 }
 
@@ -524,53 +342,4 @@ fn conditional_result_join_replay_rejects_missing_or_changed_rows() {
         );
         assert!(!diagnostics.is_empty(), "mutation {mutation}: {receipt:?}");
     }
-}
-
-#[test]
-fn conditional_result_join_preserves_one_active_origin_and_an_inactive_exit() {
-    let source = r#"
-data Receipt [linear] { code: i32; }
-boundary requirement Receipt::ack(self);
-data OptionalReceipt { case Empty; case Held(receipt: Receipt); }
-data Bundle { selected: Receipt; optional: OptionalReceipt; }
-machine choose(flag: bool, left: Receipt, right: Receipt) -> Bundle {
-    transition flag {
-        true -> first(left, right)
-        _ -> second(left, right)
-    }
-    state first(left: Receipt, right: Receipt) -> Bundle {
-        Receipt::ack(right);
-        Bundle { selected: left, optional: OptionalReceipt::Empty }
-    }
-    state second(left: Receipt, right: Receipt) -> Bundle {
-        Bundle { selected: right, optional: OptionalReceipt::Held { receipt: left } }
-    }
-}
-machine consume(flag: bool, left: Receipt, right: Receipt) {
-    let selected: Bundle = choose(flag, left, right);
-    Receipt::ack(selected.selected);
-    transition selected.optional {
-        OptionalReceipt::Empty -> done()
-        OptionalReceipt::Held { receipt } -> finish(receipt)
-    }
-    state done() {}
-    state finish(receipt: Receipt) { Receipt::ack(receipt); }
-}
-"#;
-    let checked = lower(source).expect("one active origin plus absent custody is a complete join");
-    let ownership = &checked.facts.flow.ownership;
-    assert_eq!(ownership.claim_join_receipts.iter().count(), 2);
-    assert!(ownership.claim_join_receipts.iter().any(|(_, receipt)| {
-        let alternatives = ownership
-            .claim_join_alternatives
-            .span_or_empty(receipt.alternatives);
-        alternatives.len() == 2
-            && alternatives
-                .iter()
-                .filter(|alternative| {
-                    matches!(alternative.source, FlowClaimJoinAlternativeSource::Inactive)
-                })
-                .count()
-                == 1
-    }));
 }

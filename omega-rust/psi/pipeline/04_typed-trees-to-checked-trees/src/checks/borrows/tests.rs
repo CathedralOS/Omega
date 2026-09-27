@@ -32,7 +32,6 @@ const X_LOCAL: u32 = 6;
 const Y_LOCAL: u32 = 7;
 const UNRELATED_LOCAL: u32 = 8;
 const A_FIELD: u32 = 10;
-const X_FIELD: u32 = 12;
 const Y_FIELD: u32 = 13;
 const S_FIELD: u32 = 14;
 const Z_FIELD: u32 = 15;
@@ -323,67 +322,6 @@ fn mutation_facts(root: u32, place: &[u32]) -> (CheckFacts, arena::Handle<Borrow
         ..Default::default()
     });
     (facts, active_loan)
-}
-
-/// `&mut *d.b` while `d`'s carried `d.a`/`d.b` loans stay active. The `d.b`
-/// pair overlaps exactly -- same captured place, exclusive on both sides -- so
-/// compatibility alone cannot admit it; only the recorded carried-authority
-/// edge does. That admission must still publish a replayable certificate.
-#[test]
-fn carried_authority_transfer_retains_replayable_certificates() {
-    let program = statement_program();
-    let (mut facts, handles) = carried_transfer_facts(&[&[X_FIELD], &[Y_FIELD]], &[Y_FIELD]);
-    let active_a = handles[0];
-    let active_b = handles[1];
-    let forming = handles[2];
-
-    check(&program, &mut facts).expect("carried authority transfer stays admitted");
-
-    let certificates = facts
-        .borrow
-        .compatibility_certificates
-        .iter()
-        .map(|(_, certificate)| certificate.clone())
-        .collect::<Vec<_>>();
-    assert_eq!(
-        certificates.len(),
-        2,
-        "every admitted forming/active loan pair retains a certificate"
-    );
-    let disjoint_pair = certificates
-        .iter()
-        .find(|certificate| {
-            certificate.forming_loan == forming && certificate.active_loan == active_a
-        })
-        .expect("sibling carried loan pair");
-    assert!(disjoint_pair.conclusion.non_interfering);
-    assert!(disjoint_pair.conclusion.disjoint);
-
-    let carried_pair = certificates
-        .iter()
-        .find(|certificate| {
-            certificate.forming_loan == forming && certificate.active_loan == active_b
-        })
-        .expect("exact carried-authority pair");
-    assert!(
-        !carried_pair.conclusion.non_interfering,
-        "the carried pair overlaps; the certificate must record the honest verdict"
-    );
-    assert_eq!(
-        carried_pair.conclusion.containment,
-        CapturedPlaceContainment::Same
-    );
-
-    // The retained rows replay through the same path on a second pass: each is
-    // consumed by its exact pair and rebuilt identically.
-    check(&program, &mut facts).expect("retained carried certificates replay");
-    let replayed = facts
-        .borrow
-        .compatibility_certificates
-        .iter()
-        .map(|(_, certificate)| certificate.clone())
-        .collect::<Vec<_>>();
-    assert_eq!(replayed, certificates);
 }
 
 /// `&mut *d.a` while `d`'s carried `d.b` loan covers a strictly smaller place

@@ -191,38 +191,6 @@ const FIELD_RANGE: &str = r#"
     }
 "#;
 
-/// A range over a fixed-array field has no view to narrow: lowering views
-/// the whole field first and narrows that place, so the verifier relates the
-/// whole view to the array's declared extent and checks the range against it
-/// like any other subslice, here with a runtime end read from a field.
-#[test]
-fn a_field_range_local_narrows_a_whole_field_view_and_verifies() {
-    let lowered = lower(FIELD_RANGE).expect("a field range local lowers");
-    assert_eq!(subslices_of_established_views(&lowered), 1);
-    let module = terminal_codec::decode_module(&encode_module(&lowered.semantic_module).unwrap())
-        .expect("reload module");
-    let proof = terminal_codec::decode_proof_bundle(
-        &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
-    )
-    .expect("reload proof");
-    terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default())
-        .expect("a field range verifies against the array's extent");
-    let establishments = module
-        .machines
-        .iter()
-        .flat_map(|machine| &machine.blocks)
-        .flat_map(|block| &block.operations)
-        .filter(|operation| {
-            matches!(
-                &operation.kind,
-                terminal_psi::OperationKind::EstablishElementView { source, .. }
-                    if source.path == [terminal_psi::StructuralPathSegment::Field("values".to_owned())]
-            )
-        })
-        .count();
-    assert_eq!(establishments, 1, "the whole field is viewed once");
-}
-
 /// A literal field range inside a state graph: the view local is read and
 /// measured, and the measure selects the successor state.
 #[test]

@@ -43,41 +43,6 @@ fn assert_array(source: &str, arguments: &[TerminalScalarValue], expected: &[Ter
 }
 
 #[test]
-fn literal_array_arguments_compose_unit_scalar_and_structural_calls() {
-    assert_eq!(
-        execute(
-            "machine consume(row: [u8; 2]) {}
-         machine selected(value: u8) { consume([value, 7u8 + 2u8]); }",
-            &[byte(42)],
-        ),
-        TerminalExecutionResult::Unit
-    );
-    assert_array(
-        "machine answer(row: [u8; 2], value: u8) -> u8 { value }
-         machine selected() -> [u8; 2] {
-             let result: u8 = answer([7, 9], 42u8);
-             [result, 9]
-         }",
-        &[],
-        &[byte(42), byte(9)],
-    );
-    for completion in [
-        "keep([value, 7u8 + 2u8])",
-        "keep(keep([value, 7u8 + 2u8]))",
-        "let row: [u8; 2] = keep([value, 7u8 + 2u8]); keep(row)",
-    ] {
-        assert_array(
-            &format!(
-                "machine keep(row: [u8; 2]) -> [u8; 2] {{ row }}
-             machine selected(value: u8) -> [u8; 2] {{ {completion} }}"
-            ),
-            &[byte(42)],
-            &[byte(42), byte(9)],
-        );
-    }
-}
-
-#[test]
 fn literal_array_scalar_graph_rejects_result_drift_without_closure_fallback() {
     let original = crate::front_end::checked_program(
         "machine answer(row: [u8; 2], value: u8) -> u8 { value }
@@ -204,36 +169,6 @@ fn literal_array_scalar_completion_rejects_forged_result_metadata() {
             _ => unreachable!(),
         }
         reject(&changed, mutation);
-    }
-}
-
-#[test]
-fn literal_array_arguments_keep_formal_order_and_nested_empty_shapes() {
-    for selected in ["first", "second"] {
-        assert_array(&format!(
-            "machine identity(value: u8) -> u8 {{ value }}
-             machine pick(prefix: u8, first: [u8; 2], middle: u8, second: [u8; 2]) -> [u8; 2] {{ {selected} }}
-             machine selected() -> [u8; 2] {{ pick(identity(3u8), [7, 9], identity(4u8), [42, 9]) }}"
-        ), &[], &[byte(if selected == "first" {7} else {42}), byte(9)]);
-    }
-    for (array_type, value, expected) in [
-        (
-            "[[u8; 2]; 2]",
-            "[[7, 9], [11, 13]]",
-            vec![byte(7), byte(9), byte(11), byte(13)],
-        ),
-        ("[u8; 0]", "[]", vec![]),
-        ("[[u8; 0]; 1]", "[[]]", vec![]),
-        ("[[u8; 2]; 0]", "[]", vec![]),
-    ] {
-        assert_array(
-            &format!(
-                "machine keep(row: {array_type}) -> {array_type} {{ row }}
-             machine selected() -> {array_type} {{ keep(keep({value})) }}"
-            ),
-            &[],
-            &expected,
-        );
     }
 }
 

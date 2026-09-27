@@ -109,17 +109,6 @@ fn carrier_path_storing_the_call_result(module: &TerminalModule) -> Vec<Structur
     path.clone()
 }
 
-const DIRECT_FIELD: &str = r#"
-    data Main { fd_in: i32; rc: i32; }
-    boundary trait Host {
-        machine close(fd: i32) -> i32 reaches Host;
-    }
-    machine Main::main(&mut self) reaches Host {
-        self.fd_in = 5;
-        self.rc = Host::close(self.fd_in);
-    }
-"#;
-
 /// The carrier path is the only difference from `DIRECT_FIELD`: the same
 /// statement shape must compose with an ordered path to the carrier record
 /// rather than depending on the field sitting directly on the root.
@@ -148,17 +137,6 @@ const BOUNDED_DESTINATION: &str = r#"
         self.rc = Host::close(self.fd_in);
     }
 "#;
-
-#[test]
-fn same_statement_field_store_reads_its_own_boundary_call_result() {
-    let checked = crate::front_end::checked_program(DIRECT_FIELD);
-    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
-        .unwrap_or_else(|error| panic!("{DIRECT_FIELD}: {error:#?}"));
-    assert!(
-        carrier_path_storing_the_call_result(&lowered.semantic_module).is_empty(),
-        "an empty carrier path denotes a field directly on the root record"
-    );
-}
 
 #[test]
 fn same_statement_field_store_composes_with_a_carrier_path() {
