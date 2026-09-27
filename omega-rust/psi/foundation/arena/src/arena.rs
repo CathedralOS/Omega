@@ -661,6 +661,17 @@ impl<T: Default> Arena<T> {
 
         let index = storage_index_from_arena_index(handle.arena_index());
 
+        // A fresh arena has every slot occupied at generation 1, so a handle
+        // resolves by its generation and a bounds test alone, without reading
+        // the per-slot metadata — the single-handle twin of the span check.
+        if self.fresh {
+            return if handle.generation() == 1 && index < self.items.len() {
+                index
+            } else {
+                invalid_index()
+            };
+        }
+
         if self
             .generations
             .get(index)
