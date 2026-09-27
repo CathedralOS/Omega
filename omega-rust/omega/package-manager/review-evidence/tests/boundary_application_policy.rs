@@ -142,33 +142,7 @@ pub machine scalar(value: i32) -> i32 { ScalarMath::identity(value) }
 "#;
 
 #[test]
-fn generic_operator_binder_renaming_preserves_selected_rows_and_closed_applications() {
-    let (_package, checked) = compile(CLOSED);
-    let (_renamed_package, renamed) = compile(
-        &CLOSED
-            .replace("Element", "Item")
-            .replace("Value", "Operand"),
-    );
-    let providers = |compilation: &ReviewFixture| {
-        project_checked_selected_provider_policy(
-            compilation,
-            TargetProfile::WindowsX64,
-            package_identity(),
-        )
-        .unwrap()
-    };
-    let first = providers(&checked);
-    let second = providers(&renamed);
-    assert_eq!(first, second);
-    assert_eq!(
-        first.canonical_bytes().unwrap(),
-        second.canonical_bytes().unwrap()
-    );
-    assert_eq!(project(&checked), project(&renamed));
-}
-
-#[test]
-fn closed_roles_rejoin_canonical_selected_plans_and_authored_templates() {
+fn closed_roles_rejoin_selected_plans_and_preserve_binder_renaming() {
     let (_package, checked) = compile(CLOSED);
     let policy = project(&checked);
     let providers = project_checked_selected_provider_policy(
@@ -227,6 +201,23 @@ fn closed_roles_rejoin_canonical_selected_plans_and_authored_templates() {
         project_source(&changed),
         "private state lowering must not become application policy identity"
     );
+    let (_renamed_package, renamed) = compile(
+        &CLOSED
+            .replace("Element", "Item")
+            .replace("Value", "Operand"),
+    );
+    let renamed_providers = project_checked_selected_provider_policy(
+        &renamed,
+        TargetProfile::WindowsX64,
+        package_identity(),
+    )
+    .unwrap();
+    assert_eq!(providers, renamed_providers);
+    assert_eq!(
+        providers.canonical_bytes().unwrap(),
+        renamed_providers.canonical_bytes().unwrap()
+    );
+    assert_eq!(policy, project(&renamed));
 }
 
 #[test]
