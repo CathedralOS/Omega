@@ -136,14 +136,25 @@ pub(crate) fn lower_selected_machine(
         ));
     }
     if graph.is_none() {
-        return unsupported(
-            checked
-                .facts
-                .flow
-                .terminal_scalar_graphs
-                .declined_reason(selection.machine)
-                .unwrap_or("machine has no source-independent checked scalar control plan"),
-        );
+        let reason = checked
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .declined_reason(selection.machine)
+            .unwrap_or("machine has no source-independent checked scalar control plan");
+        // The scalar decline can be a by-design deferral (e.g. multi-state
+        // structural formals); the operative wall then lives in the Unit
+        // plan's local construction, which the omission ledger names.
+        if let Some(omission) =
+            crate::unit::unit_plan_omission_explanation(checked, selection.machine)
+        {
+            return Err(LoweringError::InvalidUnitMachinePlan {
+                machine: checked.symbols.display_path(selection.machine, "::"),
+                reason,
+                omission: Some(omission),
+            });
+        }
+        return unsupported(reason);
     }
     if crate::scalar_graph::scalar_call_closure::requires_shared_catalog(
         checked,

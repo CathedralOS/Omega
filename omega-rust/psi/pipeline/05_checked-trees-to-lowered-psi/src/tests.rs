@@ -63,6 +63,7 @@ mod structural_return_cases;
 mod structural_scalar_store;
 mod suspension_call_plans;
 mod unit_cleanup;
+mod unit_plan_omission_surface;
 mod value_case_dispatch;
 mod whole_view_results;
 mod widened_operand_sums;

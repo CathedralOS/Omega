@@ -268,8 +268,8 @@ fn borrowed_untouched_local_keeps_the_lowering_boundary_explicit() {
         assert!(
             matches!(
                 error,
-                checked_trees_to_lowered_psi::LoweringError::Unsupported(message)
-                    if message.starts_with(
+                checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan { reason, .. }
+                    if reason.starts_with(
                         "machine has no source-independent checked scalar control plan"
                     )
             ),
