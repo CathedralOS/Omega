@@ -1,0 +1,55 @@
+// PENDING OMEGA-PRODUCT-COMPILER-SOURCE: the one diagnostic standing between
+// `omega --check source/omega/main.omg` and a clean product root, reduced to
+// twenty-four lines.
+//
+// `self.target.initialize(self.holder.source.id, ...)` reads a `[copy]`
+// record out of a nested field of a BORROWED receiver and passes it to a
+// by-value parameter. The entry's unit plan is omitted at
+// `call operation: projected operand support`, and the program is refused
+// with the downstream symptom -- "selected ProgramEntry establishment
+// rejoins 0 Terminal attachment identities". The product root fails on the
+// identical shape at `Main::parse`:
+// `self.parser.initialize(self.lexer.source.id, ...)`, where `SourceId` is
+// also `[copy]`.
+//
+// Measured at the raise site. The single structural argument is
+// `Parameter { parameter_index: 0 }` with path
+// `[Field("holder"), Field("source"), Field("id")]`, type identity
+// `named(name(SourceId))`, access `Owned`. Both support checks decline:
+// `argument_paths.rs::ordinary_projected_call_is_supported` admits an owned
+// field-path projection only when the target parameter's type is AFFINE and
+// the caller's source parameter is itself `Owned` + `Affine` + claim-free,
+// because that arm exists to account for the residual complement the caller
+// must publish on its return edge. A COPY projection has no such residual:
+// it duplicates the value and leaves the caller's place exactly as it was,
+// so neither the source's access nor its multiplicity is load-bearing, and a
+// `&mut self` receiver may be read like any other place. That arm is simply
+// missing.
+//
+// The repair belongs to whoever holds
+// `omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/calls`.
+// Promote this to `pass/calls/` with an exit when it lands.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data SourceId [copy] { value: u32 in Trapping; }
+data Src { id: SourceId; length: u32 in Trapping; }
+data Holder { source: Src; }
+data Target { seen: u32 in Trapping; }
+
+machine Target::initialize(&mut self, id: SourceId, length: u64 in Trapping) {
+    self.seen = id.value;
+}
+
+data Main { console: Binding<Console>; holder: Holder; target: Target; }
+machine Main::main(&mut self) reaches Console {
+    transition { _ -> parse() }
+    state parse(&mut self) {
+        self.target.initialize(
+            self.holder.source.id,
+            self.holder.source.length as u64 in Trapping
+        );
+        transition { _ -> done() }
+    }
+    state done(&mut self) { self.console.exit_process(0); }
+}

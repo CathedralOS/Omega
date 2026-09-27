@@ -6806,7 +6806,36 @@ is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`.
   is the separate Epsilon-written implementation; Rust is a nonauthoritative
   differential comparator.
 
-  Resume from a fresh product-root check and freshly build/run
+  A fresh product-root check is measured, and it is ONE diagnostic away.
+  `omega --check source/omega/main.omg` fails with exactly one: the entry's
+  unit plan is omitted at `call operation: projected operand support`
+  (state 5 `parse`, statement 0), and the program is refused with the
+  downstream symptom, "selected ProgramEntry establishment rejoins 0
+  Terminal attachment identities". The statement is
+  `self.parser.initialize(self.lexer.source.id, ...)`.
+
+  Instrumented at the raise site, the single structural argument is
+  `Parameter { parameter_index: 0 }` with path
+  `[Field("lexer"), Field("source"), Field("id")]`, type identity
+  `named(name(SourceId))`, access `Owned`. `SourceId` is `[copy]`, so the
+  target parameter's type is Unrestricted -- and
+  `omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/calls/argument_paths.rs`'s
+  `ordinary_projected_call_is_supported` admits an owned field-path
+  projection only when the target type is AFFINE and the caller's source
+  parameter is itself `Owned` + `Affine` + claim-free. That arm exists to
+  account for the residual complement the caller publishes on its return
+  edge. A COPY projection has no residual: it duplicates the value and
+  leaves the caller's place untouched, so neither the source's access nor
+  its multiplicity is load-bearing and a `&mut self` receiver may be read
+  like any other place. The arm is simply missing.
+
+  `tests/omega/pending/calls/copy_projection_from_borrowed_receiver` pins
+  the whole thing in twenty-four lines with a program-entry root, since the
+  corpus runner's targetless Check route cannot see this omission at all.
+  The repair belongs to whoever holds that `calls` directory; promote the
+  fixture to `pass/calls/` with an exit when it lands.
+
+  Resume from that check and freshly build/run
   `source/psi/test-parser.sh` with explicit `OMEGA_CLI` and `OMEGA_TARGET`.
   This is a parser golden-observation gate, not a two-compiler differential
   harness. Preserve acceptance/rejection, lexical handoff, structural identity,

@@ -1,0 +1,14 @@
+// PENDING build root, shaped like the FFIVAL one beside it: the pending
+// watcher compiles only `main.omg`, but the authored bindings are retained
+// so promotion to `pass/calls/` needs no new wiring. A program-entry root is
+// load-bearing here -- the omission this fixture pins is invisible to the
+// corpus runner's targetless Check route and appears only once an entry is
+// established.
+machine build(builder: &mut Build) {
+    builder.application("copy_projection_from_borrowed_receiver");
+    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+}
