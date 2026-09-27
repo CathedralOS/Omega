@@ -1191,25 +1191,18 @@ fn selected_transition_call<'program>(
     &'program typed_trees::state::State,
     typed_trees::expression::ExpressionHandle,
 )> {
-    let Some(call_site) = crate::semantic::calls::find_call_site(
+    let call_site = crate::semantic::calls::find_call_site(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,
         call_flow.statement_index,
         call_flow.call_ordinal,
-    ) else {
-        return None;
-    };
-    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
-        return None;
-    };
-    let Some(caller_state) = program
+    )?;
+    let machine = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol)?;
+    let caller_state = program
         .machine_states(machine)
         .iter()
-        .find(|state| state.symbol == state_flow.state_symbol)
-    else {
-        return None;
-    };
+        .find(|state| state.symbol == state_flow.state_symbol)?;
     let Some(StatementNode::Transition(transition)) = program
         .statement_table
         .statements(caller_state.statement_nodes)
