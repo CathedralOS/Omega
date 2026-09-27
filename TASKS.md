@@ -794,10 +794,31 @@ the complete product bar; focused successes below do not establish that baseline
   is finished.
 
   When an item's acceptance names a pass fixture, check that the fixture's
-  entry runs the thing. 102 of 685 pass fixtures end in an empty
+  entry runs the thing. 103 of 704 pass fixtures end in an empty
   `machine X::main(&mut self) {}`. Only one is named `_exit`, so the naming
-  is mostly honest, but the count understates the problem: among those 102
+  is mostly honest, but the count understates the problem: among those 103
   are the acceptance customers of executable features.
+
+  Sixteen of the 103 are named somewhere in this board, so an item believes
+  it has coverage from them: `core/{content_conservation_contract,
+  content_retained_custody_round_trip,extent_root_provider_adapter}`,
+  `generics/omitted_data_binder_range_equation`,
+  `memory/{address_translation,bump_allocator,interrupt_table}_canary`,
+  `modules/{module_array_constant_indices,qualified_constants,
+  qualified_declarations}`, `proofs/{cauchy_predicates_compile,
+  quotient_define_managed_compile,quotient_lift_managed_compile}`,
+  `providers/specialized_structural_fixed_operator_terminal_custody`, and
+  `terminal_psi/{content_custody_exit,structural_content_passthrough}`. Most
+  read as honest compile canaries once their headers are consulted -- a
+  `where` type equation binding before layout, or a module's declaration
+  surface, has no executable half to invoke.
+
+  The two `terminal_psi` rows were the only ones carrying NO header at all,
+  so the distinction this item draws could not be applied to them; both now
+  state their subject. `content_custody_exit` is the anomaly: it takes the
+  `_exit` run-canary suffix while having no `build.omg`, no console binding
+  and an empty `Root::main`, so `Root::enter` -- which holds its subject --
+  is never invoked. Its execution is owed, by an invoking entry or a rename.
   **CONSERVATION-CONTRACT**'s `core/content_conservation_contract` and
   `core/content_retained_custody_round_trip` declare the contract and never
   invoke it. **QUOTIENT-RUNTIME-REALIZATION**'s
