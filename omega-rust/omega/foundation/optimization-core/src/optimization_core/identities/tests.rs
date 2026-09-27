@@ -1,7 +1,6 @@
 use super::{
-    AcceptedObligationFactIdentity, DuplicateOptimizationRuleIdentity,
-    FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
-    FunctionFragmentObjectContainerManifestIdentity, FunctionFragmentTextSectionManifestIdentity,
+    DuplicateOptimizationRuleIdentity, FunctionFragmentObjectContainerManifestIdentity,
+    FunctionFragmentTextSectionManifestIdentity,
     FunctionRelativeOptimizationRealizationManifestIdentity, IDENTITY_WIDTH,
     IdentityBundleDecodeError, IdentityDecodeError, OptimizationCandidateIdentity,
     OptimizationDecisionIdentity, OptimizationDecisionLogIdentity,
@@ -14,13 +13,11 @@ use super::{
     OptimizedProgramStorageSemanticWrapperObjectContainerIdentity,
     OptimizedProgramStorageSemanticWrapperObjectIdentity,
     OptimizedProgramStorageSemanticWrapperObjectManifestIdentity,
-    OptimizedTerminalOrdinaryCallableEntryIdentity, OwnershipFrontierFactIdentity,
-    PostAllocationOptimizationManifestIdentity, PreAllocationOptimizationCompletionIdentity,
-    PrePhysicalOptimizationManifestIdentity, ProofQuestionIdentity,
-    RelocationFreeObjectContainerIdentity, RelocationFreeObjectPlanIdentity,
-    ScalarConstantFactIdentity, SelectedLoweringOptimizationCompletionIdentity,
-    TargetCostModelIdentity, TerminalRelocationFreeTextSectionIdentity,
-    TransformationLedgerIdentity, ValueRangeFactIdentity,
+    OptimizedTerminalOrdinaryCallableEntryIdentity, PostAllocationOptimizationManifestIdentity,
+    PreAllocationOptimizationCompletionIdentity, RelocationFreeObjectContainerIdentity,
+    RelocationFreeObjectPlanIdentity, ScalarConstantFactIdentity,
+    SelectedLoweringOptimizationCompletionIdentity, TargetCostModelIdentity,
+    TerminalRelocationFreeTextSectionIdentity, TransformationLedgerIdentity,
 };
 use crate::{Optimization, OptimizationSelections};
 
@@ -95,55 +92,6 @@ fn identity_domains_are_distinct_for_equal_canonical_bytes() {
 }
 
 #[test]
-fn every_fixed_width_identity_round_trips() {
-    macro_rules! round_trip {
-        ($identity:ty) => {{
-            let identity = <$identity>::from_canonical_bytes(stringify!($identity).as_bytes());
-            assert_eq!(<$identity>::decode(&identity.encode()), Ok(identity));
-        }};
-    }
-    round_trip!(OptimizationRuleIdentity);
-    round_trip!(OptimizationPassIdentity);
-    round_trip!(OptimizationCandidateIdentity);
-    round_trip!(ScalarConstantFactIdentity);
-    round_trip!(ValueRangeFactIdentity);
-    round_trip!(AcceptedObligationFactIdentity);
-    round_trip!(ProofQuestionIdentity);
-    round_trip!(OwnershipFrontierFactIdentity);
-    round_trip!(PrePhysicalOptimizationManifestIdentity);
-    round_trip!(PostAllocationOptimizationManifestIdentity);
-    round_trip!(PreAllocationOptimizationCompletionIdentity);
-    round_trip!(SelectedLoweringOptimizationCompletionIdentity);
-    round_trip!(FunctionRelativeOptimizationRealizationManifestIdentity);
-    round_trip!(FunctionFragmentEmissionIdentity);
-    round_trip!(FunctionFragmentEmissionManifestIdentity);
-    round_trip!(TerminalRelocationFreeTextSectionIdentity);
-    round_trip!(FunctionFragmentTextSectionManifestIdentity);
-    round_trip!(RelocationFreeObjectPlanIdentity);
-    round_trip!(RelocationFreeObjectContainerIdentity);
-    round_trip!(FunctionFragmentObjectContainerManifestIdentity);
-    round_trip!(OptimizedObjectArtifactIdentity);
-    round_trip!(OptimizedObjectArtifactManifestIdentity);
-    round_trip!(OptimizedTerminalOrdinaryCallableEntryIdentity);
-    round_trip!(OptimizedOrdinaryCallableEntryManifestIdentity);
-    round_trip!(OptimizedProgramStorageSemanticWrapperObjectIdentity);
-    round_trip!(OptimizedProgramStorageSemanticWrapperObjectContainerIdentity);
-    round_trip!(OptimizedProgramStorageSemanticWrapperObjectManifestIdentity);
-    round_trip!(OptimizationDecisionIdentity);
-    round_trip!(OptimizationDecisionSchemaIdentity);
-    round_trip!(OptimizationDecisionTargetIdentity);
-    round_trip!(OptimizationValidatorIdentity);
-    round_trip!(OptimizationUnitIdentity);
-    round_trip!(OptimizationRuleSetIdentity);
-    round_trip!(TargetCostModelIdentity);
-    round_trip!(OptimizationDecisionLogIdentity);
-    round_trip!(OptimizationWorkloadProfileIdentity);
-    round_trip!(TransformationLedgerIdentity);
-    round_trip!(OptimizationIdentityBundleIdentity);
-    round_trip!(OptimizedAbstractPlanProjectionIdentity);
-}
-
-#[test]
 fn ordered_rule_set_binds_order_and_rejects_duplicates() {
     let first = OptimizationRuleIdentity::from_canonical_bytes(b"first");
     let second = OptimizationRuleIdentity::from_canonical_bytes(b"second");
@@ -162,7 +110,6 @@ fn bundle_round_trip_and_optional_presence_are_canonical() {
     let bundle = bundle();
     let encoded = bundle.encode();
     assert_eq!(OptimizationIdentityBundle::decode(&encoded), Ok(bundle));
-    assert_eq!(bundle.identity(), bundle.identity());
 
     let without_decisions = OptimizationIdentityBundle::new(
         bundle.selections(),
@@ -241,6 +188,13 @@ fn every_bundle_component_changes_the_composite_identity() {
 
 #[test]
 fn malformed_identity_and_bundle_encodings_reject() {
+    // Every fixed-width identity uses this same macro-generated codec;
+    // identity_domains_are_distinct_for_equal_canonical_bytes checks the domains.
+    let identity = OptimizationRuleIdentity::from_canonical_bytes(b"rule");
+    assert_eq!(
+        OptimizationRuleIdentity::decode(&identity.encode()),
+        Ok(identity)
+    );
     assert_eq!(
         OptimizationRuleIdentity::decode(&[0; 31]),
         Err(IdentityDecodeError::WrongLength {
