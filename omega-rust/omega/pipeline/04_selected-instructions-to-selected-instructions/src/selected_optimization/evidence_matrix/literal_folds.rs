@@ -77,10 +77,10 @@ fn const_op_typed(id: u64, scalar_type: ScalarType, value: IntegerValue) -> Oper
 /// The reconstructed obligation row owned by `operation`, so a fixture's
 /// certificate is built against exactly the goal proposition and axiom
 /// ordering the verifier will later replay — nothing is hand-copied.
-fn operation_obligation_row<'a>(
-    rows: &'a [ReconstructedOperationObligation],
+fn operation_obligation_row(
+    rows: &[ReconstructedOperationObligation],
     operation: OperationId,
-) -> &'a ReconstructedOperationObligation {
+) -> &ReconstructedOperationObligation {
     rows.iter()
         .find(|row| {
             matches!(

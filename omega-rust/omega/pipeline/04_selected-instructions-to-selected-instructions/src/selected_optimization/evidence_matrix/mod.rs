@@ -359,11 +359,6 @@ pub(super) fn literal_fold_commits(evidence: &SelectedInstructionOptimizationEvi
 /// at the literal's definition, so the literal's own definition is the
 /// allocator's first home failure and its latest-ending interval makes it
 /// the `Incoming` victim.
-
-/// `x` plus this many materialized constants seats every linux_x64 GPR home
-/// at the literal's definition, so the literal's own definition is the
-/// allocator's first home failure and its latest-ending interval makes it
-/// the `Incoming` victim.
 pub(super) const PRESSURE_PARAMS_X64: usize = 8;
 /// Same on linux_arm64 — the aarch64 physical model exposes 19 usable GPR
 /// homes in the baseline environment, so the pressure set is wider.
@@ -411,7 +406,7 @@ pub(super) fn pressure_machine(
         scalar_type,
         qualifications: Default::default(),
     };
-    let parameters = vec![parameter_x.clone()];
+    let parameters = vec![parameter_x];
     let literal_value = scalar_result(&literal_operation);
     let mut operations = Vec::with_capacity(2 * pressure + 5);
     // c_i = distinct non-boundary materialized constants, all live until the

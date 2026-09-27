@@ -114,7 +114,7 @@ pub(super) fn check(
                             callee,
                             offset: source_row.offset,
                             bytes: &source_row.bytes,
-                            fixup: fixup.clone(),
+                            fixup,
                         },
                         fragments.target.architecture,
                         offset,

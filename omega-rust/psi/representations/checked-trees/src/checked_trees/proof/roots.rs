@@ -72,10 +72,8 @@ pub struct ProofFacts {
 /// replaces. The integer hasher suits the handle-keyed map.
 #[derive(Clone, Default)]
 pub struct ProofCallIndex {
-    by_key: symbols::SymbolKeyMap<
-        (SymbolHandle, SymbolHandle, usize, usize),
-        Handle<ContractCallFact>,
-    >,
+    by_key:
+        symbols::SymbolKeyMap<(SymbolHandle, SymbolHandle, usize, usize), Handle<ContractCallFact>>,
 }
 
 impl ProofCallIndex {
