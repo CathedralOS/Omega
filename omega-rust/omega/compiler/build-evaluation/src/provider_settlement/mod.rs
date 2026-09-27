@@ -5,6 +5,18 @@
 //! `settle_checked_providers` is the route. `independent_components` owns the
 //! one subordinate admission: re-verifying the component descriptions the
 //! package inputs attached before provider planning joins them.
+//!
+//! Only requirement-only canonical boundaries mint here (`FilesystemHost`,
+//! `TimeHost`): no package may author a `satisfies` conformance or a
+//! selection row for them, so the toolchain mints the reviewed per-target
+//! realization plan itself. `Console` is deliberately absent from that set:
+//! its canonical boundary is authored-provider-complete — every hosted
+//! target ships a `ConsoleNativeProvider` conformance plus a
+//! `provider_defaults` selection in `targets/<target>/console_impl.omg`, and
+//! its leaves close through intrinsic review, syscall rows, or DLL imports
+//! under accepted bindings. A program whose `Console` boundary selects no
+//! provider is missing program content, not a settlement slot; provider
+//! identity is nominal and never inferred from the boundary's name.
 
 mod canonical_filesystem_host;
 mod canonical_time_host;
