@@ -1,3 +1,5 @@
+#[path = "trait_contracts/body_result_bounds.rs"]
+mod body_result_bounds;
 #[path = "trait_contracts/calls_and_entailment.rs"]
 mod calls_and_entailment;
 #[path = "trait_contracts/defaults_and_requirements.rs"]
