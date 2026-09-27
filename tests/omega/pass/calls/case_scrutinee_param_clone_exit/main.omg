@@ -1,0 +1,85 @@
+// Case-scrutinee structural-return transition inside a statement sequence
+// (swarm leg case-scrutinee-transition-structural-return). The reported wall
+// `statement sequence: unsupported statement kind` was the sequence gate's
+// `_ => false` on transition-arm statements; the leg admits trailing
+// transition runs, and the family's remaining walls moved to their own
+// stages: this clone shape declines in the composed route at
+// `call operation: structural arguments: parameter path` (arm-bound case
+// payload `valued_result` as a structural call argument -- the structural
+// half of CASE-ARM-PAYLOAD-CALLS), while binding the affine result into a
+// caller local declines at `call operation: claim-free affine result` in
+// Main::main. Expected outcome: rejected at the composed-route stage; every
+// admission upstream moves it deeper without changing this family split.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data ScanResultBase {
+    address: u64;
+}
+
+machine ScanResultBase::default() -> ScanResultBase {
+    ScanResultBase { address: 0 }
+}
+
+machine ScanResultBase::clone(source: &ScanResultBase) -> ScanResultBase {
+    ScanResultBase { address: source.address }
+}
+
+data ScanResultValued {
+    scan_result_base: ScanResultBase;
+    has_current_value: bool;
+    current_value: u64;
+}
+
+machine ScanResultValued::default() -> ScanResultValued {
+    ScanResultValued {
+        scan_result_base: ScanResultBase::default(),
+        has_current_value: false,
+        current_value: 0,
+    }
+}
+
+machine ScanResultValued::clone(source: &ScanResultValued) -> ScanResultValued {
+    ScanResultValued {
+        scan_result_base: ScanResultBase::clone(&source.scan_result_base),
+        has_current_value: source.has_current_value,
+        current_value: source.current_value,
+    }
+}
+
+data ScanResult {
+    case Valued(valued_result: ScanResultValued);
+}
+
+machine ScanResult::default() -> ScanResult {
+    ScanResult::Valued { valued_result: ScanResultValued::default() }
+}
+
+machine ScanResult::clone(source: &ScanResult) -> ScanResult {
+    transition source {
+        ScanResult::Valued { valued_result } -> (ScanResult::Valued {
+            valued_result: ScanResultValued::clone(valued_result)
+        })
+        _ -> (ScanResult::default())
+    }
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let source: ScanResult = ScanResult::Valued { valued_result: ScanResultValued {
+        scan_result_base: ScanResultBase { address: 7 },
+        has_current_value: true,
+        current_value: 11,
+    } };
+    let cloned: ScanResult = ScanResult::clone(&source);
+    transition {
+        _ -> done()
+    }
+
+    state done(&mut self) {
+        self.console.exit_process(0);
+    }
+}
