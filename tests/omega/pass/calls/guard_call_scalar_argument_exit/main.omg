@@ -1,0 +1,29 @@
+// Guarded-transition call whose guard argument is an arithmetic expression.
+// The `||` guard call is traversal ordinal 0 and returns a scalar, so its
+// argument expressions were never minted `UnitCallArgument` custody rows —
+// `bound_expression_at` found none and the computation failed with
+// `scalar computation needs one checked expression and one source binding`.
+module guard_call_scalar_argument_exit;
+
+machine callee(v: u64) -> bool {
+    transition v {
+        0 -> (false)
+        _ -> (true)
+    }
+}
+
+machine guarded(v: u64) -> bool
+    requires v < 100u64
+{
+    transition callee(v) || callee(v + 1) {
+        true -> (true)
+        false -> (false)
+    }
+}
+
+machine main() -> i32 {
+    transition guarded(7u64) {
+        true -> (0i32)
+        false -> (1i32)
+    }
+}

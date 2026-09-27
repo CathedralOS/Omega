@@ -321,6 +321,7 @@ pub(crate) fn build_checked_value_computation_plans(
                             flow,
                             captured,
                             machine,
+                            statement,
                             statement_index,
                         )
                     })

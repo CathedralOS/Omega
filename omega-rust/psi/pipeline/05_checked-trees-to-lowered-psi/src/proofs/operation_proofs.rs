@@ -68,6 +68,19 @@ fn finalize_operation_proofs_inner(
         .filter(|site| !existing.contains(&site.obligation.id))
         .cloned()
         .collect::<Vec<_>>();
+    if std::env::var("OMEGA_DUMP_OBLIGATIONS").is_ok() {
+        for site in &pending {
+            eprintln!(
+                "[obligation] id={:?} owner={:?} canonical={} proposition={:?} requirements={:?} axioms={:?}",
+                site.obligation.id,
+                site.owner,
+                site.canonical_certificate,
+                site.obligation.proposition,
+                site.requirements,
+                site.semantic_axioms,
+            );
+        }
+    }
     let owners = lowered
         .semantic_module
         .machines

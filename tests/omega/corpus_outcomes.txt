@@ -85,6 +85,7 @@ pass/calls/case_scrutinee_param_clone_exit rejected 776ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`ScanResult::clone`), which was itself omitted at local construction at `result ownership`
 pass/calls/case_scrutinee_self_dispatch_exit rejected 1494ms
 	native-artifact Terminal production failed: Lowering(InvalidTerminalModule(UnknownStructuralArgument { operation: OperationId(4), argument_index: 0, place: PlaceId(7) }))
+pass/calls/guard_call_scalar_argument_exit checked 292ms
 pass/calls/guarded_value_call_arm_exit checked 1768ms
 pass/calls/machine_self_call_recursion_compile checked 442ms
 pass/calls/mutable_output_host_call checked 2265ms
