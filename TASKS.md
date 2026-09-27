@@ -284,23 +284,22 @@ backend-visible; full corpus runs only at the end of an item.
   source` -- so pin no repair on either string. Acceptance: the pending fixture
   checks and `wire_protocol` leaves the omission cluster.
 
-- **FIELD-SUBJECT-NAMED-ARM-CHAIN.** (new-scope) A case dispatch omits when
-  three things hold at once: the subject is a FIELD place, the chain has THREE
-  OR MORE named-case arms, and there is no authored `_`. Removing any one makes
-  the identical program check, and two of the three rescues are one-token
-  controls -- final arm to `_`, or subject to a local. (The third, dropping to
-  two arms, is confounded: with no `_`, coverage forces arm count to equal case
-  count, so "two arms" cannot be separated from "two-case sum".)
-  `samples/cli/basics/brightness_control`, pinned at
-  `tests/omega/pending/control_flow/field_subject_named_arm_chain`. Ruled out in
-  both directions: payload bindings, arithmetic in an arm target, which arm
-  carries the payload, being the body's tail, constant versus dynamic subject
-  (so const folding does not explain the local exemption), sum case count
-  alone, and successor collapsing. The reading that the terminator "admits an
-  ordered guarded chain ending in its authored `_` arm" is incomplete, not
-  wrong -- `_`-free chains ARE admitted with a local subject or with two arms
-  -- so a repair pinned on `_`-termination alone will be wrong. Acceptance: the
-  pending fixture checks and `brightness_control` leaves the omission cluster.
+- **PASS-TIER-GUARDS-OWED.** (new-scope) Two repaired gaps have no permanent
+  guard because the promotion needs a golden row and
+  `tests/omega/corpus_outcomes.txt` is held by other lanes.
+  `tests/omega/pending/control_flow/field_subject_named_arm_chain` (the
+  field-subject dispatch chain) now CHECKS and its stale pending copy is
+  deleted here, since a pending fixture that checks is worse than none -- the
+  tier is ungated, so nothing would ever report it. Its content is recoverable
+  from this commit's parent. The sample `samples/cli/basics/brightness_control`
+  checks clean and is the only guard until the fixture is promoted.
+  The second is `tests/omega/pending/calls/copy_projection_from_borrowed_receiver`,
+  already tracked elsewhere on this board with the same blocker.
+  When the golden frees up, move both to `pass/` WITH their recorded rows,
+  and keep the authored ProgramEntry root: a targetless check does not
+  exercise either original omission. For the dispatch chain the guard must
+  keep all three conditions at once -- field subject, three or more named
+  arms, no authored `_` -- plus its terminal effect, or it guards nothing.
 
 - **VALUE-CALL-SUBEXPRESSION.** (new-scope) A value (machine) call omits
   whenever it is not the ROOT of the expression its construction site lowers;
@@ -1136,7 +1135,8 @@ the complete product bar; focused successes below do not establish that baseline
       needs must stay silent
     - one each: `state graph: terminator: unsupported tail: transition
       chain` (`basics/brightness_control` -- now
-      FIELD-SUBJECT-NAMED-ARM-CHAIN), `structural field store: scalar
+      REPAIRED 2026-09-27 -- the sample and its reduction both check; the
+      pass-tier guard is still owed, see below), `structural field store: scalar
       field type` (`collections/matrix_multiply` -- now
       MEMBER-POLICY-REMOVES-COMPOSITE-ROWS), `state graph: prefix
       initializers: bound expression` (`probes/value_call_in_expr` -- now
