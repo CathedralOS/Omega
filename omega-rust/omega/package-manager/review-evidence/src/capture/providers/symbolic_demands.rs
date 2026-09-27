@@ -7,7 +7,7 @@
 use super::super::api::operators::project_operator_coordinate;
 use super::super::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use super::super::source::locations::canonical_source_span_location;
-use super::application_realizations::authored_application_source_span;
+use super::application_realizations::{authored_application_source_span, token_authored_use_kind};
 use crate::capture::PackageReviewInput;
 use crate::record::{
     CheckedPackageBoundaryApplicationDemandReview, PackageReviewCanonicalRowSource,
@@ -197,7 +197,10 @@ fn symbolic_demand_authored_use_kind(
                 && operator_use.selected_operator_symbol == requirement
         })
     {
-        kinds.push(selected_dispatch::CheckedOperatorAuthoredUseKind::Named);
+        kinds.push(
+            token_authored_use_kind(compilation, expression, requirement)
+                .unwrap_or(selected_dispatch::CheckedOperatorAuthoredUseKind::Named),
+        );
     }
     kinds.extend(
         compilation

@@ -2,7 +2,7 @@
 
 use super::{
     StagedRealization, authored_application_source_span, canonical_source_span_location,
-    expression_is_owned_by_package, nominal_identity, stage_realization,
+    expression_is_owned_by_package, nominal_identity, stage_realization, token_authored_use_kind,
 };
 use crate::capture::PackageReviewInput;
 use crate::record::{
@@ -41,15 +41,6 @@ pub(super) fn project(
             } => expression,
             _ => continue,
         };
-        // The authored selection ledger names what the call resolved to: the
-        // operator itself, or a top-level requirement's entry state.
-        let selection_target = provider_planning::IntrinsicRequirement::by_symbol(
-            &compilation.typed,
-            application.requirement_symbol,
-        )
-        .map_or(application.requirement_symbol, |requirement| {
-            requirement.call_target
-        });
         let uses = exact_application_uses(
             compilation,
             application.site,
@@ -60,6 +51,23 @@ pub(super) fn project(
                 "boundary application at expression {expression:?} retains {} exact selected uses; expected one",
                 uses.len(),
             ))]);
+        };
+        // The authored selection ledger names what the use resolved to: a named
+        // call selects the requirement's callable entry state, while a token
+        // use's `Operator` occurrence selects the operator declaration itself.
+        let selection_target = match actual_use.kind {
+            selected_dispatch::CheckedOperatorAuthoredUseKind::Named => {
+                provider_planning::IntrinsicRequirement::by_symbol(
+                    &compilation.typed,
+                    application.requirement_symbol,
+                )
+                .map_or(application.requirement_symbol, |requirement| {
+                    requirement.call_target
+                })
+            }
+            selected_dispatch::CheckedOperatorAuthoredUseKind::FixedToken(_) => {
+                application.requirement_symbol
+            }
         };
         let implicit_source_span = match application.site {
             checked_trees::CheckedBoundaryOperatorApplicationUseSite::MatchEquality {
@@ -279,6 +287,15 @@ struct ExactApplicationUse {
     origin: checked_trees::CheckedValueOrigin,
 }
 
+fn authored_use_kind(
+    compilation: &PackageReviewInput<'_>,
+    expression: typed_trees::expression::ExpressionHandle,
+    requirement: symbols::SymbolHandle,
+) -> selected_dispatch::CheckedOperatorAuthoredUseKind {
+    token_authored_use_kind(compilation, expression, requirement)
+        .unwrap_or(selected_dispatch::CheckedOperatorAuthoredUseKind::Named)
+}
+
 fn exact_application_uses(
     compilation: &PackageReviewInput<'_>,
     site: checked_trees::CheckedBoundaryOperatorApplicationUseSite,
@@ -302,7 +319,7 @@ fn exact_application_uses(
                 }
                 && operator_use.selected_operator_symbol == requirement)
                 .then_some(ExactApplicationUse {
-                    kind: selected_dispatch::CheckedOperatorAuthoredUseKind::Named,
+                    kind: authored_use_kind(compilation, operator_use.expression, requirement),
                     origin: operator_use.origin,
                 })
         })
@@ -320,7 +337,11 @@ fn exact_application_uses(
                         }
                         && requirement_use.requirement_symbol == requirement)
                         .then_some(ExactApplicationUse {
-                            kind: selected_dispatch::CheckedOperatorAuthoredUseKind::Named,
+                            kind: authored_use_kind(
+                                compilation,
+                                requirement_use.expression,
+                                requirement,
+                            ),
                             origin: requirement_use.origin,
                         })
                 }),
