@@ -22,6 +22,7 @@ use std::collections::BTreeMap;
 
 mod conditional_return;
 mod guarded_chain;
+mod loaned_local_homes;
 mod seal;
 mod state;
 mod successor_edge;
@@ -56,6 +57,7 @@ pub(super) struct StateGraphEmission<'a, 'c> {
     arrival_edges: BTreeMap<BlockId, Vec<EdgeId>>,
     structural_places: Vec<StructuralPlaceDeclaration>,
     blocks: Vec<Block>,
+    loaned_local_homes: BTreeMap<u32, semantic_vocabulary::PlaceId>,
     occurrences: super::super::ComposedOccurrences,
     block_ranks: BTreeMap<BlockId, ValueId>,
     rank_edges: BTreeMap<EdgeId, (ValueId, terminal_psi::TerminalNaturalRankComparison)>,
@@ -336,6 +338,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         arrival_edges,
         structural_places,
         blocks,
+        loaned_local_homes: BTreeMap::new(),
         occurrences,
         block_ranks,
         rank_edges,
@@ -363,6 +366,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         arrival_edges,
         mut structural_places,
         mut blocks,
+        loaned_local_homes,
         occurrences,
         block_ranks,
         rank_edges,
@@ -544,6 +548,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             outcome_specific_ensures: Vec::new(),
         },
     };
+    loaned_local_homes::finish(&mut machine, &loaned_local_homes)?;
     machine.contract.crash_routes =
         lower_checked_crash_route_buckets(&catalogs.root_crash_routes, &machine.parameters)?;
     ranking::retain(&mut machine, &block_ranks, &rank_edges)?;

@@ -24,6 +24,29 @@ pub(crate) fn parameter_type(
         && super::super::record::plain_type(module, parameter.structural_type)
 }
 
+/// A fresh plain owned home may back a state loan without moving its bytes or
+/// its affine obligation. Its producer and the frontier prove it is still live.
+pub(crate) fn owned_home<'a>(
+    module: &TerminalModule,
+    machine: &'a TerminalMachine,
+    place: PlaceId,
+) -> Option<&'a terminal_psi::StructuralOperationResult> {
+    let result = super::super::record::result(machine, place)?;
+    (matches!(
+        result.multiplicity,
+        super::super::StructuralMultiplicity::Affine
+            | super::super::StructuralMultiplicity::Unrestricted
+    ) && result.qualifications.is_empty()
+        && result.projected_qualifications.is_empty()
+        && result.claims.is_empty()
+        && module.structural_types.iter().any(|declaration| {
+            declaration.id == result.structural_type
+                && matches!(declaration.shape, StructuralTypeShape::Record { .. })
+        })
+        && super::super::record::plain_type(module, result.structural_type))
+    .then_some(result)
+}
+
 /// Whole-root origin sets are sufficient here: the transferred mutable record
 /// covers every field beneath its root, including a borrowed collection view.
 pub(crate) type BorrowedRecordOrigins = BTreeMap<PlaceId, BTreeSet<PlaceId>>;
@@ -97,7 +120,8 @@ fn usable_source(
         .iter()
         .find(|parameter| parameter.place == source)
         .or_else(|| super::parameter(machine, source));
-    if parameter.is_some_and(|parameter| parameter_type(module, parameter))
+    if (parameter.is_some_and(|parameter| parameter_type(module, parameter))
+        || owned_home(module, machine, source).is_some())
         && !available.contains(&source)
     {
         return false;
@@ -179,6 +203,55 @@ pub(crate) fn validate_terminator(
         }
         Ok(())
     };
+    let backing_home = |place| {
+        owned_home(module, machine, place).is_some()
+            && machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters)
+                .any(|parameter| {
+                    parameter_type(module, parameter)
+                        && same_storage(aliases, place, parameter.place)
+                })
+    };
+    let reject_cleanup = |edge, discards: &[PlaceId]| {
+        if let Some(place) = discards.iter().find(|place| backing_home(**place)) {
+            Err(ModuleError::InvalidStructuralSuccessorArgument {
+                edge,
+                place: *place,
+            })
+        } else {
+            Ok(())
+        }
+    };
+    match &block.terminator {
+        Terminator::Jump {
+            edge,
+            trivial_affine_discards,
+            residual_affine_discards,
+            ..
+        } => {
+            reject_cleanup(*edge, trivial_affine_discards)?;
+            for discard in residual_affine_discards {
+                reject_cleanup(*edge, &[discard.place])?;
+            }
+        }
+        Terminator::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => {
+            for arm in [when_true, when_false] {
+                reject_cleanup(arm.edge, &arm.trivial_affine_discards)?;
+            }
+        }
+        Terminator::StructuralCase { cases, .. } => {
+            for arm in cases {
+                reject_cleanup(arm.edge, &arm.trivial_affine_discards)?;
+            }
+        }
+        _ => {}
+    }
     match &block.terminator {
         Terminator::Jump {
             edge,

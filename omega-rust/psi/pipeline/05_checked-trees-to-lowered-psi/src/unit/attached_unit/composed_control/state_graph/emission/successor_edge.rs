@@ -391,6 +391,21 @@ impl StateGraphEmission<'_, '_> {
                             destination
                         }
                     };
+                if target_parameter.access == checked_trees::CheckedStructuralAccess::MutableBorrow
+                    && let checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } = transfer.source
+                {
+                    if position != 0 || self.entry_reentered {
+                        return unsupported("Unit graph local loan requires an activation entry home");
+                    }
+                    let result = case_emission::result(state, binding_ordinal, operations)?;
+                    if result.multiplicity == StructuralMultiplicity::Affine {
+                        if let Some(previous) = self.loaned_local_homes.insert(binding_ordinal, place)
+                            && previous != place
+                        {
+                            return unsupported("Unit graph local loan changed its backing home");
+                        }
+                    }
+                }
                 structural_arguments.push(StructuralArgument {
                     place,
                     path: Vec::new(),

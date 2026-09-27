@@ -83,9 +83,7 @@ pub(crate) fn validate_structural_place_availability(
     Ok(())
 }
 
-pub(in crate::unit_validation::function_structure) fn operation_place_inputs(
-    operation: &O,
-) -> Vec<PlaceId> {
+pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
     let mut inputs = match operation {
         O::EstablishRecord { fields, .. } => fields
             .iter()
@@ -189,7 +187,9 @@ pub(in crate::unit_validation::function_structure) fn operation_place_inputs(
         // A leaf copy reads through its borrowed root; the root must
         // dominate the copy.
         O::StructuralLeafCopy { source, .. } => vec![*source],
-        O::EstablishReference { source, .. } => vec![source.place],
+        O::EstablishReference { source, .. } | O::EstablishElementView { source, .. } => {
+            vec![source.place]
+        }
         O::ReleaseReference { source, .. } => vec![*source],
         O::PrimitiveScalarRead { source, .. }
         | O::StructuralCaseMembership { source, .. }
@@ -205,6 +205,9 @@ pub(in crate::unit_validation::function_structure) fn operation_place_inputs(
             ..
         }
         | O::ByteSequenceLength { source, .. }
+        | O::ElementViewLength { source, .. }
+        | O::ElementViewRead { source, .. }
+        | O::ElementViewSubslice { source, .. }
         | O::StructuralByteSequenceFieldLength { source, .. }
         | O::StructuralByteSequenceFieldRead { source, .. }
         | O::BooleanStructuralField { source, .. }

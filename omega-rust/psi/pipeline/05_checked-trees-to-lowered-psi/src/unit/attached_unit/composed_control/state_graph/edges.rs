@@ -201,14 +201,29 @@ pub(super) fn validate_bindings(
             // An owned local moves into the target; a view local lends its
             // shared view, which owns nothing and so leaves no partition.
             let shared_view = target.access == checked_trees::CheckedStructuralAccess::SharedBorrow;
+            let mutable_local = target.access
+                == checked_trees::CheckedStructuralAccess::MutableBorrow
+                && plan.states.first().is_some_and(|entry| {
+                    entry.state == state.state
+                        && matches!(
+                            entry.terminator,
+                            CheckedComposedUnitControlTerminatorPlan::Jump { .. }
+                        )
+                })
+                && target.multiplicity == Multiplicity::Unrestricted
+                && matches!(
+                    result.multiplicity,
+                    Multiplicity::Affine | Multiplicity::Unrestricted
+                );
             if matching.next().is_some()
                 || result.statement_index >= edge.statement_ordinal
                 || transfer.target_parameter_index as usize != position
                 || target.is_self
                 || !(target.access == checked_trees::CheckedStructuralAccess::Owned
-                    || (shared_view && result.multiplicity == Multiplicity::Unrestricted))
+                    || (shared_view && result.multiplicity == Multiplicity::Unrestricted)
+                    || mutable_local)
                 || !target.qualifications.is_empty()
-                || target.multiplicity != result.multiplicity
+                || (!mutable_local && target.multiplicity != result.multiplicity)
                 || target.type_identity != result.type_identity
             {
                 return unsupported("Unit graph transferred result custody drifted");
@@ -226,8 +241,33 @@ pub(super) fn validate_bindings(
                 .ok_or(LoweringError::Unsupported(
                     "Unit graph result argument missing",
                 ))?;
-            if local.is_mutable
-                || !matches!(checked.expression_table.expression(*expression), ExpressionNode::Name(path) if path.symbol == local.symbol && path.head_symbol == local.symbol && checked.expression_table.name_path_members(path.members).len() == 1)
+            let actual = if mutable_local {
+                let ExpressionNode::Borrow(borrow) =
+                    checked.expression_table.expression(*expression)
+                else {
+                    return unsupported("Unit graph local loan lost its mutable borrow");
+                };
+                if borrow.access != language_semantics::ReferenceAccess::Mutable
+                    || !local.is_mutable
+                    || !validation::has_plain_owned_contents_with_numeric_constraints(
+                        &checked.typed,
+                        local.type_reference,
+                    )
+                    || validation::type_graph_requires_nominal_drop(
+                        &checked.typed,
+                        local.type_reference,
+                    )
+                {
+                    return unsupported("Unit graph local loan has unsupported backing custody");
+                }
+                borrow.target
+            } else {
+                if local.is_mutable {
+                    return unsupported("Unit graph moved local is mutable");
+                }
+                *expression
+            };
+            if !matches!(checked.expression_table.expression(actual), ExpressionNode::Name(path) if path.symbol == local.symbol && path.head_symbol == local.symbol && checked.expression_table.name_path_members(path.members).len() == 1)
             {
                 return unsupported("Unit graph result argument lost its actual local");
             }

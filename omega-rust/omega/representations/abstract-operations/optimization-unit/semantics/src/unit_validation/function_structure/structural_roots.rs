@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 mod availability;
 mod primitive_locals;
 
-pub(super) use availability::operation_place_inputs;
+pub(crate) use availability::operation_place_inputs;
 pub(crate) use availability::validate_structural_place_availability;
 
 pub(crate) fn validate_structural_root_uniqueness(

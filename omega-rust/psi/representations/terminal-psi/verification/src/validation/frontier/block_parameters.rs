@@ -118,7 +118,32 @@ pub(super) fn establish(
     target: &terminal_psi::Block,
     arguments: &[StructuralArgument],
 ) -> Result<(), ModuleError> {
+    let aliases = super::super::borrowed_windows::window_aliases(module, machine);
     for (argument, parameter) in arguments.iter().zip(&target.structural_parameters) {
+        if super::super::block_views::mutable_records::parameter_type(module, parameter) {
+            let roots = aliases
+                .get(&argument.place)
+                .map(|roots| roots.iter().map(|(root, _)| *root).collect::<Vec<_>>())
+                .unwrap_or_else(|| vec![argument.place]);
+            for root in roots {
+                if let Some(home) =
+                    super::super::block_views::mutable_records::owned_home(module, machine, root)
+                    && ((home.multiplicity == StructuralMultiplicity::Affine
+                        && frontier.owned_places.get(&root)
+                            != Some(&StructuralMultiplicity::Affine))
+                        || frontier.partial_custody_paths.contains_key(&root)
+                        || frontier
+                            .claims
+                            .values()
+                            .any(|claim| claim.input == Some(root)))
+                {
+                    return Err(ModuleError::InvalidStructuralSuccessorArgument {
+                        edge,
+                        place: root,
+                    });
+                }
+            }
+        }
         if parameter.access == StructuralAccess::SharedBorrow
             && (frontier.partial_custody_paths.contains_key(&argument.place)
                 || (carries_owned_frontier(module, machine, argument.place)

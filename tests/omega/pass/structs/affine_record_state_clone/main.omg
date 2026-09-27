@@ -1,0 +1,51 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Cell { values: [i32; 2]; count: u64; }
+data Worker {}
+machine Worker::new() -> Cell { Cell { count: 0 } }
+machine Worker::copy(source: &Cell) -> Cell {
+    Cell { values: source.values, count: source.count }
+}
+machine Worker::clone(source: &Cell) -> Cell {
+    let mut copied: Cell = Worker::new();
+    copied.count = source.count;
+    transition { _ -> each(&mut copied, source, 0) }
+    state each(copied: &mut Cell, source: &Cell, position: u64) -> Cell {
+        transition position < 2 {
+            true -> store(copied, source, position)
+            false -> (Worker::copy(copied))
+        }
+    }
+    state store(copied: &mut Cell, source: &Cell, position: u64) -> Cell
+        requires position < 2;
+    {
+        copied.values[position] = source.values[position];
+        transition { _ -> each(copied, source, position + 1) }
+    }
+}
+
+// The local backing home survives every state; the returned record is a fresh
+// copy. Mutating the original after return must not change the copied elements.
+data Main { console: Binding<Console>; cell: Cell; }
+machine Worker::valid(cell: &Cell) -> bool {
+    cell.count == 2 && cell.values[0] == 35 && cell.values[1] == 70
+}
+machine Worker::changed(cell: &Cell) -> bool {
+    cell.count == 2 && cell.values[0] == 99 && cell.values[1] == 70
+}
+machine Main::main(&mut self) reaches Console {
+    self.cell.count = 2;
+    self.cell.values[0] = 35;
+    self.cell.values[1] = 70;
+    let copied: Cell = Worker::clone(&self.cell);
+    self.cell.values[0] = 99;
+    let valid_copy: bool = Worker::valid(&copied);
+    let valid_source: bool = Worker::changed(&self.cell);
+    transition valid_copy && valid_source {
+        true -> success()
+        false -> failure()
+    }
+    state success(&mut self) { self.console.exit_process(70); }
+    state failure(&mut self) { self.console.exit_process(71); }
+}

@@ -97,7 +97,15 @@ pub(super) fn validate(
                     ) && source.is_some_and(|(root_type, access, multiplicity)| {
                         (if parameter.access == StructuralAccess::MutableBorrow {
                             binding.argument.path.is_empty()
-                                && access == StructuralAccess::MutableBorrow
+                                && (access == StructuralAccess::MutableBorrow
+                                    || access == StructuralAccess::Owned
+                                        && function.structural_places.iter().any(|place| {
+                                            place.id == binding.argument.place
+                                                && matches!(
+                                                    place.kind,
+                                                    StructuralPlaceKind::OperationResult { .. }
+                                                )
+                                        }))
                         } else {
                             access != StructuralAccess::WriteOnlyBorrow
                         }) && multiplicity != StructuralMultiplicity::Linear

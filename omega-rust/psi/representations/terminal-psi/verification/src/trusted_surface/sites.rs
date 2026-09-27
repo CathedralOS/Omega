@@ -809,12 +809,12 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/representations/terminal-psi/verification/src/validation/block_views.rs",
-        sha256: Some("7d0ea6b096650578bd2f4908c23b69a5c6045a4dbe1803cd8d1fffdaee4cff40"),
+        sha256: Some("d5f8262526020052aaf36e5f3366456ae6e8ed69263e95b4cf73cfe4204cc4b3"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/representations/terminal-psi/verification/src/validation/block_views/mutable_records.rs",
-        sha256: Some("2415f9ae6bc22afa7882451521ea4b37a1b611c7fffccc1121b00354d4677ea1"),
+        sha256: Some("c54250bc60a3aaf222f74b72e39505268d31b3fdea1f4c59f943d0ab04faa566"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -889,7 +889,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/representations/terminal-psi/verification/src/validation/control_flow/block_checks.rs",
-        sha256: Some("0fc1bdbf3dc7096fd0f74e33f1011995b085bd209fc35db357791d4ae5929aa9"),
+        sha256: Some("290043be115b994fc1942d4866111a4698cd968b6bba531b6ac3d74c3e2e18f8"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -904,7 +904,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/representations/terminal-psi/verification/src/validation/control_flow/unranked_cycles.rs",
-        sha256: Some("bb87f7feb34e923f28bd62a6e0896839e07930a816efdd9901103039ab7b632e"),
+        sha256: Some("0dbb7d07a1a5db3b1bef922df2eb7f13f11a38af7aa8048a67ca0a7e69388567"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1034,7 +1034,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/representations/terminal-psi/verification/src/validation/frontier/block_parameters.rs",
-        sha256: Some("9994de841fc1a96c898bd2974e45230437da8b14422be63e2d3ff48155b6e286"),
+        sha256: Some("259d1fda78c43c1be93dcb518f8b4a90e3e3a7f0d91b7d9cbf740668089d4190"),
         inventory_machinery: false,
     },
     ImplementationSite {

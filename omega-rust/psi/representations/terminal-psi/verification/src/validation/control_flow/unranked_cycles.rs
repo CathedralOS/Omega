@@ -35,7 +35,19 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
             && result.projected_qualifications.is_empty()
             && crate::validation::scalar::case::plain_type(module, result.structural_type)
     });
-    if (machine.result.structural().is_some() && !scalar_case_result)
+    let plain_record_result = machine.result.structural().is_some_and(|result| {
+        matches!(
+            result.multiplicity,
+            StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+        ) && result.qualifications.is_empty()
+            && result.projected_qualifications.is_empty()
+            && module.structural_types.iter().any(|declaration| {
+                declaration.id == result.structural_type
+                    && matches!(declaration.shape, StructuralTypeShape::Record { .. })
+            })
+            && crate::validation::record::plain_type(module, result.structural_type)
+    });
+    if (machine.result.structural().is_some() && !scalar_case_result && !plain_record_result)
         || !claims_pinned_at_entry(machine, &claim_roots)
         || !machine.content_identity_reshuffles.is_empty()
         || !machine.content_partition_compositions.is_empty()
@@ -59,6 +71,18 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
                     || !parameter.projected_qualifications.is_empty()
                     || !(persistent_receiver(module, parameter)
                         || block_views::mutable_records::parameter_type(module, parameter)
+                        || (parameter.access == StructuralAccess::SharedBorrow
+                            && module.structural_types.iter().any(|declaration| {
+                                declaration.id == parameter.structural_type
+                                    && matches!(
+                                        declaration.shape,
+                                        StructuralTypeShape::Record { .. }
+                                    )
+                            })
+                            && crate::validation::record::plain_type(
+                                module,
+                                parameter.structural_type,
+                            ))
                         || ((parameter.access == StructuralAccess::SharedBorrow
                             || (parameter.access == StructuralAccess::MutableBorrow
                                 && (machine.result == TerminalMachineResult::Unit
@@ -82,11 +106,16 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
                     | StructuralPlaceKind::ByteSequenceLiteral { .. }
                     | StructuralPlaceKind::ProviderAttachment { .. }
                     | StructuralPlaceKind::TrivialAffineLocal { .. }
-            ) || scalar_case_result && place.kind == StructuralPlaceKind::Result)
+            ) || (scalar_case_result || plain_record_result)
+                && place.kind == StructuralPlaceKind::Result)
         })
     {
         return false;
     }
+    let cyclic_blocks = crate::control_graph::cyclic_components(machine)
+        .into_iter()
+        .flatten()
+        .collect::<BTreeSet<_>>();
     machine.blocks.iter().all(|block| {
         let case_source = local_case_result(module, block);
         let terminator_eligible =
@@ -99,15 +128,22 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
                     | Terminator::Crash { .. }
             ) || matches!(block.terminator, Terminator::StructuralCase { .. })
                 && case_source.is_some()
-                || scalar_case_result && matches!(&block.terminator,
+                || (scalar_case_result || plain_record_result) && matches!(&block.terminator,
                     Terminator::ReturnStructural { source, returned_claims, .. }
                     if returned_claims.is_empty()
-                        && crate::validation::scalar::case::plain_return_source(module, machine, *source));
+                        && (crate::validation::scalar::case::plain_return_source(module, machine, *source)
+                            || (plain_record_result && crate::validation::record::plain_return_source(module, machine, *source))));
         let operations_eligible = block
             .operations
             .iter()
             .all(|operation| {
-                cycle_operation_eligible(module, machine, block, case_source, operation)
+                // A prefix/exit constructor executes outside every cycle and
+                // may establish an affine plain home. The frontier still owns
+                // it through all arrivals and requires exact final disposal.
+                (!cyclic_blocks.contains(&block.id)
+                    && operation.result.structural().is_some_and(|result|
+                        block_views::mutable_records::owned_home(module, machine, result.place).is_some()))
+                    || cycle_operation_eligible(module, machine, block, case_source, operation)
             });
         terminator_eligible && operations_eligible
     })
