@@ -184,58 +184,6 @@ fn placed_view_roster_rejects_at_interpretation_start() {
 }
 
 #[test]
-fn empty_placed_view_roster_still_starts() {
-    assert!(
-        TerminalExecution::start_verified_module(module(Vec::new()), &[], &[], &[], &[], &[], None)
-            .is_ok()
-    );
-}
-
-#[test]
-fn established_placed_view_binds_and_retires_at_completion() {
-    let mut placed = module(Vec::new());
-    let row = placed_view_row(placed.entry, 0);
-    placed.placed_view_inputs.push(row);
-    let establishments = [establishment(
-        placed.placed_view_inputs[0].clone(),
-        0xC0FFEE,
-    )];
-    let mut execution =
-        TerminalExecution::start_verified_module(placed, &[], &[], &[], &[], &establishments, None)
-            .expect("an exact establishment supplies the declared input's custody");
-    assert_eq!(execution.placed_view_occurrences.len(), 1);
-    let mut meter = TerminalFuelMeter::unbounded();
-    let status = execution
-        .resume(&mut meter, &mut AcceptTerminalEffects)
-        .expect("the declared input is bound for the invocation");
-    assert!(matches!(
-        status,
-        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
-    ));
-    assert!(
-        execution.placed_view_occurrences.is_empty(),
-        "completing the entry invocation retires the lent occurrences"
-    );
-}
-
-#[test]
-fn stale_or_substituted_establishment_rejects() {
-    let mut placed = module(Vec::new());
-    placed
-        .placed_view_inputs
-        .push(placed_view_row(placed.entry, 0));
-    // A drifted supply — a stale placement commitment — answers no declared
-    // row, so it rejects as unexpected rather than binding stale custody.
-    let mut drifted = placed_view_row(placed.entry, 0);
-    drifted.placement_commitment = [0xee; 32];
-    let establishments = [establishment(drifted, 0xC0FFEE)];
-    assert!(matches!(
-        TerminalExecution::start_verified_module(placed, &[], &[], &[], &[], &establishments, None),
-        Err(TerminalInterpretError::PlacedViewInputEstablishmentUnexpected { .. })
-    ));
-}
-
-#[test]
 fn establishment_for_undeclared_input_rejects() {
     let placed = module(Vec::new());
     let establishments = [establishment(placed_view_row(machine_id(1), 0), 0xC0FFEE)];

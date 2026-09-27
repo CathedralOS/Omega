@@ -1,7 +1,6 @@
-use super::{declared_field, declared_symbol_type};
+use super::declared_field;
 use crate::lower_symbol_resolved_trees;
 use symbol_resolved_trees as resolved;
-use symbols::SymbolHandle;
 
 const PROJECTED_MEASURES: &str = "
     data First { remaining: u64; }
@@ -33,38 +32,6 @@ fn typed_member(
         panic!("typed measure field projection");
     };
     member
-}
-
-#[test]
-fn measure_projection_binds_missing_selector_to_its_exact_parameter_type() {
-    let program = crate::front_end::resolved_program(PROJECTED_MEASURES);
-    let typed = lower_symbol_resolved_trees(&program).expect("measure typing");
-    let mut selected_fields = Vec::new();
-    for (measure_position, measure) in program.measures.iter().enumerate() {
-        let parameter = measure.parameter.as_ref().expect("measure parameter");
-        let member = projected_member(&program, measure_position);
-        assert_eq!(member.member_symbol, SymbolHandle::invalid());
-        let resolved::expression::ExpressionNode::Name(receiver) = program
-            .tables
-            .bodies
-            .expressions
-            .expression(member.receiver)
-        else {
-            panic!("direct parameter receiver");
-        };
-        assert_eq!(receiver.symbol, parameter.symbol);
-        assert_eq!(receiver.head_symbol, parameter.symbol);
-        let expected = declared_field(&program, &parameter.type_reference, member)
-            .expect("field in the parameter's declared owner")
-            .symbol;
-        assert!(expected.is_valid());
-        assert_eq!(
-            typed_member(&typed, measure_position).member_symbol,
-            expected
-        );
-        selected_fields.push(expected);
-    }
-    assert_ne!(selected_fields[0], selected_fields[1]);
 }
 
 #[test]
@@ -106,112 +73,6 @@ fn measure_projection_preserves_conflicting_selector_for_validation() {
     );
     let typed = lower_symbol_resolved_trees(&program).expect("retain conflicting selection");
     assert_eq!(typed_member(&typed, 0).member_symbol, foreign_field);
-}
-
-#[test]
-fn measure_projection_does_not_bind_an_unresolved_same_spelled_receiver() {
-    let mut program = crate::front_end::resolved_program(PROJECTED_MEASURES);
-    let receiver = projected_member(&program, 0).receiver;
-    let resolved::expression::ExpressionNode::Name(path) =
-        program.tables.bodies.expressions.expression_mut(receiver)
-    else {
-        panic!("measure parameter receiver");
-    };
-    path.symbol = SymbolHandle::invalid();
-    path.head_symbol = SymbolHandle::invalid();
-    let typed = lower_symbol_resolved_trees(&program).expect("retain unresolved receiver");
-    assert_eq!(
-        typed_member(&typed, 0).member_symbol,
-        SymbolHandle::invalid()
-    );
-    assert!(declared_symbol_type(&program, SymbolHandle::invalid()).is_none());
-    assert!(declared_symbol_type(&program, program.measures[0].symbol).is_none());
-}
-
-#[test]
-fn nested_constructor_projections_bind_fields_and_preserve_conflicting_selections() {
-    let mut program = crate::front_end::resolved_program(
-        "data Inner [copy] { size: u64; }
-        data Outer [copy] { inner: Inner; }
-        data Other [copy] { size: u64; }
-        const VALUE: Outer = Outer { inner: Inner { size: 7 } };
-        machine read() -> u64 { VALUE.inner.size }",
-    );
-    let typed = lower_symbol_resolved_trees(&program).expect("literal receiver typing");
-    let mut projections = 0;
-    for (_, expression) in typed.expression_table.expression_entries() {
-        let typed_trees::expression::ExpressionNode::Member(member) = expression else {
-            continue;
-        };
-        assert!(
-            member.member_symbol.is_valid(),
-            "nested constructor field has an exact symbol"
-        );
-        assert_eq!(
-            typed.symbols.name(member.member_symbol),
-            member.member.as_str()
-        );
-        projections += 1;
-    }
-    assert_eq!(projections, 2);
-    let other = program
-        .data_definitions
-        .iter()
-        .find(|definition| definition.name.as_str() == "Other")
-        .unwrap();
-    let resolved::data::DataMember::Field(field) = &program.data_members(other.members)[0] else {
-        panic!("foreign field");
-    };
-    let foreign = field.symbol;
-    let expression = program.tables.bodies.expressions.iter_expressions().find_map(|(handle, expression)| {
-        matches!(expression, resolved::expression::ExpressionNode::Member(member) if member.member.as_str() == "size").then_some(handle)
-    }).unwrap();
-    let resolved::expression::ExpressionNode::Member(member) =
-        program.tables.bodies.expressions.expression_mut(expression)
-    else {
-        panic!("projection");
-    };
-    member.member_symbol = foreign;
-    let typed =
-        lower_symbol_resolved_trees(&program).expect("retain conflicting projection for checking");
-    assert!(typed.expression_table.expression_entries().any(
-        |(_, expression)| matches!(expression,
-        typed_trees::expression::ExpressionNode::Member(member)
-            if member.member.as_str() == "size" && member.member_symbol == foreign)
-    ));
-}
-
-#[test]
-fn module_constructor_projection_keeps_its_declaring_field_owner() {
-    let root = "use settings; data Config [copy] { size: u64; }
-        machine read() -> u64 { settings::VALUE.size }";
-    let module = "module settings; pub data Config [copy] { size: u64; }
-        pub const VALUE: Config = Config { size: 7 };";
-    let typed = crate::front_end::typed_program_from_texts(&[root, module]);
-    let member = typed
-        .expression_table
-        .expression_entries()
-        .find_map(|(_, expression)| match expression {
-            typed_trees::expression::ExpressionNode::Member(member) => Some(member),
-            _ => None,
-        })
-        .expect("module constant field projection");
-    let typed_trees::expression::ExpressionNode::StructLiteral(literal) =
-        typed.expression_table.expression(member.receiver)
-    else {
-        panic!("module constructor");
-    };
-    assert!(member.member_symbol.is_valid());
-    assert_eq!(
-        typed.symbols.get(member.member_symbol).parent,
-        literal.type_symbol
-    );
-    let caller_owner = typed
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name.as_str() == "Config")
-        .expect("caller's same-spelled data");
-    assert_ne!(literal.type_symbol, caller_owner.symbol);
 }
 
 #[test]

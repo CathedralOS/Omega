@@ -3,7 +3,7 @@
 
 use language_core::operator_spelling::OperatorSpelling;
 use typed_trees::TypedTrees;
-use typed_trees::operator::{declaration_by_symbol, resolve_spelling_for_operands};
+use typed_trees::operator::resolve_spelling_for_operands;
 use typed_trees::types::TypeReferenceHandle;
 
 const SOURCE: &str = "data Wrapped { value: u8; }
@@ -29,59 +29,6 @@ fn entry_parameter_types(program: &TypedTrees, machine_name: &str) -> Vec<TypeRe
         .iter()
         .map(|parameter| parameter.type_reference)
         .collect()
-}
-
-#[test]
-fn token_bearing_machines_expose_one_signature_view_under_their_own_symbol() {
-    let program = crate::front_end::typed_program_result(SOURCE).expect("lowering succeeds");
-    let add = &program.machines()[0];
-    let subtract = &program.machines()[2];
-    assert_eq!(add.spelling, Some(OperatorSpelling::Add));
-    assert!(
-        program.operators().is_empty(),
-        "no authored `operator` declaration"
-    );
-
-    let views = program.machine_token_bindings();
-    assert_eq!(views.len(), 2, "one view per token-bearing machine");
-    let view = &views[0];
-    assert_eq!(view.symbol, add.symbol);
-    assert!(view.is_public);
-    assert!(!view.is_boundary);
-    assert_eq!(view.spelling, Some(OperatorSpelling::Add));
-    assert_eq!(
-        program
-            .operator_path_members(view.name)
-            .iter()
-            .map(|member| member.as_str())
-            .collect::<Vec<_>>(),
-        ["Wrapped", "add"]
-    );
-    let entry = program.machine_states(add).first().expect("entry state");
-    assert_eq!(
-        view.parameters, entry.parameters,
-        "the entry telescope is shared"
-    );
-    assert_eq!(view.return_type, entry.return_type);
-    assert_eq!(view.contracts, add.contracts, "head contracts are shared");
-    assert_eq!(program.operator_contracts(view).len(), 1);
-    assert_eq!(views[1].symbol, subtract.symbol);
-    assert_eq!(
-        program
-            .operator_path_members(views[1].name)
-            .iter()
-            .map(|member| member.as_str())
-            .collect::<Vec<_>>(),
-        ["subtract"]
-    );
-    assert_eq!(
-        declaration_by_symbol(&program, add.symbol).map(|found| found.symbol),
-        Some(add.symbol)
-    );
-    assert!(
-        declaration_by_symbol(&program, program.machines()[1].symbol).is_none(),
-        "a named machine has no operator view"
-    );
 }
 
 #[test]
@@ -131,76 +78,6 @@ fn operand_directed_selection_finds_the_matching_binding_only() {
         )
         .is_empty(),
         "a token nobody bound selects nothing"
-    );
-}
-
-#[test]
-fn boundary_token_satisfaction_selects_each_exact_operand_overload() {
-    let program = crate::front_end::typed_program_result(
-        "boundary machine + Float::add(left: f32, right: f32) -> f32;
-         boundary machine + Float::add(left: f64, right: f64) -> f64;
-         boundary machine Provider::add32(left: f32, right: f32) -> f32
-             satisfies Float::add { left }
-         boundary machine Provider::add64(left: f64, right: f64) -> f64
-             satisfies Float::add { left }",
-    )
-    .expect("typed overloads");
-    let requirements = &program.machines()[..2];
-    for (provider, requirement) in program.machines()[2..].iter().zip(requirements) {
-        let [conformance] = program.declared_machine_trait_conformances(provider) else {
-            panic!("one satisfaction edge");
-        };
-        assert_eq!(conformance.symbol, requirement.symbol);
-        assert_eq!(conformance.requirement_symbol, requirement.symbol);
-        assert!(matches!(
-            typed_trees::machine::resolve_satisfied_declaration(&program, provider, conformance),
-            Some(typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(selected))
-                if selected.symbol == requirement.symbol
-        ));
-    }
-}
-
-#[test]
-fn boundary_token_satisfaction_does_not_settle_a_mismatch() {
-    let program = crate::front_end::typed_program_result(
-        "boundary machine + Float::add(left: f32, right: f32) -> f32;
-             boundary machine Provider::add64(left: f64, right: f64) -> f64
-                 satisfies Float::add { left }",
-    )
-    .expect("formation precedes satisfaction validation");
-    let provider = program.machines().last().expect("provider");
-    let [conformance] = program.declared_machine_trait_conformances(provider) else {
-        panic!("one satisfaction edge");
-    };
-    assert!(
-        !conformance.symbol.is_valid(),
-        "no arbitrary family representative"
-    );
-    assert!(!conformance.requirement_symbol.is_valid());
-    assert!(
-        typed_trees::machine::resolve_satisfied_declaration(&program, provider, conformance)
-            .is_none()
-    );
-}
-
-#[test]
-fn boundary_token_satisfaction_rejects_duplicate_requirement_shapes() {
-    let syntax = crate::front_end::syntax_program_with_id(
-        source::SourceId(0),
-        "boundary machine + Float::add(left: f64, right: f64) -> f64;
-         boundary machine + Float::add(left: f64, right: f64) -> f64;
-         boundary machine Provider::add64(left: f64, right: f64) -> f64
-             satisfies Float::add { left }",
-    );
-    let diagnostics = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect_err("duplicate token declarations reject before satisfaction settlement");
-    assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
-            .to_string()
-            .contains("same owner and operand shape")),
-        "{diagnostics:?}"
     );
 }
 

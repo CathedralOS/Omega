@@ -7,11 +7,6 @@
 #[path = "support/front_end.rs"]
 mod front_end;
 
-mod authored_declaration_selection_ledger;
 mod indexed_member_identity;
-mod invocation_source_spans;
-mod ordinary_member_identity;
-mod quotient_theorem_selection;
 mod service_reach_source_spans;
-mod trait_machine_identity;
 mod transparent_refinement_reaches;

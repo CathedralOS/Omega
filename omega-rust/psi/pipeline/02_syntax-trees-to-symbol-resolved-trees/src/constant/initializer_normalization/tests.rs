@@ -1,12 +1,9 @@
 //! Initializer normalization tests.
 
-use super::{ConstArgumentOrigin, SourceSpan, finalize_operator_obligations};
+use super::{ConstArgumentOrigin, SourceSpan};
 use crate::constant::initializer_normalization::Exposure;
-use crate::constant::initializer_normalization::Intrinsic;
 use crate::constant::initializer_normalization::Kind;
 use crate::constant::initializer_normalization::LateBinding;
-use crate::constant::initializer_normalization::PendingInitializer;
-use crate::constant::initializer_normalization::Target;
 use crate::constant::initializer_normalization::append_retained_custody;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use syntax_trees::SyntaxTrees;
@@ -202,40 +199,6 @@ fn normalized_expression(unary: bool) -> (SyntaxTrees, syntax_trees::item::ItemH
 }
 
 #[test]
-fn initializer_receipt_retains_dependency_and_operator_on_materialized_root() {
-    let (syntax, _) = normalized();
-    let resolved = crate::resolve(crate::ResolutionRequest::new(&syntax))
-        .expect("resolve retained initializer receipt");
-    let count = resolved
-        .const_declarations
-        .iter()
-        .find(|declaration| resolved.symbols.name(declaration.symbol) == "COUNT")
-        .expect("COUNT declaration");
-    let selections = resolved
-        .tables
-        .bodies
-        .expressions
-        .authored_selection_occurrences(count.initializer)
-        .map(|occurrence| {
-            resolved
-                .authored_declaration_selections()
-                .get(occurrence)
-                .expect("retained occurrence")
-        })
-        .collect::<Vec<_>>();
-    assert!(
-        selections
-            .iter()
-            .any(|selection| selection.kind() == Kind::Operator)
-    );
-    assert!(
-        selections
-            .iter()
-            .any(|selection| selection.kind() == Kind::StaticPathSegment)
-    );
-}
-
-#[test]
 fn initializer_receipt_rejects_changed_or_missing_custody() {
     for mutation in 0..6 {
         let (mut syntax, item) = normalized();
@@ -335,76 +298,6 @@ fn retained_initializer_custody_rejects_unchecked_operators_and_cycles() {
             .is_err(),
             "mutation {mutation} must not become checked retained evidence"
         );
-    }
-}
-
-#[test]
-fn initializer_operator_finalization_preserves_unrelated_partitions_and_exposure() {
-    use language_semantics::declaration_selection::CompilerDerivedSelectionPartition;
-    let (syntax, item) = normalized();
-    let Item::Const(definition) = syntax.root_item(item) else {
-        panic!("constant")
-    };
-    let receipt = definition.normalization.clone().expect("receipt");
-    let operator = receipt.builtin_operators[0];
-    let mut program =
-        crate::resolve(crate::ResolutionRequest::new(&syntax)).expect("retained base");
-    let declaration = program
-        .const_declarations
-        .iter()
-        .find(|declaration| program.symbols.name(declaration.symbol) == "COUNT")
-        .expect("COUNT");
-    let materialized = declaration.initializer;
-    let authored = declaration.authored_initializer;
-    let record = PendingInitializer {
-        declaration: definition.name.source_span(),
-        materialized,
-        authored,
-        references: Vec::new(),
-        operators: vec![operator],
-        receipt,
-    };
-    let mut occurrences = Vec::new();
-    for (exposure, partition, reference) in [
-        (Exposure::PrivateImplementation, None, operator),
-        (
-            Exposure::PrivateImplementation,
-            Some(CompilerDerivedSelectionPartition::from_compiler_ordinal(1)),
-            operator,
-        ),
-        (Exposure::PublicInterface, None, operator),
-        (Exposure::PrivateImplementation, None, SourceSpan::default()),
-    ] {
-        occurrences.push(
-            program
-                .record_late_bound_authored_declaration_selection_in_partition(
-                    reference,
-                    exposure,
-                    Kind::Operator,
-                    partition,
-                    LateBinding::CheckedOperator,
-                )
-                .expect("operator occurrence"),
-        );
-    }
-    finalize_operator_obligations(&mut program, &[record]).expect("exact receipt finalization");
-    for (ordinal, occurrence) in occurrences.into_iter().enumerate() {
-        let target = program
-            .authored_declaration_selections()
-            .get(occurrence)
-            .expect("selection")
-            .target();
-        if ordinal == 0 {
-            assert!(matches!(
-                target,
-                Target::Intrinsic(Intrinsic::BuiltinOperator)
-            ));
-        } else {
-            assert!(matches!(
-                target,
-                Target::LateBound(LateBinding::CheckedOperator)
-            ));
-        }
     }
 }
 

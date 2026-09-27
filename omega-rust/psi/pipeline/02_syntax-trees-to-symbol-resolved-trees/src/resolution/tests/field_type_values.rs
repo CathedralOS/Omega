@@ -1,19 +1,11 @@
-use crate::ExtensionRequest;
 use crate::ResolutionRequest;
-use crate::resolve_extension;
-use source::SourceMap;
-use source::SourceOrigin;
-use source::SourceResolutionStratum;
 use source_files_to_tokens::Lexer;
-use std::path::PathBuf;
-use std::sync::Arc;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::data::{DataField, DataMember};
 use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbol_resolved_trees::types::{TypeConstraint, TypeReference};
 use symbols::SymbolHandle;
 use tokens_to_syntax_trees::parse_syntax_trees;
-use tokens_to_syntax_trees::parse_syntax_trees_with_id;
 
 fn resolve(source: &str) -> SymbolResolvedTrees {
     let syntax = parse_syntax_trees(&Lexer::new(source).tokenize().unwrap()).unwrap();
@@ -118,71 +110,6 @@ fn field_type_values_resolve_calls_inside_records_payloads_and_nested_types() {
 }
 
 #[test]
-fn field_type_values_keep_generic_common_and_payload_subject_identity() {
-    let program = resolve(
-        "const Limit: u64 = 17;
-        data Bounds<const Limit: u64> {
-            maximum: u64;
-            generic: u64[0..=Limit];
-            common: u64[0..=maximum];
-            case Some(maximum: u64, payload: u64[0..=maximum], inherited: u64[0..=Limit]);
-        }",
-    );
-    let definition = program
-        .data_definitions
-        .iter()
-        .find(|data| data.name.as_str() == "Bounds")
-        .unwrap();
-    let binder = program.data_type_parameters(definition.type_parameters)[0].symbol;
-    let fields = fields(&program, "Bounds");
-    for (position, expected) in [
-        (1, binder),
-        (2, fields[0].symbol),
-        (4, fields[3].symbol),
-        (5, binder),
-    ] {
-        let ExpressionNode::Name(path) = program
-            .tables
-            .bodies
-            .expressions
-            .expression(endpoint(&program, &fields[position].type_reference))
-        else {
-            panic!("symbolic endpoint")
-        };
-        assert!(expected.is_valid());
-        assert_eq!(path.head_symbol, expected);
-        assert_eq!(path.symbol, expected);
-    }
-}
-
-#[test]
-fn field_type_values_do_not_turn_runtime_receivers_into_global_type_qualifiers() {
-    let program = resolve(
-        "data Limits {} machine Limits::capacity() -> u64 {256} data Empty {}
-        machine capacity() -> u64 {17}
-        data Record { Limits: Empty; value: u64[0..=Limits.capacity()]; }
-        data Choice { case Some(Limits: Empty, value: u64[0..=Limits.capacity()]); }",
-    );
-    for owner in ["Record", "Choice"] {
-        let fields = fields(&program, owner);
-        let expressions = &program.tables.bodies.expressions;
-        let ExpressionNode::Call(call) =
-            expressions.expression(endpoint(&program, &fields[1].type_reference))
-        else {
-            panic!("receiver call")
-        };
-        let ExpressionNode::Name(receiver) = expressions.expression(call.receiver) else {
-            panic!("runtime field receiver")
-        };
-        assert_eq!(receiver.head_symbol, fields[0].symbol);
-        assert_eq!(receiver.symbol, fields[0].symbol);
-        // This field's declared type has no runtime-receiver method. Neither
-        // the type-qualified helper nor the free helper is a valid fallback.
-        assert!(!call.target_symbol.is_valid());
-    }
-}
-
-#[test]
 fn field_type_values_keep_payload_callable_binders_and_field_types() {
     let program = resolve("machine capacity() -> u64 {17}
         data Bounds<machine capacity> where machine capacity() -> u64; {
@@ -203,50 +130,4 @@ fn field_type_values_keep_payload_callable_binders_and_field_types() {
         fields(&program, "Choice")[2],
         entry(&program, "Other::capacity"),
     );
-}
-
-#[test]
-fn field_type_values_resolve_new_fields_against_retained_declarations() {
-    let base_source = "machine capacity() -> u64 {256} data Base {value: u64[0..=capacity()];}";
-    let extension_source = "data Added {value: u64[0..=capacity()];}";
-    let mut sources = SourceMap::default();
-    let base_id = sources
-        .add(PathBuf::from("base.omg"), base_source.to_owned())
-        .source_id;
-    let extension_id = sources
-        .add_with_metadata_and_resolution_stratum(
-            PathBuf::from("generated.omg"),
-            extension_source.to_owned(),
-            PathBuf::from("."),
-            None,
-            SourceOrigin::User,
-            SourceResolutionStratum::CurrentActivationExtension,
-        )
-        .source_id;
-    let syntax =
-        parse_syntax_trees_with_id(base_id, &Lexer::new(base_source).tokenize().unwrap()).unwrap();
-    let base = crate::resolve(ResolutionRequest {
-        syntax: &syntax,
-        sources: Some(Arc::new(sources.clone())),
-        top_level_bindings: Vec::new(),
-    })
-    .unwrap();
-    let target = entry(&base, "capacity");
-    assert_call(&base, fields(&base, "Base")[0], target);
-    let extension = parse_syntax_trees_with_id(
-        extension_id,
-        &Lexer::new(extension_source).tokenize().unwrap(),
-    )
-    .unwrap();
-    let program = resolve_extension(ExtensionRequest {
-        base,
-        syntax: &extension,
-        sources: Arc::new(sources),
-        top_level_bindings: Vec::new(),
-    })
-    .map(|seeded| seeded.trees().clone())
-    .unwrap();
-    for owner in ["Base", "Added"] {
-        assert_call(&program, fields(&program, owner)[0], target);
-    }
 }

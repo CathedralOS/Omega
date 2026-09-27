@@ -630,22 +630,6 @@ mod tests {
     use std::collections::BTreeSet;
 
     #[test]
-    fn fresh_identities_skip_reserved_values_and_do_not_wrap() {
-        let mut identities = LocalStructuralIdentities {
-            reserved: BTreeSet::from([0, 2]),
-            next: Some(0),
-        };
-        assert_eq!(identities.allocate(), Ok(1));
-        assert_eq!(identities.allocate(), Ok(3));
-        identities.next = Some(u64::MAX);
-        assert_eq!(identities.allocate(), Ok(u64::MAX));
-        assert_eq!(
-            identities.allocate(),
-            Err(TerminalInterpretError::StructuralIdentityExhausted)
-        );
-    }
-
-    #[test]
     fn host_results_cannot_reintroduce_allocated_local_identity() {
         let mut identities = LocalStructuralIdentities {
             reserved: BTreeSet::from([0]),

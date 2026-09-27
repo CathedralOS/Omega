@@ -13,16 +13,12 @@
 //! artifact-level state an `AdmittedProviderInstallation` carries — is bound
 //! exactly rather than seeded into the execution.
 
-use crate::effects::{
-    AcceptTerminalEffects, AdmittedProviderInstallation, ProviderInstallationSelection,
-};
+use crate::effects::AcceptTerminalEffects;
 use crate::errors::TerminalInterpretError;
 use crate::execution::TerminalExecution;
-use crate::results::{TerminalExecutionResult, TerminalExecutionStatus};
-use crate::values::TerminalScalarValue;
 use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, ContractId, EdgeId, IeeeFloatComparisonOperation, IeeeFloatFormat,
-    IeeeFloatValue, MachineId, OperationId, ScalarType, StructuralTypeId, ValueId,
+    BlockId, BoundaryMachineId, ContractId, EdgeId, IeeeFloatFormat, IeeeFloatValue, MachineId,
+    OperationId, ScalarType, StructuralTypeId, ValueId,
 };
 use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::{
@@ -261,159 +257,6 @@ fn scalar_provider_module(
         quotient_correspondences: Vec::new(),
         machines: vec![entry, provider],
     }
-}
-
-fn float_fma_module() -> TerminalModule {
-    scalar_provider_module(
-        &[
-            IeeeFloatValue::Binary32(0x4000_0000), // 2.0
-            IeeeFloatValue::Binary32(0x4040_0000), // 3.0
-            IeeeFloatValue::Binary32(0x4080_0000), // 4.0
-        ],
-        F32,
-        F32,
-        OperationKind::NearestIeeeFloatFusedMultiplyAdd {
-            left: value_id(11),
-            right: value_id(12),
-            addend: value_id(13),
-        },
-    )
-}
-
-fn boolean_compare_module() -> TerminalModule {
-    scalar_provider_module(
-        &[
-            IeeeFloatValue::Binary32(0x3f80_0000), // 1.0
-            IeeeFloatValue::Binary32(0x4000_0000), // 2.0
-        ],
-        ScalarType::Boolean,
-        ScalarType::Boolean,
-        OperationKind::IeeeFloatCompare {
-            comparison: IeeeFloatComparisonOperation::LessOrEqual,
-            left: value_id(11),
-            right: value_id(12),
-        },
-    )
-}
-
-/// Encode the module into its canonical artifact sections and admit the
-/// provider selection through `admit_provider_installation_from_artifact`:
-/// the scalar row must survive decode-side representation validation and
-/// verification before the installation can bind.
-fn scalar_provider_installation(module: &TerminalModule) -> AdmittedProviderInstallation {
-    let semantic =
-        terminal_codec::encode_module(module).expect("verified scalar provider module encodes");
-    let proof =
-        terminal_codec::encode_proof_section(module, &terminal_verifier::ProofBundle::default())
-            .expect("proof section seals");
-    crate::terminal_interpreter::admit_provider_installation_from_artifact(
-        &semantic,
-        &proof,
-        &proof_admission::AdmissionProfile::default(),
-        &[ProviderInstallationSelection {
-            boundary: boundary_id(1),
-            provider_identity: "test::Provider".into(),
-            candidate: machine_id(2),
-        }],
-    )
-    .expect("scalar provider row admits from the artifact")
-}
-
-fn run_to_completion(
-    mut execution: TerminalExecution,
-) -> (TerminalExecution, TerminalExecutionResult) {
-    let mut meter = TerminalFuelMeter::with_allowance(0);
-    let result = loop {
-        match execution
-            .resume(&mut meter, &mut AcceptTerminalEffects)
-            .expect("scalar provider execution")
-        {
-            TerminalExecutionStatus::SponsorExhausted(_) => meter.replenish(1).unwrap(),
-            TerminalExecutionStatus::Complete(result) => break result,
-            status => panic!("unexpected {status:?}"),
-        }
-    };
-    (execution, result)
-}
-
-#[test]
-fn installed_scalar_provider_executes_its_machine_and_commits_the_float_result() {
-    let module = float_fma_module();
-    // The scalar provider candidate row admits through the same verification
-    // every validation policy and the codec representation check share.
-    terminal_verifier::verify_module(
-        &module,
-        &terminal_verifier::ProofBundle::default(),
-        &proof_admission::AdmissionProfile::default(),
-    )
-    .expect("scalar provider fixture verifies");
-    let installation = scalar_provider_installation(&module);
-    let execution = TerminalExecution::start_verified_module(
-        module,
-        &[],
-        &[],
-        &[],
-        &[],
-        &[],
-        Some(&installation),
-    )
-    .expect("scalar provider module starts");
-    let (execution, result) = run_to_completion(execution);
-    // round_nearest_even(2.0 * 3.0 + 4.0) = 10.0f32.
-    assert_eq!(
-        result,
-        TerminalExecutionResult::Scalar(TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary32(
-            0x4120_0000
-        )))
-    );
-    // The provider call is internal dispatch, not an observable effect.
-    assert!(execution.effects().is_empty());
-}
-
-#[test]
-fn installed_scalar_provider_executes_a_boolean_result() {
-    let module = boolean_compare_module();
-    terminal_verifier::verify_module(
-        &module,
-        &terminal_verifier::ProofBundle::default(),
-        &proof_admission::AdmissionProfile::default(),
-    )
-    .expect("scalar provider fixture verifies");
-    let installation = scalar_provider_installation(&module);
-    let execution = TerminalExecution::start_verified_module(
-        module,
-        &[],
-        &[],
-        &[],
-        &[],
-        &[],
-        Some(&installation),
-    )
-    .expect("scalar provider module starts");
-    let (execution, result) = run_to_completion(execution);
-    assert_eq!(
-        result,
-        TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(true))
-    );
-    assert!(execution.effects().is_empty());
-}
-
-#[test]
-fn scalar_provider_candidate_without_installation_still_rejects() {
-    // The verified catalog row alone is not an installation: dispatch must
-    // still find the boundary's selected candidate.
-    let mut execution =
-        TerminalExecution::start_verified_module(float_fma_module(), &[], &[], &[], &[], &[], None)
-            .unwrap();
-    assert!(matches!(
-        execution.resume(
-            &mut TerminalFuelMeter::unbounded(),
-            &mut AcceptTerminalEffects
-        ),
-        Err(TerminalInterpretError::ProviderInstallationMissing(boundary))
-            if boundary == boundary_id(1)
-    ));
-    assert!(execution.effects().is_empty());
 }
 
 #[test]

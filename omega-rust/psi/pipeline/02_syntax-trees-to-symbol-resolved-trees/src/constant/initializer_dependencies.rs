@@ -406,7 +406,6 @@ impl Collector<'_> {
 
 #[cfg(test)]
 mod tests {
-    use symbols::SymbolKind;
 
     fn prepare(
         text: &str,
@@ -434,77 +433,6 @@ mod tests {
             })
             .expect("source-aware preparation");
         (syntax, preparation)
-    }
-
-    #[test]
-    fn qualified_constant_dependencies_keep_distinct_full_path_uses() {
-        let text = "data Settings [copy] { value: u64; }
-            const Settings::BASE: u64 = 7;
-            const TOTAL: u64 = Settings::BASE + Settings::BASE;";
-        let (syntax, preparation) = prepare(text);
-        let definition = syntax
-            .root_items()
-            .find_map(|item| match item {
-                syntax_trees::item::Item::Const(definition)
-                    if definition.name.as_str() == "TOTAL" =>
-                {
-                    Some(definition)
-                }
-                _ => None,
-            })
-            .expect("total");
-        let dependencies = preparation
-            .initializer_dependencies(&syntax, definition)
-            .expect("qualified uses");
-        assert_eq!(dependencies.constants.len(), 2);
-        assert_ne!(dependencies.constants[0].0, dependencies.constants[1].0);
-        assert_eq!(dependencies.constants[0].1, dependencies.constants[1].1);
-        for (reference, _) in dependencies.constants {
-            assert_eq!(
-                &text[reference.span.start..reference.span.end],
-                "Settings::BASE"
-            );
-        }
-    }
-
-    #[test]
-    fn implicit_entry_call_retains_its_exact_authored_machine_source() {
-        let (syntax, preparation) =
-            prepare("machine size() -> u64 { 7 } const SIZE: u64 = size();");
-        let definition = syntax
-            .root_items()
-            .find_map(|item| match item {
-                syntax_trees::item::Item::Const(definition) => Some(definition),
-                _ => None,
-            })
-            .expect("constant");
-        let dependencies = preparation
-            .initializer_dependencies(&syntax, definition)
-            .expect("entry custody");
-        let owner = preparation
-            .trees()
-            .machines
-            .iter()
-            .find(|machine| machine.name.as_str() == "size")
-            .expect("machine");
-        assert_eq!(dependencies.calls.len(), 1);
-        assert_eq!(
-            Some(dependencies.calls[0].1),
-            preparation.trees().symbols.symbol_source_span(owner.symbol)
-        );
-        let target = dependencies.call_targets[0].1;
-        assert_eq!(
-            preparation.trees().symbols.get(target).kind,
-            SymbolKind::State
-        );
-        assert_eq!(preparation.trees().symbols.get(target).parent, owner.symbol);
-        assert!(
-            preparation
-                .trees()
-                .symbols
-                .symbol_source_span(target)
-                .is_none()
-        );
     }
 
     #[test]

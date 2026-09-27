@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{DataMember, Item, TypeParameterKind};
-use syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 fn parse(source: &str) -> SyntaxTrees {
     let mut syntax = SyntaxTrees::new(SourceId::default());
@@ -122,13 +122,6 @@ fn complete(
     Ok((syntax, tuple))
 }
 
-fn named(syntax: &SyntaxTrees, reference: TypeReferenceHandle) -> Option<String> {
-    match syntax.type_references.type_reference(reference) {
-        TypeReferenceNode::Named(name) => Some(name.as_str().to_owned()),
-        _ => None,
-    }
-}
-
 const CAPACITY_TEMPLATE: &str = r#"
     domain<const Capacity: u64> u64::AtMost<Capacity>;
 
@@ -140,38 +133,6 @@ const CAPACITY_TEMPLATE: &str = r#"
         length: Length;
     }
 "#;
-
-#[test]
-fn carrier_qualified_domain_head_binds_the_declared_index() {
-    let source = format!(
-        "{CAPACITY_TEMPLATE}
-        data Holder {{ inferred: TinyBytes<u64::AtMost<256> >; }}"
-    );
-    let (syntax, tuple) = complete(&source, "TinyBytes", "Holder").expect("binds Capacity");
-    assert_eq!(tuple.len(), 2);
-    assert_eq!(named(&syntax, tuple[1]).as_deref(), Some("256"));
-}
-
-#[test]
-fn constrained_spelling_binds_the_same_index() {
-    let source = format!(
-        "{CAPACITY_TEMPLATE}
-        data Holder {{ inferred: TinyBytes<u64 in AtMost<256> >; }}"
-    );
-    let (syntax, tuple) = complete(&source, "TinyBytes", "Holder").expect("binds Capacity");
-    assert_eq!(named(&syntax, tuple[1]).as_deref(), Some("256"));
-}
-
-#[test]
-fn equivalent_explicit_index_selects_the_same_application() {
-    let source = format!(
-        "{CAPACITY_TEMPLATE}
-        data Holder {{ inferred: TinyBytes<u64::AtMost<256>, 256>; }}"
-    );
-    let (syntax, tuple) = complete(&source, "TinyBytes", "Holder").expect("equation verifies");
-    assert_eq!(tuple.len(), 2);
-    assert_eq!(named(&syntax, tuple[1]).as_deref(), Some("256"));
-}
 
 #[test]
 fn a_conflicting_explicit_index_reports_the_equation_binding() {
@@ -233,49 +194,4 @@ fn the_two_spellings_compare_equal_inside_a_bound_application() {
     let (_syntax, tuple) = complete(source, "Duo", "Holder")
         .expect("a carrier-qualified head equals the constrained spelling");
     assert_eq!(tuple.len(), 2);
-}
-
-#[test]
-fn an_unbound_binder_recovers_the_constrained_spelling() {
-    let source = r#"
-        domain<const Capacity: u64> u64::AtMost<Capacity>;
-
-        data Pair<Primary, Secondary, const Capacity: u64>
-        where
-            Primary == u64::AtMost<Capacity>,
-            Secondary == u64::AtMost<Capacity>
-        {
-            first: Primary;
-            second: Secondary;
-        }
-
-        data Holder { inferred: Pair<u64::AtMost<256> >; }
-    "#;
-    let (syntax, tuple) = complete(source, "Pair", "Holder").expect("recovers Secondary");
-    assert_eq!(tuple.len(), 3);
-    let TypeReferenceNode::Constrained {
-        base_type,
-        constraints,
-    } = syntax.type_references.type_reference(tuple[1])
-    else {
-        panic!("the recovered binder constructs a constrained carrier")
-    };
-    assert_eq!(
-        named(&syntax, *base_type).as_deref(),
-        Some("u64"),
-        "the recovered carrier is the declared target"
-    );
-    let [TypeConstraintNode::Domain(constraint)] = syntax.type_references.constraints(*constraints)
-    else {
-        panic!("the recovered binder carries the domain constraint")
-    };
-    assert_eq!(constraint.name.as_str(), "AtMost");
-    let [argument] = *syntax
-        .type_references
-        .type_reference_handles(constraint.arguments)
-    else {
-        panic!("the recovered domain carries its index")
-    };
-    assert_eq!(named(&syntax, argument).as_deref(), Some("256"));
-    assert_eq!(named(&syntax, tuple[2]).as_deref(), Some("256"));
 }

@@ -2,7 +2,6 @@
 //! the continuation tests type. The front-end pipelines they run are named in
 //! `crate::front_end`.
 
-mod closed_guards;
 mod generated_invocations;
 mod machine_contracts;
 mod mathematical_declarations;

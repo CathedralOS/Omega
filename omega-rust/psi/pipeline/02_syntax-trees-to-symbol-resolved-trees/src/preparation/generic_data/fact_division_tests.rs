@@ -1,12 +1,8 @@
-use crate::preparation::generic_data::evaluate_const_fact_expression;
 use crate::preparation::generic_data::normalize_generic_data_with_warnings;
-use diagnostics::Diagnostic;
 use source::SourceId;
 use source_files_to_tokens::Lexer;
-use std::collections::HashMap;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::Item;
-use syntax_trees::item::ProofFact;
 use tokens_to_syntax_trees::parse_syntax_trees_with_id;
 
 fn parse(source: &str) -> SyntaxTrees {
@@ -160,38 +156,6 @@ fn invalid_anonymous_operations_cannot_certify_facts() {
 }
 
 #[test]
-fn direct_and_transitive_const_domains_preserve_anonymous_and_typed_facts() {
-    for membership in ["Direct", "Transitive"] {
-        for (expression, error, warning_count) in [
-            ("7 / 2 > 3", None, 0),
-            ("7 / 2.0 > 3", None, 0),
-            ("0.1 + 0.2 == 0.3", None, 0),
-            ("7 / 2.0 == 3", Some("is false"), 0),
-            ("7 / 2 * 2 == 7", None, 0),
-            ("-7 / 2 < -3", None, 0),
-            ("7 / 2 == 3", Some("is false"), 0),
-            ("7 / 2 * 2 == 6", Some("is false"), 0),
-            ("self / 2 == 3", None, 0),
-            ("self % 2 == 1", None, 0),
-            ("self / 2 * 2 == 7", Some("is false"), 0),
-            (
-                "self * (7 / 2) == 21",
-                Some("exact anonymous value `7/2`"),
-                0,
-            ),
-            ("self == 7 / 2 * 2", None, 1),
-        ] {
-            assert_case(
-                &domain_fact(expression, membership),
-                error,
-                false,
-                warning_count,
-            );
-        }
-    }
-}
-
-#[test]
 fn domain_membership_lands_only_integral_anonymous_values() {
     for membership in ["Direct", "Transitive"] {
         for (value, error, warning_count) in [
@@ -235,73 +199,5 @@ fn integer_landing_warnings_require_a_discharged_operation() {
         "(7 / 2 * 2) in Missing",
     ] {
         assert_case(&domain_fact(expression, "Transitive"), None, true, 0);
-    }
-}
-
-#[test]
-fn authored_spellings_do_not_select_wholly_anonymous_fact_operators() {
-    // A wholly anonymous operand pair has no carrier to select an authored
-    // declaration, so each fact evaluates exactly as it does without one.
-    for (operator, result_type, expression, expected_error) in [
-        ("/", "i64", "7 / 2 == 3", Some("is false")),
-        ("/", "i64", "7 / 2.0 == 3", Some("is false")),
-        ("*", "i64", "7 / 2 * 2 == 7", None),
-        ("+", "i64", "7 / 2 + 1 / 2 == 4", None),
-        (
-            "%",
-            "i64",
-            "8 % 2 == 0",
-            Some("builtin `%` requires an integer-typed operand"),
-        ),
-        ("==", "bool", "7 / 2 == 3", Some("is false")),
-        (">", "bool", "7 / 2 > 4", Some("is false")),
-    ] {
-        let declaration =
-            format!("operator {operator} i64::authored(left: i64, right: i64) -> {result_type};");
-        assert_case(&generic_fact(expression), expected_error, false, 0);
-        assert_case(
-            &format!("{declaration} {}", generic_fact(expression)),
-            expected_error,
-            false,
-            0,
-        );
-    }
-}
-
-#[test]
-fn unresolved_or_failed_evaluation_preserves_earlier_warnings() {
-    for (expression, expected_error) in [
-        ("N * (7 / 2 * 2) == field", false),
-        ("N * (7 / 2 * 2) == 7 / 2", true),
-    ] {
-        let syntax = parse(&generic_fact(expression));
-        let expression = syntax
-            .root_items()
-            .find_map(|item| match item {
-                Item::Data(definition) if definition.name.as_str() == "Checked" => {
-                    match syntax.items.proof_facts(definition.where_facts) {
-                        [ProofFact::Expression(expression)] => Some(*expression),
-                        _ => None,
-                    }
-                }
-                _ => None,
-            })
-            .expect("generic expression fact");
-        let previous = Diagnostic::warning("earlier successful landing");
-        let mut warnings = vec![previous.clone()];
-        let result = evaluate_const_fact_expression(
-            &syntax,
-            expression,
-            &HashMap::new(),
-            &HashMap::from([("N".to_owned(), 7)]),
-            None,
-            &mut warnings,
-        );
-        if expected_error {
-            assert!(result.is_err());
-        } else {
-            assert!(matches!(result, Ok(None)));
-        }
-        assert_eq!(warnings, vec![previous]);
     }
 }

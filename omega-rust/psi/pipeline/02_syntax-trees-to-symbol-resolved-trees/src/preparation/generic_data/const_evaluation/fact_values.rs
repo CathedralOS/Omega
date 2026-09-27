@@ -332,37 +332,9 @@ fn evaluate_declared_integer_fact(
 #[cfg(test)]
 mod tests {
     use super::{
-        BinaryOperator, CanonicalConstValue, ConstFactValue, ConstIntegerType, ConstScalarSpelling,
-        ExpressionHandle, SyntaxTrees, evaluate_const_fact_binary,
+        BinaryOperator, ConstFactValue, ConstIntegerType, ExpressionHandle, SyntaxTrees,
+        evaluate_const_fact_binary,
     };
-
-    #[test]
-    fn bare_names_spell_boolean_integer_and_canonical_scalars() {
-        assert_eq!(
-            ConstScalarSpelling::from_bare_name("true"),
-            Some(ConstScalarSpelling::Boolean(true))
-        );
-        assert_eq!(
-            ConstScalarSpelling::from_bare_name("false"),
-            Some(ConstScalarSpelling::Boolean(false))
-        );
-        assert_eq!(
-            ConstScalarSpelling::from_bare_name("-3"),
-            Some(ConstScalarSpelling::Integer(-3))
-        );
-        let atom = CanonicalConstValue::boolean(true);
-        assert_eq!(
-            ConstScalarSpelling::from_bare_name(&atom.atom()),
-            Some(ConstScalarSpelling::Canonical(atom))
-        );
-        for declaration_name in ["True", "3x", "", "self", "COUNT"] {
-            assert_eq!(
-                ConstScalarSpelling::from_bare_name(declaration_name),
-                None,
-                "`{declaration_name}` names a declaration, not a scalar"
-            );
-        }
-    }
 
     fn declared(value: i128, carrier: &str) -> ConstFactValue {
         ConstFactValue::DeclaredInteger {

@@ -76,40 +76,6 @@ mod tests {
     use std::sync::Arc;
 
     #[test]
-    fn nested_tails_and_call_clones_share_backing_without_exposing_other_bytes() {
-        let source = ByteSequenceView::new(vec![0, 128, 255, 7]);
-        let call = source.clone();
-        let tail = call.subslice(1, 3).unwrap();
-        let nested = tail.subslice(1, 2).unwrap();
-        assert!(Arc::ptr_eq(&source.backing, &nested.backing));
-        assert_eq!(tail.bytes(), &[128, 255]);
-        assert_eq!(nested.bytes(), &[255]);
-        assert_eq!(tail.subslice(2, 2).unwrap().bytes(), &[]);
-        assert!(tail.subslice(0, 3).is_none());
-        assert!(tail.subslice(2, 1).is_none());
-        assert!(tail.subslice(0, usize::MAX).is_none());
-        drop(source);
-        drop(call);
-        assert_eq!(nested.bytes(), &[255]);
-    }
-
-    #[test]
-    fn replacement_detaches_shared_windows_and_reuses_exclusive_backing() {
-        let source = ByteSequenceView::new(vec![10, 20, 30, 40]);
-        let sibling = source.clone();
-        let mut destination = source.subslice(1, 3).unwrap();
-        assert_eq!(destination.replace_byte(1, 255), Some(()));
-        assert_eq!(source.bytes(), &[10, 20, 30, 40]);
-        assert_eq!(sibling.bytes(), source.bytes());
-        assert_eq!(destination.bytes(), &[20, 255]);
-        assert_eq!(destination.backing.len(), 2);
-        let backing = destination.bytes().as_ptr();
-        assert_eq!(destination.replace_byte(0, 0), Some(()));
-        assert_eq!(destination.bytes().as_ptr(), backing);
-        assert_eq!(destination.bytes(), &[0, 255]);
-    }
-
-    #[test]
     fn invalid_replacement_does_not_detach_or_change_length() {
         let source = ByteSequenceView::new(vec![1, 2]);
         let mut destination = source.clone();

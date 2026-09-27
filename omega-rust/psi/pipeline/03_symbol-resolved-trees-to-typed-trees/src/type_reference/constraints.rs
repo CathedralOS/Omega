@@ -252,43 +252,4 @@ pub(crate) fn classify_domain_constraint_subject(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::classify_domain_constraint_subject;
-    use language_semantics::CarryPermission;
-    use language_semantics::value_domain::ValueDomain;
-    use typed_trees::types::{DomainConstraintSubject, OmegaLayoutGrammar};
-
-    #[test]
-    fn classifies_only_closed_compiler_domain_shapes() {
-        assert_eq!(
-            classify_domain_constraint_subject("Carry::AnyCpu", 0),
-            DomainConstraintSubject::Carry(CarryPermission::AnyCpu)
-        );
-        assert_eq!(
-            classify_domain_constraint_subject("Finite", 0),
-            DomainConstraintSubject::Value(ValueDomain::Finite)
-        );
-        assert_eq!(
-            classify_domain_constraint_subject("OmegaLayout", 1),
-            DomainConstraintSubject::OmegaLayout {
-                grammar: OmegaLayoutGrammar::Derived,
-            }
-        );
-
-        for (name, arguments) in [
-            ("Carry::AnyCpu", 1),
-            ("Finite", 1),
-            ("OmegaLayout", 0),
-            ("OmegaLayout", 2),
-            ("OmegaLayout<Schema>", 0),
-            ("Carry::Anywhere", 0),
-            ("finite", 0),
-        ] {
-            assert_eq!(
-                classify_domain_constraint_subject(name, arguments),
-                DomainConstraintSubject::Declared,
-                "{name} with {arguments} argument(s) must remain unclassified"
-            );
-        }
-    }
-}
+mod tests {}

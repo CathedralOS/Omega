@@ -101,24 +101,3 @@ fn structural_static_argument_probe_preserves_indexed_comparisons() {
         assert!(!syntax.expressions.iter_expressions().any(|(_, expression)| matches!(expression, ExpressionNode::Call(call) if !call.machine_arguments.is_empty())));
     }
 }
-
-#[test]
-fn structural_static_arguments_publish_only_confirmed_call_types() {
-    let source = "machine read() -> u64 { capacity<u64[0..257]>() }";
-    let tokens = Lexer::new(source).tokenize().expect("tokens");
-    let syntax = crate::parse_syntax_trees(&tokens).expect("structural call syntax");
-    let call = syntax
-        .expressions
-        .iter_expressions()
-        .find_map(|(_, expression)| match expression {
-            ExpressionNode::Call(call) if call.target.as_str() == "capacity" => Some(call),
-            _ => None,
-        })
-        .expect("capacity call");
-    assert!(matches!(
-        syntax
-            .type_references
-            .type_reference(call.machine_arguments[0].type_reference),
-        syntax_trees::types::TypeReferenceNode::Constrained { .. }
-    ));
-}

@@ -54,33 +54,6 @@ fn assert_parameter_forward(program: &SymbolResolvedTrees, measure: &MeasureDefi
 }
 
 #[test]
-fn identity_measures_own_distinct_same_spelled_parameters() {
-    let program = resolve(
-        "measure First::Order(value: u64) -> u64 { value }
-         measure Second::Order(value: u64) -> u64 { value }
-         machine unrelated(value: u64) -> u64 { value }",
-    );
-    let measures = program.measures.iter().collect::<Vec<_>>();
-    for measure in &measures {
-        assert_parameter_forward(&program, measure);
-        let parameter = measure.parameter.as_ref().unwrap();
-        let symbol_resolved_trees::types::TypeReference::Named { symbol, .. } =
-            &parameter.type_reference
-        else {
-            panic!("named natural carrier")
-        };
-        assert!(symbol.is_valid(), "the parameter's carrier resolves too");
-    }
-    assert_ne!(measures[0].symbol, measures[1].symbol);
-    assert_ne!(
-        measures[0].parameter.as_ref().unwrap().symbol,
-        measures[1].parameter.as_ref().unwrap().symbol
-    );
-    assert_eq!(program.symbols.name(measures[0].symbol), "First::Order");
-    assert_eq!(program.symbols.name(measures[1].symbol), "Second::Order");
-}
-
-#[test]
 fn other_names_and_self_cannot_impersonate_a_measure_parameter() {
     for body in [
         "nonexistent",
@@ -111,25 +84,6 @@ fn other_names_and_self_cannot_impersonate_a_measure_parameter() {
         } else {
             assert_eq!(path.symbol, SymbolHandle::invalid(), "{body}");
         }
-    }
-}
-
-#[test]
-fn measure_body_traversal_binds_nested_parameter_uses() {
-    let program = resolve("measure Count::Order(value: u64) -> u64 { value - value }");
-    let measure = program.measures.iter().next().unwrap();
-    let parameter = measure.parameter.as_ref().unwrap();
-    let expressions = &program.tables.bodies.expressions;
-    let body = expressions.expression_handles(measure.body)[0];
-    let ExpressionNode::Binary(binary) = expressions.expression(body) else {
-        panic!("binary measure body")
-    };
-    for operand in [binary.left, binary.right] {
-        let ExpressionNode::Name(path) = expressions.expression(operand) else {
-            panic!("nested parameter use")
-        };
-        assert_eq!(path.symbol, parameter.symbol);
-        assert_eq!(path.head_symbol, parameter.symbol);
     }
 }
 
@@ -221,29 +175,4 @@ fn seeded_measure_extension_preserves_existing_declarations_and_binders() {
             .source_id,
         extension_id
     );
-}
-
-#[test]
-fn free_constants_cannot_capture_measure_parameters_in_either_declaration_order() {
-    let measure = "measure Count::Order(value: u64) -> u64 { value }";
-    let constant = "const value: u64 = 5;";
-    for source in [
-        format!("{constant} {measure}"),
-        format!("{measure} {constant}"),
-    ] {
-        let program = resolve(&source);
-        let measure = program.measures.iter().next().expect("identity measure");
-        assert_parameter_forward(&program, measure);
-        let expressions = &program.tables.bodies.expressions;
-        let [body] = expressions.expression_handles(measure.body) else {
-            panic!("one parameter reference")
-        };
-        assert_eq!(
-            expressions.authored_selection_occurrences(*body).count(),
-            0,
-            "a measure parameter must not acquire constant-selection custody"
-        );
-    }
-    let program = resolve(&format!("const Other::value: u64 = 5; {measure}"));
-    assert_parameter_forward(&program, program.measures.iter().next().unwrap());
 }

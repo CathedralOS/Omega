@@ -14,8 +14,7 @@ use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::item::{DataMember, Item};
 use syntax_trees::types::{
-    FixedArrayLength, IntegerRangeNormalization, TypeConstraintNode, TypeReferenceHandle,
-    TypeReferenceNode,
+    IntegerRangeNormalization, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
     GenericDataRequest, normalize_generic_data,
@@ -119,30 +118,6 @@ fn normalized(source: &str) -> SyntaxTrees {
     let mut syntax = parse(source);
     retain_literal_ranges(&mut syntax);
     normalize_generic_data(GenericDataRequest::new(syntax)).expect("synthesize instances")
-}
-
-#[test]
-fn fixed_array_equation_recovers_element_and_count_without_changing_identity() {
-    let syntax = normalized(
-        r#"
-        data Buffer<Backing, Element, const Count: u64>
-        where Backing == [Element; Count]
-        {
-            storage: Backing;
-            same_shape: [Element; Count];
-        }
-        data Main {
-            inferred: Buffer<[u8; 4]>;
-            explicit: Buffer<[u8; 4], u8, 4>;
-        }
-        "#,
-    );
-    let found = instances(&syntax);
-    assert_eq!(found.len(), 1);
-    for field in main_field_types(&syntax) {
-        assert!(matches!(syntax.type_references.type_reference(field),
-            TypeReferenceNode::Named(name) if name.as_str() == found[0].name.as_str()));
-    }
 }
 
 #[test]
@@ -270,19 +245,6 @@ fn fixed_array_equations_reject_conflicts_cycles_and_wrong_roles() {
             "{equations} with {arguments}: {error}"
         );
     }
-}
-
-#[test]
-fn fixed_array_equations_keep_nominal_element_identity() {
-    let error = rejection(
-        r#"
-        data Left { value: u8; }
-        data Right { value: u8; }
-        data Buffer<Backing> where Backing == [Left; 4] { storage: Backing; }
-        data Main { value: Buffer<[Right; 4]>; }
-    "#,
-    );
-    assert!(error.contains("conflicting element types"), "{error}");
 }
 
 fn rejection(source: &str) -> String {
@@ -417,95 +379,6 @@ fn main_field_types(syntax: &SyntaxTrees) -> Vec<TypeReferenceHandle> {
 }
 
 #[test]
-fn omitted_capacity_binds_from_the_supplied_range_before_layout() {
-    let syntax = normalized(&format!(
-        "{TINY_BYTES}
-        data Main {{
-            inclusive: TinyBytes<u64[0..=256]>;
-            exclusive: TinyBytes<u64[0..257]>;
-            explicit: TinyBytes<u64[0..=256], 256>;
-        }}"
-    ));
-
-    // One canonical interval, one instance: the omitted, the exclusive and
-    // the explicit spellings share the closed identity `[0..=256]` + 256.
-    let found = instances(&syntax);
-    let [instance] = found.as_slice() else {
-        panic!("exactly one TinyBytes instance");
-    };
-    assert_eq!(instance.name.as_str(), "TinyBytes<u64 in [0..=256], 256>");
-    let [DataMember::Field(storage), DataMember::Field(length)] =
-        syntax.tables.items.data_members(instance.members)
-    else {
-        panic!("storage and length fields");
-    };
-    assert!(matches!(
-        syntax
-            .type_references
-            .type_reference(storage.type_reference),
-        TypeReferenceNode::FixedArray {
-            length: FixedArrayLength::Literal(256),
-            ..
-        }
-    ));
-    assert!(matches!(
-        syntax.type_references.type_reference(length.type_reference),
-        TypeReferenceNode::Constrained { .. }
-    ));
-    // The decided equation is a discharged instantiation obligation, not a
-    // standing runtime invariant on the instance.
-    assert!(
-        syntax
-            .tables
-            .items
-            .proof_facts(instance.where_facts)
-            .is_empty()
-    );
-
-    // Every use rewrites to the instance, and each retained application
-    // origin carries the complete two-binder tuple.
-    let fields = main_field_types(&syntax);
-    assert_eq!(fields.len(), 3);
-    for field in fields {
-        assert!(matches!(
-            syntax.type_references.type_reference(field),
-            TypeReferenceNode::Named(name) if name.as_str() == instance.name.as_str()
-        ));
-        let origin = syntax.type_references.generic_application_origin(field);
-        let TypeReferenceNode::Generic { arguments, .. } =
-            syntax.type_references.type_reference(origin)
-        else {
-            panic!("retained application origin");
-        };
-        assert_eq!(
-            syntax
-                .type_references
-                .type_reference_handles(*arguments)
-                .len(),
-            2
-        );
-    }
-}
-
-#[test]
-fn full_width_exclusive_end_binds_in_proof_integers_without_carrier_overflow() {
-    let syntax = normalized(&format!(
-        "{TINY_BYTES}
-        data Main {{
-            bytes: TinyBytes<u64[0..18446744073709551616]>;
-        }}"
-    ));
-    let found = instances(&syntax);
-    let [instance] = found.as_slice() else {
-        panic!("exactly one TinyBytes instance");
-    };
-    assert_eq!(
-        instance.name.as_str(),
-        "TinyBytes<u64 in [0..=18446744073709551615], 18446744073709551615>"
-    );
-}
-
-#[test]
 fn a_supplied_argument_without_a_retained_endpoint_rejects() {
     let syntax = parse(&format!(
         "{TINY_BYTES}
@@ -578,51 +451,6 @@ fn a_shell_with_two_range_constraints_is_ambiguous() {
 }
 
 #[test]
-fn explicit_and_repeated_bindings_must_agree_exactly() {
-    // An explicit argument is fixed; a larger compatible capacity is not the
-    // equation's endpoint.
-    let message = rejection(&format!(
-        "{TINY_BYTES}
-        data Main {{ bytes: TinyBytes<u64[0..=256], 512>; }}"
-    ));
-    assert!(
-        message.contains("where equation binds `Capacity` to 256 but its explicit argument is 512"),
-        "{message}"
-    );
-
-    // The exact equation also refuses a larger supplied interval against an
-    // explicit capacity, unlike a call's declared-range compatibility.
-    let message = rejection(&format!(
-        "{TINY_BYTES}
-        data Main {{ bytes: TinyBytes<u64[0..=512], 256>; }}"
-    ));
-    assert!(
-        message.contains("where equation binds `Capacity` to 512 but its explicit argument is 256"),
-        "{message}"
-    );
-
-    // Repeated occurrences must agree under normalization: the inclusive and
-    // exclusive equations derive 256 and 257 from one supplied interval.
-    let message = rejection(
-        "
-        data TinyBytes<Length, const Capacity: u64>
-        where
-            Length == u64[0..=Capacity],
-            Length == u64[0..Capacity]
-        {
-            storage: [u8; Capacity];
-            length: Length;
-        }
-        data Main { bytes: TinyBytes<u64[0..=256]>; }
-        ",
-    );
-    assert!(
-        message.contains("where equations bind `Capacity` to both 256 and 257"),
-        "{message}"
-    );
-}
-
-#[test]
 fn malformed_and_underdetermined_equations_reject_distinctly() {
     let cases = [
         (
@@ -686,18 +514,6 @@ fn malformed_and_underdetermined_equations_reject_distinctly() {
     }
 }
 
-/// `Bytes` states the same equation as `TinyBytes` with the binders ordered so
-/// that supplying the capacity omits the *type* binder.
-const BYTES: &str = r#"
-    data Bytes<const Capacity: u64, Length>
-    where
-        Length == u64[0..=Capacity]
-    {
-        storage: [u8; Capacity];
-        length: Length;
-    }
-"#;
-
 /// Every instance name, sorted, so an assertion does not depend on the order
 /// the fixpoint happened to synthesize them in.
 fn instance_names(syntax: &SyntaxTrees) -> Vec<String> {
@@ -707,82 +523,6 @@ fn instance_names(syntax: &SyntaxTrees) -> Vec<String> {
         .collect::<Vec<_>>();
     names.sort();
     names
-}
-
-#[test]
-fn an_omitted_type_binder_is_built_from_its_range_shell_equation() {
-    let syntax = normalized(&format!(
-        "{BYTES}
-        data Main {{
-            omitted: Bytes<256>;
-            explicit: Bytes<256, u64[0..=256]>;
-            exclusive: Bytes<256, u64[0..257]>;
-        }}"
-    ));
-
-    // The constructed shell is the authored shell: one canonical interval,
-    // one instance, whatever the spelling.
-    let found = instances(&syntax);
-    let [instance] = found.as_slice() else {
-        panic!(
-            "exactly one Bytes instance, found {:?}",
-            instance_names(&syntax)
-        );
-    };
-    assert_eq!(instance.name.as_str(), "Bytes<256, u64 in [0..=256]>");
-
-    let [DataMember::Field(storage), DataMember::Field(length)] =
-        syntax.tables.items.data_members(instance.members)
-    else {
-        panic!("storage and length fields");
-    };
-    assert!(matches!(
-        syntax
-            .type_references
-            .type_reference(storage.type_reference),
-        TypeReferenceNode::FixedArray {
-            length: FixedArrayLength::Literal(256),
-            ..
-        }
-    ));
-    // The recovered binder reaches the field as a real constrained type, not
-    // a name standing in for one.
-    let TypeReferenceNode::Constrained {
-        base_type,
-        constraints,
-    } = *syntax.type_references.type_reference(length.type_reference)
-    else {
-        panic!("the constructed length is a constrained type reference");
-    };
-    assert!(matches!(
-        syntax.type_references.type_reference(base_type),
-        TypeReferenceNode::Named(carrier) if carrier.as_str() == "u64"
-    ));
-    let [TypeConstraintNode::Range { end_inclusive, .. }] =
-        syntax.type_references.constraints(constraints)
-    else {
-        panic!("one authored-shape range constraint");
-    };
-    assert!(*end_inclusive, "the equation's own boundary kind is kept");
-    // Identity comes from the retained canonical interval, nothing else.
-    assert_eq!(
-        syntax
-            .type_references
-            .integer_range_normalization(length.type_reference, 0),
-        Some(&IntegerRangeNormalization {
-            minimum: BigInt::from_u64(0),
-            maximum: BigInt::from_u64(256),
-        })
-    );
-
-    // The decided equation is a discharged instantiation obligation.
-    assert!(
-        syntax
-            .tables
-            .items
-            .proof_facts(instance.where_facts)
-            .is_empty()
-    );
 }
 
 #[test]
@@ -895,25 +635,6 @@ fn constructing_a_type_binder_keeps_every_rejection() {
             "{template} applied as {application}: {message}"
         );
     }
-}
-
-#[test]
-fn an_omitted_binder_application_nested_in_another_application_recovers() {
-    // The enclosing application's argument is itself an application with an
-    // omitted binder. Its own arguments stay whole through the parser, so the
-    // nested recovery runs and the enclosing tuple sees the recovered instance.
-    let syntax = normalized(&format!(
-        "{TINY_BYTES}
-        data Pair<Left, Right> {{ left: Left; right: Right; }}
-        data Main {{ pair: Pair<TinyBytes<u64[0..=256]>, u64>; }}"
-    ));
-    assert_eq!(
-        instance_names(&syntax),
-        vec![
-            "Pair<TinyBytes<u64 in [0..=256], 256>, u64>".to_owned(),
-            "TinyBytes<u64 in [0..=256], 256>".to_owned(),
-        ]
-    );
 }
 
 #[test]

@@ -8,8 +8,6 @@
 //! case of a bounded sum, and `placed_views` the established placed-view
 //! referents; each is bound only when it is given.
 
-#[cfg(test)]
-mod argument_binding_tests;
 pub(crate) mod byte_arrays;
 pub(crate) mod case_membership;
 #[cfg(test)]

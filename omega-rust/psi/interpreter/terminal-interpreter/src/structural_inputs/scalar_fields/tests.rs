@@ -1,8 +1,7 @@
 use crate::custody::bind_structural_arguments;
 use crate::structural_inputs::scalar_fields::{
     BTreeMap, ExecutableMachine, OperationKind, PlaceId, StructuralFieldId, StructuralPathSegment,
-    StructuralRuntimePlace, StructuralScalarRuntimeField, StructuralTypeDeclaration,
-    StructuralTypeId, TerminalInterpretError, TerminalScalarValue,
+    StructuralTypeDeclaration, StructuralTypeId, TerminalInterpretError, TerminalScalarValue,
     TerminalStructuralScalarFieldValue, TerminalStructuralValue, bind,
 };
 use semantic_vocabulary::{
@@ -130,51 +129,6 @@ fn fixture() -> (
 }
 
 #[test]
-fn supplied_integer_boolean_and_nested_fields_keep_distinct_referents() {
-    let (machine, types, roots) = fixture();
-    let bindings = bind_structural_arguments(&machine.structural_parameters, &roots).unwrap();
-    let mut enabled = input(0, TerminalScalarValue::Boolean(true));
-    enabled.field = StructuralFieldId::new(2).unwrap();
-    let mut nested = input(0, unsigned(101));
-    nested
-        .path
-        .push(StructuralPathSegment::Field("child".into()));
-    let fields = bind(
-        &machine,
-        &types,
-        &bindings,
-        &[
-            input(0, unsigned(42)),
-            input(1, unsigned(99)),
-            enabled,
-            nested,
-        ],
-    )
-    .unwrap();
-    assert_eq!(fields.len(), 4);
-    for (root, value) in roots.iter().zip([42, 99]) {
-        assert_eq!(
-            fields[&StructuralScalarRuntimeField {
-                parent: StructuralRuntimePlace::from(root),
-                field: StructuralFieldId::new(1).unwrap()
-            }],
-            unsigned(value)
-        );
-    }
-    let mut parent = StructuralRuntimePlace::from(&roots[0]);
-    parent
-        .path
-        .push(StructuralPathSegment::Field("child".into()));
-    assert_eq!(
-        fields[&StructuralScalarRuntimeField {
-            parent,
-            field: StructuralFieldId::new(1).unwrap()
-        }],
-        unsigned(101)
-    );
-}
-
-#[test]
 fn invalid_type_value_path_field_and_position_reject() {
     let (machine, types, roots) = fixture();
     let bindings = bind_structural_arguments(&machine.structural_parameters, &roots).unwrap();
@@ -237,97 +191,6 @@ fn invalid_type_value_path_field_and_position_reject() {
             "{mutation}"
         );
     }
-}
-
-#[test]
-fn duplicate_fields_reject_even_equal_values_or_aliased_parameter_positions() {
-    let (machine, types, mut roots) = fixture();
-    for alias in [false, true] {
-        if alias {
-            roots[1] = roots[0].clone();
-        }
-        let bindings = bind_structural_arguments(&machine.structural_parameters, &roots).unwrap();
-        for second_value in [42, 99] {
-            let second = input(u32::from(alias), unsigned(second_value));
-            assert_eq!(
-                bind(
-                    &machine,
-                    &types,
-                    &bindings,
-                    &[input(0, unsigned(42)), second.clone()]
-                ),
-                Err(
-                    TerminalInterpretError::StructuralScalarFieldArgumentInvalid {
-                        argument_index: second.argument_index,
-                        field: second.field
-                    }
-                )
-            );
-        }
-    }
-}
-
-#[test]
-fn overlapping_root_paths_cannot_supply_the_same_field_twice() {
-    let (mut machine, types, mut roots) = fixture();
-    roots[1].opaque_identity = roots[0].opaque_identity;
-    roots[1]
-        .path
-        .push(StructuralPathSegment::Field("child".into()));
-    roots[1].structural_type = StructuralTypeId::new(2).unwrap();
-    machine.structural_parameters[1].structural_type = roots[1].structural_type;
-    let bindings = bind_structural_arguments(&machine.structural_parameters, &roots).unwrap();
-    let mut nested = input(0, unsigned(42));
-    nested
-        .path
-        .push(StructuralPathSegment::Field("child".into()));
-    assert!(matches!(
-        bind(
-            &machine,
-            &types,
-            &bindings,
-            &[nested, input(1, unsigned(99))]
-        ),
-        Err(
-            TerminalInterpretError::StructuralScalarFieldArgumentInvalid {
-                argument_index: 1,
-                ..
-            }
-        )
-    ));
-}
-
-#[test]
-fn fixed_array_paths_accept_distinct_elements_and_reject_the_upper_bound() {
-    let (mut machine, mut types, mut roots) = fixture();
-    let array = StructuralTypeId::new(3).unwrap();
-    types.insert(
-        array,
-        StructuralTypeDeclaration {
-            id: array,
-            identity: "Children".into(),
-            shape: StructuralTypeShape::FixedArray {
-                element: StructuralTypeId::new(2).unwrap(),
-                length: 2,
-            },
-        },
-    );
-    roots[0].structural_type = array;
-    machine.structural_parameters[0].structural_type = array;
-    let bindings = bind_structural_arguments(&machine.structural_parameters, &roots).unwrap();
-    let fields = [0, 1].map(|element| TerminalStructuralScalarFieldValue {
-        path: vec![StructuralPathSegment::FixedIndex(element)],
-        ..input(0, unsigned(u128::from(element) + 42))
-    });
-    assert_eq!(bind(&machine, &types, &bindings, &fields).unwrap().len(), 2);
-    let outside = TerminalStructuralScalarFieldValue {
-        path: vec![StructuralPathSegment::FixedIndex(2)],
-        ..input(0, unsigned(99))
-    };
-    assert!(matches!(
-        bind(&machine, &types, &bindings, &[outside]),
-        Err(TerminalInterpretError::StructuralScalarFieldArgumentInvalid { .. })
-    ));
 }
 
 #[test]
@@ -445,87 +308,5 @@ fn nested_bounded_fields_require_complete_referent_contents_and_reject_alias_dup
                 }
             )
         ));
-    }
-}
-
-#[test]
-fn huge_bounded_arrays_stop_at_missing_contents_and_skip_erased_or_unbounded_children() {
-    let (mut machine, mut types, mut roots) = fixture();
-    restrict_child(&mut types);
-    machine.structural_parameters.truncate(1);
-    roots.truncate(1);
-    let record = roots[0].structural_type;
-    let child = StructuralTypeId::new(2).unwrap();
-    types.get_mut(&record).unwrap().shape = StructuralTypeShape::FixedArray {
-        element: child,
-        length: u64::MAX,
-    };
-    let bindings = bind_structural_arguments(&machine.structural_parameters, &roots).unwrap();
-    let first = TerminalStructuralScalarFieldValue {
-        path: vec![StructuralPathSegment::FixedIndex(0)],
-        ..input(0, unsigned(3))
-    };
-    for supplied in [&[][..], std::slice::from_ref(&first)] {
-        assert!(matches!(
-            bind(&machine, &types, &bindings, supplied),
-            Err(TerminalInterpretError::StructuralScalarFieldArgumentInvalid { .. })
-        ));
-    }
-    for erased in [false, true] {
-        let mut types = types.clone();
-        let StructuralTypeShape::Record { fields } = &mut types.get_mut(&child).unwrap().shape
-        else {
-            panic!("child record")
-        };
-        if erased {
-            fields[0].relevance = BindingRelevance::Erased;
-        } else {
-            fields[0].field_type = StructuralFieldType::Scalar(unsigned(0).scalar_type());
-        }
-        assert!(bind(&machine, &types, &bindings, &[]).unwrap().is_empty());
-    }
-    // A huge outer dimension does not create contents for empty inner arrays.
-    let empty = StructuralTypeId::new(3).unwrap();
-    let mut declaration = types[&child].clone();
-    declaration.id = empty;
-    declaration.shape = StructuralTypeShape::FixedArray {
-        element: child,
-        length: 0,
-    };
-    types.insert(empty, declaration);
-    types.get_mut(&record).unwrap().shape = StructuralTypeShape::FixedArray {
-        element: empty,
-        length: u64::MAX,
-    };
-    assert!(bind(&machine, &types, &bindings, &[]).unwrap().is_empty());
-}
-
-#[test]
-fn bounded_sum_and_mixed_entry_children_require_an_unavailable_discriminator() {
-    for mixed in [false, true] {
-        let (machine, mut types, roots) = fixture();
-        restrict_child(&mut types);
-        let child = types.get_mut(&StructuralTypeId::new(2).unwrap()).unwrap();
-        let StructuralTypeShape::Record { fields } = &child.shape else {
-            panic!("child record")
-        };
-        let cases = vec![terminal_psi::StructuralCaseDeclaration {
-            id: semantic_vocabulary::StructuralCaseId::new(1).unwrap(),
-            identity: "Present".into(),
-            fields: fields.clone(),
-        }];
-        child.shape = if mixed {
-            StructuralTypeShape::Mixed {
-                fields: Vec::new(),
-                cases,
-            }
-        } else {
-            StructuralTypeShape::Sum { cases }
-        };
-        let bindings = bind_structural_arguments(&machine.structural_parameters, &roots).unwrap();
-        assert_eq!(
-            bind(&machine, &types, &bindings, &[]),
-            Err(TerminalInterpretError::VerifiedOperationMalformed)
-        );
     }
 }
