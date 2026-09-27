@@ -32,7 +32,7 @@ pub(super) fn validate(
     }
     validate_shape(checked, reference)?;
     let array =
-        validation::scalar_array_elements(&checked.typed, machine.machine, expression, reference)
+        validation::scalar_array_elements(&checked.typed, machine, expression, reference)
             .ok_or(LoweringError::Unsupported(
             "array constructor source is not an exact primitive array",
         ))?;

@@ -1,7 +1,7 @@
 use crate::tests::flow::terminal_unit::{
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, checked, machine_named,
 };
-use typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess;
+use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralTypeShape};
 
 #[test]
 fn retains_literal_fixed_array_projection_for_direct_unit_calls_with_sibling_custody() {

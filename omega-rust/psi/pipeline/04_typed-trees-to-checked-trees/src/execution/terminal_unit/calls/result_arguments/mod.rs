@@ -730,9 +730,9 @@ pub(super) fn argument(
 /// out, exactly as the owned argument lanes require.
 fn shared_closed_referent(
     program: &TypedTrees,
-    reference: symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle,
-) -> Option<symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceHandle> {
-    let symbol_resolved_trees_to_typed_trees::typed_trees::types::TypeReferenceNode::Reference {
+    reference: typed_trees::types::TypeReferenceHandle,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    let typed_trees::types::TypeReferenceNode::Reference {
         access: language_semantics::ReferenceAccess::Shared,
         referee,
         ..
@@ -741,8 +741,8 @@ fn shared_closed_referent(
         return None;
     };
     (program.type_multiplicity(*referee) == Multiplicity::Unrestricted
-        && (crate::validation::is_closed_primitive_array_type(program, *referee)
-            || crate::validation::has_plain_owned_contents_with_numeric_constraints(
+        && (validation::is_closed_primitive_array_type(program, *referee)
+            || validation::has_plain_owned_contents_with_numeric_constraints(
                 program, *referee,
             )))
     .then_some(*referee)

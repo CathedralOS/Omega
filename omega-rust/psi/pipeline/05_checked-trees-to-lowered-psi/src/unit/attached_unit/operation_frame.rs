@@ -966,7 +966,7 @@ impl OperationFrame<'_, '_> {
             source,
             path: field_path,
             type_identity: store.value.type_identity.clone(),
-            access: typed_trees_to_checked_trees::checked_trees::CheckedStructuralAccess::Owned,
+            access: checked_trees::CheckedStructuralAccess::Owned,
         };
         require_parameter_window_root(self.parameters, &window_place, self.evaluation)?;
         let mut evaluation = WindowEvaluation {
@@ -1168,7 +1168,7 @@ impl OperationFrame<'_, '_> {
             // The dense route registers no result row, so it binds the
             // statement's local here; the state-graph row's own registration
             // already named it.
-            if *source == typed_trees_to_checked_trees::checked_trees::CheckedArrayConstructionSource::Statement {
+            if *source == checked_trees::CheckedArrayConstructionSource::Statement {
                 super::structural_values::bind_local(
                     self.checked,
                     self.state,
