@@ -421,14 +421,22 @@ fn hosted_exit_settlement_replays_and_rejects_forged_rows() {
             "accepted an exit settlement outside the nonreturning tail"
         );
 
-        // A `Return` carrying cleanup actions is not the plain return an exit
-        // settlement requires.
+        // No-code discards may accompany an exit; their exact source and home
+        // custody belongs to downstream graph replay. An executable nominal
+        // cleanup cannot run after a nonreturning settlement and must reject
+        // at this occurrence check, before that body replay.
         let mut changed = lowered.clone();
         changed.functions[0].graph.blocks[0].terminator =
             target_operations::TargetControlTerminator::Return {
                 psi_edge: return_edge,
-                cleanup_actions: vec![terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
-                    semantic_vocabulary::PlaceId::new(909).unwrap(),
+                cleanup_actions: vec![terminal_psi::TerminalAffineCleanupAction::InvokeNominal(
+                    terminal_psi::NominalAffineCleanup {
+                        place: semantic_vocabulary::PlaceId::new(909).unwrap(),
+                        structural_type: semantic_vocabulary::StructuralTypeId::new(909).unwrap(),
+                        cleanup_machine: MachineId::new(909).unwrap(),
+                        cleanup_receiver: None,
+                        requirement_obligations: Vec::new(),
+                    },
                 )],
             };
         assert_eq!(
@@ -439,7 +447,7 @@ fn hosted_exit_settlement_replays_and_rejects_forged_rows() {
                     operation: settlement_operation,
                 }
             ),
-            "accepted an exit settlement under a cleanup return"
+            "accepted an executable cleanup after a nonreturning exit settlement"
         );
 
         // A second retained settlement row under the same source operation is
