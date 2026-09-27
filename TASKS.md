@@ -548,21 +548,24 @@ the complete product bar; focused successes below do not establish that baseline
   [conditional loading premises](wiki/spec/build/component_publication.md#products-and-authority),
   not a fabricated runtime installation grant or mandatory Rust supervisor.
 
-  Compiler integration at `e520528f327` with application
+  Compiler integration at `d5e1542d45e` with application
   `5fd89ec0a100e214a8bc45ba8874b106875b4928` (canonical-range migration,
   not yet published), on macOS ARM64: `omega update --project
-  <application>/squalr-engine-api --target linux_x86_64` reaches package
-  review with four open entailment obligations in
-  `StorageSizeConversions::{metric_scale,binary_scale,metric_place,binary_place}`.
-  The first two require `1 <= result <= u64::MAX`; the latter two require
-  `0 <= result <= 6`. The entailment body judge in
-  `omega-rust/psi/checking/src/proof_contracts/contract_entailment/inductive_judgment.rs`
-  declines local bindings and multiple states; successful later exit checks
-  do not discharge package review. Close these exact proofs and rerun the
-  update before proceeding through the remaining packages. The native
-  `structs/affine_record_state_clone` corpus witness now exits 70 and checks
-  that the returned copy survives mutation of its original; this is compiler
-  evidence for the clone pattern, not full application clone acceptance.
+  <application>/squalr-engine-api --target linux_x86_64`, followed by ordinary
+  local source-replacement review and `omega update --resume --project
+  <application>/squalr-engine-api`, checks the API and publishes its local lock.
+  All four `StorageSizeConversions` result guarantees now close through
+  `omega-rust/psi/checking/src/proof_contracts/contract_entailment/result_bounds.rs`;
+  fresh package replay confirms no assumption certificate is substituted.
+  The previous whole-application update reached scanning and rejected the
+  `u8` to `u64` argument to `ScalarByteArrayScan::shift_bad_load` for losing
+  its `0..255` interval. Shared exact-widening inference and focused call
+  tests now cover that dependency; full application acceptance remains open.
+  Next run `omega update --project <application>/squalr-tests --target
+  linux_x86_64` through ordinary review, then the application check/native
+  harness. Keep the package graph intact. The native
+  `structs/affine_record_state_clone` witness exits 70; neither that witness
+  nor API package acceptance establishes full application clone acceptance.
 
 - **VEC-NATIVE-GROWTH.** (split-of:BUMP-ALLOCATOR-CANARY) Implement ordinary
   library `Vec<T>` for Squalr's growable scan results. Owners:
