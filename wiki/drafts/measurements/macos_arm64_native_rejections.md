@@ -236,6 +236,34 @@ or give that route its own predicate; `value_custody/places.rs::
 unwrapped_type_reference` is the existing helper for stripping the shell.
 Changing the shared predicate would silently re-route 54 other decisions.
 
+## BOUNDARY-PRIMITIVE-ARRAY-PARAMETER: the guard is not the fix
+
+Measured 2026-09-27 by deleting the `is_closed_primitive_array_type` guard
+from the argument loop in `calls/trait_boundary_call.rs`, rebuilding, and
+re-running the reproduction. The program still does not plan. The omission
+ADVANCES from `call operation: boundary arguments` to `completion` — the
+same site a record by value and a `[Point; 2]` by value already decline at.
+
+So that guard stands in front of a shared missing capability rather than
+being its cause, and removing it alone buys nothing except a less specific
+label. The repair is to implement composite-by-value boundary arguments at
+the `completion` site and drop the guard as part of that, once the new route
+is confirmed to carry a plan.
+
+Worth knowing before anyone tries the one-line edit: it compiles, it looks
+like progress, and the sample is exactly as broken afterwards.
+
+### A fixture that was not reproducing
+
+The same experiment exposed that
+`pending/providers/boundary_primitive_array_argument` had been failing Build
+validation rather than omitting — `builder.identifier` admits only
+`A-Z a-z 0-9 .`, and it had been spelled after the fixture's directory name,
+underscores included. It was "verified" by counting `grep -c "error:"` and
+reading 1, which counts errors without checking WHICH error, and the daily
+pending sweep inherited the same blindness. Repaired, and the build file now
+carries the charset note. Count is not verification.
+
 ## Method notes for whoever re-runs this
 
 - The phase string names the last phase ENTERED, not the operation that
