@@ -18,6 +18,11 @@ The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
   the private channel's import exclusion live here, beside program-entry
   settlement. The coordinator supplies the artifact, placement and calling-plan
   roster; no checked-compilation wrapper or new pipeline stage is involved.
+  Its [registrar-import settlement](src/callback_settlement/registrar_imports.rs)
+  joins each ordered callback occurrence to the registrar's separate outbound
+  plan and selected import row. The retained-Terminal and direct-native routes
+  share this operation; exact operation multiplicity and check-only absence of
+  an import remain explicit.
 - `lowering`: one operation-by-operation walk for scalar, Unit, and structural
   results. Optimization selection does not change this projection.
 

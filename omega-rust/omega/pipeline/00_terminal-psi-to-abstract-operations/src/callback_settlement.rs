@@ -1,4 +1,8 @@
-//! Admit a private callback's Terminal interface against its selected calling application.
+//! Admit callback interfaces and rejoin registrar imports to their selected calling applications.
+
+mod registrar_imports;
+
+pub use registrar_imports::{CallbackRegistrarOccurrence, settle_callback_registrar_imports};
 
 use backend_plan::BoundNominalCallbackPlacement;
 use provider_planning::calling_policy_plans::{
