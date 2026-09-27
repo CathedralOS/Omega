@@ -627,6 +627,18 @@ fn literal_fields<'program>(
 }
 
 fn field_by_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<&DataField> {
+    // A frozen program answers every field symbol from one table pass; any
+    // other program rescans, since one query costs less than the index.
+    if let Some(memos) = crate::frozen_program::frozen_program_memos(program) {
+        return memos
+            .data_fields
+            .get_or_init(|| {
+                std::sync::Arc::new(crate::program_scope::data_definitions::DataFieldIndex::of(
+                    program,
+                ))
+            })
+            .field(program, symbol);
+    }
     program.data_definitions().iter().find_map(|definition| {
         program
             .data_members(definition)

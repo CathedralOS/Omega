@@ -126,6 +126,83 @@ pub(crate) fn memoized_data_definition_lookup(
     lookup
 }
 
+/// Where the first data field carrying a symbol sits: a record field of a
+/// definition, or a payload field of one of its cases.
+#[derive(Clone, Copy)]
+enum DataFieldPosition {
+    Member {
+        definition: u32,
+        member: u32,
+    },
+    Payload {
+        definition: u32,
+        member: u32,
+        field: u32,
+    },
+}
+
+/// Every data field symbol's first position, in the definition, member and
+/// payload order a whole-table `find_map` visits them.
+pub(crate) struct DataFieldIndex(symbols::SymbolKeyMap<symbols::SymbolHandle, DataFieldPosition>);
+
+impl DataFieldIndex {
+    pub(crate) fn of(program: &typed_trees::TypedTrees) -> Self {
+        let position = |index: usize| u32::try_from(index).expect("data field position overflow");
+        let mut fields = symbols::SymbolKeyMap::default();
+        for (definition, data) in program.data_definitions().iter().enumerate() {
+            for (member, entry) in program.data_members(data).iter().enumerate() {
+                match entry {
+                    typed_trees::data::DataMember::Field(field) => {
+                        fields
+                            .entry(field.symbol)
+                            .or_insert(DataFieldPosition::Member {
+                                definition: position(definition),
+                                member: position(member),
+                            });
+                    }
+                    typed_trees::data::DataMember::Variant(variant) => {
+                        for (field, payload) in
+                            program.data_payload_fields(variant).iter().enumerate()
+                        {
+                            fields
+                                .entry(payload.symbol)
+                                .or_insert(DataFieldPosition::Payload {
+                                    definition: position(definition),
+                                    member: position(member),
+                                    field: position(field),
+                                });
+                        }
+                    }
+                }
+            }
+        }
+        Self(fields)
+    }
+
+    pub(crate) fn field<'program>(
+        &self,
+        program: &'program typed_trees::TypedTrees,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<&'program typed_trees::data::DataField> {
+        let (definition, member, payload) = match *self.0.get(&symbol)? {
+            DataFieldPosition::Member { definition, member } => (definition, member, None),
+            DataFieldPosition::Payload {
+                definition,
+                member,
+                field,
+            } => (definition, member, Some(field)),
+        };
+        let data = program.data_definitions().get(definition as usize)?;
+        match (program.data_members(data).get(member as usize)?, payload) {
+            (typed_trees::data::DataMember::Field(field), None) => Some(field),
+            (typed_trees::data::DataMember::Variant(variant), Some(field)) => {
+                program.data_payload_fields(variant).get(field as usize)
+            }
+            _ => None,
+        }
+    }
+}
+
 /// A data definition by symbol, resolved through the build-scope memo when
 /// one is open — the declaration slice is otherwise re-scanned per query.
 /// `find`-style callers read the first match; callers that require uniqueness

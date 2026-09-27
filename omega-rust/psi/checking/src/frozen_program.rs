@@ -8,7 +8,7 @@
 
 use crate::declarations::symbols::CallerSiteCaches;
 use crate::machine_calls::calls::CallFrameCaches;
-use crate::program_scope::data_definitions::DataDefinitionIndex;
+use crate::program_scope::data_definitions::{DataDefinitionIndex, DataFieldIndex};
 use crate::proof_contracts::contract_entailment::structural_judgment::{
     EntryMachines, LicenseCandidates,
 };
@@ -37,6 +37,7 @@ pub(crate) struct FrozenProgramMemos {
     pub(crate) caller_sites: OnceLock<Arc<CallerSiteCaches>>,
     pub(crate) content_conservation: OnceLock<Arc<Vec<ContentConservationSourcePlan>>>,
     pub(crate) data_definitions: OnceLock<Arc<DataDefinitionIndex>>,
+    pub(crate) data_fields: OnceLock<Arc<DataFieldIndex>>,
 }
 
 /// Restores the enclosing scope, if any, when dropped.
