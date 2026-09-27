@@ -3,12 +3,11 @@
 // canonical `builder.depend_as("mylib", Source::Path { ... })` row maps the
 // alias, `use mylib::values` resolves INTO the aliased directory (not
 // root-relative), and the depended package's free const substitutes
-// (composing with blocker 4). Dependency packages' own build.omgs are
-// read AS DATA for their transitive depend rows -- their `build`
-// machines never join the program (two would collide).
+// (composing with blocker 4). The dependency's build hook remains scoped to
+// that package rather than colliding with the application's build hook.
 use mylib::values;
+use omega_language_std::console;
 use omega::language::core::binding;
-pub boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console {
     transition ANSWER == 42 { true -> yes() _ -> no() }
