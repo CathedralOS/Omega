@@ -1,0 +1,29 @@
+// A carrier `.len` is a `u64` count -- `counts_and_addresses.md` gives Count
+// as "a nonnegative magnitude. General lengths, sizes, and compiler-facing
+// policy geometry use `u64`". Storing one into a differently-carried
+// destination is therefore an ordinary cross-carrier store and must name the
+// `as` that spells it.
+//
+// It used to reach Terminal instead: the proof layer stamped no carrier on a
+// length, so the store "landed by range" -- a `[u8; 32]` length fits `i32` --
+// nothing rejected it, and the unit plan was omitted with no route, reported
+// as "rejoins 0 Terminal attachment identities". An unhelpful symptom for what
+// is a one-cast authoring mistake.
+use omega::language::std::console;
+use omega::language::core::binding;
+
+domain [u8; 32]::Utf8
+requires
+    valid_utf8(self);
+
+data Main {
+    console: Binding<Console>;
+    message: [u8; 32] in Utf8;
+    width: i32;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.message = "ALERT temp";
+    self.width = self.message.len;
+    self.console.exit_process(self.width);
+}

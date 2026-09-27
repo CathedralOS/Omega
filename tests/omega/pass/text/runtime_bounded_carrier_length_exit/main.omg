@@ -5,7 +5,9 @@ use omega::language::core::binding;
 // whose len sits at +pointer_size. `self.message = "ALERT " + self.label` builds a
 // runtime carrier of length 6 + 4 = 10; `exit_process(self.message.len)` reads that
 // length word and exits 10. (`.len` already worked in guards; this exercises it as
-// a marshaled call argument.)
+// a marshaled call argument.) The `as i32` is load-bearing, not noise: a length
+// is a `u64` count per `counts_and_addresses.md`, so handing it to an `i32`
+// parameter is a cross-carrier store and must be spelled.
 pub domain [u8]::Utf8
 requires
     valid_utf8(self);
@@ -31,6 +33,6 @@ machine Main::main(&mut self) reaches Console {
     self.message = "ALERT " + self.label;
     transition { _ -> done() }
     state done(&mut self) {
-        self.console.exit_process(self.message.len);
+        self.console.exit_process(self.message.len as i32);
     }
 }
