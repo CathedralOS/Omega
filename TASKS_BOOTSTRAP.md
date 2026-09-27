@@ -100,25 +100,6 @@ prerequisite to every lower-rung milestone.
   seed emits the correct raw exit code. Owners: `bootstrap/0_alpha/` and
   `tests/alpha/`.
 
-- **ALPHA-SEED-MEMSIZE-NATIVE-VALIDATION.** Re-forge and re-sign the macOS ARM64
-  Alpha container from the corrected 128-GiB startup extent, repin its audit
-  inventory and `ALPHA_SEED_ARM64_MACOS_*` identities, then run native bounds,
-  conformance and source-reconstruction gates. The
-  [recorded container divergence](bootstrap/0_alpha/README.md#ratified-bounds-hardening-contract)
-  is 32 TiB in the committed container versus 128 GiB in the corrected source
-  and selected semantics; a source edit does not repair the shipped seed.
-  Preserve exact tape bytes, I/O and stack behavior. Windows extent/runtime
-  acceptance stays with ALPHA-WINDOWS-CONFORMANCE.
-
-  The candidate clang rebuild also changes linker encodings, not just the two
-  startup immediates: the committed seed was produced by `macho_v5_transform.py`.
-  Reproduce with `clang -arch arm64 -Wl,-no_uuid`, Apple clang 17.0.0 and
-  CommandLineTools SDK 15.5. Candidate evidence is in `b725fb771e`; it does
-  not close `tests/alpha/bounds.py`'s `ret-stack-exact`, `ret-stack-adjacent`
-  and `call-at-memory-end` cases, which were killed on a loaded host.
-  Establish those results before repinning. Replacing this audited trust root
-  requires the owner's explicit approval; source cleanup alone cannot grant it.
-
 ## P1 - Gamma checker and first complete encoding proof
 
 - **GAMMA-DERIVATION-CHECKER.** Close the first artifact-specific encoding proof
