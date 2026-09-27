@@ -71,7 +71,11 @@ linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i
         )];
         let mut dependencies = Vec::new();
         if let Some(dependency) = &dependency {
-            dependency.write("binding.omg", source);
+            // The carrier keeps its fixture name: the root imports
+            // `accepted_service::service`, which resolves to this package's
+            // `service.omg` member. The `core/binding.omg` convention the
+            // standard library adopted does not rename fixture members.
+            dependency.write("service.omg", source);
             root.write("main.omg", "use accepted_service::service;\n");
             sources.push(PackageSourceBinding::new(
                 owner,
