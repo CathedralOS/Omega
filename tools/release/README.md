@@ -18,6 +18,23 @@ Requirements: Python 3.9+ and Git. Standard library only; identical under
 PowerShell on Windows and sh on macOS/Linux. Gate commands run through `mbx`
 when installed and through Cargo otherwise, per AGENTS.md.
 
+Host prerequisites:
+
+- macOS: the pinned nightly's linker (Apple clang 17) cannot parse
+  `tbd-version: 4` stubs that list `arm64e.x1-*` architectures — a
+  CommandLineTools `MacOSX27.0.sdk` promoted to the default
+  `MacOSX.sdk` symlink makes every build-script and binary link fail with
+  `tapi error: malformed file ... unknown architecture`. Select the Xcode
+  SDK that matches the toolchain instead:
+
+  ```sh
+  export SDKROOT="$(xcode-select -p)/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
+  ```
+
+  Deep parser/checker threads also need `RUST_MIN_STACK=67108864` — the
+  measured suites on this host (corpus legs, native differential) ran under
+  it.
+
 ## Recording a runner row
 
 Each runner row is a *lane*: the contract requires the emitted programs to
