@@ -12,6 +12,12 @@ The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
   this check follows verification and lowering, not canonical decode.
 - `optimization`: verified optimization-unit construction and proof questions.
 - `provider_installation`: exact selected-adapter and installation custody.
+- [callback_settlement.rs](src/callback_settlement.rs): rejoin a produced
+  callback's Terminal interface to its exact selected calling application.
+  Placement replay, requirement identity, scalar/structural ABI matching and
+  the private channel's import exclusion live here, beside program-entry
+  settlement. The coordinator supplies the artifact, placement and calling-plan
+  roster; no checked-compilation wrapper or new pipeline stage is involved.
 - `lowering`: one operation-by-operation walk for scalar, Unit, and structural
   results. Optimization selection does not change this projection.
 
