@@ -10,6 +10,7 @@ mod borrowed_named_results;
 mod borrowed_view_member_calls;
 mod borrowed_whole_view_results;
 mod boundary_byte_buffers;
+mod boundary_operator_frontier;
 mod byte_extent;
 mod byte_sequence_write;
 mod byte_write_loop;
