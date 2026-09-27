@@ -13,6 +13,62 @@ fn mixed_borrowed_calls_replay_linux_arm64() {
     replay(target::NativeTarget::linux_arm64(), 8);
 }
 
+#[test]
+fn attached_scalar_caller_replays_borrowed_arguments_without_an_extra_abi_slot() {
+    for target in [
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::macos_arm64(),
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::windows_x64(),
+    ] {
+        let environment =
+            register_environment::baseline_target_register_environment(target).unwrap();
+        let mut source = fixture::source(target, 1, 1, false);
+        let attachment = semantic_vocabulary::StructuralTypeId::new(2).unwrap();
+        source.attachment = Some(attachment);
+        let signature = source.structural.as_mut().unwrap();
+        let mut declarations = signature.structural_types.to_vec();
+        declarations.push(terminal_psi::StructuralTypeDeclaration {
+            id: attachment,
+            identity: "StaticCaller".into(),
+            shape: terminal_psi::StructuralTypeShape::Record { fields: Vec::new() },
+        });
+        signature.structural_types = declarations.into();
+        let constraints = fixture::constraints(&source, &environment);
+        let selected = build_with_environment(0, &source, &constraints, &environment)
+            .expect("attached metadata does not change the borrowed pointer ABI");
+        crate::selection::validation::scalar_graph::validate_with_environment(
+            0,
+            &source,
+            &selected,
+            &constraints,
+            &environment,
+        )
+        .unwrap();
+        let original = source.clone();
+        source.attachment = Some(semantic_vocabulary::StructuralTypeId::new(99).unwrap());
+        assert!(build_with_environment(0, &source, &constraints, &environment).is_err());
+        assert!(
+            crate::selection::validation::scalar_graph::validate_with_environment(
+                0,
+                &source,
+                &selected,
+                &constraints,
+                &environment,
+            )
+            .is_err()
+        );
+        source = original;
+        source.structural.as_mut().unwrap().parameters[0]
+            .semantic
+            .is_self = true;
+        assert!(
+            build_with_environment(0, &source, &constraints, &environment).is_err(),
+            "a slice parameter cannot impersonate the attached record receiver"
+        );
+    }
+}
+
 fn replay(target: target::NativeTarget, maximum: usize) {
     let environment = register_environment::baseline_target_register_environment(target).unwrap();
     for parameter_count in [0, 1, maximum - 1] {

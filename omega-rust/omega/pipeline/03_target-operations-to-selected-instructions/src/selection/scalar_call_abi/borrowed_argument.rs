@@ -250,24 +250,20 @@ pub(super) fn validate_borrowed_argument(
         },
     )
     .ok()?;
-    // Unit entry attachments and service ceilings are retained declaration
-    // metadata; they do not add ABI arguments. The scalar-result attachment
-    // family remains outside this transport contract.
-    if (source.attachment.is_some()
-        && !exclusive
-        && aggregate.is_none()
-        && byte_view.is_none()
-        // An argument established by an in-activation literal or block
-        // parameter is an established-view transport too; it predates this
-        // family's ABI support no more than the fixed-array view does.
-        && !matches!(
-            target.source,
-            target_operations::TargetStructuralArgumentSource::EstablishedByteView { .. }
-                | target_operations::TargetStructuralArgumentSource::BlockParameter { .. }
-        )
-        && element_view.is_none()
-        && source.call_plan.result.is_some())
-        || !signature.entry_claims.is_empty()
+    // Attachment names the enclosing declaration, not an extra argument or
+    // a different pointer ABI for scalar-returning callers. Rejoin that type
+    // and any explicit receiver; static attached methods have no receiver.
+    // The checks below still reconstruct every incoming/outgoing placement,
+    // referent, projection, and access mode independently.
+    if source.attachment.is_some_and(|attachment| {
+        !signature
+            .structural_types
+            .iter()
+            .any(|declaration| declaration.id == attachment)
+            || signature.parameters.iter().any(|parameter| {
+                parameter.semantic.is_self && parameter.semantic.structural_type != attachment
+            })
+    }) || !signature.entry_claims.is_empty()
         || (!parameters.is_empty()
             && !crate::structural_inputs::unobserved_owned_input::accepts(source)
             && !crate::structural_inputs::structural_unit_input::accepts_graph(
