@@ -519,27 +519,112 @@ fn sibling_argument_constructors_keep_disjoint_scalar_root_scopes() {
         .collect::<Vec<_>>();
     assert_eq!(
         roots.len(),
-        2,
-        "explicit value and omitted-array zero operand"
-    );
-    assert_eq!(
-        roots
-            .iter()
-            .filter(|root| !checked
-                .facts
-                .values
-                .scalar_computations
-                .nodes
-                .get(root.root)
-                .authored_root
-                .is_valid())
-            .count(),
         1,
-        "one synthesized zero root"
+        "only the explicit value has an authored root"
+    );
+    assert!(
+        checked
+            .facts
+            .values
+            .scalar_computations
+            .nodes
+            .get(roots[0].root)
+            .authored_root
+            .is_valid()
     );
     for argument in &arguments {
         validate(&checked, machine, state, argument)
             .expect("each constructor owns its scalar roots, with siblings independently retained");
+    }
+}
+
+#[test]
+fn omitted_array_zero_remains_owned_and_validated_by_its_construction() {
+    let (checked, machine, state, arguments) = sibling_argument_constructions();
+    let CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. } = arguments[0]
+    else {
+        unreachable!()
+    };
+    let plans = &checked.facts.values.structural_values;
+    let CheckedStructuralValueKind::Record { fields, .. } = plans.nodes.get(value).kind else {
+        panic!("record argument");
+    };
+    let (array, element) = plans
+        .record_fields
+        .span(fields)
+        .unwrap()
+        .iter()
+        .find_map(|field| {
+            let checked_trees::CheckedStructuralRecordFieldValue::Structural(array) = field.value
+            else {
+                return None;
+            };
+            let CheckedStructuralValueKind::ZeroedScalarArray { element, .. } =
+                plans.nodes.get(array).kind
+            else {
+                return None;
+            };
+            Some((array, element))
+        })
+        .expect("omitted byte array");
+    assert!(
+        !checked
+            .facts
+            .values
+            .scalar_computations
+            .roots
+            .iter()
+            .any(|(_, root)| root.root == element),
+        "a synthesized literal is not an authored scalar root"
+    );
+    validate(&checked, machine, state, &arguments[0]).expect("declared zeroed array");
+    for mutation in 0..3 {
+        let mut forged = checked.clone();
+        match mutation {
+            0 => {
+                let checked_trees::CheckedScalarComputationKind::Value(
+                    checked_trees::CheckedScalarExpression::IntegerLiteral { literal },
+                ) = &mut forged
+                    .facts
+                    .values
+                    .scalar_computations
+                    .nodes
+                    .get_mut(element)
+                    .kind
+                else {
+                    panic!("synthesized literal");
+                };
+                *literal = numerics::literals::IntegerLiteral::from_value(1)
+                    .with_landing(literal.landing().unwrap());
+            }
+            1 => {
+                let CheckedStructuralValueKind::ZeroedScalarArray { element_count, .. } =
+                    &mut forged
+                        .facts
+                        .values
+                        .structural_values
+                        .nodes
+                        .get_mut(array)
+                        .kind
+                else {
+                    unreachable!()
+                };
+                *element_count += 1;
+            }
+            _ => {
+                forged
+                    .facts
+                    .values
+                    .scalar_computations
+                    .nodes
+                    .get_mut(element)
+                    .primitive_type = checked_trees::types::PrimitiveType::U64
+            }
+        }
+        assert!(
+            validate(&forged, machine, state, &arguments[0]).is_err(),
+            "zeroed array accepted mutation {mutation}"
+        );
     }
 }
 
@@ -574,7 +659,7 @@ fn sibling_argument_root_partition_rejects_injected_and_duplicate_roles() {
         })
         .expect("retained authored scalar field")
         .clone();
-    for mutation in 0..3 {
+    for mutation in 0..4 {
         let mut forged = checked.clone();
         let mut extra = retained.clone();
         extra.role = match mutation {
@@ -586,14 +671,18 @@ fn sibling_argument_root_partition_rejects_injected_and_duplicate_roles() {
                 expression: arena::Handle::invalid(),
                 field_ordinal: 0,
             },
-            _ => retained.role,
+            2 => retained.role,
+            _ => checked_trees::CheckedScalarExpressionRole::RecordField {
+                expression: constructor,
+                field_ordinal: 1,
+            },
         };
         forged.facts.values.scalar_computations.roots.append(extra);
         assert!(
             validate(&forged, machine, state, &arguments[0]).is_err(),
             "current constructor accepted root mutation {mutation}"
         );
-        if mutation != 0 {
+        if mutation == 1 || mutation == 2 {
             assert!(
                 validate(&forged, machine, state, &arguments[1]).is_err(),
                 "sibling scope hid unauthored or duplicated root mutation {mutation}"

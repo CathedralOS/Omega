@@ -277,3 +277,67 @@ fn verified_runtime_indexed_store_retains_index_value_and_bounds_obligation() {
         "the stored scalar rejoins its exact preceding definition"
     );
 }
+
+#[test]
+fn verified_owned_array_read_retains_exact_parameter_and_projection() {
+    let source = r#"
+        data Output { value: u64; }
+        machine Output::from_array(values: [u64; 2]) -> Output {
+            Output { value: values[1] }
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse source");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
+    let terminal = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Output::from_array"),
+    )
+    .expect("owned array projection reaches verified Terminal Psi");
+    let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
+    let proof = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
+        .expect("encode proof");
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .map(|admitted| admitted.into_plan())
+    .expect("owned projection reaches native abstract operations");
+    let (function, read) = plan
+        .functions
+        .iter()
+        .find_map(|function| {
+            function
+                .operations
+                .iter()
+                .find(|operation| {
+                    matches!(operation, AbstractOperation::PrimitiveScalarRead { .. })
+                })
+                .map(|read| (function, read))
+        })
+        .expect("projected read");
+    let AbstractOperation::PrimitiveScalarRead {
+        source,
+        path,
+        result,
+        ..
+    } = read
+    else {
+        unreachable!();
+    };
+    let parameter = &function.structural_parameters[0];
+    assert_eq!(*source, parameter.place);
+    assert_eq!(parameter.access, StructuralAccess::Owned);
+    assert_eq!(parameter.multiplicity, StructuralMultiplicity::Unrestricted);
+    assert_eq!(path, &[terminal_psi::StructuralPathSegment::FixedIndex(1)]);
+    assert_eq!(
+        result.scalar_type,
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap())
+    );
+}

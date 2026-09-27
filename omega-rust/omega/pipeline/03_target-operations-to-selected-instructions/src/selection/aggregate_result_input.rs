@@ -44,7 +44,10 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
             | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { source, .. }
             | LegalizedScalarInstructionKind::StructuralByteSequenceFieldRead { source, .. } => source.place == place,
             LegalizedScalarInstructionKind::StructuralCaseMembership { source, path, .. } => *source == place && !path.is_empty(),
-            LegalizedScalarInstructionKind::StructuralLeafCopy { source, .. } => *source == place,
+            // Projected primitive reads need the same addressable owned home
+            // as field observations, including arrays passed in ABI registers.
+            LegalizedScalarInstructionKind::PrimitiveScalarRead { source, .. }
+            | LegalizedScalarInstructionKind::StructuralLeafCopy { source, .. } => *source == place,
             LegalizedScalarInstructionKind::Call(call) => call.arguments.iter().any(|argument| {
                 matches!(argument, legalized_operations::LegalizedScalarArgument::Structural { semantic, .. }
                     if semantic.place == place && semantic.access != StructuralAccess::Owned)

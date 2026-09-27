@@ -138,7 +138,7 @@ pub(super) fn argument(
         let indices = super::scalar_sources::runtime_indices(
             runs,
             function,
-            &super::scalar_sources::ScalarSources::from(&*live),
+            &super::scalar_sources::ScalarSources::from(live),
         )?;
         (selected, shape, offset, indices)
     };

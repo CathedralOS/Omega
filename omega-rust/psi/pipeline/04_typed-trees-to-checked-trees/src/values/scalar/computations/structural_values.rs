@@ -1803,16 +1803,9 @@ impl Builder<'_, '_> {
                     primitive_type,
                     kind: checked_trees::CheckedScalarComputationKind::Value(zero),
                 });
-            self.plans.roots.append(CheckedScalarComputationRoot {
-                machine: self.machine,
-                state: self.state,
-                statement_ordinal: u32::try_from(self.statement_index).ok()?,
-                role: CheckedScalarExpressionRole::RecordField {
-                    expression,
-                    field_ordinal: u32::try_from(fields.len()).ok()?,
-                },
-                root: element,
-            });
+            // This literal has no authored scalar occurrence. The zeroed array
+            // owns its node; structural replay checks the declared carrier,
+            // element count and literal zero before emission.
             let node = values.nodes.append(CheckedStructuralValue {
                 expression,
                 kind: CheckedStructuralValueKind::ZeroedScalarArray {

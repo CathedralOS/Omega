@@ -131,14 +131,22 @@ pub(super) fn lower(
                 .or_else(|| {
                     parameter(machine, types, source)
                         .filter(|parameter| {
-                            matches!(
+                            // A projected read observes the owned aggregate's
+                            // existing storage. An empty path still requires
+                            // a primitive referent or established local.
+                            (matches!(
                                 parameter.access,
                                 StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                            ) && (parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                                || (!path.is_empty()
-                                    && parameter.multiplicity == StructuralMultiplicity::Affine))
+                            ) || (parameter.access == StructuralAccess::Owned && !path.is_empty()))
+                                && (parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                                    || (!path.is_empty()
+                                        && parameter.multiplicity
+                                            == StructuralMultiplicity::Affine))
                                 && parameter.qualifications.is_empty()
                                 && parameter.projected_qualifications.is_empty()
+                                && super::structural_scalar_fields::has_empty_structural_custody(
+                                    machine, source,
+                                )
                         })
                         .map(|parameter| parameter.structural_type)
                 })

@@ -343,21 +343,23 @@ pub(crate) fn build_checked_value_computation_plans(
                     );
                 }
                 if let StatementNode::LocalData(local) = statement {
-                    let argument_roots = (!local.is_mutable
-                        || program
-                            .primitive_type_reference(local.type_reference)
-                            .is_none())
+                    let structural_destination = program
+                        .primitive_type_reference(local.type_reference)
+                        .is_none();
+                    let argument_roots = (!local.is_mutable || structural_destination)
                         && validation::result_initializer_call_is_supported(
                             program,
                             machine,
                             local.initial_value,
                         );
-                    if argument_roots
+                    if (argument_roots || structural_destination)
                         && let ExpressionNode::Call(call) =
                             program.expression_table.expression(local.initial_value)
                     {
-                        // The result operation owns the outer call. Only its operands
-                        // become computations, before the destination enters scope.
+                        // Structural result operations need their argument roots
+                        // regardless of the enclosing state's return type. Keep
+                        // scalar whole-call ownership in argument_roots below;
+                        // retaining operands does not establish a result operation.
                         builder.record_call_arguments(
                             pure,
                             &mut structural_values,

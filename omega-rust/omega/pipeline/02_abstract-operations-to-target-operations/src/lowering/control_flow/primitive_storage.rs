@@ -481,10 +481,11 @@ pub(super) fn lower(
                             && (!path.is_empty()
                                 || parameter.multiplicity == StructuralMultiplicity::Unrestricted)
                             && parameter.projected_qualifications.is_empty()
-                            && matches!(
+                            && (matches!(
                                 parameter.access,
                                 StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                            )
+                            ) || (parameter.access == StructuralAccess::Owned
+                                && !path.is_empty()))
                     })
                     .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
                     .structural_type

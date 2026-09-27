@@ -144,10 +144,11 @@ pub(super) fn validate(
                         )
                         .find(|parameter| parameter.place == *source)
                         .ok_or(LegalizationError::custody())?;
-                    if !matches!(
+                    if !(matches!(
                         parameter.access,
                         StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                    ) || parameter.multiplicity == StructuralMultiplicity::Linear
+                    ) || (parameter.access == StructuralAccess::Owned && !path.is_empty()))
+                        || parameter.multiplicity == StructuralMultiplicity::Linear
                         || (path.is_empty()
                             && parameter.multiplicity != StructuralMultiplicity::Unrestricted)
                         || !parameter.qualifications.is_empty()

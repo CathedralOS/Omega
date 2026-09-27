@@ -15,6 +15,10 @@ data ScanCompareType [copy] {
     case Immediate(compare_type: ScanCompareTypeImmediate);
     case Relative;
 }
+data ValueFormat [copy] {
+    case Decimal;
+    case Hexadecimal;
+}
 
 data Payload { value: u64; }
 data Context { padding: [u64; 2]; value: u64; }
@@ -24,6 +28,15 @@ data Message {
 }
 
 data Output { value: u64; }
+machine Output::from_format(format: ValueFormat) -> Output {
+    transition format {
+        ValueFormat::Decimal -> (Output { value: 10 })
+        ValueFormat::Hexadecimal -> (Output { value: 0 })
+    }
+}
+machine Output::from_array(values: [u64; 2]) -> Output {
+    Output { value: values[1] }
+}
 machine Output::from_compare(context: Context, compare: ScanCompareType) -> Output {
     transition compare {
         ScanCompareType::Immediate { compare_type } -> (Output { value: context.value })
@@ -50,10 +63,27 @@ machine Main::main(&mut self) reaches Console {
         Message::Present { payload: Payload { value: 40 } }
     );
     let forwarded: Output = Output::forward(message);
-    transition comparison.value == 30 && forwarded.value == 40 {
+    let constructed: bool = self.construct();
+    transition comparison.value == 30 && forwarded.value == 40 && constructed {
         true -> passed()
         false -> failed()
     }
     state passed(&mut self) { self.console.exit_process(70); }
     state failed(&mut self) { self.console.exit_process(71); }
+}
+
+// Scalar-returning callers retain the same constructed argument occurrences
+// as Unit callers, including simple cases, nested payloads and scalar arrays.
+machine Main::construct(&mut self) -> bool {
+    let format: Output = Output::from_format(ValueFormat::Decimal);
+    let comparison: Output = Output::from_compare(
+        Context { value: 30 },
+        ScanCompareType::Immediate { compare_type: ScanCompareTypeImmediate::Equal }
+    );
+    let message: Output = Output::from_message(
+        Message::Present { payload: Payload { value: 40 } }
+    );
+    let forwarded: Output = Output::forward(message);
+    let array: Output = Output::from_array([11, 29]);
+    format.value == 10 && comparison.value == 30 && forwarded.value == 40 && array.value == 29
 }

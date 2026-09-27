@@ -135,11 +135,6 @@ pub(super) fn validate(
             {
                 return unsupported("record establishment omitted a non-zeroable member");
             }
-            operand_roles.push(CheckedScalarExpressionRole::RecordField {
-                expression,
-                field_ordinal: u32::try_from(ordinal)
-                    .map_err(|_| LoweringError::Unsupported("record field ordinal overflow"))?,
-            });
             pending.push((
                 value,
                 field.expression,
