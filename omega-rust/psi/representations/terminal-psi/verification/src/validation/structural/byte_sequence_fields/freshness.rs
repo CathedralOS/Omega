@@ -130,7 +130,16 @@ fn changes_length(
                     },
                 )
         }
-        OperationKind::WriteOnlyPrimitiveStore { destination, .. } => *destination == root,
+        OperationKind::WriteOnlyPrimitiveStore {
+            destination,
+            path: written,
+            ..
+        } => {
+            // A primitive-array sibling write cannot change this field's
+            // extent. Prefixes and possibly aliasing runtime indices still
+            // overlap under the shared projection rule.
+            *destination == root && terminal_semantics::structural_paths_may_overlap(path, written)
+        }
         OperationKind::AtomicAccess { place, event, .. } => {
             event.modifies_resident() && *place == root
         }
