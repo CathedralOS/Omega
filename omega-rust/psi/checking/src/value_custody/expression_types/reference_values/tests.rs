@@ -221,6 +221,81 @@ fn shared_slice_views_forget_constrained_referee_predicates() {
 }
 
 #[test]
+fn owned_constrained_array_satisfies_only_the_view_domain_it_proves() {
+    // `[u8; N] in D` to `&[u8] in D`: the owned carrier's declared domain
+    // implies the view's identical constraint, so the correspondence carries
+    // the callee's claim across the fixed-to-view projection. An
+    // unconstrained array still cannot invent that domain.
+    let program = crate::front_end::typed_program(
+        "domain [u8]::Utf8 requires valid_utf8(self);
+         domain [u8; 4]::Utf8 requires valid_utf8(self);
+         data Holder { text: [u8; 4] in Utf8; plain: [u8; 4]; }
+         machine inspect(value: Holder, expected: &[u8] in Utf8, narrow: &[u16]) {
+             value.text; value.plain;
+         }",
+    );
+    assert!(
+        projected_matches_reference(&program, member(&program, "value.text"), expected(&program)),
+        "an owned `[u8; 4] in Utf8` view satisfies `&[u8] in Utf8`"
+    );
+    assert!(
+        !projected_matches_reference(
+            &program,
+            member(&program, "value.plain"),
+            expected(&program)
+        ),
+        "a bare `[u8; 4]` cannot satisfy the callee's constrained referee"
+    );
+    let parameters = program.state_parameters(&program.machine_states(&program.machines()[0])[0]);
+    assert!(
+        !projected_matches_reference(
+            &program,
+            member(&program, "value.text"),
+            parameters[2].type_reference,
+        ),
+        "the byte-carrier bridge does not change the element type"
+    );
+    // Through an actual reference the same implication admits the matching
+    // constrained view and still refuses an unproven one.
+    let program = crate::front_end::typed_program(
+        "domain [u8]::Utf8 requires valid_utf8(self);
+         domain [u8; 4]::Utf8 requires valid_utf8(self);
+         machine inspect(value: &[u8; 4] in Utf8, expected: &[u8] in Utf8) { value; }",
+    );
+    assert!(
+        argument_matches_type_reference_handle(
+            &program,
+            program
+                .expression_table
+                .iter_expressions()
+                .find_map(|(handle, node)| {
+                    (matches!(node, ExpressionNode::Name(_))
+                        && program.expression_table.display_name(handle) == "value")
+                        .then_some(handle)
+                })
+                .expect("named reference"),
+            expected(&program),
+        ),
+        "a `&[u8; 4] in Utf8` actual satisfies `&[u8] in Utf8`"
+    );
+    let program = crate::front_end::typed_program(
+        "domain [u8]::Utf8 requires valid_utf8(self);
+         domain [u8; 4]::Plain requires valid_utf8(self);
+         machine inspect(value: &[u8; 4] in Plain, expected: &[u8] in Utf8) { value; }",
+    );
+    let parameters = program.state_parameters(&program.machine_states(&program.machines()[0])[0]);
+    assert!(
+        !reference_type_matches(
+            &program,
+            parameters[0].type_reference,
+            parameters[1].type_reference,
+            &[]
+        ),
+        "an unrelated `[u8; 4]` domain cannot satisfy `&[u8] in Utf8`"
+    );
+}
+
+#[test]
 fn repeated_generic_telescope_projection_remains_explicitly_unsupported() {
     let program = crate::front_end::typed_program(
         "data Box<Element> { value: Element; } machine inspect<Value>(value: Box<Box<Value>>, expected: &Value) { value.value.value; }",
