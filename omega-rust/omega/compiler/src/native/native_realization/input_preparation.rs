@@ -6,7 +6,7 @@ use crate::native::native_realization::realization_request::{
     NativeRealizationInput, NativeRealizationRequest,
 };
 use diagnostics::Diagnostic;
-use terminal_psi_to_abstract_operations::TerminalPlacedViewEstablishment;
+use terminal_psi_to_abstract_operations::{ArtifactLoweringError, TerminalPlacedViewEstablishment};
 
 /// Reusable target-neutral lowering of one exact canonical Terminal artifact.
 ///
@@ -111,14 +111,9 @@ pub(crate) fn lower_realization_input(
     profile: &proof_admission::AdmissionProfile,
     placed_view_establishments: &[TerminalPlacedViewEstablishment],
 ) -> Result<NativeRealizationInput, Vec<Diagnostic>> {
-    // This leg requires the sealed PSIPSC proof section: the section must name
-    // the identity reconstructed from this exact module, so a bare proof
-    // bundle or a section sealed to another subject is rejected here rather
-    // than inside the still-transitional admission decode beneath.
-    let module = terminal_codec::decode_module(semantic_bytes)
-        .map_err(|error| realization_error("semantic section", error))?;
-    terminal_codec::decode_proof_section_for(&module, proof_bytes)
-        .map_err(|error| realization_error("proof section", error))?;
+    // Artifact admission owns semantic decoding and subject-sealed proof
+    // admission. Its typed errors retain section-specific diagnostics without
+    // decoding the same sections again in the coordinator.
     terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes,
@@ -128,5 +123,11 @@ pub(crate) fn lower_realization_input(
         profile,
     )
     .and_then(|admitted| admitted.try_into_native_input(placed_view_establishments))
-    .map_err(|error| realization_error("native artifact lowering", error))
+    .map_err(|error| match error {
+        ArtifactLoweringError::SemanticDecode(error) => {
+            realization_error("semantic section", error)
+        }
+        ArtifactLoweringError::ProofDecode(error) => realization_error("proof section", error),
+        error => realization_error("native artifact lowering", error),
+    })
 }
