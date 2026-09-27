@@ -33,7 +33,24 @@ pub fn validate_wire_protocol(
         })
         .collect();
     let report = build_wire_protocol_report(typed, compatibility_demands, &verifications);
-    let verification_diagnostics: Vec<Diagnostic> = verifications
+    let refusal_diagnostics = verification_diagnostics(&verifications);
+    match (validate_wire_protocol_report(&report), refusal_diagnostics) {
+        (Ok(()), empty) if empty.is_empty() => Ok(()),
+        (Ok(()), diagnostics) => Err(diagnostics),
+        (Err(mut report_diagnostics), mut verification_diagnostics) => {
+            report_diagnostics.append(&mut verification_diagnostics);
+            Err(report_diagnostics)
+        }
+    }
+}
+
+/// The consumer-facing refusal of a generated codec whose independent
+/// verification PROVED a divergence: refused trust is a compile-time
+/// diagnostic, never a report-only downgrade.
+fn verification_diagnostics(
+    verifications: &BTreeMap<String, Result<WireCodecVerification, String>>,
+) -> Vec<Diagnostic> {
+    verifications
         .iter()
         .filter_map(|(path, result)| {
             result.as_ref().err().map(|divergence| {
@@ -43,18 +60,7 @@ pub fn validate_wire_protocol(
                 ))
             })
         })
-        .collect();
-    match (
-        validate_wire_protocol_report(&report),
-        verification_diagnostics,
-    ) {
-        (Ok(()), empty) if empty.is_empty() => Ok(()),
-        (Ok(()), diagnostics) => Err(diagnostics),
-        (Err(mut report_diagnostics), mut verification_diagnostics) => {
-            report_diagnostics.append(&mut verification_diagnostics);
-            Err(report_diagnostics)
-        }
-    }
+        .collect()
 }
 
 fn validate_wire_protocol_report(report: &WireProtocolReport) -> Result<(), Vec<Diagnostic>> {
@@ -199,20 +205,31 @@ fn build_wire_protocol_report(
         });
         // Trust class follows the codec spec's realization table: Derived is
         // "authored or generated body independently checked against the
-        // public requirement", and "only a fully exercised requirement
-        // reports `Derived`" (spec, layouts/codecs.md).
+        // public requirement" (spec, layouts/codecs.md). The spec requires
+        // that evidence "establish the public requirement for every input
+        // covered by its contract, tied to the exact codec realization and
+        // schema".
         //
-        // Only the interpreter's generated-codec verification closing with no
-        // coverage gaps establishes that. The authored `CompactBinary::plan`
-        // grammar policy does NOT: `policy_verified` records that the policy's
-        // PLACEMENTS agree with the codec's walk
-        // (`build-time-evaluation/src/layouts/wire_plans.rs`), which is a check
-        // on the plan, not on the body's `decode(encode(value)) == value`. Two
-        // independent derivations of a field layout agreeing is real evidence
-        // and is retained as such, but it is not the body check, so it leaves
-        // the realization compiler-admitted: "an unverified generated
-        // realization remains compiler-admitted". A proven divergence never
-        // reports Derived.
+        // No current evidence tier reaches that bar for a generated codec:
+        //
+        // * The interpreter's generated-codec verification is a DIFFERENTIAL
+        //   PROBE suite over selected members (Floor/Ceiling) and malformed
+        //   frames. The spec is explicit: "differential probes over selected
+        //   values and malformed frames are regression checks, not a
+        //   general agreement argument. Reporting their finite scope does
+        //   not qualify the realization as `Derived`."
+        // * The authored `CompactBinary::plan` grammar policy is checked
+        //   against the same obligation rather than standing in for it:
+        //   `policy_verified` records that the policy's PLACEMENTS agree with
+        //   the codec's walk (`build-time-evaluation/src/layouts/wire_plans.rs`),
+        //   which is a check on the plan, not on the body's
+        //   `decode(encode(value)) == value` for every input.
+        //
+        // Both are recorded as the evidence they are, and the realization
+        // reports `Admitted`, naming the compiler as the trusted party,
+        // until general agreement evidence tied to the exact realization
+        // exists. A proven divergence never reports Derived: it is a
+        // compile-time diagnostic.
         let plan_evidence =
             "normalized compact_binary plan validated against the schema walk".to_owned();
         let policy_verified = typed.wire_schema_plan_policy_verified(source_schema.symbol);
@@ -222,28 +239,11 @@ fn build_wire_protocol_report(
                 .to_owned()
         };
         match verifications.get(&row.qualified_path) {
-            // The whole requirement exercised and passed: the codec's trust
-            // is derived from the check, not the generator's authority.
-            Some(Ok(verification)) if verification.gaps.is_empty() => {
-                schema.trust_class = Some(WireTrustClass::Derived);
-                let mut evidence = vec![
-                    plan_evidence,
-                    format!(
-                        "independently checked against the public codec requirement: {}",
-                        verification.checks.join("; ")
-                    ),
-                ];
-                if policy_verified {
-                    evidence.push(policy_evidence());
-                }
-                schema.realization_evidence = evidence;
-            }
-            // Partially exercised: report what was verified. The authored
-            // grammar policy remains an independent check for the rest;
-            // without it the uncovered portion stays generator-admitted.
+            // The probe suite ran. Whether it closed with or without gaps,
+            // its checks are finite-scope regression evidence: the codec
+            // row stays compiler-admitted, and what was exercised (or left
+            // uncovered) is recorded.
             Some(Ok(verification)) => {
-                // Partially exercised. The uncovered portion has no body
-                // check, and plan agreement cannot stand in for one.
                 schema.trust_class = Some(WireTrustClass::Admitted {
                     authority: "Omega compiler".to_owned(),
                 });
@@ -258,16 +258,21 @@ fn build_wire_protocol_report(
                         "independent verification passed: {}",
                         verification.checks.join("; ")
                     ));
+                    if verification.gaps.is_empty() {
+                        evidence.push(
+                            "differential probes over selected members are regression \
+                             checks, not the general agreement law; the realization \
+                             stays compiler-admitted"
+                                .to_owned(),
+                        );
+                    }
                 }
                 if policy_verified {
                     evidence.push(policy_evidence());
+                }
+                if !verification.gaps.is_empty() {
                     evidence.push(format!(
-                        "interpreter verification coverage gap: {}",
-                        verification.gaps.join("; ")
-                    ));
-                } else {
-                    evidence.push(format!(
-                        "coverage gap keeps generator-admitted trust: {}",
+                        "independent verification coverage gap: {}",
                         verification.gaps.join("; ")
                     ));
                 }
@@ -1337,6 +1342,7 @@ mod tests {
         ScopeTable, build_wire_protocol_report, codec_requirement_report_identity,
         compatibility_verdicts, encode_requirement_report_identity, fields_equal,
         normalized_wire_plan_report_identity, qualified_schema_path, schema_accepts, search_route,
+        verification_diagnostics,
     };
     use artifacts::{
         WireFieldRelevance, WireFieldReportEntry, WireSchemaReportEntry, WireTrustClass,
@@ -1473,7 +1479,12 @@ mod tests {
     }
 
     #[test]
-    fn independently_verified_generated_codec_reports_derived_trust() {
+    fn probe_checked_generated_codec_stays_compiler_admitted() {
+        // The whole probe suite passes with no coverage gap — yet
+        // differential probes over selected members are finite regression
+        // checks, not the general agreement law, so the codec's row stays
+        // `Admitted`, naming the compiler. The passed checks remain on the
+        // artifact report as the evidence they are.
         use source_files_to_tokens::Lexer;
         use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
         use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
@@ -1505,12 +1516,94 @@ mod tests {
             .iter()
             .find(|row| row.name == "Packet")
             .expect("packet row");
-        assert_eq!(row.trust_class, Some(WireTrustClass::Derived));
+        assert_eq!(
+            row.trust_class,
+            Some(WireTrustClass::Admitted {
+                authority: "Omega compiler".to_owned(),
+            }),
+            "finite probes never earn Derived"
+        );
         assert!(
             row.realization_evidence
                 .iter()
-                .any(|entry| entry.contains("independently checked"))
+                .any(|entry| entry.contains("independent verification passed")),
+            "{:#?}",
+            row.realization_evidence
         );
+        assert!(
+            row.realization_evidence
+                .iter()
+                .any(|entry| entry.contains("not the general agreement law")),
+            "the row names why finite evidence stays admitted: {:#?}",
+            row.realization_evidence
+        );
+    }
+
+    #[test]
+    fn divergent_generated_codec_is_admitted_and_refused() {
+        // A PROVEN divergence is refused trust: the report row names it and
+        // keeps the codec compiler-admitted, and validation emits the
+        // diagnostic that rejects the build.
+        use source_files_to_tokens::Lexer;
+        use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+        use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+        use tokens_to_syntax_trees::parse_syntax_trees;
+
+        let tokens = Lexer::new(
+            "data Packet { #0 tag: u32; #1 depth: i32; } \
+             machine main() -> i32 { transition true { true -> 7 false -> 0 } }",
+        )
+        .tokenize()
+        .expect("wire tokens");
+        let syntax = parse_syntax_trees(&tokens).expect("wire syntax");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("wire symbols");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("wire types");
+
+        let packet_path = qualified_schema_path(
+            &typed,
+            typed.wire_schemas()[0].symbol,
+            typed.wire_schemas()[0].name.as_str(),
+        );
+        let verifications: BTreeMap<_, _> = [(
+            packet_path.clone(),
+            Err::<checked_interpreter::WireCodecVerification, _>(
+                "Packet: generated encode emission diverges".to_owned(),
+            ),
+        )]
+        .into_iter()
+        .collect();
+        let report = build_wire_protocol_report(&typed, &[], &verifications);
+        let row = report
+            .schemas
+            .iter()
+            .find(|row| row.name == "Packet")
+            .expect("packet row");
+        assert_eq!(
+            row.trust_class,
+            Some(WireTrustClass::Admitted {
+                authority: "Omega compiler".to_owned(),
+            }),
+            "a proven divergence never reports Derived"
+        );
+        assert!(
+            row.realization_evidence
+                .iter()
+                .any(|entry| entry.contains("codec divergence")),
+            "{:#?}",
+            row.realization_evidence
+        );
+
+        let diagnostics = verification_diagnostics(&verifications);
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].is_error());
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("failed independent verification"),
+            "{}",
+            diagnostics[0].message
+        );
+        assert!(diagnostics[0].message.contains("Packet"));
     }
 
     fn edge(
