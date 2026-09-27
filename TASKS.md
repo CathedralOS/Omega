@@ -7336,7 +7336,41 @@ release acceptance still requires complete coverage. Remaining reported failures
   Acceptance: same-commit full-gate results with native observations and exact
   expected skips; Linux emission evidence cannot close this task.
 
-  The corpus native leg has no checked-in macOS ARM64 golden.
+  The corpus native leg NOW HAS a checked-in macOS ARM64 golden, recorded
+  2026-09-27 at `a9478e720fc`: `tests/omega/corpus_native_macos_arm64.txt`,
+  724 fixtures. The file existed before that but held only its header, so the
+  leg had zero recorded rows and nothing could detect movement in it.
+  **724 fixtures: 287 checked, 187 built, 250 rejected; 137 EXECUTED, of which
+  105 exit 70**, 0 with stdout differing from expected. Six take `signal:5`
+  and all six are the `*trapping*`/`*_traps*` fixtures, where the trap IS the
+  asserted behavior (`runtime_trapping_overflow_traps` says so outright) --
+  read them as passes, not crashes. The remaining executed rows exit their own
+  expected codes. That roster is the RC-NATIVE-MATRIX-MACOS-ARM64 measurement
+  leg; what is still missing is the lane row, below.
+
+  Host prerequisite, measured on this host and corrected in
+  `tools/release/README.md`: no Xcode is required. The README told the reader
+  to point `SDKROOT` at `$(xcode-select -p)/Platforms/.../MacOSX.sdk`, a path
+  that does not exist on a CommandLineTools-only host. Only the `MacOSX27.0.sdk`
+  stub needs avoiding; where the default resolves to `MacOSX15.5.sdk`, the full
+  native leg emits and executes Mach-O with `SDKROOT` UNSET under the pinned
+  `nightly-2026-09-04`.
+
+  Two `macos_arm64` records DO now exist under `tools/release/records/`, written
+  by another session on 2026-09-27 at `0293d4cad9` (7 of 8 gates fail in the
+  later one; RC-DIAGNOSTICS passes). The row is still open for the reason the
+  next paragraph gives: every `platform_runs` entry, `macos_arm64` included,
+  carries `native_execution_exit: None`.
+
+  NOT CLAIMED, deliberately. The lane reads `recorded` when a
+  `--native-execution` command exits 0, and `python3 tools/corpus_gate.py
+  --native` now exits 0 against the golden just recorded -- but that golden
+  PINS the 250 rejections, because the corpus golden is a movement detector
+  that "pins the red as well as the green". Passing it as this lane's
+  native-execution observation would certify Mach-O correctness on evidence
+  that asserts no such thing, which is exactly what this item warns against.
+  Closing the lane needs an observation whose success means the programs ran
+  correctly, not that they ran the same as last time.
   `-p compiler --all-targets` (RC-SOURCE-SEMANTICS) at `04d2099ae1`: 3281 run,
   2014 passed, 1267 failed, 0 skipped (22583.2 s) — the `samples_compile` leg inside it
   (RC-REPRESENTATIVE-PROGRAMS) read 33 run, 11 passed, 22 failed. The full
@@ -7344,9 +7378,9 @@ release acceptance still requires complete coverage. Remaining reported failures
   [macos_arm64_rc_gates](wiki/drafts/measurements/macos_arm64_rc_gates.md):
   ProgramEntry/Terminal-attachment rejoins, `runtime policy realization`
   lowering gaps (ARITHMETIC-POLICY-REALIZATION), and domain-admission gaps
-  (CANONICALIZE-SCALAR-RANGE-CONTRACTS). No `macos_arm64` record exists under
-  `tools/release/records/` — the recorder writes a lane only with a passing
-  `--native-execution` observation, so the row stays open on this evidence.
+  (CANONICALIZE-SCALAR-RANGE-CONTRACTS). The recorder writes a lane only with
+  a passing `--native-execution` observation, so the row stays open on this
+  evidence even though two `macos_arm64` records now exist.
 
   Use [known baseline failures](wiki/drafts/measurements/known_baseline_failures.md)
   for prior failing names and expected skips, then reproduce at the release
