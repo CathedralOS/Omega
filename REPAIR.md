@@ -39,8 +39,6 @@ Land in this order so each repair collides with the fewest in-flight changes:
 
 - `LOWERING-ROUTE-CONSOLIDATION` — seven parallel whole-module producers
   collapse to one route.
-- `POST-HANDOFF-WRITER-OWNERSHIP` — portable materialization description vs.
-  consumer implementation.
 - `PCC-CANONICAL-SEMANTIC-LEDGER` — trusted fusion replaced by a checkable
   ledger.
 
@@ -49,10 +47,6 @@ Land in this order so each repair collides with the fewest in-flight changes:
 - `OWNED-SELF-RECEIVER-AFFINE-DISCARD` — receiver-only exemption bypasses
   cleanup validation.
 - `FILTERED-CALLEE-CALL-SITES` — dropped calls produce no diagnostic.
-- `TYPED-TREES-OWNED-INDEXES` — symbol caches guess freshness from arena
-  lengths.
-- `NATIVE-WRAPPER-ENCODING-AARCH64` — selects the x86-64 template for
-  aarch64.
 - `CALLBACK-PRIVATE-MATERIALIZATION` — reported `fragment import lacks
   selected call custody` failure; the item says reproduce and repair.
 - `NOMINAL-FIELD-FLOW` — receiver-specific default-domain exception;
@@ -67,9 +61,6 @@ Land in this order so each repair collides with the fewest in-flight changes:
 
 - `ALPHA-WINDOWS-DIV-TRAP` — Windows `div`/`mod` take hardware faults instead
   of the audited trap routine.
-- `ALPHA-SEED-MEMSIZE-NATIVE-VALIDATION` — appears discharged by
-  `1a70b42afe` (34/34 conformance, 78/78 bounds natively); verify and delete
-  rather than re-work.
 
 ## Basis: corpus and release gates
 
@@ -84,7 +75,7 @@ Land in this order so each repair collides with the fewest in-flight changes:
 - `RC-NATIVE-MATRIX-LINUX-X86-64`, `RC-NATIVE-MATRIX-LINUX-ARM64`,
   `RC-NATIVE-MATRIX-MACOS-ARM64`, `RC-NATIVE-MATRIX-WINDOWS-X64`,
   `MACOS-X64-HOST-PROFILE` — matching-host evidence legs.
-- `GENERATED-CODEC-INDEPENDENT-VERIFICATION`, `SYMBOLIC-MATERIALIZATION`
+- `SYMBOLIC-MATERIALIZATION`
 
 ## Basis (TASKS_OPTIMIZER.md)
 
