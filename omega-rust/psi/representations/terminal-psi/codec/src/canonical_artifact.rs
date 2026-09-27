@@ -31,6 +31,29 @@ pub struct CanonicalTerminalArtifact {
     optimization: PsiOptimizationExecutionRecord,
     debug_bytes: Option<Vec<u8>>,
     manifest: TerminalArtifactManifest,
+    replayed: SectionReplay,
+}
+
+/// Set once `validate` has replayed an artifact's sections successfully.
+/// The sections are private and never change after construction, so a later
+/// replay of the same artifact reaches the same verdict; the compiler's
+/// custody checks revalidate one artifact many times per compilation.
+/// Equality ignores it, and its debug form carries no state.
+#[derive(Default)]
+struct SectionReplay(std::sync::OnceLock<()>);
+
+impl PartialEq for SectionReplay {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for SectionReplay {}
+
+impl std::fmt::Debug for SectionReplay {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("SectionReplay")
+    }
 }
 
 impl CanonicalTerminalArtifact {
@@ -69,6 +92,7 @@ impl CanonicalTerminalArtifact {
             optimization: optimization.clone(),
             debug_bytes,
             manifest,
+            replayed: SectionReplay::default(),
         };
         artifact.validate()?;
         Ok(artifact)
@@ -76,6 +100,17 @@ impl CanonicalTerminalArtifact {
 
     /// Re-decode every canonical section and reconstruct the manifest.
     pub fn validate(&self) -> Result<(), CanonicalTerminalArtifactError> {
+        if self.replayed.0.get().is_some() {
+            return Ok(());
+        }
+        let verdict = self.replay_sections();
+        if verdict.is_ok() {
+            let _ = self.replayed.0.set(());
+        }
+        verdict
+    }
+
+    fn replay_sections(&self) -> Result<(), CanonicalTerminalArtifactError> {
         let semantic_module = decode_module(&self.semantic_bytes)
             .map_err(CanonicalTerminalArtifactError::Semantic)?;
         let proof_bundle = decode_proof_section_for(&semantic_module, &self.proof_bytes)
