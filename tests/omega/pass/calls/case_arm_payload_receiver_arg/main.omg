@@ -1,0 +1,59 @@
+// Reproducer: `transition self { Case { p } -> (p.method(arg)) }` — a method
+// call on an arm-bound payload carrying a scalar argument (the Squalr api
+// `PrivilegedCommandResponse::ScanResults { response } -> (response.get_*(
+// position))` shape). Diagnosed: `p` canonicalizes to `self.[Case, Field]`,
+// but `shared_nominal_argument` admits only Field/FixedIndex path segments —
+// `CheckedUnitStructuralPathSegment` (and terminal `StructuralPathSegment`
+// behind `StructuralArgument.path`) has no Case step, so no checked
+// computation root is minted and 05 reports "scalar computation needs one
+// checked expression and one source binding". Fix needs the case-payload
+// borrowed-argument channel end-to-end (case-payload terminal channel item).
+// Exits 70 only when the payload receiver call with scalar arg lowers.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Payload {
+    case Leaf(value: u64);
+    case Empty;
+}
+
+machine Payload::read_at(&self, at: u64) -> u64 {
+    transition self {
+        Payload::Leaf { value } -> (value)
+        Payload::Empty -> (at)
+    }
+}
+
+data Sum {
+    case Found(p: Payload);
+    case Missing;
+}
+
+machine Sum::probe(&self, position: u64) -> u64 {
+    transition self {
+        Sum::Found { p } -> (p.read_at(position))
+        Sum::Missing -> (0)
+    }
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let s: Sum = Sum::Found { p: Payload::Leaf { value: 69 } };
+
+    transition s.probe(1) == 70 {
+        true -> done()
+        _ -> missed()
+    }
+
+    state done(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state missed(&mut self) {
+        self.console.exit_process(71);
+    }
+}
