@@ -1,0 +1,1 @@
+affine value `kind` was already transferred or consumed

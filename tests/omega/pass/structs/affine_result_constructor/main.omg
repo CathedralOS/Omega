@@ -1,0 +1,32 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Kind { case Other; case Missing; }
+data Outcome { case Error(kind: Kind); case Ok; }
+data Worker {}
+data Main { console: Binding<Console>; }
+
+machine Worker::kind() -> Kind { Kind::Missing }
+machine Worker::wrap() -> Outcome {
+    transition { _ -> finish() }
+    state finish() -> Outcome {
+        let kind: Kind = Worker::kind();
+        Outcome::Error { kind: kind }
+    }
+}
+
+machine Main::main(&mut self) reaches Console {
+    let outcome: Outcome = Worker::wrap();
+    transition outcome {
+        Outcome::Error { kind } -> inspect(kind)
+        _ -> failure()
+    }
+    state inspect(&mut self, kind: Kind) {
+        transition kind {
+            Kind::Missing -> success()
+            _ -> failure()
+        }
+    }
+    state success(&mut self) { self.console.exit_process(70); }
+    state failure(&mut self) { self.console.exit_process(71); }
+}

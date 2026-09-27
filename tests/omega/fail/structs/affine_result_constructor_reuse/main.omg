@@ -1,0 +1,8 @@
+data Kind { case Other; case Missing; }
+data Pair { first: Kind; second: Kind; }
+data Worker {}
+machine Worker::kind() -> Kind { Kind::Missing }
+machine Worker::wrap() -> Pair {
+    let kind: Kind = Worker::kind();
+    Pair { first: kind, second: kind }
+}
