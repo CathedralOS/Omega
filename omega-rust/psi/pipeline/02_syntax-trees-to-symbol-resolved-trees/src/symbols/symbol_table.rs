@@ -6,8 +6,8 @@ use std::sync::Arc;
 use source::SourceMap;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{
-    SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder, builtin_function_symbols,
-    builtin_type_symbols,
+    FixedCoreDeclaration, SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder,
+    builtin_function_symbols, builtin_type_symbols, fixed_core_declaration_symbols,
 };
 
 use crate::symbols::symbol_table::children::{
@@ -196,6 +196,7 @@ pub(super) fn build_symbol_table(
         builtin_type_symbols()
             .into_iter()
             .chain(builtin_function_symbols())
+            .chain(fixed_core_declaration_symbols())
             .chain(
                 program
                     .domain_definitions
@@ -272,6 +273,12 @@ pub(super) fn build_symbol_table(
         }
     }
     for _ in 0..builtin_function_symbols().len() {
+        let _ = root_children.next();
+    }
+    // The fixed `core::*` mathematical declarations own their root slots
+    // positionally (see `FixedCoreDeclaration::ordinal`); they carry no
+    // children.
+    for _ in 0..FixedCoreDeclaration::COUNT {
         let _ = root_children.next();
     }
     for domain in &program.domain_definitions {

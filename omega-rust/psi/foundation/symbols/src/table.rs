@@ -10,8 +10,8 @@ use source::{SourceFile, SourceId, SourceMap, SourceOrigin, SourceSpan};
 use super::builtin::BUILTIN_TYPE_COUNT;
 mod modules;
 use super::{
-    BuiltinFunction, BuiltinType, BuiltinTypeAtom, Symbol, SymbolHandle, SymbolKind, SymbolName,
-    SymbolNameRef, SymbolNameStorageKind, SymbolPath,
+    BuiltinFunction, BuiltinType, BuiltinTypeAtom, FixedCoreDeclaration, Symbol, SymbolHandle,
+    SymbolKind, SymbolName, SymbolNameRef, SymbolNameStorageKind, SymbolPath,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -1319,6 +1319,36 @@ impl SymbolTable {
             .take(BuiltinFunction::COUNT)
             .position(|candidate| candidate == symbol)
             .and_then(BuiltinFunction::from_ordinal)
+    }
+
+    /// `symbol`'s fixed `core::*` mathematical declaration, classified by
+    /// its exact compiler-installed root slot — the canonical identity the
+    /// mathematical bindings spec fixes. Names are deliberately irrelevant:
+    /// a same-spelled package declaration or a generated source-free symbol
+    /// is never the fixed vocabulary.
+    pub fn fixed_core_declaration(&self, symbol: SymbolHandle) -> Option<FixedCoreDeclaration> {
+        if !symbol.is_valid() || self.get(symbol).kind != SymbolKind::MathematicalDefinition {
+            return None;
+        }
+        self.child_handles(self.root)?
+            .skip(BUILTIN_TYPE_COUNT.checked_add(BuiltinFunction::COUNT)?)
+            .take(FixedCoreDeclaration::COUNT)
+            .position(|candidate| candidate == symbol)
+            .and_then(FixedCoreDeclaration::from_ordinal)
+    }
+
+    /// The root child installed for `declaration`, if this table carries the
+    /// fixed `core::*` vocabulary at its canonical slots.
+    pub fn fixed_core_declaration_symbol(
+        &self,
+        declaration: FixedCoreDeclaration,
+    ) -> Option<SymbolHandle> {
+        let offset = BUILTIN_TYPE_COUNT
+            .checked_add(BuiltinFunction::COUNT)?
+            .checked_add(declaration.ordinal())?;
+        self.child_handles(self.root)?
+            .nth(offset)
+            .filter(|symbol| self.get(*symbol).kind == SymbolKind::MathematicalDefinition)
     }
 
     pub fn builtin_type_symbol(&self, builtin_type: BuiltinType) -> Option<SymbolHandle> {

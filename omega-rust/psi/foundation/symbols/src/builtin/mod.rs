@@ -1436,6 +1436,87 @@ pub fn builtin_function_symbols() -> [(SymbolKind, SymbolNameRef<'static>); Buil
     ]
 }
 
+/// Closed semantic identity for the fixed `core::*` mathematical
+/// declarations (PROOF-CONTRACT-MIGRATION): the compiler-known universe and
+/// sort vocabulary the
+/// [mathematical bindings](wiki/spec/proofs/mathematical_bindings.md) spec
+/// installs. Ordinals are the exact root-child slots following the builtin
+/// function slots; names are diagnostic only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum FixedCoreDeclaration {
+    /// `core::Level` — the universe-level domain.
+    Level,
+    /// `core::Type` — the sort of types; `core::Type<u>` applies one level.
+    Type,
+    /// `core::Strict` — the strict-proposition sort.
+    Strict,
+    /// `core::Squash` — the witness-hiding proposition squash.
+    Squash,
+}
+
+impl FixedCoreDeclaration {
+    pub const COUNT: usize = 4;
+
+    /// The fixed vocabulary in root-child order: every member's
+    /// [`ordinal`](Self::ordinal) is its index here.
+    pub const ALL: [Self; Self::COUNT] = [Self::Level, Self::Type, Self::Strict, Self::Squash];
+
+    /// The compiler-known name this declaration owns. The `core::` prefix
+    /// is the mathematical vocabulary's fixed namespace — not the
+    /// `omega::language::core` library package, and not shadowable by an
+    /// authored declaration.
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Level => "core::Level",
+            Self::Type => "core::Type",
+            Self::Strict => "core::Strict",
+            Self::Squash => "core::Squash",
+        }
+    }
+
+    /// The member's slot within the fixed vocabulary — its index in
+    /// [`Self::ALL`]. The root-child position is
+    /// `BUILTIN_TYPE_COUNT + BuiltinFunction::COUNT + ordinal`.
+    pub const fn ordinal(self) -> usize {
+        match self {
+            Self::Level => 0,
+            Self::Type => 1,
+            Self::Strict => 2,
+            Self::Squash => 3,
+        }
+    }
+
+    pub fn from_ordinal(ordinal: usize) -> Option<Self> {
+        Self::ALL.get(ordinal).copied()
+    }
+
+    /// The fixed declaration an authored `core::*` spelling denotes, if any.
+    /// Names never identify a resolved symbol — this arm exists for the
+    /// resolution pass that binds spelled references to their fixed slots
+    /// and for the transitional unresolved-name classifiers downstream.
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|declaration| declaration.name() == name)
+    }
+}
+
+/// Root-child seeds for the fixed `core::*` mathematical declarations, in
+/// `FixedCoreDeclaration::ALL` order: installed immediately after the builtin
+/// function slots so their positions are stable before any authored
+/// declaration. `MathematicalDefinition` is their kind — they are the
+/// vocabulary that surface elaborates, though no authored declaration backs
+/// them.
+pub fn fixed_core_declaration_symbols()
+-> [(SymbolKind, SymbolNameRef<'static>); FixedCoreDeclaration::COUNT] {
+    FixedCoreDeclaration::ALL.map(|declaration| {
+        (
+            SymbolKind::MathematicalDefinition,
+            SymbolNameRef::Static(declaration.name()),
+        )
+    })
+}
+
 pub fn builtin_type_member_symbols(
     _builtin_type: BuiltinType,
 ) -> impl Iterator<Item = (SymbolKind, SymbolNameRef<'static>)> {
@@ -1445,8 +1526,9 @@ pub fn builtin_type_member_symbols(
 #[cfg(test)]
 mod builtin_ordinal_tests {
     use super::{
-        BuiltinFunction, BuiltinType, BuiltinTypeAtom, SymbolKind, SymbolNameRef,
-        builtin_function_symbols, builtin_type_symbols,
+        BuiltinFunction, BuiltinType, BuiltinTypeAtom, FixedCoreDeclaration, SymbolKind,
+        SymbolNameRef, builtin_function_symbols, builtin_type_symbols,
+        fixed_core_declaration_symbols,
     };
 
     #[test]
@@ -1619,5 +1701,47 @@ mod builtin_ordinal_tests {
             BuiltinFunction::AsmDisableInterrupts.asm_intrinsic_service_name(),
             Some("MachineControl")
         );
+    }
+
+    #[test]
+    fn fixed_core_declaration_ordinals_track_the_symbol_table() {
+        // `fixed_core_declaration_symbols()` installs in `ALL` order at the
+        // root-child slots following the builtin functions; every other
+        // compiler and declaration pass indexes that layout positionally.
+        let table = fixed_core_declaration_symbols();
+        for (ordinal, declaration) in FixedCoreDeclaration::ALL.into_iter().enumerate() {
+            assert_eq!(
+                declaration.ordinal(),
+                ordinal,
+                "closed fixed-core inventory must retain the canonical ordinal for {:?}",
+                declaration,
+            );
+            assert_eq!(
+                table[declaration.ordinal()],
+                (
+                    SymbolKind::MathematicalDefinition,
+                    SymbolNameRef::Static(declaration.name()),
+                ),
+                "fixed-core declaration {:?} must retain its exact root slot",
+                declaration,
+            );
+            assert_eq!(
+                FixedCoreDeclaration::from_ordinal(declaration.ordinal()),
+                Some(declaration),
+                "ordinal for {:?} must recover its closed identity",
+                declaration,
+            );
+            assert_eq!(
+                FixedCoreDeclaration::from_name(declaration.name()),
+                Some(declaration),
+                "{:?} must be recoverable from its own spelling",
+                declaration,
+            );
+        }
+        assert_eq!(
+            FixedCoreDeclaration::from_ordinal(FixedCoreDeclaration::COUNT),
+            None
+        );
+        assert_eq!(FixedCoreDeclaration::from_name("core::Vec"), None);
     }
 }

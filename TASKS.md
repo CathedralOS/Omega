@@ -3477,10 +3477,12 @@ syntax and other terminal services are not prerequisites.
     extend machine-valued body denotation and applied carriers as required by
     the controls below, including member-call target resolution inside
     mathematical definitions and ordering over non-integer operands.
-    Replace authored-name sort classification in
-    `04_typed-trees-to-checked-trees/src/proof/mathematical_{declarations,signature}.rs`
-    with canonical symbol identity and supply the fixed `core::Level`,
-    `Type`, `Strict` and `Squash` declarations.
+    The fixed `core::Level`, `Type`, `Strict` and `Squash` declarations are
+    compiler-installed root symbols that `core::*` type references bind by
+    canonical slot identity. Retire the transitional unresolved-spelling arm
+    in `04_typed-trees-to-checked-trees/src/proof/fixed_core_vocabulary.rs`
+    once the surfaces that still leave `core::*` unbound — proposition-body
+    call targets and any other non-type positions — resolve them too.
   - Replace the surviving `proposition`/hidden-witness routes, including
     `proof_output_calls.rs` and their core/test consumers, with ordinary
     contracts and witness/law bundles. Preserve exact substitutions,
