@@ -12,13 +12,23 @@
 // Both controls with an initializer check: `let mut x: i32 = 0; x = 1;` and
 // `let mut p: Plain = Plain { n: 0 }; p.n = 1;`.
 //
-// Two separate problems fall out of that table.
+// The non-`mut` row is NOT two reports of one mistake. They are different
+// programs, and the compiler is right about one of them:
+// `value_custody/places.rs` gates only a BARE whole-local reassignment on
+// `let mut`, and deliberately leaves MEMBER and INDEX writes ungated --
+// `contains_for_write` returns true for `!bare_reassignment` whatever the
+// local's mutability, and the comment there names the reason, "the ZII
+// construction-by-fill idiom". So:
 //
-// (1) WITHOUT `mut`, the same authoring mistake is reported two ways. A scalar
-//     gets the correct, actionable "cannot write `x` because it is not mutable
-//     in this state". A record gets a unit-plan omission instead -- no mention
-//     of mutability, and the reader is sent to the Terminal planner for what is
-//     a missing keyword. The record should take the scalar's diagnostic.
+//   `let x: i32; x = 1;`     an actual mutability error. The diagnostic is
+//                            CORRECT and nothing is owed here.
+//   `let p: Plain; p.n = 1;` a LEGAL fill, by that deliberate rule. Its
+//                            omission is a MISSING CAPABILITY.
+//
+// So two cells are missing capabilities and none is a wrong error:
+//
+// (1) filling a non-`mut` record local through member writes, the idiom the
+//     checker explicitly admits, has no Terminal route.
 //
 // (2) WITH `mut`, the RECORD form works and the SCALAR form does not, which is
 //     the reverse of every other gap measured in this corpus, where composites
