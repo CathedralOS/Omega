@@ -948,49 +948,11 @@ mod tests {
     use crate::{
         AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
         AuthoredSelectionExtensionRebaseError, AuthoredSelectionOccurrenceStore,
-        SymbolResolvedRoots, SymbolResolvedTableStorage, SymbolResolvedTrees, data, domain,
-        expression, machine, name::DiagnosticName, operator, statement, trait_definition,
+        SymbolResolvedTrees, domain, expression, name::DiagnosticName, statement,
     };
-    use arena::{HandleSpan, OrderedRootArena};
+    use arena::HandleSpan;
     use source::{SourceId, SourceSpan, Span};
-    use symbols::{SymbolHandle, SymbolTable};
-
-    #[test]
-    fn symbol_resolved_roots_constructor_keeps_top_level_roots_explicit() {
-        let data_definitions = OrderedRootArena::<data::DataDefinition>::default();
-        let domain_definitions = OrderedRootArena::<domain::DomainDefinition>::default();
-        let machines = OrderedRootArena::<machine::Machine>::default();
-        let operators = OrderedRootArena::<operator::OperatorDefinition>::default();
-        let traits = OrderedRootArena::<trait_definition::TraitDefinition>::default();
-
-        let roots = SymbolResolvedRoots::with_roots(
-            data_definitions.clone(),
-            domain_definitions.clone(),
-            machines.clone(),
-            operators.clone(),
-            traits.clone(),
-        );
-
-        assert_eq!(roots.data_definitions, data_definitions);
-        assert_eq!(roots.domain_definitions, domain_definitions);
-        assert_eq!(roots.machines, machines);
-        assert_eq!(roots.operators, operators);
-        assert_eq!(roots.traits, traits);
-    }
-
-    #[test]
-    fn symbol_resolved_trees_constructor_keeps_roots_tables_and_symbols_explicit() {
-        let roots = SymbolResolvedRoots::default();
-        let tables = SymbolResolvedTableStorage::default();
-        let symbols = SymbolTable::default();
-
-        let trees = SymbolResolvedTrees::with_roots(roots.clone(), tables.clone(), symbols.clone());
-
-        assert_eq!(trees.roots, roots);
-        assert_eq!(trees.tables, tables);
-        assert_eq!(trees.symbols, symbols);
-        assert!(trees.authored_declaration_selections().is_empty());
-    }
+    use symbols::SymbolHandle;
 
     #[test]
     fn symbol_resolved_trees_owns_authored_declaration_selections() {

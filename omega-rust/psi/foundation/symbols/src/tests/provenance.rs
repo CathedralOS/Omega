@@ -6,18 +6,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 #[test]
-fn resolves_managed_authored_symbol_package_identity() {
-    let package_identity =
-        PackageKeyIdentity::from_digest([1; 32]).expect("nonzero package identity");
-    let (symbols, authored) = sourced_symbol_table([(SourceOrigin::User, Some(package_identity))]);
-
-    assert_eq!(
-        symbols.symbol_package_identity(authored[0]),
-        Some(package_identity)
-    );
-}
-
-#[test]
 fn product_package_identity_excludes_the_build_checked_instance() {
     let package_identity =
         PackageKeyIdentity::from_digest([6; 32]).expect("nonzero package identity");

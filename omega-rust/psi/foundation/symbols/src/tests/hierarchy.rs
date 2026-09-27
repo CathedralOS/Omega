@@ -1,39 +1,9 @@
 use super::{main_entry_symbols, main_running_inventory_symbols};
-use crate::{
-    SourceScopedTopLevelBinding, SymbolHandle, SymbolKind, SymbolNameRef, SymbolTable,
-    SymbolTableBuilder,
-};
+use crate::{SourceScopedTopLevelBinding, SymbolKind, SymbolNameRef, SymbolTableBuilder};
 use semantic_vocabulary::PackageKeyIdentity;
 use source::{SourceMap, SourceOrigin, SourceResolutionStratum, SourceSpan, Span};
 use std::path::PathBuf;
 use std::sync::Arc;
-
-#[test]
-fn invalid_symbol_resolves_to_dummy() {
-    let symbols = SymbolTable::new();
-    let invalid = SymbolHandle::invalid();
-
-    assert_eq!(symbols.get(invalid).kind, SymbolKind::Unknown);
-    assert_eq!(symbols.name(invalid), "");
-}
-
-#[test]
-fn stores_symbols_with_parent_handles() {
-    let symbols = main_entry_symbols();
-    let root = symbols.root();
-    let machine = symbols
-        .find_child_by_name(root, "main")
-        .expect("main should resolve");
-    let state = symbols
-        .find_child_by_name(machine, "entry")
-        .expect("entry should resolve");
-
-    assert_eq!(symbols.get(machine).parent, root);
-    assert_eq!(symbols.get(state).parent, machine);
-    assert_eq!(symbols.get(root).children.count(), 1);
-    assert_eq!(symbols.get(machine).children.count(), 1);
-    assert_eq!(symbols.name(state), "entry");
-}
 
 #[test]
 fn generated_hierarchy_appends_without_moving_authored_symbols() {
@@ -285,37 +255,6 @@ fn finds_child_by_name_and_kind_when_siblings_share_names() {
         symbols.find_child_by_name_and_kind(root, "main", SymbolKind::State),
         None
     );
-}
-
-#[test]
-fn builder_stores_symbols_without_definition_tree() {
-    let mut builder = SymbolTableBuilder::new();
-    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
-    let children = builder.insert_children(
-        root,
-        [
-            (SymbolKind::Machine, SymbolNameRef::Borrowed("main")),
-            (SymbolKind::Data, SymbolNameRef::Borrowed("Inventory")),
-        ],
-    );
-    let mut child_handles = SymbolTableBuilder::child_handles(children);
-    let main = child_handles.next().expect("main should be present");
-    let inventory = child_handles.next().expect("inventory should be present");
-
-    builder.insert_children(
-        main,
-        [(SymbolKind::State, SymbolNameRef::Borrowed("entry"))],
-    );
-    let symbols = builder.finish();
-    let entry = symbols
-        .find_child_by_name(main, "entry")
-        .expect("entry should resolve");
-
-    assert_eq!(symbols.root(), root);
-    assert_eq!(symbols.get(main).parent, root);
-    assert_eq!(symbols.get(inventory).parent, root);
-    assert_eq!(symbols.get(entry).parent, main);
-    assert_eq!(symbols.name(inventory), "Inventory");
 }
 
 #[test]

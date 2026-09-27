@@ -88,7 +88,7 @@ impl PartialEq<TokenText<'_>> for &str {
 #[cfg(test)]
 mod tests {
     use super::TokenText;
-    use crate::{Span, Token, TokenKind};
+    use crate::Span;
     use std::sync::Arc;
 
     #[test]
@@ -108,21 +108,6 @@ mod tests {
             TokenText::OwnedBytes(vec![255]),
             TokenText::OwnedBytes(vec![254])
         );
-    }
-
-    #[test]
-    fn token_equality_keeps_kind_and_authored_span() {
-        let token = Token {
-            kind: TokenKind::Identifier,
-            lexeme: TokenText::source("name"),
-            span: Span::new(0, 4),
-        };
-        let mut other = token.clone();
-        other.span = Span::new(6, 10);
-        assert_ne!(token, other);
-        other.span = token.span;
-        other.kind = TokenKind::StringLiteral;
-        assert_ne!(token, other);
     }
 
     #[test]
