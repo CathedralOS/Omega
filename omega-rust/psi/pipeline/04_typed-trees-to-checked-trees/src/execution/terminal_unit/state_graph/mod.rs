@@ -434,6 +434,16 @@ pub(super) fn build_traced(
         trace.phase("state graph: state signature: parameter custody shape: edge target missing");
         return None;
     };
+    // A one-shot entry uses the invocation's original parameter declarations:
+    // callers establish their exact qualifications. A reentered entry instead
+    // becomes a block arrival and needs the same transport evidence as any
+    // successor; do not grant its fresh arrival the invocation's assumptions.
+    let invocation_only_entry = !planned
+        .iter()
+        .zip(&live_states)
+        .filter(|(_, live)| **live)
+        .flat_map(|(state, _)| state.successors())
+        .any(|successor| successor.target_state == planned[0].state);
     for (state_index, state) in states.iter().enumerate() {
         if !live_states[state_index] {
             continue;
@@ -444,6 +454,7 @@ pub(super) fn build_traced(
                 || program.state_parameters(state)[parameter.position as usize].type_reference;
             if parameter.multiplicity != Multiplicity::Linear
                 && !parameter.qualifications.is_empty()
+                && !(state_index == 0 && invocation_only_entry)
             {
                 trace.phase(
                     "state graph: state signature: parameter custody shape: qualified non-linear parameter",

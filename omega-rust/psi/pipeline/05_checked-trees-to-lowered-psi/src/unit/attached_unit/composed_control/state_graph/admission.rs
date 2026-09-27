@@ -43,16 +43,20 @@ pub(in crate::unit::attached_unit::composed_control) fn has_shared_graph_custody
             let Ok(live) = topology::live(plan) else {
                 return true;
             };
+            let qualified_invocation = invocation_only_entry(plan, &live);
             plan.states
                 .iter()
                 .zip(&live)
-                .filter_map(|(state, live)| live.then_some(state))
-                .all(|state| {
+                .enumerate()
+                .filter_map(|(index, (state, live))| live.then_some((index, state)))
+                .all(|(index, state)| {
                     state.structural_parameters.iter().all(|parameter| {
                         ((parameter.multiplicity == Multiplicity::Unrestricted
                             && matches!(parameter.access, checked_trees::CheckedStructuralAccess::SharedBorrow | checked_trees::CheckedStructuralAccess::MutableBorrow))
                             || parameter.access == checked_trees::CheckedStructuralAccess::Owned)
-                            && (parameter.qualifications.is_empty() || parameter.multiplicity == Multiplicity::Linear)
+                            && (parameter.qualifications.is_empty()
+                                || parameter.multiplicity == Multiplicity::Linear
+                                || (index == 0 && qualified_invocation))
                     })
                 })
                 && claim_transport_supported(checked, plan, &live)
@@ -150,6 +154,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
     // pair their authored rows, but their custody rows cannot disqualify the
     // route and emission prunes them.
     let live = topology::live(plan)?;
+    let qualified_invocation = invocation_only_entry(plan, &live);
     for (state_index, (source, state)) in source_states.iter().zip(&plan.states).enumerate() {
         crate::unit::attached_unit::claims::validate_entry_claims(
             checked,
@@ -265,29 +270,30 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 }
                 continue;
             }
-            let TypeReferenceNode::Reference {
-                referee, access, ..
-            } = checked
-                .type_reference_table
-                .type_reference(source.type_reference)
-            else {
-                return unsupported("Unit graph structural parameter is not a borrowed view");
-            };
+            let (referee, access, qualifications) =
+                borrowed_parameter_custody(checked, source.type_reference)?;
+            if qualifications != parameter.qualifications
+                || (!qualifications.is_empty() && !(state_index == 0 && qualified_invocation))
+            {
+                return unsupported(
+                    "Unit graph borrowed parameter qualifications differ from invocation custody",
+                );
+            }
             if parameter.is_self {
-                super::parameters::validate_receiver(checked, plan, source, parameter, *access)?;
+                super::parameters::validate_receiver(checked, plan, source, parameter, access)?;
                 continue;
             }
-            let expected_shape = if let Some(primitive) = checked.primitive_type_reference(*referee)
+            let expected_shape = if let Some(primitive) = checked.primitive_type_reference(referee)
             {
                 if !matches!(
-                    checked.type_reference_table.type_reference(*referee),
+                    checked.type_reference_table.type_reference(referee),
                     TypeReferenceNode::Named { .. }
                 ) {
                     return unsupported("Unit graph primitive borrow has qualified storage");
                 }
                 checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive)
             } else {
-                match checked.type_reference_table.type_reference(*referee) {
+                match checked.type_reference_table.type_reference(referee) {
                     TypeReferenceNode::Slice { element_type } => {
                         if checked.primitive_type_reference(*element_type)
                             == Some(PrimitiveType::U8)
@@ -319,7 +325,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     },
                     _ => {
                         let referent_identity =
-                            checked.normalized_type_identity(*referee).into_string();
+                            checked.normalized_type_identity(referee).into_string();
                         match checked
                             .facts
                             .flow
@@ -339,23 +345,22 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 }
             };
             if !matches!(
-                *access,
+                access,
                 language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable
             ) || source.is_self
                 || source.is_const
-                || source.is_mutable != (*access == language_core::ReferenceAccess::Mutable)
+                || source.is_mutable != (access == language_core::ReferenceAccess::Mutable)
                 || parameter.is_self
                 || parameter.multiplicity != Multiplicity::Unrestricted
                 || parameter.access
-                    != match *access {
+                    != match access {
                         language_core::ReferenceAccess::Mutable => {
                             checked_trees::CheckedStructuralAccess::MutableBorrow
                         }
                         _ => checked_trees::CheckedStructuralAccess::SharedBorrow,
                     }
-                || !parameter.qualifications.is_empty()
                 || parameter.fused_service_erasure.is_some()
-                || checked.normalized_type_identity(*referee).as_str() != parameter.type_identity
+                || checked.normalized_type_identity(referee).as_str() != parameter.type_identity
             {
                 return unsupported("Unit graph view type or authority disagrees with source");
             }
@@ -885,4 +890,84 @@ fn validate_guard(
         }
     }
     Ok(())
+}
+
+/// Qualified invocation inputs already have their caller-established domains.
+/// Only their original entry uses that custody; every actual incoming edge,
+/// including entry reentry, still needs separately supported domain transport.
+fn invocation_only_entry(plan: &CheckedComposedUnitControlMachinePlan, live: &[bool]) -> bool {
+    plan.states.first().is_some_and(|entry| {
+        !plan
+            .states
+            .iter()
+            .zip(live)
+            .filter(|(_, live)| **live)
+            .flat_map(|(state, _)| state.successors())
+            .any(|successor| successor.target_state == entry.state)
+    })
+}
+
+/// Reconstruct a borrowed signature's exact qualification set on both sides of
+/// its reference shell. Peeling the carrier never drops its domain obligations:
+/// admission compares this set before the existing type/access checks, and
+/// signature lowering publishes those same domains on the invocation place.
+fn borrowed_parameter_custody(
+    checked: &CheckedTrees,
+    mut reference: checked_trees::types::TypeReferenceHandle,
+) -> Result<
+    (
+        checked_trees::types::TypeReferenceHandle,
+        language_core::ReferenceAccess,
+        Vec<language_semantics::SemanticDomainId>,
+    ),
+    LoweringError,
+> {
+    let mut visited = Vec::new();
+    let mut access = None;
+    let mut qualifications = Vec::new();
+    loop {
+        if !reference.is_valid() || visited.contains(&reference) {
+            return unsupported("Unit graph borrowed parameter has an invalid type chain");
+        }
+        visited.push(reference);
+        match checked.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                let retained = checked.type_reference_table.constraints(*constraints);
+                if retained.len() != constraints.len() {
+                    return unsupported("Unit graph borrowed parameter has stale qualifications");
+                }
+                for constraint in retained {
+                    let checked_trees::types::TypeConstraintNode::Domain(domain) = constraint
+                    else {
+                        return unsupported(
+                            "Unit graph borrowed parameter has a non-domain constraint",
+                        );
+                    };
+                    if !domain.semantic_id.is_valid() {
+                        return unsupported("Unit graph borrowed parameter has an absent domain");
+                    }
+                    qualifications.push(domain.semantic_id);
+                }
+                reference = *base_type;
+            }
+            TypeReferenceNode::Reference {
+                referee,
+                access: mode,
+                ..
+            } if access.is_none() => {
+                access = Some(*mode);
+                reference = *referee;
+            }
+            _ => break,
+        }
+    }
+    let access = access.ok_or(LoweringError::Unsupported(
+        "Unit graph structural parameter is not a borrowed view",
+    ))?;
+    qualifications.sort_by_key(|domain| domain.0);
+    qualifications.dedup();
+    Ok((reference, access, qualifications))
 }
