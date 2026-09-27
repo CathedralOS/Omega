@@ -26,6 +26,18 @@ inside another package.
 
 Package-aware compilation consumes a closed validated graph of requester-local,
 purpose-qualified aliases to opaque package keys and canonical source roots.
+The resolver coalesces requests for the same key and exact resolution while
+constructing this graph, before build execution or source compilation. A DAG
+does not itself ensure uniqueness: repeated edges must point to the same node,
+and conflicting resolutions and cycles reject. A diamond through two libraries
+to the same std therefore has one std owner, not two copied declarations.
+Checked build instances may still differ by host/product context or target.
+Those instances do not rename the package's declarations.
+
+Graph preparation also establishes [anonymous root identities](../build/declarations.md#default-builds-and-anonymous-owner-identity),
+working dependency-first over exact source inputs, without compiling outputs or
+consulting a historical build catalog. Compilation carries those owners forward;
+it does not rediscover them from paths, import spelling or missing package fields.
 Import discovery does not combine package-authored dependency rows. Paths route source loading; they
 are not nominal identity. Orchestration re-roots each package at exactly its
 transitive subgraph in the applicable context and compiles prerequisite-first.
@@ -34,7 +46,10 @@ product instances or make a helper's own build dependencies its library imports.
 
 The Rust focused-file compatibility entrance resolves root-relative and
 toolchain imports only; package aliases require the validated package-aware
-entrance. It is not the standalone compiler's sealed request protocol.
+entrance. This is an implementation limitation, not permission to drop owners
+or a separate language rule for roots without build files. Converge it on the
+same default-build graph preparation and compiler handoff. It is not the
+standalone compiler's sealed request protocol.
 
 ## Git acquisition and member selection
 

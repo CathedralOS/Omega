@@ -179,6 +179,10 @@ prerequisite to every lower-rung milestone.
   outcome/phase, and scalar-resource tables with C; exact/adjacent vectors,
   malformed-input rejection, bounded arithmetic, and Complete-only publication
   must agree before either implementation claims the V1 boundary.
+  With **MODULE-NAMESPACE-RESOLUTION** in `TASKS.md`, extend the versioned
+  request for anonymous content owners and default-build provenance. V1's
+  named-only rows are not that encoding; validate canonical identity inputs and
+  graph sharing in D and C without a compiled-project registry or fake lineage.
   Continue from the [source-to-executable gate](tests/bootstrap/omega-executable/README.md)
   and `bootstrap/5_omega/scalar_compilation.epsilon`: extend parsed scalar
   operations and checked call/state sequencing through the existing Alpha emitter.

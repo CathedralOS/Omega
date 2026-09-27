@@ -4206,14 +4206,29 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
     `module_namespace_residuals` contains resolver-only operator/case tests;
     extend those customers through their remaining consumers rather than adding
     another namespace recognizer.
-  - **Design-blocked** on [`unmanaged-root-package-identity`](OWNER_QUESTIONS.md).
-    `control_flow/guarded_leaf_branch_expansion` and
-    `text/runtime_alias_string_write` expose collisions between unmanaged
-    `[u8; N]::Utf8` and injected std declarations: `package_identity: None`
-    drops the distinct source owners from the legacy domain key. Reproduce
-    through the rooted native-host route; targetless checking injects no std
-    and misses the collision. Keep independent collision rejection; host paths
-    and source order are not portable owner identities.
+  - Implement [default-build and anonymous owner identity](wiki/spec/build/declarations.md#default-builds-and-anonymous-owner-identity)
+    in source-graph preparation and compiler handoff. Preserve supplied package
+    and core owners; derive the versioned anonymous content record before build
+    execution, coalescing equal dependency nodes without merging different
+    host/target build instances. Missing build files use ordinary default
+    configuration, not an ownerless or parallel compiler entrance. Carry exact
+    owner/declaration identity through checking and artifact encode/reload;
+    dependency acceptance and visible-name collision checks remain independent.
+    Reproduce `control_flow/guarded_leaf_branch_expansion` and
+    `text/runtime_alias_string_write` through the rooted native-host route:
+    their reported `[u8; N]::Utf8` collision loses distinct owners through
+    `package_identity: None`; targetless checking misses injected std. Do not
+    block this local repair on portable format work.
+    Acceptance: a diamond dependency has one std owner; anonymous-root, core and
+    ordinary-library declarations stay distinct; relocating inputs/products,
+    rebuilding identical inputs and deleting caches preserve identity; changed
+    anonymous semantic inputs change it. Independent named lineages stay distinct
+    with equal content. Reimport/reload preserves identity, while missing/mismatched
+    provenance and genuinely competing visible names reject. No build catalog,
+    host-path key, extra authority or special `main` discovery is introduced.
+    Coordinate the [standalone request](wiki/spec/build/compiler_request.md)
+    versioned anonymous-owner/default-build extension with OMEGA-D/OMEGA-C in
+    `TASKS_BOOTSTRAP.md`; v1's named-only rows cannot silently carry it.
   - Complete declaration evaluation, including unused initializers:
     specialized provider/target applications, authored NaN identity bits, and
     constrained constants beyond scalar-decodable record/array/case leaves.

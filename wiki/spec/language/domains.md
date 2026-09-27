@@ -111,7 +111,10 @@ because their source was loaded. Direct qualified selection uses the
 [declaring-owner-first address](modules.md#foreign-attached-declaration-paths).
 
 The exact domain owner and carrier owner remain independent in interfaces and
-reports. Repeated exposure of one exact declaration is not a collision; distinct
+reports, including [anonymous roots](../build/declarations.md#default-builds-and-anonymous-owner-identity).
+Graph preparation supplies their identities before name resolution; an absent
+package field cannot identify both a root and an injected library. Repeated
+exposure of one exact declaration is not a collision; distinct
 visible declarations competing for the same carrier-qualified case, domain, or
 machine name reject without inherent-declaration or import-order priority.
 Broad imports may be affected by later module additions; narrow imports avoid

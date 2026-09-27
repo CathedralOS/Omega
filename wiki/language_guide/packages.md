@@ -5,6 +5,37 @@ reachable authority and contracts. It does not need a package-hosting service.
 The [acceptance contract](../spec/packages/acceptance.md) defines the guarantees;
 this page explains the workflow.
 
+## Compile without a build file
+
+No `build.omg` means default build configuration, not missing ownership. A loose
+root defaults to an application; executable output still needs ordinary target
+entry and provider selections. There is no special entry discovered merely by
+the name `main`, and default configuration grants no extra build-host authority.
+An already resolved package keeps its supplied role and owner.
+
+Dependency requests are resolved before build execution. Two libraries referring
+to the same resolved std instance share one graph node and its declarations;
+each consumer does not create another std. Different host/target build instances
+can still be required for that one owner.
+
+When a root has no supplied package identity, the compiler uses a content-derived
+owner from its captured source, exact dependencies and semantic build inputs.
+Published artifacts retain that owner and their declaration identities:
+
+```text
+compile anonymous source -> owner X, declaration (X, Token)
+import that artifact twice -> the same (X, Token)
+move it or clear the cache -> still (X, Token)
+edit its source and rebuild -> a new anonymous owner
+```
+
+No registry of previously compiled projects is needed. A named package's lineage
+provides continuity across edits; anonymous content identity deliberately does
+not. The [identity contract](../spec/build/declarations.md#default-builds-and-anonymous-owner-identity)
+defines the inputs and distinguishes declaration ownership from artifact digests.
+End-to-end default-build/owner transport remains implementation work under
+MODULE-NAMESPACE-RESOLUTION in [TASKS.md](../../TASKS.md).
+
 ## Declare the project
 
 A library declares its own name in `build.omg`:
