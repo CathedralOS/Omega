@@ -1874,6 +1874,7 @@ pass/structs/zeroed_record_member_wide_array_exit rejected 5042ms
 	native artifact canonical abstract optimization failed: explicit optimization pipeline failed: Run(InitialValidation(StructuralCatalogMismatch { machine: Some(MachineId(1)) }))
 pass/structs/zeroed_record_members_exit rejected 5076ms
 	native artifact canonical abstract optimization failed: explicit optimization pipeline failed: Run(InitialValidation(StructuralCatalogMismatch { machine: Some(MachineId(1)) }))
+pass/structural/borrowed_array_state_carry checked 309ms
 pass/structural/case_field_local_store checked 2457ms
 pass/structural/case_field_member_store checked 2956ms
 pass/structural/case_payload_record_member_read rejected 1848ms
