@@ -1,3 +1,9 @@
+// COMPILE-ONLY, and honestly named: no `_exit` suffix, no `build.omg`, and
+// `Main::main` is deliberately empty. The subject is that a `Region in
+// Owned` passes through a machine and back out as the declared owned result
+// -- including past an unused local and a dropped scratch value -- which is
+// a checking property, not an executable one. The forwarding machines are
+// the fixture; the entry exists only to give the program a root.
 data ByteUnit {}
 
 data CountedQuantity<Unit> {
