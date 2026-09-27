@@ -28,13 +28,16 @@ pub struct LocalScalarRecordField {
     pub path: Vec<String>,
     pub field: SymbolHandle,
     pub primitive_type: PrimitiveType,
+    /// Governs subsequent arithmetic; observing storage does not erase policy.
+    pub domain: ArithmeticDomain,
 }
 
 /// Resolve a field path below one prior, whole plain-owned local. A mutable
 /// source is observed at this statement, never equated with its initializer.
 /// The caller must bind the expression to this authored statement's evaluation
 /// graph. Open generic/qualified owners, erased fields and
-/// nominally qualified or policy-bearing scalar fields require additional facts.
+/// nominally qualified scalar fields require additional facts. Arithmetic policy
+/// changes operations, not storage: retain it alongside the observed carrier.
 /// Closed integer ranges keep their bounded declaration and construction proof;
 /// observing the established field uses its underlying scalar carrier.
 pub fn local_scalar_record_field(
@@ -101,7 +104,6 @@ pub fn local_scalar_record_field(
         || program.symbols.get(field.symbol).parent != record.symbol
         || program.data_members(record).iter().filter(|member| matches!(member, DataMember::Field(candidate) if candidate.symbol == field.symbol)).count() != 1
         || field.relevance.is_erased()
-        || program.arithmetic_domain_for_type_reference(field.type_reference) != ArithmeticDomain::Exact
     {
         return None;
     }
@@ -128,6 +130,7 @@ pub fn local_scalar_record_field(
         path,
         field: field.symbol,
         primitive_type,
+        domain: program.arithmetic_domain_for_type_reference(field.type_reference),
     })
 }
 
@@ -360,12 +363,17 @@ fn has_realized_record_fields(
     valid
 }
 
-/// Only range shells may use the bounded-record construction/replay route.
-/// Peeling an arbitrary constraint here would erase a qualification or policy.
+/// Policy-only integer fields use their ordinary scalar storage, while the
+/// returned observation separately retains their arithmetic policy. Range shells
+/// keep the bounded-record construction/replay route; arbitrary qualifications
+/// and combinations of ranges with non-Exact policies remain unsupported.
 fn realized_scalar_carrier(
     program: &TypedTrees,
     mut reference: TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
+    if crate::is_arithmetic_policy_only_integer(program, reference) {
+        return program.primitive_type_reference(reference);
+    }
     let mut bounded = false;
     while let TypeReferenceNode::Constrained {
         base_type,

@@ -151,7 +151,7 @@ fn local_field_observes_mutable_storage_and_rejects_conflicting_receiver_identit
 
 #[test]
 fn local_field_does_not_erase_scalar_constraints_or_noninteger_carriers() {
-    for field_type in ["u64 in Wrapping", "f64", "addr"] {
+    for field_type in ["f64", "addr"] {
         let (program, machine, state, expression) = typed_source(&format!(
             "data Record {{ payload: {field_type}; }}
              machine observe(payload: {field_type}) -> {field_type} {{
@@ -163,5 +163,32 @@ fn local_field_does_not_erase_scalar_constraints_or_noninteger_carriers() {
             local_scalar_record_field(&program, machine, state, 1, expression).is_none(),
             "{field_type} needs its own retained scalar contract"
         );
+    }
+}
+
+#[test]
+fn local_field_retains_policy_without_excluding_plain_siblings() {
+    use numerics::arithmetic::ArithmeticDomain;
+    for (policy, domain) in [
+        ("Wrapping", ArithmeticDomain::Wrapping),
+        ("Saturating", ArithmeticDomain::Saturating),
+        ("Trapping", ArithmeticDomain::Trapping),
+    ] {
+        for (member, expected) in [("payload", domain), ("plain", ArithmeticDomain::Exact)] {
+            let (program, machine, state, expression) = typed_source(&format!(
+                "data Child {{ payload: u64 in {policy}; plain: u64; }}
+                 data Record {{ child: Child; }}
+                 machine observe(payload: u64 in {policy}) -> u64 in {policy} {{
+                     let record: Record = Record {{ child: Child {{ payload: payload, plain: 1 }} }};
+                     record.child.{member}
+                 }}"
+            ));
+            let field = local_scalar_record_field(&program, machine, state, 1, expression)
+                .unwrap_or_else(|| {
+                    panic!("{policy} {member}: policy-only fields keep scalar storage")
+                });
+            assert_eq!(field.domain, expected);
+            assert_eq!(field.path, ["child"]);
+        }
     }
 }

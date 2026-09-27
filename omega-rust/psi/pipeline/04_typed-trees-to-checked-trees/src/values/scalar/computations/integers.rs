@@ -81,7 +81,7 @@ impl Builder<'_, '_> {
             return Some(IntegerOperand {
                 value: parameter(0, field.primitive_type),
                 value_source: ExpressionHandle::invalid(),
-                domain: ArithmeticDomain::Exact,
+                domain: field.domain,
                 computation: self.structural_field(expression, field),
             });
         }

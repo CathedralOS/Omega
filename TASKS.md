@@ -85,30 +85,19 @@ deletes the side doors it replaces. Validate with `tools/corpus_gate.py
 --filter` over the affected groups plus `--native --filter` for anything
 backend-visible; full corpus runs only at the end of an item.
 
-- **MEMBER-POLICY-REMOVES-COMPOSITE-ROWS.** (new-scope) A non-Exact arithmetic
-  policy on a composite's MEMBER removes a Terminal row that the same policy on
-  the COMPOSITE does not. Two samples, one shape, measured separately and
-  pinned separately before the family was visible:
-  `samples/cli/simulation/grid_walk` -- a policy on a record's FIELD removes the
-  field-read row for a LOCAL of that record, for every field including plain
-  siblings (`tests/omega/pending/structs/policy_field_record_local_read`);
-  `samples/cli/collections/matrix_multiply` -- a policy on an array's ELEMENT
-  removes the whole-array store row
-  (`tests/omega/pending/collections/element_policy_array_literal_store`).
-  The array half is WIDER than policy: an array whose element is a RECORD
-  omits identically (`[Cell; 2]` refuses the literal a `[i32; 2]` accepts), so
-  the rule is that the element is not a plain SCALAR -- a policy is one way to
-  fail that and a record is another. `samples/cli/rendering/dungeon_render`
-  (`grid: [Cell; 24]`) is the second customer and reports the same phase.
-  The controls that make it one shape: `[i32; 3] in Wrapping` takes a whole
-  literal but `[i32 in Wrapping; 3]` does not, and a self-held record with a
-  policy field reads fine while a local of it does not. Nesting, `[copy]`,
-  which policy, which member is touched, and the destination's own policy are
-  all ruled out on both sides. Storing ONE element or reading a self-held field
-  checks, so it is whole-composite and local-carrier rows that are missing, not
-  member access as such. Acceptance: both pending fixtures check, and both
-  samples leave the omission cluster. Expect one Terminal answer to serve both;
-  a repair that fixes only one has probably found the wrong layer.
+- **MEMBER-POLICY-REMOVES-COMPOSITE-ROWS.** (new-scope) Whole-array stores
+  omit when the element carries an arithmetic policy or is itself a record.
+  `samples/cli/collections/matrix_multiply` stores a nested array of
+  `i32 in Wrapping`; `samples/cli/rendering/dungeon_render` stores `[Cell; 24]`.
+  Both stop at `structural field store: scalar field type`, whose label does
+  not identify the rejected aggregate operation. The reduced fixture is
+  `tests/omega/pending/collections/element_policy_array_literal_store`.
+  `[i32; 3] in Wrapping` accepts a literal while `[i32 in Wrapping; 3]` does
+  not; an array of records also omits. Element stores work, but whole-array
+  and row stores need their composite value route. The stage 04 owner is
+  `execution/terminal_unit/structural_scalar_store`, currently assigned to
+  **LOCAL-DATA-CLUSTER-REPAIR**. Acceptance: the pending fixture checks and
+  both unchanged samples execute their documented native outcomes.
 
 - **REFERENCE-LOCAL-BINDING-ROUTES.** (new-scope) Binding a REFERENCE into a
   `let` local is routed for one narrow shape only: a `&mut` of a self-rooted
@@ -1064,38 +1053,12 @@ the complete product bar; focused successes below do not establish that baseline
       `tests/omega/pending/expressions/mixed_integer_guard_comparison`,
       already pinned. So this cluster needs no new diagnosis -- it needs
       those two repairs.
-    - 5 `structural field store: pure source: scalar expression row` --
-      `cli/{collections/entity_list, rendering/bouncing_particles,
-      simulation/grid_walk, systems/file_permissions, text/text_padding}`.
-      `file_permissions` has since moved off this phase (it was the
-      anonymous bitwise), and the rest are four DIFFERENT value shapes, not
-      one: a runtime-indexed record element's field
-      (`entity_list`, `bouncing_particles` -- pinned at
-      `tests/omega/pending/collections/runtime_indexed_record_field_store`,
-      and its route is mapped below; the runtime-indexed case dispatch
-      above is the SAME family -- a runtime index selecting a non-scalar
-      element -- so one Terminal answer serves both),
-      a field read off a LOCAL record whose type carries an arithmetic
-      policy (`grid_walk` -- pinned at
-      `tests/omega/pending/structs/policy_field_record_local_read`), and a
-      and a carrier length in a destination that is not `u64`
-      (`text_padding`) -- REPAIRED 2026-09-27: a length now carries `u64`
-      through the arithmetic walk, so the store takes the ordinary
-      implicit-conversion diagnostic and the sample checks clean. Guarded at
-      `tests/omega/fail/text/carrier_length_cross_carrier_store`
-      `grid_walk`'s entry above USED to read "a local record's field inside
-      arithmetic, with `v` bound from a call". Both halves were wrong. The
-      bisect alternated each candidate against its control and the
-      arithmetic, the call, the `[copy]`, which field is read, which policy,
-      and the destination's own policy are all irrelevant; construction of
-      the local is fine and the same read off a SELF-HELD record checks. One
-      thing carries it: the local's TYPE contains a field that is not
-      uniformly Exact, and then no field -- not even a plain sibling -- can
-      be read out of that local. `b: i32`, `b: u8` and `b: bool` all check;
-      `b: i32 in Saturating` and `b: i32 in Wrapping` both omit. The missing
-      capability is a single Terminal source row: a scalar field read whose
-      carrier is an owned local of a policy-bearing record type. The fixture
-      carries the whole matrix in its header.
+    - `structural field store: pure source: scalar expression row` --
+      `cli/collections/entity_list` and `cli/rendering/bouncing_particles`
+      read a runtime-indexed record element's field. The reproduction is
+      `tests/omega/pending/collections/runtime_indexed_record_field_store`.
+      Runtime-indexed case dispatch is the same missing selection of a
+      non-scalar element; carry both uses through the shared Terminal route.
     - 3 `statement sequence: local data: structural call binding` --
       `cli/{algorithms/dutch_flag, systems/{descriptor_walk,wire_protocol}}`,
       of which `wire_protocol` is now pinned as RECORD-LITERAL-ARRAY-FIELD

@@ -83,6 +83,7 @@ pass/calls/nested_value_call_arg_compile rejected 457ms
 pass/calls/runtime_alias_write_through_guarded_transition_exit rejected 474ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: initializer expression` (state 0, statement 0)
 pass/calls/runtime_assignment_call_post_mutation_value_exit built 824ms exit:70
+pass/calls/runtime_case_record_return_exit built 1202ms exit:70
 pass/calls/runtime_constructor_computed_field_exit rejected 493ms
 	native artifact canonical abstract optimization failed: explicit optimization pipeline failed: Run(InitialValidation(StructuralCallContractMismatch { machine: MachineId(1), block: BlockId(1), node: 1 }))
 pass/calls/runtime_cross_machine_substate_name_exit built 771ms exit:70
@@ -841,6 +842,7 @@ pass/structs/deep_nested_write_paths_exit rejected 462ms
 pass/structs/mutable_array_record_state_transfer built 707ms exit:70
 pass/structs/mutable_record_state_transfer built 629ms exit:70
 pass/structs/nested_unused_provider_fields built 600ms exit:70
+pass/structs/runtime_local_record_policy_exit built 1277ms exit:70
 pass/structs/runtime_nested_struct_construction_exit built 724ms exit:70
 pass/structs/runtime_struct_array_literal_exit rejected 514ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: record literal source` (state 0, statement 0)

@@ -1,0 +1,55 @@
+// Case observations retain the owned subject until the selected value returns.
+// Its disposal must join the unused parameters in reverse declaration order.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Direction { case Left; case Right; case Up; case Down; }
+data Spare { value: u64; }
+data Output [copy] { value: u64; }
+data Main { console: Binding<Console>; total: u64 in Saturating; }
+
+machine Main::make(&self, first: Spare, direction: Direction, last: Spare) -> Output {
+    transition direction {
+        Direction::Left -> Output { value: 20 }
+        Direction::Right -> Output { value: 50 }
+        Direction::Up -> Output { value: 30 }
+        Direction::Down -> Output { value: 40 }
+    }
+}
+
+machine Main::delta(&self, direction: Direction) -> Output {
+    transition direction {
+        Direction::Left -> Output { value: 1 }
+        Direction::Right -> Output { value: 2 }
+        Direction::Up -> Output { value: 3 }
+        Direction::Down -> Output { value: 4 }
+    }
+}
+
+machine Main::direct(&mut self, direction: Direction) {
+    let output: Output = self.delta(direction);
+    self.total = self.total + (output.value as u64 in Saturating);
+}
+
+machine Main::step(&mut self, direction: Direction) {
+    let first: Spare = Spare { value: 1 };
+    let last: Spare = Spare { value: 2 };
+    let output: Output = self.make(first, direction, last);
+    self.total = self.total + (output.value as u64 in Saturating);
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.total = 0;
+    self.step(Direction::Left);
+    self.step(Direction::Right);
+    self.direct(Direction::Left);
+    self.direct(Direction::Right);
+    self.direct(Direction::Up);
+    self.direct(Direction::Down);
+    transition self.total == 80 {
+        true -> passed()
+        false -> failed()
+    }
+    state passed(&mut self) { self.console.exit_process(70); }
+    state failed(&mut self) { self.console.exit_process(71); }
+}

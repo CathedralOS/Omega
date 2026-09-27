@@ -1,0 +1,6 @@
+data Reading { value: u8 in Wrapping; }
+machine observe() -> u8 {
+    let reading: Reading = Reading { value: 255 };
+    let value: u8 = reading.value;
+    value
+}
