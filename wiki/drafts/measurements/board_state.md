@@ -140,3 +140,45 @@ this was measured; both corrections are also in claim notes against their
 items. A row asserting a red test is cheap to verify and expensive to
 believe: it tells a worker the item is blocked on someone else's repair when
 it is not.
+
+## Board rows citing test files that no longer exist
+
+Measured 2026-09-27 by extracting every `` `...rs` `` path `TASKS.md` cites
+and resolving it against the tree.
+
+**208 cited source paths; 14 are absent from the live tree entirely** --
+not moved under a different prefix, absent. Several rows assert them as
+present evidence: BOUNDARY-ISSUANCE says
+"`compiler/tests/secondary_processor_startup.rs` integration already exist",
+and INTERPRETED-ASSEMBLY says "the existing `canary_suite/inline_asm.rs` x86
+fence, interrupt, flags, MSR and control-register byte-emission customers".
+`omega-rust/omega/compiler/tests/` now holds five entries.
+
+**13 of the 14 are recoverable**: their content survives in abandoned
+`.codex/worktrees/` copies from before the crate restructuring. Those are
+stale agent worktrees, not authority -- most are not registered worktrees at
+all -- but they are where the deleted behavior can be read back, which is
+what RC-RELEASE-RECORD-AND-CLOSURE means by "deleted test targets are leads
+to recover behavior, not passing evidence".
+
+| cited path | recoverable from a worktree |
+| --- | --- |
+| `05_checked-trees-to-lowered-psi/tests/non_byte_borrowed_view_admission.rs` | NO — nowhere |
+| `calling_policy_plans/opaque_boundaries.rs` | yes |
+| `canary_suite/inline_asm.rs` | yes |
+| `compiler/tests/access_plans/source_access_policies.rs` | yes |
+| `compiler/tests/build_target_activation/qualified_provider_selection.rs` | yes |
+| `compiler/tests/canary_suite/task_runtime.rs` | yes |
+| `compiler/tests/kernel_equality_transport.rs` | yes |
+| `compiler/tests/layout_plans/interrupt_descriptor_tables.rs` | yes |
+| `compiler/tests/layout_plans/writer_lowering.rs` | yes |
+| `compiler/tests/pcc_publication.rs` | yes |
+| `compiler/tests/secondary_processor_startup.rs` | yes |
+| `compiler/tests/terminal_authority/filesystem_cohort_witness.rs` | yes |
+| `native_realization/optimized_fragment_projection.rs` | yes |
+| `scalar_graph_input/exact_cast_carrier_tests.rs` | yes |
+
+A row that cites a deleted test as existing evidence overstates its own
+progress twice: the behavior is unverified, and the next reader spends time
+looking for a file to extend. Re-run this sweep after any crate
+restructuring; it is a dozen lines of Python and finished in seconds.
