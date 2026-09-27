@@ -141,7 +141,7 @@ machine Main::main(&mut self) reaches Clock + Console {
     state scan_do(&mut self) {
         // The clamp is the identity on the [0,7] window and proves the shift
         // count below 32.
-        self.nv = (90 >> min(max(self.window, 0), 7)) & 1; // Rule 90: next = left XOR right
+        self.nv = (90i32 >> min(max(self.window, 0), 7)) & 1; // Rule 90: next = left XOR right
         self.next[self.op] = self.nv;
         transition { _ -> scan_advance() }
     }

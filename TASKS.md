@@ -932,11 +932,14 @@ the complete product bar; focused successes below do not establish that baseline
   window_demo}`). The byte-sequence group is now diagnosed as
   BYTE-CARRIER-STORE-LITERAL-ONLY; the boundary-arguments group as
   BOUNDARY-PRIMITIVE-ARRAY-PARAMETER. Every omission phase in the tree is now
-  attributed to an item. The two `other` rows are
+  attributed to an item. The two `other` rows were
   `cli/simulation/cellular_automaton` and `cli/systems/file_permissions`, both
-  now taking the anonymous-bitwise diagnostic rather than omitting -- that is
-  the check added earlier the same day doing its job, and both are sample
-  edits, not compiler work.
+  taking the anonymous-bitwise diagnostic rather than omitting -- the check
+  added earlier the same day doing its job. Both are now REPAIRED by typing
+  the operand each diagnostic named: `file_permissions` checks clean, and
+  `cellular_automaton` advances to `Main::clock requires a selected Fused
+  provider`, joining the Clock-provider group (which is therefore 11, not 10).
+  That cluster is empty.
 
   - **unit-plan omission, 27 -- and TWELVE distinct phases.** The shared
     "rejoins 0 Terminal attachment identities" line is the symptom; each
