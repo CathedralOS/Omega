@@ -51,7 +51,7 @@ Then examine:
 - One small external arithmetic proof with its exact source axiom closure and
   checked proof-object translation. Semantic expressibility alone is
   insufficient. Pinned in
-  `omega-rust/psi/semantics/terminal-codec/tests/arithmetic_import.rs`: a
+  `omega-rust/psi/representations/terminal-psi/codec/tests/arithmetic_import.rs`: a
   producer signature carries `Nat`, `zero`, `succ`, `add` plus the two
   recursion axioms `addZero`/`addSucc` as named assumptions; the checked
   object derives `add n (succ zero) = succ n` by transporting the step

@@ -23,7 +23,7 @@ function-identity = { path = "../../../foundation/function-identity" }
 layout-plans = { path = "../../../../psi/foundation/layout-plans" }
 machine-code = { path = "../../../representations/machine-code" }
 optimization-core = { path = "../../../foundation/optimization-core", features = ["test-support"] }
-proof-admission = { path = "../../../../psi/semantics/proof-admission" }
+proof-admission = { path = "../../../../psi/proof/admission" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 source-files-to-tokens = { path = "../../../../psi/pipeline/00_source-files-to-tokens" }
 symbol-resolved-trees-to-typed-trees = { path = "../../../../psi/pipeline/03_symbol-resolved-trees-to-typed-trees" }
@@ -31,9 +31,9 @@ symbols = { path = "../../../../psi/foundation/symbols" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../../../psi/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
 target = { path = "../../target" }
 target-operations = { path = "../../../representations/target-operations" }
-terminal-codec = { path = "../../../../psi/semantics/terminal-codec" }
+terminal-codec = { path = "../../../../psi/representations/terminal-psi/codec" }
 terminal-interpreter = { path = "../../../../psi/interpreter/terminal-interpreter" }
 terminal-psi = { path = "../../../../psi/representations/terminal-psi" }
-terminal-verifier = { path = "../../../../psi/semantics/terminal-verifier" }
+terminal-verifier = { path = "../../../../psi/representations/terminal-psi/verification" }
 tokens-to-syntax-trees = { path = "../../../../psi/pipeline/01_tokens-to-syntax-trees" }
 typed-trees-to-checked-trees = { path = "../../../../psi/pipeline/04_typed-trees-to-checked-trees" }

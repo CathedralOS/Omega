@@ -53,13 +53,13 @@
    "board": "TASKS.md",
    "item": "PROOF-KERNEL-CORE",
    "owning_paths": [
-    "omega-rust/psi/semantics/proof-admission/src/mathematical_core",
-    "omega-rust/psi/semantics/proof-admission/src/mathematical_core.rs",
-    "omega-rust/psi/semantics/proof-admission/src/lib.rs",
-    "omega-rust/psi/semantics/proof-admission/tests",
+    "omega-rust/psi/proof/admission/src/mathematical_core",
+    "omega-rust/psi/proof/admission/src/mathematical_core.rs",
+    "omega-rust/psi/proof/admission/src/lib.rs",
+    "omega-rust/psi/proof/admission/tests",
     "omega-rust/omega/compiler/compiler/tests/proof_kernel_canaries.rs",
     "omega-rust/omega/compiler/compiler/tests/kernel_equality_transport.rs",
-    "omega-rust/psi/semantics/terminal-codec/src"
+    "omega-rust/psi/representations/terminal-psi/codec/src"
    ],
    "suggested_first_slice": "CONTINUATION leg (prior leg landed 7d473757be: closed Truth/Falsehood crossings derive through J+Empty with rule_axioms=0). Pick ONE next bounded row of PROOF-KERNEL-CORE: remaining residue includes other rule_instance fallback arms for genuinely undecided/open shapes (other carriers, dependent codomains, open Id Two<->Int endpoints, out-of-numeral-range closed values), indexed-scheme application checks, or negative-recursion elaboration. NOTE: terminal codec artifact custody matrices were also assigned to this slot by the custody worker - a bounded migration of one terminal-codec matrix to the shared custody driver is an acceptable alternative slice if a kernel row is not cleanly bounded. Keep undecided residue explicit (rule_axioms==1 where genuinely open) - do not overclaim decidability. Widen the claim before editing outside owning_paths. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4.",
    "host_gates": [
@@ -91,7 +91,7 @@
     "omega-rust/omega/compiler/selected-dispatch/src/boundary_dispatch.rs",
     "omega-rust/omega/compiler/selected-dispatch/src/boundary_dispatch",
     "omega-rust/omega/compiler/selected-dispatch/src/selected_dispatch/requirement_adapter.rs",
-    "omega-rust/psi/semantics/validation/src/machine_calls/calls/generic_bounds.rs"
+    "omega-rust/psi/checking/src/machine_calls/calls/generic_bounds.rs"
    ],
    "suggested_first_slice": "CONTINUATION leg (prior leg landed cd27f6b940: mutable-borrow &mut self receiver-place forwarding settles). Pick ONE next bounded row of TOP-LEVEL-BOUNDARY-REQUIREMENTS from the board item: remaining open legs include requirement family rows, external satisfiers, and write-only or qualified receivers. Reuse the subset-refinement arm in refresh_settled_state_write_frames (04_typed-trees-to-checked-trees/src/execution/selected_execution.rs) - it is the load-bearing piece for any receiver shape whose declared write bound exceeds the realization writes. Keep write-only/qualified receivers behind the bodyless-symbol fence unless that is the leg you pick. Widen the claim before editing outside your listed owning_paths. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4.",
    "host_gates": [

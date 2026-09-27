@@ -50,9 +50,9 @@
       "host": "local",
       "owning_paths": [
         "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations",
-        "omega-rust/psi/semantics/terminal-verifier/src/validation/control_flow",
-        "omega-rust/psi/semantics/terminal-verifier/src/trusted_surface",
-        "omega-rust/psi/semantics/terminal-verifier/tests/ranked_scc"
+        "omega-rust/psi/representations/terminal-psi/verification/src/validation/control_flow",
+        "omega-rust/psi/representations/terminal-psi/verification/src/trusted_surface",
+        "omega-rust/psi/representations/terminal-psi/verification/tests/ranked_scc"
       ],
       "suggested_first_slice": "Extend invariant motion in ranked_rewrites/loop_invariant_scalar_motion/ beyond the authenticated shared-source preheader: pick the next uncovered establishment/custody family and carry it through independent admission/replay in src/validation/.",
       "host_gates": ["which mbx || which cargo"],
@@ -86,14 +86,14 @@
       "owning_paths": [
         "omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation",
         "omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/tests/module_namespace_residuals.rs",
-        "omega-rust/psi/semantics/validation/src/proof_contracts/domains.rs",
-        "omega-rust/psi/semantics/validation/src/proof_contracts/domains",
-        "omega-rust/psi/semantics/validation/src/proof_contracts/bound_expression_meaning.rs",
-        "omega-rust/psi/compiler/build-time-evaluation/src/const_evaluation/const_initializers",
-        "omega-rust/psi/compiler/build-time-evaluation/src/const_evaluation/const_initializers.rs",
-        "omega-rust/psi/compiler/build-time-evaluation/src/const_evaluation/const_generic_expressions",
-        "omega-rust/psi/compiler/build-time-evaluation/src/machine_execution/admission",
-        "omega-rust/psi/compiler/build-time-evaluation/src/machine_execution/admission.rs",
+        "omega-rust/psi/checking/src/proof_contracts/domains.rs",
+        "omega-rust/psi/checking/src/proof_contracts/domains",
+        "omega-rust/psi/checking/src/proof_contracts/bound_expression_meaning.rs",
+        "omega-rust/psi/interpreter/build-time-evaluation/src/const_evaluation/const_initializers",
+        "omega-rust/psi/interpreter/build-time-evaluation/src/const_evaluation/const_initializers.rs",
+        "omega-rust/psi/interpreter/build-time-evaluation/src/const_evaluation/const_generic_expressions",
+        "omega-rust/psi/interpreter/build-time-evaluation/src/machine_execution/admission",
+        "omega-rust/psi/interpreter/build-time-evaluation/src/machine_execution/admission.rs",
         "omega-rust/psi/representations/typed-trees/src/typed_trees/declarations/operator/spellings.rs"
       ],
       "suggested_first_slice": "Finish typed/checked/Terminal transport for generic type-scoped constant attachments: extend module_namespace_residuals' resolver-only operator/case tests through their remaining consumers rather than adding another namespace recognizer.",

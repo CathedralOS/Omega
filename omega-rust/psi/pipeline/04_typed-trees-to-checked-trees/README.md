@@ -446,7 +446,7 @@ target task activation and stack realization remain outside checked Psi.
 ## Mutation and reference origins
 
 The shared implementation and conservative fallback rules live beside
-[validation](../../semantics/validation/README.md#write-frames-and-reference-origins).
+[validation](../../checking/README.md#write-frames-and-reference-origins).
 Flow invalidation projects its complete-or-opaque result into structured places;
 do not create a second recursion or alias-admission policy here.
 

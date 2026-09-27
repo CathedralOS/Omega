@@ -3,7 +3,7 @@
 Layouts are library policies over ordinary `data` declarations. They choose
 physical representation without replacing the semantic fields or introducing
 a language keyword for each foreign format. This contract describes the
-intended language; the [implementation boundary](../../../omega-rust/psi/compiler/build-time-evaluation/layouts.md)
+intended language; the [implementation boundary](../../../omega-rust/psi/interpreter/build-time-evaluation/layouts.md)
 identifies the supported subset.
 
 Firmware structures follow the same rule: their target package supplies data

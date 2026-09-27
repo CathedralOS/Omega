@@ -80,7 +80,7 @@ covers reordered fields and corrupt plans, and
 scalar_case_return_multistate_borrowed_view_and_ordinary_call_observe_count
 combines returns, loops, and caller-visible mutation. Ordered value exits use
 guarded.rs and the ordinary structural-value emitter. Full source coverage is
-specified in ../../compiler/terminal-production/README.md relative to this crate.
+specified in ../../terminal-production/README.md relative to this crate.
 */
 use checked_trees::{
     CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,

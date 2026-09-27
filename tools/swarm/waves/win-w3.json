@@ -59,7 +59,7 @@
       "owning_paths": [
         "omega-rust/psi/foundation/symbols/src/table.rs",
         "omega-rust/psi/foundation/symbols/src/table/modules.rs",
-        "omega-rust/psi/semantics/validation/src/value_custody/expression_types/walk.rs",
+        "omega-rust/psi/checking/src/value_custody/expression_types/walk.rs",
         "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/flow/place/resolution.rs"
       ],
       "suggested_first_slice": "Takeover of suspended session jarod-overseer (3 claims released; owner never resumes). One chain of three freeform perf items against a measured >900 s `omega --check` hang of a std-importing program (hot profile: the_modules/intern resolution, value-custody walk, place resolution). In this worktree, in order, claiming each item before its edits: (1) SOURCE-MODULE-INDEX \u00e2\u20ac\u201d psi/foundation/symbols intern/module_index/the_modules intern_index: resolve interned module strings through identity or a dense index instead of linear scans; (2) EXPRESSION-WALK-DEDUP-SET \u00e2\u20ac\u201d psi/semantics/validation value_custody/expression_types/walk.rs O(N^2) revisits: dedupe already-walked expressions without weakening what each visit must prove; (3) PLACE-SYMBOL-POSITION-INDEX \u00e2\u20ac\u201d t2c flow/place/resolution.rs parent-edge/scope-index fast path. Measure `mbx run -p omega -- --check <std-importing program>` wall time before and after each fix. Claim via `python3 tools/claims.py claim --item <ITEM> --owner 'Jarod / win-w3-check-hang' --paths <files> --board TASKS_OPTIMIZER.md` (freeform items \u00e2\u20ac\u201d no board entry needed); if a still-live claim conflicts, note it and skip ahead."

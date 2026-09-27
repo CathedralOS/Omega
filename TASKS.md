@@ -687,7 +687,7 @@ the complete product bar; focused successes below do not establish that baseline
   Scope pause: resume `print_squares` only with a plan from its full source
   closure to native execution, not another isolated helper milestone.
   Independent operation work remains actionable; use the
-  [Terminal production map](omega-rust/psi/compiler/terminal-production/README.md)
+  [Terminal production map](omega-rust/psi/terminal-production/README.md)
   and **TRANSLATION-VALIDATION** in `TASKS_OPTIMIZER.md`.
   Acceptance requires every maintained sample to check and applicable runtime
   oracles to pass on the required hosted matrix. Record unavailable hosts;
@@ -996,7 +996,7 @@ _roots` shows the current shape: `use omega_language_std::targets::uefi_x86_64`
   `capabilities/uses_caller_folder` reject on borrowed storage absent at a
   boundary call. For the shared-view-field shape, this row owns implementing
   [shared-reference copy composition](wiki/spec/language/ownership.md), not a
-  new owner ruling: `omega-rust/psi/semantics/validation/src/proof_contracts/properties.rs` still excludes
+  new owner ruling: `omega-rust/psi/checking/src/proof_contracts/properties.rs` still excludes
   references from `[copy]` fields even though stored shared views already copy.
   Admit shared carriers while preserving exact loans and qualification facts;
   require the record's explicit `[copy]` declaration. Pin `&mut`/`&write`
@@ -1285,7 +1285,7 @@ contract bounds, and two-sided emitted-call replay already exist. Remaining:
   invent a parallel selection identity or a second proof system.
 
 Owners: `05_checked-trees-to-lowered-psi/src/retention/closed_reach_applications.rs`,
-`omega-rust/psi/semantics/validation/src/machine_calls/static_machine_call_contracts.rs`, and
+`omega-rust/psi/checking/src/machine_calls/static_machine_call_contracts.rs`, and
 `terminal-verifier/src/validation/reach_applications.rs`. Keep ordinary semantic
 replay distinct from optional producer-correspondence certification; neither
 test coverage nor matching hashes justify a full generic-PCC claim.
@@ -2375,7 +2375,7 @@ syntax and other terminal services are not prerequisites.
   `has_owned_or_shared_view_fields` are all false, multiplicity is `Affine`,
   and there are no qualifications, so the gate returns `None`. The classifier
   that should answer is `has_owned_or_shared_view_fields`
-  (`omega-rust/psi/semantics/validation/src/value_custody/storage_contents.rs`): it accepts a `Generic`
+  (`omega-rust/psi/checking/src/value_custody/storage_contents.rs`): it accepts a `Generic`
   node only when its type arguments are EMPTY, which admits a
   lifetime-parameterized record and drops an instantiated
   `DecodeResult<Relayed<LocalMessage>>` to its `_ => return false`. Widen it
@@ -2820,7 +2820,7 @@ syntax and other terminal services are not prerequisites.
   and their independent Terminal verifier.
 
   Reuse `ClosedIntegerRelation`'s exact compound normalization in
-  `omega-rust/psi/semantics/proof-admission/src/integer_rules/open_terms.rs` and the free-loop native
+  `omega-rust/psi/proof/admission/src/integer_rules/open_terms.rs` and the free-loop native
   positive/wrong-update controls. `proof_inductive_gauss_sum` and
   `proof_inductive_climbing_sum` still need STATE-LOCAL-VALUE-FRONTIER's
   value-returning cyclic execution beyond their checked-only routes.
@@ -4482,7 +4482,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   permission/review rows and the broad filesystem-summary replacement.
 
 - **R5.** Complete compositional caller-visible may-write inference in
-  `omega-rust/psi/semantics/validation/src/machine_calls/calls/write_frames.rs` and its subordinate
+  `omega-rust/psi/checking/src/machine_calls/calls/write_frames.rs` and its subordinate
   origin/fixpoint owners. A complete frame must name every possible write;
   unknown origins remain opaque and invalidate affected facts. This supplies
   the exact preservation checks required by
@@ -4595,7 +4595,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   `select(forward_array(values)[0])`, including structural-element array
   ingress, residual carrier cleanup and recursive loan/qualification/linear-claim
   custody. Retire superseded shape gates in
-  `omega-rust/psi/semantics/validation/src/machine_calls/calls/expression_scanning/result_realization.rs`
+  `omega-rust/psi/checking/src/machine_calls/calls/expression_scanning/result_realization.rs`
   as real evaluation/result producers become available, rather than duplicating
   the producer's walk for each destination spelling.
 
@@ -5042,7 +5042,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
     execution coverage in `borrowed_scalar_call_source`.
   - Complete exact saved-value snapshots across actual writes/exclusive
     exposure, plus dependent/public-trait results and subslice bounds.
-    `omega-rust/psi/semantics/validation/src/proof_contracts/contract_entailment/ranking_range/saved_arguments.rs`
+    `omega-rust/psi/checking/src/proof_contracts/contract_entailment/ranking_range/saved_arguments.rs`
     already accepts stable unwritten mutable carriers; `mut` alone is not
     the gap. Share capture with **CRASH-CONTRACT**, preserving case/index/
     generic/reference/float identities and totality. Current body facts
@@ -5060,7 +5060,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
     build-time admission controls; preserve them rather than folding builtin
     meaning. **OPERATOR-MACHINE-SUPPLY** owns executable supply.
     Nonconstant proof-`Int` arithmetic still needs independent evidence beyond
-    source entailment in `omega-rust/psi/semantics/validation/src/proof_contracts/contract_entailment/arithmetic_judgment.rs`.
+    source entailment in `omega-rust/psi/checking/src/proof_contracts/contract_entailment/arithmetic_judgment.rs`.
 
   Acceptance: one composed caller tolerates reordered/renamed states and
   inserted computations; selected operands execute left-to-right once,
@@ -6258,7 +6258,7 @@ but report the missing runtime leg explicitly; it does not close that host row.
   set helps nobody.
 
   1. `public interface selects private domain [u8]::CString`
-     (`omega-rust/psi/semantics/validation/src/declarations/declaration_visibility.rs`). Not the
+     (`omega-rust/psi/checking/src/declarations/declaration_visibility.rs`). Not the
      `pub domain` at `source/library/std/macos_gui.omg:32` -- `pub domain`
      records `is_public = true`, verified directly on the lowered trees. The
      ELEVEN fixtures under `tests/omega/pass/objc/` declare their OWN

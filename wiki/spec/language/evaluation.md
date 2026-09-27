@@ -318,5 +318,5 @@ The [selection result contract](reflection.md#selection-evaluation-and-retained-
 requires independent resolution, coverage, access, and requirement validation.
 Choosing a static declaration is not manufacturing proof or a runtime callable.
 
-The [implementation note](../../../omega-rust/psi/compiler/build-time-evaluation/README.md)
+The [implementation note](../../../omega-rust/psi/interpreter/build-time-evaluation/README.md)
 records the narrower currently supported admission and materialization paths.

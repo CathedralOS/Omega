@@ -111,7 +111,7 @@ pause-only sample intentionally discards the line result and does not exercise
 that entire contract.
 
 For a new failure, start with the actual CLI diagnostic. The
-[Terminal production owner](../../../../omega-rust/psi/compiler/terminal-production/README.md)
+[Terminal production owner](../../../../omega-rust/psi/terminal-production/README.md)
 documents source-to-Terminal composition; `ENTRY-CONTENT-ROOTS` owns entry and
 service establishment, and `TWO-AXIS-TERMINAL-AUTHORITY-REVIEW` owns any remaining
 production/admission coupling. Their current obligations live on the board,

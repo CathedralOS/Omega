@@ -17,11 +17,11 @@ terminal-psi-to-abstract-operations = { path = "../00_terminal-psi-to-abstract-o
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 optimization = { path = "../../../psi/foundation/optimization-selections" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }
-terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
-terminal-semantics = { path = "../../../psi/semantics/terminal-semantics" }
-terminal-fuel = { path = "../../../psi/semantics/terminal-fuel" }
-proof-admission = { path = "../../../psi/semantics/proof-admission" }
-terminal-verifier = { path = "../../../psi/semantics/terminal-verifier" }
+terminal-codec = { path = "../../../psi/representations/terminal-psi/codec" }
+terminal-semantics = { path = "../../../psi/representations/terminal-psi/semantics" }
+terminal-fuel = { path = "../../../psi/representations/terminal-psi/fuel" }
+proof-admission = { path = "../../../psi/proof/admission" }
+terminal-verifier = { path = "../../../psi/representations/terminal-psi/verification" }
 
 [dev-dependencies]
 # Dev builds enable test-support so the psi_optimization_allocations example and

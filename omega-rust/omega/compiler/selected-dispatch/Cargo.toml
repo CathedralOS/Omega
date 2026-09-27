@@ -25,10 +25,10 @@ source = { path = "../../../psi/foundation/source" }
 symbols = { path = "../../../psi/foundation/symbols" }
 typed-trees = { path = "../../../psi/representations/typed-trees" }
 typed-trees-to-checked-trees = { path = "../../../psi/pipeline/04_typed-trees-to-checked-trees" }
-validation = { path = "../../../psi/semantics/validation" }
+validation = { path = "../../../psi/checking" }
 
 [dev-dependencies]
-facts = { path = "../../../psi/semantics/facts" }
+facts = { path = "../../../psi/representations/checked-trees/facts" }
 source-files-to-tokens = { path = "../../../psi/pipeline/00_source-files-to-tokens" }
 symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/03_symbol-resolved-trees-to-typed-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/02_syntax-trees-to-symbol-resolved-trees" }

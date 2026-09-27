@@ -19,7 +19,7 @@ source = { path = "../../foundation/source" }
 layout-plans = { path = "../../foundation/layout-plans" }
 typed-trees = { path = "../../representations/typed-trees" }
 checked-trees = { path = "../../representations/checked-trees" }
-validation = { path = "../../semantics/validation" }
+validation = { path = "../../checking" }
 
 [dev-dependencies]
 diagnostics = { path = "../../foundation/diagnostics" }

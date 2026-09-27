@@ -52,7 +52,7 @@
       "host": "linux",
       "owning_paths": [
         "omega-rust/omega/pipeline/00_terminal-psi-to-abstract-operations/src/artifact",
-        "omega-rust/psi/compiler/build-time-evaluation/src/plan_laid.rs"
+        "omega-rust/psi/interpreter/build-time-evaluation/src/plan_laid.rs"
       ],
       "suggested_first_slice": "Rejoin one plan-laid view's layout identity, backing, range, access, or lifetime at a use site so a stale substitution rejects with a checked witness."
     },
@@ -63,7 +63,7 @@
       "host": "linux",
       "owning_paths": [
         "omega-rust/psi/foundation/layout-plans",
-        "omega-rust/psi/compiler/build-time-evaluation/src/layout_plans.rs"
+        "omega-rust/psi/interpreter/build-time-evaluation/src/layout_plans.rs"
       ],
       "suggested_first_slice": "Materialize one symbolic layout-plan case through build-time evaluation without baking in a concrete address."
     },
@@ -96,7 +96,7 @@
       "item": "STRICT-FLOAT-RANGES",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/semantics/proof",
+        "omega-rust/psi/proof",
         "tests/omega/pass/ranges"
       ],
       "suggested_first_slice": "Extend one proof obligation so a float range claim requires strict evidence rather than permissive widening."
@@ -107,7 +107,7 @@
       "item": "PROOF-KERNEL-CORE",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/semantics/proof-admission"
+        "omega-rust/psi/proof/admission"
       ],
       "suggested_first_slice": "Move one kernel check into proof-admission so admitted proofs carry their inductive profile rather than inferred context."
     },
@@ -117,7 +117,7 @@
       "item": "WRITE-ONLY-BORROW",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/semantics/validation/src/write_only_borrows.rs"
+        "omega-rust/psi/checking/src/write_only_borrows.rs"
       ],
       "suggested_first_slice": "Converge one write-only borrow rule with the shared borrow-proof machinery; a prior worktree exists but this session starts from origin/main."
     },

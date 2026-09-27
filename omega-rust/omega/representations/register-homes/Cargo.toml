@@ -18,6 +18,6 @@ target-operations = { path = "../target-operations" }
 task-plans = { path = "../../backend/runtime/task-plans" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 symbols = { path = "../../../psi/foundation/symbols" }
-terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
+terminal-codec = { path = "../../../psi/representations/terminal-psi/codec" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }
 sha2 = "0.10.9"

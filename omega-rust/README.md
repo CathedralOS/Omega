@@ -55,7 +55,7 @@ implies deletion.
   independent supporting packages beneath compiler coordination, alongside
   declarations, output custody, package inputs, selection, and trust policy.
 - [Psi interpreters](psi/interpreter): separate checked-tree and Terminal Psi
-  engines. [Build-time evaluation](psi/compiler/build-time-evaluation) uses
+  engines. [Build-time evaluation](psi/interpreter/build-time-evaluation) uses
   target-neutral execution without depending on the Omega compiler coordinator.
 - [Runtime component installation](omega/backend/runtime/component-deployment/README.md):
   custody composition under backend runtime ownership.

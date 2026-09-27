@@ -80,7 +80,7 @@ discoverability, compositional lowering — lives in
 
 Durable IRs stay in independent `representations/` packages grouped by actual
 pipeline program family. Shared vocabulary, target/ABI descriptions, planning
-records and standalone evidence belong to their foundation, semantic or backend
+records and standalone evidence belong to their foundation, checking or backend
 owners; they are not extra IR stages. Shared foundations and utilities stay
 independently owned. Do not absorb them into producing
 stages or the application crate. The owner rejected the fat-stages consolidation

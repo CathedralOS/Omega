@@ -11,4 +11,4 @@ terminal-psi = { path = "../../representations/terminal-psi" }
 semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
 symbols = { path = "../../foundation/symbols" }
 lowered-psi-to-lowered-psi = { path = "../06_lowered-psi-to-lowered-psi" }
-terminal-codec = { path = "../../semantics/terminal-codec" }
+terminal-codec = { path = "../../representations/terminal-psi/codec" }

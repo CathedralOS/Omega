@@ -45,8 +45,8 @@
             "host": "local",
             "owning_paths": [
                 "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/termination/ranking",
-                "omega-rust/psi/semantics/validation/src/proof_contracts/contract_entailment/ranking_range",
-                "omega-rust/psi/semantics/validation/src/machine_calls/call_cycles/runtime_ranking",
+                "omega-rust/psi/checking/src/proof_contracts/contract_entailment/ranking_range",
+                "omega-rust/psi/checking/src/machine_calls/call_cycles/runtime_ranking",
                 "omega-rust/omega/compiler/compiler/tests/rank_remainder_endpoints.rs",
                 "omega-rust/omega/compiler/compiler/tests/rank_endpoint_borrows.rs"
             ],
@@ -64,8 +64,8 @@
             "owning_paths": [
                 "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit.rs",
                 "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit",
-                "omega-rust/psi/semantics/terminal-verifier/tests/calls/qualification_establishments.rs",
-                "omega-rust/psi/semantics/terminal-verifier/tests/straight_line/scalar_qualifications.rs"
+                "omega-rust/psi/representations/terminal-psi/verification/tests/calls/qualification_establishments.rs",
+                "omega-rust/psi/representations/terminal-psi/verification/tests/straight_line/scalar_qualifications.rs"
             ],
             "suggested_first_slice": "ordinary attached units publish no conformance applications — retain the missing ordinary callee/conformance identities in attached_unit.rs/catalog.rs and connect checked establishment evidence to its exact invocation result (call_result_qualification_establishments currently emits only boundary-requirement bindings backed by an exact CallEnsures receipt)",
             "host_gates": [
@@ -127,8 +127,8 @@
             "owning_paths": [
                 "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits/cyclic_headers.rs",
                 "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/proofs/scalar_block_invariants",
-                "omega-rust/psi/semantics/proof-admission/src/integer_rules/open_terms.rs",
-                "omega-rust/psi/semantics/terminal-verifier/tests/ranked_scc",
+                "omega-rust/psi/proof/admission/src/integer_rules/open_terms.rs",
+                "omega-rust/psi/representations/terminal-psi/verification/tests/ranked_scc",
                 "omega-rust/omega/compiler/compiler/tests/pcc_publication.rs"
             ],
             "suggested_first_slice": "extend the certified source-derivation route ebd634e638 landed (kernel ClosedIntegerRelation lifts Exact compounds on Fixed carriers through open-term ring normalization; lowering transport fallback gated to compound endpoints) to multi-state carried values — the single-state free-loop order claim already runs natively; storage-changing self transitions and the checked-only proof_inductive fixtures may follow if the slice stays bounded",
@@ -143,9 +143,9 @@
             "item": "PCC-CANONICAL-SEMANTIC-LEDGER",
             "host": "local",
             "owning_paths": [
-                "omega-rust/psi/semantics/terminal-verifier/src/trusted_surface",
-                "omega-rust/psi/semantics/terminal-verifier/src/trusted_surface.rs",
-                "omega-rust/psi/semantics/terminal-verifier/src/lib.rs"
+                "omega-rust/psi/representations/terminal-psi/verification/src/trusted_surface",
+                "omega-rust/psi/representations/terminal-psi/verification/src/trusted_surface.rs",
+                "omega-rust/psi/representations/terminal-psi/verification/src/lib.rs"
             ],
             "suggested_first_slice": "discharge one ExplicitlyTrusted trusted_surface row family (reconstruction, normalization, scope, invalidation, or call/cycle-composition) with checked evidence and exact dependencies — the inventory mechanically covers dispatch/reconstructed-facts/dependencies; coverage and a Proved label are not proofs; preserve PROVED_ENTRIES and unfinished-dependency checks; revalidate justifications before refreshing any source digest in lib.rs",
             "host_gates": [

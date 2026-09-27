@@ -120,10 +120,10 @@ def selection(root, metadata, paths):
         if is_documentation(filename):
             continue
         if filename in {
-            "omega-rust/psi/semantics/terminal-codec/src/sections/trust_graph.rs",
-            "omega-rust/psi/semantics/terminal-codec/src/sections/trust_graph/current.rs",
-            "omega-rust/psi/semantics/terminal-codec/src/sections/trust_graph/identity.rs",
-            "omega-rust/psi/semantics/terminal-codec/src/sections/trust_graph/validation.rs",
+            "omega-rust/psi/representations/terminal-psi/codec/src/trust_graph.rs",
+            "omega-rust/psi/representations/terminal-psi/codec/src/trust_graph/current.rs",
+            "omega-rust/psi/representations/terminal-psi/codec/src/trust_graph/identity.rs",
+            "omega-rust/psi/representations/terminal-psi/codec/src/trust_graph/validation.rs",
         }:
             reasons.append(f"Source-reader implementation: {filename}")
             continue

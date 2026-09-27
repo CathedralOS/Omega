@@ -1,0 +1,14 @@
+[package]
+name = "flow-effects"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "flow_effects"
+path = "src/lib.rs"
+
+[dependencies]
+arena = { path = "../arena" }
+language-semantics = { path = "../language-semantics" }
+symbols = { path = "../symbols" }

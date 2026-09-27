@@ -29,7 +29,7 @@
       "host": "linux",
       "owning_paths": [
         "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/termination/ranking",
-        "omega-rust/psi/semantics/validation/src/call_cycles/runtime_ranking"
+        "omega-rust/psi/checking/src/call_cycles/runtime_ranking"
       ],
       "suggested_first_slice": "one computed-only path with auxiliary-only multi-parameter arithmetic: exact arrival mapping plus its missing-premise rejection"
     },

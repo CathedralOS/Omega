@@ -61,7 +61,7 @@
       "item": "PSIIR",
       "host": "local",
       "owning_paths": [
-        "omega-rust/psi/semantics/terminal-fixed-fuel"
+        "omega-rust/psi/representations/terminal-psi/fuel/certification"
       ],
       "suggested_first_slice": "continue past the macw8b lands (unbounded-rank cause identity 310b1ca4ba, relational requires-chain ceilings 3f797950ea): next named frontiers are disjunctive/implied ceilings, IntegerMath* clauses, guard/path-fact bounds, or wait/foreign-edge cause vocabulary. Pick the tightest single slice; keep per-cause diagnostics readable.",
       "host_gates": ["which mbx || which cargo"],

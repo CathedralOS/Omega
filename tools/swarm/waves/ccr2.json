@@ -14,12 +14,12 @@
       "item": "CUSTODY-MUTATION-COVERAGE",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/semantics/terminal-codec/tests/artifact/debug_map_custody.rs",
-        "omega-rust/psi/semantics/terminal-codec/tests/artifact/debug_map_custody_fields.rs",
-        "omega-rust/psi/semantics/terminal-codec/tests/artifact/artifact_envelope_custody.rs",
-        "omega-rust/psi/semantics/terminal-codec/tests/artifact/artifact_envelope_custody_fields.rs",
-        "omega-rust/psi/semantics/terminal-codec/tests/artifact/pcc_custody.rs",
-        "omega-rust/psi/semantics/terminal-codec/tests/artifact/pcc_custody_fields.rs"
+        "omega-rust/psi/representations/terminal-psi/codec/tests/artifact/debug_map_custody.rs",
+        "omega-rust/psi/representations/terminal-psi/codec/tests/artifact/debug_map_custody_fields.rs",
+        "omega-rust/psi/representations/terminal-psi/codec/tests/artifact/artifact_envelope_custody.rs",
+        "omega-rust/psi/representations/terminal-psi/codec/tests/artifact/artifact_envelope_custody_fields.rs",
+        "omega-rust/psi/representations/terminal-psi/codec/tests/artifact/pcc_custody.rs",
+        "omega-rust/psi/representations/terminal-psi/codec/tests/artifact/pcc_custody_fields.rs"
       ],
       "host_gates": ["git ls-remote --exit-code origin refs/coordination/omega-claims/main"]
     },
@@ -29,12 +29,12 @@
       "item": "CUSTODY-MUTATION-COVERAGE",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/semantics/terminal-codec/tests/artifact/obligation_ledger_custody.rs",
-        "omega-rust/psi/semantics/terminal-codec/tests/artifact/obligation_ledger_custody_fields.rs",
-        "omega-rust/psi/semantics/terminal-codec/tests/artifact/operation_crash_contract_custody.rs",
-        "omega-rust/psi/semantics/terminal-codec/tests/artifact/operation_crash_contract_custody_fields.rs",
-        "omega-rust/psi/semantics/terminal-codec/tests/artifact/placed_view_input_custody.rs",
-        "omega-rust/psi/semantics/terminal-codec/tests/artifact/placed_view_input_custody_fields.rs"
+        "omega-rust/psi/representations/terminal-psi/codec/tests/artifact/obligation_ledger_custody.rs",
+        "omega-rust/psi/representations/terminal-psi/codec/tests/artifact/obligation_ledger_custody_fields.rs",
+        "omega-rust/psi/representations/terminal-psi/codec/tests/artifact/operation_crash_contract_custody.rs",
+        "omega-rust/psi/representations/terminal-psi/codec/tests/artifact/operation_crash_contract_custody_fields.rs",
+        "omega-rust/psi/representations/terminal-psi/codec/tests/artifact/placed_view_input_custody.rs",
+        "omega-rust/psi/representations/terminal-psi/codec/tests/artifact/placed_view_input_custody_fields.rs"
       ],
       "host_gates": ["git ls-remote --exit-code origin refs/coordination/omega-claims/main"]
     },

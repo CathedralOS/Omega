@@ -20,4 +20,4 @@ Follow the subordinate owners:
 
 The Cargo package remains `effects`; its public exports and evidence formats are
 unchanged. Source-language flow and effect summaries belong to
-[Psi flow-effects](../../../../psi/semantics/flow-effects/src/lib.rs).
+[Psi flow-effects](../../../../psi/foundation/flow-effects/src/lib.rs).

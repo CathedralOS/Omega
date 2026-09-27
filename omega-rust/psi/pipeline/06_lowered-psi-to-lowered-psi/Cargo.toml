@@ -7,12 +7,12 @@ version.workspace = true
 
 [dependencies]
 semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
-terminal-semantics = { path = "../../semantics/terminal-semantics" }
+terminal-semantics = { path = "../../representations/terminal-psi/semantics" }
 lowered-psi = { path = "../../representations/lowered-psi" }
 optimization = { path = "../../foundation/optimization-selections" }
 terminal-psi = { path = "../../representations/terminal-psi" }
-terminal-codec = { path = "../../semantics/terminal-codec" }
-terminal-verifier = { path = "../../semantics/terminal-verifier" }
+terminal-codec = { path = "../../representations/terminal-psi/codec" }
+terminal-verifier = { path = "../../representations/terminal-psi/verification" }
 
 [dev-dependencies]
 language-core = { path = "../../foundation/language-core" }

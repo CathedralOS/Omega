@@ -83,7 +83,7 @@ Consumers depend directly on the package whose contract they need.
 | `artifacts` | Output writing, retained trust/wire records and measurement storage |
 
 Target-neutral build evaluation remains in
-[Psi's compiler support](../../psi/compiler/build-time-evaluation/README.md).
+[Psi's compiler support](../../psi/interpreter/build-time-evaluation/README.md).
 Package installation and update belong to the separate
 [package manager](../package-manager/README.md).
 

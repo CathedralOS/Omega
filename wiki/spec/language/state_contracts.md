@@ -83,4 +83,4 @@ a term, or prove a supported implication grants no fact and is not a refutation.
 The checked program is not a substitute for an independently verified Terminal
 certificate. Current algorithms and support limits belong beside
 [checking](../../../omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/README.md)
-and [validation](../../../omega-rust/psi/semantics/validation/README.md).
+and [validation](../../../omega-rust/psi/checking/README.md).

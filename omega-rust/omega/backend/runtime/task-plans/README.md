@@ -103,4 +103,4 @@ scalar suspension carrier likewise does not license receiver/structural/claim
 frontiers without their exact joins; the plan frontier records the claims
 the checked producer already established but cannot yet authorize forms
 the producer never emits; see the
-[Terminal producer](../../../../psi/compiler/terminal-production/README.md#structural-results-and-suspension).
+[Terminal producer](../../../../psi/terminal-production/README.md#structural-results-and-suspension).

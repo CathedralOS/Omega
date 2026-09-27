@@ -39,11 +39,11 @@ isa-x86_64 = { path = "../../instruction_set_architectures/isa-x86_64" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 symbols = { path = "../../../../psi/foundation/symbols" }
 terminal-psi = { path = "../../../../psi/representations/terminal-psi" }
-terminal-semantics = { path = "../../../../psi/semantics/terminal-semantics" }
-terminal-codec = { path = "../../../../psi/semantics/terminal-codec" }
-terminal-fuel = { path = "../../../../psi/semantics/terminal-fuel" }
-terminal-verifier = { path = "../../../../psi/semantics/terminal-verifier" }
-proof-admission = { path = "../../../../psi/semantics/proof-admission" }
+terminal-semantics = { path = "../../../../psi/representations/terminal-psi/semantics" }
+terminal-codec = { path = "../../../../psi/representations/terminal-psi/codec" }
+terminal-fuel = { path = "../../../../psi/representations/terminal-psi/fuel" }
+terminal-verifier = { path = "../../../../psi/representations/terminal-psi/verification" }
+proof-admission = { path = "../../../../psi/proof/admission" }
 sha2 = "0.10"
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "instr_info"] }
 
@@ -60,7 +60,7 @@ optimization-core = { path = "../../../foundation/optimization-core", features =
 checked-trees = { path = "../../../../psi/representations/checked-trees" }
 extents = { path = "../../../../psi/foundation/extents" }
 checked-trees-to-lowered-psi = { path = "../../../../psi/pipeline/05_checked-trees-to-lowered-psi" }
-proof-admission = { path = "../../../../psi/semantics/proof-admission" }
+proof-admission = { path = "../../../../psi/proof/admission" }
 source-files-to-tokens = { path = "../../../../psi/pipeline/00_source-files-to-tokens" }
 symbol-resolved-trees-to-typed-trees = { path = "../../../../psi/pipeline/03_symbol-resolved-trees-to-typed-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../../../psi/pipeline/02_syntax-trees-to-symbol-resolved-trees" }

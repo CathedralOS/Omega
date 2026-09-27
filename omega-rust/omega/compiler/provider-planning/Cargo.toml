@@ -33,14 +33,14 @@ target = { path = "../../backend/target" }
 task-plans = { path = "../../backend/runtime/task-plans" }
 trust-model = { path = "../trust-model" }
 arena = { path = "../../../psi/foundation/arena" }
-build-time-evaluation = { path = "../../../psi/compiler/build-time-evaluation" }
+build-time-evaluation = { path = "../../../psi/interpreter/build-time-evaluation" }
 checked-trees = { path = "../../../psi/representations/checked-trees" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }
 target-operations = { path = "../../representations/target-operations" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
-flow-effects = { path = "../../../psi/semantics/flow-effects" }
-facts = { path = "../../../psi/semantics/facts" }
+flow-effects = { path = "../../../psi/foundation/flow-effects" }
+facts = { path = "../../../psi/representations/checked-trees/facts" }
 language-core = { path = "../../../psi/foundation/language-core" }
 language-semantics = { path = "../../../psi/foundation/language-semantics" }
 layout-plans = { path = "../../../psi/foundation/layout-plans" }
@@ -48,12 +48,12 @@ numerics = { path = "../../../psi/foundation/numerics" }
 source = { path = "../../../psi/foundation/source" }
 symbols = { path = "../../../psi/foundation/symbols" }
 typed-trees = { path = "../../../psi/representations/typed-trees" }
-validation = { path = "../../../psi/semantics/validation" }
+validation = { path = "../../../psi/checking" }
 sha2 = "0.10.9"
 
 [dev-dependencies]
 source-files-to-tokens = { path = "../../../psi/pipeline/00_source-files-to-tokens" }
-terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
+terminal-codec = { path = "../../../psi/representations/terminal-psi/codec" }
 symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/03_symbol-resolved-trees-to-typed-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
 tokens-to-syntax-trees = { path = "../../../psi/pipeline/01_tokens-to-syntax-trees" }

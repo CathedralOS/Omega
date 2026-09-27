@@ -25,8 +25,8 @@ arena = { path = "../../../psi/foundation/arena" }
 checked-trees = { path = "../../../psi/representations/checked-trees" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
-flow-effects = { path = "../../../psi/semantics/flow-effects" }
-facts = { path = "../../../psi/semantics/facts" }
+flow-effects = { path = "../../../psi/foundation/flow-effects" }
+facts = { path = "../../../psi/representations/checked-trees/facts" }
 language-core = { path = "../../../psi/foundation/language-core" }
 language-semantics = { path = "../../../psi/foundation/language-semantics" }
 numerics = { path = "../../../psi/foundation/numerics" }
@@ -34,7 +34,7 @@ source = { path = "../../../psi/foundation/source" }
 symbols = { path = "../../../psi/foundation/symbols" }
 typed-trees = { path = "../../../psi/representations/typed-trees" }
 typed-trees-to-checked-trees = { path = "../../../psi/pipeline/04_typed-trees-to-checked-trees" }
-validation = { path = "../../../psi/semantics/validation" }
+validation = { path = "../../../psi/checking" }
 sha2 = "0.10.9"
 
 [dev-dependencies]

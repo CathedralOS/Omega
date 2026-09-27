@@ -14,12 +14,12 @@ optimization-unit = { path = "../../representations/abstract-operations/optimiza
 abstract-operations = { path = "../../representations/abstract-operations" }
 installation-evidence = { path = "../../backend/runtime/installation-evidence" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
-proof-admission = { path = "../../../psi/semantics/proof-admission" }
+proof-admission = { path = "../../../psi/proof/admission" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }
-terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
+terminal-codec = { path = "../../../psi/representations/terminal-psi/codec" }
 terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" }
-terminal-semantics = { path = "../../../psi/semantics/terminal-semantics" }
-terminal-verifier = { path = "../../../psi/semantics/terminal-verifier" }
+terminal-semantics = { path = "../../../psi/representations/terminal-psi/semantics" }
+terminal-verifier = { path = "../../../psi/representations/terminal-psi/verification" }
 calling-conventions = { path = "../../backend/calling-conventions" }
 effects = { path = "../../backend/plans/provider-evidence" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
@@ -35,7 +35,7 @@ checked-trees-to-lowered-psi = { path = "../../../psi/pipeline/05_checked-trees-
 source-files-to-tokens = { path = "../../../psi/pipeline/00_source-files-to-tokens" }
 symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/03_symbol-resolved-trees-to-typed-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
-terminal-fuel = { path = "../../../psi/semantics/terminal-fuel" }
+terminal-fuel = { path = "../../../psi/representations/terminal-psi/fuel" }
 tokens-to-syntax-trees = { path = "../../../psi/pipeline/01_tokens-to-syntax-trees" }
 typed-trees-to-checked-trees = { path = "../../../psi/pipeline/04_typed-trees-to-checked-trees" }
 

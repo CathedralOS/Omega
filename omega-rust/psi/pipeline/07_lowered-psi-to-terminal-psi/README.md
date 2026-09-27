@@ -23,5 +23,5 @@ The replay mechanisms have distinct authored roles:
 
 Receipt fields remain private. Source custody cannot replace canonical coverage
 or grant downstream realization authority. The product coordinator in
-[terminal-production](../../compiler/terminal-production/README.md) sequences
+[terminal-production](../../terminal-production/README.md) sequences
 optimization, artifact publication and source receipt construction.
