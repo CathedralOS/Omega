@@ -182,3 +182,91 @@ fn a_guarded_field_divisor_discharges_the_remainder_it_feeds() {
     // A zero start satisfies the header guard but not `1 <= d`.
     restart_field_loop(&lowered, 2, 0);
 }
+
+/// A cyclic machine whose header receives a bounded machine parameter, so
+/// optional inference proposes an entry-range invariant, while nothing in the
+/// module needs an invariant to prove.
+const BOUNDED_CYCLE: &str = "
+    machine countdown(start: u64 [0..=8]) {
+        transition { _ -> head(start) }
+        state head(remaining: u64) {
+            transition remaining > 0 { true -> step(remaining) _ -> done() }
+        }
+        state step(remaining: u64) {
+            let decremented: u64 = remaining - 1;
+            transition { _ -> head(decremented) }
+        }
+        state done() { }
+    }";
+
+/// The roster pass's repeated whole-module work draws from a named aggregate
+/// budget. A spent budget declines the optional inference — accounted as an
+/// exhaustion — and the module still stands on its own questions.
+#[test]
+fn an_exhausted_roster_round_budget_declines_inference_without_rejecting() {
+    let checked = crate::front_end::checked_program(BOUNDED_CYCLE);
+    let mut lowered = crate::machine_lowering::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("countdown"),
+    )
+    .expect("the bounded cycle lowers");
+    // The first lowering must have retained the entry-range proposal, or
+    // restarting the pass would have nothing to decline.
+    assert!(!lowered.semantic_module.scalar_block_invariants.is_empty());
+    // Restart optional inference from an empty roster so the pass proposes
+    // the same candidates as the first lowering did.
+    lowered.semantic_module.scalar_block_invariants.clear();
+    lowered.proof_bundle = terminal_verifier::ProofBundle::default();
+    let original = terminal_verifier::reconstruct_terminal_obligations(&lowered.semantic_module)
+        .expect("the cleared module reconstructs");
+    let exhaustions =
+        crate::proofs::proof_timing::BUDGET_EXHAUSTIONS.load(std::sync::atomic::Ordering::Relaxed);
+    super::retain_provable_roster_bounded(&mut lowered, &original, 0)
+        .expect("a declined round is not a rejection");
+    assert!(lowered.semantic_module.scalar_block_invariants.is_empty());
+    assert!(
+        crate::proofs::proof_timing::BUDGET_EXHAUSTIONS.load(std::sync::atomic::Ordering::Relaxed)
+            > exhaustions,
+        "the declined rounds are accounted",
+    );
+    // The module stands on its own: ordinary finalization re-runs inference
+    // under the production budget, and the finished module verifies.
+    crate::proofs::operation_proofs::finalize_operation_proofs(&mut lowered)
+        .expect("the module still finalizes");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the module still verifies");
+}
+
+/// On convergent modules the bounded pass is the unchanged pass: the
+/// production round budget retains the roster the first lowering inferred.
+#[test]
+fn the_production_round_budget_keeps_the_convergent_roster_verdict() {
+    let checked = crate::front_end::checked_program(FIELD_COUNTER);
+    let mut lowered = crate::machine_lowering::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Poly::run"),
+    )
+    .expect("the field counter lowers");
+    let shape = |roster: &[terminal_psi::ScalarBlockInvariant]| {
+        roster
+            .iter()
+            .map(|row| (row.machine, row.header, row.predicate.clone()))
+            .collect::<Vec<_>>()
+    };
+    let converged = shape(&lowered.semantic_module.scalar_block_invariants);
+    assert!(!converged.is_empty());
+    lowered.semantic_module.scalar_block_invariants.clear();
+    let original = terminal_verifier::reconstruct_terminal_obligations(&lowered.semantic_module)
+        .expect("the cleared module reconstructs");
+    super::retain_provable_roster_bounded(&mut lowered, &original, super::MAX_ROSTER_ROUNDS)
+        .expect("the convergent module is not declined");
+    assert_eq!(
+        shape(&lowered.semantic_module.scalar_block_invariants),
+        converged,
+        "the bounded pass retains the roster the unbounded first lowering did",
+    );
+}

@@ -184,25 +184,23 @@ pub(crate) mod proof_timing {
     pub(crate) static BUDGET_EXHAUSTIONS: AtomicU64 = AtomicU64::new(0);
 
     /// A cached proof verdict was reused instead of re-running the search.
+    /// Counted unconditionally: the accounting must be accurate with or
+    /// without the timing flag.
     pub(crate) fn count_verdict_hit() {
-        if enabled() {
-            VERDICT_HITS.fetch_add(1, Ordering::Relaxed);
-        }
+        VERDICT_HITS.fetch_add(1, Ordering::Relaxed);
     }
 
     /// A proof search ran (its duration is counted by `count_producer`).
+    /// Counted unconditionally for the same reason.
     pub(crate) fn count_verdict_miss() {
-        if enabled() {
-            VERDICT_MISSES.fetch_add(1, Ordering::Relaxed);
-        }
+        VERDICT_MISSES.fetch_add(1, Ordering::Relaxed);
     }
 
     /// A named private proof-work capacity declined a candidate. Bounded
-    /// execution keeps the verdict but the exhaustion is accounted here.
+    /// execution keeps the verdict but the exhaustion is accounted here —
+    /// unconditionally, so the aggregate is never silent.
     pub(crate) fn count_budget_exhaustion() {
-        if enabled() {
-            BUDGET_EXHAUSTIONS.fetch_add(1, Ordering::Relaxed);
-        }
+        BUDGET_EXHAUSTIONS.fetch_add(1, Ordering::Relaxed);
     }
 
     pub(crate) fn report(label: &str) {
