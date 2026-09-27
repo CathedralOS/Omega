@@ -21,7 +21,8 @@ machine Main::main(&mut self) reaches Console {
     }
 }
 
-machine climb(remaining: u64[0..=1000], acc: u64[0..=1000]) -> u64
+machine climb(remaining: u64, acc: u64) -> u64
+    requires 0 <= remaining && remaining <= 1000 && 0 <= acc && acc <= 1000
 terminates by remaining -> Nat::Descending;
 ensures result == acc + remaining
 {

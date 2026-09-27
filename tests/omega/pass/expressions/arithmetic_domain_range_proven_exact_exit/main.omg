@@ -12,10 +12,10 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-data Main {
+data Main where 0 <= x, x <= 100, 0 <= y, y <= 100 {
     console: Binding<Console>;
-    x: i32 [0..=100];
-    y: i32 [0..=100];
+    x: i32;
+    y: i32;
 }
 
 machine Main::main(&mut self) reaches Console {

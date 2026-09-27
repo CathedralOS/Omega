@@ -1,7 +1,8 @@
 data Countdown {}
 measure Countdown::Remaining(value: u32) -> u32 { value }
 
-machine walk(remaining: u32 [0..=5])
+machine walk(remaining: u32)
+    requires 0 <= remaining && remaining <= 5
 terminates by remaining -> Countdown::Remaining in 0..=5;
 -> u32 {
     transition remaining > 0 {

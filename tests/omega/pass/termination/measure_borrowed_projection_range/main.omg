@@ -6,7 +6,8 @@
 data Card { power: u64; }
 measure Card::PowerOrder(card: Card) -> u64 { card.power }
 
-machine walk(card: &Card, ceiling: u64 [0..=5], amount: u64 [1..=2])
+machine walk(card: &Card, ceiling: u64, amount: u64)
+    requires 0 <= ceiling && ceiling <= 5 && 1 <= amount && amount <= 2
 requires card.power <= ceiling;
 terminates by card -> Card::PowerOrder in 0..=ceiling;
 -> u64 {
