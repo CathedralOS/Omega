@@ -211,10 +211,17 @@ impl<'source> Lexer<'source> {
     }
 
     fn lex_punctuation(&mut self, start: usize, first: char) -> Result<LexedToken, LexError> {
-        let Some((lexeme, kind)) = PunctuationKind::ordered_lexemes()
-            .iter()
-            .copied()
-            .find(|(lexeme, _)| self.source[start..].starts_with(lexeme))
+        // Punctuation is ASCII, so a lexeme can only match when its first
+        // byte is this character; checking that byte first skips the
+        // comparison against every other entry of the longest-first table.
+        let rest = &self.source.as_bytes()[start..];
+        let Some((lexeme, kind)) =
+            PunctuationKind::ordered_lexemes()
+                .iter()
+                .copied()
+                .find(|(lexeme, _)| {
+                    lexeme.as_bytes().first() == rest.first() && rest.starts_with(lexeme.as_bytes())
+                })
         else {
             return Err(LexError::outside_lexical_profile(Span::new(
                 start,
