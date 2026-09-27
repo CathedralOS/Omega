@@ -30,7 +30,11 @@ requires a pause, or the user changes priority. Do not duplicate another session
 active change or switch to an easier unrelated helper. Without prior continuity,
 choose from `TASKS.md`, `TASKS_BOOTSTRAP.md`, or `TASKS_OPTIMIZER.md`; honor a named
 board. For unrestricted compiler work, prioritize immediate product closure over
-unrelated cleanup. Missing implementation, a red customer command, and cross-stage
+unrelated cleanup. Product closure means progress on the straight line — a real
+program that did not check, compile, or run now does, or a red rung on the path
+from source to execution now passes. Coverage-matrix migrations, custody-test
+sweeps, formatting passes, and audit bookkeeping do not count; pick them only
+when every compiling path within reach is claimed or blocked. Missing implementation, a red customer command, and cross-stage
 scope do not make a task unavailable. A paused helper strategy requires the
 CONTRIBUTING.md reassessment before resumption, not permanent exclusion of its customer.
 When passing over an eligible priority, name the real decision, prerequisite, or
