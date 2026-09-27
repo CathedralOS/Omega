@@ -8,7 +8,7 @@ use omega::language::core::binding;
 
 data Math {}
 
-boundary machine % Math::remainder(left: u64, right: u64) -> u64;
+boundary operator % Math::remainder(left: u64, right: u64) -> u64;
 
 data Provider {}
 
