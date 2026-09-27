@@ -317,160 +317,162 @@ rewrites and promotion are not prerequisites for the first useful compiler.
 
 ## Machine optimization
 
-- **DECLARATIVE-PEEPHOLES.** Generalize the symbolic instruction-pair
-  descriptors in `selected-instructions-to-selected-instructions`
-  (`src/rewrites/selected_lowering/literal_fold/pair_rule.rs`) to physical
-  register units, effects, traps, memory, stack, and control flow without
-  replacing the independent validator: `literal_fold/validate/replay.rs`
-  restates every grammar from instruction records and never reads a
-  descriptor. `SelectedInstructionPairRule` declares producer, consumer and
-  rewritten kinds, operand shape, immediate bound, result disposition, unit
-  effects and machine effects, and the
-  [exact-rule inventory](omega-rust/omega/foundation/optimization-core/rules.md)
-  lists the implemented `SelectedIncoming*` selections. `3e8da4d90e` (macw7)
-  showed the descriptor's bound field carries value partitions:
-  `PairImmediateBound::EncodingNonZero(4095)` on the immediate pairs versus
-  `Exactly(0)` on new `COMPARE_ZERO`/`COMPARE_LEFT_ZERO` pairs restored the
-  retired left-zero `CompareI64Zero` refinement, with the validator
-  re-deriving the realization from the removed literal's recorded
-  value/position. Every landed pair
-  eliminates an effect-isolated `MaterializeI64` that immediately precedes its
-  single consumer in the same block. The candidate is one pressure-recovery
-  `ImmediateU64RematerializationCandidate` per function and fixed-point
-  iteration (`compute/actions.rs::derive_action`), under the caller-saved-only
-  availability policy
-  (`src/analyses/legality/policies.rs::frameless_leaf_caller_saved_views`).
-  Every rewritten form except the indexed-read fold carries no memory, trap,
-  stack or control effect.
+- **EXACT-MACHINE-SIMPLIFICATIONS.** Finish source-produced execution of
+  retained copy, extension, address, compare/test and scheduling rewrites in
+  [selected-stage optimization](omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/selected_optimization.rs).
+  `PRE_ALLOCATION_RULE_CATALOG` already executes eight exact rules through
+  `optimize_selected_instructions`: same-block copy, redundant extension,
+  address offset, constant boolean/branch, and dead/redundant/equivalent compare.
+  Keep their joint fixed-point sweep and `PreAllocationPolicy`; adding their
+  existing names or wiring compare removal again is not remaining work.
 
-  Remaining work:
+  Close the actual producer/publication gaps first. The public-entrance
+  `evidence_matrix/pre_allocation.rs` starts from constructed Terminal modules
+  and stops at selected-stage replay. Its address-fold case asserts no commit;
+  real byte-field reads feed `AddressOffset` into `Load8Indexed`, outside the
+  rule's admitted consumer table. Connect useful source-produced address
+  windows instead of treating that negative fixture as positive coverage.
+  Dead-compare removal needs the constant-boolean/branch composition that
+  removes flag readers; solo-selection refusal is not a missing executor.
+  The `optimizer/*compare_selection_compile` and
+  `constant_branch_selection_compile` corpus fixtures have host entries but no
+  run oracle, and the native golden records only `built`. Extend the relevant
+  witnesses to observe results and establish that the selected rule committed,
+  then replay the published artifact. Building a selected program alone proves
+  neither application nor execution.
 
-  - Unit roles. `PairUnitEffects` requires a rewritten row with no implicit
-    uses or clobbers and rejects every `tied_to` operand, and every
-    `PairMachineEffects` composition rejects a consumer with implicit unit uses.
-    Landed relationships cover implicit definitions as the result channel,
-    retired dead definitions and operand-swapped definitions kept for equality
-    readers, as declared by `PairUnitDefRelation`.
-    Flag-consuming forms, clobbering rewritten rows and tied operands have no
-    declaration.
-  - Traps. `PairFaultDischarge` composes with the independent unit-definition
-    disposition to retire faults discharged by a literal or carried obligation.
-    This isolated arithmetic fault axis has no trap-preservation or hosted-trap
-    relationship. The indexed-read relation already preserves its matching
-    trap surface.
-  - Memory. `PairNonUnitSurface::IndexedPointerRead` is the only memory relationship: one
-    indexed pointer read folded to an offset read of the same bytes. A pair
-    whose consumer or rewritten form writes memory has no declaration.
-  - Stack and control flow. No relationship exists. Every composition requires
-    alternatives that leave the stack unchanged and fall through, and neither
-    instruction of a pair may be a terminator or sit in another block.
+  [Staged rewrites](omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/unexecuted/mod.rs)
+  still have no catalog/execution join for boundary boolean/branch folds or
+  scheduling. Reuse the existing `relocation` member-run/destination mechanism
+  and `scheduled_relocation` dominance/dead-path admission; geometry-specific
+  copies have already been consolidated. Preserve the distinct arm, inflow,
+  confluence and memory-commuting premises, and `interchange`'s two-run swap.
+  Do not force commutation through the ordinary MemoryOrdering refusal or
+  lose fork admission when skipped-arm traversal consumes the path budget.
+  Cross-block copy substitution and remaining compare/test vocabulary stay in
+  scope. Preserve x86-64 displacement bounds and AArch64 scaling constraints.
 
-  Acceptance: each dimension above has a declared relationship with a firing
-  rule on x86-64 and AArch64, a validator restatement that reconstructs the
-  relationship from instruction records alone, the corruption, wrong-policy,
-  boundary and budget negatives required by
-  [stage-extension validation](omega-rust/optimization.md#validation-when-extending-a-stage),
-  and one compiler-generated publication replay. A relationship that cannot
-  be replayed independently stays rejected. Another literal identity over
-  already-declared dimensions does not advance this item.
-
-  Generalize candidate nomination beyond the single pressure-recovery candidate;
-  retired literal producers covered ordinary non-pressure materializations too.
-  Preserve the retired left-zero CompareI64Zero refinement: the current
-  COMPARE_LEFT_IMMEDIATE_U12 descriptor chooses an immediate compare, not the
-  zero-specific form. Add that behavior through the common descriptor/catalog
-  route rather than restoring `literal_minuend`.
-
-  Extend the existing independent axes in `PairOperandShape`, `PairUnitEffects`,
-  and `PairMachineEffects` for these remaining relationships; do not reintroduce
-  a product-of-axes variant for each combination. Independent replay still
-  reconstructs the relationship from instructions rather than trusting the
-  descriptor. Distinct mathematical identities still need checked semantics;
-  another identity over existing axes does not close the missing dimensions.
-  Separate repeated operand-position mechanics in replay's `SourceShape` from
-  identity-specific mathematics without making the validator consume producer
-  descriptors. Exact selection identities remain explicit.
-
-- **EXACT-MACHINE-SIMPLIFICATIONS.** Execute retained copy, extension, address,
-  compare/test, and scheduling rewrites on compiler-produced selected programs.
-  Owner: `omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/`.
-  Same-block copy removal, redundant-extension removal, address-offset folds
-  (`9627b528bc`, `SelectedAddressOffsetFoldV1` through pre-allocation admission),
-  and constant-boolean folds (`3f31f50e18`, `SelectedConstantBooleanFoldV1`,
-  tag 48 / catalog row 4 / manifest tag 9 — `condition_state` lifted to
-  `rewrites/` as shared flag-state vocabulary) already use the public catalog
-  executor. Complete compare/test and scheduling families through that same
-  route; preserve the existing `PreAllocationPolicy`.
-
-  Add exact selection names, ordered catalog descriptors, candidate discovery
-  binding source/selection identities, and execution from
-  `optimize_analyzed_selected_instructions`. Retain rule/validator, policy,
-  analysis/invalidation, budget, and applicability identities through allocation
-  and publication under [catalogs and independent replay](omega-rust/optimization.md#catalogs-and-independent-replay).
-  Preserve independently reconstructed legality; restore-by-content alone
-  detects incorrect edits, not incorrect admission.
-
-  Consolidate scheduling through the member-run/destination mechanism where
-  semantics match. Commuting variants need their commutation premise: blindly
-  using the common MemoryOrdering refusal disables valid cases. Fork migration
-  must preserve admission when skipped-arm traversal consumes the path budget.
-  Interchange swaps two runs and is not one relocation. Retain real call,
-  effect, settlement, register, and memory hazards; do not delete checks to
-  admit more source shapes.
-
-  Remaining capability boundaries include cross-block copy substitution and
-  compare/test vocabulary. Preserve target-specific displacement bounds.
-  DECLARATIVE-PEEPHOLES owns general nomination of retired literal folds and
-  left-zero compare refinement; ALIAS-AWARE-MEMORY owns memory rewrites.
+  Bind new candidates to current source and exact selection; retain ordered
+  catalog, rule/validator, policy, analysis/invalidation, budget and applicability
+  identities through allocation and publication under
+  [independent replay](omega-rust/optimization.md#catalogs-and-independent-replay).
+  Reconstruct legality independently: redundant/equivalent compare admission
+  and validation still share `condition_state::reaching_events`; an independent
+  operand-stability check does not independently establish that reaching set.
+  Restore-by-content alone only checks the edit. DECLARATIVE-PEEPHOLES owns
+  descriptor generalization and ordinary literal nomination; ALIAS-AWARE-MEMORY
+  owns memory rewrites.
 
   Acceptance: source-produced programs select each retained rule by exact name,
-  execute on a supported host, and independently replay after publication.
-  Empty/disabled selections reproduce identity output. Include a valid window
-  not covered by existing shape families, plus register/condition-state hazards,
-  crossed calls/effects, noncommuting memory, boundary settlements, stale
-  candidates, exhausted budgets, and a producer legality error that independent
-  validation refuses. Hand-built helper plans do not close this customer.
+  demonstrate a real commit, run on a supported host and replay after publication.
+  Empty/disabled selections reproduce identity. Include a valid window beyond
+  existing shape families, register/condition hazards, crossed calls/effects,
+  noncommuting memory, boundary settlements, stale candidates, exhausted budgets,
+  and a producer legality error refused by independent validation. Keep required
+  compositions explicit; hand-built helper plans do not close this customer.
+
+- **DECLARATIVE-PEEPHOLES.** Execute declarative relationships for physical
+  register units, effects, traps, memory, stack and control flow through the
+  selected-stage catalog, and nominate ordinary literal folds beyond pressure
+  recovery. Owners: `rewrites/selected_lowering/literal_fold/` and
+  [staged peepholes](omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/unexecuted/peepholes/mod.rs).
+
+  The literal route still takes one incoming
+  `ImmediateU64RematerializationCandidate` per function/iteration under
+  `frameless_leaf_caller_saved_views`. Its sole consumer may now occur later in
+  the same block; adjacency is no longer required. Generalize nomination to
+  non-pressure materializations without weakening use/provenance custody.
+  `COMPARE_ZERO`/`COMPARE_LEFT_ZERO` already select `CompareI64Zero`; the
+  left-zero test covers equality readers and rejects ordering readers on both
+  architectures. Preserve that behavior through the common descriptor route;
+  do not restore a separate literal producer.
+
+  Several relationships exist as descriptors and helper-tested rewrites but
+  are still unexecuted:
+
+  - `terminator_pair` and `condition_materialization` retire decided flag uses,
+    preserve the required unit traffic, and rewrite branch control or a boolean
+    result. They overlap the executed constant-branch/boolean families; integrate
+    at the existing semantic owner rather than creating another enablement path.
+  - `projected_access` carries pointer reads/writes and preserves architectural
+    faults while absorbing an address displacement. Reconcile it with the
+    executed address-fold family, including its target-specific bounds; the
+    staged descriptor's common scaled-immediate bound is narrower on x86-64.
+  - `copied_call_operand` retains ABI pins, implicit uses/definitions, clobbers,
+    trap/control effects and the target's call-stack lifecycle while rebinding
+    copied arguments. Its helper coverage does not establish native execution.
+
+  Complete catalog discovery, application and publication for those dimensions
+  before claiming them closed. Tied operands and further hosted-trap relationships
+  remain unsupported. Keep independent axes for operand shape, unit roles,
+  fault discharge/preservation and other machine effects; do not multiply
+  variants for combinations or add another identity over already-covered axes
+  as a substitute for the missing relationships.
+
+  Validator independence remains work: the staged flag proposers and replay
+  both call `condition_flow::reaching_event`, the algorithm that chooses the
+  reaching producer. Reconstruct that fact independently, as required by
+  [catalogs and independent replay](omega-rust/optimization.md#catalogs-and-independent-replay);
+  avoiding the descriptor table is insufficient. Preserve literal replay's
+  instruction-derived grammar and separate repeated `SourceShape` position
+  mechanics from identity-specific mathematics without reading producer
+  descriptors or trusting producer legality.
+
+  Acceptance: every required dimension has an explicit selection and a firing
+  rule on x86-64 and AArch64, independently reconstructed relationships, and
+  compiler-generated publication replay. Include corruption, wrong-policy,
+  boundary and budget negatives under
+  [stage-extension validation](omega-rust/optimization.md#validation-when-extending-a-stage),
+  including a wrong producer admission that replay rejects. Relationships with
+  no independent replay stay rejected; helper-only declarations do not close
+  the execution requirement.
 
 ## Proof-, ownership-, and state-aware optimization
 
-- **ALIAS-AWARE-MEMORY.** Execute load forwarding, dead-store elimination,
-  and store motion through the selected-stage catalog with source-bound
-  candidates, independently checked receipts, and publication replay.
-  Owners: `load_forwarding`, `dead_store`, and `store_motion` under
-  `04_selected-instructions-to-selected-instructions/src/rewrites/`;
-  EXACT-MACHINE-SIMPLIFICATIONS owns their shared stage-execution join.
+- **ALIAS-AWARE-MEMORY.** Connect load forwarding, dead-store elimination
+  and store motion to exact selected-stage execution, allocation and publication.
+  The existing implementations and tests live under
+  [rewrites/unexecuted/](omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/unexecuted/mod.rs),
+  not the executable catalog. Reuse their proposers and independent legality
+  validators; EXACT-MACHINE-SIMPLIFICATIONS owns the common stage-execution
+  join, not a second memory-specific pipeline.
 
-  Bind distinct-place non-aliasing to retained fact identities, or independently
-  establish at the access-roster producer that the distinct places cannot
-  overlap. Byte-view payload roster rows now bind the resolved backing storage
-  root at the producer (`ByteViewHomes`), so subslice-view accesses charge the
-  root instead of mislabeling the view identity. `f315e27e93` retains the
-  unit's machine-scoped `ownership_frontier_facts` into
-  `LegalizedScalarFunction` and encodes each fact identity into plan,
-  scalar-graph, and validator identities; extend that premise binding to
-  retained fact identities beyond storage roots. SelectedMemoryAccess and
-  rewrite receipts still do not carry the loan/compatibility/fact identities
-  used to justify the general premise. Exclusive ownership alone does not
-  establish projection disjointness; follow
-  [loan semantics](wiki/spec/terminal-psi/loans.md), not differing PlaceIds.
+  Establish the alias premise each admitted window needs. `commuting_accesses`
+  currently treats different `StorageRoute::Place` identities as disjoint;
+  the memory rewrites likewise rely on the access roster's root/extent claims.
+  Bind general distinct-place reasoning to retained loan/compatibility/fact
+  identities, or independently prove non-overlap at the roster producer under
+  [loan semantics](wiki/spec/terminal-psi/loans.md). Exclusive custody alone
+  does not prove projection disjointness. `ownership_frontier_facts` reach
+  `LegalizedScalarFunction` and its identity, but selected access rows and
+  rewrite receipts still do not bind the general compatibility premise.
 
-  Preserve shared storage-route and extent semantics in `place_storage` across
-  the rewrites and commutation checking. Remaining control-flow work includes
-  forwarding where incoming stored registers differ and store motion across
-  non-reconvergent forks/joins without adding or dropping writes (forks whose
-  edges reconverge on one join fed only by the crossed block and
-  sole-predecessor arms now cross, derived independently by admission and
-  validation). Unsupported dynamic geometry
-  must reject until justified; do not equate storage routes or reuse stale
-  evidence. Existing off-range constant-index, Structural-slot, and same-extent
-  CopyBytes cases are controls, not new implementation tasks.
+  Preserve the existing backing-storage route: `ByteViewHomes` and
+  `view_backing_roots` charge subslices and bound view parameters to their
+  possible backing roots. Independently check that reach and carry any further
+  premise identities to the consumer; different view IDs are not disjoint bytes.
+  Keep `place_storage` as the shared route/extent vocabulary, distinguishing
+  producer-owned storage from temporary staging. Existing constant-index,
+  Structural-slot and same-extent CopyBytes cases are controls.
 
-  Acceptance: source-produced exact selections execute natively and replay
-  after publication; empty/disabled selections retain identity output. Preserve
-  reads through shared reborrows or field projections, intervening calls/effects,
-  volatile/placed accesses, partial overlap, stale candidates, exhausted budgets,
-  and corrupted fact-identity negatives. Source admission and the independent
-  validator must each establish the required alias and byte-extent facts.
+  Narrow the remaining control-flow work to what the helpers cannot express.
+  Forwarding already merges different incoming stored registers through an
+  existing block parameter whose edge bindings match every leg; the propagated
+  merge test also replays it. A join with no lawful existing merge remains open.
+  Store motion already crosses nested reconvergent regions that preserve one
+  write on every traversal. Non-reconvergent forks/joins, external predecessors
+  and unsupported dynamic geometry still need justification without adding or
+  dropping writes. Preserve safe refusal until that evidence exists.
+
+  Acceptance: source-produced exact selections actually commit, execute natively
+  and replay after publication; empty/disabled selections retain identity.
+  Cover shared reborrows and field projections, intervening calls/effects,
+  volatile/placed accesses, partial overlap, stale candidates, exhausted budgets
+  and corrupted premise identities. Retain the helper tests that feed forged
+  edits directly to validation, including unaccounted writes and partial covers.
+  Producer admission and independent replay must each establish aliasing,
+  byte extents, register transport and write multiplicity on the admitted path.
+
 - **REPRESENTATION-SPECIALIZATION.** Extend field/variant relevance beyond
   existing proven membership and scalar-constant observation folds in
   `01_abstract-operations-to-abstract-operations/src/{representation_specialization,field_value_specialization}/`.
