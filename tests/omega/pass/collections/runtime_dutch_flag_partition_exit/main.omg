@@ -26,13 +26,19 @@ data Color [copy] {
     case White;
     case Blue;
 }
-data Main {
+data Main
+where
+    r <= 3,
+    w <= 3,
+    b <= 3,
+    bp <= 2,
+{
     console: Binding<Console>;
     items: [Color; 3];
-    r: u64 [0..=3];
-    w: u64 [0..=3];
-    b: u64 [0..=3];
-    bp: u64 [0..=2];  // b - 1 lands bounded from the b > 0 guard (bubble's jp idiom)
+    r: u64;
+    w: u64;
+    b: u64;
+    bp: u64;
     t: Color;
 }
 machine Main::main(&mut self) reaches Console {

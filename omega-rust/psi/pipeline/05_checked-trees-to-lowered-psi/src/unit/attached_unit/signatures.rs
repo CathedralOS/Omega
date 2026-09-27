@@ -221,6 +221,7 @@ pub(super) fn lower(
             );
             let views = crate::scalar_graph::scalar_contracts::ContractViewNamespace {
                 parameters: &view_roster,
+                structural_types,
                 element_views: &element_views,
             };
             signature.requires = authored_requires

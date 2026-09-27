@@ -835,6 +835,7 @@ pub(super) fn emit(
             &signature.erased_scalar_parameters,
             &crate::scalar_graph::scalar_contracts::ContractViewNamespace {
                 parameters: &evaluation.structural_parameters,
+                structural_types,
                 element_views: &evaluation.element_views,
             },
         )?

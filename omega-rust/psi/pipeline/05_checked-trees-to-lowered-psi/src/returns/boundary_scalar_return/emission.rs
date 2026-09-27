@@ -373,6 +373,7 @@ pub(crate) fn emit_boundary_scalar_return(
             );
             let views = crate::scalar_graph::scalar_contracts::ContractViewNamespace {
                 parameters: &view_roster,
+                structural_types,
                 element_views: &element_views,
             };
             MachineContract {

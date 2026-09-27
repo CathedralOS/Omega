@@ -5,7 +5,8 @@
 use super::{
     CheckedBooleanExpression, CheckedScalarExpression, ClosedScalarContractValue,
     ClosedScalarValueContractPlan, IntegerValue, LoweringError, Proposition, ScalarTerm,
-    StructuralParameterDeclaration, StructuralTypeId, ValueDeclaration, unsupported,
+    StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeId, ValueDeclaration,
+    unsupported,
 };
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::scalar_types::terminal_scalar_type;
@@ -69,6 +70,9 @@ pub(crate) fn covered_requires(
 #[derive(Clone, Copy)]
 pub(crate) struct ContractViewNamespace<'a> {
     pub parameters: &'a [(u32, StructuralParameterDeclaration)],
+    /// Structural type declarations the parameters' member paths resolve
+    /// against; member leaves in contract operands fail closed when absent.
+    pub structural_types: &'a [StructuralTypeDeclaration],
     pub element_views: &'a std::collections::BTreeMap<StructuralTypeId, Option<ScalarType>>,
 }
 
@@ -79,6 +83,7 @@ impl ContractViewNamespace<'static> {
     /// Scalar-only contexts pass `ContractViewNamespace::EMPTY`.
     pub(crate) const EMPTY: ContractViewNamespace<'static> = ContractViewNamespace {
         parameters: &[],
+        structural_types: &[],
         element_views: &EMPTY_ELEMENT_VIEWS,
     };
 }
@@ -340,6 +345,36 @@ struct ScalarContractTerms<'namespace> {
 
 impl PredicateTerms for ScalarContractTerms<'_> {
     fn integer(&self, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError> {
+        // Member leaves root at the contract's structural parameters and
+        // mint field-rooted scalar terms; the entry namespace carries the
+        // declarations and types the path resolves against.
+        if let CheckedScalarExpression::StructuralParameterField {
+            parameter_position,
+            path,
+            primitive_type,
+        } = expression
+        {
+            // The roster keys each declaration by its authored source
+            // position — the coordinate checked member operands name — so the
+            // lookup copies carry that position rather than the block-dense
+            // one the emitted block parameters use.
+            let parameters: Vec<StructuralParameterDeclaration> = self
+                .views
+                .parameters
+                .iter()
+                .map(|(position, declaration)| StructuralParameterDeclaration {
+                    position: *position,
+                    ..declaration.clone()
+                })
+                .collect();
+            return crate::proofs::crash_routes::lower_structural_member_term(
+                *parameter_position,
+                path,
+                crate::emission::scalar_types::integer_scalar_type(*primitive_type)?,
+                &parameters,
+                self.views.structural_types,
+            );
+        }
         crate::proofs::crash_routes::checked_scalar_term_with_views(
             expression,
             self.namespace,

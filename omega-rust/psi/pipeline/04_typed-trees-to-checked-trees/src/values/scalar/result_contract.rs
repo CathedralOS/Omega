@@ -252,31 +252,64 @@ impl ContractPredicates<'_, '_> {
                 // bounded byte field parameter in the same closed namespace
                 // the body's scalar lowering publishes. Its carrier is the
                 // builtin u64 exact type.
-                let term = super::structural_fields::structural_sequence_length(
+                if let Some(term) = super::structural_fields::structural_sequence_length(
+                    program,
+                    self.parameters,
+                    expression,
+                ) {
+                    // Only a whole-parameter extent is admissible in the closed
+                    // contract namespace: a nested path needs canonical field ids
+                    // the namespace does not mint, and a view-local root resolves
+                    // no retained place here. Both stay erased as before.
+                    if let CheckedScalarExpression::StructuralParameterByteLength { root, path } =
+                        &term
+                    {
+                        let admissible =
+                            matches!(root, checked_trees::CheckedStorageRoot::Parameter { .. })
+                                && path.is_empty();
+                        if !admissible {
+                            return None;
+                        }
+                    }
+                    let reference = program.type_reference_table.named_references().find_map(
+                        |(reference, symbol, _)| {
+                            (program.symbols.builtin_type_atom(symbol)
+                                == Some(symbols::BuiltinTypeAtom::U64))
+                            .then_some(reference)
+                        },
+                    )?;
+                    return Some((term, reference));
+                }
+                // A scalar member read on the receiver (`self.rows`) names
+                // statically selected field storage the machine itself owns,
+                // so the contract operand resolves against its declaration.
+                // Members below an ordinary parameter stay outside the closed
+                // namespace: their storage lives in the caller's object, and
+                // term positions only mint against the receiver roster.
+                let (position, _, reference) =
+                    super::structural_fields::structural_parameter_place(
+                        program,
+                        self.parameters,
+                        expression,
+                    )?;
+                if !self
+                    .parameters
+                    .get(position as usize)
+                    .is_some_and(|parameter| parameter.is_self)
+                {
+                    return None;
+                }
+                let (term, domain) = super::structural_fields::lower_structural_parameter_field(
                     program,
                     self.parameters,
                     expression,
                 )?;
-                // Only a whole-parameter extent is admissible in the closed
-                // contract namespace: a nested path needs canonical field ids
-                // the namespace does not mint, and a view-local root resolves
-                // no retained place here. Both stay erased as before.
-                if let CheckedScalarExpression::StructuralParameterByteLength { root, path } = &term
-                {
-                    let admissible =
-                        matches!(root, checked_trees::CheckedStorageRoot::Parameter { .. })
-                            && path.is_empty();
-                    if !admissible {
-                        return None;
-                    }
+                let CheckedScalarExpression::StructuralParameterField { .. } = term else {
+                    return None;
+                };
+                if domain != ArithmeticDomain::Exact {
+                    return None;
                 }
-                let reference = program.type_reference_table.named_references().find_map(
-                    |(reference, symbol, _)| {
-                        (program.symbols.builtin_type_atom(symbol)
-                            == Some(symbols::BuiltinTypeAtom::U64))
-                        .then_some(reference)
-                    },
-                )?;
                 Some((term, reference))
             }
             _ => None,

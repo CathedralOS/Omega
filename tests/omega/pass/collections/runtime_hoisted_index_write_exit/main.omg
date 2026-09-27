@@ -23,7 +23,9 @@ machine Main::main(&mut self) reaches Console {
     self.j = 2;
     self.k = 3;
     transition self.j <= self.rows && self.k <= self.cols { true -> put(self.j, self.k) _ -> bad() }
-    state put(&mut self, y: u32 [0..=self.rows], x: u32 [0..=self.cols]) {
+    state put(&mut self, y: u32, x: u32)
+    requires y <= self.rows && x <= self.cols
+    {
         // The RHS must be genuinely runtime: a static-folding value lowers
         // through the write cascade's immediate path (probed -- `= 7`
         // compiles and runs).
