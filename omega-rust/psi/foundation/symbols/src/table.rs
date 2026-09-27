@@ -980,13 +980,12 @@ impl SymbolTable {
     fn module_scope_index(&self) -> &ModuleScopeIndex {
         self.module_scope_index.0.get_or_init(|| {
             let mut index = ModuleScopeIndex::default();
-            let mut order = 0u32;
-            for candidate in self
+            let candidates = self
                 .child_handles(self.root)
                 .into_iter()
                 .flatten()
-                .chain(self.module_symbols.iter().map(|(_, handle)| *handle))
-            {
+                .chain(self.module_symbols.iter().map(|(_, handle)| *handle));
+            for (order, candidate) in (0u32..).zip(candidates) {
                 let name = self.name(candidate);
                 index
                     .by_name
@@ -1008,7 +1007,6 @@ impl SymbolTable {
                         .or_default()
                         .push((order, candidate));
                 }
-                order += 1;
             }
             index
         })

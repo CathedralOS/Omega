@@ -2527,7 +2527,7 @@ impl LicenseCandidates {
             .filter(|candidate| {
                 let judged_underpins_this_license =
                     judged_bound_laws(program, judged_machine, candidate.trait_symbol)
-                        .any(|name| candidate.law_slots.iter().any(|law| *law == name))
+                        .any(|name| candidate.law_slots.contains(&name))
                         && judged_carrier.is_some_and(|judged| {
                             crate::value_custody::type_references::type_references_match(
                                 program,
