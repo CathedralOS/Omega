@@ -97,14 +97,26 @@ fn escape_diagnostic(text: &str) -> String {
     out
 }
 
-/// The `This build realizes ...` clause names the selected target, which is
-/// the machine this corpus runs on -- the same diagnostic spells differently
-/// on every host, so a golden row recorded on one moved on all the others.
-/// Record the clause with the name abstracted; fragment matching keeps
+/// Diagnostics that name the selected target spell differently on every
+/// host the corpus runs on, so a golden row recorded on one moved on all
+/// the others while pinning the same refusal. Record two such spellings
+/// with the dynamic part abstracted:
+///
+/// - the `This build realizes ...` clause, where the name is the whole
+///   clause body, and
+/// - provider-plan names, which prefix the selected target to a
+///   `::satisfies::` path (`macos_arm64::FirstProvider::satisfies::Pick`),
+///   with the plan content fingerprint `[xxxxxxxxxxxxxxxx]` that also
+///   covers the selected target.
+///
+/// Declared target owners in names (`windows_x86_64::ProgramEntry`) carry
+/// no `::satisfies::` marker and stay literal. Fragment matching keeps
 /// weighing the unmodified diagnostic.
 fn host_free_diagnostic_text(text: &str) -> String {
     const CLAUSE: &str = "This build realizes ";
     const STOP: &str = ", so ";
+    const PLAN_NAME: &str = "<selected target>";
+    const FINGERPRINT: &str = "<fingerprint>";
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
     while let Some(start) = rest.find(CLAUSE) {
@@ -113,8 +125,74 @@ fn host_free_diagnostic_text(text: &str) -> String {
             break;
         };
         out.push_str(&rest[..clause_start]);
-        out.push_str("`<selected target>`");
+        out.push('`');
+        out.push_str(PLAN_NAME);
+        out.push('`');
         rest = &rest[clause_start + end..];
+    }
+    out.push_str(rest);
+    let text = out;
+
+    let has_satisfies = text.contains("::satisfies::");
+    let mut out = String::with_capacity(text.len() + 16);
+    let mut rest = text.as_str();
+    while let Some(open) = rest.find('`') {
+        let Some(width) = rest[open + 1..].find('`') else {
+            break;
+        };
+        let close = open + 1 + width;
+        let token = &rest[open + 1..close];
+        out.push_str(&rest[..open]);
+        let target_len = token
+            .find("::")
+            .map(|end| &token[..end])
+            .filter(|name| {
+                token.contains("::satisfies::")
+                    && target::TargetProfile::from_canonical_target_name(name).is_ok()
+            })
+            .map(str::len);
+        match target_len {
+            Some(len) => {
+                out.push('`');
+                out.push_str(PLAN_NAME);
+                out.push_str(&token[len..]);
+                out.push('`');
+            }
+            None => {
+                out.push('`');
+                out.push_str(token);
+                out.push('`');
+            }
+        }
+        rest = &rest[close + 1..];
+    }
+    out.push_str(rest);
+    let text = out;
+    // Plan fingerprints cover the selected target even when the plan name
+    // is the provider-only spelling that hides it.
+    if !has_satisfies {
+        return text;
+    }
+
+    let mut out = String::with_capacity(text.len() + 8);
+    let mut rest = text.as_str();
+    while let Some(open) = rest.find('[') {
+        let Some(width) = rest[open + 1..].find(']') else {
+            break;
+        };
+        let close = open + 1 + width;
+        let token = &rest[open + 1..close];
+        out.push_str(&rest[..open]);
+        if token.len() == 16 && token.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            out.push('[');
+            out.push_str(FINGERPRINT);
+            out.push(']');
+        } else {
+            out.push('[');
+            out.push_str(token);
+            out.push(']');
+        }
+        rest = &rest[close + 1..];
     }
     out.push_str(rest);
     out
