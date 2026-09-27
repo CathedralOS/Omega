@@ -6,7 +6,8 @@ use super::super::{
 };
 use super::{
     SelectionMatrix, VerifiedPsiOptimizationSession, assert_corruption_legs, assert_disabled_leg,
-    budget, publish_optimization_run, run_psi_pipeline, selections_of,
+    assert_empty_selection_leg, assert_full_entrance_leg, assert_negative_leg, budget,
+    publish_optimization_run, run_psi_pipeline, selections_of,
 };
 use crate::rules::{CaseMembershipSpecializationRule, FieldValueSpecializationRule};
 use optimization_core::{Optimization, OptimizationRuleIdentity};
@@ -30,6 +31,26 @@ const CASE: SelectionMatrix = SelectionMatrix {
     positive: verified_representation_specialization_unit,
     sibling: Optimization::DeadPureScalarElimination,
 };
+
+#[test]
+fn full_entrance_optimizes_and_publishes() {
+    assert_full_entrance_leg(&CASE);
+}
+
+#[test]
+fn disabled_sibling_selection_leaves_the_membership_unit_untouched() {
+    assert_disabled_leg(&CASE);
+}
+
+#[test]
+fn empty_selection_leaves_the_unit_untouched() {
+    assert_empty_selection_leg(&CASE);
+}
+
+#[test]
+fn negative_leaves_an_empty_unit_untouched() {
+    assert_negative_leg(&CASE);
+}
 
 #[test]
 fn forged_run_axes_fail_publication_replay() {
@@ -85,6 +106,11 @@ const FIELD: SelectionMatrix = SelectionMatrix {
     positive: verified_field_value_unit,
     sibling: Optimization::DeadPureScalarElimination,
 };
+
+#[test]
+fn full_entrance_specializes_field_values() {
+    assert_full_entrance_leg(&FIELD);
+}
 
 #[test]
 fn disabled_sibling_selection_leaves_the_field_unit_untouched() {

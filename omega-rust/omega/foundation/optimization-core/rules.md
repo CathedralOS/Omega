@@ -45,6 +45,7 @@ There is no debug/release bundle and no `O1`, `O2`, or `O3` alias.
 | `CheckedTreeProductPruning` | CheckedTrees | Target-independent | Experimental | `--disable-optimization CheckedTreeProductPruning` | Required |
 | `StateSpecialization` | Psi | Target-independent | Experimental | `--disable-optimization StateSpecialization` | Required |
 | `RepresentationSpecialization` | Psi | Target-independent | Experimental | `--disable-optimization RepresentationSpecialization` | Required |
+| `LoopInvariantScalarMotion` | Psi | Target-independent | Experimental | `--disable-optimization LoopInvariantScalarMotion` | Required |
 | `SelectedSameBlockCopyI64RemovalV1` | PreAllocation | Target-independent | Experimental | `--disable-optimization SelectedSameBlockCopyI64RemovalV1` | Required |
 | `SelectedRedundantExtensionRemovalV1` | PreAllocation | Target-independent | Experimental | `--disable-optimization SelectedRedundantExtensionRemovalV1` | Required |
 | `SelectedAddressOffsetFoldV1` | PreAllocation | Target-independent | Experimental | `--disable-optimization SelectedAddressOffsetFoldV1` | Required |

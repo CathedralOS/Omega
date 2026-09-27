@@ -3,17 +3,22 @@
 //! Every exact `PsiOptimization` selection member gets the same matrix through
 //! `run_psi_pipeline`, `publish_optimization_run`, and `optimize_abstract_operations`:
 //! a positive fixture that commits, a foreign workload that declines, a boundary
-//! workload at the selection's admission edge, a sibling-selection identity leg,
-//! the measured five-axis work-budget boundary, run determinism, a fixed-point
-//! leg whose legal second input is the published run's transformed unit, and
-//! corruption legs the independent publication replay must reject. Malformed
-//! carriers are refused at both byte admission boundaries.
+//! workload at the selection's admission edge, sibling-selection and
+//! empty-selection identity legs, the measured five-axis work-budget boundary,
+//! run determinism, a fixed-point leg whose legal second input is the published
+//! run's transformed unit, and corruption legs the independent publication
+//! replay must reject. Malformed carriers are refused at both byte admission
+//! boundaries. The session-level relocation step shares the same entrance
+//! matrix; its retained commit names the scheduled relocation roster.
 
 mod control_flow_cleanup;
 mod copy_propagation;
 mod dead_pure_scalar_elimination;
+mod global_value_numbering;
+mod loop_invariant_scalar_motion;
 mod proof_check_elision;
 mod representation_specialization;
+mod sparse_conditional_constant_propagation;
 mod state_specialization;
 
 use super::super::{
@@ -96,6 +101,22 @@ pub(super) fn assert_disabled_leg(case: &SelectionMatrix) {
     assert_eq!(run.session().unit().identity, input_identity);
     let plan = publish_optimization_run(run).unwrap();
     assert_eq!(plan.unit().identity, input_identity);
+}
+
+/// Empty selection: with no member selected the phase runs no pass, and the
+/// positive workload publishes byte-exact — the rollback receipt's empty
+/// effective set shares this identity route.
+pub(super) fn assert_empty_selection_leg(case: &SelectionMatrix) {
+    let unit = (case.positive)();
+    let input_identity = unit.unit().identity;
+    let selections = OptimizationSelections::default();
+    let run = run_psi_pipeline(unit, &selections, budget(64)).unwrap();
+    assert_eq!(run.psi_selections(), &selections);
+    assert!(run.commits().is_empty());
+    assert_eq!(run.session().unit().identity, input_identity);
+    let plan = publish_optimization_run(run).unwrap();
+    assert_eq!(plan.unit().identity, input_identity);
+    assert!(plan.transformation_ledger().records().is_empty());
 }
 
 /// Measured budget: the run's recorded usage is admitted at the exact count on
