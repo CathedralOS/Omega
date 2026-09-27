@@ -224,6 +224,7 @@ version = "0.1.0"
 dependencies = [
  "checked-interpreter",
  "diagnostics",
+ "optimization-core",
  "platform-custody",
  "sha2",
 ]

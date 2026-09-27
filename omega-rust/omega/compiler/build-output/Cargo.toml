@@ -13,3 +13,6 @@ checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 platform-custody = { path = "../../foundation/platform-custody" }
 sha2 = "0.10.9"
+
+[dev-dependencies]
+optimization-core = { path = "../../foundation/optimization-core", features = ["test-support"] }
