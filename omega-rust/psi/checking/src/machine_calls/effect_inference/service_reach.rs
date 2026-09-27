@@ -747,11 +747,11 @@ fn direct_service_reach_for_call(program: &TypedTrees, target: SymbolHandle) -> 
     // Inline assembly is an unnameable builtin call whose instruction
     // contract reaches a canonical boundary-service identity. Resolve that
     // identity through the same symbol-backed table as authored `reaches`
-    // rows; never consult the lowercase/u64 compatibility catalog here.
-    for function in symbols::BuiltinFunction::asm_intrinsics() {
-        if program.symbols.builtin_function_symbol(function) != Some(target) {
-            continue;
-        }
+    // rows; never consult the lowercase/u64 compatibility catalog here. Each
+    // builtin slot names one function, so the target's own slot selects it.
+    if let Some(function) = program.symbols.builtin_function_for_symbol(target)
+        && symbols::BuiltinFunction::asm_intrinsics().contains(&function)
+    {
         if let Some(service_name) = function.asm_intrinsic_service_name()
             && let Some(service) = program.service_reaches.id_for_name(service_name)
         {
