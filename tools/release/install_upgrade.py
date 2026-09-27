@@ -95,10 +95,11 @@ def winget_upgrade(previous, current, base_url, workspace):
     try:
         for operation, (archive, manifest) in zip(("install", "upgrade"), (previous, current)):
             archives = {manifest["host"]: (archive.name, hashlib.sha256(archive.read_bytes()).hexdigest())}
-            document = channels.winget_manifest(manifest["version"], archives)
-            document = document.replace(f"{channels.REPOSITORY}/releases/download/v{manifest['version']}", base_url)
-            path = workspace / f"{operation}.yaml"
-            path.write_bytes(document.encode("utf-8"))
+            path = workspace / operation
+            path.mkdir()
+            for name, document in channels.winget_manifests(manifest["version"], archives).items():
+                document = document.replace(f"{channels.REPOSITORY}/releases/download/v{manifest['version']}", base_url)
+                (path / name).write_bytes(document.encode("utf-8"))
             package.run(["winget", "validate", "--manifest", path])
             package.run(["winget", operation, "--manifest", path, "--scope", "user",
                          "--accept-source-agreements", "--accept-package-agreements", "--disable-interactivity"],

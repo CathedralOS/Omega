@@ -38,7 +38,16 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn('libexec.install Dir["*"]', formula)
         self.assertIn('bin.install_symlink libexec/"bin/omega"', formula)
         self.assertEqual(formula.count('sha256 "' + "a" * 64 + '"'), 3)
-        manifest = channels.winget_manifest("0.1.0-alpha.3", archives)
+        documents = channels.winget_manifests("0.1.0-alpha.3", archives)
+        self.assertEqual(set(documents), {"CathedralOS.Omega.yaml",
+                                         "CathedralOS.Omega.locale.en-US.yaml",
+                                         "CathedralOS.Omega.installer.yaml"})
+        for document in documents.values():
+            self.assertIn('PackageVersion: "0.1.0-alpha.3"', document)
+            self.assertIn('ManifestVersion: 1.12.0', document)
+            self.assertNotIn('singleton', document)
+        self.assertIn('DefaultLocale: en-US', documents['CathedralOS.Omega.yaml'])
+        manifest = documents['CathedralOS.Omega.installer.yaml']
         self.assertIn('omega-0.1.0-alpha.3-x86_64-pc-windows-msvc/bin/omega.exe', manifest)
         self.assertIn('NestedInstallerType: portable', manifest)
         self.assertIn('InstallerSha256: ' + "A" * 64, manifest)

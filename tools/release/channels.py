@@ -53,20 +53,26 @@ end
 '''
 
 
-def winget_manifest(version, archives):
+def winget_manifests(version, archives):
     name, digest = archives["x86_64-pc-windows-msvc"]
     bundle = name.removesuffix(".zip")
-    return f'''# yaml-language-server: $schema=https://aka.ms/winget-manifest.singleton.1.10.0.schema.json
-PackageIdentifier: CathedralOS.Omega
-PackageVersion: {json.dumps(version)}
-PackageLocale: en-US
+    identity = f'PackageIdentifier: CathedralOS.Omega\nPackageVersion: {json.dumps(version)}\n'
+    # The community catalog rejects singleton manifests, even though local
+    # WinGet installations accept them. Test and publish the same three files.
+    def document(kind, body):
+        return (f'# yaml-language-server: $schema=https://aka.ms/winget-manifest.{kind}.1.12.0.schema.json\n'
+                + identity + body + f'ManifestType: {kind}\nManifestVersion: 1.12.0\n')
+    return {
+        "CathedralOS.Omega.yaml": document("version", "DefaultLocale: en-US\n"),
+        "CathedralOS.Omega.locale.en-US.yaml": document("defaultLocale", f'''PackageLocale: en-US
 Publisher: CathedralOS
 PackageName: Omega
 License: MIT OR Apache-2.0
 LicenseUrl: {REPOSITORY}/blob/v{version}/LICENSE-MIT
 ShortDescription: Experimental proof-carrying systems language compiler
 PackageUrl: {REPOSITORY}
-Installers:
+'''),
+        "CathedralOS.Omega.installer.yaml": document("installer", f'''Installers:
 - Architecture: x64
   InstallerType: zip
   NestedInstallerType: portable
@@ -78,9 +84,8 @@ Installers:
   Dependencies:
     PackageDependencies:
     - PackageIdentifier: Git.Git
-ManifestType: singleton
-ManifestVersion: 1.10.0
-'''
+'''),
+    }
 
 
 def generate(assets, output, tag, commit):
@@ -97,7 +102,8 @@ def generate(assets, output, tag, commit):
     (formula / "omega.rb").write_bytes(homebrew_formula(version, archives).encode("utf-8"))
     winget = output / "winget"
     winget.mkdir()
-    (winget / "CathedralOS.Omega.yaml").write_bytes(winget_manifest(version, archives).encode("utf-8"))
+    for name, document in winget_manifests(version, archives).items():
+        (winget / name).write_bytes(document.encode("utf-8"))
 
 
 def main():
