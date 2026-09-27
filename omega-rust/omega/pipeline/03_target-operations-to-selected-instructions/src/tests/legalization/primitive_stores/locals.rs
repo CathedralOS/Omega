@@ -110,7 +110,7 @@ fn boolean_field_store_replays_the_exact_dominating_scalar_home() {
         .push(destination.clone());
     source.functions[0].operations[3] = AbstractOperation::StructuralScalarFieldStore {
         psi_operation: OperationId::new(4).unwrap(),
-        destination,
+        destination: destination.into(),
         path: Vec::new(),
         field,
         value: AbstractResult {
@@ -255,6 +255,142 @@ fn local_establishment_store_and_read_reject_target_and_legalized_corruption() {
                 validate_legalized_operations(&target, &source, &unit, changed).is_err(),
                 "legalized mutation {mutation}"
             );
+        }
+    }
+}
+
+#[test]
+fn owned_record_field_store_rejoins_its_producer_and_home() {
+    use abstract_operations::StructuralScalarStoreDestination;
+    let mut source = fixture(ScalarType::Boolean);
+    let record = StructuralTypeId::new(2).unwrap();
+    let field = semantic_vocabulary::StructuralFieldId::new(1).unwrap();
+    let producer = OperationId::new(4).unwrap();
+    let result = terminal_psi::StructuralOperationResult {
+        qualification_establishments: Vec::new(),
+        place: PlaceId::new(2).unwrap(),
+        structural_type: record,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        claims: Vec::new(),
+    };
+    source
+        .structural_types
+        .make_mut()
+        .push(StructuralTypeDeclaration {
+            id: record,
+            identity: "OwnedBooleanDestination".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![terminal_psi::StructuralFieldDeclaration {
+                    id: field,
+                    identity: "flag".into(),
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: terminal_psi::StructuralFieldType::Scalar(ScalarType::Boolean),
+                }],
+            },
+        });
+    source.functions[0].operations.splice(
+        3..4,
+        [
+            AbstractOperation::EstablishRecord {
+                psi_operation: producer,
+                result: result.clone(),
+                fields: vec![terminal_psi::RecordFieldInitializer {
+                    field,
+                    value: terminal_psi::RecordFieldValue::Scalar {
+                        value: ValueId::new(1).unwrap(),
+                        range_obligation: None,
+                    },
+                }],
+            },
+            AbstractOperation::StructuralScalarFieldStore {
+                psi_operation: OperationId::new(5).unwrap(),
+                destination: StructuralScalarStoreDestination::OwnedResult { producer, result },
+                path: Vec::new(),
+                field,
+                value: AbstractResult {
+                    value: ValueId::new(2).unwrap(),
+                    scalar_type: ScalarType::Boolean,
+                },
+                range_obligation: None,
+            },
+        ],
+    );
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let target = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .unwrap();
+        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        let legalized = legalize_target_operations(&target, &source, &unit)
+            .unwrap()
+            .plan()
+            .clone();
+        validate_legalized_operations(&target, &source, &unit, legalized.clone()).unwrap();
+        for mutation in 0..2 {
+            let mut changed = target.clone();
+            let store = changed.functions[0].graph.blocks[0]
+                .operations
+                .iter_mut()
+                .find(|operation| {
+                    matches!(
+                        operation,
+                        TargetUnitOperation::StructuralScalarFieldStore { .. }
+                    )
+                })
+                .unwrap();
+            let TargetUnitOperation::StructuralScalarFieldStore {
+                destination: StructuralScalarStoreDestination::OwnedResult { producer, result },
+                ..
+            } = store
+            else {
+                panic!("owned destination");
+            };
+            if mutation == 0 {
+                *producer = OperationId::new(2).unwrap();
+            } else {
+                result.place = PlaceId::new(1).unwrap();
+            }
+            assert!(legalize_target_operations(&changed, &source, &unit).is_err());
+            assert!(
+                validate_legalized_operations(&changed, &source, &unit, legalized.clone()).is_err()
+            );
+
+            let mut changed = legalized.clone();
+            let store = changed.scalar_functions[0].blocks[0]
+                .instructions
+                .iter_mut()
+                .find(|row| {
+                    matches!(
+                        row.kind,
+                        LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. }
+                    )
+                })
+                .unwrap();
+            let LegalizedScalarInstructionKind::StructuralScalarFieldStore {
+                destination: StructuralScalarStoreDestination::OwnedResult { producer, result },
+                ..
+            } = &mut store.kind
+            else {
+                panic!("owned destination");
+            };
+            if mutation == 0 {
+                *producer = OperationId::new(2).unwrap();
+            } else {
+                result.place = PlaceId::new(1).unwrap();
+            }
+            assert!(validate_legalized_operations(&target, &source, &unit, changed).is_err());
         }
     }
 }

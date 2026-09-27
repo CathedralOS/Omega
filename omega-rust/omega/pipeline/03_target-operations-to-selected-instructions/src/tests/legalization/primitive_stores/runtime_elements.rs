@@ -170,7 +170,7 @@ fn source() -> abstract_operations::AbstractOperationPlan {
         },
         AbstractOperation::StructuralScalarFieldStore {
             psi_operation: operation(FIELD_STORE),
-            destination: destination.clone(),
+            destination: destination.clone().into(),
             path: vec![Segment::Field("ents".into()), runtime(10, 3)],
             field: StructuralFieldId::new(5).unwrap(),
             value: stored,

@@ -188,7 +188,7 @@ pub(super) fn structural_scalar_fields_plan() -> AbstractOperationPlan {
                 AbstractOperation::StructuralScalarFieldStore {
                     range_obligation: None,
                     psi_operation: id(87, OperationId::new),
-                    destination: structural_parameter.clone(),
+                    destination: structural_parameter.clone().into(),
                     path: vec![StructuralPathSegment::Field("payload".into())],
                     field,
                     value: AbstractResult {

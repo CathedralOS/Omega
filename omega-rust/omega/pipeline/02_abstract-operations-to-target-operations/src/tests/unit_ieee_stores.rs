@@ -56,7 +56,7 @@ fn plan(format: IeeeFloatFormat, field_store: bool) -> AbstractOperationPlan {
         AbstractOperation::StructuralScalarFieldStore {
             range_obligation: None,
             psi_operation: operation,
-            destination: destination.clone(),
+            destination: destination.clone().into(),
             path: Vec::new(),
             field,
             value: result,

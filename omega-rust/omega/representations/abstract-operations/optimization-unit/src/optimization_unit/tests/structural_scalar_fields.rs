@@ -93,9 +93,11 @@ fn structural_scalar_field_store_identity_binds_every_payload() {
             _ => unreachable!(),
         },
         |operation| match operation {
-            AbstractOperation::StructuralScalarFieldStore { destination, .. } => {
-                destination.access = StructuralAccess::WriteOnlyBorrow
-            }
+            AbstractOperation::StructuralScalarFieldStore {
+                destination:
+                    abstract_operations::StructuralScalarStoreDestination::Parameter(destination),
+                ..
+            } => destination.access = StructuralAccess::WriteOnlyBorrow,
             _ => unreachable!(),
         },
         |operation| match operation {

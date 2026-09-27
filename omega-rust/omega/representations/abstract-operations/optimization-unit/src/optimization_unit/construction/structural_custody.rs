@@ -57,9 +57,11 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         O::PrimitiveLocalStore { destination, .. } => {
             places.insert(*destination);
         }
-        O::WriteOnlyPrimitiveStore { destination, .. }
-        | O::StructuralScalarFieldStore { destination, .. } => {
+        O::WriteOnlyPrimitiveStore { destination, .. } => {
             places.insert(destination.place);
+        }
+        O::StructuralScalarFieldStore { destination, .. } => {
+            places.insert(destination.place());
         }
         O::EstablishByteSequenceLiteral { place, .. }
         | O::EstablishTrivialAffineLocal { place, .. } => {

@@ -407,7 +407,7 @@ pub enum LegalizedScalarInstructionKind {
     /// plus the field, and `indices` adds each runtime element of the
     /// carrier, in path order.
     StructuralScalarFieldStore {
-        destination: terminal_psi::StructuralParameterDeclaration,
+        destination: abstract_operations::StructuralScalarStoreDestination,
         path: Vec<terminal_psi::StructuralPathSegment>,
         field: semantic_vocabulary::StructuralFieldId,
         value: abstract_operations::AbstractResult,

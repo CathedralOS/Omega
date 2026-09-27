@@ -278,7 +278,7 @@ pub(crate) fn structural_scalar_field_store_unit() -> PsiOptimizationUnit {
     store.operation = AbstractOperation::StructuralScalarFieldStore {
         range_obligation: None,
         psi_operation: id(4_712, OperationId::new),
-        destination,
+        destination: destination.into(),
         path: vec![terminal_psi::StructuralPathSegment::Field("item".into())],
         field: value_field,
         value: AbstractResult {

@@ -135,7 +135,7 @@ fn borrowed_scalar_store_replay_rejects_changed_footprint_source_and_fuel() {
                     }
                 } else {
                     LegalizedScalarInstructionKind::StructuralScalarFieldStore {
-                        destination,
+                        destination: destination.into(),
                         path: Vec::new(),
                         indices: Vec::new(),
                         field,

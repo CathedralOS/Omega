@@ -110,8 +110,8 @@ pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
             .map(|binding| binding.argument.place)
             .collect(),
         O::PrimitiveLocalStore { destination, .. } => vec![*destination],
-        O::WriteOnlyPrimitiveStore { destination, .. }
-        | O::StructuralScalarFieldStore { destination, .. } => vec![destination.place],
+        O::WriteOnlyPrimitiveStore { destination, .. } => vec![destination.place],
+        O::StructuralScalarFieldStore { destination, .. } => vec![destination.place()],
         O::CallUnit {
             structural_arguments,
             ..

@@ -40,6 +40,26 @@ pub(super) fn reconstruct(
     {
         return Err(LegalizationError::custody());
     }
+    // A state loan carries the referent address, even when the call returns
+    // an owned aggregate. Reuse the ordinary call's independent join replay;
+    // treating that loan as an owned arrival invents a copied backing home.
+    if crate::legalization::scalar_graph_input::address_joins::parameter(
+        caller,
+        argument.place,
+        plan,
+    )
+    .is_some()
+    {
+        return crate::legalization::scalar_graph_input::address_joins::call_argument(
+            argument,
+            destination,
+            call_operation,
+            caller,
+            call,
+            callee.parameters.len() + position,
+            plan,
+        );
+    }
     let (root, source) = if let Some(parameter) = caller
         .structural_parameters
         .iter()

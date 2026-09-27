@@ -380,7 +380,7 @@ rows! {
     FORM_MACHINE => (
         "formation:machine-validation",
         SharedFormation,
-        "one machine's signature, blocks, parameters (including shared-borrow record and primitive-scalar views and exclusive whole plain-record state transfers joined at block parameters), contract, and declared invariants",
+        "one machine's signature, blocks, parameters (including shared-borrow record and primitive-scalar views and exclusive whole plain-record state transfers joined at block parameters, with fresh owned homes retaining their affine disposal obligations while backing exclusive state loans), contract, and declared invariants",
         "the machine validates as a whole before its obligations are reconstructed",
         &["formation:module-structure"],
         &[tv!( "validation/machine.rs"), tv!( "validation/machine/blocks.rs"), tv!( "validation/machine/contract_clauses.rs"), tv!( "validation/machine/custody_operations.rs"), tv!( "validation/machine/scalar_result_operations.rs"), tv!( "validation/machine/structural_places.rs"), tv!( "validation/block_views.rs"), tv!( "validation/block_views/mutable_records.rs")]
@@ -492,8 +492,8 @@ rows! {
     FORM_FRONTIER => (
         "formation:frontier",
         SharedFormation,
-        "the machine's claim frontier and the referent roots pinned by shared-borrow join parameters at each block and traversal point",
-        "the reconstructed frontier used by crash guards and cleanup checks is the validated one; copy-payload sources the owned-read gate exempts are availability-checked at every consuming establishment",
+        "the machine's claim frontier, referent roots pinned by shared-borrow join parameters, and live whole owned homes backing exclusive state loans at each block and traversal point",
+        "the reconstructed frontier used by crash guards and cleanup checks is the validated one; exclusive state loans retain the backing home's affine disposal obligation through every arrival until exact normal-return disposition, and copy-payload sources the owned-read gate exempts are availability-checked at every consuming establishment",
         &["scope:dominance-order"],
         &[tv!( "validation/frontier.rs"), tv!( "validation/frontier/block_entry.rs"), tv!( "validation/frontier/block_parameters.rs"), tv!( "validation/frontier/operations.rs"), tv!( "validation/frontier/terminators.rs"), tv!( "validation/frontier/traversal.rs")]
     );

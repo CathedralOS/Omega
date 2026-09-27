@@ -239,7 +239,7 @@ pub enum TargetUnitOperation {
     /// of the carrier, in path order, as for a primitive store.
     StructuralScalarFieldStore {
         psi_operation: OperationId,
-        destination: StructuralParameterDeclaration,
+        destination: abstract_operations::StructuralScalarStoreDestination,
         path: Vec<StructuralPathSegment>,
         field: StructuralFieldId,
         destination_storage: crate::TargetStructuralArgumentSource,

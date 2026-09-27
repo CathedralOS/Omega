@@ -374,7 +374,7 @@ fn multiple_record_inputs_keep_exact_field_store_destination_through_replay() {
         *store = AbstractOperation::StructuralScalarFieldStore {
             range_obligation: None,
             psi_operation: *psi_operation,
-            destination: destination.clone(),
+            destination: destination.clone().into(),
             value: *value,
             path: Vec::new(),
             field,
@@ -408,7 +408,7 @@ fn multiple_record_inputs_keep_exact_field_store_destination_through_replay() {
                 }
             })
             .unwrap();
-        *store = other.clone();
+        *store = other.clone().into();
         reject_target(&source, &changed, &unit, &legalized);
         let mut changed = legalized;
         let store = changed.scalar_functions[0].blocks[0]
@@ -426,7 +426,7 @@ fn multiple_record_inputs_keep_exact_field_store_destination_through_replay() {
                 }
             })
             .unwrap();
-        *store = other;
+        *store = other.into();
         assert!(validate_legalized_operations(&target, &source, &unit, changed).is_err());
     }
 }

@@ -232,7 +232,7 @@ fn validate_structural_field_range_authority(
                 // write: a rewrite can change its RHS or selected declaration.
                 let parent = super::structural_catalog::resolve_structural_path(
                     types,
-                    destination.structural_type,
+                    destination.structural_type(),
                     path,
                 )
                 .ok_or(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;

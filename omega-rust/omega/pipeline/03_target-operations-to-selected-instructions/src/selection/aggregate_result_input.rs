@@ -779,3 +779,53 @@ pub(super) fn block_home(
     block_parameter_shape(source, parameter)?;
     Some((block, parameter))
 }
+
+/// Rejoin a store's owned destination to its exact producing row and declared
+/// place. This establishes identity only; current ownership and dominance are
+/// independently checked on the optimized source before legalization.
+pub(super) fn owned_store_destination(
+    source: &LegalizedScalarFunction,
+    producer: semantic_vocabulary::OperationId,
+    expected: &terminal_psi::StructuralOperationResult,
+) -> bool {
+    let Some(signature) = source.structural.as_ref() else {
+        return false;
+    };
+    let mut declarations = signature
+        .structural_places
+        .iter()
+        .filter(|place| place.id == expected.place);
+    let Some(declaration) = declarations.next() else {
+        return false;
+    };
+    if declarations.next().is_some()
+        || declaration.kind
+            != (semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                producer,
+                structural_type: expected.structural_type,
+            })
+    {
+        return false;
+    }
+    let mut producers = source
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .filter_map(|row| {
+            let result = match &row.kind {
+                LegalizedScalarInstructionKind::EstablishRecord { result, .. }
+                | LegalizedScalarInstructionKind::EstablishZeroedStructural { result, .. }
+                | LegalizedScalarInstructionKind::EstablishScalarArray { result, .. }
+                | LegalizedScalarInstructionKind::EstablishScalarCase { result, .. }
+                | LegalizedScalarInstructionKind::StructuralLeafCopy { result, .. }
+                | LegalizedScalarInstructionKind::HostedReadByte { result, .. } => result,
+                LegalizedScalarInstructionKind::Call(call) => call.structural_result.as_ref()?,
+                _ => return None,
+            };
+            (result.place == expected.place).then_some((row.operation, result))
+        });
+    producers
+        .next()
+        .is_some_and(|(operation, result)| operation == producer && result == expected)
+        && producers.next().is_none()
+}

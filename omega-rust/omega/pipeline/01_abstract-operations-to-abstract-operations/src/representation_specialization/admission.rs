@@ -388,8 +388,8 @@ fn operation_rewrites_place(operation: &O, place: PlaceId) -> bool {
         | O::EstablishElementView { destination, .. } => *destination == place,
         // Parameter-row destinations and vacating move sources.
         O::WriteOnlyPrimitiveStore { destination, .. }
-        | O::StructuralScalarFieldStore { destination, .. }
         | O::StoreStructuralField { destination, .. } => destination.place == place,
+        O::StructuralScalarFieldStore { destination, .. } => destination.place() == place,
         O::MoveStructuralField { source, .. } => source.place == place,
         // The stored descriptor's selection source is the written aggregate:
         // whatever the argument's access, a field beneath it is established.

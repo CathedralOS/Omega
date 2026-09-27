@@ -147,7 +147,20 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
         } => {
             bytes.u8(if range_obligation.is_some() { 75 } else { 50 });
             bytes.id(*psi_operation);
-            encode_structural_parameter(bytes, destination);
+            match destination {
+                abstract_operations::StructuralScalarStoreDestination::Parameter(parameter) => {
+                    bytes.u8(0);
+                    encode_structural_parameter(bytes, parameter);
+                }
+                abstract_operations::StructuralScalarStoreDestination::OwnedResult {
+                    producer,
+                    result,
+                } => {
+                    bytes.u8(1);
+                    bytes.id(*producer);
+                    encode_structural_operation_result(bytes, result);
+                }
+            }
             bytes.slice(path, encode_structural_path_segment);
             bytes.id(*field);
             encode_abstract_result(bytes, *value);

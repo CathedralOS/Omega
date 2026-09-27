@@ -131,7 +131,7 @@ fn record_field_store_with_scalar_result_retains_borrow_access_custody() {
         *store = AbstractOperation::StructuralScalarFieldStore {
             range_obligation: None,
             psi_operation: *psi_operation,
-            destination: destination.clone(),
+            destination: destination.clone().into(),
             value: *value,
             path: Vec::new(),
             field,
@@ -164,6 +164,11 @@ fn record_field_store_with_scalar_result_retains_borrow_access_custody() {
             else {
                 panic!("field store")
             };
+            let abstract_operations::StructuralScalarStoreDestination::Parameter(destination) =
+                destination
+            else {
+                panic!("borrowed store destination");
+            };
             destination.access = access;
             assert!(legalize_target_operations(&changed, &source, &unit).is_err());
             assert!(
@@ -185,6 +190,11 @@ fn record_field_store_with_scalar_result_retains_borrow_access_custody() {
         })
         .unwrap() else {
             panic!("source field store")
+        };
+        let abstract_operations::StructuralScalarStoreDestination::Parameter(destination) =
+            destination
+        else {
+            panic!("borrowed store destination");
         };
         destination.access = StructuralAccess::SharedBorrow;
         if let Ok(changed_target) =
