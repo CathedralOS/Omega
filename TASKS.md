@@ -644,7 +644,17 @@ the complete product bar; focused successes below do not establish that baseline
       simulation/particle_sim, text/{parse_int,roman_numeral,string_hash}}`
     - 5 `structural field store: pure source: scalar expression row` --
       `cli/{collections/entity_list, rendering/bouncing_particles,
-      simulation/grid_walk, systems/file_permissions, text/text_padding}`
+      simulation/grid_walk, systems/file_permissions, text/text_padding}`.
+      `file_permissions` has since moved off this phase (it was the
+      anonymous bitwise), and the rest are four DIFFERENT value shapes, not
+      one: a runtime-indexed record element's field
+      (`entity_list`, `bouncing_particles` -- pinned at
+      `tests/omega/pending/collections/runtime_indexed_record_field_store`
+      and measured as compositional, since both halves plan on their own),
+      a local record's field inside arithmetic (`grid_walk`,
+      `self.px = self.px + v.dx` with `v` bound from a call), and a length
+      inside arithmetic (`text_padding`,
+      `self.padding = 16 - self.message.len`)
     - 3 `statement sequence: local data: structural call binding` --
       `cli/{algorithms/dutch_flag, systems/{descriptor_walk,wire_protocol}}`
     - 3 `structural field store: byte sequence carrier` --
