@@ -124,6 +124,18 @@ fn local_provenance(
     let StatementNode::LocalData(local) = statements.get(ordinal)? else {
         return None;
     };
+    if !local.initial_value.is_valid() {
+        // A declared-but-uninitialized local has no origin expression: when the
+        // ledger established it at this declaration, the declaration statement
+        // itself is the provenance (the event-shape check below still decides).
+        return Some(PermissionProvenance::Established {
+            machine_symbol: machine,
+            state_symbol: state,
+            source: PermissionEventSource::Statement {
+                statement_index: ordinal,
+            },
+        });
+    }
     let origin =
         crate::expression_permission_provenance(program, local.initial_value, &mut |expression| {
             let ExpressionNode::Name(name) = program.expression_table.expression(expression) else {
