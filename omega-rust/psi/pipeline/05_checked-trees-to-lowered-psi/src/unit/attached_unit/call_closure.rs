@@ -380,7 +380,11 @@ pub(super) fn validate_unit_operation_sequence(
             // their own. The displaced binding still takes the next dense
             // ordinal.
             CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. }
-                if super::field_replacement::continues(&machine.operations, operation_index) =>
+                if super::field_replacement::continues(&machine.operations, operation_index)
+                    || super::field_replacement::continues_bound_value(
+                        &machine.operations,
+                        operation_index,
+                    ) =>
             {
                 if result.binding_ordinal != next_structural_binding {
                     return unsupported(
@@ -396,7 +400,11 @@ pub(super) fn validate_unit_operation_sequence(
                 continue;
             }
             CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
-                if super::field_replacement::continues(&machine.operations, operation_index) =>
+                if super::field_replacement::continues(&machine.operations, operation_index)
+                    || super::field_replacement::continues_bound_value(
+                        &machine.operations,
+                        operation_index,
+                    ) =>
             {
                 continue;
             }

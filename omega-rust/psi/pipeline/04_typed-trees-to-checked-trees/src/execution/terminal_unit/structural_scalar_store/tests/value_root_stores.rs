@@ -154,8 +154,103 @@ fn slice_rooted_destination_still_declines() {
         "store",
     )
     .expect("slice-rooted store still declines");
+    // The value arm now admits the owned parameter source, so the slice
+    // destination declines one arm later than the scalar lane's own phase.
     assert!(
-        omission.contains("structural field store: destination parameter"),
+        omission.contains("call source result type"),
         "unexpected decline phase: {omission}"
+    );
+}
+
+#[test]
+fn indexed_element_destination_admits_parameter_value() {
+    admits(
+        r#"
+        data Fmt [copy] { case Decimal; case Hex; }
+        data Node { tag: u64; fmt: Fmt; }
+        data Holder { nodes: [Node; 4]; }
+        machine Holder::fill(&mut self, at: u64, node: Node) requires at < self.nodes.len {
+            self.nodes[at] = node;
+        }
+    "#,
+        "fill",
+    );
+}
+
+#[test]
+fn indexed_element_destination_admits_bound_record_value() {
+    admits(
+        r#"
+        data Fmt [copy] { case Decimal; case Hex; }
+        data Node { tag: u64; fmt: Fmt; }
+        data Holder { nodes: [Node; 4]; }
+        machine Holder::fill(&mut self, at: u64) requires at < self.nodes.len {
+            let node: Node = Node { tag: 1, fmt: Fmt::Hex };
+            self.nodes[at] = node;
+        }
+    "#,
+        "fill",
+    );
+}
+
+#[test]
+fn fixed_element_destination_admits_parameter_value() {
+    admits(
+        r#"
+        data Fmt [copy] { case Decimal; case Hex; }
+        data Node { tag: u64; fmt: Fmt; }
+        data Holder { nodes: [Node; 4]; }
+        machine Holder::fill(&mut self, node: Node) {
+            self.nodes[1] = node;
+        }
+    "#,
+        "fill",
+    );
+}
+
+#[test]
+fn fixed_element_destination_admits_bound_local_value() {
+    admits(
+        r#"
+        data Fmt [copy] { case Decimal; case Hex; }
+        data Node { tag: u64; fmt: Fmt; }
+        data Holder { nodes: [Node; 4]; }
+        machine Holder::fill(&mut self) {
+            let node: Node = Node { tag: 1, fmt: Fmt::Hex };
+            self.nodes[1] = node;
+        }
+    "#,
+        "fill",
+    );
+}
+
+#[test]
+fn field_destination_admits_parameter_value() {
+    admits(
+        r#"
+        data Fmt [copy] { case Decimal; case Hex; }
+        data Node { tag: u64; fmt: Fmt; }
+        data Holder { inner: Node; }
+        machine Holder::fill(&mut self, node: Node) {
+            self.inner = node;
+        }
+    "#,
+        "fill",
+    );
+}
+
+#[test]
+fn field_destination_admits_bound_record_value() {
+    admits(
+        r#"
+        data Fmt [copy] { case Decimal; case Hex; }
+        data Node { tag: u64; fmt: Fmt; }
+        data Holder { inner: Node; }
+        machine Holder::fill(&mut self) {
+            let node: Node = Node { tag: 1, fmt: Fmt::Hex };
+            self.inner = node;
+        }
+    "#,
+        "fill",
     );
 }

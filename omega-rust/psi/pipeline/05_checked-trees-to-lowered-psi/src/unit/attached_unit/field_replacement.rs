@@ -67,6 +67,57 @@ pub(super) fn continues(operations: &[CheckedUnitEffectOperationPlan], index: us
         && moved.multiplicity == produced.multiplicity
 }
 
+/// Whether the operation at `index` is the move-out or store of a
+/// replacement whose value is storage the caller already holds — a
+/// parameter, an owned local, or a binding produced at an earlier
+/// statement — so no producer operation precedes the pair. The pair has no
+/// coordinate of its own; the destination and value are rejoined by the
+/// store's source custody exactly as in `continues`.
+pub(super) fn continues_bound_value(
+    operations: &[CheckedUnitEffectOperationPlan],
+    index: usize,
+) -> bool {
+    let move_index = match operations.get(index) {
+        Some(CheckedUnitEffectOperationPlan::MoveStructuralField { .. }) => index,
+        Some(CheckedUnitEffectOperationPlan::StoreStructuralField { .. }) => {
+            let Some(previous) = index.checked_sub(1) else {
+                return false;
+            };
+            previous
+        }
+        _ => return false,
+    };
+    let (
+        Some(CheckedUnitEffectOperationPlan::MoveStructuralField {
+            result: moved,
+            source,
+        }),
+        Some(CheckedUnitEffectOperationPlan::StoreStructuralField {
+            statement_index,
+            destination,
+            value,
+        }),
+    ) = (
+        operations.get(move_index),
+        operations.get(move_index + 1),
+    )
+    else {
+        return false;
+    };
+    // The value is bound storage, not this statement's fresh result: the
+    // moved-out hole's declared type is the value's own.
+    matches!(
+        value.source,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
+            | checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
+            | checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
+    ) && moved.statement_index == *statement_index
+        && source == destination
+        && value.path.is_empty()
+        && value.access == checked_trees::CheckedStructuralAccess::Owned
+        && moved.type_identity == value.type_identity
+}
+
 /// Whether the cleanup at `index` disposes exactly the displaced value of
 /// the replacement whose store immediately precedes it.
 pub(super) fn continues_with_cleanup(
@@ -95,7 +146,8 @@ pub(super) fn continues_with_cleanup(
     else {
         return false;
     };
-    continues(operations, store_index)
+    (continues(operations, store_index)
+        || continues_bound_value(operations, store_index))
         && coordinate.statement_index == *statement_index
         && coordinate.call_ordinal == 0
         && moved.multiplicity == Multiplicity::Affine

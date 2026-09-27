@@ -177,6 +177,13 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
             program.expression_table.expression(assignment.value),
             ExpressionNode::Call(_)
         ) || restores_structural_local(program, state, assignment)
+            || bound_structural_parameter(
+                program,
+                state,
+                structural_parameters,
+                statement_index,
+                assignment,
+            )
             || facts
                 .values
                 .structural_values
@@ -776,4 +783,49 @@ fn restores_structural_local(
                 if local.symbol == path.symbol
                     && program.primitive_type_reference(local.type_reference).is_none())
         })
+}
+
+/// The value is an owned structural parameter read whole: no scalar store
+/// decomposes it — the sequence's bound-value field store plans the move.
+fn bound_structural_parameter(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    statement_index: u32,
+    assignment: &typed_trees::statement::TableAssignment,
+) -> bool {
+    let Ok(index) = usize::try_from(statement_index) else {
+        return false;
+    };
+    let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        index,
+        assignment.value,
+    ) else {
+        return false;
+    };
+    if !place.segments.is_empty() {
+        return false;
+    }
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+        return false;
+    };
+    let Some(position) = program
+        .state_parameters(state)
+        .iter()
+        .position(|parameter| parameter.symbol == symbol)
+    else {
+        return false;
+    };
+    let Ok(position) = u32::try_from(position) else {
+        return false;
+    };
+    structural_parameters.iter().any(|parameter| {
+        parameter.position == position
+            && !parameter.is_self
+            && parameter.access == CheckedStructuralAccess::Owned
+            && parameter.qualifications.is_empty()
+            && parameter.projected_qualifications.is_empty()
+    })
 }
