@@ -1,7 +1,14 @@
-// The narrowing obligation handles SIGNEDNESS via ranges: a u8 value can exceed
-// i8's positive range (200 > 127), so `i8 = <u8>` is a narrowing store even
-// though both are 8 bits wide. Decision 17 rejects it; an explicit `as i8` (or a
-// proven-in-range source) is the escape.
+// The 8-bit signedness face of decision 17's store rule: `i8 = <u8>` is refused
+// even though both are 8 bits wide, and an explicit `as i8` is the escape.
+//
+// It reaches that refusal through the CARRIER clause, not the narrowing one.
+// The original subject here was the range argument -- a u8 value can exceed
+// i8's positive range (200 > 127) -- but a typed value keeps its own type
+// across a store, so the carrier difference answers first and the range never
+// gets asked. What survives of the narrowing obligation is pinned by
+// narrowing_anonymous_expression_unproven, which needs a value with no carrier
+// of its own to reach it. The wider same-width face is
+// implicit_store_conversion_rejected (`u32` into `i32`).
 use omega::language::std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; u: u8; s: i8; }

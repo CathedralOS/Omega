@@ -1,0 +1,25 @@
+// FAIL canary: decision 17's NARROWING STORE obligation -- "the value is not
+// provably in range" -- on the one value form that still reaches it.
+//
+// The obligation applies to a value whose proven interval escapes the
+// destination's type. An ANONYMOUS value is now the only carrier of it:
+//  - a value with its own carrier and a DIFFERENT one from the destination is
+//    refused earlier by the implicit-conversion rule
+//    (implicit_store_conversion_rejected, implicit_store_widening_rejected);
+//  - when the carriers AGREE, the check intersects the value's interval with
+//    the source type's own range first, so a same-type store can never escape.
+// Signedness therefore no longer reaches it at all: `i8 = <u8>` is a carrier
+// difference before it is a range question.
+//
+// Among anonymous positions the array element is the surviving one. A scalar
+// store answers at the landing site instead -- `self.r = 3000000000 / 2 * 2`
+// reports "anonymous integer value `3000000000` does not fit destination
+// `i32`", the shape narrowing_literal_wider_than_target pins -- while an array
+// element lands by range and raises this obligation.
+use omega::language::std::console;
+use omega::language::core::binding;
+data Main { console: Binding<Console>; }
+machine Main::main(&mut self) {
+    let values: [i32; 1] = [2147483647 + 1];
+    self.console.exit_process(70);
+}

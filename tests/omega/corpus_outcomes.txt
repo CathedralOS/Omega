@@ -53,20 +53,24 @@ fail/arithmetic/implicit_store_widening_rejected rejected 65ms expected
 	store in machine `Main::main` state `main` assignment implicitly converts `u8` to `u16`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u16`)
 fail/arithmetic/modulo_by_zero_rejected rejected 7ms expected
 	remainder by zero in machine `Main::main` state `main` local `x`: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
+fail/arithmetic/narrowing_anonymous_expression_unproven rejected 126ms expected
+	narrowing store in array literal element of type `i32` may not fit `i32`: the value is not provably in range (decision 17 -- a narrowing store is a proof obligation, like exact arithmetic). Truncate explicitly with an `as` cast, or constrain the source's range.
 fail/arithmetic/narrowing_literal_wider_than_target rejected 4ms expected
 	anonymous integer value `3000000123` does not fit destination `i32` in machine `Main::main` state `main` assignment
-fail/arithmetic/narrowing_signedness_rejected rejected 8ms expected
-	narrowing store in machine `Main::main` state `main` assignment may not fit `i8`: the value is not provably in range (decision 17 -- a narrowing store is a proof obligation, like exact arithmetic). Truncate explicitly with an `as` cast, or constrain the source's range.
+fail/arithmetic/narrowing_signedness_rejected rejected 107ms expected
+	store in machine `Main::main` state `main` assignment implicitly converts `u8` to `i8`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i8`)
 fail/arithmetic/saturating_shift_count_unproven rejected 0ms expected
 	shift count in machine `Main::main` state `main` local `shifted` is not provably below the operand width for `u32` (`Saturating` governs value overflow, not count validity -- its count obligation is Exact's): exact shifts prove `count < 32` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u32 in Wrapping` reduces the count modulo 32, equivalently `count & 31` for this carrier; `in Trapping` traps at runtime).
 fail/arithmetic/stale_named_state_operand_bound rejected 0ms expected
 	exact arithmetic in machine `spend` state `debit` terminal expression may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/arithmetic/suffix_magnitude_overflow_rejected rejected 4ms expected
 	literal `200` does not fit its `i8` suffix -- a width suffix chooses the literal's type at the spelling, and the spelled value must fit that type's range (suffixes read VALUES, not bit patterns: spell `-1i8`, not `0xFFi8`)
-fail/arithmetic/suffix_type_disagrees_rejected rejected 3ms expected
+fail/arithmetic/suffix_type_disagrees_rejected rejected 92ms expected
 	literal `5` is suffixed `i8` but lands in a `u32` place -- a width suffix chooses the literal's type at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
-fail/arithmetic/undeclared_bare_name_rejected rejected 7ms expected
+	store in machine `Main::main` state `main` local `x` implicitly converts `i8` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
+fail/arithmetic/undeclared_bare_name_rejected rejected 105ms expected
 	machine `Main::main` state `main` uses `undeclared_var`, which is not a declared local, parameter, field, or type in this state (check the spelling)
+	store in machine `Main::main` state `exit_process` argument `return_code` implicitly converts `i32 in Wrapping` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
 	implicit domain weakening in argument `return_code` for state `exit_process` drops `Wrapping`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 fail/arithmetic/unknown_field_write_rejected rejected 78ms expected
 	machine `Main::main` state `main` assignment: data `Main` has no field `cont` (check the spelling of the field name)
