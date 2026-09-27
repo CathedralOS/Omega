@@ -1,0 +1,69 @@
+{
+  "wave": "repair-cloud-r1",
+  "max_acu_limit": 10,
+  "devin_mode": "fusion",
+  "bypass_approval": true,
+  "resumable": true,
+  "tags": ["omega-swarm", "repair-cloud-r1"],
+  "owner_label_prefix": "Jarod / repair-cloud-r1",
+  "exclusions": [
+    "OPERATOR-BOUNDARY-CALLS",
+    "OWNED-SELF-RECEIVER-AFFINE-DISCARD",
+    "CANARY-CORPUS",
+    "SAMPLE-CORPUS",
+    "PLAN-LAID-VIEWS",
+    "NOMINAL-FIELD-FLOW",
+    "CANONICALIZE-SCALAR-RANGE-CONTRACTS",
+    "PSI-TARGET-FAMILIES",
+    "SOURCE-SET-UNION",
+    "BUILD-EVALUATES-ONCE",
+    "PROVIDER-SELECTION-AFTER-TERMINAL",
+    "ONE-DRIVER-PER-STAGE",
+    "LOWERING-ROUTE-CONSOLIDATION",
+    "POST-HANDOFF-WRITER-OWNERSHIP",
+    "ALPHA-WINDOWS-DIV-TRAP",
+    "ALPHA-SEED-MEMSIZE-NATIVE-VALIDATION"
+  ],
+  "sessions": [
+    {
+      "name": "filtered-callee",
+      "board": "TASKS.md",
+      "item": "FILTERED-CALLEE-CALL-SITES",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/compiler/build-evaluation",
+        "tests/omega/fail/calls"
+      ],
+      "suggested_first_slice": "re-measure the UefiOsHandoffCycle::acquire witness in dependency scope before assuming the no-call-row shape still exists",
+      "host_gates": ["which cargo || which mbx"],
+      "probe_only": false
+    },
+    {
+      "name": "typed-indexes",
+      "board": "TASKS.md",
+      "item": "TYPED-TREES-OWNED-INDEXES",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees",
+        "omega-rust/psi/representations/typed-trees",
+        "omega-rust/psi/checking"
+      ],
+      "suggested_first_slice": "make TypedTrees own the symbol-to-declaration index its mutating methods invalidate; seven caches already key on TypedTrees::identity",
+      "host_gates": ["which cargo || which mbx"],
+      "probe_only": false
+    },
+    {
+      "name": "wrapper-aarch64",
+      "board": "TASKS.md",
+      "item": "NATIVE-WRAPPER-ENCODING-AARCH64",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/backend/plans/program-entry-plan",
+        "omega-rust/omega/backend/runtime/executable-installation"
+      ],
+      "suggested_first_slice": "verify the shipped Linux and macOS AArch64 profiles through their hosted bridges; pin recipe/plan rejection only if no authored profile needs a separate wrapper",
+      "host_gates": ["which cargo || which mbx"],
+      "probe_only": false
+    }
+  ]
+}
