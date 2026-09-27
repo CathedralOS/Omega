@@ -12,14 +12,22 @@
 // all at `state graph: state signature: parameter signature: attached data
 // shape`.
 //
-// THE PHASE NAME MISLEADS TWICE. It says "parameter signature", and a state
-// parameter is not required -- the same program with a parameterless state
-// omits identically. It says "attached data shape", which is at least the
-// right neighbourhood, but the mark sits above four `?` exits in
-// `terminal_unit/calls/signatures.rs` (attached name, data definition,
-// `shapes.add_attached_application`, then
-// `scalar_and_structural_parameters`), and only the third is a plausible
-// site for a shape the collector cannot add. Confirm which before repairing.
+// The phase name misleads on "parameter signature": a state parameter is not
+// required, and the same program with a parameterless state omits
+// identically.
+//
+// THE DECLINING EXIT IS CONFIRMED, not guessed. The mark sits above four `?`
+// exits in `terminal_unit/calls/signatures.rs`. Marking each distinctly and
+// counting them on the failing and the working program: attached-name,
+// data-definition and `scalar_and_structural_parameters` decline the same
+// number of times in both (1654, 118, 68), while
+// `shapes.add_attached_application` declines 23 times against 19. That
+// difference of four is the entire gap.
+//
+// From there the chain is `add_attached_application` -> `add_attached_data`
+// -> `add_data_shape` in `terminal_unit/types/mod.rs`, which walks the
+// data's fields. That walk is where a bracketed range on a float field has
+// to become representable. The file is held by LOCAL-DATA-CLUSTER-REPAIR.
 //
 // FOUR of the five corpus fixtures at this phase carry a float-range field:
 // `pass/float/finite_core_domain_range_discharge`,

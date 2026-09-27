@@ -300,13 +300,19 @@ backend-visible; full corpus runs only at the end of an item.
   `f32 [0.0..=1.0]` and `f64 [0.0..=1.0]` omit -- an integer range is fine
   and a float DOMAIN is fine. Pinned at
   `tests/omega/pending/float/float_range_attached_field`.
-  The phase name misleads twice: a state PARAMETER is not required (a
-  parameterless state omits identically), and the mark sits above four `?`
-  exits in `terminal_unit/calls/signatures.rs` -- attached name, data
-  definition, `shapes.add_attached_application`, then
-  `scalar_and_structural_parameters` -- of which only the third is a
-  plausible site for a shape the collector cannot add. Confirm which before
-  repairing; `signatures.rs` is held by MIXED-SIGNATURE-BORROWED-PARAMS.
+  The phase name misleads: a state PARAMETER is not required -- a
+  parameterless state omits identically.
+  EXIT CONFIRMED, by marking all four `?` exits in
+  `terminal_unit/calls/signatures.rs` distinctly and counting them on the
+  failing and working programs. Attached-name, data-definition and
+  `scalar_and_structural_parameters` decline identically in both (1654, 118,
+  68); `shapes.add_attached_application` declines 23 times against 19, and
+  that difference of four is the whole gap. From there the chain is
+  `add_attached_application` -> `add_attached_data` -> `add_data_shape` in
+  `terminal_unit/types/mod.rs`, which walks the data's fields -- that walk is
+  where a bracketed range on a float field, and the ranged const parameter
+  below, must become representable.
+  Both files are held: `types/mod.rs` by LOCAL-DATA-CLUSTER-REPAIR.
   FOUR of the five corpus fixtures at this phase are this:
   `pass/float/finite_core_domain_range_discharge`,
   `pass/recast/{runtime_float_range_representation_recast_exit,
