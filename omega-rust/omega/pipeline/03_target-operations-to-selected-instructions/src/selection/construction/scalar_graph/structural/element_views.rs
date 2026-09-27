@@ -14,7 +14,7 @@ use terminal_psi::StructuralTypeShape;
 /// The byte stride of the view's element. A derived view home already carries
 /// it; a descriptor source reconstructs it from the declared element type's
 /// layout (size rounded up to alignment), for scalar and record elements
-/// alike. Reads still require a scalar element below.
+/// alike. A read selects a scalar leaf within that element below.
 pub(super) fn element_stride(
     function: &LegalizedScalarFunction,
     builder: &Builder<'_>,
@@ -88,6 +88,7 @@ fn element_view_read(
         length,
         obligation,
         accepted_fact,
+        ref path,
     } = row.kind
     else {
         return Err(invalid());
@@ -103,7 +104,8 @@ fn element_view_read(
     let Some(signature) = function.structural.as_ref() else {
         return Err(invalid());
     };
-    // The read result is the view's declared element scalar exactly.
+    // Reconstruct the leaf independently from the declared element. Its width
+    // and offset must not replace the stride used to scale the runtime index.
     let Some(view_type) =
         crate::selection::established_view_input::element_view_type(function, source)
     else {
@@ -119,19 +121,14 @@ fn element_view_read(
             _ => None,
         })
         .ok_or_else(|| invalid())?;
-    let element_scalar = signature
-        .structural_types
-        .as_slice()
-        .iter()
-        .find(|declaration| declaration.id == element)
-        .and_then(|declaration| match declaration.shape {
-            StructuralTypeShape::PrimitiveScalar(scalar) => Some(scalar),
-            _ => None,
-        })
+    let (byte_offset, byte_count) =
+        crate::structural_inputs::structural_reference_input::element_leaf_geometry(
+            element,
+            path,
+            definition.scalar_type,
+            signature.structural_types.as_slice(),
+        )
         .ok_or_else(|| invalid())?;
-    if definition.scalar_type != element_scalar {
-        return Err(invalid());
-    }
     let pointer = element_backing_pointer(builder, row, source)?;
     let view = builder
         .transport
@@ -198,8 +195,8 @@ fn element_view_read(
         builder,
         row,
         source,
-        0,
-        stride,
+        byte_offset,
+        u32::from(byte_count),
         SelectedMemoryAccessRole::ReadElementView {
             index,
             length,
@@ -219,21 +216,21 @@ fn element_view_read(
             ..Default::default()
         },
     )?;
-    let (kind, constraint) = match stride {
+    let (kind, constraint) = match byte_count {
         1 => (
-            SelectedInstructionKind::Load8 { byte_offset: 0 },
+            SelectedInstructionKind::Load8 { byte_offset },
             builder.constraints.keys.load8.ok_or_else(|| invalid())?,
         ),
         2 => (
-            SelectedInstructionKind::Load16 { byte_offset: 0 },
+            SelectedInstructionKind::Load16 { byte_offset },
             builder.constraints.keys.load16.ok_or_else(|| invalid())?,
         ),
         4 => (
-            SelectedInstructionKind::Load32 { byte_offset: 0 },
+            SelectedInstructionKind::Load32 { byte_offset },
             builder.constraints.keys.load32.ok_or_else(|| invalid())?,
         ),
         8 => (
-            SelectedInstructionKind::Load64 { byte_offset: 0 },
+            SelectedInstructionKind::Load64 { byte_offset },
             builder.constraints.keys.load64.ok_or_else(|| invalid())?,
         ),
         _ => return Err(invalid()),

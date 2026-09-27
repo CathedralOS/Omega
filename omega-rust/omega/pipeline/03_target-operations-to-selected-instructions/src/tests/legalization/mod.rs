@@ -6,6 +6,7 @@ pub(crate) mod byte_input;
 mod byte_output;
 mod call_structural;
 mod dynamic_parameter_call;
+mod element_views;
 mod ieee_literal_sources;
 mod leaf_copy;
 mod normalized_foreign;

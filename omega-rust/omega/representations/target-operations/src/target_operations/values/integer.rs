@@ -33,7 +33,8 @@ pub enum TargetIntegerExpression {
     },
     /// Exact element observation over an element-view descriptor. The index
     /// expression retains its Terminal identity; the element stride is fixed
-    /// by the view's element declaration, not re-derived here.
+    /// by the view's element declaration. The path selects the scalar leaf at
+    /// element_byte_offset, independently replayed from that declaration.
     ElementViewRead {
         psi_operation: OperationId,
         source_value: ValueId,
@@ -42,6 +43,8 @@ pub enum TargetIntegerExpression {
         index: Box<TargetIntegerExpression>,
         length: ValueId,
         obligation: semantic_vocabulary::ObligationId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        element_byte_offset: u32,
     },
     ElementViewLength {
         psi_operation: OperationId,

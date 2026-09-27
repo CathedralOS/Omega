@@ -152,8 +152,8 @@ pub enum AbstractOperation {
         result: AbstractResult,
         source: PlaceId,
     },
-    /// Read one element with the verified same-view length and bounds
-    /// obligation.
+    /// Read a scalar leaf of one element with the verified same-view length
+    /// and bounds obligation. An empty path reads a primitive element.
     ElementViewRead {
         psi_operation: OperationId,
         result: AbstractResult,
@@ -161,6 +161,7 @@ pub enum AbstractOperation {
         index: ValueId,
         length: ValueId,
         obligation: semantic_vocabulary::ObligationId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
     },
     /// Establish an immutable element window with the exact source, endpoints
     /// and two-leg bounds proof.

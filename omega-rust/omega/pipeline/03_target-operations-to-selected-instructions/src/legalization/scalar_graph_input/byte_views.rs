@@ -392,6 +392,49 @@ pub(super) fn mutable_parameter(
         })
 }
 
+/// Reconstruct the declared element from the input's own view producer or
+/// parameter, never from a target expression's claimed layout.
+pub(super) fn element_type(
+    function: &PsiOptimizationFunction,
+    place: semantic_vocabulary::PlaceId,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Option<semantic_vocabulary::StructuralTypeId> {
+    let view = function
+        .structural_parameters
+        .iter()
+        .chain(
+            function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .find(|parameter| parameter.place == place)
+        .map(|parameter| parameter.structural_type)
+        .or_else(|| {
+            function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.nodes)
+                .find_map(|node| match &node.operation {
+                    AbstractOperation::EstablishElementView { result, .. }
+                    | AbstractOperation::ElementViewSubslice { result, .. }
+                        if result.place == place =>
+                    {
+                        Some(result.structural_type)
+                    }
+                    _ => None,
+                })
+        })?;
+    match types
+        .iter()
+        .find(|declaration| declaration.id == view)?
+        .shape
+    {
+        terminal_psi::StructuralTypeShape::ElementView { element } => Some(element),
+        _ => None,
+    }
+}
+
 // Whole-unit validation checks the exact producer and dominance. This predicate
 // restricts the native route to parameters and derived immutable views.
 pub(super) fn contains_view(
