@@ -674,14 +674,22 @@ the complete product bar; focused successes below do not establish that baseline
   The review preserves existing authority under local source/host replacement;
   these checkout-local locks are not application publication.
 
-  Full Linux and macOS package runs subsequently reached the engine's two
-  `supplied_module_count` subslices. An explicit borrowed receiver lost the
-  returned arena bundle's origin, making later call frames opaque and clearing
-  the already-proven count bound. Owned receiver origin recovery now retains
-  that explicit borrow; the real session/API dependency probe passes source
-  checking with the descriptor clone present. Continue the unchanged full
-  `omega update --project <application>/squalr-tests --target macos_arm64`,
-  then ordinary review and the matching-host application check/native harness.
+  The full macOS package run after explicit owned receiver origin recovery
+  reaches one remaining engine `supplied_module_count` subslice failure, down
+  from two. The validation path constructs a cyclic borrowed result view;
+  a later read-only call retires the captured count bound. Continue repairing
+  that path through the real session/API dependency probe, then rerun the
+  unchanged `omega update --project <application>/squalr-tests --target
+  macos_arm64`, ordinary review, and the matching-host application harness.
+
+  A native probe importing the actual `squalr_engine_api::NormalizedRegion`
+  now completes three-package review and exits 70 on macOS ARM64. It checks
+  shared cloning from a mutable local, later mutation of the original with
+  independent cloned values, retained-end region updates, and saturating
+  address overflow. The compiler now admits that exact shared local loan as
+  an ordinary structural result argument; owned and exclusive custody checks
+  remain enforced. This probe uses the same application revision and pinned
+  standard library, but does not establish the full geometry marker or scans.
   The probe still reports `EnginePrivilegedState::copy_supplied_modules` as an
   unresolved `UnrecognizedInductiveBody` guarantee; project decisions cannot
   discharge it. Coordinate that proof repair with the active scalar-contract
