@@ -327,7 +327,7 @@ fail/data/nested_array_literal_inner_length_rejected rejected 8ms expected
 fail/data/proof_only_runtime_property_rejected rejected 3ms expected
 	data `Nat` declares runtime properties, but `Nat` is proof-only: recursive data has no layout; properties speak about values in memory, which proof-only data never becomes
 fail/data/property_copy_violation rejected 0ms expected
-	data `Point` declares `[copy]` but field `inner` is not `copy`: only primitives and data types declaring `[copy]` qualify
+	data `Point` declares `[copy]` but field `inner` is not `copy`: only primitives, shared references and data types declaring `[copy]` qualify
 fail/data/record_pattern_missing_field rejected 5ms expected
 	record pattern in machine `Main::main` state `main` does not mention field `z` of `Point` -- record patterns are exhaustive by law: bind it, rename it with `as`, or waive it with `as _`
 fail/data/recursive_data_infinite_size rejected 7ms expected
@@ -506,7 +506,7 @@ fail/generics/open_index_unlicensed_algebra rejected 1ms expected
 	open index operator `+` requires an explicit conformance binder on the machine owning the index expression, but the owner is not a machine
 fail/generics/property_bound_violated_at_instantiation rejected 0ms expected
 	type parameter `T [copy]` of `Box` was instantiated with `Heavy`, which does not satisfy `[copy]`
-	data `Box<Heavy>` declares `[copy]` but field `value` is not `copy`: only primitives and data types declaring `[copy]` qualify
+	data `Box<Heavy>` declares `[copy]` but field `value` is not `copy`: only primitives, shared references and data types declaring `[copy]` qualify
 fail/generics/structured_const_ineligible_float_field rejected 0ms expected
 	const argument for `Indexed::I` is invalid at this index site: `f64` is not eligible as a const index: runtime floating/text identity is not canonical structural data
 fail/generics/structured_const_rat_unreduced rejected 23ms expected
@@ -1611,10 +1611,9 @@ pass/text/runtime_bounded_carrier_length_exit checked 61ms
 pass/text/runtime_bounded_carrier_write_read_exit checked 182ms
 pass/text/runtime_carrier_indexed_read_exit checked 196ms
 pass/text/runtime_chained_string_append_exit checked 168ms
-pass/text/runtime_local_struct_string_field_concat_exit rejected 79ms
+pass/text/runtime_local_struct_string_field_concat_exit rejected 124ms
 	cannot prove default-domain field requirement for call good from Main::main::render: parameter self.source.label requires [u8]::Utf8
 	cannot prove default-domain field requirement for call bad from Main::main::render: parameter self.source.label requires [u8]::Utf8
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Main::main`, state `main` (statement 1)
 pass/text/runtime_mutable_string_parameter_concat_write_line checked 188ms
 pass/text/runtime_number_to_decimal_exit checked 572ms
 pass/text/runtime_owned_string_byte_view_exit checked 179ms
@@ -1627,10 +1626,9 @@ pass/text/runtime_slice_indexed_string_guard_exit rejected 94ms
 pass/text/runtime_stdin_command_branch_exit checked 247ms
 pass/text/runtime_stdin_line_buffering_exit checked 223ms
 pass/text/runtime_string_concat_two_fields_exit checked 207ms
-pass/text/runtime_string_stored_suffix_exit rejected 100ms
+pass/text/runtime_string_stored_suffix_exit rejected 124ms
 	cannot prove default-domain field requirement for call good from Main::main::render: parameter self.source.label requires [u8]::Utf8
 	cannot prove default-domain field requirement for call bad from Main::main::render: parameter self.source.label requires [u8]::Utf8
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Main::main`, state `main` (statement 1)
 pass/text/runtime_text_builder rejected 14ms
 	argument `text` for state `write_line` expects `&[u8][in Utf8]`, got `member access`
 pass/text/runtime_text_not_equals_exit checked 185ms
